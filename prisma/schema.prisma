@@ -1,0 +1,544 @@
+// Huchu Enterprises - Mine Operations Digitalization System
+// Prisma Schema for 5 small-scale gold mines in Zimbabwe
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// CORE ENTITIES - Company, Sites, Users
+// ============================================
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  sites     Site[]
+  users     User[]
+}
+
+model Site {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  location    String?
+  companyId   String
+  isActive    Boolean  @default(true)
+  
+  // Configurable per site
+  measurementUnit String @default("tonnes") // tonnes, trips, wheelbarrows
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company           Company            @relation(fields: [companyId], references: [id])
+  sections          Section[]
+  shiftReports      ShiftReport[]
+  plantReports      PlantReport[]
+  goldPours         GoldPour[]
+  attendance        Attendance[]
+  equipment         Equipment[]
+  inventory         InventoryItem[]
+  permits           Permit[]
+  incidents         Incident[]
+  inspections       Inspection[]
+  stockLocations    StockLocation[]
+  downtimeCodes     DowntimeCode[]
+  
+  @@index([companyId])
+}
+
+model Section {
+  id        String   @id @default(uuid())
+  name      String   // shaft, level, pit name
+  siteId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  site          Site           @relation(fields: [siteId], references: [id])
+  shiftReports  ShiftReport[]
+  
+  @@index([siteId])
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  SUPERVISOR
+  CLERK
+  OPERATOR
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole
+  companyId     String
+  phone         String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  company               Company           @relation(fields: [companyId], references: [id])
+  supervisedShifts      ShiftReport[]     @relation("SupervisorReports")
+  createdShiftReports   ShiftReport[]     @relation("CreatedBy")
+  verifiedShiftReports  ShiftReport[]     @relation("VerifiedBy")
+  approvedShiftReports  ShiftReport[]     @relation("ApprovedBy")
+  plantReports          PlantReport[]
+  goldPoursWitness1     GoldPour[]        @relation("Witness1")
+  goldPoursWitness2     GoldPour[]        @relation("Witness2")
+  goldDispatches        GoldDispatch[]
+  stockMovements        StockMovement[]
+  workOrders            WorkOrder[]
+  inspections           Inspection[]
+  trainingRecords       TrainingRecord[]
+  attendance            Attendance[]
+  
+  @@index([companyId])
+  @@index([email])
+}
+
+// ============================================
+// PHASE 1: DAILY OPERATIONS
+// ============================================
+
+enum ShiftType {
+  DAY
+  NIGHT
+}
+
+enum WorkType {
+  DEVELOPMENT
+  PRODUCTION
+  HAULAGE
+  SUPPORT
+  OTHER
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+  APPROVED
+  REJECTED
+}
+
+model ShiftReport {
+  id              String       @id @default(uuid())
+  date            DateTime
+  shift           ShiftType
+  siteId          String
+  sectionId       String?
+  supervisorId    String
+  crewCount       Int
+  workType        WorkType
+  
+  // Output metrics (flexible per site)
+  outputTonnes    Float?
+  outputTrips     Int?
+  outputWheelbarrows Int?
+  metresAdvanced  Float?
+  
+  // Safety and handover
+  hasIncident     Boolean      @default(false)
+  incidentNotes   String?
+  handoverNotes   String?
+  
+  // Photos (stored as JSON array of URLs)
+  photos          String?      // JSON array
+  
+  // Workflow
+  status          ReportStatus @default(DRAFT)
+  createdById     String
+  verifiedById    String?
+  approvedById    String?
+  verifiedAt      DateTime?
+  approvedAt      DateTime?
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  site            Site         @relation(fields: [siteId], references: [id])
+  section         Section?     @relation(fields: [sectionId], references: [id])
+  supervisor      User         @relation("SupervisorReports", fields: [supervisorId], references: [id])
+  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
+  verifiedBy      User?        @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  approvedBy      User?        @relation("ApprovedBy", fields: [approvedById], references: [id])
+  downtimeEvents  DowntimeEvent[]
+  
+  @@index([siteId, date])
+  @@index([date])
+}
+
+model DowntimeCode {
+  id          String   @id @default(uuid())
+  code        String
+  description String
+  siteId      String?  // null = company-wide defaults
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  
+  site        Site?    @relation(fields: [siteId], references: [id])
+  events      DowntimeEvent[]
+  
+  @@index([siteId])
+}
+
+model DowntimeEvent {
+  id              String      @id @default(uuid())
+  shiftReportId   String?
+  plantReportId   String?
+  downtimeCodeId  String
+  durationHours   Float
+  notes           String?
+  createdAt       DateTime    @default(now())
+  
+  shiftReport     ShiftReport? @relation(fields: [shiftReportId], references: [id])
+  plantReport     PlantReport? @relation(fields: [plantReportId], references: [id])
+  downtimeCode    DowntimeCode @relation(fields: [downtimeCodeId], references: [id])
+  
+  @@index([shiftReportId])
+  @@index([plantReportId])
+}
+
+model Attendance {
+  id          String   @id @default(uuid())
+  date        DateTime
+  siteId      String
+  shift       ShiftType
+  userId      String
+  status      String   // PRESENT, ABSENT, LATE
+  overtime    Float?   // hours
+  notes       String?
+  createdAt   DateTime @default(now())
+  
+  site        Site     @relation(fields: [siteId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  
+  @@unique([date, siteId, shift, userId])
+  @@index([siteId, date])
+}
+
+// ============================================
+// PHASE 2: PLANT REPORTING
+// ============================================
+
+model PlantReport {
+  id              String          @id @default(uuid())
+  date            DateTime
+  siteId          String
+  tonnesFed       Float?
+  tonnesProcessed Float?
+  runHours        Float?
+  
+  // Consumables
+  dieselUsed      Float?
+  grindingMedia   Float?
+  reagentsUsed    Float?
+  waterUsed       Float?
+  
+  // Gold recovered (if poured)
+  goldRecovered   Float?
+  
+  notes           String?
+  reportedById    String
+  status          ReportStatus    @default(DRAFT)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  site            Site            @relation(fields: [siteId], references: [id])
+  reportedBy      User            @relation(fields: [reportedById], references: [id])
+  downtimeEvents  DowntimeEvent[]
+  
+  @@index([siteId, date])
+}
+
+// ============================================
+// PHASE 3: GOLD CONTROL
+// ============================================
+
+model GoldPour {
+  id              String       @id @default(uuid())
+  pourBarId       String       @unique
+  pourDate        DateTime
+  siteId          String
+  grossWeight     Float
+  estimatedPurity Float?
+  witness1Id      String
+  witness2Id      String
+  storageLocation String
+  notes           String?
+  
+  // Audit trail
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  corrections     String?      // JSON log of corrections
+  
+  site            Site         @relation(fields: [siteId], references: [id])
+  witness1        User         @relation("Witness1", fields: [witness1Id], references: [id])
+  witness2        User         @relation("Witness2", fields: [witness2Id], references: [id])
+  dispatches      GoldDispatch[]
+  
+  @@index([siteId])
+  @@index([pourDate])
+}
+
+model GoldDispatch {
+  id              String    @id @default(uuid())
+  goldPourId      String
+  dispatchDate    DateTime
+  courier         String
+  vehicle         String?
+  destination     String
+  sealNumbers     String
+  handedOverById  String
+  receivedBy      String?
+  notes           String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  goldPour        GoldPour  @relation(fields: [goldPourId], references: [id])
+  handedOverBy    User      @relation(fields: [handedOverById], references: [id])
+  buyerReceipt    BuyerReceipt?
+  
+  @@index([goldPourId])
+}
+
+model BuyerReceipt {
+  id              String       @id @default(uuid())
+  goldDispatchId  String       @unique
+  receiptNumber   String
+  receiptDate     DateTime
+  assayResult     Float?       // actual purity
+  paidAmount      Float
+  paymentMethod   String
+  paymentChannel  String?
+  notes           String?
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  goldDispatch    GoldDispatch @relation(fields: [goldDispatchId], references: [id])
+  
+  @@index([receiptDate])
+}
+
+// ============================================
+// PHASE 4: STORES & MAINTENANCE
+// ============================================
+
+model StockLocation {
+  id        String   @id @default(uuid())
+  name      String
+  siteId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  
+  site      Site     @relation(fields: [siteId], references: [id])
+  items     InventoryItem[]
+  
+  @@index([siteId])
+}
+
+model InventoryItem {
+  id              String   @id @default(uuid())
+  itemCode        String
+  name            String
+  category        String   // FUEL, SPARES, CONSUMABLES, PPE, REAGENTS
+  unit            String   // litres, kg, pieces, etc.
+  siteId          String
+  locationId      String
+  currentStock    Float    @default(0)
+  minStock        Float?
+  maxStock        Float?
+  unitCost        Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  site            Site     @relation(fields: [siteId], references: [id])
+  location        StockLocation @relation(fields: [locationId], references: [id])
+  movements       StockMovement[]
+  
+  @@unique([siteId, itemCode])
+  @@index([siteId])
+}
+
+enum MovementType {
+  RECEIPT
+  ISSUE
+  ADJUSTMENT
+  TRANSFER
+}
+
+model StockMovement {
+  id              String       @id @default(uuid())
+  itemId          String
+  movementType    MovementType
+  quantity        Float
+  unit            String
+  issuedTo        String?      // section/equipment/cost code
+  requestedBy     String?
+  issuedById      String?
+  approvedBy      String?
+  notes           String?
+  photoUrl        String?
+  
+  createdAt       DateTime     @default(now())
+  
+  item            InventoryItem @relation(fields: [itemId], references: [id])
+  issuedBy        User?        @relation(fields: [issuedById], references: [id])
+  
+  @@index([itemId])
+  @@index([createdAt])
+}
+
+model Equipment {
+  id              String   @id @default(uuid())
+  equipmentCode   String
+  name            String
+  category        String   // CRUSHER, MILL, PUMP, VEHICLE, etc.
+  siteId          String
+  qrCode          String?  @unique
+  isActive        Boolean  @default(true)
+  
+  // Service tracking
+  serviceHours    Float?
+  serviceDays     Int?
+  lastServiceDate DateTime?
+  nextServiceDue  DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  site            Site     @relation(fields: [siteId], references: [id])
+  workOrders      WorkOrder[]
+  
+  @@unique([siteId, equipmentCode])
+  @@index([siteId])
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model WorkOrder {
+  id              String          @id @default(uuid())
+  equipmentId     String
+  issue           String
+  downtimeStart   DateTime
+  downtimeEnd     DateTime?
+  workDone        String?
+  partsUsed       String?         // JSON array
+  technicianId    String?
+  status          WorkOrderStatus @default(OPEN)
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  equipment       Equipment       @relation(fields: [equipmentId], references: [id])
+  technician      User?           @relation(fields: [technicianId], references: [id])
+  
+  @@index([equipmentId])
+  @@index([status])
+}
+
+// ============================================
+// PHASE 5: COMPLIANCE
+// ============================================
+
+model Permit {
+  id              String   @id @default(uuid())
+  permitType      String
+  permitNumber    String
+  siteId          String
+  issueDate       DateTime
+  expiryDate      DateTime
+  responsiblePerson String
+  documentUrl     String?
+  status          String   @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  site            Site     @relation(fields: [siteId], references: [id])
+  
+  @@index([siteId])
+  @@index([expiryDate])
+}
+
+model Inspection {
+  id              String   @id @default(uuid())
+  siteId          String
+  inspectionDate  DateTime
+  inspectorName   String
+  inspectorOrg    String
+  findings        String
+  actions         String?
+  actionsDue      DateTime?
+  completedById   String?
+  completedAt     DateTime?
+  documentUrl     String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  completedBy     User?    @relation(fields: [completedById], references: [id])
+  
+  @@index([siteId])
+}
+
+model Incident {
+  id              String   @id @default(uuid())
+  siteId          String
+  incidentDate    DateTime
+  incidentType    String   // INJURY, NEAR_MISS, ENVIRONMENTAL, SECURITY
+  severity        String   // LOW, MEDIUM, HIGH, CRITICAL
+  description     String
+  actionsTaken    String?
+  reportedBy      String
+  photoUrls       String?  // JSON array
+  status          String   @default("OPEN") // OPEN, INVESTIGATING, CLOSED
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  site            Site     @relation(fields: [siteId], references: [id])
+  
+  @@index([siteId])
+  @@index([incidentDate])
+}
+
+model TrainingRecord {
+  id              String   @id @default(uuid())
+  userId          String
+  trainingType    String
+  trainingDate    DateTime
+  expiryDate      DateTime?
+  certificateUrl  String?
+  trainedBy       String?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([expiryDate])
+}
