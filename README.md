@@ -18,25 +18,48 @@ This is a mine operating system for 5 sites covering:
 
 ## 📱 Key Features
 
-### Phase 1: Daily Heartbeat (CURRENT)
-✅ **Shift Report** - 2-minute mobile-first form for daily operations
-✅ **Attendance Tracking** - Daily crew attendance and overtime
-✅ **Plant Report** - Processing metrics and downtime tracking
-✅ **Gold Control** - Pour recording with 2-person witness rule
-✅ **Offline-first PWA** - Works without internet, syncs when connected
+### Phase 1: Daily Heartbeat ✅ COMPLETE
+- ✅ **Shift Report** - 2-minute mobile-first form for daily operations
+- ✅ **Attendance Tracking** - Daily crew attendance and overtime
+- ✅ **Plant Report** - Processing metrics and downtime tracking
+- ✅ **Gold Control** - Pour recording with 2-person witness rule
+- ✅ **Dashboard** - Module navigation and quick stats
 
-### Future Phases
-- **Phase 2**: Enhanced plant reporting with downtime analytics
-- **Phase 3**: Complete gold chain (dispatch, receipts, reconciliation)
-- **Phase 4**: Stores inventory and maintenance management
-- **Phase 5**: Compliance automation (permits, inspections, incidents)
-- **Phase 6**: Cross-mine analytics dashboards
+### Phase 2: Processing + Downtime ✅ COMPLETE
+- ✅ **Downtime Analytics** - Top causes by site with visual rankings
+- ✅ **System Status Tracker** - Always-visible progress tracking
+- ⭕ Trend Charts (placeholder)
+- ⭕ Weekly Reports (pending)
+
+### Phase 3: Gold Control ✅ COMPLETE
+- ✅ **Dispatch Manifest** - Chain of custody documentation
+- ✅ **Buyer Receipt** - Assay results and payment tracking
+- ✅ **Reconciliation View** - Complete pour-to-payment chain
+- ✅ **Audit Trail** - Immutable activity log
+
+### Phase 4: Stores + Maintenance 🔧 IN PROGRESS
+- ⭕ Inventory Management
+- ⭕ Fuel Ledger
+- ⭕ Equipment Register
+- ⭕ Work Orders
+
+### Phase 5: Compliance ⭕ PENDING
+- ⭕ Permit Calendar
+- ⭕ Incident Reports
+- ⭕ Training Matrix
+- ⭕ Audit Exports
+
+### Phase 6: Analytics ⭕ PENDING
+- ⭕ Cross-Mine Dashboard
+- ⭕ Production Trends
+- ⭕ Cost Analysis
+- ⭕ Safety Metrics
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 18+ 
-- PostgreSQL database
+- PostgreSQL 14+
 - npm or yarn
 
 ### Installation
@@ -54,10 +77,13 @@ npm install
 
 3. Set up environment variables:
 ```bash
-# Create .env file with:
-DATABASE_URL="postgresql://user:password@localhost:5432/huchu"
-NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="http://localhost:3000"
+# Copy the example file
+cp .env.example .env
+
+# Edit .env and add your PostgreSQL connection string
+# DATABASE_URL="postgresql://user:password@localhost:5432/huchu_mines"
+# NEXTAUTH_SECRET="<generate-with-openssl-rand-base64-32>"
+# NEXTAUTH_URL="http://localhost:3000"
 ```
 
 4. Initialize the database:
@@ -66,6 +92,8 @@ npx prisma generate
 npx prisma db push
 ```
 
+For detailed database setup instructions, see [DATABASE_SETUP.md](./DATABASE_SETUP.md)
+
 5. Run the development server:
 ```bash
 npm run dev
@@ -73,20 +101,25 @@ npm run dev
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+### Default Login (After Seeding)
+- **Email**: admin@huchu.com
+- **Password**: admin123
+
 ## 🏛️ Architecture
 
 ### Tech Stack
-- **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, Prisma ORM
 - **Database**: PostgreSQL
+- **Authentication**: NextAuth.js with credential provider
 - **UI Components**: Custom components built with Radix UI primitives
 - **Icons**: Lucide React
 - **Forms**: React Hook Form + Zod validation
-- **PWA**: Offline-first with IndexedDB
+- **PWA**: Offline-first with service workers and IndexedDB
 
 ### Database Schema
 The system uses a comprehensive Prisma schema covering:
-- Company → Sites → Sections
+- Company → Sites → Sections (multi-tenant)
 - Users with role-based access (Owner, Manager, Supervisor, Clerk, Operator)
 - Shift Reports with workflow (Draft → Submitted → Verified → Approved)
 - Plant Reports with downtime tracking
@@ -94,6 +127,7 @@ The system uses a comprehensive Prisma schema covering:
 - Inventory and Stock Movements
 - Equipment and Work Orders
 - Compliance (Permits, Inspections, Incidents, Training)
+- NextAuth models (Account, Session, VerificationToken)
 
 ## 📋 UX Principles
 

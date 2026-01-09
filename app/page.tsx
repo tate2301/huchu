@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SystemStatus } from "@/components/status/system-status";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { 
   ClipboardList, 
   Factory, 
@@ -12,10 +13,14 @@ import {
   Users,
   BarChart3,
   FileText,
-  ChevronRight
+  ChevronRight,
+  Activity,
+  LogOut
 } from "lucide-react";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -26,18 +31,52 @@ export default function Home() {
               <h1 className="text-2xl md:text-3xl font-bold">Huchu Enterprises</h1>
               <p className="text-blue-100 text-sm md:text-base mt-1">Mine Operations System</p>
             </div>
-            <Button variant="outline" className="text-blue-600 bg-white hover:bg-blue-50">
-              <Users className="mr-2 h-4 w-4" />
-              Login
-            </Button>
+            <div className="flex items-center gap-3">
+              {session ? (
+                <>
+                  <div className="hidden md:block text-right mr-2">
+                    <div className="text-sm font-medium">{session.user?.name}</div>
+                    <div className="text-xs text-blue-200">{(session.user as any)?.role}</div>
+                  </div>
+                  <Link href="/api/auth/signout">
+                    <Button variant="outline" className="text-blue-600 bg-white hover:bg-blue-50">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <Link href="/login">
+                  <Button variant="outline" className="text-blue-600 bg-white hover:bg-blue-50">
+                    <Users className="mr-2 h-4 w-4" />
+                    Login
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* System Status Tracker */}
-        <SystemStatus />
+        {/* Implementation Status Link */}
+        <Link href="/status">
+          <Card className="mb-8 cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Activity className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <h3 className="font-semibold text-lg">View Implementation Status</h3>
+                    <p className="text-sm text-gray-600">Track progress across all 6 phases</p>
+                  </div>
+                </div>
+                <ChevronRight className="h-6 w-6 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
