@@ -21,9 +21,9 @@ const mockInventory = [
 
 const mockFuelLedger = [
   { date: "2026-01-08", type: "issue", equipment: "Generator 1", quantity: 120, opening: 570, closing: 450, requestedBy: "Night Shift", approvedBy: "Site Manager" },
-  { date: "2026-01-07", type: "receipt", supplier: "Delta Fuels", quantity: 1500, opening: -930, closing: 570, receivedBy: "Stores Clerk", invoiceNo: "INV-2401" },
-  { date: "2026-01-07", type: "issue", equipment: "Crusher", quantity: 85, opening: 15, closing: -930, requestedBy: "Day Shift", approvedBy: "Site Manager" },
-  { date: "2026-01-06", type: "issue", equipment: "Haul Trucks", quantity: 150, opening: 165, closing: 15, requestedBy: "Day Shift", approvedBy: "Supervisor" },
+  { date: "2026-01-07", type: "receipt", supplier: "Delta Fuels", quantity: 1500, opening: 70, closing: 1570, receivedBy: "Stores Clerk", invoiceNo: "INV-2401" },
+  { date: "2026-01-07", type: "issue", equipment: "Crusher", quantity: 85, opening: 1570, closing: 1485, requestedBy: "Day Shift", approvedBy: "Site Manager" },
+  { date: "2026-01-07", type: "issue", equipment: "Haul Trucks", quantity: 915, opening: 1485, closing: 570, requestedBy: "Day Shift", approvedBy: "Supervisor" },
 ]
 
 const mockRecentMovements = [
