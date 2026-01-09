@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SystemStatus } from "@/components/status/system-status";
 import { 
   ClipboardList, 
   Factory, 
@@ -35,6 +36,9 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
+        {/* System Status Tracker */}
+        <SystemStatus />
+
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Card>
@@ -190,6 +194,22 @@ export default function Home() {
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-gray-900">Management & Compliance</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Analytics - NEW FOR PHASE 2 */}
+            <Link href="/analytics">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-indigo-200 bg-indigo-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <BarChart3 className="h-8 w-8 text-indigo-600" />
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <CardTitle className="mt-4">Downtime Analytics</CardTitle>
+                  <CardDescription>
+                    Phase 2: Top causes by site, trends (NEW!)
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+
             {/* Dashboards */}
             <Link href="/dashboard">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
@@ -198,7 +218,7 @@ export default function Home() {
                     <BarChart3 className="h-8 w-8 text-indigo-600" />
                     <ChevronRight className="h-5 w-5 text-gray-400" />
                   </div>
-                  <CardTitle className="mt-4">Analytics</CardTitle>
+                  <CardTitle className="mt-4">Production Dashboard</CardTitle>
                   <CardDescription>
                     Cross-mine production, costs, trends
                   </CardDescription>
