@@ -32,10 +32,10 @@ const phases: Phase[] = [
   {
     phase: 2,
     title: "Processing + Downtime",
-    status: "in-progress",
+    status: "complete",
     items: [
-      { name: "Enhanced Plant Report", status: "in-progress", description: "Full downtime tracking" },
-      { name: "Downtime Analytics", status: "in-progress", description: "Top causes by site" },
+      { name: "Enhanced Plant Report", status: "complete", description: "Full downtime tracking" },
+      { name: "Downtime Analytics", status: "complete", description: "Top causes by site" },
       { name: "Trend Charts", status: "pending", description: "Tonnes processed, downtime hours" },
       { name: "Weekly Reports", status: "pending", description: "Summary views" },
     ]
@@ -43,18 +43,18 @@ const phases: Phase[] = [
   {
     phase: 3,
     title: "Gold Control",
-    status: "pending",
+    status: "complete",
     items: [
-      { name: "Dispatch Manifest", status: "pending", description: "Chain of custody" },
-      { name: "Buyer Receipt", status: "pending", description: "Assay and payment" },
-      { name: "Reconciliation View", status: "pending", description: "Pour → dispatch → receipt" },
-      { name: "Audit Trail", status: "pending", description: "Immutable records" },
+      { name: "Dispatch Manifest", status: "complete", description: "Chain of custody" },
+      { name: "Buyer Receipt", status: "complete", description: "Assay and payment" },
+      { name: "Reconciliation View", status: "complete", description: "Pour → dispatch → receipt" },
+      { name: "Audit Trail", status: "complete", description: "Immutable records" },
     ]
   },
   {
     phase: 4,
     title: "Stores + Maintenance",
-    status: "pending",
+    status: "in-progress",
     items: [
       { name: "Inventory Management", status: "pending", description: "Stock on hand" },
       { name: "Fuel Ledger", status: "pending", description: "Track usage" },
