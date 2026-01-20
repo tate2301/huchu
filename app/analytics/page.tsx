@@ -1,13 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { PageHeading } from "@/components/layout/page-heading"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select } from "@/components/ui/select"
-import { ArrowLeft, TrendingDown, Clock, Zap } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { TrendingDown, Clock, Zap } from "lucide-react"
 
-// Mock data for demonstration
 const mockDowntimeData = {
   site1: [
     { reason: "No power", hours: 8.5, percentage: 35, trend: "up" },
@@ -48,196 +46,120 @@ export default function AnalyticsPage() {
   const totalHours = currentData.reduce((sum, item) => sum + item.hours, 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-indigo-600 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" className="text-white hover:bg-indigo-700 p-2">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      <PageHeading title="Downtime Analytics" description="Phase 2: Top causes by site" />
+
+      <Card>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Downtime Analytics</h1>
-              <p className="text-indigo-100 text-sm">Phase 2: Top causes by site</p>
+              <label className="block text-sm font-medium mb-2">Site</label>
+              <Select value={selectedSite} onValueChange={setSelectedSite}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Time Range</label>
+              <Select value={timeRange} onValueChange={setTimeRange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select time range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="quarter">This Quarter</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
-      </header>
+        </CardContent>
+      </Card>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6 max-w-6xl">
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Site</label>
-                <Select 
-                  value={selectedSite}
-                  onChange={(e) => setSelectedSite(e.target.value)}
-                >
-                  {sites.map(site => (
-                    <option key={site.id} value={site.id}>{site.name}</option>
-                  ))}
-                </Select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">Time Range</label>
-                <Select 
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                >
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="quarter">This Quarter</option>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Total Downtime
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{totalHours.toFixed(1)}h</div>
-              <p className="text-xs text-gray-500 mt-1">This {timeRange}</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <TrendingDown className="h-4 w-4" />
-                Top Cause
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg font-bold">{currentData[0]?.reason}</div>
-              <p className="text-xs text-gray-500 mt-1">{currentData[0]?.hours.toFixed(1)}h ({currentData[0]?.percentage}%)</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                Incidents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{currentData.length}</div>
-              <p className="text-xs text-gray-500 mt-1">Different causes</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Top Causes Chart */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle>Top Downtime Causes</CardTitle>
-            <CardDescription>
-              Ranked by total hours lost this {timeRange}
-            </CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Total Downtime
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {currentData.map((item, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <span className="text-2xl font-bold text-gray-300">
-                        {index + 1}
-                      </span>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium">{item.reason}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-gray-600">
-                              {item.hours.toFixed(1)}h
-                            </span>
-                            <span className="text-sm font-medium text-gray-900">
-                              {item.percentage}%
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className={`h-3 rounded-full ${
-                              index === 0 ? 'bg-red-500' :
-                              index === 1 ? 'bg-orange-500' :
-                              index === 2 ? 'bg-yellow-500' :
-                              'bg-blue-500'
-                            }`}
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
+            <div className="text-3xl font-bold">{totalHours.toFixed(1)}h</div>
+            <p className="text-xs text-muted-foreground mt-1">This {timeRange}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <TrendingDown className="h-4 w-4" />
+              Top Cause
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-semibold">{currentData[0].reason}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {currentData[0].hours}h ({currentData[0].percentage}%)
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Availability
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {((1 - totalHours / (timeRange === "week" ? 168 : timeRange === "month" ? 720 : 2160)) * 100).toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Estimated uptime</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Downtime Breakdown</CardTitle>
+          <CardDescription>Hours lost by cause</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {currentData.map((item, index) => (
+              <div key={index} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{item.reason}</span>
+                    {item.trend === "up" && <TrendingDown className="h-3 w-3 text-red-500 rotate-180" />}
+                    {item.trend === "down" && <TrendingDown className="h-3 w-3 text-green-500" />}
                   </div>
+                  <span className="text-sm text-muted-foreground">
+                    {item.hours}h ({item.percentage}%)
+                  </span>
                 </div>
-              ))}
-            </div>
-
-            {/* Action Items */}
-            <div className="mt-6 pt-6 border-t">
-              <h4 className="font-medium mb-3">Recommendations</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-orange-600">•</span>
-                  <span>Priority 1: Address {currentData[0]?.reason.toLowerCase()} - causing {currentData[0]?.percentage}% of downtime</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-orange-600">•</span>
-                  <span>Monitor {currentData[1]?.reason.toLowerCase()} - second highest impact</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600">•</span>
-                  <span>Total potential recovery: {totalHours.toFixed(1)} hours with proper mitigation</span>
-                </li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Weekly Trend Placeholder */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Downtime Trend</CardTitle>
-            <CardDescription>Coming soon: Historical trend chart</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <TrendingDown className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm">Chart visualization under development</p>
-                <p className="text-xs mt-1">Will show daily downtime trends</p>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full"
+                    style={{ width: `${item.percentage}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Export Actions */}
-        <div className="flex gap-3 mt-6">
-          <Button variant="outline" className="flex-1">
-            Export PDF Report
-          </Button>
-          <Button variant="outline" className="flex-1">
-            Export CSV Data
-          </Button>
-        </div>
-      </main>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -39,19 +39,19 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        code: { select: { name: true, code: true } },
+        downtimeCode: { select: { description: true, code: true } },
       },
     });
 
     // Aggregate by cause
-    const aggregated: Record<string, { name: string; code: string; hours: number; count: number }> = {};
+    const aggregated: Record<string, { description: string; code: string; hours: number; count: number }> = {};
     
-    downtimeEvents.forEach((event: { code: { name: string; code: string }; durationHours: number }) => {
-      const key = event.code.code;
+    downtimeEvents.forEach((event) => {
+      const key = event.downtimeCode.code;
       if (!aggregated[key]) {
         aggregated[key] = {
-          name: event.code.name,
-          code: event.code.code,
+          description: event.downtimeCode.description,
+          code: event.downtimeCode.code,
           hours: 0,
           count: 0,
         };

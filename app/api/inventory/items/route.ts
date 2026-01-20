@@ -4,16 +4,26 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const inventoryItemSchema = z.object({
-  code: z.string().min(1).max(50),
+  itemCode: z.string().min(1).max(50),
   name: z.string().min(1).max(200),
   category: z.enum(['FUEL', 'SPARES', 'CONSUMABLES', 'PPE', 'REAGENTS', 'OTHER']),
   siteId: z.string().uuid(),
-  currentStock: z.number().min(0),
-  minimumStock: z.number().min(0),
-  unit: z.string().min(1).max(20),
-  unitCost: z.number().min(0).optional(),
   locationId: z.string().uuid(),
-});
+  unit: z.string().min(1).max(20),
+  currentStock: z.number().min(0).optional(),
+  minStock: z.number().min(0).optional(),
+  maxStock: z.number().min(0).optional(),
+  unitCost: z.number().min(0).optional(),
+}).refine(
+  (data) =>
+    data.minStock === undefined ||
+    data.maxStock === undefined ||
+    data.minStock <= data.maxStock,
+  {
+    message: 'minStock must be less than or equal to maxStock',
+    path: ['minStock'],
+  }
+);
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,9 +44,21 @@ export async function GET(request: NextRequest) {
     if (siteId) where.siteId = siteId;
     if (category) where.category = category;
     if (lowStock) {
-      where.OR = [
-        { currentStock: { lte: prisma.inventoryItem.fields.minimumStock } },
-      ];
+      const items = await prisma.inventoryItem.findMany({
+        where,
+        include: {
+          site: { select: { name: true, code: true } },
+          location: { select: { name: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      const filtered = items.filter(
+        (item) => item.minStock !== null && item.currentStock <= (item.minStock ?? 0)
+      );
+      const paged = filtered.slice(skip, skip + limit);
+
+      return successResponse(paginationResponse(paged, filtered.length, page, limit));
     }
 
     const [items, total] = await Promise.all([
@@ -79,10 +101,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid site', 403);
     }
 
+    if (!site.isActive) {
+      return errorResponse('Site is not active', 400);
+    }
+
     // Check for duplicate code
     const existing = await prisma.inventoryItem.findFirst({
       where: {
-        code: validated.code,
+        itemCode: validated.itemCode,
         siteId: validated.siteId,
       },
     });
@@ -91,8 +117,28 @@ export async function POST(request: NextRequest) {
       return errorResponse('Item code already exists for this site', 409);
     }
 
+    const location = await prisma.stockLocation.findUnique({
+      where: { id: validated.locationId },
+      select: { siteId: true, isActive: true },
+    });
+
+    if (!location || location.siteId !== validated.siteId || !location.isActive) {
+      return errorResponse('Invalid stock location for site', 400);
+    }
+
     const item = await prisma.inventoryItem.create({
-      data: validated,
+      data: {
+        itemCode: validated.itemCode,
+        name: validated.name,
+        category: validated.category,
+        siteId: validated.siteId,
+        locationId: validated.locationId,
+        unit: validated.unit,
+        currentStock: validated.currentStock ?? 0,
+        minStock: validated.minStock,
+        maxStock: validated.maxStock,
+        unitCost: validated.unitCost,
+      },
       include: {
         site: { select: { name: true, code: true } },
         location: { select: { name: true } },

@@ -8,10 +8,11 @@ const attendanceSchema = z.object({
   siteId: z.string().uuid(),
   shift: z.enum(['DAY', 'NIGHT']),
   records: z.array(z.object({
-    employeeId: z.string().uuid(),
+    userId: z.string().uuid(),
     status: z.enum(['PRESENT', 'ABSENT', 'LATE']),
-    overtimeHours: z.number().min(0).max(24).optional(),
-  })),
+    overtime: z.number().min(0).max(24).optional(),
+    notes: z.string().max(500).optional(),
+  })).min(1),
 });
 
 export async function POST(request: NextRequest) {
@@ -33,27 +34,60 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid site', 403);
     }
 
-    // Create attendance records
-    const attendanceRecords = await Promise.all(
-      validated.records.map((record) =>
-        prisma.attendance.create({
-          data: {
-            date: new Date(validated.date),
-            siteId: validated.siteId,
-            shift: validated.shift,
-            employeeId: record.employeeId,
-            status: record.status,
-            overtimeHours: record.overtimeHours || 0,
-            recordedById: session.user.id,
-          },
-        })
-      )
-    );
+    if (!site.isActive) {
+      return errorResponse('Site is not active', 400);
+    }
 
-    return successResponse({ 
-      success: true, 
-      count: attendanceRecords.length,
-      records: attendanceRecords 
+    const userIds = validated.records.map((record) => record.userId);
+    const uniqueUserIds = new Set(userIds);
+    if (uniqueUserIds.size !== userIds.length) {
+      return errorResponse('Duplicate user entries in attendance records', 400);
+    }
+
+    const attendanceDate = new Date(validated.date);
+
+    const existingAttendance = await prisma.attendance.findMany({
+      where: {
+        date: attendanceDate,
+        siteId: validated.siteId,
+        shift: validated.shift,
+        userId: { in: userIds },
+      },
+      select: { userId: true },
+    });
+
+    if (existingAttendance.length > 0) {
+      return errorResponse('Attendance already recorded for one or more users', 409, {
+        userIds: existingAttendance.map((record) => record.userId),
+      });
+    }
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds }, companyId: session.user.companyId, isActive: true },
+      select: { id: true },
+    });
+
+    if (users.length !== userIds.length) {
+      return errorResponse('One or more users are invalid or inactive', 400);
+    }
+
+    const attendanceRecords = validated.records.map((record) => ({
+      date: attendanceDate,
+      siteId: validated.siteId,
+      shift: validated.shift,
+      userId: record.userId,
+      status: record.status,
+      overtime: record.overtime || 0,
+      notes: record.notes,
+    }));
+
+    const result = await prisma.attendance.createMany({
+      data: attendanceRecords,
+    });
+
+    return successResponse({
+      success: true,
+      count: result.count,
     }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {

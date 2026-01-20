@@ -60,7 +60,7 @@ This is a mine operating system for 5 sites covering:
 ### Prerequisites
 - Node.js 18+ 
 - PostgreSQL 14+
-- npm or yarn
+- pnpm
 
 ### Installation
 
@@ -72,7 +72,7 @@ cd huchu
 
 2. Install dependencies:
 ```bash
-npm install
+pnpm install
 ```
 
 3. Set up environment variables:
@@ -88,15 +88,15 @@ cp .env.example .env
 
 4. Initialize the database:
 ```bash
-npx prisma generate
-npx prisma db push
+pnpm prisma generate
+pnpm prisma db push
 ```
 
 For detailed database setup instructions, see [DATABASE_SETUP.md](./DATABASE_SETUP.md)
 
 5. Run the development server:
 ```bash
-npm run dev
+pnpm dev
 ```
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser
@@ -108,7 +108,7 @@ npm run dev
 ## 🏛️ Architecture
 
 ### Tech Stack
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, Prisma ORM
 - **Database**: PostgreSQL
 - **Authentication**: NextAuth.js with credential provider
@@ -120,7 +120,7 @@ npm run dev
 ### Database Schema
 The system uses a comprehensive Prisma schema covering:
 - Company → Sites → Sections (multi-tenant)
-- Users with role-based access (Owner, Manager, Supervisor, Clerk, Operator)
+- Users with role-based access (Superadmin, Manager, Clerk)
 - Shift Reports with workflow (Draft → Submitted → Verified → Approved)
 - Plant Reports with downtime tracking
 - Gold Control (Pours, Dispatches, Receipts) with audit trail
@@ -204,16 +204,19 @@ The system uses a comprehensive Prisma schema covering:
 
 ```bash
 # Development
-npm run dev              # Start dev server
-npm run build            # Build for production
-npm run start            # Start production server
-npm run lint             # Run ESLint
+pnpm dev                 # Start dev server
+pnpm build               # Build for production
+pnpm start               # Start production server
+pnpm lint                # Run ESLint
 
 # Database
-npx prisma generate      # Generate Prisma client
-npx prisma db push       # Push schema to database
-npx prisma studio        # Open Prisma Studio GUI
-npx prisma migrate dev   # Create and apply migrations
+pnpm prisma generate     # Generate Prisma client
+pnpm prisma db push      # Push schema to database
+pnpm prisma studio       # Open Prisma Studio GUI
+pnpm prisma migrate dev  # Create and apply migrations
+
+# User management
+pnpm create-user --email user@example.com --name "User Name" --password "securepass" --role manager --company-id <uuid>
 ```
 
 ## 📖 Deployment
@@ -222,8 +225,8 @@ npx prisma migrate dev   # Create and apply migrations
 1. Set up PostgreSQL database
 2. Configure environment variables
 3. Run database migrations
-4. Build the application: `npm run build`
-5. Start the server: `npm run start`
+4. Build the application: `pnpm build`
+5. Start the server: `pnpm start`
 6. Configure reverse proxy (nginx/Apache)
 7. Set up SSL certificates
 8. Configure backups

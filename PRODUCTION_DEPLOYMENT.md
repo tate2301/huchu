@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 18+ and pnpm
 - PostgreSQL 14+ database
 - Domain with SSL certificate (recommended)
 
@@ -30,22 +30,22 @@ NEXTAUTH_URL="https://your-domain.com"
 
 1. Install Prisma CLI (if not installed):
 ```bash
-npm install -g prisma
+pnpm add -g prisma
 ```
 
 2. Generate Prisma Client:
 ```bash
-npx prisma generate
+pnpm prisma generate
 ```
 
 3. Create database schema:
 ```bash
-npx prisma db push
+pnpm prisma db push
 ```
 
 4. Seed initial data (using Prisma Studio):
 ```bash
-npx prisma studio
+pnpm prisma studio
 ```
 
 ### Required Seed Data
@@ -72,22 +72,27 @@ npx prisma studio
 - OTHER - Other
 
 **Users:**
-- Create admin user with OWNER role
-- Create manager, supervisor, clerk users as needed
+- Create admin user with SUPERADMIN role
+- Create manager and clerk users as needed
+
+Example:
+```bash
+pnpm create-user --email admin@huchu.com --name "Admin User" --password "admin123" --role superadmin --company-id <company-uuid>
+```
 
 ## Build and Deploy
 
 ### Development
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Production Build
 ```bash
-npm install --production
-npm run build
-npm run start
+pnpm install --prod
+pnpm build
+pnpm start
 ```
 
 ### Using Docker (Optional)
@@ -95,13 +100,14 @@ npm run start
 ```dockerfile
 FROM node:18-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable
+RUN pnpm install --prod
 COPY . .
-RUN npx prisma generate
-RUN npm run build
+RUN pnpm prisma generate
+RUN pnpm build
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["pnpm", "start"]
 ```
 
 ## API Endpoints
@@ -146,12 +152,12 @@ Reports follow this workflow:
 1. **DRAFT** - Initial creation, editable
 2. **SUBMITTED** - Submitted for review, read-only
 3. **VERIFIED** - Verified by manager, locked
-4. **APPROVED** - Approved by owner, immutable
+4. **APPROVED** - Approved by superadmin, immutable
 
 ## Security Features
 
 - Session-based authentication (JWT)
-- Role-based access control (5 roles)
+- Role-based access control (3 roles)
 - Company-scoped data isolation
 - 2-person witness rule for gold operations
 - Immutable records after approval
@@ -159,11 +165,9 @@ Reports follow this workflow:
 
 ## Role Permissions
 
-- **OWNER**: Full access, can approve all
+- **SUPERADMIN**: Full access, can approve all
 - **MANAGER**: Can verify and manage operations
-- **SUPERVISOR**: Can create and submit reports
-- **CLERK**: Can enter data
-- **OPERATOR**: Read-only access
+- **CLERK**: Can enter data and submit reports
 
 ## Performance Optimization
 

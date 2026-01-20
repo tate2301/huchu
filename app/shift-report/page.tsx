@@ -1,13 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
+import { PageActions } from "@/components/layout/page-actions"
+import { PageHeading } from "@/components/layout/page-heading"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select } from "@/components/ui/select"
-import { ArrowLeft, Save, Send, Camera } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Save, Send, Camera } from "lucide-react"
 
 export default function ShiftReportPage() {
   const [formData, setFormData] = useState({
@@ -29,11 +30,18 @@ export default function ShiftReportPage() {
 
   const [saving, setSaving] = useState(false)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }))
+  }
+
+  const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
     }))
   }
 
@@ -66,27 +74,21 @@ export default function ShiftReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-blue-600 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" className="text-white hover:bg-blue-700 p-2">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">Shift Report</h1>
-              <p className="text-blue-100 text-sm">Quick 2-minute daily entry</p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <PageActions>
+        <Button size="sm" variant="outline" onClick={handleSaveDraft} disabled={saving}>
+          <Save className="h-4 w-4" />
+          Save Draft
+        </Button>
+        <Button size="sm" type="submit" form="shift-report-form" disabled={saving}>
+          <Send className="h-4 w-4" />
+          Submit
+        </Button>
+      </PageActions>
 
-      {/* Main Form */}
-      <main className="container mx-auto px-4 py-6 max-w-2xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
+
+      <form id="shift-report-form" onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
           <Card>
             <CardHeader>
@@ -108,9 +110,19 @@ export default function ShiftReportPage() {
                 
                 <div>
                   <label className="block text-sm font-medium mb-2">Shift *</label>
-                  <Select name="shift" value={formData.shift} onChange={handleChange} required>
-                    <option value="DAY">Day Shift</option>
-                    <option value="NIGHT">Night Shift</option>
+                  <Select
+                    name="shift"
+                    value={formData.shift}
+                    onValueChange={handleSelectChange("shift")}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select shift" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DAY">Day Shift</SelectItem>
+                      <SelectItem value="NIGHT">Night Shift</SelectItem>
+                    </SelectContent>
                   </Select>
                 </div>
               </div>
@@ -118,13 +130,22 @@ export default function ShiftReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Site *</label>
-                  <Select name="site" value={formData.site} onChange={handleChange} required>
-                    <option value="">Select site...</option>
-                    <option value="site1">Mine Site 1</option>
-                    <option value="site2">Mine Site 2</option>
-                    <option value="site3">Mine Site 3</option>
-                    <option value="site4">Mine Site 4</option>
-                    <option value="site5">Mine Site 5</option>
+                  <Select
+                    name="site"
+                    value={formData.site || undefined}
+                    onValueChange={handleSelectChange("site")}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select site..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="site1">Mine Site 1</SelectItem>
+                      <SelectItem value="site2">Mine Site 2</SelectItem>
+                      <SelectItem value="site3">Mine Site 3</SelectItem>
+                      <SelectItem value="site4">Mine Site 4</SelectItem>
+                      <SelectItem value="site5">Mine Site 5</SelectItem>
+                    </SelectContent>
                   </Select>
                 </div>
                 
@@ -178,12 +199,22 @@ export default function ShiftReportPage() {
             <CardContent className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Work Type *</label>
-                <Select name="workType" value={formData.workType} onChange={handleChange} required>
-                  <option value="DEVELOPMENT">Development</option>
-                  <option value="PRODUCTION">Production/Stoping</option>
-                  <option value="HAULAGE">Haulage/Mucking</option>
-                  <option value="SUPPORT">Support Work</option>
-                  <option value="OTHER">Other</option>
+                <Select
+                  name="workType"
+                  value={formData.workType}
+                  onValueChange={handleSelectChange("workType")}
+                  required
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select work type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DEVELOPMENT">Development</SelectItem>
+                    <SelectItem value="PRODUCTION">Production/Stoping</SelectItem>
+                    <SelectItem value="HAULAGE">Haulage/Mucking</SelectItem>
+                    <SelectItem value="SUPPORT">Support Work</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
 
@@ -254,7 +285,7 @@ export default function ShiftReportPage() {
                     name="hasIncident"
                     checked={formData.hasIncident}
                     onChange={handleChange}
-                    className="h-5 w-5 rounded border-gray-300"
+                    className="h-5 w-5 rounded border-border"
                   />
                   Incident or near miss occurred
                 </label>
@@ -290,7 +321,7 @@ export default function ShiftReportPage() {
                   <Camera className="mr-2 h-5 w-5" />
                   Add Photos (Optional)
                 </Button>
-                <p className="text-xs text-gray-500 mt-1 text-center">
+                <p className="text-xs text-muted-foreground mt-1 text-center">
                   Photos can be added as evidence
                 </p>
               </div>
@@ -320,11 +351,10 @@ export default function ShiftReportPage() {
             </Button>
           </div>
 
-          <p className="text-xs text-center text-gray-500">
-            ✓ Saves offline • ✓ Auto-syncs when connected • ✓ 2-minute form
+          <p className="text-xs text-center text-muted-foreground">
+            Saves offline / Auto-syncs when connected / 2-minute form
           </p>
         </form>
-      </main>
     </div>
   )
 }

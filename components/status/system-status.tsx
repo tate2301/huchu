@@ -47,7 +47,7 @@ const phases: Phase[] = [
     items: [
       { name: "Dispatch Manifest", status: "complete", description: "Chain of custody" },
       { name: "Buyer Receipt", status: "complete", description: "Assay and payment" },
-      { name: "Reconciliation View", status: "complete", description: "Pour → dispatch → receipt" },
+      { name: "Reconciliation View", status: "complete", description: "Pour / dispatch / receipt" },
       { name: "Audit Trail", status: "complete", description: "Immutable records" },
     ]
   },
@@ -93,7 +93,7 @@ function StatusIcon({ status }: { status: PhaseItem['status'] }) {
     case 'in-progress':
       return <Clock className="h-5 w-5 text-orange-600" />
     case 'pending':
-      return <Circle className="h-5 w-5 text-gray-300" />
+      return <Circle className="h-5 w-5 text-muted-foreground" />
   }
 }
 
@@ -101,7 +101,7 @@ function PhaseStatusBadge({ status }: { status: Phase['status'] }) {
   const styles = {
     complete: "bg-green-100 text-green-800",
     'in-progress': "bg-orange-100 text-orange-800",
-    pending: "bg-gray-100 text-gray-600"
+    pending: "bg-muted text-muted-foreground"
   }
   
   const labels = {
@@ -136,12 +136,12 @@ export function SystemStatus() {
       <CardContent>
         <div className="space-y-6">
           {phases.map((phase) => (
-            <div key={phase.phase} className="border-l-4 border-gray-200 pl-4">
+            <div key={phase.phase} className="border-l-4 border-border pl-4">
               <div className="flex items-center gap-3 mb-3">
                 <span className="font-semibold text-lg">
                   Phase {phase.phase}
                 </span>
-                <span className="text-gray-600">{phase.title}</span>
+                <span className="text-muted-foreground">{phase.title}</span>
                 <PhaseStatusBadge status={phase.status} />
               </div>
               
@@ -152,12 +152,12 @@ export function SystemStatus() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className={`text-sm font-medium ${
-                          item.status === 'complete' ? 'text-gray-900' : 'text-gray-600'
+                          item.status === 'complete' ? 'text-foreground' : 'text-muted-foreground'
                         }`}>
                           {item.name}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500">{item.description}</p>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
                     </div>
                   </div>
                 ))}

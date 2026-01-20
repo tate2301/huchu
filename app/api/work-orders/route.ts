@@ -5,11 +5,13 @@ import { z } from 'zod';
 
 const workOrderSchema = z.object({
   equipmentId: z.string().uuid(),
-  issueDescription: z.string().min(1).max(1000),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-  downtimeStarted: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
-  reportedBy: z.string().min(1).max(100),
-  assignedTo: z.string().max(100).optional(),
+  issue: z.string().min(1).max(1000),
+  downtimeStart: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
+  downtimeEnd: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)).optional(),
+  workDone: z.string().max(2000).optional(),
+  partsUsed: z.array(z.string().max(200)).optional(),
+  technicianId: z.string().uuid().optional(),
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -21,7 +23,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const equipmentId = searchParams.get('equipmentId');
     const status = searchParams.get('status');
-    const priority = searchParams.get('priority');
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: any = {
@@ -32,8 +33,6 @@ export async function GET(request: NextRequest) {
 
     if (equipmentId) where.equipmentId = equipmentId;
     if (status) where.status = status;
-    if (priority) where.priority = priority;
-
     const [workOrders, total] = await Promise.all([
       prisma.workOrder.findMany({
         where,
@@ -45,8 +44,7 @@ export async function GET(request: NextRequest) {
           },
         },
         orderBy: [
-          { status: 'asc' }, // Open first
-          { priority: 'desc' }, // High priority first
+          { status: 'asc' },
           { createdAt: 'desc' },
         ],
         skip,
@@ -81,25 +79,32 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid equipment', 403);
     }
 
-    // Update equipment status to DOWN if not already
-    if (equipment.status !== 'DOWN') {
-      await prisma.equipment.update({
-        where: { id: validated.equipmentId },
-        data: { status: 'DOWN' },
+    if (!equipment.isActive) {
+      return errorResponse('Equipment is inactive', 400);
+    }
+
+    if (validated.technicianId) {
+      const technician = await prisma.user.findUnique({
+        where: { id: validated.technicianId },
+        select: { companyId: true, isActive: true },
       });
+
+      if (!technician || technician.companyId !== session.user.companyId || !technician.isActive) {
+        return errorResponse('Invalid technician', 400);
+      }
     }
 
     // Create work order
     const workOrder = await prisma.workOrder.create({
       data: {
         equipmentId: validated.equipmentId,
-        issueDescription: validated.issueDescription,
-        priority: validated.priority,
-        downtimeStarted: new Date(validated.downtimeStarted),
-        reportedBy: validated.reportedBy,
-        assignedTo: validated.assignedTo,
-        status: 'OPEN',
-        createdById: session.user.id,
+        issue: validated.issue,
+        downtimeStart: new Date(validated.downtimeStart),
+        downtimeEnd: validated.downtimeEnd ? new Date(validated.downtimeEnd) : undefined,
+        workDone: validated.workDone,
+        partsUsed: validated.partsUsed ? JSON.stringify(validated.partsUsed) : undefined,
+        technicianId: validated.technicianId,
+        status: validated.status ?? 'OPEN',
       },
       include: {
         equipment: {

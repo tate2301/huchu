@@ -1,13 +1,19 @@
 "use client"
 
-import Link from "next/link"
 import { useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { PageActions } from "@/components/layout/page-actions"
+import { PageHeading } from "@/components/layout/page-heading"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Package, Fuel, AlertTriangle, Plus, Download, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { Package, Fuel, AlertTriangle, Plus, Download, TrendingUp, TrendingDown, Minus } from "lucide-react"
+
+const storesViews = ["dashboard", "inventory", "fuel", "issue", "receive"] as const
+type StoresView = (typeof storesViews)[number]
 
 // Mock data
 const mockInventory = [
@@ -34,9 +40,22 @@ const mockRecentMovements = [
 ]
 
 export default function StoresPage() {
-  const [activeView, setActiveView] = useState<"dashboard" | "inventory" | "fuel" | "issue" | "receive">("dashboard")
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const viewParam = searchParams.get("view")
+  const initialView = storesViews.includes(viewParam as StoresView)
+    ? (viewParam as StoresView)
+    : "dashboard"
+  const [activeView, setActiveView] = useState<StoresView>(initialView)
   const [selectedSite, setSelectedSite] = useState("site1")
   const [selectedCategory, setSelectedCategory] = useState("all")
+
+  const changeView = (view: StoresView) => {
+    setActiveView(view)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("view", view)
+    router.replace(`/stores?${params.toString()}`)
+  }
 
   // Filter inventory
   const filteredInventory = mockInventory.filter(item => 
@@ -47,188 +66,283 @@ export default function StoresPage() {
   const totalItems = mockInventory.length
   const lowStockItems = mockInventory.filter(item => item.status === "low" || item.status === "critical").length
   const totalValue = mockInventory.reduce((sum, item) => sum + (item.currentStock * item.unitCost), 0)
+  const criticalItems = mockInventory.filter(item => item.status === "critical").length
+  const dieselItem = mockInventory.find(item => item.code === "FUEL-001")
+  const dieselStock = dieselItem?.currentStock ?? 0
+  const dieselMin = dieselItem?.minStock ?? 0
+  const dieselVariance = dieselStock - dieselMin
+  const dieselBelowMin = dieselItem ? dieselStock < dieselMin : false
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-orange-600 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" className="text-white hover:bg-orange-700 p-2">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">Stores & Fuel Management</h1>
-              <p className="text-orange-100 text-sm">Inventory tracking and fuel ledger</p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <PageActions>
+        <Button size="sm" onClick={() => changeView("issue")}>
+          <Minus className="h-4 w-4" />
+          Issue Stock
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => changeView("receive")}>
+          <Plus className="h-4 w-4" />
+          Receive Stock
+        </Button>
+      </PageActions>
 
-      <main className="container mx-auto px-4 py-6 max-w-7xl">
+      <PageHeading title="Stores & Fuel Management" description="Inventory tracking and fuel ledger" />
+
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          <Button
-            onClick={() => setActiveView("dashboard")}
-            variant={activeView === "dashboard" ? "default" : "outline"}
-            className={activeView === "dashboard" ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <Button
-            onClick={() => setActiveView("inventory")}
-            variant={activeView === "inventory" ? "default" : "outline"}
-            className={activeView === "inventory" ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            Stock on Hand
-          </Button>
-          <Button
-            onClick={() => setActiveView("fuel")}
-            variant={activeView === "fuel" ? "default" : "outline"}
-            className={activeView === "fuel" ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            <Fuel className="h-4 w-4 mr-2" />
-            Fuel Ledger
-          </Button>
-          <Button
-            onClick={() => setActiveView("issue")}
-            variant={activeView === "issue" ? "default" : "outline"}
-            className={activeView === "issue" ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            <Minus className="h-4 w-4 mr-2" />
-            Issue Stock
-          </Button>
-          <Button
-            onClick={() => setActiveView("receive")}
-            variant={activeView === "receive" ? "default" : "outline"}
-            className={activeView === "receive" ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Receive Stock
-          </Button>
-        </div>
+        <Card className="mb-4 py-3">
+          <CardContent className="flex flex-wrap gap-2 py-3">
+            <Button
+              onClick={() => changeView("dashboard")}
+              size="sm"
+              variant={activeView === "dashboard" ? "default" : "outline"}
+              className="min-h-0 min-w-0 h-8 px-2"
+            >
+              <Package className="h-4 w-4" />
+              Dashboard
+            </Button>
+            <Button
+              onClick={() => changeView("inventory")}
+              size="sm"
+              variant={activeView === "inventory" ? "default" : "outline"}
+              className="min-h-0 min-w-0 h-8 px-2"
+            >
+              Stock on Hand
+            </Button>
+            <Button
+              onClick={() => changeView("fuel")}
+              size="sm"
+              variant={activeView === "fuel" ? "default" : "outline"}
+              className="min-h-0 min-w-0 h-8 px-2"
+            >
+              <Fuel className="h-4 w-4" />
+              Fuel Ledger
+            </Button>
+            <Button
+              onClick={() => changeView("issue")}
+              size="sm"
+              variant={activeView === "issue" ? "default" : "outline"}
+              className="min-h-0 min-w-0 h-8 px-2"
+            >
+              <Minus className="h-4 w-4" />
+              Issue Stock
+            </Button>
+            <Button
+              onClick={() => changeView("receive")}
+              size="sm"
+              variant={activeView === "receive" ? "default" : "outline"}
+              className="min-h-0 min-w-0 h-8 px-2"
+            >
+              <Plus className="h-4 w-4" />
+              Receive Stock
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Dashboard View */}
         {activeView === "dashboard" && (
-          <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Items</p>
-                      <p className="text-2xl font-bold">{totalItems}</p>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <Card className="py-4 gap-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Inventory Snapshot</CardTitle>
+                  <CardDescription className="text-xs">Quick totals across stores</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Total Items</span>
                     </div>
-                    <Package className="h-10 w-10 text-orange-600 opacity-50" />
-                  </div>
+                    <span className="text-sm font-semibold">{totalItems}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Inventory Value</span>
+                    </div>
+                    <span className="text-sm font-semibold">${totalValue.toLocaleString()}</span>
+                  </Button>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Low Stock Alerts</p>
-                      <p className="text-2xl font-bold text-red-600">{lowStockItems}</p>
+              <Card className="py-4 gap-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Stock Alerts</CardTitle>
+                  <CardDescription className="text-xs">Items below minimums</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Low or Critical</span>
                     </div>
-                    <AlertTriangle className="h-10 w-10 text-red-600 opacity-50" />
-                  </div>
+                    <span className="text-sm font-semibold text-destructive">{lowStockItems}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Critical Only</span>
+                    </div>
+                    <span className="text-sm font-semibold text-destructive">{criticalItems}</span>
+                  </Button>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Inventory Value</p>
-                      <p className="text-2xl font-bold">${totalValue.toLocaleString()}</p>
+              <Card className="py-4 gap-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Fuel Snapshot</CardTitle>
+                  <CardDescription className="text-xs">Diesel stock health</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 px-2 py-1.5"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <Fuel className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Diesel Stock</span>
                     </div>
-                    <TrendingUp className="h-10 w-10 text-green-600 opacity-50" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Diesel Stock</p>
-                      <p className="text-2xl font-bold">450L</p>
-                      <p className="text-xs text-red-600">Below minimum</p>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-sm font-semibold">{dieselStock} L</span>
+                      <Badge variant={dieselBelowMin ? "destructive" : "secondary"}>
+                        {dieselBelowMin ? "Below Min" : "On Target"}
+                      </Badge>
                     </div>
-                    <Fuel className="h-10 w-10 text-orange-600 opacity-50" />
-                  </div>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <Minus className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Variance to Min</span>
+                    </div>
+                    <span
+                      className={`text-sm font-semibold ${
+                        dieselVariance < 0 ? "text-destructive" : ""
+                      }`}
+                    >
+                      {dieselVariance >= 0 ? "+" : ""}
+                      {dieselVariance} L
+                    </span>
+                  </Button>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Reorder Alerts */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                  Reorder Alerts
-                </CardTitle>
-                <CardDescription>Items below minimum stock levels</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockInventory.filter(item => item.status === "low" || item.status === "critical").map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-gray-600">
-                          Current: {item.currentStock} {item.unit} | Min: {item.minStock} {item.unit}
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        item.status === "critical" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"
-                      }`}>
-                        {item.status === "critical" ? "Critical" : "Low"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recent Movements */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Stock Movements</CardTitle>
-                <CardDescription>Last 4 transactions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockRecentMovements.map(movement => (
-                    <div key={movement.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {movement.type === "issue" ? (
-                          <TrendingDown className="h-5 w-5 text-red-600" />
-                        ) : (
-                          <TrendingUp className="h-5 w-5 text-green-600" />
-                        )}
-                        <div>
-                          <div className="font-medium">{movement.item}</div>
-                          <div className="text-sm text-gray-600">
-                            {movement.type === "issue" ? "Issued to" : "Received to"}: {movement.issuedTo} | By: {movement.requestedBy}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="py-4 gap-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Reorder Alerts</CardTitle>
+                  <CardDescription className="text-xs">Items below minimum stock</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {mockInventory.filter(item => item.status === "low" || item.status === "critical").length === 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                      disabled
+                    >
+                      No low stock items
+                    </Button>
+                  ) : (
+                    mockInventory
+                      .filter(item => item.status === "low" || item.status === "critical")
+                      .map(item => (
+                        <Button
+                          key={item.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
+                        >
+                          <div className="flex flex-col items-start text-left">
+                            <span className="text-sm font-medium">{item.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              Current: {item.currentStock} {item.unit} | Min: {item.minStock} {item.unit}
+                            </span>
                           </div>
+                          <Badge variant={item.status === "critical" ? "destructive" : "secondary"}>
+                            {item.status === "critical" ? "Critical" : "Low"}
+                          </Badge>
+                        </Button>
+                      ))
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="py-4 gap-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Recent Movements</CardTitle>
+                  <CardDescription className="text-xs">Last 4 transactions</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {mockRecentMovements.map(movement => (
+                    <Button
+                      key={movement.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
+                    >
+                      <div className="flex items-start gap-2 text-left">
+                        {movement.type === "issue" ? (
+                          <TrendingDown className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{movement.item}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {movement.type === "issue" ? "Issued to" : "Received to"}: {movement.issuedTo} | {movement.requestedBy}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`font-medium ${movement.type === "issue" ? "text-red-600" : "text-green-600"}`}>
-                          {movement.type === "issue" ? "-" : "+"}{movement.quantity} {movement.unit}
-                        </div>
-                        <div className="text-xs text-gray-500">{movement.timestamp}</div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant={movement.type === "issue" ? "destructive" : "secondary"}>
+                          {movement.type === "issue" ? "Issue" : "Receipt"}
+                        </Badge>
+                        <span
+                          className={`text-xs font-medium ${
+                            movement.type === "issue" ? "text-destructive" : ""
+                          }`}
+                        >
+                          {movement.type === "issue" ? "-" : "+"}
+                          {movement.quantity} {movement.unit}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{movement.timestamp}</span>
                       </div>
-                    </div>
+                    </Button>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
 
@@ -250,25 +364,35 @@ export default function StoresPage() {
             <CardContent>
               {/* Filters */}
               <div className="flex gap-4 mb-4">
-                <Select value={selectedSite} onChange={(e) => setSelectedSite(e.target.value)}>
-                  <option value="site1">Mine Site 1</option>
-                  <option value="site2">Mine Site 2</option>
-                  <option value="site3">Mine Site 3</option>
+                <Select value={selectedSite} onValueChange={setSelectedSite}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="site1">Mine Site 1</SelectItem>
+                    <SelectItem value="site2">Mine Site 2</SelectItem>
+                    <SelectItem value="site3">Mine Site 3</SelectItem>
+                  </SelectContent>
                 </Select>
-                <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-                  <option value="all">All Categories</option>
-                  <option value="FUEL">Fuel</option>
-                  <option value="SPARES">Spares</option>
-                  <option value="CONSUMABLES">Consumables</option>
-                  <option value="PPE">PPE</option>
-                  <option value="REAGENTS">Reagents</option>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="FUEL">Fuel</SelectItem>
+                    <SelectItem value="SPARES">Spares</SelectItem>
+                    <SelectItem value="CONSUMABLES">Consumables</SelectItem>
+                    <SelectItem value="PPE">PPE</SelectItem>
+                    <SelectItem value="REAGENTS">Reagents</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
 
               {/* Inventory Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-muted">
                     <tr>
                       <th className="text-left p-3 text-sm font-medium">Code</th>
                       <th className="text-left p-3 text-sm font-medium">Item Name</th>
@@ -282,14 +406,14 @@ export default function StoresPage() {
                   </thead>
                   <tbody>
                     {filteredInventory.map(item => (
-                      <tr key={item.id} className="border-b hover:bg-gray-50">
+                      <tr key={item.id} className="border-b hover:bg-muted/60">
                         <td className="p-3 text-sm font-mono">{item.code}</td>
                         <td className="p-3 text-sm font-medium">{item.name}</td>
                         <td className="p-3 text-sm">{item.category}</td>
                         <td className="p-3 text-sm text-right font-medium">
                           {item.currentStock} {item.unit}
                         </td>
-                        <td className="p-3 text-sm text-right text-gray-600">
+                        <td className="p-3 text-sm text-right text-muted-foreground">
                           {item.minStock} {item.unit}
                         </td>
                         <td className="p-3 text-sm">{item.location}</td>
@@ -337,12 +461,12 @@ export default function StoresPage() {
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Current Diesel Stock</p>
+                    <p className="text-sm text-muted-foreground">Current Diesel Stock</p>
                     <p className="text-3xl font-bold text-orange-600">450 litres</p>
                     <p className="text-sm text-red-600 mt-1">⚠️ Below minimum level (500L)</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-600">Variance</p>
+                    <p className="text-sm text-muted-foreground">Variance</p>
                     <p className="text-xl font-medium text-red-600">-50 L</p>
                   </div>
                 </div>
@@ -351,7 +475,7 @@ export default function StoresPage() {
               {/* Fuel Ledger Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-muted">
                     <tr>
                       <th className="text-left p-3 text-sm font-medium">Date</th>
                       <th className="text-left p-3 text-sm font-medium">Type</th>
@@ -364,7 +488,7 @@ export default function StoresPage() {
                   </thead>
                   <tbody>
                     {mockFuelLedger.map((entry, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
+                      <tr key={index} className="border-b hover:bg-muted/60">
                         <td className="p-3 text-sm">{entry.date}</td>
                         <td className="p-3 text-sm">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -411,10 +535,15 @@ export default function StoresPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Site *</label>
-                    <Select>
-                      <option>Mine Site 1</option>
-                      <option>Mine Site 2</option>
-                      <option>Mine Site 3</option>
+                    <Select defaultValue="site1">
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select site" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="site1">Mine Site 1</SelectItem>
+                        <SelectItem value="site2">Mine Site 2</SelectItem>
+                        <SelectItem value="site3">Mine Site 3</SelectItem>
+                      </SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -423,12 +552,16 @@ export default function StoresPage() {
                   <div>
                     <label className="block text-sm font-medium mb-2">Item *</label>
                     <Select>
-                      <option value="">Select item...</option>
-                      {mockInventory.map(item => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({item.currentStock} {item.unit} available)
-                        </option>
-                      ))}
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select item..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mockInventory.map(item => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} ({item.currentStock} {item.unit} available)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div>
@@ -462,7 +595,7 @@ export default function StoresPage() {
                   <Button className="bg-orange-600 hover:bg-orange-700">
                     Submit Issue
                   </Button>
-                  <Button variant="outline" onClick={() => setActiveView("dashboard")}>
+                  <Button variant="outline" onClick={() => changeView("dashboard")}>
                     Cancel
                   </Button>
                 </div>
@@ -487,10 +620,15 @@ export default function StoresPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Site *</label>
-                    <Select>
-                      <option>Mine Site 1</option>
-                      <option>Mine Site 2</option>
-                      <option>Mine Site 3</option>
+                    <Select defaultValue="site1">
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select site" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="site1">Mine Site 1</SelectItem>
+                        <SelectItem value="site2">Mine Site 2</SelectItem>
+                        <SelectItem value="site3">Mine Site 3</SelectItem>
+                      </SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -499,12 +637,16 @@ export default function StoresPage() {
                   <div>
                     <label className="block text-sm font-medium mb-2">Item *</label>
                     <Select>
-                      <option value="">Select item...</option>
-                      {mockInventory.map(item => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} (Current: {item.currentStock} {item.unit})
-                        </option>
-                      ))}
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select item..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mockInventory.map(item => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} (Current: {item.currentStock} {item.unit})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div>
@@ -545,7 +687,7 @@ export default function StoresPage() {
                     <Plus className="h-4 w-4 mr-2" />
                     Submit Receipt
                   </Button>
-                  <Button variant="outline" onClick={() => setActiveView("dashboard")}>
+                  <Button variant="outline" onClick={() => changeView("dashboard")}>
                     Cancel
                   </Button>
                 </div>
@@ -553,7 +695,6 @@ export default function StoresPage() {
             </CardContent>
           </Card>
         )}
-      </main>
     </div>
   )
 }

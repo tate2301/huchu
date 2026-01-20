@@ -5,16 +5,18 @@ import { z } from 'zod';
 
 const stockMovementSchema = z.object({
   itemId: z.string().uuid(),
-  type: z.enum(['ISSUE', 'RECEIVE', 'ADJUSTMENT']),
-  quantity: z.number().int(),
+  movementType: z.enum(['RECEIPT', 'ISSUE', 'ADJUSTMENT', 'TRANSFER']),
+  quantity: z.number(),
+  unit: z.string().min(1).max(20),
   issuedTo: z.string().max(200).optional(),
-  supplier: z.string().max(200).optional(),
-  invoiceNumber: z.string().max(100).optional(),
-  unitCost: z.number().min(0).optional(),
   requestedBy: z.string().max(100).optional(),
   approvedBy: z.string().max(100).optional(),
   notes: z.string().max(500).optional(),
-});
+  photoUrl: z.string().max(2048).optional(),
+}).refine(
+  (data) => data.movementType === 'ADJUSTMENT' || data.quantity > 0,
+  { message: 'Quantity must be positive for this movement type', path: ['quantity'] }
+);
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,19 +37,29 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid item', 403);
     }
 
+    if (validated.unit !== item.unit) {
+      return errorResponse('Unit does not match inventory item unit', 400);
+    }
+
     // Validate stock availability for issue
-    if (validated.type === 'ISSUE' && item.currentStock < Math.abs(validated.quantity)) {
+    if (validated.movementType === 'ISSUE' && item.currentStock < Math.abs(validated.quantity)) {
       return errorResponse('Insufficient stock', 400);
     }
 
     // Calculate new stock based on movement type
     let newStock = item.currentStock;
-    if (validated.type === 'RECEIVE') {
-      newStock += Math.abs(validated.quantity);
-    } else if (validated.type === 'ISSUE') {
-      newStock -= Math.abs(validated.quantity);
-    } else if (validated.type === 'ADJUSTMENT') {
-      newStock += validated.quantity; // Can be positive or negative
+    const quantity = validated.movementType === 'ADJUSTMENT'
+      ? validated.quantity
+      : Math.abs(validated.quantity);
+
+    if (validated.movementType === 'RECEIPT') {
+      newStock += quantity;
+    } else if (validated.movementType === 'ISSUE') {
+      newStock -= quantity;
+    } else if (validated.movementType === 'TRANSFER') {
+      newStock -= quantity;
+    } else if (validated.movementType === 'ADJUSTMENT') {
+      newStock += quantity;
     }
 
     if (newStock < 0) {
@@ -55,22 +67,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Create movement and update item in transaction
-    const [movement, updatedItem] = await prisma.$transaction([
+    const [movement] = await prisma.$transaction([
       prisma.stockMovement.create({
         data: {
           itemId: validated.itemId,
-          type: validated.type,
-          quantity: Math.abs(validated.quantity),
-          openingBalance: item.currentStock,
-          closingBalance: newStock,
+          movementType: validated.movementType,
+          quantity: validated.movementType === 'ADJUSTMENT' ? validated.quantity : Math.abs(validated.quantity),
+          unit: validated.unit,
           issuedTo: validated.issuedTo,
-          supplier: validated.supplier,
-          invoiceNumber: validated.invoiceNumber,
-          unitCost: validated.unitCost,
           requestedBy: validated.requestedBy,
           approvedBy: validated.approvedBy,
           notes: validated.notes,
-          recordedById: session.user.id,
+          photoUrl: validated.photoUrl,
+          issuedById: session.user.id,
         },
       }),
       prisma.inventoryItem.update({

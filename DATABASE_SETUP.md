@@ -6,7 +6,7 @@ This guide explains how to set up the PostgreSQL database for the Huchu Mine Ope
 
 - PostgreSQL 14 or later
 - Node.js 18 or later
-- npm or yarn
+- pnpm
 
 ## Step 1: Install PostgreSQL
 
@@ -85,13 +85,13 @@ openssl rand -base64 32
 
 ```bash
 # Generate Prisma Client
-npx prisma generate
+pnpm prisma generate
 
 # Push schema to database
-npx prisma db push
+pnpm prisma db push
 
 # Or use migrations (recommended for production)
-npx prisma migrate dev --name init
+pnpm prisma migrate dev --name init
 ```
 
 ## Step 5: Seed Initial Data (Optional)
@@ -100,7 +100,7 @@ Create a seed script or manually add initial data:
 
 ```bash
 # Open Prisma Studio to add data via GUI
-npx prisma studio
+pnpm prisma studio
 ```
 
 ### Example Seed Data
@@ -110,9 +110,8 @@ You should create:
 1. **Company**: Huchu Enterprises
 2. **Sites**: 5 mine sites with unique codes
 3. **Users**: 
-   - 1 Owner
+   - 1 Superadmin
    - 1 Manager
-   - 2 Supervisors
    - 2 Clerks
 4. **Downtime Codes**: Standard codes (power, water, fuel, etc.)
 
@@ -139,40 +138,48 @@ VALUES (
   'admin@huchu.com', 
   'Admin User', 
   '$2a$10$K7L8kf5v0F.LxJXQxF3uI.qP5QY4mZ8vH5P7YxJ8K9.L5X7F8Y9Z0', -- bcrypt hash of 'admin123'
-  'OWNER', 
+  'SUPERADMIN', 
   '550e8400-e29b-41d4-a716-446655440000', 
   true, 
   NOW(), 
   NOW()
 );
 
--- Insert Downtime Codes
-INSERT INTO "DowntimeCode" (id, code, description, category, "isActive", "createdAt", "updatedAt")
+-- Insert Downtime Codes (company-wide defaults)
+INSERT INTO "DowntimeCode" (id, code, description, "siteId", "isActive", "sortOrder", "createdAt")
 VALUES 
-  (gen_random_uuid(), 'NO_POWER', 'No power', 'INFRASTRUCTURE', true, NOW(), NOW()),
-  (gen_random_uuid(), 'NO_WATER', 'No water', 'INFRASTRUCTURE', true, NOW(), NOW()),
-  (gen_random_uuid(), 'EQUIPMENT_BREAKDOWN', 'Equipment breakdown', 'MECHANICAL', true, NOW(), NOW()),
-  (gen_random_uuid(), 'NO_FUEL', 'No fuel/diesel', 'SUPPLY', true, NOW(), NOW()),
-  (gen_random_uuid(), 'NO_SPARES', 'No spares/parts', 'SUPPLY', true, NOW(), NOW()),
-  (gen_random_uuid(), 'NO_GRINDING_MEDIA', 'No grinding media', 'SUPPLY', true, NOW(), NOW()),
-  (gen_random_uuid(), 'LABOUR_SHORTAGE', 'Labour shortage', 'HUMAN', true, NOW(), NOW()),
-  (gen_random_uuid(), 'WEATHER', 'Weather/flooding', 'ENVIRONMENTAL', true, NOW(), NOW());
+  (gen_random_uuid(), 'NO_POWER', 'No power', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'NO_WATER', 'No water', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'EQUIPMENT_BREAKDOWN', 'Equipment breakdown', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'NO_FUEL', 'No fuel/diesel', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'NO_SPARES', 'No spares/parts', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'NO_GRINDING_MEDIA', 'No grinding media', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'LABOUR_SHORTAGE', 'Labour shortage', NULL, true, 0, NOW()),
+  (gen_random_uuid(), 'WEATHER', 'Weather/flooding', NULL, true, 0, NOW());
+```
+
+### Create Users from the CLI
+
+If you prefer not to use Prisma Studio, you can add users from the command line:
+
+```bash
+pnpm create-user --email admin@huchu.com --name "Admin User" --password "admin123" --role superadmin --company-id 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ## Step 6: Verify Setup
 
 ```bash
 # Check database connection
-npx prisma db pull
+pnpm prisma db pull
 
 # View database in Prisma Studio
-npx prisma studio
+pnpm prisma studio
 ```
 
 ## Step 7: Start Development Server
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Visit http://localhost:3000 and log in with your credentials.
@@ -222,17 +229,17 @@ ALTER USER postgres PASSWORD 'newpassword';
 
 ```bash
 # Regenerate Prisma Client
-npx prisma generate
+pnpm prisma generate
 ```
 
 ### Migration Errors
 
 ```bash
 # Reset database (WARNING: deletes all data)
-npx prisma migrate reset
+pnpm prisma migrate reset
 
 # Force push schema
-npx prisma db push --force-reset
+pnpm prisma db push --force-reset
 ```
 
 ## Backup and Restore

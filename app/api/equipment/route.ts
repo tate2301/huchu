@@ -4,13 +4,16 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const equipmentSchema = z.object({
-  code: z.string().min(1).max(50),
+  equipmentCode: z.string().min(1).max(50),
   name: z.string().min(1).max(200),
   category: z.enum(['CRUSHER', 'MILL', 'PUMP', 'GENERATOR', 'VEHICLE', 'OTHER']),
   siteId: z.string().uuid(),
+  qrCode: z.string().max(100).optional(),
   lastServiceDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   nextServiceDue: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   serviceHours: z.number().int().min(0).optional(),
+  serviceDays: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -21,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const siteId = searchParams.get('siteId');
-    const status = searchParams.get('status');
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: any = {
@@ -29,8 +31,6 @@ export async function GET(request: NextRequest) {
     };
 
     if (siteId) where.siteId = siteId;
-    if (status) where.status = status;
-
     const [equipment, total] = await Promise.all([
       prisma.equipment.findMany({
         where,
@@ -70,10 +70,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid site', 403);
     }
 
+    if (!site.isActive) {
+      return errorResponse('Site is not active', 400);
+    }
+
     // Check for duplicate code
     const existing = await prisma.equipment.findFirst({
       where: {
-        code: validated.code,
+        equipmentCode: validated.equipmentCode,
         siteId: validated.siteId,
       },
     });
@@ -84,10 +88,16 @@ export async function POST(request: NextRequest) {
 
     const equipment = await prisma.equipment.create({
       data: {
-        ...validated,
+        equipmentCode: validated.equipmentCode,
+        name: validated.name,
+        category: validated.category,
+        siteId: validated.siteId,
+        qrCode: validated.qrCode,
+        serviceHours: validated.serviceHours,
+        serviceDays: validated.serviceDays,
+        isActive: validated.isActive ?? true,
         lastServiceDate: validated.lastServiceDate ? new Date(validated.lastServiceDate) : undefined,
         nextServiceDue: validated.nextServiceDue ? new Date(validated.nextServiceDue) : undefined,
-        status: 'OPERATIONAL',
       },
       include: {
         site: { select: { name: true, code: true } },

@@ -1,15 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
+import { useSearchParams, useRouter } from "next/navigation"
+import { PageActions } from "@/components/layout/page-actions"
+import { PageHeading } from "@/components/layout/page-heading"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select } from "@/components/ui/select"
-import { ArrowLeft, Coins, Send, Shield, Package, FileCheck } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Coins, Send, Shield, Package, FileCheck } from "lucide-react"
 
-type ViewMode = 'menu' | 'pour' | 'dispatch' | 'receipt' | 'reconciliation' | 'audit'
+const goldViews = ["menu", "pour", "dispatch", "receipt", "reconciliation", "audit"] as const
+type ViewMode = (typeof goldViews)[number]
 
 // Mock data for demonstration
 const mockPours = [
@@ -26,39 +29,51 @@ const mockAuditLog = [
 ]
 
 export default function GoldPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>('menu')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const viewParam = searchParams.get("view")
+  const initialView = goldViews.includes(viewParam as ViewMode)
+    ? (viewParam as ViewMode)
+    : "menu"
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView)
+  const viewDescription = {
+    menu: "Security-critical operations",
+    pour: "Record Pour",
+    dispatch: "Dispatch Manifest",
+    receipt: "Buyer Receipt",
+    reconciliation: "Reconciliation",
+    audit: "Audit Trail",
+  }[viewMode]
+  const changeView = (view: ViewMode) => {
+    setViewMode(view)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("view", view)
+    router.replace(`/gold?${params.toString()}`)
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-yellow-600 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" className="text-white hover:bg-yellow-700 p-2">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">Gold Control</h1>
-              <p className="text-yellow-100 text-sm">
-                {viewMode === 'menu' ? 'Security-critical operations' : 
-                 viewMode === 'pour' ? 'Record Pour' :
-                 viewMode === 'dispatch' ? 'Dispatch Manifest' : 'Buyer Receipt'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <PageActions>
+        <Button size="sm" onClick={() => changeView("pour")}>
+          <Coins className="h-4 w-4" />
+          Record Pour
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => changeView("dispatch")}>
+          <Package className="h-4 w-4" />
+          Dispatch
+        </Button>
+      </PageActions>
 
-      <main className="container mx-auto px-4 py-6 max-w-2xl">
-        {viewMode === 'menu' && <GoldMenu setViewMode={setViewMode} />}
-        {viewMode === 'pour' && <PourForm setViewMode={setViewMode} />}
-        {viewMode === 'dispatch' && <DispatchForm setViewMode={setViewMode} />}
-        {viewMode === 'receipt' && <ReceiptForm setViewMode={setViewMode} />}
-        {viewMode === 'reconciliation' && <ReconciliationView setViewMode={setViewMode} />}
-        {viewMode === 'audit' && <AuditTrail setViewMode={setViewMode} />}
-      </main>
+      <PageHeading title="Gold Control" description={viewDescription} />
+
+      <div className="space-y-6">
+        {viewMode === "menu" && <GoldMenu setViewMode={changeView} />}
+        {viewMode === "pour" && <PourForm setViewMode={changeView} />}
+        {viewMode === "dispatch" && <DispatchForm setViewMode={changeView} />}
+        {viewMode === "receipt" && <ReceiptForm setViewMode={changeView} />}
+        {viewMode === "reconciliation" && <ReconciliationView setViewMode={changeView} />}
+        {viewMode === "audit" && <AuditTrail setViewMode={changeView} />}
+      </div>
     </div>
   )
 }
@@ -73,7 +88,7 @@ function GoldMenu({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
             <Shield className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
               <strong className="block mb-1">High-Security Module</strong>
-              <p className="text-gray-700">
+              <p className="text-foreground">
                 All gold operations require 2-person witness rule and create immutable audit trails.
                 Corrections require approval, not silent edits.
               </p>
@@ -153,7 +168,7 @@ function GoldMenu({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
         </CardHeader>
         <CardContent>
           {mockPours.length === 0 ? (
-            <div className="text-center text-gray-500 py-6">
+            <div className="text-center text-muted-foreground py-6">
               <p className="text-sm">No gold operations recorded yet</p>
             </div>
           ) : (
@@ -162,7 +177,7 @@ function GoldMenu({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
                 <div key={pour.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
                     <div className="font-medium">{pour.id}</div>
-                    <div className="text-sm text-gray-600">{pour.site} • {pour.weight}g</div>
+                    <div className="text-sm text-muted-foreground">{pour.site} • {pour.weight}g</div>
                   </div>
                   <div className={`px-2 py-1 rounded text-xs font-medium ${
                     pour.status === 'received' ? 'bg-green-100 text-green-800' :
@@ -193,6 +208,10 @@ function PourForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
     storageLocation: '',
     notes: '',
   })
+
+  const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -240,17 +259,22 @@ function PourForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
 
           <div>
             <label className="block text-sm font-medium mb-2">Site *</label>
-            <Select 
-              value={formData.site}
-              onChange={(e) => setFormData({...formData, site: e.target.value})}
+            <Select
+              name="site"
+              value={formData.site || undefined}
+              onValueChange={handleSelectChange("site")}
               required
             >
-              <option value="">Select site...</option>
-              <option value="site1">Mine Site 1</option>
-              <option value="site2">Mine Site 2</option>
-              <option value="site3">Mine Site 3</option>
-              <option value="site4">Mine Site 4</option>
-              <option value="site5">Mine Site 5</option>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select site..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="site1">Mine Site 1</SelectItem>
+                <SelectItem value="site2">Mine Site 2</SelectItem>
+                <SelectItem value="site3">Mine Site 3</SelectItem>
+                <SelectItem value="site4">Mine Site 4</SelectItem>
+                <SelectItem value="site5">Mine Site 5</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 
@@ -351,6 +375,10 @@ function DispatchForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }
     notes: '',
   })
 
+  const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     console.log('Dispatch recorded:', formData)
@@ -374,7 +402,7 @@ function DispatchForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }
             <Shield className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
               <strong className="block mb-1">Chain of Custody</strong>
-              <p className="text-gray-700">
+              <p className="text-foreground">
                 This manifest creates an immutable record of gold transfer. Both sender and receiver signatures required.
               </p>
             </div>
@@ -401,14 +429,21 @@ function DispatchForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }
             <div>
               <label className="block text-sm font-medium mb-2">Pour/Bar ID *</label>
               <Select
-                value={formData.pourBarId}
-                onChange={(e) => setFormData({...formData, pourBarId: e.target.value})}
+                name="pourBarId"
+                value={formData.pourBarId || undefined}
+                onValueChange={handleSelectChange("pourBarId")}
                 required
               >
-                <option value="">Select pour...</option>
-                {mockPours.filter(p => p.status === 'in-storage').map(p => (
-                  <option key={p.id} value={p.id}>{p.id} ({p.weight}g)</option>
-                ))}
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select pour..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockPours.filter(p => p.status === 'in-storage').map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.id} ({p.weight}g)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -521,6 +556,10 @@ function ReceiptForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void })
     notes: '',
   })
 
+  const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     console.log('Receipt recorded:', formData)
@@ -544,7 +583,7 @@ function ReceiptForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void })
             <Shield className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
               <strong className="block mb-1">Payment Confirmation</strong>
-              <p className="text-gray-700">
+              <p className="text-foreground">
                 Record final assay results and payment details to complete the gold transaction cycle.
               </p>
             </div>
@@ -572,14 +611,21 @@ function ReceiptForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void })
             <div>
               <label className="block text-sm font-medium mb-2">Dispatch ID *</label>
               <Select
-                value={formData.dispatchId}
-                onChange={(e) => setFormData({...formData, dispatchId: e.target.value})}
+                name="dispatchId"
+                value={formData.dispatchId || undefined}
+                onValueChange={handleSelectChange("dispatchId")}
                 required
               >
-                <option value="">Select dispatch...</option>
-                {mockPours.filter(p => p.status === 'dispatched').map(p => (
-                  <option key={p.id} value={p.id}>{p.id} ({p.weight}g)</option>
-                ))}
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select dispatch..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockPours.filter(p => p.status === 'dispatched').map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.id} ({p.weight}g)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -606,7 +652,7 @@ function ReceiptForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void })
                 placeholder="e.g., 42.35"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">After buyer's assay test</p>
+              <p className="text-xs text-muted-foreground mt-1">After buyer's assay test</p>
             </div>
           </div>
 
@@ -628,15 +674,21 @@ function ReceiptForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void })
               <div>
                 <label className="block text-sm font-medium mb-2">Payment Method *</label>
                 <Select
+                  name="paymentMethod"
                   value={formData.paymentMethod}
-                  onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
+                  onValueChange={handleSelectChange("paymentMethod")}
                   required
                 >
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="CASH">Cash</option>
-                  <option value="MOBILE_MONEY">Mobile Money</option>
-                  <option value="CRYPTO">Cryptocurrency</option>
-                  <option value="CHECK">Check</option>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                    <SelectItem value="CASH">Cash</SelectItem>
+                    <SelectItem value="MOBILE_MONEY">Mobile Money</SelectItem>
+                    <SelectItem value="CRYPTO">Cryptocurrency</SelectItem>
+                    <SelectItem value="CHECK">Check</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -713,14 +765,14 @@ function ReconciliationView({ setViewMode }: { setViewMode: (mode: ViewMode) => 
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500"></div>
                     <span className="font-medium">Pour:</span>
-                    <span className="text-gray-600">{pour.date} • {pour.site} • {pour.weight}g</span>
+                    <span className="text-muted-foreground">{pour.date} • {pour.site} • {pour.weight}g</span>
                   </div>
 
                   {pour.status !== 'in-storage' && (
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                       <span className="font-medium">Dispatch:</span>
-                      <span className="text-gray-600">Courier: SecureTransit • Seals: S-12345</span>
+                      <span className="text-muted-foreground">Courier: SecureTransit • Seals: S-12345</span>
                     </div>
                   )}
 
@@ -729,12 +781,12 @@ function ReconciliationView({ setViewMode }: { setViewMode: (mode: ViewMode) => 
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-purple-500"></div>
                         <span className="font-medium">Receipt:</span>
-                        <span className="text-gray-600">Assay: {(pour.weight * 0.93).toFixed(2)}g pure</span>
+                        <span className="text-muted-foreground">Assay: {(pour.weight * 0.93).toFixed(2)}g pure</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-green-500"></div>
                         <span className="font-medium">Payment:</span>
-                        <span className="text-gray-600">$2,150.00 • Bank Transfer • Confirmed</span>
+                        <span className="text-muted-foreground">$2,150.00 • Bank Transfer • Confirmed</span>
                       </div>
                     </>
                   )}
@@ -788,21 +840,21 @@ function AuditTrail({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) 
         <CardContent>
           <div className="space-y-3">
             {mockAuditLog.map((log, index) => (
-              <div key={index} className="flex gap-4 p-3 border-l-4 border-gray-300 bg-gray-50 rounded">
-                <div className="flex-shrink-0 text-xs text-gray-500 w-32">
+              <div key={index} className="flex gap-4 p-3 border-l-4 border-border bg-muted/60 rounded">
+                <div className="flex-shrink-0 text-xs text-muted-foreground w-32">
                   {log.timestamp}
                 </div>
                 <div className="flex-1">
                   <div className="font-medium text-sm">{log.action}</div>
-                  <div className="text-sm text-gray-600">{log.details}</div>
-                  <div className="text-xs text-gray-500 mt-1">By: {log.user}</div>
+                  <div className="text-sm text-muted-foreground">{log.details}</div>
+                  <div className="text-xs text-muted-foreground mt-1">By: {log.user}</div>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="mt-6 pt-4 border-t">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Shield className="h-4 w-4" />
               <span>All entries are cryptographically secured and cannot be modified</span>
             </div>

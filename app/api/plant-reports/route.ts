@@ -6,18 +6,17 @@ import { z } from 'zod';
 const plantReportSchema = z.object({
   date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   siteId: z.string().uuid(),
-  shift: z.enum(['DAY', 'NIGHT']),
   tonnesFed: z.number().min(0).optional(),
   tonnesProcessed: z.number().min(0).optional(),
   runHours: z.number().min(0).max(24).optional(),
   dieselUsed: z.number().min(0).optional(),
   grindingMedia: z.number().min(0).optional(),
-  reagents: z.number().min(0).optional(),
+  reagentsUsed: z.number().min(0).optional(),
   waterUsed: z.number().min(0).optional(),
   goldRecovered: z.number().min(0).optional(),
   notes: z.string().max(1000).optional(),
   downtimeEvents: z.array(z.object({
-    codeId: z.string().uuid(),
+    downtimeCodeId: z.string().uuid(),
     durationHours: z.number().min(0).max(24),
     notes: z.string().max(500).optional(),
   })).optional(),
@@ -51,7 +50,7 @@ export async function GET(request: NextRequest) {
           reportedBy: { select: { name: true } },
           downtimeEvents: {
             include: {
-              code: { select: { name: true, code: true } },
+              downtimeCode: { select: { description: true, code: true } },
             },
           },
         },
@@ -88,28 +87,48 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid site', 403);
     }
 
+    if (!site.isActive) {
+      return errorResponse('Site is not active', 400);
+    }
+
+    if (validated.downtimeEvents && validated.downtimeEvents.length > 0) {
+      const downtimeCodeIds = Array.from(
+        new Set(validated.downtimeEvents.map((event) => event.downtimeCodeId))
+      );
+
+      const downtimeCodes = await prisma.downtimeCode.findMany({
+        where: {
+          id: { in: downtimeCodeIds },
+          OR: [{ siteId: validated.siteId }, { siteId: null }],
+        },
+        select: { id: true },
+      });
+
+      if (downtimeCodes.length !== downtimeCodeIds.length) {
+        return errorResponse('Invalid downtime code for site', 400);
+      }
+    }
+
     // Create plant report with downtime events
     const report = await prisma.plantReport.create({
       data: {
         date: new Date(validated.date),
         siteId: validated.siteId,
-        shift: validated.shift,
         tonnesFed: validated.tonnesFed,
         tonnesProcessed: validated.tonnesProcessed,
         runHours: validated.runHours,
         dieselUsed: validated.dieselUsed,
         grindingMedia: validated.grindingMedia,
-        reagents: validated.reagents,
+        reagentsUsed: validated.reagentsUsed,
         waterUsed: validated.waterUsed,
         goldRecovered: validated.goldRecovered,
         notes: validated.notes,
         reportedById: session.user.id,
         downtimeEvents: validated.downtimeEvents ? {
           create: validated.downtimeEvents.map((event) => ({
-            codeId: event.codeId,
+            downtimeCodeId: event.downtimeCodeId,
             durationHours: event.durationHours,
             notes: event.notes,
-            reportedById: session.user.id,
           })),
         } : undefined,
       },
@@ -117,7 +136,7 @@ export async function POST(request: NextRequest) {
         site: { select: { name: true, code: true } },
         downtimeEvents: {
           include: {
-            code: { select: { name: true, code: true } },
+            downtimeCode: { select: { description: true, code: true } },
           },
         },
       },

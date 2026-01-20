@@ -25,7 +25,7 @@ export async function GET(
         approvedBy: { select: { name: true } },
         downtimeEvents: {
           include: {
-            code: { select: { name: true, code: true } },
+            downtimeCode: { select: { description: true, code: true } },
           },
         },
       },
@@ -84,7 +84,6 @@ export async function PATCH(
         where: { id },
         data: {
           status: 'SUBMITTED',
-          submittedAt: new Date(),
         },
       });
       return successResponse(updated);
@@ -95,7 +94,7 @@ export async function PATCH(
         return errorResponse('Report must be submitted first', 400);
       }
       
-      if (!['MANAGER', 'OWNER'].includes(session.user.role)) {
+      if (!['MANAGER', 'SUPERADMIN'].includes(session.user.role)) {
         return errorResponse('Insufficient permissions to verify', 403);
       }
       
@@ -115,7 +114,7 @@ export async function PATCH(
         return errorResponse('Report must be verified first', 400);
       }
       
-      if (!['OWNER', 'MANAGER'].includes(session.user.role)) {
+      if (!['SUPERADMIN', 'MANAGER'].includes(session.user.role)) {
         return errorResponse('Insufficient permissions to approve', 403);
       }
       

@@ -18,7 +18,7 @@ Created complete Prisma schema covering all 6 phases:
 
 **Core Entities**
 - Company → Sites (5 mines) → Sections
-- Users with 5 role types (Owner, Manager, Supervisor, Clerk, Operator)
+- Users with 3 role types (Superadmin, Manager, Clerk)
 
 **Phase 1: Daily Operations**
 - ShiftReports with workflow states (Draft → Submitted → Verified → Approved)
@@ -169,13 +169,13 @@ All components:
 ## 📊 Technical Specifications
 
 ### Technology Stack
-- **Frontend**: React 18 (Next.js 15)
+- **Frontend**: React 19 (Next.js 16)
 - **Backend**: Next.js API Routes (ready for implementation)
 - **Database**: PostgreSQL via Prisma ORM
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
 - **Type Safety**: TypeScript
-- **Package Manager**: npm
+- **Package Manager**: pnpm
 
 ### Database Schema Statistics
 - **27 Models** covering all 6 phases
@@ -215,27 +215,23 @@ All components:
 **Immediate (Before Pilot)**
 1. Database setup:
    ```bash
-   npx prisma db push
+   pnpm prisma db push
    ```
 
 2. Seed data:
    - 1 Company (Huchu Enterprises)
    - 5 Sites with codes and measurement units
-   - Test users (owner, manager, clerk, supervisor)
+   - Test users (superadmin, manager, clerk)
    - Standard downtime codes
 
 3. Authentication:
-   - Implement NextAuth.js
-   - Login/logout flows
-   - Session management
-   - Role-based access control
+   - Configure NextAuth secrets and production URLs
+   - Verify login/logout flows across environments
+   - Enforce role-based access control consistently
 
 4. API Routes:
-   - POST /api/shift-reports
-   - POST /api/attendance
-   - POST /api/plant-reports
-   - POST /api/gold/pours
-   - GET endpoints for data retrieval
+   - Harden validation/error handling for production data
+   - Add missing endpoints for remaining modules
 
 5. Data Integration:
    - Connect forms to API routes

@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 const goldPourSchema = z.object({
   siteId: z.string().uuid(),
-  barId: z.string().min(1).max(100),
+  pourBarId: z.string().min(1).max(100),
+  pourDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   grossWeight: z.number().positive(),
   witness1Id: z.string().uuid(),
   witness2Id: z.string().uuid(),
@@ -22,7 +23,6 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const siteId = searchParams.get('siteId');
-    const status = searchParams.get('status');
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: any = {
@@ -30,8 +30,6 @@ export async function GET(request: NextRequest) {
     };
 
     if (siteId) where.siteId = siteId;
-    if (status) where.status = status;
-
     const [pours, total] = await Promise.all([
       prisma.goldPour.findMany({
         where,
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest) {
           witness1: { select: { name: true } },
           witness2: { select: { name: true } },
         },
-        orderBy: { pouredAt: 'desc' },
+        orderBy: { pourDate: 'desc' },
         skip,
         take: limit,
       }),
@@ -88,6 +86,10 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid site', 403);
     }
 
+    if (!site.isActive) {
+      return errorResponse('Site is not active', 400);
+    }
+
     if (!witness1 || witness1.companyId !== session.user.companyId || !witness1.isActive) {
       return errorResponse('Invalid witness 1', 400);
     }
@@ -96,20 +98,27 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid witness 2', 400);
     }
 
+    const existingPour = await prisma.goldPour.findUnique({
+      where: { pourBarId: validated.pourBarId },
+      select: { id: true },
+    });
+
+    if (existingPour) {
+      return errorResponse('Pour/Bar ID already exists', 409);
+    }
+
     // Create gold pour
     const pour = await prisma.goldPour.create({
       data: {
         siteId: validated.siteId,
-        barId: validated.barId,
+        pourBarId: validated.pourBarId,
+        pourDate: new Date(validated.pourDate),
         grossWeight: validated.grossWeight,
         witness1Id: validated.witness1Id,
         witness2Id: validated.witness2Id,
         storageLocation: validated.storageLocation,
         estimatedPurity: validated.estimatedPurity,
         notes: validated.notes,
-        status: 'IN_STORAGE',
-        createdById: session.user.id,
-        pouredAt: new Date(),
       },
       include: {
         site: { select: { name: true, code: true } },

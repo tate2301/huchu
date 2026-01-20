@@ -69,11 +69,9 @@ model Section {
 }
 
 enum UserRole {
-  OWNER
+  SUPERADMIN
   MANAGER
-  SUPERVISOR
   CLERK
-  OPERATOR
 }
 
 model User {
