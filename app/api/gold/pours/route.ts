@@ -72,11 +72,11 @@ export async function POST(request: NextRequest) {
         where: { id: validated.siteId },
         select: { companyId: true, isActive: true },
       }),
-      prisma.user.findUnique({
+      prisma.employee.findUnique({
         where: { id: validated.witness1Id },
         select: { companyId: true, isActive: true },
       }),
-      prisma.user.findUnique({
+      prisma.employee.findUnique({
         where: { id: validated.witness2Id },
         select: { companyId: true, isActive: true },
       }),

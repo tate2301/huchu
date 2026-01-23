@@ -8,8 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "create-user": "node scripts/create-user.js",
+    "create-employee": "node scripts/create-employee.js",
     "create-company": "node scripts/create-company.js",
-    "create-site": "node scripts/create-site.js"
+    "create-site": "node scripts/create-site.js",
+    "manage-employees": "node scripts/manage-employees.js",
+    "manage-inventory": "node scripts/manage-inventory.js",
+    "manage-equipment": "node scripts/manage-equipment.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (validated.technicianId) {
-      const technician = await prisma.user.findUnique({
+      const technician = await prisma.employee.findUnique({
         where: { id: validated.technicianId },
         select: { companyId: true, isActive: true },
       });

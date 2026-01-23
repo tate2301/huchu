@@ -17,6 +17,7 @@ const routeLabels: Record<string, string> = {
   dashboard: "Production Dashboard",
   gold: "Gold Control",
   maintenance: "Maintenance",
+  "human-resources": "Human Resources",
   "plant-report": "Plant Report",
   reports: "Reports",
   shift: "Shift",

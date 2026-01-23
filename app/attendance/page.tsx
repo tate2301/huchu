@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { Save, Send, UserCheck, UserX } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Save, Send, UserCheck, UserPlus, UserX } from "lucide-react"
 
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
@@ -11,13 +11,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchSites, fetchUsers } from "@/lib/api"
+import { fetchEmployees, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 
 interface CrewMember {
   id: string
+  employeeId: string
   name: string
   status: "PRESENT" | "ABSENT" | "LATE"
   overtime: string
@@ -25,6 +34,7 @@ interface CrewMember {
 
 export default function AttendancePage() {
   const { toast } = useToast()
+  const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     shift: "DAY",
@@ -32,6 +42,16 @@ export default function AttendancePage() {
   })
 
   const [crew, setCrew] = useState<CrewMember[]>([])
+  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false)
+  const [passportUploading, setPassportUploading] = useState(false)
+  const [newEmployee, setNewEmployee] = useState({
+    name: "",
+    phone: "",
+    nextOfKinName: "",
+    nextOfKinPhone: "",
+    passportPhotoUrl: "",
+    villageOfOrigin: "",
+  })
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
@@ -39,12 +59,12 @@ export default function AttendancePage() {
   })
 
   const {
-    data: usersData,
-    isLoading: usersLoading,
-    error: usersError,
+    data: employeesData,
+    isLoading: employeesLoading,
+    error: employeesError,
   } = useQuery({
-    queryKey: ["users", "attendance"],
-    queryFn: () => fetchUsers({ active: true, role: "CLERK", limit: 200 }),
+    queryKey: ["employees", "attendance"],
+    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
   })
 
   useEffect(() => {
@@ -54,20 +74,21 @@ export default function AttendancePage() {
   }, [formData.siteId, sites])
 
   useEffect(() => {
-    if (!usersData) return
-    const users = usersData.data
+    if (!employeesData) return
+    const employees = employeesData.data
     setCrew((prev) => {
       const prevMap = new Map(prev.map((member) => [member.id, member]))
-      return users.map((user) =>
-        prevMap.get(user.id) ?? {
-          id: user.id,
-          name: user.name,
+      return employees.map((employee) =>
+        prevMap.get(employee.id) ?? {
+          id: employee.id,
+          employeeId: employee.employeeId,
+          name: employee.name,
           status: "PRESENT",
           overtime: "",
         },
       )
     })
-  }, [usersData])
+  }, [employeesData])
 
   const attendanceMutation = useMutation({
     mutationFn: async (payload: {
@@ -75,7 +96,7 @@ export default function AttendancePage() {
       siteId: string
       shift: "DAY" | "NIGHT"
       records: Array<{
-        userId: string
+        employeeId: string
         status: "PRESENT" | "ABSENT" | "LATE"
         overtime?: number
         notes?: string
@@ -94,8 +115,98 @@ export default function AttendancePage() {
     },
   })
 
+  const createEmployeeMutation = useMutation({
+    mutationFn: async (payload: typeof newEmployee) =>
+      fetchJson("/api/employees", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Employee added",
+        description: "New employee is available for attendance.",
+        variant: "success",
+      })
+      setNewEmployee({
+        name: "",
+        phone: "",
+        nextOfKinName: "",
+        nextOfKinPhone: "",
+        passportPhotoUrl: "",
+        villageOfOrigin: "",
+      })
+      setPassportUploading(false)
+      setAddEmployeeOpen(false)
+      queryClient.invalidateQueries({ queryKey: ["employees"] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to add employee",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
   const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleNewEmployeeChange =
+    (field: keyof typeof newEmployee) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setNewEmployee((prev) => ({ ...prev, [field]: event.target.value }))
+    }
+
+  const uploadPassportPhoto = async (file: File) => {
+    const formDataPayload = new FormData()
+    formDataPayload.append("file", file)
+
+    const response = await fetch("/api/uploads/passport-photo", {
+      method: "POST",
+      body: formDataPayload,
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      const message =
+        data && typeof data.error === "string" ? data.error : "Upload failed"
+      throw new Error(message)
+    }
+
+    if (!data || typeof data.url !== "string") {
+      throw new Error("Upload response missing file URL")
+    }
+
+    return data.url as string
+  }
+
+  const handlePassportPhotoChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setPassportUploading(true)
+    try {
+      const url = await uploadPassportPhoto(file)
+      setNewEmployee((prev) => ({ ...prev, passportPhotoUrl: url }))
+      toast({
+        title: "Photo uploaded",
+        description: "Passport photo saved successfully.",
+        variant: "success",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed"
+      toast({
+        title: "Unable to upload photo",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setPassportUploading(false)
+      event.target.value = ""
+    }
   }
 
   const updateCrewStatus = (id: string, status: CrewMember["status"]) => {
@@ -108,6 +219,29 @@ export default function AttendancePage() {
     setCrew((prev) =>
       prev.map((member) => (member.id === id ? { ...member, overtime } : member)),
     )
+  }
+
+  const handleAddEmployeeSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (passportUploading) {
+      toast({
+        title: "Upload in progress",
+        description: "Wait for the passport photo to finish uploading.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!newEmployee.passportPhotoUrl) {
+      toast({
+        title: "Passport photo required",
+        description: "Upload a passport photo before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    createEmployeeMutation.mutate(newEmployee)
   }
 
   const handleSaveDraft = () => {
@@ -138,7 +272,7 @@ export default function AttendancePage() {
     }
 
     const records = crew.map((member) => ({
-      userId: member.id,
+      employeeId: member.id,
       status: member.status,
       overtime:
         member.status === "ABSENT" || member.overtime.trim() === ""
@@ -157,8 +291,8 @@ export default function AttendancePage() {
   const presentCount = crew.filter((m) => m.status === "PRESENT" || m.status === "LATE").length
   const absentCount = crew.filter((m) => m.status === "ABSENT").length
 
-  const loading = sitesLoading || usersLoading
-  const error = sitesError || usersError || attendanceMutation.error
+  const loading = sitesLoading || employeesLoading
+  const error = sitesError || employeesError || attendanceMutation.error
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -167,6 +301,108 @@ export default function AttendancePage() {
           <Save className="h-4 w-4" />
           Save Draft
         </Button>
+        <Sheet open={addEmployeeOpen} onOpenChange={setAddEmployeeOpen}>
+          <SheetTrigger asChild>
+            <Button size="sm" variant="outline" type="button">
+              <UserPlus className="h-4 w-4" />
+              Add Employee
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="w-full sm:max-w-lg p-6">
+            <SheetHeader>
+              <SheetTitle>Add Employee</SheetTitle>
+              <SheetDescription>Capture a new crew member for attendance.</SheetDescription>
+            </SheetHeader>
+            <form onSubmit={handleAddEmployeeSubmit} className="mt-6 space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Name *</label>
+                  <Input
+                    value={newEmployee.name}
+                    onChange={handleNewEmployeeChange("name")}
+                    placeholder="Full name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Phone *</label>
+                  <Input
+                    type="tel"
+                    value={newEmployee.phone}
+                    onChange={handleNewEmployeeChange("phone")}
+                    placeholder="07xx xxx xxx"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Village of Origin *</label>
+                  <Input
+                    value={newEmployee.villageOfOrigin}
+                    onChange={handleNewEmployeeChange("villageOfOrigin")}
+                    placeholder="Village"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Next of Kin Name *</label>
+                  <Input
+                    value={newEmployee.nextOfKinName}
+                    onChange={handleNewEmployeeChange("nextOfKinName")}
+                    placeholder="Next of kin"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Next of Kin Phone *</label>
+                  <Input
+                    type="tel"
+                    value={newEmployee.nextOfKinPhone}
+                    onChange={handleNewEmployeeChange("nextOfKinPhone")}
+                    placeholder="07xx xxx xxx"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Passport Photo *</label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePassportPhotoChange}
+                  disabled={passportUploading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, or WebP up to 5MB.
+                </p>
+                {passportUploading ? (
+                  <p className="text-xs text-muted-foreground">Uploading photo...</p>
+                ) : null}
+                {newEmployee.passportPhotoUrl ? (
+                  <img
+                    src={newEmployee.passportPhotoUrl}
+                    alt="Passport preview"
+                    className="h-20 w-20 rounded border object-cover"
+                  />
+                ) : null}
+              </div>
+
+              <Button
+                type="submit"
+                disabled={passportUploading || createEmployeeMutation.isPending}
+                className="w-full"
+              >
+                {createEmployeeMutation.isPending ? "Saving..." : "Save Employee"}
+              </Button>
+            </form>
+          </SheetContent>
+        </Sheet>
         <Button
           size="sm"
           type="submit"
@@ -288,7 +524,10 @@ export default function AttendancePage() {
                     key={member.id}
                     className="flex flex-col md:flex-row md:items-center gap-3 rounded-md border border-border bg-card/60 p-3"
                   >
-                    <div className="flex-1 font-medium">{member.name}</div>
+                    <div className="flex-1">
+                      <div className="font-medium">{member.name}</div>
+                      <div className="text-xs text-muted-foreground">ID: {member.employeeId}</div>
+                    </div>
 
                     <div className="flex gap-2">
                       <Button

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -21,8 +24,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { fetchEmployees, fetchInventoryItems, fetchSites, fetchStockLocations } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Package,
   Fuel,
@@ -220,8 +233,64 @@ export default function StoresPage() {
     ? (viewParam as StoresView)
     : "dashboard";
   const [activeView, setActiveView] = useState<StoresView>(initialView);
-  const [selectedSite, setSelectedSite] = useState("site1");
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedSiteId, setSelectedSiteId] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("CONSUMABLES");
+  const [inventoryFormOpen, setInventoryFormOpen] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [inventoryForm, setInventoryForm] = useState({
+    itemCode: "",
+    name: "",
+    category: "CONSUMABLES",
+    siteId: "",
+    locationId: "",
+    unit: "",
+    currentStock: "",
+    minStock: "",
+    maxStock: "",
+    unitCost: "",
+  });
+  const [issueItemId, setIssueItemId] = useState("");
+  const [receiveItemId, setReceiveItemId] = useState("");
+
+  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+    queryKey: ["sites"],
+    queryFn: fetchSites,
+  });
+
+  const { data: inventoryData, isLoading: inventoryLoading, error: inventoryError } = useQuery({
+    queryKey: ["inventory-items", selectedSiteId, selectedCategory],
+    queryFn: () =>
+      fetchInventoryItems({
+        siteId: selectedSiteId,
+        category: selectedCategory === "all" ? undefined : selectedCategory,
+        limit: 500,
+      }),
+    enabled: !!selectedSiteId,
+  });
+
+  const {
+    data: stockLocationsData,
+    isLoading: stockLocationsLoading,
+  } = useQuery({
+    queryKey: ["stock-locations", inventoryForm.siteId || selectedSiteId],
+    queryFn: () =>
+      fetchStockLocations({
+        siteId: inventoryForm.siteId || selectedSiteId,
+        active: true,
+        limit: 200,
+      }),
+    enabled: !!(inventoryForm.siteId || selectedSiteId),
+  });
+
+  const { data: employeesData, isLoading: employeesLoading } = useQuery({
+    queryKey: ["employees", "stores-forms"],
+    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+  });
+  const employees = employeesData?.data ?? [];
+  const inventoryItems = inventoryData?.data ?? [];
+  const stockLocations = stockLocationsData?.data ?? [];
 
   const changeView = (view: StoresView) => {
     setActiveView(view);
@@ -230,10 +299,234 @@ export default function StoresPage() {
     router.replace(`/stores?${params.toString()}`);
   };
 
-  // Filter inventory
-  const filteredInventory = mockInventory.filter(
-    (item) => selectedCategory === "all" || item.category === selectedCategory,
-  );
+  useEffect(() => {
+    if (!selectedSiteId && sites && sites.length > 0) {
+      setSelectedSiteId(sites[0].id);
+      setInventoryForm((prev) => ({ ...prev, siteId: sites[0].id }));
+    }
+  }, [selectedSiteId, sites]);
+
+  useEffect(() => {
+    if (!selectedSiteId) return;
+    setIssueItemId("");
+    setReceiveItemId("");
+    setInventoryForm((prev) =>
+      prev.siteId ? prev : { ...prev, siteId: selectedSiteId },
+    );
+  }, [selectedSiteId]);
+
+  const resetInventoryForm = (
+    overrides: Partial<typeof inventoryForm> = {},
+  ) => {
+    setInventoryForm({
+      itemCode: "",
+      name: "",
+      category:
+        selectedCategory === "all" ? "CONSUMABLES" : selectedCategory,
+      siteId: selectedSiteId,
+      locationId: "",
+      unit: "",
+      currentStock: "",
+      minStock: "",
+      maxStock: "",
+      unitCost: "",
+      ...overrides,
+    });
+  };
+
+  const toOptionalNumber = (value: string) => {
+    if (value.trim() === "") return undefined;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  };
+
+  const openNewInventoryItem = () => {
+    setEditingItemId(null);
+    resetInventoryForm();
+    setInventoryFormOpen(true);
+  };
+
+  const openEditInventoryItem = (item: (typeof inventoryItems)[number]) => {
+    setEditingItemId(item.id);
+    resetInventoryForm({
+      itemCode: item.itemCode ?? "",
+      name: item.name ?? "",
+      category: item.category ?? "CONSUMABLES",
+      siteId: item.siteId ?? selectedSiteId,
+      locationId: item.locationId ?? "",
+      unit: item.unit ?? "",
+      currentStock:
+        item.currentStock !== null && item.currentStock !== undefined
+          ? String(item.currentStock)
+          : "",
+      minStock:
+        item.minStock !== null && item.minStock !== undefined
+          ? String(item.minStock)
+          : "",
+      maxStock:
+        item.maxStock !== null && item.maxStock !== undefined
+          ? String(item.maxStock)
+          : "",
+      unitCost:
+        item.unitCost !== null && item.unitCost !== undefined
+          ? String(item.unitCost)
+          : "",
+    });
+    setInventoryFormOpen(true);
+  };
+
+  const handleInventoryChange =
+    (field: keyof typeof inventoryForm) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setInventoryForm((prev) => ({ ...prev, [field]: event.target.value }));
+    };
+
+  const handleInventorySelect =
+    (field: "category" | "siteId" | "locationId") => (value: string) => {
+      setInventoryForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+  const handleInventoryOpenChange = (open: boolean) => {
+    setInventoryFormOpen(open);
+    if (!open) {
+      setEditingItemId(null);
+      resetInventoryForm();
+    }
+  };
+
+  const createInventoryMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/inventory/items", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Item created",
+        description: "Inventory item saved successfully.",
+        variant: "success",
+      });
+      setInventoryFormOpen(false);
+      resetInventoryForm();
+      queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to create item",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateInventoryMutation = useMutation({
+    mutationFn: async (payload: { id: string; data: Record<string, unknown> }) =>
+      fetchJson(`/api/inventory/items/${payload.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload.data),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Item updated",
+        description: "Inventory changes saved.",
+        variant: "success",
+      });
+      setInventoryFormOpen(false);
+      setEditingItemId(null);
+      resetInventoryForm();
+      queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update item",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteInventoryMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/inventory/items/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({
+        title: "Item deleted",
+        description: "Inventory item removed.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to delete item",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleInventorySubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (
+      !inventoryForm.itemCode ||
+      !inventoryForm.name ||
+      !inventoryForm.siteId ||
+      !inventoryForm.locationId ||
+      !inventoryForm.unit
+    ) {
+      toast({
+        title: "Missing details",
+        description: "Code, name, site, location, and unit are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = {
+      itemCode: inventoryForm.itemCode,
+      name: inventoryForm.name,
+      category: inventoryForm.category,
+      siteId: inventoryForm.siteId,
+      locationId: inventoryForm.locationId,
+      unit: inventoryForm.unit,
+      currentStock: toOptionalNumber(inventoryForm.currentStock),
+      minStock: toOptionalNumber(inventoryForm.minStock),
+      maxStock: toOptionalNumber(inventoryForm.maxStock),
+      unitCost: toOptionalNumber(inventoryForm.unitCost),
+    };
+
+    if (editingItemId) {
+      updateInventoryMutation.mutate({ id: editingItemId, data: payload });
+    } else {
+      createInventoryMutation.mutate(payload);
+    }
+  };
+
+  const handleInventoryDelete = (id: string) => {
+    if (!window.confirm("Delete this inventory item?")) return;
+    deleteInventoryMutation.mutate(id);
+  };
+
+  const handleIssueItemChange = (value: string) => {
+    if (value === "__add_item__") {
+      openNewInventoryItem();
+      setIssueItemId("");
+      return;
+    }
+    setIssueItemId(value);
+  };
+
+  const handleReceiveItemChange = (value: string) => {
+    if (value === "__add_item__") {
+      openNewInventoryItem();
+      setReceiveItemId("");
+      return;
+    }
+    setReceiveItemId(value);
+  };
+
+  const filteredInventory = inventoryItems;
 
   // Calculate stats
   const totalItems = mockInventory.length;
@@ -252,6 +545,7 @@ export default function StoresPage() {
   const dieselMin = dieselItem?.minStock ?? 0;
   const dieselVariance = dieselStock - dieselMin;
   const dieselBelowMin = dieselItem ? dieselStock < dieselMin : false;
+  const pageError = sitesError || inventoryError;
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -274,6 +568,13 @@ export default function StoresPage() {
         title="Stores & Fuel Management"
         description="Inventory tracking and fuel ledger"
       />
+
+      {pageError && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load inventory data</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(pageError)}</AlertDescription>
+        </Alert>
+      )}
 
       <Tabs
         value={activeView}
@@ -570,25 +871,37 @@ export default function StoresPage() {
                     Current inventory across all locations
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={openNewInventoryItem}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               {/* Filters */}
               <div className="flex gap-4 mb-4">
-                <Select value={selectedSite} onValueChange={setSelectedSite}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="site1">Mine Site 1</SelectItem>
-                    <SelectItem value="site2">Mine Site 2</SelectItem>
-                    <SelectItem value="site3">Mine Site 3</SelectItem>
-                  </SelectContent>
-                </Select>
+                {sitesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select value={selectedSiteId || undefined} onValueChange={setSelectedSiteId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites?.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select
                   value={selectedCategory}
                   onValueChange={setSelectedCategory}
@@ -636,46 +949,263 @@ export default function StoresPage() {
                       <th className="text-center p-3 text-sm font-medium">
                         Status
                       </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredInventory.map((item) => (
-                      <tr key={item.id} className="border-b hover:bg-muted/60">
-                        <td className="p-3 text-sm font-mono">{item.code}</td>
-                        <td className="p-3 text-sm font-medium">{item.name}</td>
-                        <td className="p-3 text-sm">{item.category}</td>
-                        <td className="p-3 text-sm text-right font-medium">
-                          {item.currentStock} {item.unit}
-                        </td>
-                        <td className="p-3 text-sm text-right text-muted-foreground">
-                          {item.minStock} {item.unit}
-                        </td>
-                        <td className="p-3 text-sm">{item.location}</td>
-                        <td className="p-3 text-sm text-right">
-                          ${(item.currentStock * item.unitCost).toFixed(2)}
-                        </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              item.status === "critical"
-                                ? "bg-red-100 text-red-800"
-                                : item.status === "low"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-green-100 text-green-800"
-                            }`}
-                          >
-                            {item.status === "critical"
-                              ? "Critical"
-                              : item.status === "low"
-                                ? "Low"
-                                : "OK"}
-                          </span>
+                    {inventoryLoading ? (
+                      <tr>
+                        <td colSpan={9} className="p-3">
+                          <Skeleton className="h-10 w-full" />
                         </td>
                       </tr>
-                    ))}
+                    ) : filteredInventory.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-3 text-sm text-muted-foreground">
+                          No inventory items found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredInventory.map((item) => {
+                        const isLow =
+                          item.minStock !== null &&
+                          item.minStock !== undefined &&
+                          item.currentStock <= item.minStock;
+                        return (
+                          <tr key={item.id} className="border-b hover:bg-muted/60">
+                            <td className="p-3 text-sm font-mono">{item.itemCode}</td>
+                            <td className="p-3 text-sm font-medium">{item.name}</td>
+                            <td className="p-3 text-sm">{item.category}</td>
+                            <td className="p-3 text-sm text-right font-medium">
+                              {item.currentStock} {item.unit}
+                            </td>
+                            <td className="p-3 text-sm text-right text-muted-foreground">
+                              {item.minStock !== null && item.minStock !== undefined
+                                ? `${item.minStock} ${item.unit}`
+                                : "-"}
+                            </td>
+                            <td className="p-3 text-sm">{item.location?.name ?? "-"}</td>
+                            <td className="p-3 text-sm text-right">
+                              {item.unitCost !== null && item.unitCost !== undefined
+                                ? `$${(item.currentStock * item.unitCost).toFixed(2)}`
+                                : "-"}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  isLow ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
+                                }`}
+                              >
+                                {isLow ? "Low" : "OK"}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openEditInventoryItem(item)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleInventoryDelete(item.id)}
+                                  disabled={deleteInventoryMutation.isPending}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
+              <Sheet open={inventoryFormOpen} onOpenChange={handleInventoryOpenChange}>
+                <SheetContent className="w-full sm:max-w-lg p-6">
+                  <SheetHeader>
+                    <SheetTitle>
+                      {editingItemId ? "Edit Item" : "Add Inventory Item"}
+                    </SheetTitle>
+                    <SheetDescription>Manage consumables and stock details.</SheetDescription>
+                  </SheetHeader>
+                  <form onSubmit={handleInventorySubmit} className="mt-6 space-y-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Item Code *</label>
+                        <Input
+                          value={inventoryForm.itemCode}
+                          onChange={handleInventoryChange("itemCode")}
+                          placeholder="CONS-001"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Name *</label>
+                        <Input
+                          value={inventoryForm.name}
+                          onChange={handleInventoryChange("name")}
+                          placeholder="Grinding Media"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Category *</label>
+                        <Select
+                          value={inventoryForm.category}
+                          onValueChange={handleInventorySelect("category")}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CONSUMABLES">Consumables</SelectItem>
+                            <SelectItem value="FUEL">Fuel</SelectItem>
+                            <SelectItem value="SPARES">Spares</SelectItem>
+                            <SelectItem value="PPE">PPE</SelectItem>
+                            <SelectItem value="REAGENTS">Reagents</SelectItem>
+                            <SelectItem value="OTHER">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Site *</label>
+                        {sitesLoading ? (
+                          <Skeleton className="h-9 w-full" />
+                        ) : (
+                          <Select
+                            value={inventoryForm.siteId || undefined}
+                            onValueChange={handleInventorySelect("siteId")}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select site" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sites?.map((site) => (
+                                <SelectItem key={site.id} value={site.id}>
+                                  {site.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Location *</label>
+                        {stockLocationsLoading ? (
+                          <Skeleton className="h-9 w-full" />
+                        ) : (
+                          <Select
+                            value={inventoryForm.locationId || undefined}
+                            onValueChange={handleInventorySelect("locationId")}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stockLocations.map((location) => (
+                                <SelectItem key={location.id} value={location.id}>
+                                  {location.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Unit *</label>
+                        <Input
+                          value={inventoryForm.unit}
+                          onChange={handleInventoryChange("unit")}
+                          placeholder="kg, litres, pieces"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Current Stock</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={inventoryForm.currentStock}
+                          onChange={handleInventoryChange("currentStock")}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Unit Cost</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={inventoryForm.unitCost}
+                          onChange={handleInventoryChange("unitCost")}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Min Stock</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={inventoryForm.minStock}
+                          onChange={handleInventoryChange("minStock")}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Max Stock</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={inventoryForm.maxStock}
+                          onChange={handleInventoryChange("maxStock")}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="submit"
+                        className="flex-1"
+                        disabled={
+                          createInventoryMutation.isPending ||
+                          updateInventoryMutation.isPending
+                        }
+                      >
+                        {editingItemId ? "Save Changes" : "Save Item"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleInventoryOpenChange(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </SheetContent>
+              </Sheet>
             </CardContent>
           </Card>
         </TabsContent>
@@ -825,16 +1355,25 @@ export default function StoresPage() {
                     <label className="block text-sm font-medium mb-2">
                       Site *
                     </label>
-                    <Select defaultValue="site1">
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select site" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="site1">Mine Site 1</SelectItem>
-                        <SelectItem value="site2">Mine Site 2</SelectItem>
-                        <SelectItem value="site3">Mine Site 3</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {sitesLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : (
+                      <Select
+                        value={selectedSiteId || undefined}
+                        onValueChange={setSelectedSiteId}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select site" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sites?.map((site) => (
+                            <SelectItem key={site.id} value={site.id}>
+                              {site.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -843,19 +1382,23 @@ export default function StoresPage() {
                     <label className="block text-sm font-medium mb-2">
                       Item *
                     </label>
-                    <Select>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select item..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockInventory.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name} ({item.currentStock} {item.unit}{" "}
-                            available)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {inventoryLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : (
+                      <Select value={issueItemId || undefined} onValueChange={handleIssueItemChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select item..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {inventoryItems.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.name} ({item.currentStock} {item.unit} available)
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__add_item__">+ Add new item</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">
@@ -876,7 +1419,22 @@ export default function StoresPage() {
                     <label className="block text-sm font-medium mb-2">
                       Requested By *
                     </label>
-                    <Input placeholder="Name or shift" />
+                    {employeesLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : (
+                      <Select>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map((employee) => (
+                            <SelectItem key={employee.id} value={employee.id}>
+                              {employee.name} ({employee.employeeId})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -884,7 +1442,22 @@ export default function StoresPage() {
                   <label className="block text-sm font-medium mb-2">
                     Approved By
                   </label>
-                  <Input placeholder="Supervisor or manager name" />
+                  {employeesLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : (
+                    <Select>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.name} ({employee.employeeId})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div>
@@ -936,16 +1509,25 @@ export default function StoresPage() {
                     <label className="block text-sm font-medium mb-2">
                       Site *
                     </label>
-                    <Select defaultValue="site1">
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select site" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="site1">Mine Site 1</SelectItem>
-                        <SelectItem value="site2">Mine Site 2</SelectItem>
-                        <SelectItem value="site3">Mine Site 3</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {sitesLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : (
+                      <Select
+                        value={selectedSiteId || undefined}
+                        onValueChange={setSelectedSiteId}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select site" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sites?.map((site) => (
+                            <SelectItem key={site.id} value={site.id}>
+                              {site.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -954,19 +1536,23 @@ export default function StoresPage() {
                     <label className="block text-sm font-medium mb-2">
                       Item *
                     </label>
-                    <Select>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select item..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockInventory.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name} (Current: {item.currentStock}{" "}
-                            {item.unit})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {inventoryLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : (
+                      <Select value={receiveItemId || undefined} onValueChange={handleReceiveItemChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select item..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {inventoryItems.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.name} (Current: {item.currentStock} {item.unit})
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__add_item__">+ Add new item</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">
@@ -1006,7 +1592,22 @@ export default function StoresPage() {
                     <label className="block text-sm font-medium mb-2">
                       Received By *
                     </label>
-                    <Input placeholder="Your name" />
+                    {employeesLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : (
+                      <Select>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map((employee) => (
+                            <SelectItem key={employee.id} value={employee.id}>
+                              {employee.name} ({employee.employeeId})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 

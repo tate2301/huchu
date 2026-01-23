@@ -9,7 +9,7 @@ const shiftReportSchema = z.object({
   shift: z.enum(['DAY', 'NIGHT']),
   siteId: z.string().uuid(),
   sectionId: z.string().uuid().optional(),
-  supervisorId: z.string().uuid(),
+  groupLeaderId: z.string().uuid(),
   crewCount: z.number().int().min(0).max(1000),
   workType: z.enum(['DEVELOPMENT', 'PRODUCTION', 'HAULAGE', 'SUPPORT', 'OTHER']),
   outputTonnes: z.number().min(0).optional(),
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         include: {
           site: { select: { name: true, code: true } },
           section: { select: { name: true } },
-          supervisor: { select: { name: true } },
+          groupLeader: { select: { name: true } },
           downtimeEvents: {
             include: {
               downtimeCode: { select: { description: true, code: true } },
@@ -87,13 +87,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = shiftReportSchema.parse(body);
 
-    const [site, supervisor, section] = await Promise.all([
+    const [site, groupLeader, section] = await Promise.all([
       prisma.site.findUnique({
         where: { id: validated.siteId },
         select: { companyId: true, isActive: true },
       }),
-      prisma.user.findUnique({
-        where: { id: validated.supervisorId },
+      prisma.employee.findUnique({
+        where: { id: validated.groupLeaderId },
         select: { companyId: true, isActive: true },
       }),
       validated.sectionId
@@ -112,8 +112,8 @@ export async function POST(request: NextRequest) {
       return errorResponse('Site is not active', 400);
     }
 
-    if (!supervisor || supervisor.companyId !== session.user.companyId || !supervisor.isActive) {
-      return errorResponse('Invalid supervisor', 400);
+    if (!groupLeader || groupLeader.companyId !== session.user.companyId || !groupLeader.isActive) {
+      return errorResponse('Invalid group leader', 400);
     }
 
     if (section && section.siteId !== validated.siteId) {
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         shift: validated.shift,
         siteId: validated.siteId,
         sectionId: validated.sectionId,
-        supervisorId: validated.supervisorId,
+        groupLeaderId: validated.groupLeaderId,
         crewCount: validated.crewCount,
         workType: validated.workType,
         outputTonnes: validated.outputTonnes,

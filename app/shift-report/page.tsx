@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchSections, fetchSites, fetchUsers } from "@/lib/api"
+import { fetchEmployees, fetchSections, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 
 const toNumber = (value: string) => {
@@ -30,7 +30,7 @@ export default function ShiftReportPage() {
     shift: "DAY",
     siteId: "",
     sectionId: "",
-    supervisorId: "",
+    groupLeaderId: "",
     crewCount: "",
     workType: "PRODUCTION",
     outputTonnes: "",
@@ -47,9 +47,13 @@ export default function ShiftReportPage() {
     queryFn: fetchSites,
   })
 
-  const { data: usersData, isLoading: usersLoading, error: usersError } = useQuery({
-    queryKey: ["users", "supervisors"],
-    queryFn: () => fetchUsers({ active: true, limit: 200 }),
+  const {
+    data: employeesData,
+    isLoading: employeesLoading,
+    error: employeesError,
+  } = useQuery({
+    queryKey: ["employees", "group-leaders"],
+    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
   })
 
   const { data: sectionsData, isLoading: sectionsLoading } = useQuery({
@@ -64,10 +68,7 @@ export default function ShiftReportPage() {
     }
   }, [formData.siteId, sites])
 
-  const supervisors = useMemo(() => {
-    const users = usersData?.data ?? []
-    return users.filter((user) => user.role === "MANAGER" || user.role === "SUPERADMIN")
-  }, [usersData])
+  const groupLeaders = useMemo(() => employeesData?.data ?? [], [employeesData])
 
   const shiftReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
@@ -120,10 +121,10 @@ export default function ShiftReportPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.siteId || !formData.supervisorId) {
+    if (!formData.siteId || !formData.groupLeaderId) {
       toast({
         title: "Missing details",
-        description: "Site and supervisor are required.",
+        description: "Site and group leader are required.",
         variant: "destructive",
       })
       return
@@ -134,7 +135,7 @@ export default function ShiftReportPage() {
       shift: formData.shift,
       siteId: formData.siteId,
       sectionId: formData.sectionId || undefined,
-      supervisorId: formData.supervisorId,
+      groupLeaderId: formData.groupLeaderId,
       crewCount: Number(formData.crewCount),
       workType: formData.workType,
       outputTonnes: toNumber(formData.outputTonnes),
@@ -149,7 +150,7 @@ export default function ShiftReportPage() {
     shiftReportMutation.mutate(payload)
   }
 
-  const error = sitesError || usersError || shiftReportMutation.error
+  const error = sitesError || employeesError || shiftReportMutation.error
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -274,23 +275,23 @@ export default function ShiftReportPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Supervisor *</label>
-                {usersLoading ? (
+                <label className="block text-sm font-medium mb-2">Group Leader *</label>
+                {employeesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
                   <Select
-                    name="supervisorId"
-                    value={formData.supervisorId || undefined}
-                    onValueChange={handleSelectChange("supervisorId")}
+                    name="groupLeaderId"
+                    value={formData.groupLeaderId || undefined}
+                    onValueChange={handleSelectChange("groupLeaderId")}
                     required
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select supervisor" />
+                      <SelectValue placeholder="Select group leader" />
                     </SelectTrigger>
                     <SelectContent>
-                      {supervisors.map((supervisor) => (
-                        <SelectItem key={supervisor.id} value={supervisor.id}>
-                          {supervisor.name}
+                      {groupLeaders.map((leader) => (
+                        <SelectItem key={leader.id} value={leader.id}>
+                          {leader.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -7,6 +7,13 @@ import {
   paginationResponse,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
+import { z } from "zod"
+
+const stockLocationSchema = z.object({
+  name: z.string().min(1).max(200),
+  siteId: z.string().uuid(),
+  isActive: z.boolean().optional(),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,5 +54,64 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[API] GET /api/stock-locations error:", error)
     return errorResponse("Failed to fetch stock locations")
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request)
+    if (sessionResult instanceof NextResponse) return sessionResult
+    const { session } = sessionResult
+
+    const body = await request.json()
+    const validated = stockLocationSchema.parse(body)
+
+    const site = await prisma.site.findUnique({
+      where: { id: validated.siteId },
+      select: { companyId: true, isActive: true },
+    })
+
+    if (!site || site.companyId !== session.user.companyId) {
+      return errorResponse("Invalid site", 403)
+    }
+
+    if (!site.isActive) {
+      return errorResponse("Site is not active", 400)
+    }
+
+    const existing = await prisma.stockLocation.findFirst({
+      where: {
+        siteId: validated.siteId,
+        name: { equals: validated.name, mode: "insensitive" },
+      },
+      select: { id: true },
+    })
+
+    if (existing) {
+      return errorResponse("Stock location already exists for this site", 409)
+    }
+
+    const location = await prisma.stockLocation.create({
+      data: {
+        name: validated.name,
+        siteId: validated.siteId,
+        isActive: validated.isActive ?? true,
+      },
+      select: {
+        id: true,
+        name: true,
+        siteId: true,
+        isActive: true,
+        site: { select: { name: true, code: true } },
+      },
+    })
+
+    return successResponse(location, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues)
+    }
+    console.error("[API] POST /api/stock-locations error:", error)
+    return errorResponse("Failed to create stock location")
   }
 }

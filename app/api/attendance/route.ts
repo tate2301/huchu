@@ -8,7 +8,7 @@ const attendanceSchema = z.object({
   siteId: z.string().uuid(),
   shift: z.enum(['DAY', 'NIGHT']),
   records: z.array(z.object({
-    userId: z.string().uuid(),
+    employeeId: z.string().uuid(),
     status: z.enum(['PRESENT', 'ABSENT', 'LATE']),
     overtime: z.number().min(0).max(24).optional(),
     notes: z.string().max(500).optional(),
@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
       return errorResponse('Site is not active', 400);
     }
 
-    const userIds = validated.records.map((record) => record.userId);
-    const uniqueUserIds = new Set(userIds);
-    if (uniqueUserIds.size !== userIds.length) {
-      return errorResponse('Duplicate user entries in attendance records', 400);
+    const employeeIds = validated.records.map((record) => record.employeeId);
+    const uniqueEmployeeIds = new Set(employeeIds);
+    if (uniqueEmployeeIds.size !== employeeIds.length) {
+      return errorResponse('Duplicate employee entries in attendance records', 400);
     }
 
     const attendanceDate = new Date(validated.date);
@@ -51,31 +51,31 @@ export async function POST(request: NextRequest) {
         date: attendanceDate,
         siteId: validated.siteId,
         shift: validated.shift,
-        userId: { in: userIds },
+        employeeId: { in: employeeIds },
       },
-      select: { userId: true },
+      select: { employeeId: true },
     });
 
     if (existingAttendance.length > 0) {
-      return errorResponse('Attendance already recorded for one or more users', 409, {
-        userIds: existingAttendance.map((record) => record.userId),
+      return errorResponse('Attendance already recorded for one or more employees', 409, {
+        employeeIds: existingAttendance.map((record) => record.employeeId),
       });
     }
 
-    const users = await prisma.user.findMany({
-      where: { id: { in: userIds }, companyId: session.user.companyId, isActive: true },
+    const employees = await prisma.employee.findMany({
+      where: { id: { in: employeeIds }, companyId: session.user.companyId, isActive: true },
       select: { id: true },
     });
 
-    if (users.length !== userIds.length) {
-      return errorResponse('One or more users are invalid or inactive', 400);
+    if (employees.length !== employeeIds.length) {
+      return errorResponse('One or more employees are invalid or inactive', 400);
     }
 
     const attendanceRecords = validated.records.map((record) => ({
       date: attendanceDate,
       siteId: validated.siteId,
       shift: validated.shift,
-      userId: record.userId,
+      employeeId: record.employeeId,
       status: record.status,
       overtime: record.overtime || 0,
       notes: record.notes,

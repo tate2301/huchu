@@ -13,6 +13,7 @@ import {
   Package,
   Plus,
   Shield,
+  UserRound,
   Users,
   Wrench,
   type LucideIcon,
@@ -46,6 +47,12 @@ export const navSections: NavSection[] = [
       { href: "/attendance", icon: Users, label: "Attendance" },
       { href: "/plant-report", icon: Factory, label: "Plant Report" },
     ],
+  },
+  {
+    id: "hr",
+    title: "Human Resources",
+    description: "Employee records and attendance roster",
+    items: [{ href: "/human-resources", icon: UserRound, label: "Employees" }],
   },
   {
     id: "maintenance",

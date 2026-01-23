@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -13,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -21,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fetchEmployees } from "@/lib/api";
 import { Coins, Send, Shield, Package, FileCheck } from "lucide-react";
 
 const goldViews = [
@@ -107,6 +110,11 @@ export default function GoldPage() {
     params.set("view", view);
     router.replace(`/gold?${params.toString()}`);
   };
+  const { data: employeesData, isLoading: employeesLoading } = useQuery({
+    queryKey: ["employees", "gold-forms"],
+    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+  });
+  const employees = employeesData?.data ?? [];
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -129,8 +137,20 @@ export default function GoldPage() {
 
       <div className="space-y-6">
         {viewMode === "menu" && <GoldMenu setViewMode={changeView} />}
-        {viewMode === "pour" && <PourForm setViewMode={changeView} />}
-        {viewMode === "dispatch" && <DispatchForm setViewMode={changeView} />}
+        {viewMode === "pour" && (
+          <PourForm
+            setViewMode={changeView}
+            employees={employees}
+            employeesLoading={employeesLoading}
+          />
+        )}
+        {viewMode === "dispatch" && (
+          <DispatchForm
+            setViewMode={changeView}
+            employees={employees}
+            employeesLoading={employeesLoading}
+          />
+        )}
         {viewMode === "receipt" && <ReceiptForm setViewMode={changeView} />}
         {viewMode === "reconciliation" && (
           <ReconciliationView setViewMode={changeView} />
@@ -269,15 +289,23 @@ function GoldMenu({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
   );
 }
 
-function PourForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
+function PourForm({
+  setViewMode,
+  employees,
+  employeesLoading,
+}: {
+  setViewMode: (mode: ViewMode) => void;
+  employees: Array<{ id: string; name: string; employeeId: string }>;
+  employeesLoading: boolean;
+}) {
   const [formData, setFormData] = useState({
     pourBarId: `PB-${Date.now().toString().slice(-6)}`,
     pourDate: new Date().toISOString().slice(0, 16),
     site: "",
     grossWeight: "",
     estimatedPurity: "",
-    witness1: "",
-    witness2: "",
+    witness1Id: "",
+    witness2Id: "",
     storageLocation: "",
     notes: "",
   });
@@ -407,28 +435,52 @@ function PourForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
                 <label className="block text-sm font-medium mb-2">
                   Witness 1 *
                 </label>
-                <Input
-                  value={formData.witness1}
-                  onChange={(e) =>
-                    setFormData({ ...formData, witness1: e.target.value })
-                  }
-                  placeholder="Full name"
-                  required
-                />
+                {employeesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select
+                    value={formData.witness1Id || undefined}
+                    onValueChange={handleSelectChange("witness1Id")}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name} ({employee.employeeId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">
                   Witness 2 *
                 </label>
-                <Input
-                  value={formData.witness2}
-                  onChange={(e) =>
-                    setFormData({ ...formData, witness2: e.target.value })
-                  }
-                  placeholder="Full name"
-                  required
-                />
+                {employeesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select
+                    value={formData.witness2Id || undefined}
+                    onValueChange={handleSelectChange("witness2Id")}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name} ({employee.employeeId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
           </div>
@@ -471,8 +523,12 @@ function PourForm({ setViewMode }: { setViewMode: (mode: ViewMode) => void }) {
 
 function DispatchForm({
   setViewMode,
+  employees,
+  employeesLoading,
 }: {
   setViewMode: (mode: ViewMode) => void;
+  employees: Array<{ id: string; name: string; employeeId: string }>;
+  employeesLoading: boolean;
 }) {
   const [formData, setFormData] = useState({
     dispatchId: `DS-${Date.now().toString().slice(-6)}`,
@@ -482,7 +538,7 @@ function DispatchForm({
     vehicle: "",
     destination: "",
     sealNumbers: "",
-    handedOverBy: "",
+    handedOverById: "",
     receivedBy: "",
     notes: "",
   });
@@ -652,14 +708,26 @@ function DispatchForm({
                 <label className="block text-sm font-medium mb-2">
                   Handed Over By *
                 </label>
-                <Input
-                  value={formData.handedOverBy}
-                  onChange={(e) =>
-                    setFormData({ ...formData, handedOverBy: e.target.value })
-                  }
-                  placeholder="Your name"
-                  required
-                />
+                {employeesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select
+                    value={formData.handedOverById || undefined}
+                    onValueChange={handleSelectChange("handedOverById")}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name} ({employee.employeeId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div>

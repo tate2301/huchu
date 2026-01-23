@@ -30,6 +30,18 @@ export type UserSummary = {
   isActive: boolean
 }
 
+export type EmployeeSummary = {
+  id: string
+  employeeId: string
+  name: string
+  phone: string
+  nextOfKinName: string
+  nextOfKinPhone: string
+  passportPhotoUrl: string
+  villageOfOrigin: string
+  isActive: boolean
+}
+
 export type SectionSummary = {
   id: string
   name: string
@@ -51,6 +63,7 @@ export type Equipment = {
   equipmentCode: string
   name: string
   category: string
+  siteId?: string
   site: { name: string; code: string }
   qrCode?: string | null
   lastServiceDate?: string | null
@@ -82,6 +95,8 @@ export type InventoryItem = {
   itemCode: string
   name: string
   category: string
+  siteId?: string
+  locationId?: string
   unit: string
   currentStock: number
   minStock?: number | null
@@ -89,6 +104,14 @@ export type InventoryItem = {
   unitCost?: number | null
   location: { name: string }
   site: { name: string; code: string }
+}
+
+export type StockLocation = {
+  id: string
+  name: string
+  siteId: string
+  isActive: boolean
+  site?: { name: string; code: string }
 }
 
 export type StockMovement = {
@@ -200,6 +223,16 @@ export async function fetchUsers(params: {
   return fetchJson<Pagination<UserSummary>>(`/api/users${query}`)
 }
 
+export async function fetchEmployees(params: {
+  active?: boolean
+  search?: string
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`)
+}
+
 export async function fetchSections(params: {
   siteId?: string
   active?: boolean
@@ -260,6 +293,16 @@ export async function fetchStockMovements(params: {
 } = {}) {
   const query = buildQuery(params)
   return fetchJson<Pagination<StockMovement>>(`/api/inventory/movements${query}`)
+}
+
+export async function fetchStockLocations(params: {
+  siteId?: string
+  active?: boolean
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<StockLocation>>(`/api/stock-locations${query}`)
 }
 
 export async function fetchGoldPours(params: { siteId?: string; page?: number; limit?: number } = {}) {

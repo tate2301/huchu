@@ -21,6 +21,7 @@ model Company {
   
   sites     Site[]
   users     User[]
+  employees Employee[]
 }
 
 model Site {
@@ -89,24 +90,44 @@ model User {
   updatedAt     DateTime  @updatedAt
   
   company               Company           @relation(fields: [companyId], references: [id])
-  supervisedShifts      ShiftReport[]     @relation("SupervisorReports")
   createdShiftReports   ShiftReport[]     @relation("CreatedBy")
   verifiedShiftReports  ShiftReport[]     @relation("VerifiedBy")
   approvedShiftReports  ShiftReport[]     @relation("ApprovedBy")
   plantReports          PlantReport[]
-  goldPoursWitness1     GoldPour[]        @relation("Witness1")
-  goldPoursWitness2     GoldPour[]        @relation("Witness2")
-  goldDispatches        GoldDispatch[]
   stockMovements        StockMovement[]
-  workOrders            WorkOrder[]
   inspections           Inspection[]
   trainingRecords       TrainingRecord[]
-  attendance            Attendance[]
   accounts              Account[]         // For NextAuth
   sessions              Session[]         // For NextAuth
   
   @@index([companyId])
   @@index([email])
+}
+
+model Employee {
+  id                String   @id @default(uuid())
+  employeeId        String
+  name              String
+  phone             String
+  nextOfKinName     String
+  nextOfKinPhone    String
+  passportPhotoUrl  String
+  villageOfOrigin   String
+  companyId         String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company           Company    @relation(fields: [companyId], references: [id])
+  attendance        Attendance[]
+  groupLeaderReports ShiftReport[] @relation("GroupLeaderReports")
+  workOrders        WorkOrder[] @relation("WorkOrderTechnicians")
+  goldPoursWitness1 GoldPour[]  @relation("Witness1")
+  goldPoursWitness2 GoldPour[]  @relation("Witness2")
+  goldDispatches    GoldDispatch[] @relation("GoldDispatchHandovers")
+
+  @@unique([companyId, employeeId])
+  @@index([companyId])
 }
 
 // ============================================
@@ -140,7 +161,7 @@ model ShiftReport {
   shift           ShiftType
   siteId          String
   sectionId       String?
-  supervisorId    String
+  groupLeaderId   String
   crewCount       Int
   workType        WorkType
   
@@ -171,7 +192,7 @@ model ShiftReport {
   
   site            Site         @relation(fields: [siteId], references: [id])
   section         Section?     @relation(fields: [sectionId], references: [id])
-  supervisor      User         @relation("SupervisorReports", fields: [supervisorId], references: [id])
+  groupLeader     Employee     @relation("GroupLeaderReports", fields: [groupLeaderId], references: [id])
   createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
   verifiedBy      User?        @relation("VerifiedBy", fields: [verifiedById], references: [id])
   approvedBy      User?        @relation("ApprovedBy", fields: [approvedById], references: [id])
@@ -218,16 +239,16 @@ model Attendance {
   date        DateTime
   siteId      String
   shift       ShiftType
-  userId      String
+  employeeId  String
   status      String   // PRESENT, ABSENT, LATE
   overtime    Float?   // hours
   notes       String?
   createdAt   DateTime @default(now())
   
   site        Site     @relation(fields: [siteId], references: [id])
-  user        User     @relation(fields: [userId], references: [id])
+  employee    Employee @relation(fields: [employeeId], references: [id])
   
-  @@unique([date, siteId, shift, userId])
+  @@unique([date, siteId, shift, employeeId])
   @@index([siteId, date])
 }
 
@@ -287,8 +308,8 @@ model GoldPour {
   corrections     String?      // JSON log of corrections
   
   site            Site         @relation(fields: [siteId], references: [id])
-  witness1        User         @relation("Witness1", fields: [witness1Id], references: [id])
-  witness2        User         @relation("Witness2", fields: [witness2Id], references: [id])
+  witness1        Employee     @relation("Witness1", fields: [witness1Id], references: [id])
+  witness2        Employee     @relation("Witness2", fields: [witness2Id], references: [id])
   dispatches      GoldDispatch[]
   
   @@index([siteId])
@@ -311,7 +332,7 @@ model GoldDispatch {
   updatedAt       DateTime  @updatedAt
   
   goldPour        GoldPour  @relation(fields: [goldPourId], references: [id])
-  handedOverBy    User      @relation(fields: [handedOverById], references: [id])
+  handedOverBy    Employee  @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
   buyerReceipt    BuyerReceipt?
   
   @@index([goldPourId])
@@ -453,7 +474,7 @@ model WorkOrder {
   updatedAt       DateTime        @updatedAt
   
   equipment       Equipment       @relation(fields: [equipmentId], references: [id])
-  technician      User?           @relation(fields: [technicianId], references: [id])
+  technician      Employee?       @relation("WorkOrderTechnicians", fields: [technicianId], references: [id])
   
   @@index([equipmentId])
   @@index([status])

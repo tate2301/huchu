@@ -10,8 +10,10 @@ import {
   CheckCircle,
   Clock,
   Download,
+  Pencil,
   Plus,
   QrCode,
+  Trash2,
   Wrench,
 } from "lucide-react"
 
@@ -35,11 +37,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchEquipment, fetchSites, fetchUsers, fetchWorkOrders } from "@/lib/api"
+import { fetchEmployees, fetchEquipment, fetchSites, fetchWorkOrders } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 
 const maintenanceViews = [
@@ -51,6 +54,8 @@ const maintenanceViews = [
 ] as const
 
 type MaintenanceView = (typeof maintenanceViews)[number]
+
+const equipmentCategories = ["CRUSHER", "MILL", "PUMP", "GENERATOR", "VEHICLE", "OTHER"] as const
 
 const formatDate = (value?: string | null) => {
   if (!value) return "—"
@@ -83,6 +88,20 @@ export default function MaintenancePage() {
     issue: "",
     downtimeStart: "",
     technicianId: "",
+  })
+  const [equipmentFormOpen, setEquipmentFormOpen] = useState(false)
+  const [editingEquipmentId, setEditingEquipmentId] = useState<string | null>(null)
+  const [equipmentForm, setEquipmentForm] = useState({
+    equipmentCode: "",
+    name: "",
+    category: "OTHER",
+    siteId: "",
+    qrCode: "",
+    lastServiceDate: "",
+    nextServiceDue: "",
+    serviceHours: "",
+    serviceDays: "",
+    isActive: true,
   })
 
   const changeView = (view: MaintenanceView) => {
@@ -125,17 +144,191 @@ export default function MaintenancePage() {
   })
 
   const {
-    data: usersData,
-    isLoading: usersLoading,
-    error: usersError,
+    data: employeesData,
+    isLoading: employeesLoading,
+    error: employeesError,
   } = useQuery({
-    queryKey: ["users", "technicians"],
-    queryFn: () => fetchUsers({ active: true, limit: 200 }),
+    queryKey: ["employees", "technicians"],
+    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
   })
 
   const equipment = equipmentData?.data ?? []
   const workOrders = workOrdersData?.data ?? []
-  const technicians = usersData?.data ?? []
+  const technicians = employeesData?.data ?? []
+
+  const resetEquipmentForm = (overrides: Partial<typeof equipmentForm> = {}) => {
+    setEquipmentForm({
+      equipmentCode: "",
+      name: "",
+      category: "OTHER",
+      siteId: "",
+      qrCode: "",
+      lastServiceDate: "",
+      nextServiceDue: "",
+      serviceHours: "",
+      serviceDays: "",
+      isActive: true,
+      ...overrides,
+    })
+  }
+
+  const toOptionalNumber = (value: string) => {
+    if (value.trim() === "") return undefined
+    const parsed = Number(value)
+    return Number.isNaN(parsed) ? undefined : parsed
+  }
+
+  const openNewEquipmentForm = () => {
+    const defaultSiteId = selectedSiteId || sites?.[0]?.id || ""
+    setEditingEquipmentId(null)
+    resetEquipmentForm({ siteId: defaultSiteId })
+    setEquipmentFormOpen(true)
+  }
+
+  const openEditEquipmentForm = (item: (typeof equipment)[number]) => {
+    setEditingEquipmentId(item.id)
+    resetEquipmentForm({
+      equipmentCode: item.equipmentCode ?? "",
+      name: item.name ?? "",
+      category: item.category ?? "OTHER",
+      siteId: item.siteId ?? selectedSiteId,
+      qrCode: item.qrCode ?? "",
+      lastServiceDate: formatDateInput(item.lastServiceDate),
+      nextServiceDue: formatDateInput(item.nextServiceDue),
+      serviceHours: item.serviceHours !== null && item.serviceHours !== undefined ? String(item.serviceHours) : "",
+      serviceDays: item.serviceDays !== null && item.serviceDays !== undefined ? String(item.serviceDays) : "",
+      isActive: item.isActive,
+    })
+    setEquipmentFormOpen(true)
+  }
+
+  const handleEquipmentChange =
+    (field: keyof typeof equipmentForm) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setEquipmentForm((prev) => ({ ...prev, [field]: event.target.value }))
+    }
+
+  const handleEquipmentSelect = (field: "category" | "siteId") => (value: string) => {
+    setEquipmentForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleEquipmentStatus = (value: string) => {
+    setEquipmentForm((prev) => ({ ...prev, isActive: value === "active" }))
+  }
+
+  const handleEquipmentOpenChange = (open: boolean) => {
+    setEquipmentFormOpen(open)
+    if (!open) {
+      setEditingEquipmentId(null)
+      resetEquipmentForm()
+    }
+  }
+
+  const createEquipmentMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/equipment", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Equipment added",
+        description: "Equipment saved to the register.",
+        variant: "success",
+      })
+      setEquipmentFormOpen(false)
+      resetEquipmentForm()
+      queryClient.invalidateQueries({ queryKey: ["equipment"] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to add equipment",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
+  const updateEquipmentMutation = useMutation({
+    mutationFn: async (payload: { id: string; data: Record<string, unknown> }) =>
+      fetchJson(`/api/equipment/${payload.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload.data),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Equipment updated",
+        description: "Changes saved successfully.",
+        variant: "success",
+      })
+      setEquipmentFormOpen(false)
+      setEditingEquipmentId(null)
+      resetEquipmentForm()
+      queryClient.invalidateQueries({ queryKey: ["equipment"] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update equipment",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
+  const deleteEquipmentMutation = useMutation({
+    mutationFn: async (id: string) => fetchJson(`/api/equipment/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({
+        title: "Equipment deleted",
+        description: "Equipment removed from the register.",
+        variant: "success",
+      })
+      queryClient.invalidateQueries({ queryKey: ["equipment"] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to delete equipment",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
+  const handleEquipmentSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (!equipmentForm.equipmentCode || !equipmentForm.name || !equipmentForm.siteId) {
+      toast({
+        title: "Missing details",
+        description: "Code, name, and site are required.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const payload = {
+      equipmentCode: equipmentForm.equipmentCode,
+      name: equipmentForm.name,
+      category: equipmentForm.category,
+      siteId: equipmentForm.siteId,
+      qrCode: equipmentForm.qrCode.trim() || undefined,
+      lastServiceDate: equipmentForm.lastServiceDate || undefined,
+      nextServiceDue: equipmentForm.nextServiceDue || undefined,
+      serviceHours: toOptionalNumber(equipmentForm.serviceHours),
+      serviceDays: toOptionalNumber(equipmentForm.serviceDays),
+      isActive: equipmentForm.isActive,
+    }
+
+    if (editingEquipmentId) {
+      updateEquipmentMutation.mutate({ id: editingEquipmentId, data: payload })
+    } else {
+      createEquipmentMutation.mutate(payload)
+    }
+  }
+
+  const handleEquipmentDelete = (id: string) => {
+    if (!window.confirm("Delete this equipment?")) return
+    deleteEquipmentMutation.mutate(id)
+  }
 
   const equipmentStatus = (item: {
     isActive: boolean
@@ -240,7 +433,7 @@ export default function MaintenancePage() {
     sitesError ||
     equipmentError ||
     workOrdersError ||
-    usersError ||
+    employeesError ||
     createWorkOrderMutation.error
 
   return (
@@ -535,10 +728,16 @@ export default function MaintenancePage() {
                   <CardTitle>Equipment Register</CardTitle>
                   <CardDescription>All tracked equipment across sites</CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={openNewEquipmentForm}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Equipment
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -573,18 +772,19 @@ export default function MaintenancePage() {
                       <th className="text-left p-3 text-sm font-medium">Next Service</th>
                       <th className="text-right p-3 text-sm font-medium">Hours</th>
                       <th className="text-center p-3 text-sm font-medium">Status</th>
+                      <th className="text-right p-3 text-sm font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {equipmentLoading ? (
                       <tr>
-                        <td colSpan={8} className="p-3">
+                        <td colSpan={9} className="p-3">
                           <Skeleton className="h-10 w-full" />
                         </td>
                       </tr>
                     ) : equipment.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="p-3 text-sm text-muted-foreground">
+                        <td colSpan={9} className="p-3 text-sm text-muted-foreground">
                           No equipment found for this site.
                         </td>
                       </tr>
@@ -610,6 +810,27 @@ export default function MaintenancePage() {
                             <td className="p-3 text-center">
                               <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
                             </td>
+                            <td className="p-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openEditEquipmentForm(item)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleEquipmentDelete(item.id)}
+                                  disabled={deleteEquipmentMutation.isPending}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
                           </tr>
                         )
                       })
@@ -617,6 +838,166 @@ export default function MaintenancePage() {
                   </tbody>
                 </table>
               </div>
+
+              <Sheet open={equipmentFormOpen} onOpenChange={handleEquipmentOpenChange}>
+                <SheetContent className="w-full sm:max-w-lg p-6">
+                  <SheetHeader>
+                    <SheetTitle>{editingEquipmentId ? "Edit Equipment" : "Add Equipment"}</SheetTitle>
+                    <SheetDescription>Track equipment details and service windows.</SheetDescription>
+                  </SheetHeader>
+                  <form onSubmit={handleEquipmentSubmit} className="mt-6 space-y-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Equipment Code *</label>
+                        <Input
+                          value={equipmentForm.equipmentCode}
+                          onChange={handleEquipmentChange("equipmentCode")}
+                          placeholder="EQ-001"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Name *</label>
+                        <Input
+                          value={equipmentForm.name}
+                          onChange={handleEquipmentChange("name")}
+                          placeholder="Crusher 1"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Category *</label>
+                        <Select
+                          value={equipmentForm.category}
+                          onValueChange={handleEquipmentSelect("category")}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {equipmentCategories.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Site *</label>
+                        {sitesLoading ? (
+                          <Skeleton className="h-9 w-full" />
+                        ) : (
+                          <Select
+                            value={equipmentForm.siteId || undefined}
+                            onValueChange={handleEquipmentSelect("siteId")}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select site" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sites?.map((site) => (
+                                <SelectItem key={site.id} value={site.id}>
+                                  {site.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">QR Code</label>
+                      <Input
+                        value={equipmentForm.qrCode}
+                        onChange={handleEquipmentChange("qrCode")}
+                        placeholder="Optional"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Last Service</label>
+                        <Input
+                          type="date"
+                          value={equipmentForm.lastServiceDate}
+                          onChange={handleEquipmentChange("lastServiceDate")}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Next Service Due</label>
+                        <Input
+                          type="date"
+                          value={equipmentForm.nextServiceDue}
+                          onChange={handleEquipmentChange("nextServiceDue")}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Service Hours</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={equipmentForm.serviceHours}
+                          onChange={handleEquipmentChange("serviceHours")}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Service Days</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={equipmentForm.serviceDays}
+                          onChange={handleEquipmentChange("serviceDays")}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Status</label>
+                      <Select
+                        value={equipmentForm.isActive ? "active" : "inactive"}
+                        onValueChange={handleEquipmentStatus}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="submit"
+                        className="flex-1"
+                        disabled={
+                          createEquipmentMutation.isPending || updateEquipmentMutation.isPending
+                        }
+                      >
+                        {editingEquipmentId ? "Save Changes" : "Save Equipment"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleEquipmentOpenChange(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </SheetContent>
+              </Sheet>
             </CardContent>
           </Card>
         </TabsContent>

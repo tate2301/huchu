@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("Dispatch already exists for this pour", 409)
     }
 
-    const handedOverBy = await prisma.user.findUnique({
+    const handedOverBy = await prisma.employee.findUnique({
       where: { id: validated.handedOverById },
       select: { companyId: true, isActive: true },
     })

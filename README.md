@@ -217,6 +217,21 @@ pnpm prisma migrate dev  # Create and apply migrations
 
 # User management
 pnpm create-user --email user@example.com --name "User Name" --password "securepass" --role manager --company-id <uuid>
+
+# Employee management
+pnpm create-employee --employee-id EMP001 --name "Employee Name" --phone "+263..." --next-of-kin-name "Kin Name" --next-of-kin-phone "+263..." --passport-photo-url "https://..." --village-of-origin "Village" --company-id <uuid>
+pnpm manage-employees list --company-id <uuid> --active
+pnpm manage-employees update --employee-id EMP001 --company-id <uuid> --phone "+263..." --inactive
+
+# Inventory management (consumables)
+pnpm manage-inventory create --item-code CON001 --name "Safety gloves" --unit "pairs" --location-id <uuid> --site-id <uuid> --current-stock 20 --min-stock 10
+pnpm manage-inventory list --company-id <uuid> --category consumables
+pnpm manage-inventory update --item-code CON001 --site-id <uuid> --unit "pair"
+
+# Equipment management
+pnpm manage-equipment create --equipment-code EQ001 --name "Crusher 1" --category crusher --site-id <uuid>
+pnpm manage-equipment list --company-id <uuid> --active
+pnpm manage-equipment update --equipment-code EQ001 --site-id <uuid> --inactive
 ```
 
 ## 📖 Deployment
