@@ -1,83 +1,138 @@
 "use client"
 
-import { useState } from "react"
-import { PageHeading } from "@/components/layout/page-heading"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TrendingDown, Clock, Zap } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import {
+  endOfMonth,
+  endOfQuarter,
+  endOfWeek,
+  startOfMonth,
+  startOfQuarter,
+  startOfWeek,
+} from "date-fns"
+import { Clock, TrendingDown, Zap } from "lucide-react"
 
-const mockDowntimeData = {
-  site1: [
-    { reason: "No power", hours: 8.5, percentage: 35, trend: "up" },
-    { reason: "Equipment breakdown", hours: 6.2, percentage: 26, trend: "down" },
-    { reason: "No water", hours: 4.8, percentage: 20, trend: "stable" },
-    { reason: "No fuel/diesel", hours: 2.9, percentage: 12, trend: "up" },
-    { reason: "No spares/parts", hours: 1.6, percentage: 7, trend: "down" },
-  ],
-  site2: [
-    { reason: "Equipment breakdown", hours: 12.3, percentage: 42, trend: "up" },
-    { reason: "No power", hours: 7.5, percentage: 26, trend: "stable" },
-    { reason: "No grinding media", hours: 5.2, percentage: 18, trend: "down" },
-    { reason: "No water", hours: 2.8, percentage: 10, trend: "stable" },
-    { reason: "Weather/flooding", hours: 1.2, percentage: 4, trend: "down" },
-  ],
-  site3: [
-    { reason: "No water", hours: 9.6, percentage: 38, trend: "up" },
-    { reason: "Equipment breakdown", hours: 7.8, percentage: 31, trend: "stable" },
-    { reason: "No power", hours: 4.5, percentage: 18, trend: "down" },
-    { reason: "Labour shortage", hours: 2.1, percentage: 8, trend: "up" },
-    { reason: "No reagents", hours: 1.3, percentage: 5, trend: "stable" },
-  ],
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { PageHeading } from "@/components/layout/page-heading"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { fetchDowntimeAnalytics, fetchSites } from "@/lib/api"
+import { getApiErrorMessage } from "@/lib/api-client"
+
+const timeRanges = {
+  week: "This Week",
+  month: "This Month",
+  quarter: "This Quarter",
 }
 
-const sites = [
-  { id: "site1", name: "Mine Site 1" },
-  { id: "site2", name: "Mine Site 2" },
-  { id: "site3", name: "Mine Site 3" },
-  { id: "site4", name: "Mine Site 4" },
-  { id: "site5", name: "Mine Site 5" },
-]
+type TimeRangeKey = keyof typeof timeRanges
+
+function getDateRange(range: TimeRangeKey) {
+  const now = new Date()
+  if (range === "month") {
+    return { start: startOfMonth(now), end: endOfMonth(now) }
+  }
+  if (range === "quarter") {
+    return { start: startOfQuarter(now), end: endOfQuarter(now) }
+  }
+  return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) }
+}
 
 export default function AnalyticsPage() {
-  const [selectedSite, setSelectedSite] = useState("site1")
-  const [timeRange, setTimeRange] = useState("week")
+  const [selectedSite, setSelectedSite] = useState("")
+  const [timeRange, setTimeRange] = useState<TimeRangeKey>("week")
 
-  const currentData = mockDowntimeData[selectedSite as keyof typeof mockDowntimeData] || mockDowntimeData.site1
-  const totalHours = currentData.reduce((sum, item) => sum + item.hours, 0)
+  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+    queryKey: ["sites"],
+    queryFn: fetchSites,
+  })
+
+  useEffect(() => {
+    if (!selectedSite && sites && sites.length > 0) {
+      setSelectedSite(sites[0].id)
+    }
+  }, [selectedSite, sites])
+
+  const { startDate, endDate } = useMemo(() => {
+    const range = getDateRange(timeRange)
+    return {
+      startDate: range.start.toISOString(),
+      endDate: range.end.toISOString(),
+    }
+  }, [timeRange])
+
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+  } = useQuery({
+    queryKey: ["downtime-analytics", selectedSite, timeRange],
+    queryFn: () =>
+      fetchDowntimeAnalytics({
+        siteId: selectedSite,
+        startDate,
+        endDate,
+      }),
+    enabled: !!selectedSite,
+  })
+
+  const totalHours = analytics?.totalDowntimeHours ?? 0
+  const totalPossibleHours = timeRange === "week" ? 168 : timeRange === "month" ? 720 : 2160
+  const availability = totalPossibleHours
+    ? ((1 - totalHours / totalPossibleHours) * 100).toFixed(1)
+    : "100.0"
+
+  const causes = analytics?.causes ?? []
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeading title="Downtime Analytics" description="Phase 2: Top causes by site" />
+
+      {(sitesError || analyticsError) && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load analytics</AlertTitle>
+          <AlertDescription>
+            {getApiErrorMessage(sitesError || analyticsError)}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium mb-2">Site</label>
-              <Select value={selectedSite} onValueChange={setSelectedSite}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {sitesLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <Select value={selectedSite} onValueChange={setSelectedSite}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites?.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Time Range</label>
-              <Select value={timeRange} onValueChange={setTimeRange}>
+              <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRangeKey)}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select time range" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                  <SelectItem value="quarter">This Quarter</SelectItem>
+                  {Object.entries(timeRanges).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -94,8 +149,12 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{totalHours.toFixed(1)}h</div>
-            <p className="text-xs text-muted-foreground mt-1">This {timeRange}</p>
+            {analyticsLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <div className="text-3xl font-bold">{totalHours.toFixed(1)}h</div>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">{timeRanges[timeRange]}</p>
           </CardContent>
         </Card>
 
@@ -107,10 +166,18 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold">{currentData[0].reason}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {currentData[0].hours}h ({currentData[0].percentage}%)
-            </p>
+            {analyticsLoading ? (
+              <Skeleton className="h-6 w-40" />
+            ) : analytics?.topCause ? (
+              <>
+                <div className="text-lg font-semibold">{analytics.topCause.description}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {analytics.topCause.hours.toFixed(1)}h
+                </p>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">No downtime recorded</div>
+            )}
           </CardContent>
         </Card>
 
@@ -122,9 +189,11 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {((1 - totalHours / (timeRange === "week" ? 168 : timeRange === "month" ? 720 : 2160)) * 100).toFixed(1)}%
-            </div>
+            {analyticsLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <div className="text-3xl font-bold">{availability}%</div>
+            )}
             <p className="text-xs text-muted-foreground mt-1">Estimated uptime</p>
           </CardContent>
         </Card>
@@ -136,28 +205,39 @@ export default function AnalyticsPage() {
           <CardDescription>Hours lost by cause</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {currentData.map((item, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{item.reason}</span>
-                    {item.trend === "up" && <TrendingDown className="h-3 w-3 text-red-500 rotate-180" />}
-                    {item.trend === "down" && <TrendingDown className="h-3 w-3 text-green-500" />}
+          {analyticsLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-3/5" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : causes.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No downtime data for this range.</div>
+          ) : (
+            <div className="space-y-4">
+              {causes.map((item) => {
+                const percentage = totalHours ? (item.hours / totalHours) * 100 : 0
+                return (
+                  <div key={item.code} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.description}</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {item.hours.toFixed(1)}h ({percentage.toFixed(0)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className="bg-primary h-2 rounded-full"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    {item.hours}h ({item.percentage}%)
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full"
-                    style={{ width: `${item.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

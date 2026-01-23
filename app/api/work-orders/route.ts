@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const equipmentId = searchParams.get('equipmentId');
+    const siteId = searchParams.get('siteId');
     const status = searchParams.get('status');
     const { page, limit, skip } = getPaginationParams(request);
 
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
     };
 
     if (equipmentId) where.equipmentId = equipmentId;
+    if (siteId) {
+      where.equipment = { ...where.equipment, siteId };
+    }
     if (status) where.status = status;
     const [workOrders, total] = await Promise.all([
       prisma.workOrder.findMany({
@@ -42,6 +46,7 @@ export async function GET(request: NextRequest) {
               site: { select: { name: true, code: true } },
             },
           },
+          technician: { select: { name: true } },
         },
         orderBy: [
           { status: 'asc' },

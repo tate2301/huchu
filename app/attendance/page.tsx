@@ -1,13 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { Save, Send, UserCheck, UserX } from "lucide-react"
+
+import { PageActions } from "@/components/layout/page-actions"
+import { PageHeading } from "@/components/layout/page-heading"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PageActions } from "@/components/layout/page-actions"
-import { PageHeading } from "@/components/layout/page-heading"
-import { Save, Send, UserCheck, UserX } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/components/ui/use-toast"
+import { fetchSites, fetchUsers } from "@/lib/api"
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 
 interface CrewMember {
   id: string
@@ -17,21 +24,75 @@ interface CrewMember {
 }
 
 export default function AttendancePage() {
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     shift: "DAY",
-    site: "",
+    siteId: "",
   })
 
-  const [crew, setCrew] = useState<CrewMember[]>([
-    { id: "1", name: "John Moyo", status: "PRESENT", overtime: "" },
-    { id: "2", name: "Sarah Ncube", status: "PRESENT", overtime: "" },
-    { id: "3", name: "David Sibanda", status: "PRESENT", overtime: "" },
-    { id: "4", name: "Grace Mutasa", status: "PRESENT", overtime: "" },
-    { id: "5", name: "Peter Chikwanha", status: "PRESENT", overtime: "" },
-  ])
+  const [crew, setCrew] = useState<CrewMember[]>([])
 
-  const [saving, setSaving] = useState(false)
+  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+    queryKey: ["sites"],
+    queryFn: fetchSites,
+  })
+
+  const {
+    data: usersData,
+    isLoading: usersLoading,
+    error: usersError,
+  } = useQuery({
+    queryKey: ["users", "attendance"],
+    queryFn: () => fetchUsers({ active: true, role: "CLERK", limit: 200 }),
+  })
+
+  useEffect(() => {
+    if (!formData.siteId && sites && sites.length > 0) {
+      setFormData((prev) => ({ ...prev, siteId: sites[0].id }))
+    }
+  }, [formData.siteId, sites])
+
+  useEffect(() => {
+    if (!usersData) return
+    const users = usersData.data
+    setCrew((prev) => {
+      const prevMap = new Map(prev.map((member) => [member.id, member]))
+      return users.map((user) =>
+        prevMap.get(user.id) ?? {
+          id: user.id,
+          name: user.name,
+          status: "PRESENT",
+          overtime: "",
+        },
+      )
+    })
+  }, [usersData])
+
+  const attendanceMutation = useMutation({
+    mutationFn: async (payload: {
+      date: string
+      siteId: string
+      shift: "DAY" | "NIGHT"
+      records: Array<{
+        userId: string
+        status: "PRESENT" | "ABSENT" | "LATE"
+        overtime?: number
+        notes?: string
+      }>
+    }) =>
+      fetchJson("/api/attendance", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Attendance submitted",
+        description: "Crew attendance has been recorded.",
+        variant: "success",
+      })
+    },
+  })
 
   const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -39,45 +100,92 @@ export default function AttendancePage() {
 
   const updateCrewStatus = (id: string, status: CrewMember["status"]) => {
     setCrew((prev) =>
-      prev.map((member) => (member.id === id ? { ...member, status } : member))
+      prev.map((member) => (member.id === id ? { ...member, status } : member)),
     )
   }
 
   const updateOvertime = (id: string, overtime: string) => {
     setCrew((prev) =>
-      prev.map((member) => (member.id === id ? { ...member, overtime } : member))
+      prev.map((member) => (member.id === id ? { ...member, overtime } : member)),
     )
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSaveDraft = () => {
+    localStorage.setItem(
+      "attendanceDraft",
+      JSON.stringify({
+        ...formData,
+        crew,
+        savedAt: new Date().toISOString(),
+      }),
+    )
+    toast({
+      title: "Draft saved",
+      description: "Attendance saved locally on this device.",
+    })
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
 
-    console.log("Submitting attendance:", { ...formData, crew })
+    if (!formData.siteId) {
+      toast({
+        title: "Site required",
+        description: "Select a site before submitting attendance.",
+        variant: "destructive",
+      })
+      return
+    }
 
-    setTimeout(() => {
-      setSaving(false)
-      alert("Attendance submitted successfully!")
-    }, 1000)
+    const records = crew.map((member) => ({
+      userId: member.id,
+      status: member.status,
+      overtime:
+        member.status === "ABSENT" || member.overtime.trim() === ""
+          ? undefined
+          : Number(member.overtime),
+    }))
+
+    attendanceMutation.mutate({
+      date: formData.date,
+      siteId: formData.siteId,
+      shift: formData.shift as "DAY" | "NIGHT",
+      records,
+    })
   }
 
   const presentCount = crew.filter((m) => m.status === "PRESENT" || m.status === "LATE").length
   const absentCount = crew.filter((m) => m.status === "ABSENT").length
 
+  const loading = sitesLoading || usersLoading
+  const error = sitesError || usersError || attendanceMutation.error
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <PageActions>
-        <Button size="sm" variant="outline" onClick={() => alert("Draft saved!")}>
+        <Button size="sm" variant="outline" onClick={handleSaveDraft}>
           <Save className="h-4 w-4" />
           Save Draft
         </Button>
-        <Button size="sm" type="submit" form="attendance-form" disabled={saving}>
+        <Button
+          size="sm"
+          type="submit"
+          form="attendance-form"
+          disabled={attendanceMutation.isPending}
+        >
           <Send className="h-4 w-4" />
           Submit
         </Button>
       </PageActions>
 
       <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to submit attendance</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
+      )}
 
       <form id="attendance-form" onSubmit={handleSubmit} className="space-y-6">
         <Card>
@@ -112,18 +220,22 @@ export default function AttendancePage() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">Site *</label>
-                <Select name="site" value={formData.site || undefined} onValueChange={handleSelectChange("site")} required>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select site..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="site1">Mine Site 1</SelectItem>
-                    <SelectItem value="site2">Mine Site 2</SelectItem>
-                    <SelectItem value="site3">Mine Site 3</SelectItem>
-                    <SelectItem value="site4">Mine Site 4</SelectItem>
-                    <SelectItem value="site5">Mine Site 5</SelectItem>
-                  </SelectContent>
-                </Select>
+                {sitesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select name="site" value={formData.siteId || undefined} onValueChange={handleSelectChange("siteId")} required>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select site..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites?.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
           </CardContent>
@@ -161,66 +273,76 @@ export default function AttendancePage() {
             <CardDescription>Mark attendance for each crew member</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {crew.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex flex-col md:flex-row md:items-center gap-3 rounded-md border border-border bg-card/60 p-3"
-                >
-                  <div className="flex-1 font-medium">{member.name}</div>
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Skeleton key={index} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : crew.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No crew members available.</div>
+            ) : (
+              <div className="space-y-3">
+                {crew.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex flex-col md:flex-row md:items-center gap-3 rounded-md border border-border bg-card/60 p-3"
+                  >
+                    <div className="flex-1 font-medium">{member.name}</div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={member.status === "PRESENT" ? "default" : "outline"}
-                      onClick={() => updateCrewStatus(member.id, "PRESENT")}
-                    >
-                      Present
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={member.status === "LATE" ? "secondary" : "outline"}
-                      onClick={() => updateCrewStatus(member.id, "LATE")}
-                    >
-                      Late
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={member.status === "ABSENT" ? "destructive" : "outline"}
-                      onClick={() => updateCrewStatus(member.id, "ABSENT")}
-                    >
-                      Absent
-                    </Button>
-                  </div>
-
-                  {(member.status === "PRESENT" || member.status === "LATE") && (
-                    <div className="w-full md:w-32">
-                      <Input
-                        type="number"
-                        placeholder="OT hrs"
-                        value={member.overtime}
-                        onChange={(e) => updateOvertime(member.id, e.target.value)}
-                        step="0.5"
-                        className="h-9"
-                      />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={member.status === "PRESENT" ? "default" : "outline"}
+                        onClick={() => updateCrewStatus(member.id, "PRESENT")}
+                      >
+                        Present
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={member.status === "LATE" ? "secondary" : "outline"}
+                        onClick={() => updateCrewStatus(member.id, "LATE")}
+                      >
+                        Late
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={member.status === "ABSENT" ? "destructive" : "outline"}
+                        onClick={() => updateCrewStatus(member.id, "ABSENT")}
+                      >
+                        Absent
+                      </Button>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
+
+                    {(member.status === "PRESENT" || member.status === "LATE") && (
+                      <div className="w-full md:w-32">
+                        <Input
+                          type="number"
+                          placeholder="OT hrs"
+                          value={member.overtime}
+                          onChange={(e) => updateOvertime(member.id, e.target.value)}
+                          step="0.5"
+                          className="h-9"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button type="button" variant="outline" onClick={() => alert("Draft saved!")} className="flex-1">
+          <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1">
             <Save className="mr-2 h-5 w-5" />
             Save Draft
           </Button>
 
-          <Button type="submit" disabled={saving} className="flex-1">
+          <Button type="submit" disabled={attendanceMutation.isPending} className="flex-1">
             <Send className="mr-2 h-5 w-5" />
             Submit Attendance
           </Button>

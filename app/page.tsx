@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { navSections } from "@/lib/navigation";
+import { Separator } from "@/components/ui/separator";
 
 type DashboardTileProps = {
   href: string;
@@ -28,13 +29,15 @@ function DashboardTile({ href, icon: Icon, label }: DashboardTileProps) {
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 rounded-md border border-border bg-card px-3 py-3 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-muted"
+      className="group flex items-center gap-3 rounded-md p-2 border border-transparent text-sm font-medium text-foreground transition-colors hover:bg-accent hover:border-border group"
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <span className="flex items-center justify-center rounded-md text-muted-foreground">
         <Icon className="h-5 w-5" />
       </span>
-      <span className="font-semibold">{label}</span>
-      <ArrowRight className="size-5 text-muted-foreground ml-auto" />
+      <span className="group-hover: font-semibold group-hover:text-accent-foreground text-muted-foreground">
+        {label}
+      </span>
+      <ArrowRight className="size-5 text-muted-foreground ml-auto hidden group-hover:flex" />
     </Link>
   );
 }
@@ -61,79 +64,20 @@ export default function Home() {
         </Link>
       </PageActions>
 
-      <PageHeading
-        title="Huchu Enterprises"
-        description="Mine Operations System"
-      />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">
-              Active Sites
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">5</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              All operational
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">
-              Today's Reports
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">0</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Pending submission
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">
-              Gold Poured (Week)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">0g</div>
-            <p className="text-xs text-muted-foreground mt-1">No pours yet</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">
-              System Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold text-green-600">OK</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              All systems operational
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4">
+      <div className="grid gap-8">
         {groupedSections.map((group) => (
-          <Card key={group.id}>
-            <CardHeader className="pb-2">
-              <CardTitle className="font-semibold">{group.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div key={group.id}>
+            <h2 className="uppercase text-xs text-muted-foreground font-medium mb-4 px-2">
+              {group.title}
+            </h2>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-4">
               {group.items.map((item) => (
                 <DashboardTile key={item.href} {...item} />
               ))}
-            </CardContent>
-          </Card>
+            </div>
+            <Separator />
+          </div>
         ))}
       </div>
     </div>

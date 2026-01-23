@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -17,6 +17,59 @@ const stockMovementSchema = z.object({
   (data) => data.movementType === 'ADJUSTMENT' || data.quantity > 0,
   { message: 'Quantity must be positive for this movement type', path: ['quantity'] }
 );
+
+export async function GET(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const { searchParams } = new URL(request.url);
+    const itemId = searchParams.get('itemId');
+    const siteId = searchParams.get('siteId');
+    const movementType = searchParams.get('movementType');
+    const { page, limit, skip } = getPaginationParams(request);
+
+    const where: any = {
+      item: {
+        site: {
+          companyId: session.user.companyId,
+        },
+      },
+    };
+
+    if (itemId) where.itemId = itemId;
+    if (siteId) where.item = { ...where.item, siteId };
+    if (movementType) where.movementType = movementType;
+
+    const [movements, total] = await Promise.all([
+      prisma.stockMovement.findMany({
+        where,
+        include: {
+          item: {
+            select: {
+              name: true,
+              itemCode: true,
+              unit: true,
+              site: { select: { name: true, code: true } },
+              location: { select: { name: true } },
+            },
+          },
+          issuedBy: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.stockMovement.count({ where }),
+    ]);
+
+    return successResponse(paginationResponse(movements, total, page, limit));
+  } catch (error) {
+    console.error('[API] GET /api/inventory/movements error:', error);
+    return errorResponse('Failed to fetch stock movements');
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

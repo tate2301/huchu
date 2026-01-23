@@ -1,19 +1,39 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { AlertCircle, Save, Send } from "lucide-react"
+
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Save, Send, AlertCircle } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/components/ui/use-toast"
+import { fetchDowntimeCodes, fetchSites } from "@/lib/api"
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+
+const toNumber = (value: string) => {
+  if (value.trim() === "") return undefined
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+type DowntimeEvent = {
+  downtimeCodeId: string
+  durationHours: string
+  notes: string
+}
 
 export default function PlantReportPage() {
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
-    site: "",
+    siteId: "",
     tonnesFed: "",
     tonnesProcessed: "",
     runHours: "",
@@ -25,8 +45,44 @@ export default function PlantReportPage() {
     notes: "",
   })
 
-  const [downtimeEvents, setDowntimeEvents] = useState<Array<{ code: string; hours: string; notes: string }>>([])
-  const [saving, setSaving] = useState(false)
+  const [downtimeEvents, setDowntimeEvents] = useState<DowntimeEvent[]>([])
+
+  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+    queryKey: ["sites"],
+    queryFn: fetchSites,
+  })
+
+  useEffect(() => {
+    if (!formData.siteId && sites && sites.length > 0) {
+      setFormData((prev) => ({ ...prev, siteId: sites[0].id }))
+    }
+  }, [formData.siteId, sites])
+
+  const {
+    data: downtimeCodes,
+    isLoading: downtimeLoading,
+    error: downtimeError,
+  } = useQuery({
+    queryKey: ["downtime-codes", formData.siteId],
+    queryFn: () => fetchDowntimeCodes({ siteId: formData.siteId, active: true }),
+    enabled: !!formData.siteId,
+  })
+
+  const plantReportMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/plant-reports", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Plant report submitted",
+        description: "Production report saved successfully.",
+        variant: "success",
+      })
+      localStorage.removeItem("plantReportDraft")
+    },
+  })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -38,10 +94,10 @@ export default function PlantReportPage() {
   }
 
   const addDowntime = () => {
-    setDowntimeEvents([...downtimeEvents, { code: "", hours: "", notes: "" }])
+    setDowntimeEvents([...downtimeEvents, { downtimeCodeId: "", durationHours: "", notes: "" }])
   }
 
-  const updateDowntime = (index: number, field: string, value: string) => {
+  const updateDowntime = (index: number, field: keyof DowntimeEvent, value: string) => {
     const updated = [...downtimeEvents]
     updated[index] = { ...updated[index], [field]: value }
     setDowntimeEvents(updated)
@@ -51,34 +107,87 @@ export default function PlantReportPage() {
     setDowntimeEvents(downtimeEvents.filter((_, i) => i !== index))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-
-    console.log("Submitting plant report:", { ...formData, downtimeEvents })
-
-    setTimeout(() => {
-      setSaving(false)
-      alert("Plant report submitted successfully!")
-    }, 1000)
+  const handleSaveDraft = () => {
+    localStorage.setItem(
+      "plantReportDraft",
+      JSON.stringify({
+        ...formData,
+        downtimeEvents,
+        savedAt: new Date().toISOString(),
+      }),
+    )
+    toast({
+      title: "Draft saved",
+      description: "Plant report saved locally on this device.",
+    })
   }
 
-  const totalDowntime = downtimeEvents.reduce((sum, event) => sum + (parseFloat(event.hours) || 0), 0)
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.siteId) {
+      toast({
+        title: "Site required",
+        description: "Select a site before submitting.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const downtimePayload = downtimeEvents
+      .filter((event) => event.downtimeCodeId && event.durationHours.trim() !== "")
+      .map((event) => ({
+        downtimeCodeId: event.downtimeCodeId,
+        durationHours: Number(event.durationHours),
+        notes: event.notes || undefined,
+      }))
+
+    const payload = {
+      date: formData.date,
+      siteId: formData.siteId,
+      tonnesFed: toNumber(formData.tonnesFed),
+      tonnesProcessed: toNumber(formData.tonnesProcessed),
+      runHours: toNumber(formData.runHours),
+      dieselUsed: toNumber(formData.dieselUsed),
+      grindingMedia: toNumber(formData.grindingMedia),
+      reagentsUsed: toNumber(formData.reagentsUsed),
+      waterUsed: toNumber(formData.waterUsed),
+      goldRecovered: toNumber(formData.goldRecovered),
+      notes: formData.notes || undefined,
+      downtimeEvents: downtimePayload.length > 0 ? downtimePayload : undefined,
+    }
+
+    plantReportMutation.mutate(payload)
+  }
+
+  const totalDowntime = downtimeEvents.reduce(
+    (sum, event) => sum + (parseFloat(event.durationHours) || 0),
+    0,
+  )
+
+  const error = sitesError || downtimeError || plantReportMutation.error
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <PageActions>
-        <Button size="sm" variant="outline" onClick={() => alert("Draft saved!")}>
+        <Button size="sm" variant="outline" onClick={handleSaveDraft}>
           <Save className="h-4 w-4" />
           Save Draft
         </Button>
-        <Button size="sm" type="submit" form="plant-report-form" disabled={saving}>
+        <Button size="sm" type="submit" form="plant-report-form" disabled={plantReportMutation.isPending}>
           <Send className="h-4 w-4" />
           Submit
         </Button>
       </PageActions>
 
       <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to submit report</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
+      )}
 
       <form id="plant-report-form" onSubmit={handleSubmit} className="space-y-6">
         <Card>
@@ -90,29 +199,27 @@ export default function PlantReportPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Date *</label>
-                <Input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleChange}
-                  required
-                />
+                <Input type="date" name="date" value={formData.date} onChange={handleChange} required />
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">Site *</label>
-                <Select name="site" value={formData.site || undefined} onValueChange={handleSelectChange("site")} required>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select site..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="site1">Mine Site 1</SelectItem>
-                    <SelectItem value="site2">Mine Site 2</SelectItem>
-                    <SelectItem value="site3">Mine Site 3</SelectItem>
-                    <SelectItem value="site4">Mine Site 4</SelectItem>
-                    <SelectItem value="site5">Mine Site 5</SelectItem>
-                  </SelectContent>
-                </Select>
+                {sitesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select name="siteId" value={formData.siteId || undefined} onValueChange={handleSelectChange("siteId")} required>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select site..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites?.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
           </CardContent>
@@ -127,13 +234,7 @@ export default function PlantReportPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Tonnes Fed</label>
-                <Input
-                  type="number"
-                  name="tonnesFed"
-                  value={formData.tonnesFed}
-                  onChange={handleChange}
-                  placeholder="0"
-                />
+                <Input type="number" name="tonnesFed" value={formData.tonnesFed} onChange={handleChange} placeholder="0" />
               </div>
 
               <div>
@@ -149,13 +250,7 @@ export default function PlantReportPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">Run Hours</label>
-                <Input
-                  type="number"
-                  name="runHours"
-                  value={formData.runHours}
-                  onChange={handleChange}
-                  placeholder="0"
-                />
+                <Input type="number" name="runHours" value={formData.runHours} onChange={handleChange} placeholder="0" />
               </div>
             </div>
           </CardContent>
@@ -170,13 +265,7 @@ export default function PlantReportPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Diesel Used (litres)</label>
-                <Input
-                  type="number"
-                  name="dieselUsed"
-                  value={formData.dieselUsed}
-                  onChange={handleChange}
-                  placeholder="0"
-                />
+                <Input type="number" name="dieselUsed" value={formData.dieselUsed} onChange={handleChange} placeholder="0" />
               </div>
 
               <div>
@@ -192,24 +281,12 @@ export default function PlantReportPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">Reagents Used (kg)</label>
-                <Input
-                  type="number"
-                  name="reagentsUsed"
-                  value={formData.reagentsUsed}
-                  onChange={handleChange}
-                  placeholder="0"
-                />
+                <Input type="number" name="reagentsUsed" value={formData.reagentsUsed} onChange={handleChange} placeholder="0" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">Water Used (m3)</label>
-                <Input
-                  type="number"
-                  name="waterUsed"
-                  value={formData.waterUsed}
-                  onChange={handleChange}
-                  placeholder="0"
-                />
+                <Input type="number" name="waterUsed" value={formData.waterUsed} onChange={handleChange} placeholder="0" />
               </div>
             </div>
           </CardContent>
@@ -229,9 +306,7 @@ export default function PlantReportPage() {
             )}
 
             {downtimeEvents.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                No downtime events recorded
-              </div>
+              <div className="text-center py-6 text-muted-foreground">No downtime events recorded</div>
             ) : (
               <div className="space-y-4">
                 {downtimeEvents.map((event, index) => (
@@ -239,26 +314,33 @@ export default function PlantReportPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-2">Code</label>
-                        <Select value={event.code} onValueChange={(value) => updateDowntime(index, "code", value)}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select code" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="POWER">Power</SelectItem>
-                            <SelectItem value="BREAKDOWN">Breakdown</SelectItem>
-                            <SelectItem value="WATER">Water</SelectItem>
-                            <SelectItem value="FUEL">Fuel</SelectItem>
-                            <SelectItem value="SPARES">Spares</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        {downtimeLoading ? (
+                          <Skeleton className="h-9 w-full" />
+                        ) : (
+                          <Select
+                            value={event.downtimeCodeId}
+                            onValueChange={(value) => updateDowntime(index, "downtimeCodeId", value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select code" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {downtimeCodes?.map((code) => (
+                                <SelectItem key={code.id} value={code.id}>
+                                  {code.code} - {code.description}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium mb-2">Hours</label>
                         <Input
                           type="number"
-                          value={event.hours}
-                          onChange={(e) => updateDowntime(index, "hours", e.target.value)}
+                          value={event.durationHours}
+                          onChange={(e) => updateDowntime(index, "durationHours", e.target.value)}
                           placeholder="0"
                         />
                       </div>
@@ -314,23 +396,17 @@ export default function PlantReportPage() {
             <CardTitle>Additional Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <Textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              placeholder="Any additional observations or issues..."
-              rows={3}
-            />
+            <Textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Any additional observations or issues..." rows={3} />
           </CardContent>
         </Card>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button type="button" variant="outline" onClick={() => alert("Draft saved!")} className="flex-1">
+          <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1">
             <Save className="mr-2 h-5 w-5" />
             Save Draft
           </Button>
 
-          <Button type="submit" disabled={saving} className="flex-1">
+          <Button type="submit" disabled={plantReportMutation.isPending} className="flex-1">
             <Send className="mr-2 h-5 w-5" />
             Submit Report
           </Button>

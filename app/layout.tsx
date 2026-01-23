@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/components/providers/session-provider";
+import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 
 const inter = Inter({
@@ -29,9 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans subpixel-antialiased`}>
-        <AuthProvider>
+        <AppProviders>
           <AppShell>{children}</AppShell>
-        </AuthProvider>
+        </AppProviders>
       </body>
     </html>
   );

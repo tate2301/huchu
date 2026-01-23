@@ -1,147 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams, useRouter } from "next/navigation"
+import { differenceInMinutes, format } from "date-fns"
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Download,
+  Plus,
+  QrCode,
+  Wrench,
+} from "lucide-react"
+
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { Wrench, AlertTriangle, Calendar, CheckCircle, Clock, QrCode, Plus, Download } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { fetchEquipment, fetchSites, fetchUsers, fetchWorkOrders } from "@/lib/api"
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 
-const maintenanceViews = ["dashboard", "equipment", "work-orders", "breakdown", "schedule"] as const
+const maintenanceViews = [
+  "dashboard",
+  "equipment",
+  "work-orders",
+  "breakdown",
+  "schedule",
+] as const
+
 type MaintenanceView = (typeof maintenanceViews)[number]
 
-// Mock data
-const mockEquipment = [
-  { 
-    id: "1", 
-    code: "CRUSH-001", 
-    name: "Primary Crusher", 
-    category: "CRUSHER", 
-    site: "Mine Site 1", 
-    status: "operational", 
-    lastService: "2025-12-15", 
-    nextService: "2026-03-15",
-    serviceHours: 1200,
-    qrCode: "QR-CRUSH-001"
-  },
-  { 
-    id: "2", 
-    code: "MILL-002", 
-    name: "Ball Mill #1", 
-    category: "MILL", 
-    site: "Mine Site 1", 
-    status: "needs-service", 
-    lastService: "2025-11-20", 
-    nextService: "2026-01-15",
-    serviceHours: 2400,
-    qrCode: "QR-MILL-002"
-  },
-  { 
-    id: "3", 
-    code: "PUMP-005", 
-    name: "Dewatering Pump #3", 
-    category: "PUMP", 
-    site: "Mine Site 1", 
-    status: "down", 
-    lastService: "2025-12-01", 
-    nextService: "2026-04-01",
-    serviceHours: 800,
-    qrCode: "QR-PUMP-005"
-  },
-  { 
-    id: "4", 
-    code: "GEN-001", 
-    name: "Generator 1", 
-    category: "GENERATOR", 
-    site: "Mine Site 1", 
-    status: "operational", 
-    lastService: "2026-01-05", 
-    nextService: "2026-04-05",
-    serviceHours: 500,
-    qrCode: "QR-GEN-001"
-  },
-  { 
-    id: "5", 
-    code: "TRUCK-003", 
-    name: "Haul Truck #3", 
-    category: "VEHICLE", 
-    site: "Mine Site 1", 
-    status: "operational", 
-    lastService: "2025-12-20", 
-    nextService: "2026-02-20",
-    serviceHours: 1800,
-    qrCode: "QR-TRUCK-003"
-  },
-]
+const formatDate = (value?: string | null) => {
+  if (!value) return "—"
+  return format(new Date(value), "yyyy-MM-dd")
+}
 
-const mockWorkOrders = [
-  {
-    id: "WO-001",
-    equipment: "Dewatering Pump #3",
-    equipmentCode: "PUMP-005",
-    issue: "Pump not priming - possible impeller damage",
-    status: "open",
-    priority: "high",
-    downtimeStart: "2026-01-08 06:00",
-    downtimeHours: 14,
-    reportedBy: "Night Shift Supervisor",
-    assignedTo: "Maintenance Team",
-    createdAt: "2026-01-08"
-  },
-  {
-    id: "WO-002",
-    equipment: "Ball Mill #1",
-    equipmentCode: "MILL-002",
-    issue: "Scheduled service - bearing replacement",
-    status: "in-progress",
-    priority: "medium",
-    downtimeStart: "2026-01-07 08:00",
-    downtimeHours: 6,
-    reportedBy: "Maintenance Manager",
-    assignedTo: "J. Sibanda",
-    workDone: "Removed worn bearings, cleaning shaft",
-    partsUsed: "Bearings (x2), Grease",
-    createdAt: "2026-01-07"
-  },
-  {
-    id: "WO-003",
-    equipment: "Primary Crusher",
-    equipmentCode: "CRUSH-001",
-    issue: "Belt misalignment causing vibration",
-    status: "completed",
-    priority: "medium",
-    downtimeStart: "2026-01-05 14:00",
-    downtimeEnd: "2026-01-05 16:30",
-    downtimeHours: 2.5,
-    reportedBy: "Day Shift Operator",
-    assignedTo: "T. Moyo",
-    workDone: "Adjusted belt tension and alignment, tested operation",
-    partsUsed: "None",
-    completedAt: "2026-01-05",
-    createdAt: "2026-01-05"
-  },
-]
-
-const mockUpcomingMaintenance = [
-  { equipment: "Ball Mill #1", dueDate: "2026-01-15", daysUntil: 7, type: "Scheduled Service" },
-  { equipment: "Haul Truck #3", dueDate: "2026-02-20", daysUntil: 43, type: "Scheduled Service" },
-  { equipment: "Primary Crusher", dueDate: "2026-03-15", daysUntil: 66, type: "Scheduled Service" },
-]
+const getDowntimeHours = (start: string, end?: string | null) => {
+  const startDate = new Date(start)
+  const endDate = end ? new Date(end) : new Date()
+  const minutes = Math.max(0, differenceInMinutes(endDate, startDate))
+  return (minutes / 60).toFixed(1)
+}
 
 export default function MaintenancePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
   const viewParam = searchParams.get("view")
   const initialView = maintenanceViews.includes(viewParam as MaintenanceView)
     ? (viewParam as MaintenanceView)
     : "dashboard"
+
   const [activeView, setActiveView] = useState<MaintenanceView>(initialView)
-  const [selectedSite, setSelectedSite] = useState("site1")
+  const [selectedSiteId, setSelectedSiteId] = useState("")
+  const [breakdownForm, setBreakdownForm] = useState({
+    siteId: "",
+    equipmentId: "",
+    issue: "",
+    downtimeStart: "",
+    technicianId: "",
+  })
 
   const changeView = (view: MaintenanceView) => {
     setActiveView(view)
@@ -150,108 +92,243 @@ export default function MaintenancePage() {
     router.replace(`/maintenance?${params.toString()}`)
   }
 
-  // Calculate stats
-  const totalEquipment = mockEquipment.length
-  const operationalCount = mockEquipment.filter(e => e.status === "operational").length
-  const downCount = mockEquipment.filter(e => e.status === "down").length
-  const openWorkOrders = mockWorkOrders.filter(wo => wo.status === "open" || wo.status === "in-progress").length
-  const activeWorkOrders = mockWorkOrders.filter(wo => wo.status !== "completed")
-  const highPriorityWorkOrders = activeWorkOrders.filter(wo => wo.priority === "high").length
-  const upcomingMaintenanceCount = mockUpcomingMaintenance.length
-  const nextPmDue = upcomingMaintenanceCount
-    ? Math.min(...mockUpcomingMaintenance.map(item => item.daysUntil))
-    : null
+  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+    queryKey: ["sites"],
+    queryFn: fetchSites,
+  })
+
+  useEffect(() => {
+    if (!selectedSiteId && sites && sites.length > 0) {
+      setSelectedSiteId(sites[0].id)
+      setBreakdownForm((prev) => ({ ...prev, siteId: sites[0].id }))
+    }
+  }, [selectedSiteId, sites])
+
+  const {
+    data: equipmentData,
+    isLoading: equipmentLoading,
+    error: equipmentError,
+  } = useQuery({
+    queryKey: ["equipment", selectedSiteId],
+    queryFn: () => fetchEquipment({ siteId: selectedSiteId, limit: 200 }),
+    enabled: !!selectedSiteId,
+  })
+
+  const {
+    data: workOrdersData,
+    isLoading: workOrdersLoading,
+    error: workOrdersError,
+  } = useQuery({
+    queryKey: ["work-orders", selectedSiteId],
+    queryFn: () => fetchWorkOrders({ siteId: selectedSiteId, limit: 200 }),
+    enabled: !!selectedSiteId,
+  })
+
+  const {
+    data: usersData,
+    isLoading: usersLoading,
+    error: usersError,
+  } = useQuery({
+    queryKey: ["users", "technicians"],
+    queryFn: () => fetchUsers({ active: true, limit: 200 }),
+  })
+
+  const equipment = equipmentData?.data ?? []
+  const workOrders = workOrdersData?.data ?? []
+  const technicians = usersData?.data ?? []
+
+  const equipmentStatus = (item: {
+    isActive: boolean
+    nextServiceDue?: string | null
+  }) => {
+    if (!item.isActive) {
+      return { label: "Down", className: "bg-destructive/10 text-destructive" }
+    }
+    if (item.nextServiceDue && new Date(item.nextServiceDue) < new Date()) {
+      return { label: "Needs Service", className: "bg-amber-100 text-amber-800" }
+    }
+    return { label: "Operational", className: "bg-emerald-100 text-emerald-800" }
+  }
+
+  const totalEquipment = equipment.length
+  const operationalCount = equipment.filter(
+    (item) => equipmentStatus(item).label === "Operational",
+  ).length
+  const downCount = equipment.filter(
+    (item) => equipmentStatus(item).label === "Down",
+  ).length
+  const needsServiceCount = equipment.filter(
+    (item) => equipmentStatus(item).label === "Needs Service",
+  ).length
+  const activeWorkOrders = workOrders.filter(
+    (order) => order.status !== "COMPLETED",
+  )
+  const openWorkOrders = workOrders.filter(
+    (order) => order.status === "OPEN" || order.status === "IN_PROGRESS",
+  ).length
+
+  const upcomingMaintenance = useMemo(() => {
+    return equipment
+      .filter((item) => item.nextServiceDue)
+      .map((item) => {
+        const dueDate = new Date(item.nextServiceDue as string)
+        const daysUntil = Math.floor(
+          (dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+        )
+        return {
+          equipment: item,
+          dueDate: format(dueDate, "yyyy-MM-dd"),
+          daysUntil,
+        }
+      })
+      .filter((item) => item.daysUntil >= 0 && item.daysUntil <= 90)
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+  }, [equipment])
+
+  const nextPmDue = upcomingMaintenance.length > 0 ? upcomingMaintenance[0].daysUntil : null
+
+  const createWorkOrderMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/work-orders", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Work order created",
+        description: "Breakdown logged and added to the work order list.",
+        variant: "success",
+      })
+      setBreakdownForm((prev) => ({
+        ...prev,
+        equipmentId: "",
+        issue: "",
+        downtimeStart: "",
+        technicianId: "",
+      }))
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] })
+      changeView("work-orders")
+    },
+  })
+
+  const handleBreakdownSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (
+      !breakdownForm.equipmentId ||
+      !breakdownForm.issue ||
+      !breakdownForm.downtimeStart
+    ) {
+      toast({
+        title: "Missing details",
+        description: "Equipment, issue, and downtime start are required.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    createWorkOrderMutation.mutate({
+      equipmentId: breakdownForm.equipmentId,
+      issue: breakdownForm.issue,
+      downtimeStart: breakdownForm.downtimeStart,
+      technicianId: breakdownForm.technicianId || undefined,
+      status: "OPEN",
+    })
+  }
+
+  const error =
+    sitesError ||
+    equipmentError ||
+    workOrdersError ||
+    usersError ||
+    createWorkOrderMutation.error
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageActions>
-        <Button size="sm" onClick={() => changeView("breakdown")}>
+        <Button size="sm" onClick={() => changeView("breakdown")}> 
           <Plus className="h-4 w-4" />
           Log Breakdown
         </Button>
-        <Button size="sm" variant="outline" onClick={() => changeView("work-orders")}>
+        <Button size="sm" variant="outline" onClick={() => changeView("work-orders")}> 
           Work Orders
         </Button>
       </PageActions>
 
-      <PageHeading title="Maintenance Management" description="Equipment tracking and work orders" />
+      <PageHeading
+        title="Maintenance Management"
+        description="Equipment tracking and work orders"
+      />
 
-        {/* Navigation Tabs */}
-        <Card className="mb-4 py-3">
-          <CardContent className="flex flex-wrap gap-2 py-3">
-            <Button
-              onClick={() => changeView("dashboard")}
-              size="sm"
-              variant={activeView === "dashboard" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Wrench className="h-4 w-4" />
-              Dashboard
-            </Button>
-            <Button
-              onClick={() => changeView("equipment")}
-              size="sm"
-              variant={activeView === "equipment" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              Equipment Register
-            </Button>
-            <Button
-              onClick={() => changeView("work-orders")}
-              size="sm"
-              variant={activeView === "work-orders" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              Work Orders
-            </Button>
-            <Button
-              onClick={() => changeView("breakdown")}
-              size="sm"
-              variant={activeView === "breakdown" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Plus className="h-4 w-4" />
-              Log Breakdown
-            </Button>
-            <Button
-              onClick={() => changeView("schedule")}
-              size="sm"
-              variant={activeView === "schedule" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Calendar className="h-4 w-4" />
-              PM Schedule
-            </Button>
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load maintenance data</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs
+        value={activeView}
+        onValueChange={(value) => changeView(value as MaintenanceView)}
+        className="space-y-6"
+      >
+        <Card>
+          <CardContent className="py-3">
+            <TabsList className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 h-auto">
+              <TabsTrigger value="dashboard" className="gap-2 border border-border">
+                <Wrench className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="equipment" className="border border-border">
+                Equipment Register
+              </TabsTrigger>
+              <TabsTrigger value="work-orders" className="border border-border">
+                Work Orders
+              </TabsTrigger>
+              <TabsTrigger value="breakdown" className="gap-2 border border-border">
+                <Plus className="h-4 w-4" />
+                Log Breakdown
+              </TabsTrigger>
+              <TabsTrigger value="schedule" className="gap-2 border border-border">
+                <Calendar className="h-4 w-4" />
+                PM Schedule
+              </TabsTrigger>
+            </TabsList>
           </CardContent>
         </Card>
 
-        {/* Dashboard View */}
-        {activeView === "dashboard" && (
+        <TabsContent value="dashboard" className="mt-0">
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold">Equipment Status</CardTitle>
-                  <CardDescription className="text-xs">Live availability snapshot</CardDescription>
+                  <CardDescription className="text-xs">
+                    Live availability snapshot
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
+                  {equipmentLoading ? (
+                    <Skeleton className="h-8 w-full" />
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full justify-between px-2"
+                    >
+                      <div className="flex items-center gap-2 text-left">
+                        <Wrench className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs">Total Equipment</span>
+                      </div>
+                      <span className="text-sm font-semibold">{totalEquipment}</span>
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <Wrench className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Total Equipment</span>
-                    </div>
-                    <span className="text-sm font-semibold">{totalEquipment}</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                    className="h-8 w-full justify-between px-2"
                   >
                     <div className="flex items-center gap-2 text-left">
                       <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -263,13 +340,29 @@ export default function MaintenancePage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                    className="h-8 w-full justify-between px-2"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs">Needs Service</span>
+                    </div>
+                    <span className="text-sm font-semibold text-amber-600">
+                      {needsServiceCount}
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-full justify-between px-2"
                   >
                     <div className="flex items-center gap-2 text-left">
                       <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs">Equipment Down</span>
                     </div>
-                    <span className="text-sm font-semibold text-destructive">{downCount}</span>
+                    <span className="text-sm font-semibold text-destructive">
+                      {downCount}
+                    </span>
                   </Button>
                 </CardContent>
               </Card>
@@ -284,7 +377,7 @@ export default function MaintenancePage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                    className="h-8 w-full justify-between px-2"
                   >
                     <div className="flex items-center gap-2 text-left">
                       <Clock className="h-4 w-4 text-muted-foreground" />
@@ -292,44 +385,38 @@ export default function MaintenancePage() {
                     </div>
                     <span className="text-sm font-semibold">{openWorkOrders}</span>
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">High Priority</span>
-                    </div>
-                    <span className="text-sm font-semibold">{highPriorityWorkOrders}</span>
-                  </Button>
                 </CardContent>
               </Card>
 
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Preventive Maintenance</CardTitle>
-                  <CardDescription className="text-xs">Scheduled services</CardDescription>
+                  <CardTitle className="text-sm font-semibold">
+                    Preventive Maintenance
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Scheduled services
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                    className="h-8 w-full justify-between px-2"
                   >
                     <div className="flex items-center gap-2 text-left">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs">Upcoming (90 days)</span>
                     </div>
-                    <span className="text-sm font-semibold">{upcomingMaintenanceCount}</span>
+                    <span className="text-sm font-semibold">
+                      {upcomingMaintenance.length}
+                    </span>
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                    className="h-8 w-full justify-between px-2"
                   >
                     <div className="flex items-center gap-2 text-left">
                       <Clock className="h-4 w-4 text-muted-foreground" />
@@ -347,51 +434,46 @@ export default function MaintenancePage() {
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold">Active Work Orders</CardTitle>
-                  <CardDescription className="text-xs">Open and in-progress tasks</CardDescription>
+                  <CardDescription className="text-xs">
+                    Open and in-progress tasks
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
-                  {activeWorkOrders.length === 0 ? (
+                  {workOrdersLoading ? (
+                    <Skeleton className="h-12 w-full" />
+                  ) : activeWorkOrders.length === 0 ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="min-h-0 min-w-0 h-8 w-full justify-between px-2"
+                      className="h-8 w-full"
                       disabled
                     >
                       No active work orders
                     </Button>
                   ) : (
-                    activeWorkOrders.map(wo => (
+                    activeWorkOrders.map((order) => (
                       <Button
-                        key={wo.id}
+                        key={order.id}
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
+                        className="h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
                       >
                         <div className="flex flex-col items-start gap-1 text-left">
-                          <span className="text-sm font-medium">{wo.equipment}</span>
-                          <span className="text-xs text-muted-foreground">{wo.issue}</span>
+                          <span className="text-sm font-medium">{order.equipment.name}</span>
+                          <span className="text-xs text-muted-foreground">{order.issue}</span>
                           <span className="text-xs text-muted-foreground">
-                            {wo.equipmentCode} | {wo.id}
+                            {order.equipment.equipmentCode} | {order.id}
                           </span>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <Badge variant={wo.status === "open" ? "destructive" : "secondary"}>
-                            {wo.status === "open" ? "Open" : "In Progress"}
+                          <Badge variant={order.status === "OPEN" ? "destructive" : "secondary"}>
+                            {order.status === "OPEN" ? "Open" : "In Progress"}
                           </Badge>
-                          <Badge
-                            variant={
-                              wo.priority === "high"
-                                ? "destructive"
-                                : wo.priority === "medium"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {wo.priority.toUpperCase()}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{wo.downtimeHours}h</span>
+                          <span className="text-xs text-muted-foreground">
+                            {getDowntimeHours(order.downtimeStart, order.downtimeEnd)}h
+                          </span>
                         </div>
                       </Button>
                     ))
@@ -402,37 +484,50 @@ export default function MaintenancePage() {
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold">Upcoming Maintenance</CardTitle>
-                  <CardDescription className="text-xs">Scheduled in the next 90 days</CardDescription>
+                  <CardDescription className="text-xs">
+                    Scheduled in the next 90 days
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
-                  {mockUpcomingMaintenance.map((item, index) => (
+                  {upcomingMaintenance.length === 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full"
+                      disabled
+                    >
+                      No upcoming services
+                    </Button>
+                  ) : (
+                    upcomingMaintenance.map((item) => (
                       <Button
-                        key={index}
+                        key={item.equipment.id}
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
+                        className="h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
                       >
                         <div className="flex flex-col items-start text-left">
-                          <span className="text-sm font-medium">{item.equipment}</span>
-                        <span className="text-xs text-muted-foreground">{item.type}</span>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="text-xs font-medium">{item.dueDate}</span>
-                        <Badge variant={item.daysUntil < 14 ? "destructive" : "secondary"}>
-                          {item.daysUntil} days
-                        </Badge>
-                      </div>
-                    </Button>
-                  ))}
+                          <span className="text-sm font-medium">{item.equipment.name}</span>
+                          <span className="text-xs text-muted-foreground">Scheduled Service</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-xs font-medium">{item.dueDate}</span>
+                          <Badge variant={item.daysUntil < 14 ? "destructive" : "secondary"}>
+                            {item.daysUntil} days
+                          </Badge>
+                        </div>
+                      </Button>
+                    ))
+                  )}
                 </CardContent>
               </Card>
             </div>
           </div>
-        )}
+        </TabsContent>
 
-        {/* Equipment Register View */}
-        {activeView === "equipment" && (
+        <TabsContent value="equipment" className="mt-0">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -447,21 +542,25 @@ export default function MaintenancePage() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Filter */}
               <div className="mb-4">
-                <Select value={selectedSite} onValueChange={setSelectedSite}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="site1">Mine Site 1</SelectItem>
-                    <SelectItem value="site2">Mine Site 2</SelectItem>
-                    <SelectItem value="site3">Mine Site 3</SelectItem>
-                  </SelectContent>
-                </Select>
+                {sitesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites?.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
-              {/* Equipment Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-muted">
@@ -477,274 +576,47 @@ export default function MaintenancePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockEquipment.map(equipment => (
-                      <tr key={equipment.id} className="border-b hover:bg-muted/60">
-                        <td className="p-3 text-sm font-mono">{equipment.code}</td>
-                        <td className="p-3 text-sm font-medium">{equipment.name}</td>
-                        <td className="p-3 text-sm">{equipment.category}</td>
-                        <td className="p-3 text-sm">
-                          <Button variant="ghost" size="sm" className="gap-2">
-                            <QrCode className="h-4 w-4" />
-                            {equipment.qrCode}
-                          </Button>
-                        </td>
-                        <td className="p-3 text-sm">{equipment.lastService}</td>
-                        <td className="p-3 text-sm">{equipment.nextService}</td>
-                        <td className="p-3 text-sm text-right font-medium">{equipment.serviceHours}h</td>
-                        <td className="p-3 text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            equipment.status === "operational" ? "bg-green-100 text-green-800" :
-                            equipment.status === "down" ? "bg-red-100 text-red-800" :
-                            "bg-yellow-100 text-yellow-800"
-                          }`}>
-                            {equipment.status === "operational" ? "Operational" :
-                             equipment.status === "down" ? "Down" :
-                             "Needs Service"}
-                          </span>
+                    {equipmentLoading ? (
+                      <tr>
+                        <td colSpan={8} className="p-3">
+                          <Skeleton className="h-10 w-full" />
                         </td>
                       </tr>
-                    ))}
+                    ) : equipment.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-3 text-sm text-muted-foreground">
+                          No equipment found for this site.
+                        </td>
+                      </tr>
+                    ) : (
+                      equipment.map((item) => {
+                        const statusInfo = equipmentStatus(item)
+                        return (
+                          <tr key={item.id} className="border-b hover:bg-muted/60">
+                            <td className="p-3 text-sm font-mono">{item.equipmentCode}</td>
+                            <td className="p-3 text-sm font-medium">{item.name}</td>
+                            <td className="p-3 text-sm">{item.category}</td>
+                            <td className="p-3 text-sm">
+                              <Button variant="ghost" size="sm" className="gap-2">
+                                <QrCode className="h-4 w-4" />
+                                {item.qrCode || "—"}
+                              </Button>
+                            </td>
+                            <td className="p-3 text-sm">{formatDate(item.lastServiceDate)}</td>
+                            <td className="p-3 text-sm">{formatDate(item.nextServiceDue)}</td>
+                            <td className="p-3 text-sm text-right font-medium">
+                              {item.serviceHours ? `${item.serviceHours}h` : "—"}
+                            </td>
+                            <td className="p-3 text-center">
+                              <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
             </CardContent>
           </Card>
-        )}
-
-        {/* Work Orders View */}
-        {activeView === "work-orders" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>All Work Orders</CardTitle>
-              <CardDescription>Complete maintenance history</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {mockWorkOrders.map(wo => (
-                  <div key={wo.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="font-medium text-lg">{wo.equipment}</div>
-                        <div className="text-sm text-muted-foreground">{wo.equipmentCode} | {wo.id}</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          wo.status === "completed" ? "bg-green-100 text-green-800" :
-                          wo.status === "open" ? "bg-red-100 text-red-800" : 
-                          "bg-yellow-100 text-yellow-800"
-                        }`}>
-                          {wo.status === "completed" ? "Completed" : wo.status === "open" ? "Open" : "In Progress"}
-                        </span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          wo.priority === "high" ? "bg-red-100 text-red-800" : 
-                          wo.priority === "medium" ? "bg-orange-100 text-orange-800" : 
-                          "bg-blue-100 text-blue-800"
-                        }`}>
-                          {wo.priority.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mb-3">
-                      <div className="text-sm font-medium mb-1">Issue:</div>
-                      <div className="text-sm">{wo.issue}</div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <div className="text-muted-foreground">Reported By</div>
-                        <div className="font-medium">{wo.reportedBy}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Assigned To</div>
-                        <div className="font-medium">{wo.assignedTo}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Downtime</div>
-                        <div className="font-medium">{wo.downtimeHours}h</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Created</div>
-                        <div className="font-medium">{wo.createdAt}</div>
-                      </div>
-                    </div>
-                    {wo.workDone && (
-                      <div className="mt-3 p-3 bg-muted/60 rounded">
-                        <div className="text-sm font-medium mb-1">Work Done:</div>
-                        <div className="text-sm">{wo.workDone}</div>
-                        {wo.partsUsed && (
-                          <div className="text-sm text-muted-foreground mt-1">Parts Used: {wo.partsUsed}</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Log Breakdown Form */}
-        {activeView === "breakdown" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Log Equipment Breakdown</CardTitle>
-              <CardDescription>Create new work order for equipment issue</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Site *</label>
-                    <Select defaultValue="site1">
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select site" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="site1">Mine Site 1</SelectItem>
-                        <SelectItem value="site2">Mine Site 2</SelectItem>
-                        <SelectItem value="site3">Mine Site 3</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Equipment *</label>
-                    <Select>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select equipment..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockEquipment.map(eq => (
-                          <SelectItem key={eq.id} value={eq.id}>
-                            {eq.name} ({eq.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Issue Description *</label>
-                  <Textarea 
-                    placeholder="Describe the problem in detail..." 
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Downtime Started *</label>
-                    <Input type="datetime-local" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Priority *</label>
-                    <Select defaultValue="high">
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="high">High - Production stopped</SelectItem>
-                        <SelectItem value="medium">Medium - Reduced capacity</SelectItem>
-                        <SelectItem value="low">Low - No immediate impact</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Reported By *</label>
-                    <Input placeholder="Your name or shift" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Assign To</label>
-                    <Select>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select technician..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="team">Maintenance Team</SelectItem>
-                        <SelectItem value="j-sibanda">J. Sibanda</SelectItem>
-                        <SelectItem value="t-moyo">T. Moyo</SelectItem>
-                        <SelectItem value="external">External Contractor</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Additional Notes</label>
-                  <Textarea placeholder="Any additional information..." rows={2} />
-                </div>
-
-                <div className="flex gap-3">
-                  <Button className="bg-red-600 hover:bg-red-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Work Order
-                  </Button>
-                  <Button variant="outline" onClick={() => changeView("dashboard")}>
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* PM Schedule View */}
-        {activeView === "schedule" && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                Preventive Maintenance Schedule
-              </CardTitle>
-              <CardDescription>Upcoming scheduled maintenance for all equipment</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {mockEquipment.map(equipment => (
-                  <div key={equipment.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="font-medium text-lg">{equipment.name}</div>
-                        <div className="text-sm text-muted-foreground">{equipment.code} | {equipment.category}</div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        equipment.status === "operational" ? "bg-green-100 text-green-800" :
-                        equipment.status === "down" ? "bg-red-100 text-red-800" :
-                        "bg-yellow-100 text-yellow-800"
-                      }`}>
-                        {equipment.status === "operational" ? "Operational" :
-                         equipment.status === "down" ? "Down" :
-                         "Needs Service"}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <div className="text-muted-foreground">Last Service</div>
-                        <div className="font-medium">{equipment.lastService}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Next Service</div>
-                        <div className="font-medium">{equipment.nextService}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Service Hours</div>
-                        <div className="font-medium">{equipment.serviceHours}h</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Days Until Service</div>
-                        <div className="font-medium">
-                          {Math.floor((new Date(equipment.nextService).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-    </div>
-  )
-}
+        </TabsContent>

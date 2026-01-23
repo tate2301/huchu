@@ -1,77 +1,257 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
-import { PageActions } from "@/components/layout/page-actions"
-import { PageHeading } from "@/components/layout/page-heading"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Package, Fuel, AlertTriangle, Plus, Download, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { PageActions } from "@/components/layout/page-actions";
+import { PageHeading } from "@/components/layout/page-heading";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Package,
+  Fuel,
+  AlertTriangle,
+  Plus,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Home,
+} from "lucide-react";
 
-const storesViews = ["dashboard", "inventory", "fuel", "issue", "receive"] as const
-type StoresView = (typeof storesViews)[number]
+const storesViews = [
+  "dashboard",
+  "inventory",
+  "fuel",
+  "issue",
+  "receive",
+] as const;
+type StoresView = (typeof storesViews)[number];
 
 // Mock data
 const mockInventory = [
-  { id: "1", code: "FUEL-001", name: "Diesel", category: "FUEL", unit: "litres", currentStock: 450, minStock: 500, maxStock: 2000, location: "Main Store", unitCost: 1.65, status: "low" },
-  { id: "2", code: "SPARE-012", name: "Crusher Jaw Plates", category: "SPARES", unit: "pieces", currentStock: 4, minStock: 2, maxStock: 10, location: "Workshop", unitCost: 450, status: "ok" },
-  { id: "3", code: "CONS-008", name: "Grinding Media (Balls)", category: "CONSUMABLES", unit: "kg", currentStock: 180, minStock: 200, maxStock: 1000, location: "Mill Store", unitCost: 2.5, status: "low" },
-  { id: "4", code: "PPE-015", name: "Safety Helmets", category: "PPE", unit: "pieces", currentStock: 25, minStock: 15, maxStock: 50, location: "Main Store", unitCost: 12, status: "ok" },
-  { id: "5", code: "REAG-003", name: "Cyanide (NaCN)", category: "REAGENTS", unit: "kg", currentStock: 85, minStock: 50, maxStock: 200, location: "Secure Store", unitCost: 8.5, status: "ok" },
-  { id: "6", code: "SPARE-024", name: "Pump Impellers", category: "SPARES", unit: "pieces", currentStock: 1, minStock: 3, maxStock: 10, location: "Workshop", unitCost: 180, status: "critical" },
-]
+  {
+    id: "1",
+    code: "FUEL-001",
+    name: "Diesel",
+    category: "FUEL",
+    unit: "litres",
+    currentStock: 450,
+    minStock: 500,
+    maxStock: 2000,
+    location: "Main Store",
+    unitCost: 1.65,
+    status: "low",
+  },
+  {
+    id: "2",
+    code: "SPARE-012",
+    name: "Crusher Jaw Plates",
+    category: "SPARES",
+    unit: "pieces",
+    currentStock: 4,
+    minStock: 2,
+    maxStock: 10,
+    location: "Workshop",
+    unitCost: 450,
+    status: "ok",
+  },
+  {
+    id: "3",
+    code: "CONS-008",
+    name: "Grinding Media (Balls)",
+    category: "CONSUMABLES",
+    unit: "kg",
+    currentStock: 180,
+    minStock: 200,
+    maxStock: 1000,
+    location: "Mill Store",
+    unitCost: 2.5,
+    status: "low",
+  },
+  {
+    id: "4",
+    code: "PPE-015",
+    name: "Safety Helmets",
+    category: "PPE",
+    unit: "pieces",
+    currentStock: 25,
+    minStock: 15,
+    maxStock: 50,
+    location: "Main Store",
+    unitCost: 12,
+    status: "ok",
+  },
+  {
+    id: "5",
+    code: "REAG-003",
+    name: "Cyanide (NaCN)",
+    category: "REAGENTS",
+    unit: "kg",
+    currentStock: 85,
+    minStock: 50,
+    maxStock: 200,
+    location: "Secure Store",
+    unitCost: 8.5,
+    status: "ok",
+  },
+  {
+    id: "6",
+    code: "SPARE-024",
+    name: "Pump Impellers",
+    category: "SPARES",
+    unit: "pieces",
+    currentStock: 1,
+    minStock: 3,
+    maxStock: 10,
+    location: "Workshop",
+    unitCost: 180,
+    status: "critical",
+  },
+];
 
 const mockFuelLedger = [
-  { date: "2026-01-08", type: "issue", equipment: "Generator 1", quantity: 120, opening: 570, closing: 450, requestedBy: "Night Shift", approvedBy: "Site Manager" },
-  { date: "2026-01-07", type: "receipt", supplier: "Delta Fuels", quantity: 1500, opening: 70, closing: 1570, receivedBy: "Stores Clerk", invoiceNo: "INV-2401" },
-  { date: "2026-01-07", type: "issue", equipment: "Crusher", quantity: 85, opening: 1570, closing: 1485, requestedBy: "Day Shift", approvedBy: "Site Manager" },
-  { date: "2026-01-07", type: "issue", equipment: "Haul Trucks", quantity: 915, opening: 1485, closing: 570, requestedBy: "Day Shift", approvedBy: "Supervisor" },
-]
+  {
+    date: "2026-01-08",
+    type: "issue",
+    equipment: "Generator 1",
+    quantity: 120,
+    opening: 570,
+    closing: 450,
+    requestedBy: "Night Shift",
+    approvedBy: "Site Manager",
+  },
+  {
+    date: "2026-01-07",
+    type: "receipt",
+    supplier: "Delta Fuels",
+    quantity: 1500,
+    opening: 70,
+    closing: 1570,
+    receivedBy: "Stores Clerk",
+    invoiceNo: "INV-2401",
+  },
+  {
+    date: "2026-01-07",
+    type: "issue",
+    equipment: "Crusher",
+    quantity: 85,
+    opening: 1570,
+    closing: 1485,
+    requestedBy: "Day Shift",
+    approvedBy: "Site Manager",
+  },
+  {
+    date: "2026-01-07",
+    type: "issue",
+    equipment: "Haul Trucks",
+    quantity: 915,
+    opening: 1485,
+    closing: 570,
+    requestedBy: "Day Shift",
+    approvedBy: "Supervisor",
+  },
+];
 
 const mockRecentMovements = [
-  { id: "1", item: "Grinding Media (Balls)", type: "issue", quantity: 50, unit: "kg", issuedTo: "Mill Section", requestedBy: "J. Moyo", timestamp: "2026-01-08 14:30" },
-  { id: "2", item: "Diesel", type: "issue", quantity: 120, unit: "litres", issuedTo: "Generator 1", requestedBy: "Night Shift", timestamp: "2026-01-08 06:00" },
-  { id: "3", item: "Safety Helmets", type: "issue", quantity: 3, unit: "pieces", issuedTo: "New Hires", requestedBy: "HR", timestamp: "2026-01-07 10:15" },
-  { id: "4", item: "Diesel", type: "receipt", quantity: 1500, unit: "litres", issuedTo: "Main Store", requestedBy: "Stores Clerk", timestamp: "2026-01-07 09:00" },
-]
+  {
+    id: "1",
+    item: "Grinding Media (Balls)",
+    type: "issue",
+    quantity: 50,
+    unit: "kg",
+    issuedTo: "Mill Section",
+    requestedBy: "J. Moyo",
+    timestamp: "2026-01-08 14:30",
+  },
+  {
+    id: "2",
+    item: "Diesel",
+    type: "issue",
+    quantity: 120,
+    unit: "litres",
+    issuedTo: "Generator 1",
+    requestedBy: "Night Shift",
+    timestamp: "2026-01-08 06:00",
+  },
+  {
+    id: "3",
+    item: "Safety Helmets",
+    type: "issue",
+    quantity: 3,
+    unit: "pieces",
+    issuedTo: "New Hires",
+    requestedBy: "HR",
+    timestamp: "2026-01-07 10:15",
+  },
+  {
+    id: "4",
+    item: "Diesel",
+    type: "receipt",
+    quantity: 1500,
+    unit: "litres",
+    issuedTo: "Main Store",
+    requestedBy: "Stores Clerk",
+    timestamp: "2026-01-07 09:00",
+  },
+];
 
 export default function StoresPage() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const viewParam = searchParams.get("view")
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const viewParam = searchParams.get("view");
   const initialView = storesViews.includes(viewParam as StoresView)
     ? (viewParam as StoresView)
-    : "dashboard"
-  const [activeView, setActiveView] = useState<StoresView>(initialView)
-  const [selectedSite, setSelectedSite] = useState("site1")
-  const [selectedCategory, setSelectedCategory] = useState("all")
+    : "dashboard";
+  const [activeView, setActiveView] = useState<StoresView>(initialView);
+  const [selectedSite, setSelectedSite] = useState("site1");
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const changeView = (view: StoresView) => {
-    setActiveView(view)
-    const params = new URLSearchParams(searchParams.toString())
-    params.set("view", view)
-    router.replace(`/stores?${params.toString()}`)
-  }
+    setActiveView(view);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", view);
+    router.replace(`/stores?${params.toString()}`);
+  };
 
   // Filter inventory
-  const filteredInventory = mockInventory.filter(item => 
-    selectedCategory === "all" || item.category === selectedCategory
-  )
+  const filteredInventory = mockInventory.filter(
+    (item) => selectedCategory === "all" || item.category === selectedCategory,
+  );
 
   // Calculate stats
-  const totalItems = mockInventory.length
-  const lowStockItems = mockInventory.filter(item => item.status === "low" || item.status === "critical").length
-  const totalValue = mockInventory.reduce((sum, item) => sum + (item.currentStock * item.unitCost), 0)
-  const criticalItems = mockInventory.filter(item => item.status === "critical").length
-  const dieselItem = mockInventory.find(item => item.code === "FUEL-001")
-  const dieselStock = dieselItem?.currentStock ?? 0
-  const dieselMin = dieselItem?.minStock ?? 0
-  const dieselVariance = dieselStock - dieselMin
-  const dieselBelowMin = dieselItem ? dieselStock < dieselMin : false
+  const totalItems = mockInventory.length;
+  const lowStockItems = mockInventory.filter(
+    (item) => item.status === "low" || item.status === "critical",
+  ).length;
+  const totalValue = mockInventory.reduce(
+    (sum, item) => sum + item.currentStock * item.unitCost,
+    0,
+  );
+  const criticalItems = mockInventory.filter(
+    (item) => item.status === "critical",
+  ).length;
+  const dieselItem = mockInventory.find((item) => item.code === "FUEL-001");
+  const dieselStock = dieselItem?.currentStock ?? 0;
+  const dieselMin = dieselItem?.minStock ?? 0;
+  const dieselVariance = dieselStock - dieselMin;
+  const dieselBelowMin = dieselItem ? dieselStock < dieselMin : false;
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -80,72 +260,51 @@ export default function StoresPage() {
           <Minus className="h-4 w-4" />
           Issue Stock
         </Button>
-        <Button size="sm" variant="outline" onClick={() => changeView("receive")}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => changeView("receive")}
+        >
           <Plus className="h-4 w-4" />
           Receive Stock
         </Button>
       </PageActions>
 
-      <PageHeading title="Stores & Fuel Management" description="Inventory tracking and fuel ledger" />
+      <PageHeading
+        title="Stores & Fuel Management"
+        description="Inventory tracking and fuel ledger"
+      />
 
-        {/* Navigation Tabs */}
-        <Card className="mb-4 py-3">
-          <CardContent className="flex flex-wrap gap-2 py-3">
-            <Button
-              onClick={() => changeView("dashboard")}
-              size="sm"
-              variant={activeView === "dashboard" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Package className="h-4 w-4" />
-              Dashboard
-            </Button>
-            <Button
-              onClick={() => changeView("inventory")}
-              size="sm"
-              variant={activeView === "inventory" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              Stock on Hand
-            </Button>
-            <Button
-              onClick={() => changeView("fuel")}
-              size="sm"
-              variant={activeView === "fuel" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Fuel className="h-4 w-4" />
-              Fuel Ledger
-            </Button>
-            <Button
-              onClick={() => changeView("issue")}
-              size="sm"
-              variant={activeView === "issue" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Minus className="h-4 w-4" />
-              Issue Stock
-            </Button>
-            <Button
-              onClick={() => changeView("receive")}
-              size="sm"
-              variant={activeView === "receive" ? "default" : "outline"}
-              className="min-h-0 min-w-0 h-8 px-2"
-            >
-              <Plus className="h-4 w-4" />
-              Receive Stock
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Dashboard View */}
-        {activeView === "dashboard" && (
+      <Tabs
+        value={activeView}
+        onValueChange={(value) => changeView(value as StoresView)}
+        className="space-y-6"
+      >
+        <TabsList className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 h-auto border-b">
+          <TabsTrigger value="dashboard" className="gap-2 ">
+            <Home className="size-5" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="inventory" className="gap-2">
+            <Package className="size-5" />
+            Stock on Hand
+          </TabsTrigger>
+          <TabsTrigger value="fuel" className="gap-2 ">
+            <Fuel className="size-5" />
+            Fuel Ledger
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="dashboard" className="mt-0">
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Inventory Snapshot</CardTitle>
-                  <CardDescription className="text-xs">Quick totals across stores</CardDescription>
+                  <CardTitle className="text-sm font-semibold">
+                    Inventory Snapshot
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Quick totals across stores
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
                   <Button
@@ -170,15 +329,21 @@ export default function StoresPage() {
                       <TrendingUp className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs">Inventory Value</span>
                     </div>
-                    <span className="text-sm font-semibold">${totalValue.toLocaleString()}</span>
+                    <span className="text-sm font-semibold">
+                      ${totalValue.toLocaleString()}
+                    </span>
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Stock Alerts</CardTitle>
-                  <CardDescription className="text-xs">Items below minimums</CardDescription>
+                  <CardTitle className="text-sm font-semibold">
+                    Stock Alerts
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Items below minimums
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
                   <Button
@@ -191,7 +356,9 @@ export default function StoresPage() {
                       <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs">Low or Critical</span>
                     </div>
-                    <span className="text-sm font-semibold text-destructive">{lowStockItems}</span>
+                    <span className="text-sm font-semibold text-destructive">
+                      {lowStockItems}
+                    </span>
                   </Button>
                   <Button
                     type="button"
@@ -203,15 +370,21 @@ export default function StoresPage() {
                       <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                       <span className="text-xs">Critical Only</span>
                     </div>
-                    <span className="text-sm font-semibold text-destructive">{criticalItems}</span>
+                    <span className="text-sm font-semibold text-destructive">
+                      {criticalItems}
+                    </span>
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Fuel Snapshot</CardTitle>
-                  <CardDescription className="text-xs">Diesel stock health</CardDescription>
+                  <CardTitle className="text-sm font-semibold">
+                    Fuel Snapshot
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Diesel stock health
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
                   <Button
@@ -225,8 +398,12 @@ export default function StoresPage() {
                       <span className="text-xs">Diesel Stock</span>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="text-sm font-semibold">{dieselStock} L</span>
-                      <Badge variant={dieselBelowMin ? "destructive" : "secondary"}>
+                      <span className="text-sm font-semibold">
+                        {dieselStock} L
+                      </span>
+                      <Badge
+                        variant={dieselBelowMin ? "destructive" : "secondary"}
+                      >
                         {dieselBelowMin ? "Below Min" : "On Target"}
                       </Badge>
                     </div>
@@ -257,11 +434,18 @@ export default function StoresPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Reorder Alerts</CardTitle>
-                  <CardDescription className="text-xs">Items below minimum stock</CardDescription>
+                  <CardTitle className="text-sm font-semibold">
+                    Reorder Alerts
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Items below minimum stock
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
-                  {mockInventory.filter(item => item.status === "low" || item.status === "critical").length === 0 ? (
+                  {mockInventory.filter(
+                    (item) =>
+                      item.status === "low" || item.status === "critical",
+                  ).length === 0 ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -273,8 +457,11 @@ export default function StoresPage() {
                     </Button>
                   ) : (
                     mockInventory
-                      .filter(item => item.status === "low" || item.status === "critical")
-                      .map(item => (
+                      .filter(
+                        (item) =>
+                          item.status === "low" || item.status === "critical",
+                      )
+                      .map((item) => (
                         <Button
                           key={item.id}
                           type="button"
@@ -283,12 +470,21 @@ export default function StoresPage() {
                           className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
                         >
                           <div className="flex flex-col items-start text-left">
-                            <span className="text-sm font-medium">{item.name}</span>
+                            <span className="text-sm font-medium">
+                              {item.name}
+                            </span>
                             <span className="text-xs text-muted-foreground">
-                              Current: {item.currentStock} {item.unit} | Min: {item.minStock} {item.unit}
+                              Current: {item.currentStock} {item.unit} | Min:{" "}
+                              {item.minStock} {item.unit}
                             </span>
                           </div>
-                          <Badge variant={item.status === "critical" ? "destructive" : "secondary"}>
+                          <Badge
+                            variant={
+                              item.status === "critical"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
                             {item.status === "critical" ? "Critical" : "Low"}
                           </Badge>
                         </Button>
@@ -299,11 +495,15 @@ export default function StoresPage() {
 
               <Card className="py-4 gap-3">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Recent Movements</CardTitle>
-                  <CardDescription className="text-xs">Last 4 transactions</CardDescription>
+                  <CardTitle className="text-sm font-semibold">
+                    Recent Movements
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Last 4 transactions
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
-                  {mockRecentMovements.map(movement => (
+                  {mockRecentMovements.map((movement) => (
                     <Button
                       key={movement.id}
                       type="button"
@@ -318,14 +518,25 @@ export default function StoresPage() {
                           <TrendingUp className="h-4 w-4 text-muted-foreground" />
                         )}
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium">{movement.item}</span>
+                          <span className="text-sm font-medium">
+                            {movement.item}
+                          </span>
                           <span className="text-xs text-muted-foreground">
-                            {movement.type === "issue" ? "Issued to" : "Received to"}: {movement.issuedTo} | {movement.requestedBy}
+                            {movement.type === "issue"
+                              ? "Issued to"
+                              : "Received to"}
+                            : {movement.issuedTo} | {movement.requestedBy}
                           </span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <Badge variant={movement.type === "issue" ? "destructive" : "secondary"}>
+                        <Badge
+                          variant={
+                            movement.type === "issue"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
                           {movement.type === "issue" ? "Issue" : "Receipt"}
                         </Badge>
                         <span
@@ -336,7 +547,9 @@ export default function StoresPage() {
                           {movement.type === "issue" ? "-" : "+"}
                           {movement.quantity} {movement.unit}
                         </span>
-                        <span className="text-xs text-muted-foreground">{movement.timestamp}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {movement.timestamp}
+                        </span>
                       </div>
                     </Button>
                   ))}
@@ -344,16 +557,18 @@ export default function StoresPage() {
               </Card>
             </div>
           </div>
-        )}
+        </TabsContent>
 
         {/* Inventory View */}
-        {activeView === "inventory" && (
+        <TabsContent value="inventory" className="mt-0">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Stock on Hand</CardTitle>
-                  <CardDescription>Current inventory across all locations</CardDescription>
+                  <CardDescription>
+                    Current inventory across all locations
+                  </CardDescription>
                 </div>
                 <Button variant="outline" size="sm">
                   <Download className="h-4 w-4 mr-2" />
@@ -374,7 +589,10 @@ export default function StoresPage() {
                     <SelectItem value="site3">Mine Site 3</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={setSelectedCategory}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
@@ -394,18 +612,34 @@ export default function StoresPage() {
                 <table className="w-full">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="text-left p-3 text-sm font-medium">Code</th>
-                      <th className="text-left p-3 text-sm font-medium">Item Name</th>
-                      <th className="text-left p-3 text-sm font-medium">Category</th>
-                      <th className="text-right p-3 text-sm font-medium">Current Stock</th>
-                      <th className="text-right p-3 text-sm font-medium">Min</th>
-                      <th className="text-left p-3 text-sm font-medium">Location</th>
-                      <th className="text-right p-3 text-sm font-medium">Value</th>
-                      <th className="text-center p-3 text-sm font-medium">Status</th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Code
+                      </th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Item Name
+                      </th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Category
+                      </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Current Stock
+                      </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Min
+                      </th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Location
+                      </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Value
+                      </th>
+                      <th className="text-center p-3 text-sm font-medium">
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredInventory.map(item => (
+                    {filteredInventory.map((item) => (
                       <tr key={item.id} className="border-b hover:bg-muted/60">
                         <td className="p-3 text-sm font-mono">{item.code}</td>
                         <td className="p-3 text-sm font-medium">{item.name}</td>
@@ -421,12 +655,20 @@ export default function StoresPage() {
                           ${(item.currentStock * item.unitCost).toFixed(2)}
                         </td>
                         <td className="p-3 text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            item.status === "critical" ? "bg-red-100 text-red-800" :
-                            item.status === "low" ? "bg-yellow-100 text-yellow-800" :
-                            "bg-green-100 text-green-800"
-                          }`}>
-                            {item.status === "critical" ? "Critical" : item.status === "low" ? "Low" : "OK"}
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              item.status === "critical"
+                                ? "bg-red-100 text-red-800"
+                                : item.status === "low"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {item.status === "critical"
+                              ? "Critical"
+                              : item.status === "low"
+                                ? "Low"
+                                : "OK"}
                           </span>
                         </td>
                       </tr>
@@ -436,10 +678,10 @@ export default function StoresPage() {
               </div>
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
 
         {/* Fuel Ledger View */}
-        {activeView === "fuel" && (
+        <TabsContent value="fuel" className="mt-0">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -448,7 +690,9 @@ export default function StoresPage() {
                     <Fuel className="h-5 w-5 text-orange-600" />
                     Fuel Ledger
                   </CardTitle>
-                  <CardDescription>Diesel receipts and issues with running balance</CardDescription>
+                  <CardDescription>
+                    Diesel receipts and issues with running balance
+                  </CardDescription>
                 </div>
                 <Button variant="outline" size="sm">
                   <Download className="h-4 w-4 mr-2" />
@@ -461,9 +705,15 @@ export default function StoresPage() {
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Current Diesel Stock</p>
-                    <p className="text-3xl font-bold text-orange-600">450 litres</p>
-                    <p className="text-sm text-red-600 mt-1">⚠️ Below minimum level (500L)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Current Diesel Stock
+                    </p>
+                    <p className="text-3xl font-bold text-orange-600">
+                      450 litres
+                    </p>
+                    <p className="text-sm text-red-600 mt-1">
+                      ⚠️ Below minimum level (500L)
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">Variance</p>
@@ -477,13 +727,27 @@ export default function StoresPage() {
                 <table className="w-full">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="text-left p-3 text-sm font-medium">Date</th>
-                      <th className="text-left p-3 text-sm font-medium">Type</th>
-                      <th className="text-left p-3 text-sm font-medium">Equipment/Supplier</th>
-                      <th className="text-right p-3 text-sm font-medium">Quantity</th>
-                      <th className="text-right p-3 text-sm font-medium">Opening</th>
-                      <th className="text-right p-3 text-sm font-medium">Closing</th>
-                      <th className="text-left p-3 text-sm font-medium">Authorized By</th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Date
+                      </th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Type
+                      </th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Equipment/Supplier
+                      </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Quantity
+                      </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Opening
+                      </th>
+                      <th className="text-right p-3 text-sm font-medium">
+                        Closing
+                      </th>
+                      <th className="text-left p-3 text-sm font-medium">
+                        Authorized By
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -491,24 +755,41 @@ export default function StoresPage() {
                       <tr key={index} className="border-b hover:bg-muted/60">
                         <td className="p-3 text-sm">{entry.date}</td>
                         <td className="p-3 text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            entry.type === "receipt" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                          }`}>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              entry.type === "receipt"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
                             {entry.type === "receipt" ? "Receipt" : "Issue"}
                           </span>
                         </td>
                         <td className="p-3 text-sm">
-                          {entry.type === "receipt" ? entry.supplier : entry.equipment}
+                          {entry.type === "receipt"
+                            ? entry.supplier
+                            : entry.equipment}
                         </td>
-                        <td className={`p-3 text-sm text-right font-medium ${
-                          entry.type === "receipt" ? "text-green-600" : "text-red-600"
-                        }`}>
-                          {entry.type === "receipt" ? "+" : "-"}{entry.quantity}L
+                        <td
+                          className={`p-3 text-sm text-right font-medium ${
+                            entry.type === "receipt"
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {entry.type === "receipt" ? "+" : "-"}
+                          {entry.quantity}L
                         </td>
-                        <td className="p-3 text-sm text-right">{entry.opening}L</td>
-                        <td className="p-3 text-sm text-right font-medium">{entry.closing}L</td>
+                        <td className="p-3 text-sm text-right">
+                          {entry.opening}L
+                        </td>
+                        <td className="p-3 text-sm text-right font-medium">
+                          {entry.closing}L
+                        </td>
                         <td className="p-3 text-sm">
-                          {entry.type === "receipt" ? entry.receivedBy : entry.approvedBy}
+                          {entry.type === "receipt"
+                            ? entry.receivedBy
+                            : entry.approvedBy}
                         </td>
                       </tr>
                     ))}
@@ -517,24 +798,33 @@ export default function StoresPage() {
               </div>
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
 
         {/* Issue Stock Form */}
-        {activeView === "issue" && (
+        <TabsContent value="issue" className="mt-0">
           <Card>
             <CardHeader>
               <CardTitle>Issue Stock</CardTitle>
-              <CardDescription>Issue items to equipment or sections</CardDescription>
+              <CardDescription>
+                Issue items to equipment or sections
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Date *</label>
-                    <Input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                    <label className="block text-sm font-medium mb-2">
+                      Date *
+                    </label>
+                    <Input
+                      type="date"
+                      defaultValue={new Date().toISOString().split("T")[0]}
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Site *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Site *
+                    </label>
                     <Select defaultValue="site1">
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select site" />
@@ -550,62 +840,81 @@ export default function StoresPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Item *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Item *
+                    </label>
                     <Select>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select item..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockInventory.map(item => (
+                        {mockInventory.map((item) => (
                           <SelectItem key={item.id} value={item.id}>
-                            {item.name} ({item.currentStock} {item.unit} available)
+                            {item.name} ({item.currentStock} {item.unit}{" "}
+                            available)
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Quantity *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Quantity *
+                    </label>
                     <Input type="number" placeholder="e.g., 50" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Issued To (Equipment/Section) *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Issued To (Equipment/Section) *
+                    </label>
                     <Input placeholder="e.g., Generator 1, Mill Section" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Requested By *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Requested By *
+                    </label>
                     <Input placeholder="Name or shift" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Approved By</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Approved By
+                  </label>
                   <Input placeholder="Supervisor or manager name" />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Notes</label>
-                  <Textarea placeholder="Additional information about this issue..." rows={3} />
+                  <label className="block text-sm font-medium mb-2">
+                    Notes
+                  </label>
+                  <Textarea
+                    placeholder="Additional information about this issue..."
+                    rows={3}
+                  />
                 </div>
 
                 <div className="flex gap-3">
                   <Button className="bg-orange-600 hover:bg-orange-700">
                     Submit Issue
                   </Button>
-                  <Button variant="outline" onClick={() => changeView("dashboard")}>
+                  <Button
+                    variant="outline"
+                    onClick={() => changeView("dashboard")}
+                  >
                     Cancel
                   </Button>
                 </div>
               </form>
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
 
         {/* Receive Stock Form */}
-        {activeView === "receive" && (
+        <TabsContent value="receive" className="mt-0">
           <Card>
             <CardHeader>
               <CardTitle>Receive Stock</CardTitle>
@@ -615,11 +924,18 @@ export default function StoresPage() {
               <form className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Date *</label>
-                    <Input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                    <label className="block text-sm font-medium mb-2">
+                      Date *
+                    </label>
+                    <Input
+                      type="date"
+                      defaultValue={new Date().toISOString().split("T")[0]}
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Site *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Site *
+                    </label>
                     <Select defaultValue="site1">
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select site" />
@@ -635,51 +951,73 @@ export default function StoresPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Item *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Item *
+                    </label>
                     <Select>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select item..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockInventory.map(item => (
+                        {mockInventory.map((item) => (
                           <SelectItem key={item.id} value={item.id}>
-                            {item.name} (Current: {item.currentStock} {item.unit})
+                            {item.name} (Current: {item.currentStock}{" "}
+                            {item.unit})
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Quantity *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Quantity *
+                    </label>
                     <Input type="number" placeholder="e.g., 1500" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Supplier *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Supplier *
+                    </label>
                     <Input placeholder="Supplier name" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Invoice/Delivery Number</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Invoice/Delivery Number
+                    </label>
                     <Input placeholder="e.g., INV-2401" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Unit Cost</label>
-                    <Input type="number" step="0.01" placeholder="Cost per unit" />
+                    <label className="block text-sm font-medium mb-2">
+                      Unit Cost
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Cost per unit"
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Received By *</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Received By *
+                    </label>
                     <Input placeholder="Your name" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Notes</label>
-                  <Textarea placeholder="Delivery notes, condition, etc..." rows={3} />
+                  <label className="block text-sm font-medium mb-2">
+                    Notes
+                  </label>
+                  <Textarea
+                    placeholder="Delivery notes, condition, etc..."
+                    rows={3}
+                  />
                 </div>
 
                 <div className="flex gap-3">
@@ -687,14 +1025,18 @@ export default function StoresPage() {
                     <Plus className="h-4 w-4 mr-2" />
                     Submit Receipt
                   </Button>
-                  <Button variant="outline" onClick={() => changeView("dashboard")}>
+                  <Button
+                    variant="outline"
+                    onClick={() => changeView("dashboard")}
+                  >
                     Cancel
                   </Button>
                 </div>
               </form>
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
+      </Tabs>
     </div>
-  )
+  );
 }
