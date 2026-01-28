@@ -286,3 +286,90 @@ export async function fetchGoldReceipts(params: {
   const query = buildQuery(params)
   return fetchJson<Pagination<BuyerReceipt>>(`/api/gold/receipts${query}`)
 }
+
+// ============================================
+// CCTV API Functions
+// ============================================
+
+export type Camera = {
+  id: string
+  name: string
+  channelNumber: number
+  nvrId: string
+  siteId: string
+  area: string
+  description?: string | null
+  hasPTZ: boolean
+  hasAudio: boolean
+  hasMotionDetect: boolean
+  hasLineDetect: boolean
+  isOnline: boolean
+  isRecording: boolean
+  lastSeen?: string | null
+  isHighSecurity: boolean
+  nvr?: { name: string; ipAddress: string; isOnline: boolean }
+  site?: { name: string; code: string }
+}
+
+export type NVR = {
+  id: string
+  name: string
+  ipAddress: string
+  port: number
+  httpPort: number
+  siteId: string
+  manufacturer: string
+  model?: string | null
+  isOnline: boolean
+  lastHeartbeat?: string | null
+  site?: { name: string; code: string }
+  _count?: { cameras: number }
+}
+
+export type CCTVEvent = {
+  id: string
+  eventType: string
+  severity: string
+  eventTime: string
+  title: string
+  description?: string | null
+  isAcknowledged: boolean
+  camera?: { name: string; area: string; site: { name: string } }
+}
+
+export async function fetchCameras(params: {
+  siteId?: string
+  area?: string
+  isOnline?: boolean
+  nvrId?: string
+  isHighSecurity?: boolean
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<Camera>>(`/api/cctv/cameras${query}`)
+}
+
+export async function fetchNVRs(params: {
+  siteId?: string
+  isOnline?: boolean
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<NVR>>(`/api/cctv/nvrs${query}`)
+}
+
+export async function fetchCCTVEvents(params: {
+  cameraId?: string
+  eventType?: string
+  severity?: string
+  isAcknowledged?: boolean
+  startDate?: string
+  endDate?: string
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<CCTVEvent>>(`/api/cctv/events${query}`)
+}
