@@ -18,9 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Minus, Plus, Home, Package, Fuel } from "lucide-react";
+import { Download, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { mockInventory } from "../mock-data";
+import { StoresNavigation } from "../components/stores-navigation";
 
 export default function InventoryPage() {
   const [selectedSite, setSelectedSite] = useState("site1");
@@ -52,26 +53,7 @@ export default function InventoryPage() {
         description="Current inventory across all locations"
       />
 
-      <div className="flex flex-wrap gap-2 border-b pb-2">
-        <Link href="/stores">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Home className="size-5" />
-            Overview
-          </Button>
-        </Link>
-        <Link href="/stores/inventory">
-          <Button variant="default" size="sm" className="gap-2">
-            <Package className="size-5" />
-            Stock on Hand
-          </Button>
-        </Link>
-        <Link href="/stores/fuel">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Fuel className="size-5" />
-            Fuel Ledger
-          </Button>
-        </Link>
-      </div>
+      <StoresNavigation activeView="inventory" />
 
       <Card>
         <CardHeader>

@@ -10,9 +10,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Download, Fuel, Minus, Plus, Home, Package } from "lucide-react";
+import { Download, Fuel, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { mockFuelLedger } from "../mock-data";
+import { StoresNavigation } from "../components/stores-navigation";
 
 export default function FuelPage() {
   return (
@@ -37,26 +38,7 @@ export default function FuelPage() {
         description="Diesel receipts and issues with running balance"
       />
 
-      <div className="flex flex-wrap gap-2 border-b pb-2">
-        <Link href="/stores">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Home className="size-5" />
-            Overview
-          </Button>
-        </Link>
-        <Link href="/stores/inventory">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Package className="size-5" />
-            Stock on Hand
-          </Button>
-        </Link>
-        <Link href="/stores/fuel">
-          <Button variant="default" size="sm" className="gap-2">
-            <Fuel className="size-5" />
-            Fuel Ledger
-          </Button>
-        </Link>
-      </div>
+      <StoresNavigation activeView="fuel" />
 
       <Card>
         <CardHeader>

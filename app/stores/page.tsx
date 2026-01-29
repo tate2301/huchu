@@ -19,10 +19,10 @@ import {
   TrendingDown,
   Minus,
   Plus,
-  Home,
 } from "lucide-react";
 import Link from "next/link";
 import { mockInventory, mockRecentMovements } from "./mock-data";
+import { StoresNavigation } from "./components/stores-navigation";
 
 export default function StoresPage() {
   // Calculate stats
@@ -65,26 +65,7 @@ export default function StoresPage() {
         description="Inventory tracking and fuel ledger"
       />
 
-      <div className="flex flex-wrap gap-2 border-b pb-2">
-        <Link href="/stores">
-          <Button variant="default" size="sm" className="gap-2">
-            <Home className="size-5" />
-            Overview
-          </Button>
-        </Link>
-        <Link href="/stores/inventory">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Package className="size-5" />
-            Stock on Hand
-          </Button>
-        </Link>
-        <Link href="/stores/fuel">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Fuel className="size-5" />
-            Fuel Ledger
-          </Button>
-        </Link>
-      </div>
+      <StoresNavigation activeView="overview" />
 
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
