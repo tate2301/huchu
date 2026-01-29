@@ -232,6 +232,7 @@ export async function fetchEquipment(params: { siteId?: string; page?: number; l
 
 export async function fetchWorkOrders(params: {
   equipmentId?: string
+  siteId?: string
   status?: string
   page?: number
   limit?: number
