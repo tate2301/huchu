@@ -43,6 +43,7 @@ model Site {
   shiftReports      ShiftReport[]
   plantReports      PlantReport[]
   goldPours         GoldPour[]
+  goldShiftAllocations GoldShiftAllocation[]
   attendance        Attendance[]
   equipment         Equipment[]
   inventory         InventoryItem[]
@@ -94,6 +95,7 @@ model User {
   verifiedShiftReports  ShiftReport[]     @relation("VerifiedBy")
   approvedShiftReports  ShiftReport[]     @relation("ApprovedBy")
   plantReports          PlantReport[]
+  goldShiftAllocations  GoldShiftAllocation[]
   stockMovements        StockMovement[]
   inspections           Inspection[]
   trainingRecords       TrainingRecord[]
@@ -113,6 +115,7 @@ model Employee {
   nextOfKinPhone    String
   passportPhotoUrl  String
   villageOfOrigin   String
+  position          EmployeePosition @default(MINERS)
   companyId         String
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
@@ -125,6 +128,7 @@ model Employee {
   goldPoursWitness1 GoldPour[]  @relation("Witness1")
   goldPoursWitness2 GoldPour[]  @relation("Witness2")
   goldDispatches    GoldDispatch[] @relation("GoldDispatchHandovers")
+  goldShiftWorkerShares GoldShiftWorkerShare[]
 
   @@unique([companyId, employeeId])
   @@index([companyId])
@@ -140,11 +144,19 @@ enum ShiftType {
 }
 
 enum WorkType {
-  DEVELOPMENT
-  PRODUCTION
-  HAULAGE
-  SUPPORT
-  OTHER
+  EXTRACTION
+  HAULING
+  CRUSHING
+  PROCESSING
+}
+
+enum EmployeePosition {
+  MANAGER
+  CLERK
+  SUPPORT_STAFF
+  ENGINEERS
+  CHEMIST
+  MINERS
 }
 
 enum ReportStatus {
@@ -197,6 +209,7 @@ model ShiftReport {
   verifiedBy      User?        @relation("VerifiedBy", fields: [verifiedById], references: [id])
   approvedBy      User?        @relation("ApprovedBy", fields: [approvedById], references: [id])
   downtimeEvents  DowntimeEvent[]
+  goldShiftAllocation GoldShiftAllocation?
   
   @@index([siteId, date])
   @@index([date])
@@ -347,6 +360,7 @@ model BuyerReceipt {
   paidAmount      Float
   paymentMethod   String
   paymentChannel  String?
+  paymentReference String?
   notes           String?
   
   createdAt       DateTime     @default(now())
@@ -355,6 +369,57 @@ model BuyerReceipt {
   goldDispatch    GoldDispatch @relation(fields: [goldDispatchId], references: [id])
   
   @@index([receiptDate])
+}
+
+model GoldShiftAllocation {
+  id                 String   @id @default(uuid())
+  date               DateTime
+  shift              ShiftType
+  siteId             String
+  shiftReportId      String   @unique
+  totalWeight        Float
+  netWeight          Float
+  workerShareWeight  Float
+  companyShareWeight Float
+  perWorkerWeight    Float
+  payCycleWeeks      Int      @default(2)
+  createdById        String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  site         Site        @relation(fields: [siteId], references: [id])
+  shiftReport  ShiftReport @relation(fields: [shiftReportId], references: [id])
+  createdBy    User        @relation(fields: [createdById], references: [id])
+  expenses     GoldShiftExpense[]
+  workerShares GoldShiftWorkerShare[]
+
+  @@unique([siteId, date, shift])
+  @@index([siteId, date])
+}
+
+model GoldShiftExpense {
+  id            String   @id @default(uuid())
+  allocationId  String
+  type          String
+  weight        Float
+
+  allocation    GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+
+  @@index([allocationId])
+}
+
+model GoldShiftWorkerShare {
+  id            String   @id @default(uuid())
+  allocationId  String
+  employeeId    String
+  shareWeight   Float
+
+  allocation    GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  employee      Employee            @relation(fields: [employeeId], references: [id])
+
+  @@unique([allocationId, employeeId])
+  @@index([allocationId])
+  @@index([employeeId])
 }
 
 // ============================================

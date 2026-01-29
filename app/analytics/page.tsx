@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
   endOfMonth,
@@ -48,11 +48,7 @@ export default function AnalyticsPage() {
     queryFn: fetchSites,
   })
 
-  useEffect(() => {
-    if (!selectedSite && sites && sites.length > 0) {
-      setSelectedSite(sites[0].id)
-    }
-  }, [selectedSite, sites])
+  const activeSiteId = selectedSite || sites?.[0]?.id || ""
 
   const { startDate, endDate } = useMemo(() => {
     const range = getDateRange(timeRange)
@@ -67,14 +63,14 @@ export default function AnalyticsPage() {
     isLoading: analyticsLoading,
     error: analyticsError,
   } = useQuery({
-    queryKey: ["downtime-analytics", selectedSite, timeRange],
+    queryKey: ["downtime-analytics", activeSiteId, timeRange],
     queryFn: () =>
       fetchDowntimeAnalytics({
-        siteId: selectedSite,
+        siteId: activeSiteId,
         startDate,
         endDate,
       }),
-    enabled: !!selectedSite,
+    enabled: !!activeSiteId,
   })
 
   const totalHours = analytics?.totalDowntimeHours ?? 0
@@ -106,7 +102,7 @@ export default function AnalyticsPage() {
               {sitesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
-                <Select value={selectedSite} onValueChange={setSelectedSite}>
+                <Select value={activeSiteId} onValueChange={setSelectedSite}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select site" />
                   </SelectTrigger>

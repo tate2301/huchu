@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { AlertCircle, Save, Send } from "lucide-react"
 
@@ -52,20 +52,16 @@ export default function PlantReportPage() {
     queryFn: fetchSites,
   })
 
-  useEffect(() => {
-    if (!formData.siteId && sites && sites.length > 0) {
-      setFormData((prev) => ({ ...prev, siteId: sites[0].id }))
-    }
-  }, [formData.siteId, sites])
+  const activeSiteId = formData.siteId || sites?.[0]?.id || ""
 
   const {
     data: downtimeCodes,
     isLoading: downtimeLoading,
     error: downtimeError,
   } = useQuery({
-    queryKey: ["downtime-codes", formData.siteId],
-    queryFn: () => fetchDowntimeCodes({ siteId: formData.siteId, active: true }),
-    enabled: !!formData.siteId,
+    queryKey: ["downtime-codes", activeSiteId],
+    queryFn: () => fetchDowntimeCodes({ siteId: activeSiteId, active: true }),
+    enabled: !!activeSiteId,
   })
 
   const plantReportMutation = useMutation({
@@ -125,7 +121,7 @@ export default function PlantReportPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.siteId) {
+    if (!activeSiteId) {
       toast({
         title: "Site required",
         description: "Select a site before submitting.",
@@ -144,7 +140,7 @@ export default function PlantReportPage() {
 
     const payload = {
       date: formData.date,
-      siteId: formData.siteId,
+      siteId: activeSiteId,
       tonnesFed: toNumber(formData.tonnesFed),
       tonnesProcessed: toNumber(formData.tonnesProcessed),
       runHours: toNumber(formData.runHours),
@@ -207,7 +203,12 @@ export default function PlantReportPage() {
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <Select name="siteId" value={formData.siteId || undefined} onValueChange={handleSelectChange("siteId")} required>
+                  <Select
+                    name="siteId"
+                    value={activeSiteId || undefined}
+                    onValueChange={handleSelectChange("siteId")}
+                    required
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select site..." />
                     </SelectTrigger>

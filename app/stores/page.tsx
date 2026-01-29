@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PageActions } from "@/components/layout/page-actions";
@@ -251,6 +251,13 @@ export default function StoresPage() {
     maxStock: "",
     unitCost: "",
   });
+  const [locationFormOpen, setLocationFormOpen] = useState(false);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
+  const [locationForm, setLocationForm] = useState({
+    name: "",
+    siteId: "",
+    isActive: true,
+  });
   const [issueItemId, setIssueItemId] = useState("");
   const [receiveItemId, setReceiveItemId] = useState("");
 
@@ -258,30 +265,45 @@ export default function StoresPage() {
     queryKey: ["sites"],
     queryFn: fetchSites,
   });
+  const activeSiteId = selectedSiteId || sites?.[0]?.id || "";
 
   const { data: inventoryData, isLoading: inventoryLoading, error: inventoryError } = useQuery({
-    queryKey: ["inventory-items", selectedSiteId, selectedCategory],
+    queryKey: ["inventory-items", activeSiteId, selectedCategory],
     queryFn: () =>
       fetchInventoryItems({
-        siteId: selectedSiteId,
+        siteId: activeSiteId,
         category: selectedCategory === "all" ? undefined : selectedCategory,
         limit: 500,
       }),
-    enabled: !!selectedSiteId,
+    enabled: !!activeSiteId,
   });
 
+  const stockLocationSiteId = inventoryForm.siteId || activeSiteId;
   const {
     data: stockLocationsData,
     isLoading: stockLocationsLoading,
   } = useQuery({
-    queryKey: ["stock-locations", inventoryForm.siteId || selectedSiteId],
+    queryKey: ["stock-locations", "active", stockLocationSiteId],
     queryFn: () =>
       fetchStockLocations({
-        siteId: inventoryForm.siteId || selectedSiteId,
+        siteId: stockLocationSiteId,
         active: true,
         limit: 200,
       }),
-    enabled: !!(inventoryForm.siteId || selectedSiteId),
+    enabled: !!stockLocationSiteId,
+  });
+
+  const {
+    data: stockLocationsAllData,
+    isLoading: stockLocationsAllLoading,
+  } = useQuery({
+    queryKey: ["stock-locations", "all", activeSiteId],
+    queryFn: () =>
+      fetchStockLocations({
+        siteId: activeSiteId,
+        limit: 200,
+      }),
+    enabled: !!activeSiteId,
   });
 
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
@@ -291,6 +313,7 @@ export default function StoresPage() {
   const employees = employeesData?.data ?? [];
   const inventoryItems = inventoryData?.data ?? [];
   const stockLocations = stockLocationsData?.data ?? [];
+  const stockLocationsAll = stockLocationsAllData?.data ?? [];
 
   const changeView = (view: StoresView) => {
     setActiveView(view);
@@ -299,21 +322,12 @@ export default function StoresPage() {
     router.replace(`/stores?${params.toString()}`);
   };
 
-  useEffect(() => {
-    if (!selectedSiteId && sites && sites.length > 0) {
-      setSelectedSiteId(sites[0].id);
-      setInventoryForm((prev) => ({ ...prev, siteId: sites[0].id }));
-    }
-  }, [selectedSiteId, sites]);
-
-  useEffect(() => {
-    if (!selectedSiteId) return;
+  const handleSiteChange = (value: string) => {
+    setSelectedSiteId(value);
     setIssueItemId("");
     setReceiveItemId("");
-    setInventoryForm((prev) =>
-      prev.siteId ? prev : { ...prev, siteId: selectedSiteId },
-    );
-  }, [selectedSiteId]);
+    setInventoryForm((prev) => ({ ...prev, siteId: value }));
+  };
 
   const resetInventoryForm = (
     overrides: Partial<typeof inventoryForm> = {},
@@ -323,13 +337,24 @@ export default function StoresPage() {
       name: "",
       category:
         selectedCategory === "all" ? "CONSUMABLES" : selectedCategory,
-      siteId: selectedSiteId,
+      siteId: activeSiteId,
       locationId: "",
       unit: "",
       currentStock: "",
       minStock: "",
       maxStock: "",
       unitCost: "",
+      ...overrides,
+    });
+  };
+
+  const resetLocationForm = (
+    overrides: Partial<typeof locationForm> = {},
+  ) => {
+    setLocationForm({
+      name: "",
+      siteId: activeSiteId,
+      isActive: true,
       ...overrides,
     });
   };
@@ -346,13 +371,19 @@ export default function StoresPage() {
     setInventoryFormOpen(true);
   };
 
+  const openNewLocation = (siteId?: string) => {
+    setEditingLocationId(null);
+    resetLocationForm({ siteId: siteId ?? activeSiteId });
+    setLocationFormOpen(true);
+  };
+
   const openEditInventoryItem = (item: (typeof inventoryItems)[number]) => {
     setEditingItemId(item.id);
     resetInventoryForm({
       itemCode: item.itemCode ?? "",
       name: item.name ?? "",
       category: item.category ?? "CONSUMABLES",
-      siteId: item.siteId ?? selectedSiteId,
+      siteId: item.siteId ?? activeSiteId,
       locationId: item.locationId ?? "",
       unit: item.unit ?? "",
       currentStock:
@@ -375,6 +406,16 @@ export default function StoresPage() {
     setInventoryFormOpen(true);
   };
 
+  const openEditLocation = (location: (typeof stockLocationsAll)[number]) => {
+    setEditingLocationId(location.id);
+    resetLocationForm({
+      name: location.name ?? "",
+      siteId: location.siteId ?? activeSiteId,
+      isActive: location.isActive ?? true,
+    });
+    setLocationFormOpen(true);
+  };
+
   const handleInventoryChange =
     (field: keyof typeof inventoryForm) =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -382,9 +423,25 @@ export default function StoresPage() {
     };
 
   const handleInventorySelect =
-    (field: "category" | "siteId" | "locationId") => (value: string) => {
+    (field: "category" | "siteId") => (value: string) => {
+      if (field === "siteId") {
+        setInventoryForm((prev) => ({
+          ...prev,
+          siteId: value,
+          locationId: "",
+        }));
+        return;
+      }
       setInventoryForm((prev) => ({ ...prev, [field]: value }));
     };
+
+  const handleLocationSelect = (value: string) => {
+    if (value === "__add_location__") {
+      openNewLocation(inventoryForm.siteId || activeSiteId);
+      return;
+    }
+    setInventoryForm((prev) => ({ ...prev, locationId: value }));
+  };
 
   const handleInventoryOpenChange = (open: boolean) => {
     setInventoryFormOpen(open);
@@ -392,6 +449,26 @@ export default function StoresPage() {
       setEditingItemId(null);
       resetInventoryForm();
     }
+  };
+
+  const handleLocationOpenChange = (open: boolean) => {
+    setLocationFormOpen(open);
+    if (!open) {
+      setEditingLocationId(null);
+      resetLocationForm();
+    }
+  };
+
+  const handleLocationNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setLocationForm((prev) => ({ ...prev, name: event.target.value }));
+  };
+
+  const handleLocationSiteChange = (value: string) => {
+    setLocationForm((prev) => ({ ...prev, siteId: value }));
+  };
+
+  const handleLocationStatusChange = (value: string) => {
+    setLocationForm((prev) => ({ ...prev, isActive: value === "active" }));
   };
 
   const createInventoryMutation = useMutation({
@@ -465,6 +542,82 @@ export default function StoresPage() {
     },
   });
 
+  const createLocationMutation = useMutation({
+    mutationFn: async (payload: { name: string; siteId: string; isActive: boolean }) =>
+      fetchJson("/api/stock-locations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (location: { id: string; siteId: string } | null) => {
+      toast({
+        title: "Location created",
+        description: "Stock location saved successfully.",
+        variant: "success",
+      });
+      if (
+        inventoryFormOpen &&
+        location &&
+        location.id &&
+        location.siteId === inventoryForm.siteId
+      ) {
+        setInventoryForm((prev) => ({ ...prev, locationId: location.id }));
+      }
+      handleLocationOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["stock-locations"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to create location",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateLocationMutation = useMutation({
+    mutationFn: async (payload: { id: string; data: { name: string; isActive: boolean } }) =>
+      fetchJson(`/api/stock-locations/${payload.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload.data),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Location updated",
+        description: "Stock location changes saved.",
+        variant: "success",
+      });
+      handleLocationOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["stock-locations"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update location",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteLocationMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/stock-locations/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({
+        title: "Location deleted",
+        description: "Stock location removed.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["stock-locations"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to delete location",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleInventorySubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -506,6 +659,40 @@ export default function StoresPage() {
   const handleInventoryDelete = (id: string) => {
     if (!window.confirm("Delete this inventory item?")) return;
     deleteInventoryMutation.mutate(id);
+  };
+
+  const handleLocationSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!locationForm.name || !locationForm.siteId) {
+      toast({
+        title: "Missing details",
+        description: "Location name and site are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (editingLocationId) {
+      updateLocationMutation.mutate({
+        id: editingLocationId,
+        data: {
+          name: locationForm.name,
+          isActive: locationForm.isActive,
+        },
+      });
+    } else {
+      createLocationMutation.mutate({
+        name: locationForm.name,
+        siteId: locationForm.siteId,
+        isActive: locationForm.isActive,
+      });
+    }
+  };
+
+  const handleLocationDelete = (id: string) => {
+    if (!window.confirm("Delete this stock location?")) return;
+    deleteLocationMutation.mutate(id);
   };
 
   const handleIssueItemChange = (value: string) => {
@@ -861,7 +1048,7 @@ export default function StoresPage() {
         </TabsContent>
 
         {/* Inventory View */}
-        <TabsContent value="inventory" className="mt-0">
+        <TabsContent value="inventory" className="mt-0 space-y-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -889,7 +1076,7 @@ export default function StoresPage() {
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <Select value={selectedSiteId || undefined} onValueChange={setSelectedSiteId}>
+                  <Select value={activeSiteId || undefined} onValueChange={handleSiteChange}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select site" />
                     </SelectTrigger>
@@ -1111,7 +1298,7 @@ export default function StoresPage() {
                         ) : (
                           <Select
                             value={inventoryForm.locationId || undefined}
-                            onValueChange={handleInventorySelect("locationId")}
+                            onValueChange={handleLocationSelect}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select location" />
@@ -1122,6 +1309,9 @@ export default function StoresPage() {
                                   {location.name}
                                 </SelectItem>
                               ))}
+                              <SelectItem value="__add_location__">
+                                + Add new location
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -1208,6 +1398,170 @@ export default function StoresPage() {
               </Sheet>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle>Stock Locations</CardTitle>
+                  <CardDescription>Manage store rooms and storage bays.</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => openNewLocation()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Location
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {stockLocationsAllLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : stockLocationsAll.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No stock locations found for this site.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-3 text-sm font-medium">
+                          Location
+                        </th>
+                        <th className="text-center p-3 text-sm font-medium">
+                          Status
+                        </th>
+                        <th className="text-right p-3 text-sm font-medium">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockLocationsAll.map((location) => (
+                        <tr
+                          key={location.id}
+                          className="border-b hover:bg-muted/60"
+                        >
+                          <td className="p-3 text-sm font-medium">
+                            {location.name}
+                          </td>
+                          <td className="p-3 text-center">
+                            <Badge
+                              variant={location.isActive ? "secondary" : "destructive"}
+                            >
+                              {location.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openEditLocation(location)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleLocationDelete(location.id)}
+                                disabled={deleteLocationMutation.isPending}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Sheet open={locationFormOpen} onOpenChange={handleLocationOpenChange}>
+            <SheetContent className="w-full sm:max-w-md p-6">
+              <SheetHeader>
+                <SheetTitle>
+                  {editingLocationId ? "Edit Location" : "Add Stock Location"}
+                </SheetTitle>
+                <SheetDescription>Store rooms, bays, and bins.</SheetDescription>
+              </SheetHeader>
+              <form onSubmit={handleLocationSubmit} className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Location Name *</label>
+                  <Input
+                    value={locationForm.name}
+                    onChange={handleLocationNameChange}
+                    placeholder="Main Store"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Site *</label>
+                  {sitesLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : (
+                    <Select
+                      value={locationForm.siteId || undefined}
+                      onValueChange={handleLocationSiteChange}
+                      disabled={!!editingLocationId}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select site" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sites?.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Status</label>
+                  <Select
+                    value={locationForm.isActive ? "active" : "inactive"}
+                    onValueChange={handleLocationStatusChange}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={
+                      createLocationMutation.isPending ||
+                      updateLocationMutation.isPending
+                    }
+                  >
+                    {editingLocationId ? "Save Changes" : "Save Location"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleLocationOpenChange(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </SheetContent>
+          </Sheet>
         </TabsContent>
 
         {/* Fuel Ledger View */}
@@ -1359,8 +1713,8 @@ export default function StoresPage() {
                       <Skeleton className="h-9 w-full" />
                     ) : (
                       <Select
-                        value={selectedSiteId || undefined}
-                        onValueChange={setSelectedSiteId}
+                        value={activeSiteId || undefined}
+                        onValueChange={handleSiteChange}
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select site" />
@@ -1513,8 +1867,8 @@ export default function StoresPage() {
                       <Skeleton className="h-9 w-full" />
                     ) : (
                       <Select
-                        value={selectedSiteId || undefined}
-                        onValueChange={setSelectedSiteId}
+                        value={activeSiteId || undefined}
+                        onValueChange={handleSiteChange}
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select site" />

@@ -53,6 +53,18 @@ export default function AttendancePage() {
     villageOfOrigin: "",
   })
 
+  const resetNewEmployee = () => {
+    setNewEmployee({
+      name: "",
+      phone: "",
+      nextOfKinName: "",
+      nextOfKinPhone: "",
+      passportPhotoUrl: "",
+      villageOfOrigin: "",
+    })
+    setPassportUploading(false)
+  }
+
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
@@ -127,15 +139,7 @@ export default function AttendancePage() {
         description: "New employee is available for attendance.",
         variant: "success",
       })
-      setNewEmployee({
-        name: "",
-        phone: "",
-        nextOfKinName: "",
-        nextOfKinPhone: "",
-        passportPhotoUrl: "",
-        villageOfOrigin: "",
-      })
-      setPassportUploading(false)
+      resetNewEmployee()
       setAddEmployeeOpen(false)
       queryClient.invalidateQueries({ queryKey: ["employees"] })
     },
@@ -152,6 +156,13 @@ export default function AttendancePage() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  const handleAddEmployeeOpenChange = (open: boolean) => {
+    setAddEmployeeOpen(open)
+    if (!open) {
+      resetNewEmployee()
+    }
+  }
+
   const handleNewEmployeeChange =
     (field: keyof typeof newEmployee) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setNewEmployee((prev) => ({ ...prev, [field]: event.target.value }))
@@ -163,6 +174,7 @@ export default function AttendancePage() {
 
     const response = await fetch("/api/uploads/passport-photo", {
       method: "POST",
+      credentials: "include",
       body: formDataPayload,
     })
 
@@ -301,7 +313,7 @@ export default function AttendancePage() {
           <Save className="h-4 w-4" />
           Save Draft
         </Button>
-        <Sheet open={addEmployeeOpen} onOpenChange={setAddEmployeeOpen}>
+        <Sheet open={addEmployeeOpen} onOpenChange={handleAddEmployeeOpenChange}>
           <SheetTrigger asChild>
             <Button size="sm" variant="outline" type="button">
               <UserPlus className="h-4 w-4" />

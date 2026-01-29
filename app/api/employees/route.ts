@@ -16,6 +16,14 @@ const employeeSchema = z.object({
   nextOfKinPhone: z.string().min(1).max(30),
   passportPhotoUrl: z.string().min(1).max(2048),
   villageOfOrigin: z.string().min(1).max(200),
+  position: z.enum([
+    "MANAGER",
+    "CLERK",
+    "SUPPORT_STAFF",
+    "ENGINEERS",
+    "CHEMIST",
+    "MINERS",
+  ]),
   isActive: z.boolean().optional(),
 })
 
@@ -60,13 +68,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const active = searchParams.get("active")
     const search = searchParams.get("search")
+    const position = searchParams.get("position")
     const { page, limit, skip } = getPaginationParams(request)
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       companyId: session.user.companyId,
     }
 
     if (active !== null) where.isActive = active === "true"
+    if (position) where.position = position
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -87,6 +97,7 @@ export async function GET(request: NextRequest) {
           nextOfKinPhone: true,
           passportPhotoUrl: true,
           villageOfOrigin: true,
+          position: true,
           isActive: true,
         },
         orderBy: { name: "asc" },
@@ -122,6 +133,7 @@ export async function POST(request: NextRequest) {
         nextOfKinPhone: validated.nextOfKinPhone,
         passportPhotoUrl: validated.passportPhotoUrl,
         villageOfOrigin: validated.villageOfOrigin,
+        position: validated.position,
         isActive: validated.isActive ?? true,
         companyId: session.user.companyId,
       },

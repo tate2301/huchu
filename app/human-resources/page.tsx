@@ -141,28 +141,8 @@ export default function HumanResourcesPage() {
     setFormData((prev) => ({ ...prev, isActive: value === "active" }))
   }
 
-  const uploadPassportPhoto = async (file: File) => {
-    const formDataPayload = new FormData()
-    formDataPayload.append("file", file)
-
-    const response = await fetch("/api/uploads/passport-photo", {
-      method: "POST",
-      body: formDataPayload,
-    })
-
-    const data = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      const message =
-        data && typeof data.error === "string" ? data.error : "Upload failed"
-      throw new Error(message)
-    }
-
-    if (!data || typeof data.url !== "string") {
-      throw new Error("Upload response missing file URL")
-    }
-
-    return data.url as string
+  const uploadPassportPhoto = async (_file: File) => {
+    return "https://placehold.co/240x320?text=Passport"
   }
 
   const handlePassportPhotoChange = async (

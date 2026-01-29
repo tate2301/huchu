@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams, useRouter } from "next/navigation"
 import { differenceInMinutes, format } from "date-fns"
@@ -34,10 +34,17 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -56,9 +63,10 @@ const maintenanceViews = [
 type MaintenanceView = (typeof maintenanceViews)[number]
 
 const equipmentCategories = ["CRUSHER", "MILL", "PUMP", "GENERATOR", "VEHICLE", "OTHER"] as const
+const measurementUnits = ["tonnes", "trips", "wheelbarrows"] as const
 
 const formatDate = (value?: string | null) => {
-  if (!value) return "—"
+  if (!value) return "â€”"
   return format(new Date(value), "yyyy-MM-dd")
 }
 
@@ -67,6 +75,16 @@ const getDowntimeHours = (start: string, end?: string | null) => {
   const endDate = end ? new Date(end) : new Date()
   const minutes = Math.max(0, differenceInMinutes(endDate, startDate))
   return (minutes / 60).toFixed(1)
+}
+
+const formatDateInput = (value?: string | null) => {
+  if (!value) return ""
+  return format(new Date(value), "yyyy-MM-dd")
+}
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-"
+  return format(new Date(value), "yyyy-MM-dd HH:mm")
 }
 
 export default function MaintenancePage() {
@@ -83,11 +101,30 @@ export default function MaintenancePage() {
   const [activeView, setActiveView] = useState<MaintenanceView>(initialView)
   const [selectedSiteId, setSelectedSiteId] = useState("")
   const [breakdownForm, setBreakdownForm] = useState({
-    siteId: "",
     equipmentId: "",
     issue: "",
     downtimeStart: "",
     technicianId: "",
+  })
+  const [breakdownFormOpen, setBreakdownFormOpen] = useState(false)
+  const [breakdownNestedTarget, setBreakdownNestedTarget] = useState<
+    "equipment" | "technician" | null
+  >(null)
+  const [siteFormOpen, setSiteFormOpen] = useState(false)
+  const [technicianFormOpen, setTechnicianFormOpen] = useState(false)
+  const [siteForm, setSiteForm] = useState({
+    name: "",
+    code: "",
+    location: "",
+    measurementUnit: "tonnes",
+  })
+  const [technicianForm, setTechnicianForm] = useState({
+    name: "",
+    phone: "",
+    nextOfKinName: "",
+    nextOfKinPhone: "",
+    passportPhotoUrl: "",
+    villageOfOrigin: "",
   })
   const [equipmentFormOpen, setEquipmentFormOpen] = useState(false)
   const [editingEquipmentId, setEditingEquipmentId] = useState<string | null>(null)
@@ -116,21 +153,16 @@ export default function MaintenancePage() {
     queryFn: fetchSites,
   })
 
-  useEffect(() => {
-    if (!selectedSiteId && sites && sites.length > 0) {
-      setSelectedSiteId(sites[0].id)
-      setBreakdownForm((prev) => ({ ...prev, siteId: sites[0].id }))
-    }
-  }, [selectedSiteId, sites])
+  const activeSiteId = selectedSiteId || sites?.[0]?.id || ""
 
   const {
     data: equipmentData,
     isLoading: equipmentLoading,
     error: equipmentError,
   } = useQuery({
-    queryKey: ["equipment", selectedSiteId],
-    queryFn: () => fetchEquipment({ siteId: selectedSiteId, limit: 200 }),
-    enabled: !!selectedSiteId,
+    queryKey: ["equipment", activeSiteId],
+    queryFn: () => fetchEquipment({ siteId: activeSiteId, limit: 200 }),
+    enabled: !!activeSiteId,
   })
 
   const {
@@ -138,9 +170,9 @@ export default function MaintenancePage() {
     isLoading: workOrdersLoading,
     error: workOrdersError,
   } = useQuery({
-    queryKey: ["work-orders", selectedSiteId],
-    queryFn: () => fetchWorkOrders({ siteId: selectedSiteId, limit: 200 }),
-    enabled: !!selectedSiteId,
+    queryKey: ["work-orders", activeSiteId],
+    queryFn: () => fetchWorkOrders({ siteId: activeSiteId, limit: 200 }),
+    enabled: !!activeSiteId,
   })
 
   const {
@@ -172,10 +204,59 @@ export default function MaintenancePage() {
     })
   }
 
+  const resetBreakdownForm = (overrides: Partial<typeof breakdownForm> = {}) => {
+    setBreakdownForm({
+      equipmentId: "",
+      issue: "",
+      downtimeStart: "",
+      technicianId: "",
+      ...overrides,
+    })
+  }
+
+  const resetSiteForm = (overrides: Partial<typeof siteForm> = {}) => {
+    setSiteForm({
+      name: "",
+      code: "",
+      location: "",
+      measurementUnit: "tonnes",
+      ...overrides,
+    })
+  }
+
+  const resetTechnicianForm = (overrides: Partial<typeof technicianForm> = {}) => {
+    setTechnicianForm({
+      name: "",
+      phone: "",
+      nextOfKinName: "",
+      nextOfKinPhone: "",
+      passportPhotoUrl: "",
+      villageOfOrigin: "",
+      ...overrides,
+    })
+  }
+
   const toOptionalNumber = (value: string) => {
     if (value.trim() === "") return undefined
     const parsed = Number(value)
     return Number.isNaN(parsed) ? undefined : parsed
+  }
+
+  const openBreakdownForm = () => {
+    if (!selectedSiteId && sites?.[0]?.id) {
+      setSelectedSiteId(sites[0].id)
+    }
+    setBreakdownFormOpen(true)
+  }
+
+  const openSiteForm = () => {
+    resetSiteForm()
+    setSiteFormOpen(true)
+  }
+
+  const openTechnicianForm = () => {
+    resetTechnicianForm()
+    setTechnicianFormOpen(true)
   }
 
   const openNewEquipmentForm = () => {
@@ -195,21 +276,76 @@ export default function MaintenancePage() {
       qrCode: item.qrCode ?? "",
       lastServiceDate: formatDateInput(item.lastServiceDate),
       nextServiceDue: formatDateInput(item.nextServiceDue),
-      serviceHours: item.serviceHours !== null && item.serviceHours !== undefined ? String(item.serviceHours) : "",
-      serviceDays: item.serviceDays !== null && item.serviceDays !== undefined ? String(item.serviceDays) : "",
+      serviceHours:
+        item.serviceHours !== null && item.serviceHours !== undefined
+          ? String(item.serviceHours)
+          : "",
+      serviceDays:
+        item.serviceDays !== null && item.serviceDays !== undefined
+          ? String(item.serviceDays)
+          : "",
       isActive: item.isActive,
     })
     setEquipmentFormOpen(true)
   }
 
   const handleEquipmentChange =
-    (field: keyof typeof equipmentForm) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    (field: keyof typeof equipmentForm) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
       setEquipmentForm((prev) => ({ ...prev, [field]: event.target.value }))
     }
+
+  const handleSiteFilterChange = (value: string) => {
+    if (value === "__add_site__") {
+      openSiteForm()
+      return
+    }
+    setSelectedSiteId(value)
+  }
 
   const handleEquipmentSelect = (field: "category" | "siteId") => (value: string) => {
     setEquipmentForm((prev) => ({ ...prev, [field]: value }))
   }
+
+  const handleEquipmentSiteSelect = (value: string) => {
+    if (value === "__add_site__") {
+      openSiteForm()
+      return
+    }
+    handleEquipmentSelect("siteId")(value)
+  }
+
+  const handleBreakdownEquipmentSelect = (value: string) => {
+    if (value === "__add_equipment__") {
+      setBreakdownNestedTarget("equipment")
+      openNewEquipmentForm()
+      return
+    }
+    setBreakdownForm((prev) => ({ ...prev, equipmentId: value }))
+  }
+
+  const handleBreakdownTechnicianSelect = (value: string) => {
+    if (value === "__add_technician__") {
+      setBreakdownNestedTarget("technician")
+      openTechnicianForm()
+      return
+    }
+    setBreakdownForm((prev) => ({ ...prev, technicianId: value }))
+  }
+
+  const handleSiteFormChange =
+    (field: keyof typeof siteForm) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSiteForm((prev) => ({ ...prev, [field]: event.target.value }))
+    }
+
+  const handleSiteUnitChange = (value: string) => {
+    setSiteForm((prev) => ({ ...prev, measurementUnit: value }))
+  }
+
+  const handleTechnicianChange =
+    (field: keyof typeof technicianForm) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setTechnicianForm((prev) => ({ ...prev, [field]: event.target.value }))
+    }
 
   const handleEquipmentStatus = (value: string) => {
     setEquipmentForm((prev) => ({ ...prev, isActive: value === "active" }))
@@ -220,6 +356,34 @@ export default function MaintenancePage() {
     if (!open) {
       setEditingEquipmentId(null)
       resetEquipmentForm()
+      if (breakdownNestedTarget === "equipment") {
+        setBreakdownNestedTarget(null)
+      }
+    }
+  }
+
+  const handleBreakdownOpenChange = (open: boolean) => {
+    setBreakdownFormOpen(open)
+    if (!open) {
+      resetBreakdownForm()
+      setBreakdownNestedTarget(null)
+    }
+  }
+
+  const handleSiteOpenChange = (open: boolean) => {
+    setSiteFormOpen(open)
+    if (!open) {
+      resetSiteForm()
+    }
+  }
+
+  const handleTechnicianOpenChange = (open: boolean) => {
+    setTechnicianFormOpen(open)
+    if (!open) {
+      resetTechnicianForm()
+      if (breakdownNestedTarget === "technician") {
+        setBreakdownNestedTarget(null)
+      }
     }
   }
 
@@ -229,12 +393,16 @@ export default function MaintenancePage() {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (equipment) => {
       toast({
         title: "Equipment added",
         description: "Equipment saved to the register.",
         variant: "success",
       })
+      if (breakdownNestedTarget === "equipment" && equipment?.id) {
+        setBreakdownForm((prev) => ({ ...prev, equipmentId: equipment.id }))
+        setBreakdownNestedTarget(null)
+      }
       setEquipmentFormOpen(false)
       resetEquipmentForm()
       queryClient.invalidateQueries({ queryKey: ["equipment"] })
@@ -293,6 +461,69 @@ export default function MaintenancePage() {
     },
   })
 
+  const createSiteMutation = useMutation({
+    mutationFn: async (payload: {
+      name: string
+      code: string
+      location?: string
+      measurementUnit?: string
+    }) =>
+      fetchJson("/api/sites", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (site) => {
+      toast({
+        title: "Site added",
+        description: "New site is ready for maintenance tracking.",
+        variant: "success",
+      })
+      setSelectedSiteId(site.id)
+      if (equipmentFormOpen) {
+        setEquipmentForm((prev) => ({ ...prev, siteId: site.id }))
+      }
+      setSiteFormOpen(false)
+      resetSiteForm()
+      queryClient.invalidateQueries({ queryKey: ["sites"] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to add site",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
+  const createTechnicianMutation = useMutation({
+    mutationFn: async (payload: typeof technicianForm) =>
+      fetchJson("/api/employees", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (technician) => {
+      toast({
+        title: "Technician added",
+        description: "Technician is now available for work orders.",
+        variant: "success",
+      })
+      if (breakdownNestedTarget === "technician" && technician?.id) {
+        setBreakdownForm((prev) => ({ ...prev, technicianId: technician.id }))
+        setBreakdownNestedTarget(null)
+      }
+      setTechnicianFormOpen(false)
+      resetTechnicianForm()
+      queryClient.invalidateQueries({ queryKey: ["employees"] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to add technician",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
   const handleEquipmentSubmit = (event: React.FormEvent) => {
     event.preventDefault()
 
@@ -328,6 +559,21 @@ export default function MaintenancePage() {
   const handleEquipmentDelete = (id: string) => {
     if (!window.confirm("Delete this equipment?")) return
     deleteEquipmentMutation.mutate(id)
+  }
+
+  const workOrderStatusInfo = (status: string) => {
+    switch (status) {
+      case "OPEN":
+        return { label: "Open", variant: "destructive" as const }
+      case "IN_PROGRESS":
+        return { label: "In Progress", variant: "secondary" as const }
+      case "COMPLETED":
+        return { label: "Completed", variant: "default" as const }
+      case "CANCELLED":
+        return { label: "Cancelled", variant: "outline" as const }
+      default:
+        return { label: status, variant: "outline" as const }
+    }
   }
 
   const equipmentStatus = (item: {
@@ -399,8 +645,16 @@ export default function MaintenancePage() {
         downtimeStart: "",
         technicianId: "",
       }))
+      setBreakdownFormOpen(false)
       queryClient.invalidateQueries({ queryKey: ["work-orders"] })
       changeView("work-orders")
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to log breakdown",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
     },
   })
 
@@ -429,6 +683,31 @@ export default function MaintenancePage() {
     })
   }
 
+  const handleSiteSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (!siteForm.name.trim() || !siteForm.code.trim()) {
+      toast({
+        title: "Missing details",
+        description: "Site name and code are required.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    createSiteMutation.mutate({
+      name: siteForm.name.trim(),
+      code: siteForm.code.trim().toUpperCase(),
+      location: siteForm.location.trim() || undefined,
+      measurementUnit: siteForm.measurementUnit,
+    })
+  }
+
+  const handleTechnicianSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    createTechnicianMutation.mutate(technicianForm)
+  }
+
   const error =
     sitesError ||
     equipmentError ||
@@ -439,7 +718,7 @@ export default function MaintenancePage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageActions>
-        <Button size="sm" onClick={() => changeView("breakdown")}> 
+        <Button size="sm" onClick={() => { changeView("breakdown"); openBreakdownForm() }}>
           <Plus className="h-4 w-4" />
           Log Breakdown
         </Button>
@@ -745,7 +1024,7 @@ export default function MaintenancePage() {
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                  <Select value={activeSiteId} onValueChange={handleSiteFilterChange}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select site" />
                     </SelectTrigger>
@@ -755,6 +1034,13 @@ export default function MaintenancePage() {
                           {site.name}
                         </SelectItem>
                       ))}
+                      <SelectSeparator />
+                      <SelectItem
+                        value="__add_site__"
+                        className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                      >
+                        + Add site
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -799,13 +1085,13 @@ export default function MaintenancePage() {
                             <td className="p-3 text-sm">
                               <Button variant="ghost" size="sm" className="gap-2">
                                 <QrCode className="h-4 w-4" />
-                                {item.qrCode || "—"}
+                                {item.qrCode || "â€”"}
                               </Button>
                             </td>
                             <td className="p-3 text-sm">{formatDate(item.lastServiceDate)}</td>
                             <td className="p-3 text-sm">{formatDate(item.nextServiceDue)}</td>
                             <td className="p-3 text-sm text-right font-medium">
-                              {item.serviceHours ? `${item.serviceHours}h` : "—"}
+                              {item.serviceHours ? `${item.serviceHours}h` : "â€”"}
                             </td>
                             <td className="p-3 text-center">
                               <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
@@ -839,12 +1125,12 @@ export default function MaintenancePage() {
                 </table>
               </div>
 
-              <Sheet open={equipmentFormOpen} onOpenChange={handleEquipmentOpenChange}>
-                <SheetContent className="w-full sm:max-w-lg p-6">
-                  <SheetHeader>
-                    <SheetTitle>{editingEquipmentId ? "Edit Equipment" : "Add Equipment"}</SheetTitle>
-                    <SheetDescription>Track equipment details and service windows.</SheetDescription>
-                  </SheetHeader>
+              <Dialog open={equipmentFormOpen} onOpenChange={handleEquipmentOpenChange}>
+                <DialogContent className="w-full sm:max-w-lg p-6">
+                  <DialogHeader>
+                    <DialogTitle>{editingEquipmentId ? "Edit Equipment" : "Add Equipment"}</DialogTitle>
+                    <DialogDescription>Track equipment details and service windows.</DialogDescription>
+                  </DialogHeader>
                   <form onSubmit={handleEquipmentSubmit} className="mt-6 space-y-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
@@ -893,7 +1179,7 @@ export default function MaintenancePage() {
                         ) : (
                           <Select
                             value={equipmentForm.siteId || undefined}
-                            onValueChange={handleEquipmentSelect("siteId")}
+                            onValueChange={handleEquipmentSiteSelect}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select site" />
@@ -904,6 +1190,13 @@ export default function MaintenancePage() {
                                   {site.name}
                                 </SelectItem>
                               ))}
+                              <SelectSeparator />
+                              <SelectItem
+                                value="__add_site__"
+                                className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                              >
+                                + Add site
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -996,8 +1289,526 @@ export default function MaintenancePage() {
                       </Button>
                     </div>
                   </form>
-                </SheetContent>
-              </Sheet>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="work-orders" className="mt-0">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle>Work Orders</CardTitle>
+                  <CardDescription>Current breakdowns and maintenance tasks</CardDescription>
+                </div>
+                <div className="w-full sm:w-64">
+                  {sitesLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : (
+                    <Select value={activeSiteId} onValueChange={handleSiteFilterChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select site" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sites?.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                        <SelectSeparator />
+                        <SelectItem
+                          value="__add_site__"
+                          className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                        >
+                          + Add site
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="text-left p-3 text-sm font-medium">Equipment</th>
+                      <th className="text-left p-3 text-sm font-medium">Issue</th>
+                      <th className="text-left p-3 text-sm font-medium">Technician</th>
+                      <th className="text-left p-3 text-sm font-medium">Status</th>
+                      <th className="text-left p-3 text-sm font-medium">Started</th>
+                      <th className="text-right p-3 text-sm font-medium">Downtime</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workOrdersLoading ? (
+                      <tr>
+                        <td colSpan={6} className="p-3">
+                          <Skeleton className="h-10 w-full" />
+                        </td>
+                      </tr>
+                    ) : workOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-3 text-sm text-muted-foreground">
+                          No work orders logged for this site.
+                        </td>
+                      </tr>
+                    ) : (
+                      workOrders.map((order) => {
+                        const statusInfo = workOrderStatusInfo(order.status)
+                        return (
+                          <tr key={order.id} className="border-b hover:bg-muted/60">
+                            <td className="p-3 text-sm">
+                              <div className="font-medium">{order.equipment.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {order.equipment.equipmentCode} | {order.equipment.site.code}
+                              </div>
+                            </td>
+                            <td className="p-3 text-sm">{order.issue}</td>
+                            <td className="p-3 text-sm">{order.technician?.name || "-"}</td>
+                            <td className="p-3 text-sm">
+                              <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                            </td>
+                            <td className="p-3 text-sm">{formatDateTime(order.downtimeStart)}</td>
+                            <td className="p-3 text-sm text-right">
+                              {getDowntimeHours(order.downtimeStart, order.downtimeEnd)}h
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="breakdown" className="mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle>Log Breakdown</CardTitle>
+              <CardDescription>Capture equipment downtime and create a work order.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Use the breakdown form to log failures and assign technicians.
+                </p>
+                <Button size="sm" onClick={openBreakdownForm}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Log Breakdown
+                </Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Card className="border-dashed">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold">Open Work Orders</CardTitle>
+                    <CardDescription className="text-xs">Awaiting technician action</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-semibold">{openWorkOrders}</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-dashed">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold">Equipment Down</CardTitle>
+                    <CardDescription className="text-xs">Currently out of service</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-semibold">{downCount}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="schedule" className="mt-0">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle>PM Schedule</CardTitle>
+                  <CardDescription>Upcoming preventive maintenance windows</CardDescription>
+                </div>
+                <div className="w-full sm:w-64">
+                  {sitesLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : (
+                    <Select value={activeSiteId} onValueChange={handleSiteFilterChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select site" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sites?.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                        <SelectSeparator />
+                        <SelectItem
+                          value="__add_site__"
+                          className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                        >
+                          + Add site
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="text-left p-3 text-sm font-medium">Equipment</th>
+                      <th className="text-left p-3 text-sm font-medium">Category</th>
+                      <th className="text-left p-3 text-sm font-medium">Site</th>
+                      <th className="text-left p-3 text-sm font-medium">Due Date</th>
+                      <th className="text-right p-3 text-sm font-medium">Days Left</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipmentLoading ? (
+                      <tr>
+                        <td colSpan={5} className="p-3">
+                          <Skeleton className="h-10 w-full" />
+                        </td>
+                      </tr>
+                    ) : upcomingMaintenance.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-3 text-sm text-muted-foreground">
+                          No upcoming maintenance within the next 90 days.
+                        </td>
+                      </tr>
+                    ) : (
+                      upcomingMaintenance.map((item) => (
+                        <tr key={item.equipment.id} className="border-b hover:bg-muted/60">
+                          <td className="p-3 text-sm">
+                            <div className="font-medium">{item.equipment.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.equipment.equipmentCode}
+                            </div>
+                          </td>
+                          <td className="p-3 text-sm">{item.equipment.category}</td>
+                          <td className="p-3 text-sm">{item.equipment.site.code}</td>
+                          <td className="p-3 text-sm">{item.dueDate}</td>
+                          <td className="p-3 text-sm text-right">
+                            <Badge variant={item.daysUntil < 14 ? "destructive" : "secondary"}>
+                              {item.daysUntil} days
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={breakdownFormOpen} onOpenChange={handleBreakdownOpenChange}>
+        <DialogContent className="w-full sm:max-w-lg p-6">
+          <DialogHeader>
+            <DialogTitle>Log Breakdown</DialogTitle>
+            <DialogDescription>Record downtime and create a work order.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleBreakdownSubmit} className="mt-6 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-2">Site *</label>
+                {sitesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select value={activeSiteId} onValueChange={handleSiteFilterChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites?.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                      <SelectSeparator />
+                      <SelectItem
+                        value="__add_site__"
+                        className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                      >
+                        + Add site
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Equipment *</label>
+                {equipmentLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select
+                    value={breakdownForm.equipmentId || undefined}
+                    onValueChange={handleBreakdownEquipmentSelect}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select equipment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {equipment.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} ({item.equipmentCode})
+                        </SelectItem>
+                      ))}
+                      <SelectSeparator />
+                      <SelectItem
+                        value="__add_equipment__"
+                        className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                      >
+                        + Add equipment
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Issue *</label>
+              <Textarea
+                value={breakdownForm.issue}
+                onChange={(event) =>
+                  setBreakdownForm((prev) => ({ ...prev, issue: event.target.value }))
+                }
+                placeholder="Describe the issue"
+                rows={3}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-2">Downtime Start *</label>
+                <Input
+                  type="datetime-local"
+                  value={breakdownForm.downtimeStart}
+                  onChange={(event) =>
+                    setBreakdownForm((prev) => ({ ...prev, downtimeStart: event.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Technician</label>
+                {employeesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select
+                    value={breakdownForm.technicianId || undefined}
+                    onValueChange={handleBreakdownTechnicianSelect}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Assign technician" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {technicians.map((technician) => (
+                        <SelectItem key={technician.id} value={technician.id}>
+                          {technician.name} ({technician.employeeId})
+                        </SelectItem>
+                      ))}
+                      <SelectSeparator />
+                      <SelectItem
+                        value="__add_technician__"
+                        className="sticky bottom-0 z-10 bg-popover font-medium text-primary"
+                      >
+                        + Add technician
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="flex-1" disabled={createWorkOrderMutation.isPending}>
+                {createWorkOrderMutation.isPending ? "Saving..." : "Create Work Order"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleBreakdownOpenChange(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={siteFormOpen} onOpenChange={handleSiteOpenChange}>
+        <DialogContent className="w-full sm:max-w-lg p-6">
+          <DialogHeader>
+            <DialogTitle>Add Site</DialogTitle>
+            <DialogDescription>Create a new site for maintenance tracking.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSiteSubmit} className="mt-6 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-2">Site Name *</label>
+                <Input
+                  value={siteForm.name}
+                  onChange={handleSiteFormChange("name")}
+                  placeholder="Mine Site"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Site Code *</label>
+                <Input
+                  value={siteForm.code}
+                  onChange={handleSiteFormChange("code")}
+                  placeholder="SITE-01"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Location</label>
+              <Input
+                value={siteForm.location}
+                onChange={handleSiteFormChange("location")}
+                placeholder="Location details"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Measurement Unit</label>
+              <Select value={siteForm.measurementUnit} onValueChange={handleSiteUnitChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {measurementUnits.map((unit) => (
+                    <SelectItem key={unit} value={unit}>
+                      {unit}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="flex-1" disabled={createSiteMutation.isPending}>
+                {createSiteMutation.isPending ? "Saving..." : "Save Site"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => handleSiteOpenChange(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={technicianFormOpen} onOpenChange={handleTechnicianOpenChange}>
+        <DialogContent className="w-full sm:max-w-lg p-6">
+          <DialogHeader>
+            <DialogTitle>Add Technician</DialogTitle>
+            <DialogDescription>Capture technician details for work orders.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleTechnicianSubmit} className="mt-6 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-2">Name *</label>
+                <Input
+                  value={technicianForm.name}
+                  onChange={handleTechnicianChange("name")}
+                  placeholder="Full name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Phone *</label>
+                <Input
+                  type="tel"
+                  value={technicianForm.phone}
+                  onChange={handleTechnicianChange("phone")}
+                  placeholder="07xx xxx xxx"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-2">Next of Kin Name *</label>
+                <Input
+                  value={technicianForm.nextOfKinName}
+                  onChange={handleTechnicianChange("nextOfKinName")}
+                  placeholder="Next of kin"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Next of Kin Phone *</label>
+                <Input
+                  type="tel"
+                  value={technicianForm.nextOfKinPhone}
+                  onChange={handleTechnicianChange("nextOfKinPhone")}
+                  placeholder="07xx xxx xxx"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-2">Village of Origin *</label>
+                <Input
+                  value={technicianForm.villageOfOrigin}
+                  onChange={handleTechnicianChange("villageOfOrigin")}
+                  placeholder="Village"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Passport Photo URL *</label>
+                <Input
+                  type="url"
+                  value={technicianForm.passportPhotoUrl}
+                  onChange={handleTechnicianChange("passportPhotoUrl")}
+                  placeholder="https://"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={createTechnicianMutation.isPending}
+              >
+                {createTechnicianMutation.isPending ? "Saving..." : "Save Technician"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleTechnicianOpenChange(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

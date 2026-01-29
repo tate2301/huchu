@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Camera, Save, Send } from "lucide-react"
 
@@ -46,6 +46,7 @@ export default function ShiftReportPage() {
     queryKey: ["sites"],
     queryFn: fetchSites,
   })
+  const activeSiteId = formData.siteId || sites?.[0]?.id || ""
 
   const {
     data: employeesData,
@@ -57,18 +58,15 @@ export default function ShiftReportPage() {
   })
 
   const { data: sectionsData, isLoading: sectionsLoading } = useQuery({
-    queryKey: ["sections", formData.siteId],
-    queryFn: () => fetchSections({ siteId: formData.siteId, active: true, limit: 200 }),
-    enabled: !!formData.siteId,
+    queryKey: ["sections", activeSiteId],
+    queryFn: () => fetchSections({ siteId: activeSiteId, active: true, limit: 200 }),
+    enabled: !!activeSiteId,
   })
 
-  useEffect(() => {
-    if (!formData.siteId && sites && sites.length > 0) {
-      setFormData((prev) => ({ ...prev, siteId: sites[0].id }))
-    }
-  }, [formData.siteId, sites])
-
   const groupLeaders = useMemo(() => employeesData?.data ?? [], [employeesData])
+  const sections = sectionsData?.data ?? []
+  const hasSections = sections.length > 0
+  const hasGroupLeaders = groupLeaders.length > 0
 
   const shiftReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
@@ -98,10 +96,12 @@ export default function ShiftReportPage() {
 
   const handleSelectChange =
     (field: keyof typeof formData) => (value: string) => {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value,
-      }))
+      setFormData((prev) => {
+        if (field === "siteId") {
+          return { ...prev, siteId: value, sectionId: "" }
+        }
+        return { ...prev, [field]: value }
+      })
     }
 
   const handleSaveDraft = () => {
@@ -121,7 +121,7 @@ export default function ShiftReportPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.siteId || !formData.groupLeaderId) {
+    if (!activeSiteId || !formData.groupLeaderId) {
       toast({
         title: "Missing details",
         description: "Site and group leader are required.",
@@ -133,7 +133,7 @@ export default function ShiftReportPage() {
     const payload = {
       date: formData.date,
       shift: formData.shift,
-      siteId: formData.siteId,
+      siteId: activeSiteId,
       sectionId: formData.sectionId || undefined,
       groupLeaderId: formData.groupLeaderId,
       crewCount: Number(formData.crewCount),
@@ -230,7 +230,7 @@ export default function ShiftReportPage() {
                 ) : (
                   <Select
                     name="siteId"
-                    value={formData.siteId || undefined}
+                    value={activeSiteId || undefined}
                     onValueChange={handleSelectChange("siteId")}
                     required
                   >
@@ -262,11 +262,17 @@ export default function ShiftReportPage() {
                       <SelectValue placeholder="Select section..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {sectionsData?.data.map((section) => (
-                        <SelectItem key={section.id} value={section.id}>
-                          {section.name}
+                      {hasSections ? (
+                        sections.map((section) => (
+                          <SelectItem key={section.id} value={section.id}>
+                            {section.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__no_sections__" disabled>
+                          No sections found for this site
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 )}
@@ -289,11 +295,17 @@ export default function ShiftReportPage() {
                       <SelectValue placeholder="Select group leader" />
                     </SelectTrigger>
                     <SelectContent>
-                      {groupLeaders.map((leader) => (
-                        <SelectItem key={leader.id} value={leader.id}>
-                          {leader.name}
+                      {hasGroupLeaders ? (
+                        groupLeaders.map((leader) => (
+                          <SelectItem key={leader.id} value={leader.id}>
+                            {leader.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__no_group_leaders__" disabled>
+                          No active employees available
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 )}

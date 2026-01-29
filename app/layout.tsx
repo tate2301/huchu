@@ -29,9 +29,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans subpixel-antialiased`}>
-        <AppProviders>
-          <AppShell>{children}</AppShell>
-        </AppProviders>
+        <div className="app-root">
+          <AppProviders>
+            <AppShell>{children}</AppShell>
+          </AppProviders>
+        </div>
       </body>
     </html>
   );

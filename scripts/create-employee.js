@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 "use strict";
 require("dotenv").config();
 
@@ -27,10 +28,9 @@ function hasFlag(flag) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm create-employee --employee-id <id> --name <name> --phone <phone> --next-of-kin-name <name> --next-of-kin-phone <phone> --passport-photo-url <url> --village-of-origin <text> [--company-id <uuid>] [--inactive]
+  pnpm create-employee --name <name> --phone <phone> --next-of-kin-name <name> --next-of-kin-phone <phone> --passport-photo-url <url> --village-of-origin <text> [--company-id <uuid>] [--inactive]
 
 Options:
-  --employee-id         Employee identifier (required)
   --name                Employee name (required)
   --phone               Employee phone number (required)
   --next-of-kin-name    Next of kin name (required)
@@ -42,6 +42,9 @@ Options:
   --help                Show this help message
 `);
 }
+
+const EMPLOYEE_ID_PREFIX = "EMP-";
+const EMPLOYEE_ID_PAD = 4;
 
 async function resolveCompanyId(companyId) {
   if (companyId) {
@@ -74,6 +77,35 @@ async function resolveCompanyId(companyId) {
   return companies[0].id;
 }
 
+async function generateEmployeeId(companyId) {
+  const employees = await prisma.employee.findMany({
+    where: { companyId },
+    select: { employeeId: true },
+  });
+
+  let max = 0;
+  const existingIds = new Set();
+
+  employees.forEach((employee) => {
+    existingIds.add(employee.employeeId);
+    const match = employee.employeeId.match(/^EMP-(\d+)$/i);
+    if (!match) return;
+    const value = Number(match[1]);
+    if (Number.isFinite(value)) {
+      max = Math.max(max, value);
+    }
+  });
+
+  let next = max + 1;
+  let candidate = `${EMPLOYEE_ID_PREFIX}${String(next).padStart(EMPLOYEE_ID_PAD, "0")}`;
+  while (existingIds.has(candidate)) {
+    next += 1;
+    candidate = `${EMPLOYEE_ID_PREFIX}${String(next).padStart(EMPLOYEE_ID_PAD, "0")}`;
+  }
+
+  return candidate;
+}
+
 async function main() {
   if (hasFlag("--help") || hasFlag("-h")) {
     printUsage();
@@ -91,7 +123,6 @@ async function main() {
   const isActive = !hasFlag("--inactive");
 
   if (
-    !employeeIdArg ||
     !nameArg ||
     !phoneArg ||
     !nextOfKinNameArg ||
@@ -103,7 +134,10 @@ async function main() {
     throw new Error("Missing required arguments.");
   }
 
-  const employeeId = employeeIdArg.trim();
+  if (employeeIdArg) {
+    throw new Error("Employee IDs are auto-generated. Remove --employee-id.");
+  }
+
   const name = nameArg.trim();
   const phone = phoneArg.trim();
   const nextOfKinName = nextOfKinNameArg.trim();
@@ -124,6 +158,9 @@ async function main() {
   }
 
   const companyId = await resolveCompanyId(companyIdArg);
+  const employeeId = await generateEmployeeId(companyId);
+
+  if (!employeeId) throw new Error("Employee ID cannot be empty.");
 
   const existingEmployee = await prisma.employee.findFirst({
     where: {

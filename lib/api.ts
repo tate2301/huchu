@@ -82,6 +82,7 @@ export type WorkOrder = {
   workDone?: string | null
   partsUsed?: string | null
   createdAt: string
+  technician?: { name: string } | null
   equipment: {
     id: string
     name: string
@@ -134,6 +135,30 @@ export type StockMovement = {
   issuedBy?: { name: string } | null
 }
 
+export type AttendanceRecord = {
+  id: string
+  date: string
+  shift: "DAY" | "NIGHT"
+  status: string
+  overtime?: number | null
+  notes?: string | null
+  site: { id: string; name: string; code: string }
+  employee: { id: string; name: string; employeeId: string }
+}
+
+export type ShiftReportSummary = {
+  id: string
+  date: string
+  shift: "DAY" | "NIGHT"
+  siteId: string
+  crewCount: number
+  workType: string
+  status: string
+  site: { name: string; code: string }
+  section?: { name: string } | null
+  groupLeader?: { name: string } | null
+}
+
 export type GoldPour = {
   id: string
   pourBarId: string
@@ -173,6 +198,7 @@ export type BuyerReceipt = {
   paidAmount: number
   paymentMethod: string
   paymentChannel?: string | null
+  paymentReference?: string | null
   notes?: string | null
   goldDispatch: {
     id: string
@@ -185,6 +211,36 @@ export type BuyerReceipt = {
       site: { name: string; code: string }
     }
   }
+}
+
+export type GoldShiftAllocationExpense = {
+  id: string
+  type: string
+  weight: number
+}
+
+export type GoldShiftAllocationWorkerShare = {
+  id: string
+  shareWeight: number
+  employee: { id: string; name: string; employeeId: string }
+}
+
+export type GoldShiftAllocation = {
+  id: string
+  date: string
+  shift: "DAY" | "NIGHT"
+  siteId: string
+  totalWeight: number
+  netWeight: number
+  workerShareWeight: number
+  companyShareWeight: number
+  perWorkerWeight: number
+  payCycleWeeks: number
+  site: { name: string; code: string }
+  shiftReport?: { id: string; status: string; crewCount: number } | null
+  expenses: GoldShiftAllocationExpense[]
+  workerShares: GoldShiftAllocationWorkerShare[]
+  createdAt: string
 }
 
 export type DowntimeAnalytics = {
@@ -265,6 +321,7 @@ export async function fetchEquipment(params: { siteId?: string; page?: number; l
 
 export async function fetchWorkOrders(params: {
   equipmentId?: string
+  siteId?: string
   status?: string
   page?: number
   limit?: number
@@ -305,6 +362,33 @@ export async function fetchStockLocations(params: {
   return fetchJson<Pagination<StockLocation>>(`/api/stock-locations${query}`)
 }
 
+export async function fetchAttendance(params: {
+  siteId?: string
+  employeeId?: string
+  shift?: string
+  status?: string
+  date?: string
+  startDate?: string
+  endDate?: string
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<AttendanceRecord>>(`/api/attendance${query}`)
+}
+
+export async function fetchShiftReports(params: {
+  siteId?: string
+  startDate?: string
+  endDate?: string
+  status?: string
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<ShiftReportSummary>>(`/api/shift-reports${query}`)
+}
+
 export async function fetchGoldPours(params: { siteId?: string; page?: number; limit?: number } = {}) {
   const query = buildQuery(params)
   return fetchJson<Pagination<GoldPour>>(`/api/gold/pours${query}`)
@@ -328,4 +412,16 @@ export async function fetchGoldReceipts(params: {
 } = {}) {
   const query = buildQuery(params)
   return fetchJson<Pagination<BuyerReceipt>>(`/api/gold/receipts${query}`)
+}
+
+export async function fetchGoldShiftAllocations(params: {
+  siteId?: string
+  shift?: string
+  startDate?: string
+  endDate?: string
+  page?: number
+  limit?: number
+} = {}) {
+  const query = buildQuery(params)
+  return fetchJson<Pagination<GoldShiftAllocation>>(`/api/gold/shift-allocations${query}`)
 }

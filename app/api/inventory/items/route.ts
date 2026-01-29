@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const lowStock = searchParams.get('lowStock') === 'true';
     const { page, limit, skip } = getPaginationParams(request);
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       site: { companyId: session.user.companyId },
     };
 

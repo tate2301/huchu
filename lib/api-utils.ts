@@ -18,7 +18,7 @@ export interface AuthenticatedSession extends Session {
  * Validates user session and returns it or sends 401 response
  */
 export async function validateSession(
-  request: NextRequest
+  _request: NextRequest
 ): Promise<{ session: AuthenticatedSession } | NextResponse> {
   const session = (await getServerSession(authOptions)) as AuthenticatedSession | null;
   
@@ -39,7 +39,11 @@ export function hasRole(session: AuthenticatedSession, allowedRoles: string[]): 
 /**
  * Standard error response for API
  */
-export function errorResponse(message: string, status: number = 500, details?: any) {
+export function errorResponse(
+  message: string,
+  status: number = 500,
+  details?: unknown,
+) {
   return NextResponse.json(
     {
       error: message,
@@ -52,7 +56,7 @@ export function errorResponse(message: string, status: number = 500, details?: a
 /**
  * Standard success response for API
  */
-export function successResponse(data: any, status: number = 200) {
+export function successResponse<T>(data: T, status: number = 200) {
   return NextResponse.json(data, { status });
 }
 
@@ -71,7 +75,7 @@ export function getPaginationParams(request: NextRequest) {
 /**
  * Format pagination response
  */
-export function paginationResponse(data: any[], total: number, page: number, limit: number) {
+export function paginationResponse<T>(data: T[], total: number, page: number, limit: number) {
   return {
     data,
     pagination: {

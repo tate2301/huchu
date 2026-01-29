@@ -20,6 +20,7 @@ const buyerReceiptSchema = z.object({
   paidAmount: z.number().min(0),
   paymentMethod: z.string().min(1).max(100),
   paymentChannel: z.string().max(100).optional(),
+  paymentReference: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
 })
 
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const goldDispatchId = searchParams.get("goldDispatchId")
     const { page, limit, skip } = getPaginationParams(request)
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       goldDispatch: {
         goldPour: { site: { companyId: session.user.companyId } },
       },
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest) {
         paidAmount: validated.paidAmount,
         paymentMethod: validated.paymentMethod,
         paymentChannel: validated.paymentChannel,
+        paymentReference: validated.paymentReference,
         notes: validated.notes,
       },
       include: {

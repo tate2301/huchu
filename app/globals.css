@@ -72,6 +72,11 @@
 body {
     font-family: var(--font-family);
     text-rendering: optimizeLegibility;
+    position: relative;
+}
+
+.app-root {
+    isolation: isolate;
 }
 
 /* Mobile-first optimizations */

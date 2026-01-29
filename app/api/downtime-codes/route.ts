@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       isActive,
       OR: siteId
         ? [{ siteId }, { siteId: null }]

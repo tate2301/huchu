@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const movementType = searchParams.get('movementType');
     const { page, limit, skip } = getPaginationParams(request);
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       item: {
         site: {
           companyId: session.user.companyId,

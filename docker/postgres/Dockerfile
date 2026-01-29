@@ -1,0 +1,7 @@
+FROM postgres:16-alpine
+
+ENV POSTGRES_DB=huchu
+ENV POSTGRES_USER=huchu
+ENV POSTGRES_PASSWORD=huchu_dev
+
+EXPOSE 5432

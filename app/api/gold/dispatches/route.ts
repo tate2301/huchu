@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const goldPourId = searchParams.get("goldPourId")
     const { page, limit, skip } = getPaginationParams(request)
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       goldPour: { site: { companyId: session.user.companyId } },
     }
 

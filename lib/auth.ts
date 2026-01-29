@@ -1,11 +1,13 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import type { Adapter } from "next-auth/adapters";
+import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+  adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -62,18 +64,28 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      const extendedToken = token as JWT & {
+        id?: string;
+        role?: string;
+        companyId?: string;
+      };
       if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-        token.companyId = (user as any).companyId;
+        const typedUser = user as { id: string; role?: string; companyId?: string };
+        extendedToken.id = typedUser.id;
+        extendedToken.role = typedUser.role;
+        extendedToken.companyId = typedUser.companyId;
       }
-      return token;
+      return extendedToken;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).companyId = token.companyId;
+        const typedToken = token as { id?: string; role?: string; companyId?: string };
+        session.user = {
+          ...session.user,
+          id: typedToken.id,
+          role: typedToken.role,
+          companyId: typedToken.companyId,
+        } as typeof session.user & { id?: string; role?: string; companyId?: string };
       }
       return session;
     }

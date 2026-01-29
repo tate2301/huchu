@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -7,8 +9,6 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   // Prisma 7.x client engine requires a driver adapter or accelerateUrl.
   try {
-    const { PrismaPg } = require('@prisma/adapter-pg')
-    const { Pool } = require('pg')
     const connectionString = process.env.DATABASE_URL
 
     if (!connectionString) {

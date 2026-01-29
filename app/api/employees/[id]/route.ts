@@ -11,6 +11,16 @@ const employeeUpdateSchema = z
     nextOfKinPhone: z.string().min(1).max(30).optional(),
     passportPhotoUrl: z.string().min(1).max(2048).optional(),
     villageOfOrigin: z.string().min(1).max(200).optional(),
+    position: z
+      .enum([
+        "MANAGER",
+        "CLERK",
+        "SUPPORT_STAFF",
+        "ENGINEERS",
+        "CHEMIST",
+        "MINERS",
+      ])
+      .optional(),
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
@@ -39,6 +49,7 @@ export async function GET(
         nextOfKinPhone: true,
         passportPhotoUrl: true,
         villageOfOrigin: true,
+        position: true,
         isActive: true,
         companyId: true,
       },

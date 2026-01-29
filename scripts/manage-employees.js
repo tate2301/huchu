@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 "use strict";
 require("dotenv").config();
 
@@ -44,8 +45,8 @@ function printUsage() {
   pnpm manage-employees list [--company-id <uuid>] [--active|--inactive] [--search <text>] [--limit <n>] [--skip <n>]
   pnpm manage-employees show --id <uuid>
   pnpm manage-employees show --employee-id <id> [--company-id <uuid>]
-  pnpm manage-employees update --id <uuid> [--set-employee-id <id>] [--name <name>] [--phone <phone>] [--next-of-kin-name <name>] [--next-of-kin-phone <phone>] [--passport-photo-url <url>] [--village-of-origin <text>] [--active|--inactive]
-  pnpm manage-employees update --employee-id <id> [--company-id <uuid>] [--set-employee-id <id>] [--name <name>] [--phone <phone>] [--next-of-kin-name <name>] [--next-of-kin-phone <phone>] [--passport-photo-url <url>] [--village-of-origin <text>] [--active|--inactive]
+  pnpm manage-employees update --id <uuid> [--name <name>] [--phone <phone>] [--next-of-kin-name <name>] [--next-of-kin-phone <phone>] [--passport-photo-url <url>] [--village-of-origin <text>] [--active|--inactive]
+  pnpm manage-employees update --employee-id <id> [--company-id <uuid>] [--name <name>] [--phone <phone>] [--next-of-kin-name <name>] [--next-of-kin-phone <phone>] [--passport-photo-url <url>] [--village-of-origin <text>] [--active|--inactive]
   pnpm manage-employees activate --id <uuid>
   pnpm manage-employees activate --employee-id <id> [--company-id <uuid>]
   pnpm manage-employees deactivate --id <uuid>
@@ -229,6 +230,7 @@ async function updateEmployee() {
   const idArg = getArg("--id");
   const employeeIdArg = getArg("--employee-id");
   const companyIdArg = getArg("--company-id");
+  const setEmployeeIdArg = getArg("--set-employee-id");
 
   const employee = await resolveEmployee({
     idArg,
@@ -237,7 +239,9 @@ async function updateEmployee() {
   });
 
   const data = {};
-  applyStringUpdate(data, getArg("--set-employee-id"), "employeeId", "Employee ID");
+  if (setEmployeeIdArg !== undefined) {
+    throw new Error("Employee IDs are auto-generated and cannot be updated.");
+  }
   applyStringUpdate(data, getArg("--name"), "name", "Employee name");
   applyStringUpdate(data, getArg("--phone"), "phone", "Employee phone");
   applyStringUpdate(
@@ -275,19 +279,6 @@ async function updateEmployee() {
 
   if (Object.keys(data).length === 0) {
     throw new Error("No update fields provided.");
-  }
-
-  if (data.employeeId && data.employeeId !== employee.employeeId) {
-    const duplicate = await prisma.employee.findFirst({
-      where: {
-        companyId: employee.companyId,
-        employeeId: data.employeeId,
-      },
-      select: { id: true },
-    });
-    if (duplicate) {
-      throw new Error(`Employee ID already exists: ${data.employeeId}`);
-    }
   }
 
   const updated = await prisma.employee.update({

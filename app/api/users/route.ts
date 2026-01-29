@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")
     const { page, limit, skip } = getPaginationParams(request)
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       companyId: session.user.companyId,
     }
 

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 import { randomUUID } from "crypto"
 import { promises as fs } from "fs"
 import path from "path"
