@@ -14,6 +14,7 @@ import {
   Plus,
   Shield,
   Users,
+  Video,
   Wrench,
   type LucideIcon,
 } from "lucide-react"
@@ -92,6 +93,7 @@ export const navSections: NavSection[] = [
       { href: "/analytics", icon: BarChart3, label: "Downtime Analytics" },
       { href: "/dashboard", icon: BarChart3, label: "Production Dashboard" },
       { href: "/compliance", icon: Shield, label: "Compliance" },
+      { href: "/cctv", icon: Video, label: "CCTV Surveillance" },
       { href: "/reports", icon: FileText, label: "Reports" },
       { href: "/status", icon: Activity, label: "Implementation Status" },
     ],
