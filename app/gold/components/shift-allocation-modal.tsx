@@ -21,7 +21,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Building2, FileCheck, Plus, Scale, Send, Users, X } from "lucide-react";
+import {
+  Building2,
+  FileCheck,
+  Plus,
+  Scale,
+  Send,
+  Users,
+  X,
+} from "lucide-react";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type {
   AttendanceShiftSummary,
@@ -44,7 +52,10 @@ export function ShiftAllocationModal({
   onOpenChange: (open: boolean) => void;
   attendanceShifts: AttendanceShiftSummary[];
   attendanceLoading: boolean;
-  shiftReportsByKey: Map<string, { id: string; status: string; crewCount: number }>;
+  shiftReportsByKey: Map<
+    string,
+    { id: string; status: string; crewCount: number }
+  >;
   shiftReportsLoading: boolean;
   isSubmitting: boolean;
   submitError: unknown;
@@ -58,7 +69,9 @@ export function ShiftAllocationModal({
   }) => void;
 }) {
   const router = useRouter();
-  const [selectedShiftKey, setSelectedShiftKey] = useState<string | undefined>();
+  const [selectedShiftKey, setSelectedShiftKey] = useState<
+    string | undefined
+  >();
   const [totalWeight, setTotalWeight] = useState("");
   const [expenses, setExpenses] = useState<ShiftExpenseInput[]>([
     { id: "expense-1", type: "Diesel", weight: "" },
@@ -102,7 +115,9 @@ export function ShiftAllocationModal({
     });
   }, [attendanceShifts, shiftReportsByKey]);
 
-  const selectedShift = attendanceShifts.find((shift) => shift.key === selectedShiftKey);
+  const selectedShift = attendanceShifts.find(
+    (shift) => shift.key === selectedShiftKey,
+  );
   const selectedReport = selectedShiftKey
     ? shiftReportsByKey.get(selectedShiftKey)
     : undefined;
@@ -143,13 +158,22 @@ export function ShiftAllocationModal({
   const handleAddExpense = () => {
     setExpenses((prev) => [
       ...prev,
-      { id: `expense-${prev.length + 1}`, type: expenseTypes[0] ?? "Other", weight: "" },
+      {
+        id: `expense-${prev.length + 1}`,
+        type: expenseTypes[0] ?? "Other",
+        weight: "",
+      },
     ]);
   };
 
-  const handleExpenseChange = (id: string, changes: Partial<ShiftExpenseInput>) => {
+  const handleExpenseChange = (
+    id: string,
+    changes: Partial<ShiftExpenseInput>,
+  ) => {
     setExpenses((prev) =>
-      prev.map((expense) => (expense.id === id ? { ...expense, ...changes } : expense)),
+      prev.map((expense) =>
+        expense.id === id ? { ...expense, ...changes } : expense,
+      ),
     );
   };
 
@@ -160,7 +184,8 @@ export function ShiftAllocationModal({
   const handleAddExpenseType = (query: string) => {
     const name = query.trim();
     if (!name) return;
-    if (expenseTypes.some((type) => type.toLowerCase() === name.toLowerCase())) return;
+    if (expenseTypes.some((type) => type.toLowerCase() === name.toLowerCase()))
+      return;
     setExpenseTypes((prev) => [...prev, name]);
   };
 
@@ -190,12 +215,16 @@ export function ShiftAllocationModal({
           <DialogHeader className="space-y-2">
             <DialogTitle>Shift Gold Allocation</DialogTitle>
             <DialogDescription>
-              Record gold produced per shift and split worker/company shares using attendance.
+              Record gold produced per shift and split worker/company shares
+              using attendance.
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-6">
+        <form
+          onSubmit={handleSubmit}
+          className="max-h-[80vh] overflow-y-auto px-6 py-6"
+        >
           {(attendanceLoading || shiftReportsLoading) && (
             <Alert className="mb-4">
               <AlertTitle>Loading shift context</AlertTitle>
@@ -208,7 +237,9 @@ export function ShiftAllocationModal({
           {submitError ? (
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Unable to record allocation</AlertTitle>
-              <AlertDescription>{getApiErrorMessage(submitError)}</AlertDescription>
+              <AlertDescription>
+                {getApiErrorMessage(submitError)}
+              </AlertDescription>
             </Alert>
           ) : null}
 
@@ -220,7 +251,8 @@ export function ShiftAllocationModal({
                   Attendance-Linked Shift
                 </CardTitle>
                 <CardDescription>
-                  Select a shift from the attendance register to unlock gold allocation.
+                  Select a shift from the attendance register to unlock gold
+                  allocation.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -250,13 +282,17 @@ export function ShiftAllocationModal({
                       <Badge variant="default">
                         Present {selectedShift.presentCount}
                       </Badge>
-                      <Badge variant="secondary">Absent {selectedShift.absentCount}</Badge>
+                      <Badge variant="secondary">
+                        Absent {selectedShift.absentCount}
+                      </Badge>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span>Total crew: {selectedShift.totalCrew}</span>
                       <span>Late: {selectedShift.lateCount}</span>
                       {selectedReport ? (
-                        <span>Shift report crew: {selectedReport.crewCount}</span>
+                        <span>
+                          Shift report crew: {selectedReport.crewCount}
+                        </span>
                       ) : null}
                     </div>
                   </div>
@@ -266,7 +302,8 @@ export function ShiftAllocationModal({
                   <Alert>
                     <AlertTitle>No attendance shifts found</AlertTitle>
                     <AlertDescription>
-                      Attendance is required before recording shift gold allocation.
+                      Attendance is required before recording shift gold
+                      allocation.
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -275,7 +312,8 @@ export function ShiftAllocationModal({
                   <Alert variant="destructive">
                     <AlertTitle>Shift report missing</AlertTitle>
                     <AlertDescription>
-                      A shift report is required before recording shift gold allocation.
+                      A shift report is required before recording shift gold
+                      allocation.
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -291,9 +329,9 @@ export function ShiftAllocationModal({
                   <Alert>
                     <AlertTitle>Crew count mismatch</AlertTitle>
                     <AlertDescription>
-                      Attendance shows {selectedShift?.presentCount} present while the shift
-                      report lists {selectedReport?.crewCount}. Please reconcile before
-                      finalizing payout.
+                      Attendance shows {selectedShift?.presentCount} present
+                      while the shift report lists {selectedReport?.crewCount}.
+                      Please reconcile before finalizing payout.
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -315,12 +353,14 @@ export function ShiftAllocationModal({
                   <Scale className="h-5 w-5 text-muted-foreground" />
                   Gold Produced & Expenses
                 </CardTitle>
-                <CardDescription>All values recorded in gold weight.</CardDescription>
+                <CardDescription>
+                  All values recorded in gold weight.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-semibold mb-2">
                       Total weight produced (g)
                     </label>
                     <Input
@@ -333,7 +373,9 @@ export function ShiftAllocationModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Pay cycle (weeks)</label>
+                    <label className="block text-sm font-semibold mb-2">
+                      Pay cycle (weeks)
+                    </label>
                     <div className="flex gap-2">
                       <Button
                         type="button"
@@ -360,8 +402,13 @@ export function ShiftAllocationModal({
 
                 <div className="space-y-3 border-t border-border pt-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">Shift expenses</h4>
-                    <Button type="button" variant="outline" size="sm" onClick={handleAddExpense}>
+                    <h4 className="text-sm font-semibold">Shift expenses</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddExpense}
+                    >
                       <Plus className="h-4 w-4" />
                       Add expense
                     </Button>
@@ -385,13 +432,15 @@ export function ShiftAllocationModal({
                           onAddOption={(query) => {
                             handleAddExpenseType(query);
                             if (query.trim()) {
-                              handleExpenseChange(expense.id, { type: query.trim() });
+                              handleExpenseChange(expense.id, {
+                                type: query.trim(),
+                              });
                             }
                           }}
                           addLabel="Add expense type"
                         />
                         <div>
-                          <label className="block text-sm font-medium mb-2">
+                          <label className="block text-sm font-semibold mb-2">
                             Weight (g)
                           </label>
                           <Input
@@ -399,7 +448,9 @@ export function ShiftAllocationModal({
                             step="0.001"
                             value={expense.weight}
                             onChange={(event) =>
-                              handleExpenseChange(expense.id, { weight: event.target.value })
+                              handleExpenseChange(expense.id, {
+                                weight: event.target.value,
+                              })
                             }
                             placeholder="0.000"
                             min="0"
@@ -445,27 +496,41 @@ export function ShiftAllocationModal({
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="rounded-lg border border-border p-3">
-                    <div className="text-xs text-muted-foreground">Net gold</div>
-                    <div className="text-lg font-semibold">{netWeight.toFixed(3)} g</div>
+                    <div className="text-xs text-muted-foreground">
+                      Net gold
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {netWeight.toFixed(3)} g
+                    </div>
                   </div>
                   <div className="rounded-lg border border-border p-3">
-                    <div className="text-xs text-muted-foreground">Workers (50%)</div>
-                    <div className="text-lg font-semibold">{workerShare.toFixed(3)} g</div>
+                    <div className="text-xs text-muted-foreground">
+                      Workers (50%)
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {workerShare.toFixed(3)} g
+                    </div>
                   </div>
                   <div className="rounded-lg border border-border p-3">
-                    <div className="text-xs text-muted-foreground">Company (50%)</div>
-                    <div className="text-lg font-semibold">{companyShare.toFixed(3)} g</div>
+                    <div className="text-xs text-muted-foreground">
+                      Company (50%)
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {companyShare.toFixed(3)} g
+                    </div>
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span>Present workers</span>
-                    <span className="font-medium">{presentCount}</span>
+                    <span className="font-semibold">{presentCount}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Equal share per worker</span>
-                    <span className="font-medium">{perWorker.toFixed(3)} g</span>
+                    <span className="font-semibold">
+                      {perWorker.toFixed(3)} g
+                    </span>
                   </div>
                 </div>
               </CardContent>

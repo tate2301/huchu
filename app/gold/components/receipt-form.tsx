@@ -185,7 +185,7 @@ export function ReceiptForm({
           ) : null}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Receipt Number *</label>
+              <label className="block text-sm font-semibold mb-2">Receipt Number *</label>
               <Input
                 value={formData.receiptNumber}
                 onChange={(e) =>
@@ -213,7 +213,7 @@ export function ReceiptForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Receipt Date *</label>
+            <label className="block text-sm font-semibold mb-2">Receipt Date *</label>
             <Input
               type="datetime-local"
               value={formData.receiptDate}
@@ -223,9 +223,9 @@ export function ReceiptForm({
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-3">Assay Results</h4>
+            <h4 className="text-sm font-semibold mb-3">Assay Results</h4>
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-semibold mb-2">
                 Actual Purity/Fine Weight (grams) *
               </label>
               <Input
@@ -243,10 +243,10 @@ export function ReceiptForm({
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-3">Sale Details</h4>
+            <h4 className="text-sm font-semibold mb-3">Sale Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-semibold mb-2">
                   Paid weight (grams) *
                 </label>
                 <Input
@@ -273,7 +273,7 @@ export function ReceiptForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Settlement Channel</label>
+                <label className="block text-sm font-semibold mb-2">Settlement Channel</label>
                 <Input
                   value={formData.paymentChannel}
                   onChange={(e) =>
@@ -284,7 +284,7 @@ export function ReceiptForm({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-semibold mb-2">
                   Settlement Reference
                 </label>
                 <Input
@@ -302,7 +302,7 @@ export function ReceiptForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
+            <label className="block text-sm font-semibold mb-2">Notes</label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}

@@ -111,7 +111,7 @@ function PhaseStatusBadge({ status }: { status: Phase['status'] }) {
   }
   
   return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
+    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${styles[status]}`}>
       {labels[status]}
     </span>
   )
@@ -151,7 +151,7 @@ export function SystemStatus() {
                     <StatusIcon status={item.status} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className={`text-sm font-medium ${
+                        <span className={`text-sm font-semibold ${
                           item.status === 'complete' ? 'text-foreground' : 'text-muted-foreground'
                         }`}>
                           {item.name}

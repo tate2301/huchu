@@ -328,7 +328,7 @@ export default function AttendancePage() {
             <form onSubmit={handleAddEmployeeSubmit} className="mt-6 space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Name *</label>
+                  <label className="block text-sm font-semibold mb-2">Name *</label>
                   <Input
                     value={newEmployee.name}
                     onChange={handleNewEmployeeChange("name")}
@@ -337,7 +337,7 @@ export default function AttendancePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Phone *</label>
+                  <label className="block text-sm font-semibold mb-2">Phone *</label>
                   <Input
                     type="tel"
                     value={newEmployee.phone}
@@ -350,7 +350,7 @@ export default function AttendancePage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Village of Origin *</label>
+                  <label className="block text-sm font-semibold mb-2">Village of Origin *</label>
                   <Input
                     value={newEmployee.villageOfOrigin}
                     onChange={handleNewEmployeeChange("villageOfOrigin")}
@@ -359,7 +359,7 @@ export default function AttendancePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Next of Kin Name *</label>
+                  <label className="block text-sm font-semibold mb-2">Next of Kin Name *</label>
                   <Input
                     value={newEmployee.nextOfKinName}
                     onChange={handleNewEmployeeChange("nextOfKinName")}
@@ -371,7 +371,7 @@ export default function AttendancePage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Next of Kin Phone *</label>
+                  <label className="block text-sm font-semibold mb-2">Next of Kin Phone *</label>
                   <Input
                     type="tel"
                     value={newEmployee.nextOfKinPhone}
@@ -383,7 +383,7 @@ export default function AttendancePage() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium">Passport Photo *</label>
+                <label className="block text-sm font-semibold">Passport Photo *</label>
                 <Input
                   type="file"
                   accept="image/*"
@@ -444,7 +444,7 @@ export default function AttendancePage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Date *</label>
+                <label className="block text-sm font-semibold mb-2">Date *</label>
                 <Input
                   type="date"
                   value={formData.date}
@@ -454,7 +454,7 @@ export default function AttendancePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Shift *</label>
+                <label className="block text-sm font-semibold mb-2">Shift *</label>
                 <Select name="shift" value={formData.shift} onValueChange={handleSelectChange("shift")} required>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select shift" />
@@ -467,7 +467,7 @@ export default function AttendancePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Site *</label>
+                <label className="block text-sm font-semibold mb-2">Site *</label>
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -537,7 +537,7 @@ export default function AttendancePage() {
                     className="flex flex-col md:flex-row md:items-center gap-3 rounded-md border border-border bg-card/60 p-3"
                   >
                     <div className="flex-1">
-                      <div className="font-medium">{member.name}</div>
+                      <div className="font-semibold">{member.name}</div>
                       <div className="text-xs text-muted-foreground">ID: {member.employeeId}</div>
                     </div>
 

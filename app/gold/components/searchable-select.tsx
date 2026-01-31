@@ -67,7 +67,7 @@ export function SearchableSelect({
 
   return (
     <div className="space-y-2" ref={containerRef}>
-      <label className="block text-sm font-medium">{label}</label>
+      <label className="block text-sm font-semibold">{label}</label>
       <div className="relative">
         <Button
           type="button"
@@ -111,7 +111,7 @@ export function SearchableSelect({
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{option.label}</span>
+                        <span className="font-semibold">{option.label}</span>
                         {option.meta ? (
                           <Badge
                             variant={option.badgeVariant ?? "secondary"}

@@ -25,7 +25,9 @@ export function DispatchForm({
   employeesLoading,
   availablePours,
 }: {
-  setViewMode: (mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit") => void;
+  setViewMode: (
+    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
+  ) => void;
   employees: Array<{ id: string; name: string; employeeId: string }>;
   employeesLoading: boolean;
   availablePours: Array<{
@@ -135,14 +137,20 @@ export function DispatchForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <Button type="button" variant="outline" onClick={() => setViewMode("menu")}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setViewMode("menu")}
+      >
         Back to Menu
       </Button>
 
       {createDispatchMutation.error ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to record dispatch</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(createDispatchMutation.error)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(createDispatchMutation.error)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -164,7 +172,9 @@ export function DispatchForm({
       <Card>
         <CardHeader>
           <CardTitle>Dispatch Details</CardTitle>
-          <CardDescription>All fields required for dispatch manifest</CardDescription>
+          <CardDescription>
+            All fields required for dispatch manifest
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {availablePours.length === 0 ? (
@@ -192,44 +202,52 @@ export function DispatchForm({
           </p>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-semibold mb-2">
               Dispatch Date/Time *
             </label>
             <Input
               type="datetime-local"
               value={formData.dispatchDate}
-              onChange={(e) => setFormData({ ...formData, dispatchDate: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, dispatchDate: e.target.value })
+              }
               required
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-semibold mb-2">
                 Courier/Company *
               </label>
               <Input
                 value={formData.courier}
-                onChange={(e) => setFormData({ ...formData, courier: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, courier: e.target.value })
+                }
                 placeholder="e.g., SecureTransit Ltd"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-semibold mb-2">
                 Vehicle/Registration
               </label>
               <Input
                 value={formData.vehicle}
-                onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, vehicle: e.target.value })
+                }
                 placeholder="e.g., ABC-1234"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Destination *</label>
+            <label className="block text-sm font-semibold mb-2">
+              Destination *
+            </label>
             <Input
               value={formData.destination}
               onChange={(e) =>
@@ -241,7 +259,9 @@ export function DispatchForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Seal Numbers *</label>
+            <label className="block text-sm font-semibold mb-2">
+              Seal Numbers *
+            </label>
             <Input
               value={formData.sealNumbers}
               onChange={(e) =>
@@ -253,13 +273,15 @@ export function DispatchForm({
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-3">Handover Details</h4>
+            <h4 className="text-sm font-semibold mb-3">Handover Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <SearchableSelect
                 label="Handed Over By *"
                 value={formData.handedOverById || undefined}
                 options={employeeOptions}
-                placeholder={employeesLoading ? "Loading employees..." : "Select employee"}
+                placeholder={
+                  employeesLoading ? "Loading employees..." : "Select employee"
+                }
                 searchPlaceholder="Search employees..."
                 onValueChange={handleSelectChange("handedOverById")}
                 onAddOption={() => {
@@ -269,7 +291,9 @@ export function DispatchForm({
               />
 
               <div>
-                <label className="block text-sm font-medium mb-2">Received By</label>
+                <label className="block text-sm font-semibold mb-2">
+                  Received By
+                </label>
                 <Input
                   value={formData.receivedBy}
                   onChange={(e) =>
@@ -282,10 +306,12 @@ export function DispatchForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
+            <label className="block text-sm font-semibold mb-2">Notes</label>
             <Textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, notes: e.target.value })
+              }
               rows={2}
               placeholder="Additional dispatch notes..."
             />
@@ -295,7 +321,9 @@ export function DispatchForm({
 
       <Button type="submit" className="w-full" size="lg" disabled={!canSubmit}>
         <Send className="mr-2 h-5 w-5" />
-        {createDispatchMutation.isPending ? "Recording..." : "Create Dispatch Manifest"}
+        {createDispatchMutation.isPending
+          ? "Recording..."
+          : "Create Dispatch Manifest"}
       </Button>
     </form>
   );

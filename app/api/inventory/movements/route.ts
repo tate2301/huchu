@@ -13,6 +13,13 @@ const stockMovementSchema = z.object({
   approvedBy: z.string().max(100).optional(),
   notes: z.string().max(500).optional(),
   photoUrl: z.string().max(2048).optional(),
+  unitCost: z.number().min(0).optional(),
+  movementDate: z
+    .string()
+    .optional()
+    .refine((value) => !value || !Number.isNaN(new Date(value).getTime()), {
+      message: 'Invalid movementDate',
+    }),
 }).refine(
   (data) => data.movementType === 'ADJUSTMENT' || data.quantity > 0,
   { message: 'Quantity must be positive for this movement type', path: ['quantity'] }
@@ -28,6 +35,7 @@ export async function GET(request: NextRequest) {
     const itemId = searchParams.get('itemId');
     const siteId = searchParams.get('siteId');
     const movementType = searchParams.get('movementType');
+    const category = searchParams.get('category');
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -41,6 +49,7 @@ export async function GET(request: NextRequest) {
     if (itemId) where.itemId = itemId;
     if (siteId) where.item = { ...where.item, siteId };
     if (movementType) where.movementType = movementType;
+    if (category) where.item = { ...where.item, category };
 
     const [movements, total] = await Promise.all([
       prisma.stockMovement.findMany({
@@ -120,6 +129,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create movement and update item in transaction
+    const movementDate = validated.movementDate
+      ? new Date(validated.movementDate)
+      : undefined;
+    const itemUpdateData: Record<string, unknown> = { currentStock: newStock };
+    if (validated.movementType === 'RECEIPT' && validated.unitCost !== undefined) {
+      itemUpdateData.unitCost = validated.unitCost;
+    }
+
     const [movement] = await prisma.$transaction([
       prisma.stockMovement.create({
         data: {
@@ -133,11 +150,12 @@ export async function POST(request: NextRequest) {
           notes: validated.notes,
           photoUrl: validated.photoUrl,
           issuedById: session.user.id,
+          createdAt: movementDate,
         },
       }),
       prisma.inventoryItem.update({
         where: { id: validated.itemId },
-        data: { currentStock: newStock },
+        data: itemUpdateData,
       }),
     ]);
 

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 const inventoryItemSchema = z.object({
-  itemCode: z.string().min(1).max(50),
   name: z.string().min(1).max(200),
   category: z.enum(['FUEL', 'SPARES', 'CONSUMABLES', 'PPE', 'REAGENTS', 'OTHER']),
   siteId: z.string().uuid(),
@@ -24,6 +24,40 @@ const inventoryItemSchema = z.object({
     path: ['minStock'],
   }
 );
+
+const CATEGORY_CODE_PREFIX: Record<string, string> = {
+  FUEL: 'FUEL',
+  SPARES: 'SPARE',
+  CONSUMABLES: 'CONS',
+  PPE: 'PPE',
+  REAGENTS: 'REAG',
+  OTHER: 'OTHER',
+};
+
+async function generateItemCode(siteId: string, category: string) {
+  const prefix = CATEGORY_CODE_PREFIX[category] ?? 'ITEM';
+  const latest = await prisma.inventoryItem.findFirst({
+    where: {
+      siteId,
+      itemCode: { startsWith: `${prefix}-` },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { itemCode: true },
+  });
+
+  let nextNumber = 1;
+  if (latest?.itemCode) {
+    const match = latest.itemCode.match(/-(\d+)$/);
+    if (match) {
+      const parsed = Number.parseInt(match[1], 10);
+      if (Number.isFinite(parsed)) {
+        nextNumber = parsed + 1;
+      }
+    }
+  }
+
+  return `${prefix}-${String(nextNumber).padStart(3, '0')}`;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -105,18 +139,6 @@ export async function POST(request: NextRequest) {
       return errorResponse('Site is not active', 400);
     }
 
-    // Check for duplicate code
-    const existing = await prisma.inventoryItem.findFirst({
-      where: {
-        itemCode: validated.itemCode,
-        siteId: validated.siteId,
-      },
-    });
-
-    if (existing) {
-      return errorResponse('Item code already exists for this site', 409);
-    }
-
     const location = await prisma.stockLocation.findUnique({
       where: { id: validated.locationId },
       select: { siteId: true, isActive: true },
@@ -126,26 +148,41 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid stock location for site', 400);
     }
 
-    const item = await prisma.inventoryItem.create({
-      data: {
-        itemCode: validated.itemCode,
-        name: validated.name,
-        category: validated.category,
-        siteId: validated.siteId,
-        locationId: validated.locationId,
-        unit: validated.unit,
-        currentStock: validated.currentStock ?? 0,
-        minStock: validated.minStock,
-        maxStock: validated.maxStock,
-        unitCost: validated.unitCost,
-      },
-      include: {
-        site: { select: { name: true, code: true } },
-        location: { select: { name: true } },
-      },
-    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const itemCode = await generateItemCode(validated.siteId, validated.category);
+      try {
+        const item = await prisma.inventoryItem.create({
+          data: {
+            itemCode,
+            name: validated.name,
+            category: validated.category,
+            siteId: validated.siteId,
+            locationId: validated.locationId,
+            unit: validated.unit,
+            currentStock: validated.currentStock ?? 0,
+            minStock: validated.minStock,
+            maxStock: validated.maxStock,
+            unitCost: validated.unitCost,
+          },
+          include: {
+            site: { select: { name: true, code: true } },
+            location: { select: { name: true } },
+          },
+        });
 
-    return successResponse(item, 201);
+        return successResponse(item, 201);
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    return errorResponse('Unable to generate item code', 409);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse('Validation failed', 400, error.issues);

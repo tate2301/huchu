@@ -1,29 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, errorResponse, successResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
-import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  validateSession,
+  errorResponse,
+  successResponse,
+  getPaginationParams,
+  paginationResponse,
+} from "@/lib/api-utils";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+import { WorkType } from "@prisma/client";
 
 // Validation schema
-const shiftReportSchema = z.object({
-  date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  shift: z.enum(['DAY', 'NIGHT']),
-  siteId: z.string().uuid(),
-  sectionId: z.string().uuid().optional(),
-  groupLeaderId: z.string().uuid(),
-  crewCount: z.number().int().min(0).max(1000),
-  workType: z.enum(['DEVELOPMENT', 'PRODUCTION', 'HAULAGE', 'SUPPORT', 'OTHER']),
-  outputTonnes: z.number().min(0).optional(),
-  outputTrips: z.number().int().min(0).optional(),
-  outputWheelbarrows: z.number().int().min(0).optional(),
-  metresAdvanced: z.number().min(0).optional(),
-  hasIncident: z.boolean().optional(),
-  incidentNotes: z.string().max(1000).optional(),
-  handoverNotes: z.string().max(2000).optional(),
-  photos: z.array(z.string().max(2048)).optional(),
-}).refine((data) => !data.hasIncident || !!data.incidentNotes, {
-  message: 'Incident notes are required when an incident is reported',
-  path: ['incidentNotes'],
-});
+const shiftReportSchema = z
+  .object({
+    date: z
+      .string()
+      .datetime()
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+    shift: z.enum(["DAY", "NIGHT"]),
+    siteId: z.string().uuid(),
+    sectionId: z.string().uuid().optional(),
+    groupLeaderId: z.string().uuid(),
+    crewCount: z.number().int().min(0).max(1000),
+    workType: z.enum([
+      "DEVELOPMENT",
+      "PRODUCTION",
+      "HAULAGE",
+      "SUPPORT",
+      "OTHER",
+    ]),
+    outputTonnes: z.number().min(0).optional(),
+    outputTrips: z.number().int().min(0).optional(),
+    outputWheelbarrows: z.number().int().min(0).optional(),
+    metresAdvanced: z.number().min(0).optional(),
+    hasIncident: z.boolean().optional(),
+    incidentNotes: z.string().max(1000).optional(),
+    handoverNotes: z.string().max(2000).optional(),
+    photos: z.array(z.string().max(2048)).optional(),
+  })
+  .refine((data) => !data.hasIncident || !!data.incidentNotes, {
+    message: "Incident notes are required when an incident is reported",
+    path: ["incidentNotes"],
+  });
 
 // GET - List shift reports with filters
 export async function GET(request: NextRequest) {
@@ -33,10 +51,10 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
 
     const { searchParams } = new URL(request.url);
-    const siteId = searchParams.get('siteId');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    const status = searchParams.get('status');
+    const siteId = searchParams.get("siteId");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const status = searchParams.get("status");
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -63,7 +81,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { date: 'desc' },
+        orderBy: { date: "desc" },
         skip,
         take: limit,
       }),
@@ -72,8 +90,8 @@ export async function GET(request: NextRequest) {
 
     return successResponse(paginationResponse(reports, total, page, limit));
   } catch (error) {
-    console.error('[API] GET /api/shift-reports error:', error);
-    return errorResponse('Failed to fetch shift reports');
+    console.error("[API] GET /api/shift-reports error:", error);
+    return errorResponse("Failed to fetch shift reports");
   }
 }
 
@@ -105,19 +123,23 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (!site || site.companyId !== session.user.companyId) {
-      return errorResponse('Invalid site', 403);
+      return errorResponse("Invalid site", 403);
     }
 
     if (!site.isActive) {
-      return errorResponse('Site is not active', 400);
+      return errorResponse("Site is not active", 400);
     }
 
-    if (!groupLeader || groupLeader.companyId !== session.user.companyId || !groupLeader.isActive) {
-      return errorResponse('Invalid group leader', 400);
+    if (
+      !groupLeader ||
+      groupLeader.companyId !== session.user.companyId ||
+      !groupLeader.isActive
+    ) {
+      return errorResponse("Invalid group leader", 400);
     }
 
     if (section && section.siteId !== validated.siteId) {
-      return errorResponse('Section does not belong to this site', 400);
+      return errorResponse("Section does not belong to this site", 400);
     }
 
     // Check if report already exists for this site/date/shift
@@ -130,7 +152,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
-      return errorResponse('Shift report already exists for this date and shift', 409);
+      return errorResponse(
+        "Shift report already exists for this date and shift",
+        409,
+      );
     }
 
     // Create the shift report
@@ -142,7 +167,7 @@ export async function POST(request: NextRequest) {
         sectionId: validated.sectionId,
         groupLeaderId: validated.groupLeaderId,
         crewCount: validated.crewCount,
-        workType: validated.workType,
+        workType: "DEVELOPMENT" as WorkType,
         outputTonnes: validated.outputTonnes,
         outputTrips: validated.outputTrips,
         outputWheelbarrows: validated.outputWheelbarrows,
@@ -151,7 +176,7 @@ export async function POST(request: NextRequest) {
         incidentNotes: validated.incidentNotes,
         handoverNotes: validated.handoverNotes,
         photos: validated.photos ? JSON.stringify(validated.photos) : undefined,
-        status: 'DRAFT',
+        status: "DRAFT",
         createdById: session.user.id,
       },
       include: {
@@ -163,9 +188,9 @@ export async function POST(request: NextRequest) {
     return successResponse(report, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return errorResponse('Validation failed', 400, error.issues);
+      return errorResponse("Validation failed", 400, error.issues);
     }
-    console.error('[API] POST /api/shift-reports error:', error);
-    return errorResponse('Failed to create shift report');
+    console.error("[API] POST /api/shift-reports error:", error);
+    return errorResponse("Failed to create shift report");
   }
 }

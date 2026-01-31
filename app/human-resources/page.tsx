@@ -24,17 +24,38 @@ import { useToast } from "@/components/ui/use-toast"
 import { fetchEmployees } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 
-const emptyEmployee = {
+const employeePositions = [
+  { value: "MANAGER", label: "Manager" },
+  { value: "CLERK", label: "Clerk" },
+  { value: "SUPPORT_STAFF", label: "Support Staff" },
+  { value: "ENGINEERS", label: "Engineers" },
+  { value: "CHEMIST", label: "Chemist" },
+  { value: "MINERS", label: "Miners" },
+] as const
+
+type EmployeePosition = (typeof employeePositions)[number]["value"]
+
+type EmployeeForm = {
+  name: string
+  phone: string
+  nextOfKinName: string
+  nextOfKinPhone: string
+  passportPhotoUrl: string
+  villageOfOrigin: string
+  position: EmployeePosition
+  isActive: boolean
+}
+
+const emptyEmployee: EmployeeForm = {
   name: "",
   phone: "",
   nextOfKinName: "",
   nextOfKinPhone: "",
   passportPhotoUrl: "",
   villageOfOrigin: "",
+  position: "MINERS",
   isActive: true,
 }
-
-type EmployeeForm = typeof emptyEmployee
 
 export default function HumanResourcesPage() {
   const { toast } = useToast()
@@ -141,6 +162,10 @@ export default function HumanResourcesPage() {
     setFormData((prev) => ({ ...prev, isActive: value === "active" }))
   }
 
+  const handleSelectPosition = (value: string) => {
+    setFormData((prev) => ({ ...prev, position: value as EmployeeForm["position"] }))
+  }
+
   const uploadPassportPhoto = async (_file: File) => {
     return "https://placehold.co/240x320?text=Passport"
   }
@@ -202,15 +227,16 @@ export default function HumanResourcesPage() {
 
   const handleEdit = (employee: EmployeeForm & { id: string }) => {
     setEditingId(employee.id)
-    setFormData({
-      name: employee.name,
-      phone: employee.phone,
-      nextOfKinName: employee.nextOfKinName,
-      nextOfKinPhone: employee.nextOfKinPhone,
-      passportPhotoUrl: employee.passportPhotoUrl,
-      villageOfOrigin: employee.villageOfOrigin,
-      isActive: employee.isActive,
-    })
+      setFormData({
+        name: employee.name,
+        phone: employee.phone,
+        nextOfKinName: employee.nextOfKinName,
+        nextOfKinPhone: employee.nextOfKinPhone,
+        passportPhotoUrl: employee.passportPhotoUrl,
+        villageOfOrigin: employee.villageOfOrigin,
+        position: employee.position,
+        isActive: employee.isActive,
+      })
     setFormOpen(true)
   }
 
@@ -268,7 +294,7 @@ export default function HumanResourcesPage() {
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium mb-2">Name *</label>
+                <label className="block text-sm font-semibold mb-2">Name *</label>
                 <Input
                   value={formData.name}
                   onChange={handleChange("name")}
@@ -277,7 +303,7 @@ export default function HumanResourcesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Phone *</label>
+                <label className="block text-sm font-semibold mb-2">Phone *</label>
                 <Input
                   type="tel"
                   value={formData.phone}
@@ -290,7 +316,7 @@ export default function HumanResourcesPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium mb-2">Village of Origin *</label>
+                <label className="block text-sm font-semibold mb-2">Village of Origin *</label>
                 <Input
                   value={formData.villageOfOrigin}
                   onChange={handleChange("villageOfOrigin")}
@@ -299,25 +325,41 @@ export default function HumanResourcesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Status</label>
-                <Select
-                  value={formData.isActive ? "active" : "inactive"}
-                  onValueChange={handleSelectStatus}
-                >
+                <label className="block text-sm font-semibold mb-2">Position *</label>
+                <Select value={formData.position} onValueChange={handleSelectPosition}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder="Select position" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    {employeePositions.map((position) => (
+                      <SelectItem key={position.value} value={position.value}>
+                        {position.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-semibold mb-2">Status</label>
+              <Select
+                value={formData.isActive ? "active" : "inactive"}
+                onValueChange={handleSelectStatus}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium mb-2">Next of Kin Name *</label>
+                <label className="block text-sm font-semibold mb-2">Next of Kin Name *</label>
                 <Input
                   value={formData.nextOfKinName}
                   onChange={handleChange("nextOfKinName")}
@@ -326,7 +368,7 @@ export default function HumanResourcesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Next of Kin Phone *</label>
+                <label className="block text-sm font-semibold mb-2">Next of Kin Phone *</label>
                 <Input
                   type="tel"
                   value={formData.nextOfKinPhone}
@@ -338,7 +380,7 @@ export default function HumanResourcesPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium">Passport Photo *</label>
+              <label className="block text-sm font-semibold">Passport Photo *</label>
               <Input
                 type="file"
                 accept="image/*"
@@ -417,24 +459,25 @@ export default function HumanResourcesPage() {
             <table className="w-full">
               <thead className="bg-muted">
                 <tr>
-                  <th className="text-left p-3 text-sm font-medium">Employee</th>
-                  <th className="text-left p-3 text-sm font-medium">Contact</th>
-                  <th className="text-left p-3 text-sm font-medium">Next of Kin</th>
-                  <th className="text-left p-3 text-sm font-medium">Village</th>
-                  <th className="text-center p-3 text-sm font-medium">Status</th>
-                  <th className="text-right p-3 text-sm font-medium">Actions</th>
+                  <th className="text-left p-3 text-sm font-semibold">Employee</th>
+                  <th className="text-left p-3 text-sm font-semibold">Contact</th>
+                  <th className="text-left p-3 text-sm font-semibold">Position</th>
+                  <th className="text-left p-3 text-sm font-semibold">Next of Kin</th>
+                  <th className="text-left p-3 text-sm font-semibold">Village</th>
+                  <th className="text-center p-3 text-sm font-semibold">Status</th>
+                  <th className="text-right p-3 text-sm font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="p-3">
+                    <td colSpan={7} className="p-3">
                       <Skeleton className="h-10 w-full" />
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-3 text-sm text-muted-foreground">
+                    <td colSpan={7} className="p-3 text-sm text-muted-foreground">
                       No employees found.
                     </td>
                   </tr>
@@ -449,7 +492,7 @@ export default function HumanResourcesPage() {
                             className="h-10 w-10 rounded border object-cover"
                           />
                           <div>
-                            <div className="font-medium">{employee.name}</div>
+                            <div className="font-semibold">{employee.name}</div>
                             <div className="text-xs text-muted-foreground">
                               ID: {employee.employeeId}
                             </div>
@@ -458,7 +501,11 @@ export default function HumanResourcesPage() {
                       </td>
                       <td className="p-3 text-sm">{employee.phone}</td>
                       <td className="p-3 text-sm">
-                        <div className="font-medium">{employee.nextOfKinName}</div>
+                        {employeePositions.find((position) => position.value === employee.position)
+                          ?.label ?? employee.position}
+                      </td>
+                      <td className="p-3 text-sm">
+                        <div className="font-semibold">{employee.nextOfKinName}</div>
                         <div className="text-xs text-muted-foreground">
                           {employee.nextOfKinPhone}
                         </div>

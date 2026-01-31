@@ -29,15 +29,14 @@ function DashboardTile({ href, icon: Icon, label }: DashboardTileProps) {
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 rounded-md p-2 border border-transparent text-sm font-medium text-foreground transition-colors hover:bg-accent hover:border-border group"
+      className="group flex flex-col gap-3 rounded-md p-4 border border-border/70 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:border-border group"
     >
-      <span className="flex items-center justify-center rounded-md text-muted-foreground">
+      <p className="flex rounded-md text-muted-foreground">
         <Icon className="h-5 w-5" />
-      </span>
-      <span className="group-hover: font-semibold group-hover:text-accent-foreground text-muted-foreground">
+      </p>
+      <p className="group-hover: font-semibold group-hover:text-accent-foreground text-muted-foreground">
         {label}
-      </span>
-      <ArrowRight className="size-5 text-muted-foreground ml-auto hidden group-hover:flex" />
+      </p>
     </Link>
   );
 }
@@ -67,11 +66,11 @@ export default function Home() {
       <div className="grid gap-8">
         {groupedSections.map((group) => (
           <div key={group.id}>
-            <h2 className="uppercase text-xs text-muted-foreground font-medium mb-4 px-2">
+            <h2 className="uppercase text-lg text-foreground font-bold mb-4 px-2">
               {group.title}
             </h2>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-12">
               {group.items.map((item) => (
                 <DashboardTile key={item.href} {...item} />
               ))}

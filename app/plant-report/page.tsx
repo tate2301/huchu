@@ -194,12 +194,12 @@ export default function PlantReportPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Date *</label>
+                <label className="block text-sm font-semibold mb-2">Date *</label>
                 <Input type="date" name="date" value={formData.date} onChange={handleChange} required />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Site *</label>
+                <label className="block text-sm font-semibold mb-2">Site *</label>
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -234,12 +234,12 @@ export default function PlantReportPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Tonnes Fed</label>
+                <label className="block text-sm font-semibold mb-2">Tonnes Fed</label>
                 <Input type="number" name="tonnesFed" value={formData.tonnesFed} onChange={handleChange} placeholder="0" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Tonnes Processed</label>
+                <label className="block text-sm font-semibold mb-2">Tonnes Processed</label>
                 <Input
                   type="number"
                   name="tonnesProcessed"
@@ -250,7 +250,7 @@ export default function PlantReportPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Run Hours</label>
+                <label className="block text-sm font-semibold mb-2">Run Hours</label>
                 <Input type="number" name="runHours" value={formData.runHours} onChange={handleChange} placeholder="0" />
               </div>
             </div>
@@ -265,12 +265,12 @@ export default function PlantReportPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Diesel Used (litres)</label>
+                <label className="block text-sm font-semibold mb-2">Diesel Used (litres)</label>
                 <Input type="number" name="dieselUsed" value={formData.dieselUsed} onChange={handleChange} placeholder="0" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Grinding Media (kg)</label>
+                <label className="block text-sm font-semibold mb-2">Grinding Media (kg)</label>
                 <Input
                   type="number"
                   name="grindingMedia"
@@ -281,12 +281,12 @@ export default function PlantReportPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Reagents Used (kg)</label>
+                <label className="block text-sm font-semibold mb-2">Reagents Used (kg)</label>
                 <Input type="number" name="reagentsUsed" value={formData.reagentsUsed} onChange={handleChange} placeholder="0" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Water Used (m3)</label>
+                <label className="block text-sm font-semibold mb-2">Water Used (m3)</label>
                 <Input type="number" name="waterUsed" value={formData.waterUsed} onChange={handleChange} placeholder="0" />
               </div>
             </div>
@@ -314,7 +314,7 @@ export default function PlantReportPage() {
                   <div key={index} className="space-y-3 p-3 border rounded-md">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-sm font-medium mb-2">Code</label>
+                        <label className="block text-sm font-semibold mb-2">Code</label>
                         {downtimeLoading ? (
                           <Skeleton className="h-9 w-full" />
                         ) : (
@@ -337,7 +337,7 @@ export default function PlantReportPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-2">Hours</label>
+                        <label className="block text-sm font-semibold mb-2">Hours</label>
                         <Input
                           type="number"
                           value={event.durationHours}
@@ -347,7 +347,7 @@ export default function PlantReportPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-2">Notes</label>
+                        <label className="block text-sm font-semibold mb-2">Notes</label>
                         <Input
                           type="text"
                           value={event.notes}
@@ -378,7 +378,7 @@ export default function PlantReportPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Gold Recovered (grams)</label>
+                <label className="block text-sm font-semibold mb-2">Gold Recovered (grams)</label>
                 <Input
                   type="number"
                   name="goldRecovered"

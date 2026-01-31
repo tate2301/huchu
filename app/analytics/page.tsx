@@ -98,7 +98,7 @@ export default function AnalyticsPage() {
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium mb-2">Site</label>
+              <label className="block text-sm font-semibold mb-2">Site</label>
               {sitesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -118,7 +118,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Time Range</label>
+              <label className="block text-sm font-semibold mb-2">Time Range</label>
               <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRangeKey)}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select time range" />
@@ -139,7 +139,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Total Downtime
             </CardTitle>
@@ -156,7 +156,7 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
               <TrendingDown className="h-4 w-4" />
               Top Cause
             </CardTitle>
@@ -179,7 +179,7 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
               <Zap className="h-4 w-4" />
               Availability
             </CardTitle>
@@ -217,7 +217,7 @@ export default function AnalyticsPage() {
                   <div key={item.code} className="space-y-2">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{item.description}</span>
+                        <span className="font-semibold">{item.description}</span>
                       </div>
                       <span className="text-sm text-muted-foreground">
                         {item.hours.toFixed(1)}h ({percentage.toFixed(0)}%)

@@ -1,44 +1,50 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Shield, AlertCircle } from "lucide-react"
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Shield, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
         redirect: false,
-      })
+      });
 
       if (result?.error) {
-        setError(result.error)
+        setError(result.error);
       } else {
-        router.push("/")
-        router.refresh()
+        router.push("/");
+        router.refresh();
       }
     } catch (error) {
-      setError("An error occurred. Please try again.")
+      setError("An error occurred. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -48,13 +54,17 @@ export default function LoginPage() {
             <Shield className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-semibold">Huchu Enterprises</h1>
-          <p className="text-sm text-muted-foreground">Mine Operations System</p>
+          <p className="text-sm text-muted-foreground">
+            Mine Operations System
+          </p>
         </div>
 
         <Card>
           <CardHeader className="space-y-1 text-center">
             <CardTitle>Sign In</CardTitle>
-            <CardDescription>Secure access for authorized personnel only</CardDescription>
+            <CardDescription>
+              Secure access for authorized personnel only
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -66,7 +76,7 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">
+                <label htmlFor="email" className="text-sm font-semibold">
                   Email
                 </label>
                 <Input
@@ -81,7 +91,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium">
+                <label htmlFor="password" className="text-sm font-semibold">
                   Password
                 </label>
                 <Input
@@ -95,7 +105,12 @@ export default function LoginPage() {
                 />
               </div>
 
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={loading}
+              >
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
@@ -109,5 +124,5 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

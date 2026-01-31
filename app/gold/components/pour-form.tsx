@@ -26,10 +26,17 @@ export function PourForm({
   sites,
   sitesLoading,
 }: {
-  setViewMode: (mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit") => void;
+  setViewMode: (
+    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
+  ) => void;
   employees: Array<{ id: string; name: string; employeeId: string }>;
   employeesLoading: boolean;
-  sites: Array<{ id: string; name: string; code: string; location?: string | null }>;
+  sites: Array<{
+    id: string;
+    name: string;
+    code: string;
+    location?: string | null;
+  }>;
   sitesLoading: boolean;
 }) {
   const { toast } = useToast();
@@ -146,40 +153,56 @@ export function PourForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <Button type="button" variant="outline" onClick={() => setViewMode("menu")}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setViewMode("menu")}
+      >
         Back to Menu
       </Button>
 
       {createPourMutation.error ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to record pour</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(createPourMutation.error)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(createPourMutation.error)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
       <Card>
         <CardHeader>
           <CardTitle>Pour Details</CardTitle>
-          <CardDescription>All fields required for gold pour record</CardDescription>
+          <CardDescription>
+            All fields required for gold pour record
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Pour/Bar ID *</label>
+              <label className="block text-sm font-semibold mb-2">
+                Pour/Bar ID *
+              </label>
               <Input
                 value={formData.pourBarId}
-                onChange={(e) => setFormData({ ...formData, pourBarId: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, pourBarId: e.target.value })
+                }
                 placeholder="Auto-generated in production"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Pour Date/Time *</label>
+              <label className="block text-sm font-semibold mb-2">
+                Pour Date/Time *
+              </label>
               <Input
                 type="datetime-local"
                 value={formData.pourDate}
-                onChange={(e) => setFormData({ ...formData, pourDate: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, pourDate: e.target.value })
+                }
                 required
               />
             </div>
@@ -203,20 +226,22 @@ export function PourForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-semibold mb-2">
                 Gross Weight (grams) *
               </label>
               <Input
                 type="number"
                 step="0.01"
                 value={formData.grossWeight}
-                onChange={(e) => setFormData({ ...formData, grossWeight: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, grossWeight: e.target.value })
+                }
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-semibold mb-2">
                 Estimated Purity (%)
               </label>
               <Input
@@ -224,14 +249,16 @@ export function PourForm({
                 step="0.01"
                 max="100"
                 value={formData.estimatedPurity}
-                onChange={(e) => setFormData({ ...formData, estimatedPurity: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, estimatedPurity: e.target.value })
+                }
                 placeholder="Optional"
               />
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Shield className="h-4 w-4 text-yellow-600" />
               2-Person Witness Rule
             </h4>
@@ -240,7 +267,9 @@ export function PourForm({
                 label="Witness 1 *"
                 value={formData.witness1Id || undefined}
                 options={employeeOptions}
-                placeholder={employeesLoading ? "Loading employees..." : "Select employee"}
+                placeholder={
+                  employeesLoading ? "Loading employees..." : "Select employee"
+                }
                 searchPlaceholder="Search employees..."
                 onValueChange={handleSelectChange("witness1Id")}
                 onAddOption={() => {
@@ -253,7 +282,9 @@ export function PourForm({
                 label="Witness 2 *"
                 value={formData.witness2Id || undefined}
                 options={employeeOptions}
-                placeholder={employeesLoading ? "Loading employees..." : "Select employee"}
+                placeholder={
+                  employeesLoading ? "Loading employees..." : "Select employee"
+                }
                 searchPlaceholder="Search employees..."
                 onValueChange={handleSelectChange("witness2Id")}
                 onAddOption={() => {
@@ -265,20 +296,26 @@ export function PourForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Storage Location *</label>
+            <label className="block text-sm font-semibold mb-2">
+              Storage Location *
+            </label>
             <Input
               value={formData.storageLocation}
-              onChange={(e) => setFormData({ ...formData, storageLocation: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, storageLocation: e.target.value })
+              }
               placeholder="e.g., Safe 1, Vault A"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
+            <label className="block text-sm font-semibold mb-2">Notes</label>
             <Textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, notes: e.target.value })
+              }
               rows={2}
               placeholder="Additional observations..."
             />
@@ -288,7 +325,9 @@ export function PourForm({
 
       <Button type="submit" className="w-full" size="lg" disabled={!canSubmit}>
         <Send className="mr-2 h-5 w-5" />
-        {createPourMutation.isPending ? "Recording..." : "Record Pour (Immutable)"}
+        {createPourMutation.isPending
+          ? "Recording..."
+          : "Record Pour (Immutable)"}
       </Button>
     </form>
   );

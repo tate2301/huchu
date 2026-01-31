@@ -10,9 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Badge,
-} from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Coins, Package, Scale } from "lucide-react";
 import { getApiErrorMessage } from "@/lib/api-client";
 import type { ShiftAllocation, WorkerPayout } from "@/app/gold/types";
@@ -29,7 +27,9 @@ export function GoldMenu({
   recentPours,
   incompleteDispatchCount,
 }: {
-  setViewMode: (mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit") => void;
+  setViewMode: (
+    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
+  ) => void;
   onOpenShiftModal: () => void;
   shiftAllocations: ShiftAllocation[];
   shiftAllocationsLoading: boolean;
@@ -62,8 +62,9 @@ export function GoldMenu({
         <Alert variant="destructive">
           <AlertTitle>Incomplete gold chain</AlertTitle>
           <AlertDescription>
-            {incompleteDispatchCount} dispatch{incompleteDispatchCount === 1 ? "" : "es"} recorded
-            without sale receipts. Review reconciliation to close the chain.
+            {incompleteDispatchCount} dispatch
+            {incompleteDispatchCount === 1 ? "" : "es"} recorded without sale
+            receipts. Review reconciliation to close the chain.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -85,25 +86,37 @@ export function GoldMenu({
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-lg border border-border p-3">
-              <div className="text-xs text-muted-foreground">Allocations recorded</div>
-              <div className="text-lg font-semibold">{shiftAllocations.length}</div>
+              <div className="text-xs text-muted-foreground">
+                Allocations recorded
+              </div>
+              <div className="text-lg font-semibold">
+                {shiftAllocations.length}
+              </div>
             </div>
             <div className="rounded-lg border border-border p-3">
               <div className="text-xs text-muted-foreground">Workers total</div>
-              <div className="text-lg font-semibold">{totalWorkerGold.toFixed(3)} g</div>
+              <div className="text-lg font-semibold">
+                {totalWorkerGold.toFixed(3)} g
+              </div>
             </div>
             <div className="rounded-lg border border-border p-3">
               <div className="text-xs text-muted-foreground">Company total</div>
-              <div className="text-lg font-semibold">{totalCompanyGold.toFixed(3)} g</div>
+              <div className="text-lg font-semibold">
+                {totalCompanyGold.toFixed(3)} g
+              </div>
             </div>
           </div>
 
           {shiftAllocationsLoading ? (
-            <div className="text-sm text-muted-foreground">Loading allocations...</div>
+            <div className="text-sm text-muted-foreground">
+              Loading allocations...
+            </div>
           ) : shiftAllocationsError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load allocations</AlertTitle>
-              <AlertDescription>{getApiErrorMessage(shiftAllocationsError)}</AlertDescription>
+              <AlertDescription>
+                {getApiErrorMessage(shiftAllocationsError)}
+              </AlertDescription>
             </Alert>
           ) : recentAllocations.length === 0 ? (
             <div className="text-sm text-muted-foreground">
@@ -112,14 +125,18 @@ export function GoldMenu({
           ) : (
             <div className="space-y-3">
               {recentAllocations.map((allocation) => (
-                <div key={allocation.id} className="rounded-lg border border-border p-3">
+                <div
+                  key={allocation.id}
+                  className="rounded-lg border border-border p-3"
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">
+                      <div className="font-semibold">
                         {allocation.site.name} - {allocation.date.slice(0, 10)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {allocation.shift} shift - {allocation.workerShares.length} workers
+                        {allocation.shift} shift -{" "}
+                        {allocation.workerShares.length} workers
                       </div>
                     </div>
                     <Badge variant="secondary">
@@ -175,7 +192,7 @@ export function GoldMenu({
                   className="flex items-center justify-between rounded-lg border border-border p-3"
                 >
                   <div>
-                    <div className="font-medium">{worker.name}</div>
+                    <div className="font-semibold">{worker.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {worker.employeeId}
                     </div>
@@ -202,7 +219,7 @@ export function GoldMenu({
             >
               <Coins className="h-5 w-5" />
               <div className="text-left">
-                <div className="font-medium">Record Pour</div>
+                <div className="font-semibold">Record Pour</div>
                 <div className="text-xs text-muted-foreground">
                   Create immutable gold pour entry
                 </div>
@@ -216,7 +233,7 @@ export function GoldMenu({
             >
               <Package className="h-5 w-5" />
               <div className="text-left">
-                <div className="font-medium">Dispatch</div>
+                <div className="font-semibold">Dispatch</div>
                 <div className="text-xs text-muted-foreground">
                   Generate chain-of-custody manifest
                 </div>
@@ -230,7 +247,7 @@ export function GoldMenu({
             >
               <Scale className="h-5 w-5" />
               <div className="text-left">
-                <div className="font-medium">Buyer Receipt</div>
+                <div className="font-semibold">Buyer Receipt</div>
                 <div className="text-xs text-muted-foreground">
                   Record assay and sale confirmation
                 </div>
@@ -243,7 +260,9 @@ export function GoldMenu({
       <Card>
         <CardHeader>
           <CardTitle>Reconciliation</CardTitle>
-          <CardDescription>Track complete chain of custody per bar</CardDescription>
+          <CardDescription>
+            Track complete chain of custody per bar
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="reconciliation">
@@ -264,7 +283,7 @@ export function GoldMenu({
                       className="flex items-center justify-between rounded-lg border border-border p-3"
                     >
                       <div>
-                        <div className="font-medium">{pour.id}</div>
+                        <div className="font-semibold">{pour.id}</div>
                         <div className="text-xs text-muted-foreground">
                           {pour.site} - {pour.date}
                         </div>
@@ -283,7 +302,11 @@ export function GoldMenu({
                     </div>
                   ))
                 )}
-                <Button variant="outline" className="w-full" onClick={() => setViewMode("reconciliation")}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setViewMode("reconciliation")}
+                >
                   View reconciliation
                 </Button>
               </div>
@@ -292,7 +315,11 @@ export function GoldMenu({
               <div className="space-y-3 text-sm text-muted-foreground">
                 Full audit trail available in the audit view.
               </div>
-              <Button variant="outline" className="w-full" onClick={() => setViewMode("audit")}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setViewMode("audit")}
+              >
                 View audit trail
               </Button>
             </TabsContent>

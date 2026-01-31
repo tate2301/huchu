@@ -39,6 +39,7 @@ export type EmployeeSummary = {
   nextOfKinPhone: string
   passportPhotoUrl: string
   villageOfOrigin: string
+  position: string
   isActive: boolean
 }
 
@@ -345,6 +346,7 @@ export async function fetchStockMovements(params: {
   siteId?: string
   itemId?: string
   movementType?: string
+  category?: string
   page?: number
   limit?: number
 } = {}) {

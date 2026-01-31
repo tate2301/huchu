@@ -5,7 +5,6 @@ import { z } from "zod"
 
 const inventoryItemUpdateSchema = z
   .object({
-    itemCode: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(200).optional(),
     category: z.enum(["FUEL", "SPARES", "CONSUMABLES", "PPE", "REAGENTS", "OTHER"]).optional(),
     siteId: z.string().uuid().optional(),
@@ -78,7 +77,6 @@ export async function PATCH(
     }
 
     const targetSiteId = validated.siteId ?? existing.siteId
-    const targetCode = validated.itemCode ?? existing.itemCode
     const minStock =
       validated.minStock === undefined ? existing.minStock : validated.minStock
     const maxStock =
@@ -116,11 +114,11 @@ export async function PATCH(
       }
     }
 
-    if (validated.itemCode || validated.siteId) {
+    if (validated.siteId) {
       const duplicate = await prisma.inventoryItem.findFirst({
         where: {
           id: { not: id },
-          itemCode: targetCode,
+          itemCode: existing.itemCode,
           siteId: targetSiteId,
         },
         select: { id: true },
@@ -134,7 +132,6 @@ export async function PATCH(
     const item = await prisma.inventoryItem.update({
       where: { id },
       data: {
-        itemCode: validated.itemCode,
         name: validated.name,
         category: validated.category,
         siteId: validated.siteId,

@@ -12,15 +12,25 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
-import { fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@/lib/api";
+import {
+  fetchGoldDispatches,
+  fetchGoldPours,
+  fetchGoldReceipts,
+} from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 
 export function ReconciliationView({
   setViewMode,
 }: {
-  setViewMode: (mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit") => void;
+  setViewMode: (
+    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
+  ) => void;
 }) {
-  const { data: poursData, isLoading: poursLoading, error: poursError } = useQuery({
+  const {
+    data: poursData,
+    isLoading: poursLoading,
+    error: poursError,
+  } = useQuery({
     queryKey: ["gold-pours"],
     queryFn: () => fetchGoldPours({ limit: 200 }),
   });
@@ -41,7 +51,10 @@ export function ReconciliationView({
     queryFn: () => fetchGoldReceipts({ limit: 200 }),
   });
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
+  const dispatches = useMemo(
+    () => dispatchesData?.data ?? [],
+    [dispatchesData],
+  );
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
   const dispatchByPourId = useMemo(() => {
     const map = new Map<string, (typeof dispatches)[number]>();
@@ -63,7 +76,9 @@ export function ReconciliationView({
       .sort((a, b) => b.pourDate.localeCompare(a.pourDate))
       .map((pour) => {
         const dispatch = dispatchByPourId.get(pour.id);
-        const receipt = dispatch ? receiptByDispatchId.get(dispatch.id) : undefined;
+        const receipt = dispatch
+          ? receiptByDispatchId.get(dispatch.id)
+          : undefined;
         const status = receipt ? "sold" : dispatch ? "moved" : "in-storage";
         return {
           id: pour.pourBarId,
@@ -77,7 +92,9 @@ export function ReconciliationView({
       });
   }, [dispatchByPourId, pours, receiptByDispatchId]);
   const incompleteTransfers = useMemo(
-    () => dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id)).length,
+    () =>
+      dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id))
+        .length,
     [dispatches, receiptByDispatchId],
   );
   const isLoading = poursLoading || dispatchesLoading || receiptsLoading;
@@ -99,8 +116,9 @@ export function ReconciliationView({
         <Alert variant="destructive">
           <AlertTitle>Incomplete gold chain</AlertTitle>
           <AlertDescription>
-            {incompleteTransfers} dispatch{incompleteTransfers === 1 ? "" : "es"} recorded
-            without a sale receipt. Follow up to close the chain of custody.
+            {incompleteTransfers} dispatch
+            {incompleteTransfers === 1 ? "" : "es"} recorded without a sale
+            receipt. Follow up to close the chain of custody.
           </AlertDescription>
         </Alert>
       )}
@@ -108,13 +126,19 @@ export function ReconciliationView({
       <Card>
         <CardHeader>
           <CardTitle>Gold Reconciliation</CardTitle>
-          <CardDescription>Complete chain: Pour, Dispatch, Sale receipt</CardDescription>
+          <CardDescription>
+            Complete chain: Pour, Dispatch, Sale receipt
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading reconciliation...</div>
+            <div className="text-sm text-muted-foreground">
+              Loading reconciliation...
+            </div>
           ) : reconciliationItems.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No gold pours recorded yet.</div>
+            <div className="text-sm text-muted-foreground">
+              No gold pours recorded yet.
+            </div>
           ) : (
             <div className="space-y-4">
               {reconciliationItems.map((pour) => (
@@ -122,7 +146,7 @@ export function ReconciliationView({
                   <div className="flex items-center justify-between mb-3">
                     <div className="font-semibold">{pour.id}</div>
                     <div
-                      className={`px-2 py-1 rounded text-xs font-medium ${
+                      className={`px-2 py-1 rounded text-xs font-semibold ${
                         pour.status === "sold"
                           ? "bg-green-100 text-green-800"
                           : pour.status === "moved"
@@ -141,7 +165,7 @@ export function ReconciliationView({
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      <span className="font-medium">Pour:</span>
+                      <span className="font-semibold">Pour:</span>
                       <span className="text-muted-foreground">
                         {pour.date} - {pour.site} - {pour.weight}g
                       </span>
@@ -150,9 +174,10 @@ export function ReconciliationView({
                     {pour.dispatch ? (
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        <span className="font-medium">Dispatch:</span>
+                        <span className="font-semibold">Dispatch:</span>
                         <span className="text-muted-foreground">
-                          Courier: {pour.dispatch.courier} - Seals: {pour.dispatch.sealNumbers}
+                          Courier: {pour.dispatch.courier} - Seals:{" "}
+                          {pour.dispatch.sealNumbers}
                         </span>
                       </div>
                     ) : null}
@@ -161,14 +186,15 @@ export function ReconciliationView({
                       <>
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                          <span className="font-medium">Sale receipt:</span>
+                          <span className="font-semibold">Sale receipt:</span>
                           <span className="text-muted-foreground">
-                            #{pour.receipt.receiptNumber} - Assay {pour.receipt.assayResult ?? "n/a"}g
+                            #{pour.receipt.receiptNumber} - Assay{" "}
+                            {pour.receipt.assayResult ?? "n/a"}g
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                          <span className="font-medium">Sale cleared:</span>
+                          <span className="font-semibold">Sale cleared:</span>
                           <span className="text-muted-foreground">
                             Paid weight {pour.receipt.paidAmount}g
                           </span>
@@ -179,14 +205,19 @@ export function ReconciliationView({
 
                   {pour.status === "in-storage" ? (
                     <div className="mt-3 pt-3 border-t">
-                      <p className="text-xs text-orange-600">Awaiting dispatch</p>
+                      <p className="text-xs text-orange-600">
+                        Awaiting dispatch
+                      </p>
                     </div>
                   ) : null}
                   {pour.status === "moved" ? (
                     <div className="mt-3 pt-3 border-t">
                       <div className="flex items-start gap-2 text-xs text-blue-600">
                         <AlertTriangle className="mt-0.5 h-3.5 w-3.5" />
-                        <span>Moved without sale. Record sale receipt to complete chain.</span>
+                        <span>
+                          Moved without sale. Record sale receipt to complete
+                          chain.
+                        </span>
                       </div>
                     </div>
                   ) : null}

@@ -71,11 +71,11 @@ export const navSections: NavSection[] = [
     title: "Stores & Fuel",
     description: "Inventory and fuel control",
     items: [
-      { href: "/stores?view=dashboard", icon: Package, label: "Dashboard" },
-      { href: "/stores?view=inventory", icon: Package, label: "Stock on Hand" },
-      { href: "/stores?view=fuel", icon: Fuel, label: "Fuel Ledger" },
-      { href: "/stores?view=issue", icon: Minus, label: "Issue Stock" },
-      { href: "/stores?view=receive", icon: Plus, label: "Receive Stock" },
+      { href: "/stores/dashboard", icon: Package, label: "Dashboard" },
+      { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
+      { href: "/stores/fuel", icon: Fuel, label: "Fuel Ledger" },
+      { href: "/stores/issue", icon: Minus, label: "Issue Stock" },
+      { href: "/stores/receive", icon: Plus, label: "Receive Stock" },
     ],
   },
   {

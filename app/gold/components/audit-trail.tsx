@@ -40,7 +40,9 @@ const mockAuditLog = [
 export function AuditTrail({
   setViewMode,
 }: {
-  setViewMode: (mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit") => void;
+  setViewMode: (
+    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
+  ) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -51,7 +53,9 @@ export function AuditTrail({
       <Card>
         <CardHeader>
           <CardTitle>Audit Trail</CardTitle>
-          <CardDescription>Immutable log of all gold operations</CardDescription>
+          <CardDescription>
+            Immutable log of all gold operations
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -64,9 +68,13 @@ export function AuditTrail({
                   {log.timestamp}
                 </div>
                 <div className="flex-1">
-                  <div className="font-medium text-sm">{log.action}</div>
-                  <div className="text-sm text-muted-foreground">{log.details}</div>
-                  <div className="text-xs text-muted-foreground mt-1">By: {log.user}</div>
+                  <div className="font-semibold text-sm">{log.action}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {log.details}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    By: {log.user}
+                  </div>
                 </div>
               </div>
             ))}
@@ -75,7 +83,9 @@ export function AuditTrail({
           <div className="mt-6 pt-4 border-t">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Shield className="h-4 w-4" />
-              <span>All entries are cryptographically secured and cannot be modified</span>
+              <span>
+                All entries are cryptographically secured and cannot be modified
+              </span>
             </div>
           </div>
         </CardContent>
