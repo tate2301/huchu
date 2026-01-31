@@ -52,6 +52,8 @@ model Site {
   inspections       Inspection[]
   stockLocations    StockLocation[]
   downtimeCodes     DowntimeCode[]
+  nvrs              NVR[]
+  cameras           Camera[]
   
   @@index([companyId])
 }
@@ -672,4 +674,188 @@ model VerificationToken {
   expires    DateTime
   
   @@unique([identifier, token])
+}
+
+// ============================================
+// CCTV / SURVEILLANCE INTEGRATION
+// ============================================
+
+model NVR {
+  id              String   @id @default(uuid())
+  name            String
+  ipAddress       String
+  port            Int      @default(554) // RTSP port
+  httpPort        Int      @default(80)  // ISAPI port
+  username        String
+  password        String   // Encrypted in production
+  siteId          String
+  manufacturer    String   @default("Hikvision")
+  model           String?
+  firmware        String?
+  isOnline        Boolean  @default(false)
+  lastHeartbeat   DateTime?
+  
+  // Network settings
+  rtspPort        Int      @default(554)
+  isapiEnabled    Boolean  @default(true)
+  onvifEnabled    Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  site            Site     @relation(fields: [siteId], references: [id])
+  cameras         Camera[]
+  events          CCTVEvent[]
+  
+  @@index([siteId])
+  @@index([ipAddress])
+}
+
+model Camera {
+  id              String   @id @default(uuid())
+  name            String
+  channelNumber   Int
+  nvrId           String
+  siteId          String
+  
+  // Location/Area
+  area            String   // "Gate", "Gold Room", "Crusher", "Processing"
+  description     String?
+  
+  // Stream configuration
+  mainStreamId    String?  // e.g., "101" for channel 1 main
+  subStreamId     String?  // e.g., "102" for channel 1 sub
+  
+  // Camera capabilities
+  hasPTZ          Boolean  @default(false)
+  hasAudio        Boolean  @default(false)
+  hasMotionDetect Boolean  @default(true)
+  hasLineDetect   Boolean  @default(false)
+  
+  // Status
+  isOnline        Boolean  @default(false)
+  isRecording     Boolean  @default(true)
+  lastSeen        DateTime?
+  
+  // Business context
+  isHighSecurity  Boolean  @default(false) // e.g., gold room cameras
+  requiredUptime  Float?   // percentage
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  nvr             NVR      @relation(fields: [nvrId], references: [id])
+  site            Site     @relation(fields: [siteId], references: [id])
+  events          CCTVEvent[]
+  playbackRecords PlaybackRecord[]
+  accessLogs      CameraAccessLog[]
+  
+  @@unique([nvrId, channelNumber])
+  @@index([siteId])
+  @@index([nvrId])
+  @@index([area])
+}
+
+enum CCTVEventType {
+  MOTION_DETECTION
+  LINE_CROSSING
+  INTRUSION
+  VIDEO_LOSS
+  DISK_FULL
+  DISK_ERROR
+  NETWORK_DISCONNECTED
+  ILLEGAL_ACCESS
+  ALARM_INPUT
+  TAMPERING
+}
+
+enum EventSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model CCTVEvent {
+  id              String         @id @default(uuid())
+  nvrId           String?
+  cameraId        String?
+  eventType       CCTVEventType
+  severity        EventSeverity  @default(MEDIUM)
+  eventTime       DateTime
+  
+  // Event details
+  title           String
+  description     String?
+  snapshotUrl     String?        // URL to event snapshot
+  
+  // Context
+  linkedIncidentId String?       // Link to Incident model if escalated
+  
+  // Status
+  isAcknowledged  Boolean        @default(false)
+  acknowledgedBy  String?
+  acknowledgedAt  DateTime?
+  notes           String?
+  
+  createdAt       DateTime       @default(now())
+  
+  nvr             NVR?           @relation(fields: [nvrId], references: [id])
+  camera          Camera?        @relation(fields: [cameraId], references: [id])
+  
+  @@index([eventTime])
+  @@index([cameraId])
+  @@index([eventType])
+  @@index([isAcknowledged])
+}
+
+model PlaybackRecord {
+  id              String   @id @default(uuid())
+  cameraId        String
+  startTime       DateTime
+  endTime         DateTime
+  fileSize        Int?     // in MB
+  
+  // Playback access
+  playbackUri     String?  // RTSP URI for playback
+  recordingType   String   @default("CONTINUOUS") // CONTINUOUS, EVENT, MANUAL
+  
+  // Metadata
+  duration        Int?     // in seconds
+  hasAudio        Boolean  @default(false)
+  resolution      String?  // e.g., "1920x1080"
+  
+  // Access tracking
+  requestedBy     String?  // User who requested playback
+  purpose         String?  // "Incident review", "Audit", etc.
+  
+  createdAt       DateTime @default(now())
+  
+  camera          Camera   @relation(fields: [cameraId], references: [id])
+  
+  @@index([cameraId])
+  @@index([startTime, endTime])
+}
+
+model CameraAccessLog {
+  id              String   @id @default(uuid())
+  cameraId        String
+  userId          String?
+  accessType      String   // "LIVE_VIEW", "PLAYBACK", "PTZ_CONTROL"
+  startTime       DateTime
+  endTime         DateTime?
+  duration        Int?     // in seconds
+  ipAddress       String?
+  
+  // Business context
+  purpose         String?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  
+  camera          Camera   @relation(fields: [cameraId], references: [id])
+  
+  @@index([cameraId])
+  @@index([userId])
+  @@index([startTime])
 }
