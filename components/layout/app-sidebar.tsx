@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useSession } from "next-auth/react";
 
-import { navSections } from "@/lib/navigation";
+import { getNavSectionsForRole, getQuickActionsForRole } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -38,10 +38,18 @@ export function AppSidebar() {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
   const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const sections = React.useMemo(() => getNavSectionsForRole(role), [role]);
+  const quickActions = React.useMemo(() => getQuickActionsForRole(role), [role]);
   const [openSections, setOpenSections] = React.useState(
-    () => new Set(navSections.map((section) => section.id)),
+    () => new Set(sections.map((section) => section.id)),
   );
+
+  React.useEffect(() => {
+    setOpenSections(new Set(sections.map((section) => section.id)));
+  }, [sections]);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => {
@@ -63,9 +71,30 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {navSections.map((section) => {
+        {!isCollapsed ? (
+          <SidebarGroup>
+            <SidebarGroupLabel className="px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Today&apos;s Work
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {quickActions.slice(0, 5).map((action) => (
+                  <SidebarMenuItem key={action.href}>
+                    <SidebarMenuButton asChild tooltip={action.description}>
+                      <Link href={action.href}>
+                        <action.icon className="h-4 w-4" />
+                        <span>{action.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {sections.map((section) => {
           const isOpen = openSections.has(section.id);
-          const isCollapsed = state === "collapsed";
           return (
             <SidebarGroup key={section.id}>
               {!isCollapsed ? (

@@ -21,7 +21,7 @@ const routeLabels: Record<string, string> = {
   reports: "Reports",
   shift: "Shift",
   "shift-report": "Shift Report",
-  stores: "Stores",
+  stores: "Stock & Fuel",
 };
 
 const viewLabels: Record<string, Record<string, string>> = {
@@ -35,6 +35,7 @@ const viewLabels: Record<string, Record<string, string>> = {
   stores: {
     dashboard: "Dashboard",
     inventory: "Stock on Hand",
+    movements: "Action Log",
     fuel: "Fuel Ledger",
     issue: "Issue Stock",
     receive: "Receive Stock",
@@ -42,7 +43,7 @@ const viewLabels: Record<string, Record<string, string>> = {
   gold: {
     menu: "Overview",
     pour: "Record Pour",
-    dispatch: "Dispatch Manifest",
+    dispatch: "Create Dispatch",
     receipt: "Buyer Receipt",
     payouts: "Worker Payouts",
     reconciliation: "Reconciliation",
