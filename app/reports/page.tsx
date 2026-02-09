@@ -1,274 +1,693 @@
-"use client"
+"use client";
 
-import { useMemo, useRef, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { format, subDays } from "date-fns"
+import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { format, subDays } from "date-fns";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { PageHeading } from "@/components/layout/page-heading"
-import { StatusState } from "@/components/shared/status-state"
-import { PdfTemplate } from "@/components/pdf/pdf-template"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
-import { fetchDowntimeAnalytics, fetchPlantReports, fetchShiftReports, fetchSites } from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
-import { exportElementToPdf } from "@/lib/pdf"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { PageHeading } from "@/components/layout/page-heading";
+import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  fetchAttendance,
+  fetchCCTVEvents,
+  fetchDowntimeAnalytics,
+  fetchGoldDispatches,
+  fetchGoldPours,
+  fetchGoldReceipts,
+  fetchIncidents,
+  fetchPlantReports,
+  fetchShiftReports,
+  fetchSites,
+  fetchStockMovements,
+  fetchWorkOrders,
+} from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-client";
+import { exportElementToPdf } from "@/lib/pdf";
+
+type ReportType =
+  | "operations"
+  | "attendance"
+  | "stores"
+  | "gold"
+  | "compliance"
+  | "maintenance"
+  | "cctv";
+
+const REPORT_LABELS: Record<ReportType, string> = {
+  operations: "Operations",
+  attendance: "Attendance",
+  stores: "Stores Movements",
+  gold: "Gold Chain",
+  compliance: "Compliance Incidents",
+  maintenance: "Maintenance Work Orders",
+  cctv: "CCTV Events",
+};
 
 export default function ReportsPage() {
-  const today = new Date()
-  const [selectedSite, setSelectedSite] = useState("all")
-  const [startDate, setStartDate] = useState(format(subDays(today, 6), "yyyy-MM-dd"))
-  const [endDate, setEndDate] = useState(format(today, "yyyy-MM-dd"))
-  const [exporting, setExporting] = useState(false)
-  const reportPdfRef = useRef<HTMLDivElement>(null)
-  const siteFilterId = "reports-site-filter"
-  const startDateFilterId = "reports-start-date-filter"
-  const endDateFilterId = "reports-end-date-filter"
+  const { toast } = useToast();
+  const today = new Date();
+  const [selectedSite, setSelectedSite] = useState("all");
+  const [startDate, setStartDate] = useState(format(subDays(today, 6), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(format(today, "yyyy-MM-dd"));
+  const [selectedReport, setSelectedReport] = useState<ReportType>("operations");
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const reportPdfRef = useRef<HTMLDivElement>(null);
+
+  const siteFilterId = "reports-site-filter";
+  const reportFilterId = "reports-type-filter";
+  const startDateFilterId = "reports-start-date-filter";
+  const endDateFilterId = "reports-end-date-filter";
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
-  })
+  });
 
-  const siteId = selectedSite === "all" ? undefined : selectedSite
+  const siteId = selectedSite === "all" ? undefined : selectedSite;
 
-  const {
-    data: plantReports,
-    isLoading: plantLoading,
-    error: plantError,
-  } = useQuery({
+  const { data: plantReports, isLoading: plantLoading, error: plantError } = useQuery({
     queryKey: ["plant-reports", siteId ?? "all", startDate, endDate],
-    queryFn: () =>
-      fetchPlantReports({
-        siteId,
-        startDate,
-        endDate,
-        limit: 200,
-      }),
+    queryFn: () => fetchPlantReports({ siteId, startDate, endDate, limit: 200 }),
     enabled: !!startDate && !!endDate,
-  })
+  });
 
-  const {
-    data: shiftReports,
-    isLoading: shiftLoading,
-    error: shiftError,
-  } = useQuery({
+  const { data: shiftReports, isLoading: shiftLoading, error: shiftError } = useQuery({
     queryKey: ["shift-reports", siteId ?? "all", startDate, endDate],
-    queryFn: () =>
-      fetchShiftReports({
-        siteId,
-        startDate,
-        endDate,
-        limit: 200,
-      }),
+    queryFn: () => fetchShiftReports({ siteId, startDate, endDate, limit: 200 }),
     enabled: !!startDate && !!endDate,
-  })
+  });
+
+  const { data: attendanceData, isLoading: attendanceLoading, error: attendanceError } = useQuery({
+    queryKey: ["attendance", siteId ?? "all", startDate, endDate],
+    queryFn: () => fetchAttendance({ siteId, startDate, endDate, limit: 200 }),
+    enabled: !!startDate && !!endDate,
+  });
+
+  const { data: movementData, isLoading: movementLoading, error: movementError } = useQuery({
+    queryKey: ["stock-movements", siteId ?? "all", startDate, endDate],
+    queryFn: () => fetchStockMovements({ siteId, page: 1, limit: 200 }),
+    enabled: !!startDate && !!endDate,
+  });
+
+  const { data: goldPoursData, isLoading: goldPoursLoading, error: goldPoursError } = useQuery({
+    queryKey: ["gold-pours", siteId ?? "all"],
+    queryFn: () => fetchGoldPours({ siteId, limit: 200 }),
+  });
+
+  const { data: goldDispatchesData, isLoading: goldDispatchesLoading, error: goldDispatchesError } = useQuery({
+    queryKey: ["gold-dispatches", siteId ?? "all"],
+    queryFn: () => fetchGoldDispatches({ siteId, limit: 200 }),
+  });
+
+  const { data: goldReceiptsData, isLoading: goldReceiptsLoading, error: goldReceiptsError } = useQuery({
+    queryKey: ["gold-receipts", siteId ?? "all"],
+    queryFn: () => fetchGoldReceipts({ siteId, limit: 200 }),
+  });
+
+  const { data: incidentData, isLoading: incidentLoading, error: incidentError } = useQuery({
+    queryKey: ["incidents", siteId ?? "all", startDate, endDate],
+    queryFn: () => fetchIncidents({ siteId, startDate, endDate, page: 1, limit: 200 }),
+    enabled: !!startDate && !!endDate,
+  });
+
+  const { data: workOrderData, isLoading: workOrderLoading, error: workOrderError } = useQuery({
+    queryKey: ["work-orders", siteId ?? "all"],
+    queryFn: () => fetchWorkOrders({ siteId, page: 1, limit: 200 }),
+  });
+
+  const { data: cctvEventData, isLoading: cctvLoading, error: cctvError } = useQuery({
+    queryKey: ["cctv-events", startDate, endDate],
+    queryFn: () => fetchCCTVEvents({ startDate, endDate, page: 1, limit: 200 }),
+    enabled: !!startDate && !!endDate,
+  });
 
   const {
     data: downtimeAnalytics,
     isLoading: downtimeLoading,
     error: downtimeError,
   } = useQuery({
-    queryKey: ["downtime-analytics", siteId, startDate, endDate],
-    queryFn: () =>
-      fetchDowntimeAnalytics({
-        siteId: siteId ?? "",
-        startDate,
-        endDate,
-      }),
+    queryKey: ["downtime-analytics", siteId ?? "", startDate, endDate],
+    queryFn: () => fetchDowntimeAnalytics({ siteId: siteId ?? "", startDate, endDate }),
     enabled: !!siteId && !!startDate && !!endDate,
-  })
+  });
 
-  const reportData = useMemo(() => plantReports?.data ?? [], [plantReports?.data])
-  const shiftData = useMemo(() => shiftReports?.data ?? [], [shiftReports?.data])
+  const plantData = useMemo(() => plantReports?.data ?? [], [plantReports]);
+  const shiftData = useMemo(() => shiftReports?.data ?? [], [shiftReports]);
+  const attendanceRows = useMemo(() => attendanceData?.data ?? [], [attendanceData]);
+  const movementRows = useMemo(() => movementData?.data ?? [], [movementData]);
+  const pours = useMemo(() => goldPoursData?.data ?? [], [goldPoursData]);
+  const dispatches = useMemo(() => goldDispatchesData?.data ?? [], [goldDispatchesData]);
+  const receipts = useMemo(() => goldReceiptsData?.data ?? [], [goldReceiptsData]);
+  const incidents = useMemo(() => incidentData?.data ?? [], [incidentData]);
+  const workOrders = useMemo(() => workOrderData?.data ?? [], [workOrderData]);
+  const cctvEvents = useMemo(() => cctvEventData?.data ?? [], [cctvEventData]);
 
-  const summary = useMemo(() => {
-    return reportData.reduce(
-      (acc, report) => {
-        acc.tonnesProcessed += report.tonnesProcessed ?? 0
-        acc.tonnesFed += report.tonnesFed ?? 0
-        acc.goldRecovered += report.goldRecovered ?? 0
-        acc.runHours += report.runHours ?? 0
-        acc.dieselUsed += report.dieselUsed ?? 0
-        acc.reagentsUsed += report.reagentsUsed ?? 0
-        acc.reportCount += 1
-        acc.downtimeHours +=
-          report.downtimeEvents?.reduce((total, event) => total + event.durationHours, 0) ?? 0
-        return acc
-      },
-      {
-        tonnesProcessed: 0,
-        tonnesFed: 0,
-        goldRecovered: 0,
-        runHours: 0,
-        dieselUsed: 0,
-        reagentsUsed: 0,
-        reportCount: 0,
-        downtimeHours: 0,
-      }
-    )
-  }, [reportData])
+  const summary = useMemo(
+    () =>
+      plantData.reduce(
+        (acc, report) => {
+          acc.tonnesProcessed += report.tonnesProcessed ?? 0;
+          acc.goldRecovered += report.goldRecovered ?? 0;
+          acc.runHours += report.runHours ?? 0;
+          return acc;
+        },
+        { tonnesProcessed: 0, goldRecovered: 0, runHours: 0 },
+      ),
+    [plantData],
+  );
 
-  const siteSummary = useMemo(() => {
-    const totals = new Map<
-      string,
-      {
-        siteName: string
-        tonnesProcessed: number
-        goldRecovered: number
-        runHours: number
-        downtimeHours: number
-      }
-    >()
+  const shiftByWorkType = useMemo(() => {
+    const totals = new Map<string, { reports: number; crew: number }>();
+    shiftData.forEach((row) => {
+      const current = totals.get(row.workType) ?? { reports: 0, crew: 0 };
+      current.reports += 1;
+      current.crew += row.crewCount ?? 0;
+      totals.set(row.workType, current);
+    });
+    return Array.from(totals.entries());
+  }, [shiftData]);
 
-    reportData.forEach((report) => {
-      const key = report.site?.name ?? "Unknown site"
-      const current =
-        totals.get(key) ?? {
-          siteName: key,
-          tonnesProcessed: 0,
-          goldRecovered: 0,
-          runHours: 0,
-          downtimeHours: 0,
-        }
-      current.tonnesProcessed += report.tonnesProcessed ?? 0
-      current.goldRecovered += report.goldRecovered ?? 0
-      current.runHours += report.runHours ?? 0
-      current.downtimeHours +=
-        report.downtimeEvents?.reduce((total, event) => total + event.durationHours, 0) ?? 0
-      totals.set(key, current)
-    })
+  const dispatchByPourId = useMemo(() => {
+    const map = new Map<string, (typeof dispatches)[number]>();
+    dispatches.forEach((dispatch) => map.set(dispatch.goldPourId, dispatch));
+    return map;
+  }, [dispatches]);
 
-    return Array.from(totals.values()).sort((a, b) => b.tonnesProcessed - a.tonnesProcessed)
-  }, [reportData])
+  const receiptByDispatchId = useMemo(() => {
+    const map = new Map<string, (typeof receipts)[number]>();
+    receipts.forEach((receipt) => map.set(receipt.goldDispatch.id, receipt));
+    return map;
+  }, [receipts]);
 
-  const workTypeSummary = useMemo(() => {
-    return shiftData.reduce<Record<string, { count: number; crew: number }>>((acc, report) => {
-      const key = report.workType
-      if (!acc[key]) acc[key] = { count: 0, crew: 0 }
-      acc[key].count += 1
-      acc[key].crew += report.crewCount ?? 0
-      return acc
-    }, {})
-  }, [shiftData])
+  const goldChainRows = useMemo(
+    () =>
+      pours.map((pour) => {
+        const dispatch = dispatchByPourId.get(pour.id);
+        const receipt = dispatch ? receiptByDispatchId.get(dispatch.id) : undefined;
+        const status = receipt ? "RECEIPTED" : dispatch ? "DISPATCHED" : "POURED";
+        return {
+          pour,
+          dispatch,
+          receipt,
+          status,
+        };
+      }),
+    [dispatchByPourId, pours, receiptByDispatchId],
+  );
 
-  const hasErrors = sitesError || plantError || shiftError || downtimeError
-  const isLoading = plantLoading || shiftLoading || sitesLoading
   const activeSiteName =
     selectedSite === "all"
       ? "All sites"
-      : sites?.find((site) => site.id === selectedSite)?.name ?? "Selected site"
+      : sites?.find((site) => site.id === selectedSite)?.name ?? "Selected site";
 
-  const handleExport = async () => {
-    if (!reportPdfRef.current) return
-    setExporting(true)
-    try {
-      exportElementToPdf(reportPdfRef.current, `reports-${startDate}-to-${endDate}.pdf`)
-    } finally {
-      setExporting(false)
-    }
-  }
+  const hasAnyError =
+    sitesError ||
+    plantError ||
+    shiftError ||
+    attendanceError ||
+    movementError ||
+    goldPoursError ||
+    goldDispatchesError ||
+    goldReceiptsError ||
+    incidentError ||
+    workOrderError ||
+    cctvError ||
+    downtimeError;
+
+  const isLoadingAny =
+    sitesLoading ||
+    plantLoading ||
+    shiftLoading ||
+    attendanceLoading ||
+    movementLoading ||
+    goldPoursLoading ||
+    goldDispatchesLoading ||
+    goldReceiptsLoading ||
+    incidentLoading ||
+    workOrderLoading ||
+    cctvLoading;
 
   const downloadCsv = (filename: string, rows: Array<Array<string | number>>) => {
     const csv = rows
       .map((row) =>
         row
           .map((value) => {
-            const text = String(value ?? "")
+            const text = String(value ?? "");
             if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
-              return `"${text.replace(/"/g, "\"\"")}"`
+              return `"${text.replace(/"/g, '""')}"`;
             }
-            return text
+            return text;
           })
           .join(","),
       )
-      .join("\n")
+      .join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.setAttribute("download", filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-  }
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
-  const handleExportPlantCsv = () => {
+  const handleExportCsv = () => {
+    if (selectedReport === "operations") {
+      const rows = [
+        ["Date", "Site", "Tonnes Processed", "Gold Recovered", "Run Hours", "Downtime Hours"],
+        ...plantData.map((report) => {
+          const downtimeHours =
+            report.downtimeEvents?.reduce((total, event) => total + event.durationHours, 0) ?? 0;
+          return [
+            format(new Date(report.date), "yyyy-MM-dd"),
+            report.site?.name ?? "",
+            report.tonnesProcessed ?? 0,
+            report.goldRecovered ?? 0,
+            report.runHours ?? 0,
+            downtimeHours,
+          ];
+        }),
+      ];
+      downloadCsv(`operations-${startDate}-to-${endDate}.csv`, rows);
+      return;
+    }
+
+    if (selectedReport === "attendance") {
+      const rows = [
+        ["Date", "Site", "Shift", "Employee", "Employee ID", "Status", "Overtime"],
+        ...attendanceRows.map((row) => [
+          format(new Date(row.date), "yyyy-MM-dd"),
+          row.site?.name ?? "",
+          row.shift,
+          row.employee?.name ?? "",
+          row.employee?.employeeId ?? "",
+          row.status,
+          row.overtime ?? "",
+        ]),
+      ];
+      downloadCsv(`attendance-${startDate}-to-${endDate}.csv`, rows);
+      return;
+    }
+
+    if (selectedReport === "stores") {
+      const rows = [
+        ["Date", "Type", "Item", "Quantity", "Unit", "Site", "Issued To", "Requested By"],
+        ...movementRows.map((row) => [
+          format(new Date(row.createdAt), "yyyy-MM-dd"),
+          row.movementType,
+          row.item?.name ?? "",
+          row.quantity,
+          row.unit,
+          row.item?.site?.name ?? "",
+          row.issuedTo ?? "",
+          row.requestedBy ?? "",
+        ]),
+      ];
+      downloadCsv(`stores-${startDate}-to-${endDate}.csv`, rows);
+      return;
+    }
+
+    if (selectedReport === "gold") {
+      const rows = [
+        ["Pour Date", "Pour Bar", "Site", "Weight", "Dispatch Date", "Receipt Date", "Status"],
+        ...goldChainRows.map((row) => [
+          format(new Date(row.pour.pourDate), "yyyy-MM-dd"),
+          row.pour.pourBarId,
+          row.pour.site?.name ?? "",
+          row.pour.grossWeight,
+          row.dispatch ? format(new Date(row.dispatch.dispatchDate), "yyyy-MM-dd") : "",
+          row.receipt ? format(new Date(row.receipt.receiptDate), "yyyy-MM-dd") : "",
+          row.status,
+        ]),
+      ];
+      downloadCsv(`gold-chain-${startDate}-to-${endDate}.csv`, rows);
+      return;
+    }
+
+    if (selectedReport === "compliance") {
+      const rows = [
+        ["Date", "Site", "Type", "Severity", "Status", "Reported By"],
+        ...incidents.map((row) => [
+          format(new Date(row.incidentDate), "yyyy-MM-dd"),
+          row.site?.name ?? "",
+          row.incidentType,
+          row.severity,
+          row.status,
+          row.reportedBy,
+        ]),
+      ];
+      downloadCsv(`compliance-${startDate}-to-${endDate}.csv`, rows);
+      return;
+    }
+
+    if (selectedReport === "maintenance") {
+      const rows = [
+        ["Created", "Site", "Equipment", "Issue", "Status", "Technician"],
+        ...workOrders.map((row) => [
+          format(new Date(row.createdAt), "yyyy-MM-dd"),
+          row.equipment?.site?.name ?? "",
+          row.equipment?.name ?? "",
+          row.issue,
+          row.status,
+          row.technician?.name ?? "",
+        ]),
+      ];
+      downloadCsv(`maintenance-${startDate}-to-${endDate}.csv`, rows);
+      return;
+    }
+
     const rows = [
-      [
-        "Date",
-        "Site",
-        "Tonnes Processed",
-        "Tonnes Fed",
-        "Gold Recovered (g)",
-        "Run Hours",
-        "Downtime Hours",
-        "Diesel Used",
-        "Reagents Used",
-      ],
-      ...reportData.map((report) => {
-        const downtimeHours =
-          report.downtimeEvents?.reduce((total, event) => total + event.durationHours, 0) ?? 0
-        return [
-          format(new Date(report.date), "yyyy-MM-dd"),
-          report.site?.name ?? "",
-          report.tonnesProcessed ?? 0,
-          report.tonnesFed ?? 0,
-          report.goldRecovered ?? 0,
-          report.runHours ?? 0,
-          downtimeHours,
-          report.dieselUsed ?? 0,
-          report.reagentsUsed ?? 0,
-        ]
-      }),
-    ]
-
-    downloadCsv(`plant-reports-${startDate}-to-${endDate}.csv`, rows)
-  }
-
-  const handleExportShiftCsv = () => {
-    const rows = [
-      ["Date", "Site", "Shift", "Work Type", "Crew Count", "Status"],
-      ...shiftData.map((report) => [
-        format(new Date(report.date), "yyyy-MM-dd"),
-        report.site?.name ?? "",
-        report.shift,
-        report.workType,
-        report.crewCount,
-        report.status,
+      ["Event Time", "Type", "Severity", "Title", "Acknowledged", "Camera"],
+      ...cctvEvents.map((row) => [
+        format(new Date(row.eventTime), "yyyy-MM-dd HH:mm"),
+        row.eventType,
+        row.severity,
+        row.title,
+        row.isAcknowledged ? "Yes" : "No",
+        row.camera?.name ?? "",
       ]),
-    ]
+    ];
+    downloadCsv(`cctv-${startDate}-to-${endDate}.csv`, rows);
+  };
 
-    downloadCsv(`shift-reports-${startDate}-to-${endDate}.csv`, rows)
-  }
+  const handleExportPdf = async () => {
+    if (!reportPdfRef.current) return;
+    setExportingPdf(true);
+    try {
+      await exportElementToPdf(
+        reportPdfRef.current,
+        `${selectedReport}-${startDate}-to-${endDate}.pdf`,
+      );
+    } catch (error) {
+      toast({
+        title: "PDF export failed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const renderSelectedReport = (compact = false) => {
+    if (selectedReport === "operations") {
+      return (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Tonnes Processed</p>
+              <p className="text-2xl font-semibold">{summary.tonnesProcessed.toFixed(1)}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Gold Recovered</p>
+              <p className="text-2xl font-semibold">{summary.goldRecovered.toFixed(2)} g</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Run Hours</p>
+              <p className="text-2xl font-semibold">{summary.runHours.toFixed(1)}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Downtime</p>
+              <p className="text-2xl font-semibold">
+                {downtimeLoading || !siteId ? "-" : `${downtimeAnalytics?.totalDowntimeHours.toFixed(1) ?? "0.0"}h`}
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">Tonnes Processed</th>
+                  <th className="py-2">Gold Recovered</th>
+                  <th className="py-2">Run Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plantData.map((report) => (
+                  <tr key={report.id} className="border-b">
+                    <td className="py-2">{format(new Date(report.date), "MMM d, yyyy")}</td>
+                    <td className="py-2">{report.site?.name ?? ""}</td>
+                    <td className="py-2">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
+                    <td className="py-2">{(report.goldRecovered ?? 0).toFixed(2)}</td>
+                    <td className="py-2">{(report.runHours ?? 0).toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2">Work Type</th>
+                  <th className="py-2">Reports</th>
+                  <th className="py-2">Crew Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shiftByWorkType.map(([workType, totals]) => (
+                  <tr key={workType} className="border-b">
+                    <td className="py-2">{workType}</td>
+                    <td className="py-2">{totals.reports}</td>
+                    <td className="py-2">{totals.crew}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedReport === "attendance") {
+      return (
+        <div className="overflow-x-auto">
+          <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-2">Date</th>
+                <th className="py-2">Site</th>
+                <th className="py-2">Shift</th>
+                <th className="py-2">Employee</th>
+                <th className="py-2">Status</th>
+                <th className="py-2">Overtime</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attendanceRows.map((row) => (
+                <tr key={row.id} className="border-b">
+                  <td className="py-2">{format(new Date(row.date), "MMM d, yyyy")}</td>
+                  <td className="py-2">{row.site?.name}</td>
+                  <td className="py-2">{row.shift}</td>
+                  <td className="py-2">{row.employee?.name}</td>
+                  <td className="py-2">{row.status}</td>
+                  <td className="py-2">{row.overtime ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (selectedReport === "stores") {
+      return (
+        <div className="overflow-x-auto">
+          <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-2">Date</th>
+                <th className="py-2">Type</th>
+                <th className="py-2">Item</th>
+                <th className="py-2">Qty</th>
+                <th className="py-2">Site</th>
+                <th className="py-2">Issued To</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movementRows.map((row) => (
+                <tr key={row.id} className="border-b">
+                  <td className="py-2">{format(new Date(row.createdAt), "MMM d, yyyy")}</td>
+                  <td className="py-2">{row.movementType}</td>
+                  <td className="py-2">{row.item?.name}</td>
+                  <td className="py-2">{row.quantity} {row.unit}</td>
+                  <td className="py-2">{row.item?.site?.name}</td>
+                  <td className="py-2">{row.issuedTo ?? row.requestedBy ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (selectedReport === "gold") {
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Pours</p>
+              <p className="text-2xl font-semibold">{pours.length}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Dispatches</p>
+              <p className="text-2xl font-semibold">{dispatches.length}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">Receipts</p>
+              <p className="text-2xl font-semibold">{receipts.length}</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2">Pour Date</th>
+                  <th className="py-2">Bar ID</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">Weight</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {goldChainRows.map((row) => (
+                  <tr key={row.pour.id} className="border-b">
+                    <td className="py-2">{format(new Date(row.pour.pourDate), "MMM d, yyyy")}</td>
+                    <td className="py-2">{row.pour.pourBarId}</td>
+                    <td className="py-2">{row.pour.site?.name}</td>
+                    <td className="py-2">{row.pour.grossWeight.toFixed(2)} g</td>
+                    <td className="py-2">{row.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedReport === "compliance") {
+      return (
+        <div className="overflow-x-auto">
+          <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-2">Date</th>
+                <th className="py-2">Site</th>
+                <th className="py-2">Type</th>
+                <th className="py-2">Severity</th>
+                <th className="py-2">Status</th>
+                <th className="py-2">Reported By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidents.map((row) => (
+                <tr key={row.id} className="border-b">
+                  <td className="py-2">{format(new Date(row.incidentDate), "MMM d, yyyy")}</td>
+                  <td className="py-2">{row.site?.name}</td>
+                  <td className="py-2">{row.incidentType}</td>
+                  <td className="py-2">{row.severity}</td>
+                  <td className="py-2">{row.status}</td>
+                  <td className="py-2">{row.reportedBy}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (selectedReport === "maintenance") {
+      return (
+        <div className="overflow-x-auto">
+          <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-2">Created</th>
+                <th className="py-2">Site</th>
+                <th className="py-2">Equipment</th>
+                <th className="py-2">Issue</th>
+                <th className="py-2">Status</th>
+                <th className="py-2">Technician</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workOrders.map((row) => (
+                <tr key={row.id} className="border-b">
+                  <td className="py-2">{format(new Date(row.createdAt), "MMM d, yyyy")}</td>
+                  <td className="py-2">{row.equipment?.site?.name}</td>
+                  <td className="py-2">{row.equipment?.name}</td>
+                  <td className="py-2">{row.issue}</td>
+                  <td className="py-2">{row.status}</td>
+                  <td className="py-2">{row.technician?.name ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className={compact ? "w-full text-xs" : "w-full text-sm"}>
+          <thead>
+            <tr className="border-b text-left">
+              <th className="py-2">Event Time</th>
+              <th className="py-2">Type</th>
+              <th className="py-2">Severity</th>
+              <th className="py-2">Title</th>
+              <th className="py-2">Ack</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cctvEvents.map((row) => (
+              <tr key={row.id} className="border-b">
+                <td className="py-2">{format(new Date(row.eventTime), "MMM d, yyyy HH:mm")}</td>
+                <td className="py-2">{row.eventType}</td>
+                <td className="py-2">{row.severity}</td>
+                <td className="py-2">{row.title}</td>
+                <td className="py-2">{row.isAcknowledged ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeading title="Reports" description="Generate production and downtime summaries" />
+      <PageHeading title="Reports" description="Generate reports across all platform modules" />
 
-      {hasErrors && (
+      {hasAnyError && (
         <Alert variant="destructive">
-          <AlertTitle>Unable to load reports</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(sitesError || plantError || shiftError || downtimeError)}
-          </AlertDescription>
+          <AlertTitle>Unable to load some report data</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(hasAnyError)}</AlertDescription>
         </Alert>
       )}
 
       <Card>
         <CardHeader>
           <CardTitle>Report Filters</CardTitle>
-          <CardDescription>Select site and date range</CardDescription>
+          <CardDescription>Select report scope and date range</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold mb-2" htmlFor={siteFilterId}>
+              <label className="mb-2 block text-sm font-semibold" htmlFor={siteFilterId}>
                 Site
               </label>
               {sitesLoading ? (
@@ -297,7 +716,25 @@ export default function ReportsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" htmlFor={startDateFilterId}>
+              <label className="mb-2 block text-sm font-semibold" htmlFor={reportFilterId}>
+                Report Type
+              </label>
+              <Select value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
+                <SelectTrigger id={reportFilterId} className="w-full">
+                  <SelectValue placeholder="Select report" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(REPORT_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold" htmlFor={startDateFilterId}>
                 Start Date
               </label>
               <Input
@@ -309,7 +746,7 @@ export default function ReportsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" htmlFor={endDateFilterId}>
+              <label className="mb-2 block text-sm font-semibold" htmlFor={endDateFilterId}>
                 End Date
               </label>
               <Input
@@ -321,322 +758,73 @@ export default function ReportsPage() {
             </div>
 
             <div className="md:col-span-4 flex flex-wrap items-center gap-3">
-              <Button onClick={handleExport} disabled={exporting || isLoading}>
-                {exporting ? "Exporting..." : "Export PDF"}
+              <Button onClick={handleExportPdf} disabled={exportingPdf || isLoadingAny}>
+                {exportingPdf ? "Exporting..." : "Export PDF"}
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleExportPlantCsv}
-                disabled={isLoading}
-              >
-                Export Plant CSV
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleExportShiftCsv}
-                disabled={isLoading}
-              >
-                Export Shift CSV
+              <Button variant="outline" onClick={handleExportCsv} disabled={isLoadingAny}>
+                Export CSV
               </Button>
               <p className="text-xs text-muted-foreground">
-                Export includes production, downtime, and shift summaries.
+                Selected report: {REPORT_LABELS[selectedReport]} ({startDate} to {endDate})
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {!isLoading && reportData.length === 0 && shiftData.length === 0 ? (
-        <StatusState
-          variant="empty"
-          title="No report data for this range"
-          description="Try widening the date range or switching to another site."
-        />
-      ) : null}
-
-      {!isLoading && (reportData.length > 0 || shiftData.length > 0) ? (
-        <Alert variant="success">
-          <AlertTitle>Reports loaded</AlertTitle>
-          <AlertDescription>
-            Loaded {reportData.length} plant report{reportData.length === 1 ? "" : "s"} and {shiftData.length} shift
-            report{shiftData.length === 1 ? "" : "s"}.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="space-y-6 bg-background">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader>
-            <CardTitle>Production Summary</CardTitle>
-            <CardDescription>
-              {startDate} to {endDate}
-              {selectedSite === "all" ? " | All sites" : ""}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-lg border p-4">
-                  <p className="text-xs text-muted-foreground">Tonnes Processed</p>
-                  <p className="text-2xl font-semibold">{summary.tonnesProcessed.toFixed(1)}</p>
-                  <p className="text-xs text-muted-foreground">Tonnes fed: {summary.tonnesFed.toFixed(1)}</p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <p className="text-xs text-muted-foreground">Gold Recovered</p>
-                  <p className="text-2xl font-semibold">{summary.goldRecovered.toFixed(2)} g</p>
-                  <p className="text-xs text-muted-foreground">Run hours: {summary.runHours.toFixed(1)}h</p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <p className="text-xs text-muted-foreground">Consumables</p>
-                  <p className="text-2xl font-semibold">{summary.dieselUsed.toFixed(1)} L</p>
-                  <p className="text-xs text-muted-foreground">
-                    Reagents used: {summary.reagentsUsed.toFixed(1)}
-                  </p>
-                </div>
-              </div>
-            )}
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Operations</p>
+            <p className="text-2xl font-semibold">{plantData.length + shiftData.length}</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>Site Breakdown</CardTitle>
-            <CardDescription>Production totals by site</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : siteSummary.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No site data available.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-2 font-semibold">Site</th>
-                      <th className="py-2 font-semibold">Tonnes Processed</th>
-                      <th className="py-2 font-semibold">Gold Recovered (g)</th>
-                      <th className="py-2 font-semibold">Run Hours</th>
-                      <th className="py-2 font-semibold">Downtime (h)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {siteSummary.map((site) => (
-                      <tr key={site.siteName} className="border-b last:border-b-0">
-                        <td className="py-2">{site.siteName}</td>
-                        <td className="py-2">{site.tonnesProcessed.toFixed(1)}</td>
-                        <td className="py-2">{site.goldRecovered.toFixed(2)}</td>
-                        <td className="py-2">{site.runHours.toFixed(1)}</td>
-                        <td className="py-2">{site.downtimeHours.toFixed(1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Attendance</p>
+            <p className="text-2xl font-semibold">{attendanceRows.length}</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>Downtime Summary</CardTitle>
-            <CardDescription>Plant report downtime events</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {selectedSite === "all" ? (
-              <div className="text-sm text-muted-foreground">
-                Select a site to view detailed downtime analytics.
-              </div>
-            ) : downtimeLoading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : downtimeAnalytics ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-lg border p-4">
-                  <p className="text-xs text-muted-foreground">Total Downtime</p>
-                  <p className="text-2xl font-semibold">{downtimeAnalytics.totalDowntimeHours.toFixed(1)}h</p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <p className="text-xs text-muted-foreground">Incidents</p>
-                  <p className="text-2xl font-semibold">{downtimeAnalytics.totalIncidents}</p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <p className="text-xs text-muted-foreground">Top Cause</p>
-                  <p className="text-lg font-semibold">
-                    {downtimeAnalytics.topCause?.description ?? "No downtime recorded"}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">No downtime data for this range.</div>
-            )}
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Stores</p>
+            <p className="text-2xl font-semibold">{movementRows.length}</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>Shift Activity</CardTitle>
-            <CardDescription>Shift reports by work type</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {shiftLoading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : shiftData.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No shift reports for this range.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-2 font-semibold">Work Type</th>
-                      <th className="py-2 font-semibold">Reports</th>
-                      <th className="py-2 font-semibold">Crew Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(workTypeSummary).map(([workType, data]) => (
-                      <tr key={workType} className="border-b last:border-b-0">
-                        <td className="py-2">{workType}</td>
-                        <td className="py-2">{data.count}</td>
-                        <td className="py-2">{data.crew}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Plant Reports</CardTitle>
-            <CardDescription>Detailed daily entries</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {plantLoading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : reportData.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No plant reports for this range.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-2 font-semibold">Date</th>
-                      <th className="py-2 font-semibold">Site</th>
-                      <th className="py-2 font-semibold">Tonnes Processed</th>
-                      <th className="py-2 font-semibold">Gold Recovered</th>
-                      <th className="py-2 font-semibold">Run Hours</th>
-                      <th className="py-2 font-semibold">Downtime (h)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.map((report) => {
-                      const downtimeHours =
-                        report.downtimeEvents?.reduce((total, event) => total + event.durationHours, 0) ?? 0
-                      return (
-                        <tr key={report.id} className="border-b last:border-b-0">
-                          <td className="py-2">{format(new Date(report.date), "MMM d, yyyy")}</td>
-                          <td className="py-2">{report.site?.name ?? "Site"}</td>
-                          <td className="py-2">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
-                          <td className="py-2">{(report.goldRecovered ?? 0).toFixed(2)}</td>
-                          <td className="py-2">{(report.runHours ?? 0).toFixed(1)}</td>
-                          <td className="py-2">{downtimeHours.toFixed(1)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Gold Chain</p>
+            <p className="text-2xl font-semibold">{goldChainRows.length}</p>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{REPORT_LABELS[selectedReport]}</CardTitle>
+          <CardDescription>
+            {activeSiteName} - {startDate} to {endDate}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingAny ? <Skeleton className="h-32 w-full" /> : renderSelectedReport(false)}
+        </CardContent>
+      </Card>
 
       <div className="absolute left-[-9999px] top-0">
         <div ref={reportPdfRef}>
           <PdfTemplate
-            title="Operations Report"
+            title={REPORT_LABELS[selectedReport]}
             subtitle={`${startDate} to ${endDate}`}
             meta={[
               { label: "Site", value: activeSiteName },
-              { label: "Plant reports", value: String(reportData.length) },
-              { label: "Shift reports", value: String(shiftData.length) },
+              { label: "Report Type", value: REPORT_LABELS[selectedReport] },
             ]}
           >
-            <div className="space-y-6 text-xs">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded border border-gray-200 p-3">
-                  <div className="text-[10px] uppercase text-gray-500">Tonnes Processed</div>
-                  <div className="text-base font-semibold">{summary.tonnesProcessed.toFixed(1)}</div>
-                </div>
-                <div className="rounded border border-gray-200 p-3">
-                  <div className="text-[10px] uppercase text-gray-500">Gold Recovered</div>
-                  <div className="text-base font-semibold">{summary.goldRecovered.toFixed(2)} g</div>
-                </div>
-                <div className="rounded border border-gray-200 p-3">
-                  <div className="text-[10px] uppercase text-gray-500">Run Hours</div>
-                  <div className="text-base font-semibold">{summary.runHours.toFixed(1)}h</div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm font-semibold mb-2">Site Breakdown</div>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-left">
-                      <th className="py-2">Site</th>
-                      <th className="py-2">Tonnes</th>
-                      <th className="py-2">Gold (g)</th>
-                      <th className="py-2">Run Hours</th>
-                      <th className="py-2">Downtime</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {siteSummary.map((site) => (
-                      <tr key={site.siteName} className="border-b border-gray-100">
-                        <td className="py-2">{site.siteName}</td>
-                        <td className="py-2">{site.tonnesProcessed.toFixed(1)}</td>
-                        <td className="py-2">{site.goldRecovered.toFixed(2)}</td>
-                        <td className="py-2">{site.runHours.toFixed(1)}</td>
-                        <td className="py-2">{site.downtimeHours.toFixed(1)}h</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div>
-                <div className="text-sm font-semibold mb-2">Shift Summary</div>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-left">
-                      <th className="py-2">Work Type</th>
-                      <th className="py-2">Reports</th>
-                      <th className="py-2">Crew Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(workTypeSummary).map(([workType, data]) => (
-                      <tr key={workType} className="border-b border-gray-100">
-                        <td className="py-2">{workType}</td>
-                        <td className="py-2">{data.count}</td>
-                        <td className="py-2">{data.crew}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {renderSelectedReport(true)}
           </PdfTemplate>
         </div>
       </div>
     </div>
-  )
+  );
 }

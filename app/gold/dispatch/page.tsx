@@ -1,47 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { ContextHelp } from "@/components/shared/context-help";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoldShell } from "@/components/gold/gold-shell";
-import {
-  fetchEmployees,
-  fetchGoldDispatches,
-  fetchGoldPours,
-} from "@/lib/api";
+import { fetchGoldDispatches } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { DispatchForm } from "@/app/gold/components/dispatch-form";
-
-const goldRoutes = {
-  menu: "/gold",
-  pour: "/gold/pour",
-  dispatch: "/gold/dispatch",
-  receipt: "/gold/receipt",
-  reconciliation: "/gold/reconciliation",
-  audit: "/gold/audit",
-} as const;
-
-type GoldView = keyof typeof goldRoutes;
 
 export default function GoldDispatchPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const createdId = searchParams.get("createdId");
-
-  const { data: employeesData, isLoading: employeesLoading } = useQuery({
-    queryKey: ["employees", "gold-forms"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
-  });
-
-  const { data: poursData } = useQuery({
-    queryKey: ["gold-pours"],
-    queryFn: () => fetchGoldPours({ limit: 200 }),
-  });
 
   const {
     data: dispatchesData,
@@ -52,43 +27,23 @@ export default function GoldDispatchPage() {
     queryFn: () => fetchGoldDispatches({ limit: 200 }),
   });
 
-  const employees = useMemo(() => employeesData?.data ?? [], [employeesData]);
-  const pours = useMemo(() => poursData?.data ?? [], [poursData]);
   const dispatches = useMemo(
     () => dispatchesData?.data ?? [],
     [dispatchesData],
   );
 
-  const dispatchByPourId = useMemo(() => {
-    const map = new Map<string, (typeof dispatches)[number]>();
-    dispatches.forEach((dispatch) => {
-      map.set(dispatch.goldPourId, dispatch);
-    });
-    return map;
-  }, [dispatches]);
-
-  const availablePours = useMemo(
-    () => pours.filter((pour) => !dispatchByPourId.has(pour.id)),
-    [dispatchByPourId, pours],
-  );
-
-  const handleNavigate = (view: GoldView) => {
-    router.push(goldRoutes[view]);
-  };
-
   return (
     <GoldShell
       activeTab="dispatch"
-      description="Generate a chain-of-custody manifest"
+      description="View and review gold dispatch manifests"
+      actions={
+        <Button asChild size="sm">
+          <Link href="/gold/dispatch/new">New Dispatch Manifest</Link>
+        </Button>
+      }
     >
       <RecordSavedBanner entityLabel="gold dispatch" />
       <ContextHelp href="/help#gold" />
-      <DispatchForm
-        setViewMode={handleNavigate}
-        employees={employees}
-        employeesLoading={employeesLoading}
-        availablePours={availablePours}
-      />
       <Card>
         <CardHeader>
           <CardTitle>Dispatch History</CardTitle>

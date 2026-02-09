@@ -23,9 +23,9 @@ import type { AttendanceShiftSummary } from "@/app/gold/types";
 
 const goldRoutes = {
   menu: "/gold",
-  pour: "/gold/pour",
-  dispatch: "/gold/dispatch",
-  receipt: "/gold/receipt",
+  pour: "/gold/pour/new",
+  dispatch: "/gold/dispatch/new",
+  receipt: "/gold/receipt/new",
   payouts: "/gold/payouts",
   reconciliation: "/gold/reconciliation",
   audit: "/gold/audit",
@@ -242,14 +242,14 @@ export default function GoldPage() {
             <Scale className="h-4 w-4" />
             Record Shift Gold
           </Button>
-          <Button size="sm" onClick={() => router.push("/gold/pour")}>
+          <Button size="sm" onClick={() => router.push("/gold/pour/new")}>
             <Coins className="h-4 w-4" />
             Record Pour
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => router.push("/gold/dispatch")}
+            onClick={() => router.push("/gold/dispatch/new")}
           >
             <Package className="h-4 w-4" />
             Dispatch

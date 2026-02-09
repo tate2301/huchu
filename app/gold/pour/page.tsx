@@ -1,43 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { ContextHelp } from "@/components/shared/context-help";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { fetchEmployees, fetchGoldPours, fetchSites } from "@/lib/api";
+import { fetchGoldPours } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { PourForm } from "@/app/gold/components/pour-form";
-
-const goldRoutes = {
-  menu: "/gold",
-  pour: "/gold/pour",
-  dispatch: "/gold/dispatch",
-  receipt: "/gold/receipt",
-  reconciliation: "/gold/reconciliation",
-  audit: "/gold/audit",
-} as const;
-
-type GoldView = keyof typeof goldRoutes;
 
 export default function GoldPourPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const createdId = searchParams.get("createdId");
-
-  const { data: employeesData, isLoading: employeesLoading } = useQuery({
-    queryKey: ["employees", "gold-forms"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
-  });
-
-  const { data: sitesData, isLoading: sitesLoading } = useQuery({
-    queryKey: ["sites", "gold"],
-    queryFn: () => fetchSites(),
-  });
   const {
     data: poursData,
     isLoading: poursLoading,
@@ -47,25 +26,20 @@ export default function GoldPourPage() {
     queryFn: () => fetchGoldPours({ limit: 200 }),
   });
 
-  const employees = useMemo(() => employeesData?.data ?? [], [employeesData]);
-  const sites = useMemo(() => sitesData ?? [], [sitesData]);
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
 
-  const handleNavigate = (view: GoldView) => {
-    router.push(goldRoutes[view]);
-  };
-
   return (
-    <GoldShell activeTab="pour" description="Record a new gold pour">
+    <GoldShell
+      activeTab="pour"
+      description="View and review recorded gold pours"
+      actions={
+        <Button asChild size="sm">
+          <Link href="/gold/pour/new">Record New Pour</Link>
+        </Button>
+      }
+    >
       <RecordSavedBanner entityLabel="gold pour" />
       <ContextHelp href="/help#gold" />
-      <PourForm
-        setViewMode={handleNavigate}
-        employees={employees}
-        employeesLoading={employeesLoading}
-        sites={sites}
-        sitesLoading={sitesLoading}
-      />
       <Card>
         <CardHeader>
           <CardTitle>Pour History</CardTitle>

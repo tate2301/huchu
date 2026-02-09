@@ -1,71 +1,49 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { format, subDays } from "date-fns"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Save, Send, UserCheck, UserPlus, UserX } from "lucide-react"
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { Save, Send, UserCheck, UserPlus, UserX } from "lucide-react";
+import Image from "next/image";
 
-import { PageActions } from "@/components/layout/page-actions"
-import { PageHeading } from "@/components/layout/page-heading"
-import { PdfTemplate } from "@/components/pdf/pdf-template"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/components/ui/use-toast"
-import { PageIntro } from "@/components/shared/page-intro"
-import { ContextHelp } from "@/components/shared/context-help"
-import { RecordSavedBanner } from "@/components/shared/record-saved-banner"
-import { fetchAttendance, fetchEmployees, fetchSites } from "@/lib/api"
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
-import { exportElementToPdf } from "@/lib/pdf"
-import { buildSavedRecordRedirect } from "@/lib/saved-record"
+import { PageActions } from "@/components/layout/page-actions";
+import { PageHeading } from "@/components/layout/page-heading";
+import { PageIntro } from "@/components/shared/page-intro";
+import { ContextHelp } from "@/components/shared/context-help";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
+import { fetchEmployees, fetchSites } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
 interface CrewMember {
-  id: string
-  employeeId: string
-  name: string
-  status: "PRESENT" | "ABSENT" | "LATE"
-  overtime: string
+  id: string;
+  employeeId: string;
+  name: string;
+  status: "PRESENT" | "ABSENT" | "LATE";
+  overtime: string;
 }
 
 export default function AttendancePage() {
-  const { toast } = useToast()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const queryClient = useQueryClient()
-  const createdId = searchParams.get("createdId")
-  const batchDate = searchParams.get("batchDate")
-  const batchShift = searchParams.get("batchShift")
-  const batchSiteId = searchParams.get("batchSiteId")
+  const { toast } = useToast();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     shift: "DAY",
     siteId: "",
-  })
-  const [listSiteId, setListSiteId] = useState(searchParams.get("siteId") ?? "all")
-  const [listStartDate, setListStartDate] = useState(
-    searchParams.get("startDate") ?? format(subDays(new Date(), 6), "yyyy-MM-dd"),
-  )
-  const [listEndDate, setListEndDate] = useState(
-    searchParams.get("endDate") ?? format(new Date(), "yyyy-MM-dd"),
-  )
-  const attendancePdfRef = useRef<HTMLDivElement>(null)
+  });
 
-  const [crew, setCrew] = useState<CrewMember[]>([])
-  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false)
-  const [passportUploading, setPassportUploading] = useState(false)
+  const [crew, setCrew] = useState<CrewMember[]>([]);
+  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
+  const [passportUploading, setPassportUploading] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
     name: "",
     phone: "",
@@ -73,7 +51,7 @@ export default function AttendancePage() {
     nextOfKinPhone: "",
     passportPhotoUrl: "",
     villageOfOrigin: "",
-  })
+  });
 
   const resetNewEmployee = () => {
     setNewEmployee({
@@ -83,14 +61,14 @@ export default function AttendancePage() {
       nextOfKinPhone: "",
       passportPhotoUrl: "",
       villageOfOrigin: "",
-    })
-    setPassportUploading(false)
-  }
+    });
+    setPassportUploading(false);
+  };
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
-  })
+  });
 
   const {
     data: employeesData,
@@ -99,36 +77,19 @@ export default function AttendancePage() {
   } = useQuery({
     queryKey: ["employees", "attendance"],
     queryFn: () => fetchEmployees({ active: true, limit: 500 }),
-  })
-
-  const activeListSiteId = listSiteId === "all" ? undefined : listSiteId
-  const {
-    data: attendanceListData,
-    isLoading: attendanceListLoading,
-    error: attendanceListError,
-  } = useQuery({
-    queryKey: ["attendance", "list", activeListSiteId ?? "all", listStartDate, listEndDate],
-    queryFn: () =>
-      fetchAttendance({
-        siteId: activeListSiteId,
-        startDate: listStartDate,
-        endDate: listEndDate,
-        limit: 200,
-      }),
-    enabled: !!listStartDate && !!listEndDate,
-  })
+  });
 
   useEffect(() => {
     if (!formData.siteId && sites && sites.length > 0) {
-      setFormData((prev) => ({ ...prev, siteId: sites[0].id }))
+      setFormData((prev) => ({ ...prev, siteId: sites[0].id }));
     }
-  }, [formData.siteId, sites])
+  }, [formData.siteId, sites]);
 
   useEffect(() => {
-    if (!employeesData) return
-    const employees = employeesData.data
+    if (!employeesData) return;
+    const employees = employeesData.data;
     setCrew((prev) => {
-      const prevMap = new Map(prev.map((member) => [member.id, member]))
+      const prevMap = new Map(prev.map((member) => [member.id, member]));
       return employees.map((employee) =>
         prevMap.get(employee.id) ?? {
           id: employee.id,
@@ -137,21 +98,21 @@ export default function AttendancePage() {
           status: "PRESENT",
           overtime: "",
         },
-      )
-    })
-  }, [employeesData])
+      );
+    });
+  }, [employeesData]);
 
   const attendanceMutation = useMutation({
     mutationFn: async (payload: {
-      date: string
-      siteId: string
-      shift: "DAY" | "NIGHT"
+      date: string;
+      siteId: string;
+      shift: "DAY" | "NIGHT";
       records: Array<{
-        employeeId: string
-        status: "PRESENT" | "ABSENT" | "LATE"
-        overtime?: number
-        notes?: string
-      }>
+        employeeId: string;
+        status: "PRESENT" | "ABSENT" | "LATE";
+        overtime?: number;
+        notes?: string;
+      }>;
     }) =>
       fetchJson("/api/attendance", {
         method: "POST",
@@ -162,11 +123,11 @@ export default function AttendancePage() {
         title: "Attendance submitted",
         description: "Crew attendance has been recorded.",
         variant: "success",
-      })
-      const reportDate = payload.date.slice(0, 10)
-      queryClient.invalidateQueries({ queryKey: ["attendance"] })
+      });
+      const reportDate = payload.date.slice(0, 10);
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
       const destination = buildSavedRecordRedirect(
-        "/attendance",
+        "/attendance/history",
         {
           createdId: `${payload.siteId}:${payload.shift}:${reportDate}`,
           createdAt: new Date(payload.date),
@@ -180,17 +141,17 @@ export default function AttendancePage() {
           batchShift: payload.shift,
           batchSiteId: payload.siteId,
         },
-      )
-      router.push(destination)
+      );
+      router.push(destination);
     },
     onError: (error) => {
       toast({
         title: "Unable to submit attendance",
         description: getApiErrorMessage(error),
         variant: "destructive",
-      })
+      });
     },
-  })
+  });
 
   const createEmployeeMutation = useMutation({
     mutationFn: async (payload: typeof newEmployee) =>
@@ -203,110 +164,103 @@ export default function AttendancePage() {
         title: "Employee added",
         description: "New employee is available for attendance.",
         variant: "success",
-      })
-      resetNewEmployee()
-      setAddEmployeeOpen(false)
-      queryClient.invalidateQueries({ queryKey: ["employees"] })
+      });
+      resetNewEmployee();
+      setAddEmployeeOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
     onError: (error) => {
       toast({
         title: "Unable to add employee",
         description: getApiErrorMessage(error),
         variant: "destructive",
-      })
+      });
     },
-  })
+  });
 
   const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleAddEmployeeOpenChange = (open: boolean) => {
-    setAddEmployeeOpen(open)
+    setAddEmployeeOpen(open);
     if (!open) {
-      resetNewEmployee()
+      resetNewEmployee();
     }
-  }
+  };
 
   const handleNewEmployeeChange =
     (field: keyof typeof newEmployee) => (event: React.ChangeEvent<HTMLInputElement>) => {
-      setNewEmployee((prev) => ({ ...prev, [field]: event.target.value }))
-    }
+      setNewEmployee((prev) => ({ ...prev, [field]: event.target.value }));
+    };
 
   const uploadPassportPhoto = async (file: File) => {
-    const formDataPayload = new FormData()
-    formDataPayload.append("file", file)
+    const formDataPayload = new FormData();
+    formDataPayload.append("file", file);
 
     const response = await fetch("/api/uploads/passport-photo", {
       method: "POST",
       credentials: "include",
       body: formDataPayload,
-    })
+    });
 
-    const data = await response.json().catch(() => null)
+    const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      const message =
-        data && typeof data.error === "string" ? data.error : "Upload failed"
-      throw new Error(message)
+      const message = data && typeof data.error === "string" ? data.error : "Upload failed";
+      throw new Error(message);
     }
 
     if (!data || typeof data.url !== "string") {
-      throw new Error("Upload response missing file URL")
+      throw new Error("Upload response missing file URL");
     }
 
-    return data.url as string
-  }
+    return data.url as string;
+  };
 
-  const handlePassportPhotoChange = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const handlePassportPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    setPassportUploading(true)
+    setPassportUploading(true);
     try {
-      const url = await uploadPassportPhoto(file)
-      setNewEmployee((prev) => ({ ...prev, passportPhotoUrl: url }))
+      const url = await uploadPassportPhoto(file);
+      setNewEmployee((prev) => ({ ...prev, passportPhotoUrl: url }));
       toast({
         title: "Photo uploaded",
         description: "Passport photo saved successfully.",
         variant: "success",
-      })
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed"
+      const message = error instanceof Error ? error.message : "Upload failed";
       toast({
         title: "Unable to upload photo",
         description: message,
         variant: "destructive",
-      })
+      });
     } finally {
-      setPassportUploading(false)
-      event.target.value = ""
+      setPassportUploading(false);
+      event.target.value = "";
     }
-  }
+  };
 
   const updateCrewStatus = (id: string, status: CrewMember["status"]) => {
-    setCrew((prev) =>
-      prev.map((member) => (member.id === id ? { ...member, status } : member)),
-    )
-  }
+    setCrew((prev) => prev.map((member) => (member.id === id ? { ...member, status } : member)));
+  };
 
   const updateOvertime = (id: string, overtime: string) => {
-    setCrew((prev) =>
-      prev.map((member) => (member.id === id ? { ...member, overtime } : member)),
-    )
-  }
+    setCrew((prev) => prev.map((member) => (member.id === id ? { ...member, overtime } : member)));
+  };
 
   const handleAddEmployeeSubmit = (event: React.FormEvent) => {
-    event.preventDefault()
+    event.preventDefault();
     if (passportUploading) {
       toast({
         title: "Upload in progress",
         description: "Wait for the passport photo to finish uploading.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     if (!newEmployee.passportPhotoUrl) {
@@ -314,12 +268,12 @@ export default function AttendancePage() {
         title: "Passport photo required",
         description: "Upload a passport photo before saving.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    createEmployeeMutation.mutate(newEmployee)
-  }
+    createEmployeeMutation.mutate(newEmployee);
+  };
 
   const handleSaveDraft = () => {
     localStorage.setItem(
@@ -329,23 +283,23 @@ export default function AttendancePage() {
         crew,
         savedAt: new Date().toISOString(),
       }),
-    )
+    );
     toast({
       title: "Draft saved",
       description: "Attendance saved locally on this device.",
-    })
-  }
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!formData.siteId) {
       toast({
         title: "Site required",
         description: "Select a site before submitting attendance.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     const records = crew.map((member) => ({
@@ -355,30 +309,28 @@ export default function AttendancePage() {
         member.status === "ABSENT" || member.overtime.trim() === ""
           ? undefined
           : Number(member.overtime),
-    }))
+    }));
 
     attendanceMutation.mutate({
       date: formData.date,
       siteId: formData.siteId,
       shift: formData.shift as "DAY" | "NIGHT",
       records,
-    })
-  }
+    });
+  };
 
-  const presentCount = crew.filter((m) => m.status === "PRESENT" || m.status === "LATE").length
-  const absentCount = crew.filter((m) => m.status === "ABSENT").length
-  const attendanceRecords = useMemo(() => attendanceListData?.data ?? [], [attendanceListData])
-  const activeListSiteName =
-    listSiteId === "all"
-      ? "All sites"
-      : sites?.find((site) => site.id === listSiteId)?.name ?? "Selected site"
+  const presentCount = crew.filter((m) => m.status === "PRESENT" || m.status === "LATE").length;
+  const absentCount = crew.filter((m) => m.status === "ABSENT").length;
 
-  const loading = sitesLoading || employeesLoading
-  const error = sitesError || employeesError || attendanceMutation.error
+  const loading = sitesLoading || employeesLoading;
+  const error = sitesError || employeesError || attendanceMutation.error;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <PageActions>
+        <Button size="sm" asChild variant="outline">
+          <Link href="/attendance/history">View Attendance Records</Link>
+        </Button>
         <Button size="sm" variant="outline" onClick={handleSaveDraft}>
           <Save className="h-4 w-4" />
           Save Draft
@@ -390,7 +342,7 @@ export default function AttendancePage() {
               Add Employee
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full sm:max-w-lg p-6">
+          <SheetContent className="w-full p-6 sm:max-w-lg">
             <SheetHeader>
               <SheetTitle>Add Employee</SheetTitle>
               <SheetDescription>Capture a new crew member for attendance.</SheetDescription>
@@ -398,16 +350,11 @@ export default function AttendancePage() {
             <form onSubmit={handleAddEmployeeSubmit} className="mt-6 space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Name *</label>
-                  <Input
-                    value={newEmployee.name}
-                    onChange={handleNewEmployeeChange("name")}
-                    placeholder="Full name"
-                    required
-                  />
+                  <label className="mb-2 block text-sm font-semibold">Name *</label>
+                  <Input value={newEmployee.name} onChange={handleNewEmployeeChange("name")} placeholder="Full name" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Phone *</label>
+                  <label className="mb-2 block text-sm font-semibold">Phone *</label>
                   <Input
                     type="tel"
                     value={newEmployee.phone}
@@ -420,7 +367,7 @@ export default function AttendancePage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Village of Origin *</label>
+                  <label className="mb-2 block text-sm font-semibold">Village of Origin *</label>
                   <Input
                     value={newEmployee.villageOfOrigin}
                     onChange={handleNewEmployeeChange("villageOfOrigin")}
@@ -429,7 +376,7 @@ export default function AttendancePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Next of Kin Name *</label>
+                  <label className="mb-2 block text-sm font-semibold">Next of Kin Name *</label>
                   <Input
                     value={newEmployee.nextOfKinName}
                     onChange={handleNewEmployeeChange("nextOfKinName")}
@@ -441,7 +388,7 @@ export default function AttendancePage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Next of Kin Phone *</label>
+                  <label className="mb-2 block text-sm font-semibold">Next of Kin Phone *</label>
                   <Input
                     type="tel"
                     value={newEmployee.nextOfKinPhone}
@@ -454,22 +401,15 @@ export default function AttendancePage() {
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Passport Photo *</label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePassportPhotoChange}
-                  disabled={passportUploading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  JPG, PNG, or WebP up to 5MB.
-                </p>
-                {passportUploading ? (
-                  <p className="text-xs text-muted-foreground">Uploading photo...</p>
-                ) : null}
+                <Input type="file" accept="image/*" onChange={handlePassportPhotoChange} disabled={passportUploading} />
+                <p className="text-xs text-muted-foreground">JPG, PNG, or WebP up to 5MB.</p>
+                {passportUploading ? <p className="text-xs text-muted-foreground">Uploading photo...</p> : null}
                 {newEmployee.passportPhotoUrl ? (
-                  <img
+                  <Image
                     src={newEmployee.passportPhotoUrl}
                     alt="Passport preview"
+                    width={80}
+                    height={80}
                     className="h-20 w-20 rounded border object-cover"
                   />
                 ) : null}
@@ -485,12 +425,7 @@ export default function AttendancePage() {
             </form>
           </SheetContent>
         </Sheet>
-        <Button
-          size="sm"
-          type="submit"
-          form="attendance-form"
-          disabled={attendanceMutation.isPending}
-        >
+        <Button size="sm" type="submit" form="attendance-form" disabled={attendanceMutation.isPending}>
           <Send className="h-4 w-4" />
           Submit
         </Button>
@@ -499,11 +434,10 @@ export default function AttendancePage() {
       <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
       <PageIntro
         title="Complete attendance in 3 steps"
-        purpose="Step 1: choose date, shift, and site. Step 2: mark each crew member status. Step 3: submit and verify the saved records below."
+        purpose="Step 1: choose date, shift, and site. Step 2: mark each crew member status. Step 3: submit and verify the saved records in history."
         nextStep="Confirm Shift Details first, then mark crew attendance."
       />
       <ContextHelp href="/help#attendance" />
-      <RecordSavedBanner entityLabel="attendance submission" />
 
       {error && (
         <Alert variant="destructive">
@@ -519,9 +453,9 @@ export default function AttendancePage() {
             <CardDescription>Date, shift, and site information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="block text-sm font-semibold mb-2">Date *</label>
+                <label className="mb-2 block text-sm font-semibold">Date *</label>
                 <Input
                   type="date"
                   value={formData.date}
@@ -531,7 +465,7 @@ export default function AttendancePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2">Shift *</label>
+                <label className="mb-2 block text-sm font-semibold">Shift *</label>
                 <Select name="shift" value={formData.shift} onValueChange={handleSelectChange("shift")} required>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select shift" />
@@ -544,7 +478,7 @@ export default function AttendancePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2">Site *</label>
+                <label className="mb-2 block text-sm font-semibold">Site *</label>
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -611,7 +545,7 @@ export default function AttendancePage() {
                 {crew.map((member) => (
                   <div
                     key={member.id}
-                    className="flex flex-col md:flex-row md:items-center gap-3 rounded-md border border-border bg-card/60 p-3"
+                    className="flex flex-col gap-3 rounded-md border border-border bg-card/60 p-3 md:flex-row md:items-center"
                   >
                     <div className="flex-1">
                       <div className="font-semibold">{member.name}</div>
@@ -664,7 +598,7 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1">
             <Save className="mr-2 h-5 w-5" />
             Save Draft
@@ -676,176 +610,6 @@ export default function AttendancePage() {
           </Button>
         </div>
       </form>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Attendance Records</CardTitle>
-              <CardDescription>Review submitted attendance entries</CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (attendancePdfRef.current) {
-                  exportElementToPdf(
-                    attendancePdfRef.current,
-                    `attendance-${listStartDate}-to-${listEndDate}.pdf`,
-                  )
-                }
-              }}
-              disabled={attendanceListLoading || attendanceRecords.length === 0}
-            >
-              Export PDF
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {attendanceListError && (
-            <Alert variant="destructive">
-              <AlertTitle>Unable to load attendance</AlertTitle>
-              <AlertDescription>{getApiErrorMessage(attendanceListError)}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold mb-2">Site</label>
-              {sitesLoading ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={listSiteId} onValueChange={setListSiteId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sites</SelectItem>
-                    {sites?.length ? (
-                      sites.map((site) => (
-                        <SelectItem key={site.id} value={site.id}>
-                          {site.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-sites" disabled>
-                        No sites available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">Start Date</label>
-              <Input
-                type="date"
-                value={listStartDate}
-                onChange={(event) => setListStartDate(event.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">End Date</label>
-              <Input
-                type="date"
-                value={listEndDate}
-                onChange={(event) => setListEndDate(event.target.value)}
-              />
-            </div>
-          </div>
-
-          {attendanceListLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : attendanceRecords.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No attendance records for this range.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="text-left p-3 font-semibold">Date</th>
-                    <th className="text-left p-3 font-semibold">Shift</th>
-                    <th className="text-left p-3 font-semibold">Site</th>
-                    <th className="text-left p-3 font-semibold">Employee</th>
-                    <th className="text-left p-3 font-semibold">Status</th>
-                    <th className="text-left p-3 font-semibold">Overtime</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attendanceRecords.map((record) => (
-                    <tr
-                      key={record.id}
-                      className={`border-b ${
-                        createdId &&
-                        batchDate &&
-                        batchShift &&
-                        batchSiteId &&
-                        format(new Date(record.date), "yyyy-MM-dd") === batchDate &&
-                        record.shift === batchShift &&
-                        record.site?.id === batchSiteId
-                          ? "bg-[var(--status-success-bg)]"
-                          : ""
-                      }`}
-                    >
-                      <td className="p-3">{format(new Date(record.date), "MMM d, yyyy")}</td>
-                      <td className="p-3">{record.shift}</td>
-                      <td className="p-3">{record.site?.name}</td>
-                      <td className="p-3">
-                        <div className="font-semibold">{record.employee?.name}</div>
-                        <div className="text-xs text-muted-foreground">{record.employee?.employeeId}</div>
-                      </td>
-                      <td className="p-3">{record.status}</td>
-                      <td className="p-3">{record.overtime ?? "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="absolute left-[-9999px] top-0">
-        <div ref={attendancePdfRef}>
-          <PdfTemplate
-            title="Attendance Records"
-            subtitle={`${listStartDate} to ${listEndDate}`}
-            meta={[
-              { label: "Site", value: activeListSiteName },
-              { label: "Total records", value: String(attendanceRecords.length) },
-            ]}
-          >
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="py-2">Date</th>
-                  <th className="py-2">Shift</th>
-                  <th className="py-2">Site</th>
-                  <th className="py-2">Employee</th>
-                  <th className="py-2">Status</th>
-                  <th className="py-2">Overtime</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendanceRecords.map((record) => (
-                  <tr key={record.id} className="border-b border-gray-100">
-                    <td className="py-2">{format(new Date(record.date), "MMM d, yyyy")}</td>
-                    <td className="py-2">{record.shift}</td>
-                    <td className="py-2">{record.site?.name}</td>
-                    <td className="py-2">
-                      <div className="font-semibold">{record.employee?.name}</div>
-                      <div className="text-[10px] text-gray-500">{record.employee?.employeeId}</div>
-                    </td>
-                    <td className="py-2">{record.status}</td>
-                    <td className="py-2">{record.overtime ?? "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </PdfTemplate>
-        </div>
-      </div>
     </div>
-  )
+  );
 }

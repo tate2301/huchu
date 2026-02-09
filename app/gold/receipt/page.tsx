@@ -1,38 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { ContextHelp } from "@/components/shared/context-help";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { fetchGoldDispatches, fetchGoldReceipts } from "@/lib/api";
+import { fetchGoldReceipts } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ReceiptForm } from "@/app/gold/components/receipt-form";
-
-const goldRoutes = {
-  menu: "/gold",
-  pour: "/gold/pour",
-  dispatch: "/gold/dispatch",
-  receipt: "/gold/receipt",
-  reconciliation: "/gold/reconciliation",
-  audit: "/gold/audit",
-} as const;
-
-type GoldView = keyof typeof goldRoutes;
 
 export default function GoldReceiptPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const createdId = searchParams.get("createdId");
-
-  const { data: dispatchesData } = useQuery({
-    queryKey: ["gold-dispatches"],
-    queryFn: () => fetchGoldDispatches({ limit: 200 }),
-  });
 
   const {
     data: receiptsData,
@@ -43,37 +27,20 @@ export default function GoldReceiptPage() {
     queryFn: () => fetchGoldReceipts({ limit: 200 }),
   });
 
-  const dispatches = useMemo(
-    () => dispatchesData?.data ?? [],
-    [dispatchesData],
-  );
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
 
-  const receiptByDispatchId = useMemo(() => {
-    const map = new Map<string, (typeof receipts)[number]>();
-    receipts.forEach((receipt) => {
-      map.set(receipt.goldDispatch.id, receipt);
-    });
-    return map;
-  }, [receipts]);
-
-  const availableDispatches = useMemo(
-    () => dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id)),
-    [dispatches, receiptByDispatchId],
-  );
-
-  const handleNavigate = (view: GoldView) => {
-    router.push(goldRoutes[view]);
-  };
-
   return (
-    <GoldShell activeTab="receipt" description="Record buyer assay receipt">
+    <GoldShell
+      activeTab="receipt"
+      description="View and review buyer receipts"
+      actions={
+        <Button asChild size="sm">
+          <Link href="/gold/receipt/new">Record New Receipt</Link>
+        </Button>
+      }
+    >
       <RecordSavedBanner entityLabel="gold receipt" />
       <ContextHelp href="/help#gold" />
-      <ReceiptForm
-        setViewMode={handleNavigate}
-        availableDispatches={availableDispatches}
-      />
       <Card>
         <CardHeader>
           <CardTitle>Receipt History</CardTitle>

@@ -33,9 +33,9 @@ type GoldTabItem = {
 
 const goldTabs: GoldTabItem[] = [
   { id: "overview", label: "Overview", href: "/gold", icon: Home },
-  { id: "pour", label: "Record Pour", href: "/gold/pour", icon: Coins },
-  { id: "dispatch", label: "Dispatch", href: "/gold/dispatch", icon: Package },
-  { id: "receipt", label: "Buyer Receipt", href: "/gold/receipt", icon: FileCheck },
+  { id: "pour", label: "Pour History", href: "/gold/pour", icon: Coins },
+  { id: "dispatch", label: "Dispatch History", href: "/gold/dispatch", icon: Package },
+  { id: "receipt", label: "Receipt History", href: "/gold/receipt", icon: FileCheck },
   { id: "payouts", label: "Worker Payouts", href: "/gold/payouts", icon: Wallet },
   {
     id: "reconciliation",
