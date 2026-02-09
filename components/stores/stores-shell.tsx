@@ -74,14 +74,14 @@ export function StoresShell({
               href={buildHref(tab.href)}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors border-b border-transparent",
+                              "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors border-b border-transparent",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive
                   ? "border-primary text-primary"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <tab.icon className="size-5" />
+              <tab.icon className="h-4 w-4" />
               <span className="ml-2">{tab.label}</span>
             </Link>
           );
