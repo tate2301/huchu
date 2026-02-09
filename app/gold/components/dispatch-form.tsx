@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import { Send, Shield } from "lucide-react";
 
@@ -89,7 +90,7 @@ export function DispatchForm({
       receivedBy?: string;
       notes?: string;
     }) =>
-      fetchJson<{ id: string }>("/api/gold/dispatches", {
+      fetchJson<{ id: string; createdAt?: string }>("/api/gold/dispatches", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -100,11 +101,12 @@ export function DispatchForm({
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-dispatches"] });
-      const params = new URLSearchParams({
+      const destination = buildSavedRecordRedirect("/gold/dispatch", {
         createdId: dispatch.id,
+        createdAt: dispatch.createdAt,
         source: "gold-dispatch",
       });
-      router.push(`/gold/audit?${params.toString()}`);
+      router.push(destination);
     },
   });
 

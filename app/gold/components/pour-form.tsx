@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { Send, Shield } from "lucide-react";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 
@@ -91,7 +92,7 @@ export function PourForm({
       storageLocation: string;
       notes?: string;
     }) =>
-      fetchJson<{ id: string }>("/api/gold/pours", {
+      fetchJson<{ id: string; createdAt?: string }>("/api/gold/pours", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -102,11 +103,12 @@ export function PourForm({
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
-      const params = new URLSearchParams({
+      const destination = buildSavedRecordRedirect("/gold/pour", {
         createdId: pour.id,
+        createdAt: pour.createdAt,
         source: "gold-pour",
       });
-      router.push(`/gold/audit?${params.toString()}`);
+      router.push(destination);
     },
   });
 

@@ -24,10 +24,12 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
+import { PageIntro } from "@/components/shared/page-intro"
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner"
 import { fetchAttendance, fetchEmployees, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 import { exportElementToPdf } from "@/lib/pdf"
+import { buildSavedRecordRedirect } from "@/lib/saved-record"
 
 interface CrewMember {
   id: string
@@ -161,18 +163,24 @@ export default function AttendancePage() {
         variant: "success",
       })
       const reportDate = payload.date.slice(0, 10)
-      const params = new URLSearchParams({
-        createdId: `${payload.siteId}:${payload.shift}:${reportDate}`,
-        source: "attendance",
-        siteId: payload.siteId,
-        startDate: reportDate,
-        endDate: reportDate,
-        batchDate: reportDate,
-        batchShift: payload.shift,
-        batchSiteId: payload.siteId,
-      })
       queryClient.invalidateQueries({ queryKey: ["attendance"] })
-      router.push(`/attendance?${params.toString()}`)
+      const destination = buildSavedRecordRedirect(
+        "/attendance",
+        {
+          createdId: `${payload.siteId}:${payload.shift}:${reportDate}`,
+          createdAt: new Date(payload.date),
+          source: "attendance",
+        },
+        {
+          siteId: payload.siteId,
+          startDate: reportDate,
+          endDate: reportDate,
+          batchDate: reportDate,
+          batchShift: payload.shift,
+          batchSiteId: payload.siteId,
+        },
+      )
+      router.push(destination)
     },
     onError: (error) => {
       toast({
@@ -488,6 +496,11 @@ export default function AttendancePage() {
       </PageActions>
 
       <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
+      <PageIntro
+        title="Complete attendance in 3 steps"
+        purpose="Step 1: choose date, shift, and site. Step 2: mark each crew member status. Step 3: submit and verify the saved records below."
+        nextStep="Confirm Shift Details first, then mark crew attendance."
+      />
       <RecordSavedBanner entityLabel="attendance submission" />
 
       {error && (
@@ -769,7 +782,7 @@ export default function AttendancePage() {
                         format(new Date(record.date), "yyyy-MM-dd") === batchDate &&
                         record.shift === batchShift &&
                         record.site?.id === batchSiteId
-                          ? "bg-emerald-50"
+                          ? "bg-[var(--status-success-bg)]"
                           : ""
                       }`}
                     >

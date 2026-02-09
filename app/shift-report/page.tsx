@@ -29,10 +29,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployees, fetchShiftReports, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
 const toNumber = (value: string) => {
   if (value.trim() === "") return undefined;
@@ -134,7 +136,7 @@ export default function ShiftReportPage() {
 
   const shiftReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id: string }>("/api/shift-reports", {
+      fetchJson<{ id: string; createdAt?: string }>("/api/shift-reports", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -147,14 +149,20 @@ export default function ShiftReportPage() {
       localStorage.removeItem("shiftReportDraft");
       const reportDate = String(variables.date ?? "").slice(0, 10);
       const reportSiteId = String(variables.siteId ?? "");
-      const params = new URLSearchParams({
-        createdId: report.id,
-        source: "shift-report",
-        siteId: reportSiteId,
-        startDate: reportDate,
-        endDate: reportDate,
-      });
-      router.push(`/shift-report?${params.toString()}`);
+      const destination = buildSavedRecordRedirect(
+        "/shift-report",
+        {
+          createdId: report.id,
+          createdAt: report.createdAt,
+          source: "shift-report",
+        },
+        {
+          siteId: reportSiteId,
+          startDate: reportDate,
+          endDate: reportDate,
+        },
+      );
+      router.push(destination);
     },
     onError: (error) => {
       toast({
@@ -254,6 +262,11 @@ export default function ShiftReportPage() {
       <PageHeading
         title="Shift Report"
         description="Quick 2-minute daily entry"
+      />
+      <PageIntro
+        title="Complete this shift report in 3 steps"
+        purpose="Step 1: select shift details. Step 2: capture output. Step 3: submit and confirm the saved report."
+        nextStep="Start with date, shift, site, and group leader."
       />
       <RecordSavedBanner entityLabel="shift report" />
 
@@ -662,7 +675,7 @@ export default function ShiftReportPage() {
                 </thead>
                 <tbody>
                   {shiftReportRecords.map((report) => (
-                    <tr key={report.id} className={`border-b ${createdId === report.id ? "bg-emerald-50" : ""}`}>
+                    <tr key={report.id} className={`border-b ${createdId === report.id ? "bg-[var(--status-success-bg)]" : ""}`}>
                       <td className="p-3">
                         {format(new Date(report.date), "MMM d, yyyy")}
                       </td>

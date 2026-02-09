@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { Send, Shield } from "lucide-react";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
@@ -82,7 +83,7 @@ export function ReceiptForm({
       paymentReference?: string;
       notes?: string;
     }) =>
-      fetchJson<{ id: string }>("/api/gold/receipts", {
+      fetchJson<{ id: string; createdAt?: string }>("/api/gold/receipts", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -93,11 +94,12 @@ export function ReceiptForm({
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
-      const params = new URLSearchParams({
+      const destination = buildSavedRecordRedirect("/gold/receipt", {
         createdId: receipt.id,
+        createdAt: receipt.createdAt,
         source: "gold-receipt",
       });
-      router.push(`/gold/audit?${params.toString()}`);
+      router.push(destination);
     },
   });
 

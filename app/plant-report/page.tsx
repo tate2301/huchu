@@ -17,10 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
+import { PageIntro } from "@/components/shared/page-intro"
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner"
 import { fetchDowntimeCodes, fetchPlantReports, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 import { exportElementToPdf } from "@/lib/pdf"
+import { buildSavedRecordRedirect } from "@/lib/saved-record"
 
 const toNumber = (value: string) => {
   if (value.trim() === "") return undefined
@@ -99,7 +101,7 @@ export default function PlantReportPage() {
 
   const plantReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id: string }>("/api/plant-reports", {
+      fetchJson<{ id: string; createdAt?: string }>("/api/plant-reports", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -112,14 +114,20 @@ export default function PlantReportPage() {
       localStorage.removeItem("plantReportDraft")
       const reportDate = String(variables.date ?? "").slice(0, 10)
       const reportSiteId = String(variables.siteId ?? "")
-      const params = new URLSearchParams({
-        createdId: report.id,
-        source: "plant-report",
-        siteId: reportSiteId,
-        startDate: reportDate,
-        endDate: reportDate,
-      })
-      router.push(`/plant-report?${params.toString()}`)
+      const destination = buildSavedRecordRedirect(
+        "/plant-report",
+        {
+          createdId: report.id,
+          createdAt: report.createdAt,
+          source: "plant-report",
+        },
+        {
+          siteId: reportSiteId,
+          startDate: reportDate,
+          endDate: reportDate,
+        },
+      )
+      router.push(destination)
     },
     onError: (error) => {
       toast({
@@ -235,6 +243,11 @@ export default function PlantReportPage() {
       </PageActions>
 
       <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+      <PageIntro
+        title="Complete this plant report in 3 steps"
+        purpose="Step 1: capture site and production values. Step 2: add downtime and consumables. Step 3: submit and verify in the report table."
+        nextStep="Start with date and site under Plant Details."
+      />
       <RecordSavedBanner entityLabel="plant report" />
 
       {error && (
@@ -573,7 +586,7 @@ export default function PlantReportPage() {
                     const downtimeHours =
                       report.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0
                     return (
-                      <tr key={report.id} className={`border-b ${createdId === report.id ? "bg-emerald-50" : ""}`}>
+                      <tr key={report.id} className={`border-b ${createdId === report.id ? "bg-[var(--status-success-bg)]" : ""}`}>
                         <td className="p-3">{format(new Date(report.date), "MMM d, yyyy")}</td>
                         <td className="p-3">{report.site?.name}</td>
                         <td className="p-3">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
