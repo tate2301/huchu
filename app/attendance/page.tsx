@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { PageIntro } from "@/components/shared/page-intro"
+import { ContextHelp } from "@/components/shared/context-help"
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner"
 import { fetchAttendance, fetchEmployees, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
@@ -501,6 +502,7 @@ export default function AttendancePage() {
         purpose="Step 1: choose date, shift, and site. Step 2: mark each crew member status. Step 3: submit and verify the saved records below."
         nextStep="Confirm Shift Details first, then mark crew attendance."
       />
+      <ContextHelp href="/help#attendance" />
       <RecordSavedBanner entityLabel="attendance submission" />
 
       {error && (

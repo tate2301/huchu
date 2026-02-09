@@ -48,7 +48,10 @@ export const navSections: NavSection[] = [
   {
     id: "overview",
     title: "Start",
-    items: [{ href: "/", icon: Home, label: "Home" }],
+    items: [
+      { href: "/", icon: Home, label: "Home" },
+      { href: "/help", icon: FileText, label: "Quick Tips" },
+    ],
   },
   {
     id: "daily",

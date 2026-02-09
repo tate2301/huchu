@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
+import { ContextHelp } from "@/components/shared/context-help";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -211,6 +212,7 @@ export default function StoresReceivePage() {
           <AlertDescription>{getApiErrorMessage(pageError)}</AlertDescription>
         </Alert>
       )}
+      <ContextHelp href="/help#stores" />
 
       <FormShell
         title="Receive Stock"
@@ -309,12 +311,13 @@ export default function StoresReceivePage() {
                   type="number"
                   placeholder="e.g., 1500"
                   value={form.quantity}
+                  aria-describedby="receive-quantity-help"
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, quantity: event.target.value }))
                   }
                   required
                 />
-                <FieldHelp hint="Use the same unit shown for the selected item." />
+                <FieldHelp id="receive-quantity-help" hint="Use the same unit shown for the selected item." />
               </div>
             </div>
 
@@ -391,11 +394,12 @@ export default function StoresReceivePage() {
                 placeholder="Delivery notes, condition, etc..."
                 rows={3}
                 value={form.notes}
+                aria-describedby="receive-notes-help"
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, notes: event.target.value }))
                 }
               />
-              <FieldHelp hint="Include delivery condition or any discrepancy." />
+              <FieldHelp id="receive-notes-help" hint="Include delivery condition or any discrepancy." />
             </div>
       </FormShell>
     </StoresShell>

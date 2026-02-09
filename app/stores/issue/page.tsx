@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
+import { ContextHelp } from "@/components/shared/context-help";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -197,6 +198,7 @@ export default function StoresIssuePage() {
           <AlertDescription>{getApiErrorMessage(pageError)}</AlertDescription>
         </Alert>
       )}
+      <ContextHelp href="/help#stores" />
 
       <FormShell
         title="Issue Stock"
@@ -295,12 +297,13 @@ export default function StoresIssuePage() {
                   type="number"
                   placeholder="e.g., 50"
                   value={form.quantity}
+                  aria-describedby="issue-quantity-help"
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, quantity: event.target.value }))
                   }
                   required
                 />
-                <FieldHelp hint="The quantity must be available in stock." />
+                <FieldHelp id="issue-quantity-help" hint="The quantity must be available in stock." />
               </div>
             </div>
 
@@ -377,11 +380,12 @@ export default function StoresIssuePage() {
                 placeholder="Additional information about this issue..."
                 rows={3}
                 value={form.notes}
+                aria-describedby="issue-notes-help"
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, notes: event.target.value }))
                 }
               />
-              <FieldHelp hint="Include purpose or destination details for traceability." />
+              <FieldHelp id="issue-notes-help" hint="Include purpose or destination details for traceability." />
             </div>
       </FormShell>
     </StoresShell>

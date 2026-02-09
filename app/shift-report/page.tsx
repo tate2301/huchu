@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { PageIntro } from "@/components/shared/page-intro";
+import { ContextHelp } from "@/components/shared/context-help";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployees, fetchShiftReports, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -268,6 +269,7 @@ export default function ShiftReportPage() {
         purpose="Step 1: select shift details. Step 2: capture output. Step 3: submit and confirm the saved report."
         nextStep="Start with date, shift, site, and group leader."
       />
+      <ContextHelp href="/help#shift-report" />
       <RecordSavedBanner entityLabel="shift report" />
 
       {error && (

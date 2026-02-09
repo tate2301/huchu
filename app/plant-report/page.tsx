@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { PageIntro } from "@/components/shared/page-intro"
+import { ContextHelp } from "@/components/shared/context-help"
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner"
 import { fetchDowntimeCodes, fetchPlantReports, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
@@ -248,6 +249,7 @@ export default function PlantReportPage() {
         purpose="Step 1: capture site and production values. Step 2: add downtime and consumables. Step 3: submit and verify in the report table."
         nextStep="Start with date and site under Plant Details."
       />
+      <ContextHelp href="/help#plant-report" />
       <RecordSavedBanner entityLabel="plant report" />
 
       {error && (

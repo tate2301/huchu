@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
+import { GuidedModeToggle } from "@/components/layout/guided-mode-toggle"
 import { usePageActions } from "@/components/layout/page-actions"
 
 export function Navbar() {
@@ -32,6 +33,7 @@ export function Navbar() {
           ) : null}
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <GuidedModeToggle />
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
           <div className="hidden h-6 w-px bg-border md:block" />
           {session ? (

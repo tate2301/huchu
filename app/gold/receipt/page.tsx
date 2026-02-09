@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { ContextHelp } from "@/components/shared/context-help";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +69,7 @@ export default function GoldReceiptPage() {
   return (
     <GoldShell activeTab="receipt" description="Record buyer assay receipt">
       <RecordSavedBanner entityLabel="gold receipt" />
+      <ContextHelp href="/help#gold" />
       <ReceiptForm
         setViewMode={handleNavigate}
         availableDispatches={availableDispatches}
