@@ -6,6 +6,7 @@ import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StatusState } from "@/components/shared/status-state";
 import {
   Card,
   CardContent,
@@ -111,6 +112,21 @@ export default function StoresDashboardPage() {
           <AlertDescription>{getApiErrorMessage(pageError)}</AlertDescription>
         </Alert>
       )}
+
+      {!inventoryLoading && inventoryItems.length === 0 ? (
+        <StatusState
+          variant="empty"
+          title="No inventory items yet"
+          description="Add inventory items to start tracking stock, fuel, and movements."
+        />
+      ) : null}
+
+      {!inventoryLoading && inventoryItems.length > 0 && lowStockItems.length === 0 ? (
+        <Alert variant="success">
+          <AlertTitle>Stock levels healthy</AlertTitle>
+          <AlertDescription>No items are currently below their minimum thresholds.</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

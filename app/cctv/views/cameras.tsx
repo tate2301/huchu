@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Camera as CameraIcon, CheckCircle, XCircle, Shield, Radio, Mic, Download } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatusState } from "@/components/shared/status-state"
 import { fetchCameras, Site } from "@/lib/api"
+import { getApiErrorMessage } from "@/lib/api-client"
 import { exportElementToPdf } from "@/lib/pdf"
 
 interface CamerasViewProps {
@@ -29,6 +32,9 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
   const camerasPdfRef = useRef<HTMLDivElement | null>(null)
   const [areaFilter, setAreaFilter] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<string>("")
+  const siteFilterId = "cctv-cameras-site-filter"
+  const areaFilterId = "cctv-cameras-area-filter"
+  const statusFilterId = "cctv-cameras-status-filter"
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["cameras", selectedSiteId, areaFilter, statusFilter],
@@ -55,11 +61,11 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="py-8">
-          <p className="text-center text-red-600">Error loading cameras: {error.message}</p>
-        </CardContent>
-      </Card>
+      <StatusState
+        variant="error"
+        title="Unable to load cameras"
+        description={getApiErrorMessage(error)}
+      />
     )
   }
 
@@ -70,14 +76,16 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Site:</label>
+              <label className="text-sm font-medium" htmlFor={siteFilterId}>
+                Site:
+              </label>
               <Select
                 value={selectedSiteId}
                 onValueChange={(value) =>
                   onSiteChange(value === "__all_sites__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={siteFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Sites" />
                 </SelectTrigger>
                 <SelectContent>
@@ -92,14 +100,16 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Area:</label>
+              <label className="text-sm font-medium" htmlFor={areaFilterId}>
+                Area:
+              </label>
               <Select
                 value={areaFilter}
                 onValueChange={(value) =>
                   setAreaFilter(value === "__all_areas__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={areaFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Areas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -114,14 +124,16 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Status:</label>
+              <label className="text-sm font-medium" htmlFor={statusFilterId}>
+                Status:
+              </label>
               <Select
                 value={statusFilter}
                 onValueChange={(value) =>
                   setStatusFilter(value === "__all_status__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={statusFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -163,8 +175,20 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
               Export PDF
             </Button>
           </div>
+          {!isLoading ? (
+            <p className="mt-4 text-xs text-muted-foreground" role="status" aria-live="polite">
+              Showing {cameras.length} camera{cameras.length === 1 ? "" : "s"} for {activeSiteName}.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
+
+      {!isLoading && cameras.length > 0 && offlineCount === 0 ? (
+        <Alert variant="success">
+          <AlertTitle>All cameras online</AlertTitle>
+          <AlertDescription>All listed cameras are currently reachable.</AlertDescription>
+        </Alert>
+      ) : null}
 
       {/* Cameras Grid */}
       {isLoading ? (
@@ -204,7 +228,7 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
                       )}
                     </CardTitle>
                     <CardDescription className="mt-1">
-                      Channel {camera.channelNumber} • {camera.area}
+                      Channel {camera.channelNumber} | {camera.area}
                     </CardDescription>
                   </div>
                   <Badge 
@@ -293,7 +317,7 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
         <div ref={camerasPdfRef}>
           <PdfTemplate
             title="CCTV Cameras"
-            subtitle={`${activeSiteName} · ${areaFilter || "All areas"} · ${statusFilter || "All statuses"}`}
+            subtitle={`${activeSiteName} | ${areaFilter || "All areas"} | ${statusFilter || "All statuses"}`}
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Total cameras", value: String(cameras.length) },

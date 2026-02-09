@@ -24,6 +24,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageHeading } from "@/components/layout/page-heading"
+import { StatusState } from "@/components/shared/status-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchDowntimeAnalytics, fetchSites } from "@/lib/api"
@@ -51,6 +52,8 @@ function getDateRange(range: TimeRangeKey) {
 export default function AnalyticsPage() {
   const [selectedSite, setSelectedSite] = useState("")
   const [timeRange, setTimeRange] = useState<TimeRangeKey>("week")
+  const siteFilterId = "analytics-site-filter"
+  const timeRangeFilterId = "analytics-time-range-filter"
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
@@ -120,12 +123,14 @@ export default function AnalyticsPage() {
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-semibold mb-2">Site</label>
+              <label className="block text-sm font-semibold mb-2" htmlFor={siteFilterId}>
+                Site
+              </label>
               {sitesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
                 <Select value={activeSiteId} onValueChange={setSelectedSite}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={siteFilterId} className="w-full">
                     <SelectValue placeholder="Select site" />
                   </SelectTrigger>
                   <SelectContent>
@@ -140,9 +145,11 @@ export default function AnalyticsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Time Range</label>
+              <label className="block text-sm font-semibold mb-2" htmlFor={timeRangeFilterId}>
+                Time Range
+              </label>
               <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRangeKey)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger id={timeRangeFilterId} className="w-full">
                   <SelectValue placeholder="Select time range" />
                 </SelectTrigger>
                 <SelectContent>
@@ -277,6 +284,22 @@ export default function AnalyticsPage() {
           )}
         </CardContent>
       </Card>
+
+      {!analyticsLoading && !analytics ? (
+        <StatusState
+          variant="empty"
+          title="No analytics available"
+          description="Choose a site and time range to load downtime analytics."
+        />
+      ) : null}
+
+      {!analyticsLoading && analytics && totalHours === 0 ? (
+        <StatusState
+          variant="success"
+          title="No downtime recorded"
+          description="No downtime incidents were found for the selected site and range."
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,9 +1,10 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { AlertCircle, CheckCircle, Clock, Download } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FieldHelp } from "@/components/shared/field-help"
+import { StatusState } from "@/components/shared/status-state"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchCCTVEvents, Site } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
@@ -34,6 +37,11 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
   const [statusFilter, setStatusFilter] = useState<string>("unacknowledged")
   const [acknowledgingEvent, setAcknowledgingEvent] = useState<string | null>(null)
   const [acknowledgeNotes, setAcknowledgeNotes] = useState("")
+  const siteFilterId = "cctv-events-site-filter"
+  const severityFilterId = "cctv-events-severity-filter"
+  const statusFilterId = "cctv-events-status-filter"
+  const acknowledgeNotesId = "cctv-event-acknowledge-notes"
+  const acknowledgeNotesHelpId = "cctv-event-acknowledge-notes-help"
 
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -73,12 +81,19 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
     },
   })
 
-  const events = data?.data || []
-  const activeSiteName =
-    sites.find((site) => site.id === selectedSiteId)?.name || "All Sites"
-  const acknowledgedCount = events.filter((event) => event.isAcknowledged).length
-  const unacknowledgedCount = events.filter((event) => !event.isAcknowledged).length
-  const exportDisabled = isLoading || events.length === 0
+  const events = useMemo(() => data?.data ?? [], [data])
+  const selectedSiteName = sites.find((site) => site.id === selectedSiteId)?.name
+  const filteredEvents = useMemo(
+    () =>
+      selectedSiteId && selectedSiteName
+        ? events.filter((event) => event.camera?.site?.name === selectedSiteName)
+        : events,
+    [events, selectedSiteId, selectedSiteName],
+  )
+  const activeSiteName = selectedSiteName || "All Sites"
+  const acknowledgedCount = filteredEvents.filter((event) => event.isAcknowledged).length
+  const unacknowledgedCount = filteredEvents.filter((event) => !event.isAcknowledged).length
+  const exportDisabled = isLoading || filteredEvents.length === 0
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -108,11 +123,11 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="py-8">
-          <p className="text-center text-red-600">Error loading events: {error.message}</p>
-        </CardContent>
-      </Card>
+      <StatusState
+        variant="error"
+        title="Unable to load events"
+        description={getApiErrorMessage(error)}
+      />
     )
   }
 
@@ -123,14 +138,40 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Severity:</label>
+              <label className="text-sm font-medium" htmlFor={siteFilterId}>
+                Site:
+              </label>
+              <Select
+                value={selectedSiteId}
+                onValueChange={(value) =>
+                  onSiteChange(value === "__all_sites__" ? "" : value)
+                }
+              >
+                <SelectTrigger id={siteFilterId} className="w-[180px]">
+                  <SelectValue placeholder="All Sites" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_sites__">All Sites</SelectItem>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium" htmlFor={severityFilterId}>
+                Severity:
+              </label>
               <Select
                 value={severityFilter}
                 onValueChange={(value) =>
                   setSeverityFilter(value === "__all_severities__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={severityFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Severities" />
                 </SelectTrigger>
                 <SelectContent>
@@ -144,14 +185,16 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Status:</label>
+              <label className="text-sm font-medium" htmlFor={statusFilterId}>
+                Status:
+              </label>
               <Select
                 value={statusFilter}
                 onValueChange={(value) =>
                   setStatusFilter(value === "__all_status__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={statusFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,11 +205,12 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
               </Select>
             </div>
 
-            {(severityFilter || statusFilter !== "unacknowledged") && (
+            {(selectedSiteId || severityFilter || statusFilter !== "unacknowledged") && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  onSiteChange("")
                   setSeverityFilter("")
                   setStatusFilter("unacknowledged")
                 }}
@@ -192,8 +236,20 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
               Export PDF
             </Button>
           </div>
+          {!isLoading ? (
+            <p className="mt-4 text-xs text-muted-foreground" role="status" aria-live="polite">
+              Showing {filteredEvents.length} event{filteredEvents.length === 1 ? "" : "s"} for {activeSiteName}.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
+
+      {!isLoading && filteredEvents.length > 0 && unacknowledgedCount === 0 ? (
+        <Alert variant="success">
+          <AlertTitle>All events acknowledged</AlertTitle>
+          <AlertDescription>No pending acknowledgements in the current view.</AlertDescription>
+        </Alert>
+      ) : null}
 
       {/* Events List */}
       {isLoading ? (
@@ -207,18 +263,23 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
             </Card>
           ))}
         </div>
-      ) : events.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <CheckCircle className="h-12 w-12 mx-auto text-green-600 mb-4" />
-            <p className="text-sm text-muted-foreground">
-              No events found. All clear!
-            </p>
-          </CardContent>
-        </Card>
+      ) : filteredEvents.length === 0 ? (
+        statusFilter === "unacknowledged" ? (
+          <StatusState
+            variant="success"
+            title="No unacknowledged events"
+            description="All events in this view are acknowledged."
+          />
+        ) : (
+          <StatusState
+            variant="empty"
+            title="No events found"
+            description="Try adjusting the selected site, severity, or status."
+          />
+        )
       ) : (
         <div className="space-y-4">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <Card key={event.id} className={getSeverityColor(event.severity)}>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -230,7 +291,7 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
                     <CardDescription className="text-current opacity-80">
                       {event.camera ? (
                         <>
-                          {event.camera.area} • {event.camera.name} • {event.camera.site?.name}
+                          {event.camera.area} | {event.camera.name} | {event.camera.site?.name}
                         </>
                       ) : (
                         "System Event"
@@ -272,11 +333,20 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
                     <div className="pt-3 border-t">
                       {acknowledgingEvent === event.id ? (
                         <div className="space-y-3">
+                          <label className="text-sm font-medium" htmlFor={acknowledgeNotesId}>
+                            Acknowledge Notes
+                          </label>
                           <Textarea
+                            id={acknowledgeNotesId}
                             placeholder="Add notes (optional)..."
                             value={acknowledgeNotes}
                             onChange={(e) => setAcknowledgeNotes(e.target.value)}
                             rows={2}
+                            aria-describedby={acknowledgeNotesHelpId}
+                          />
+                          <FieldHelp
+                            id={acknowledgeNotesHelpId}
+                            hint="Explain what was checked before acknowledging this event."
                           />
                           <div className="flex gap-2">
                             <Button
@@ -324,9 +394,9 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
         <div ref={eventsPdfRef}>
           <PdfTemplate
             title="CCTV Events"
-            subtitle={`${activeSiteName} · ${severityFilter || "All severities"} · ${statusFilter || "All statuses"}`}
+            subtitle={`${activeSiteName} | ${severityFilter || "All severities"} | ${statusFilter || "All statuses"}`}
             meta={[
-              { label: "Total events", value: String(events.length) },
+              { label: "Total events", value: String(filteredEvents.length) },
               { label: "Acknowledged", value: String(acknowledgedCount) },
               { label: "Unacknowledged", value: String(unacknowledgedCount) },
             ]}
@@ -343,7 +413,7 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
                 </tr>
               </thead>
               <tbody>
-                {events.map((event) => (
+                {filteredEvents.map((event) => (
                   <tr key={event.id} className="border-b border-gray-100">
                     <td className="py-2">
                       <div className="font-semibold">{event.title}</div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { PageHeading } from "@/components/layout/page-heading"
+import { StatusState } from "@/components/shared/status-state"
 import { PdfTemplate } from "@/components/pdf/pdf-template"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,6 +24,9 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState(format(today, "yyyy-MM-dd"))
   const [exporting, setExporting] = useState(false)
   const reportPdfRef = useRef<HTMLDivElement>(null)
+  const siteFilterId = "reports-site-filter"
+  const startDateFilterId = "reports-start-date-filter"
+  const endDateFilterId = "reports-end-date-filter"
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
@@ -264,12 +268,14 @@ export default function ReportsPage() {
         <CardContent>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold mb-2">Site</label>
+              <label className="block text-sm font-semibold mb-2" htmlFor={siteFilterId}>
+                Site
+              </label>
               {sitesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
                 <Select value={selectedSite} onValueChange={setSelectedSite}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={siteFilterId} className="w-full">
                     <SelectValue placeholder="Select site" />
                   </SelectTrigger>
                   <SelectContent>
@@ -291,13 +297,27 @@ export default function ReportsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Start Date</label>
-              <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+              <label className="block text-sm font-semibold mb-2" htmlFor={startDateFilterId}>
+                Start Date
+              </label>
+              <Input
+                id={startDateFilterId}
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">End Date</label>
-              <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+              <label className="block text-sm font-semibold mb-2" htmlFor={endDateFilterId}>
+                End Date
+              </label>
+              <Input
+                id={endDateFilterId}
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
             </div>
 
             <div className="md:col-span-4 flex flex-wrap items-center gap-3">
@@ -326,13 +346,31 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
+      {!isLoading && reportData.length === 0 && shiftData.length === 0 ? (
+        <StatusState
+          variant="empty"
+          title="No report data for this range"
+          description="Try widening the date range or switching to another site."
+        />
+      ) : null}
+
+      {!isLoading && (reportData.length > 0 || shiftData.length > 0) ? (
+        <Alert variant="success">
+          <AlertTitle>Reports loaded</AlertTitle>
+          <AlertDescription>
+            Loaded {reportData.length} plant report{reportData.length === 1 ? "" : "s"} and {shiftData.length} shift
+            report{shiftData.length === 1 ? "" : "s"}.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="space-y-6 bg-background">
         <Card>
           <CardHeader>
             <CardTitle>Production Summary</CardTitle>
             <CardDescription>
               {startDate} to {endDate}
-              {selectedSite === "all" ? " · All sites" : ""}
+              {selectedSite === "all" ? " | All sites" : ""}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Server, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatusState } from "@/components/shared/status-state"
 import { fetchNVRs, Site } from "@/lib/api"
+import { getApiErrorMessage } from "@/lib/api-client"
 import { exportElementToPdf } from "@/lib/pdf"
 
 interface NVRsViewProps {
@@ -28,6 +31,8 @@ interface NVRsViewProps {
 export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps) {
   const nvrsPdfRef = useRef<HTMLDivElement | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("")
+  const siteFilterId = "cctv-nvrs-site-filter"
+  const statusFilterId = "cctv-nvrs-status-filter"
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["nvrs", selectedSiteId, statusFilter],
@@ -47,11 +52,11 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="py-8">
-          <p className="text-center text-red-600">Error loading NVRs: {error.message}</p>
-        </CardContent>
-      </Card>
+      <StatusState
+        variant="error"
+        title="Unable to load NVRs"
+        description={getApiErrorMessage(error)}
+      />
     )
   }
 
@@ -62,14 +67,16 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Site:</label>
+              <label className="text-sm font-medium" htmlFor={siteFilterId}>
+                Site:
+              </label>
               <Select
                 value={selectedSiteId}
                 onValueChange={(value) =>
                   onSiteChange(value === "__all_sites__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={siteFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Sites" />
                 </SelectTrigger>
                 <SelectContent>
@@ -84,14 +91,16 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Status:</label>
+              <label className="text-sm font-medium" htmlFor={statusFilterId}>
+                Status:
+              </label>
               <Select
                 value={statusFilter}
                 onValueChange={(value) =>
                   setStatusFilter(value === "__all_status__" ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger id={statusFilterId} className="w-[180px]">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -132,8 +141,20 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
               Export PDF
             </Button>
           </div>
+          {!isLoading ? (
+            <p className="mt-4 text-xs text-muted-foreground" role="status" aria-live="polite">
+              Showing {nvrs.length} NVR{nvrs.length === 1 ? "" : "s"} for {activeSiteName}.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
+
+      {!isLoading && nvrs.length > 0 && offlineCount === 0 ? (
+        <Alert variant="success">
+          <AlertTitle>All NVRs online</AlertTitle>
+          <AlertDescription>All listed recorders are connected and healthy.</AlertDescription>
+        </Alert>
+      ) : null}
 
       {/* NVRs Grid */}
       {isLoading ? (
@@ -169,7 +190,7 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
                     <CardTitle className="text-base">{nvr.name}</CardTitle>
                     <CardDescription className="mt-1">
                       {nvr.manufacturer}
-                      {nvr.model && ` • ${nvr.model}`}
+                      {nvr.model && ` | ${nvr.model}`}
                     </CardDescription>
                   </div>
                   <Badge 
@@ -241,7 +262,7 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
         <div ref={nvrsPdfRef}>
           <PdfTemplate
             title="CCTV NVRs"
-            subtitle={`${activeSiteName} · ${statusFilter || "All statuses"}`}
+            subtitle={`${activeSiteName} | ${statusFilter || "All statuses"}`}
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Total NVRs", value: String(nvrs.length) },
@@ -267,7 +288,7 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
                       <div className="font-semibold">{nvr.name}</div>
                       <div className="text-[10px] text-gray-500">
                         {nvr.manufacturer}
-                        {nvr.model ? ` · ${nvr.model}` : ""}
+                        {nvr.model ? ` | ${nvr.model}` : ""}
                       </div>
                     </td>
                     <td className="py-2">{nvr.site?.name || "Unknown"}</td>

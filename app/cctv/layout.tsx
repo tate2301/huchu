@@ -1,9 +1,7 @@
 "use client"
 
-import { useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
 import { 
   Camera as CameraIcon, 
   AlertCircle, 
@@ -15,8 +13,7 @@ import {
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { fetchSites } from "@/lib/api"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function CCTVLayout({
   children,

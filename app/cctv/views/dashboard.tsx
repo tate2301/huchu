@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { StatusState } from "@/components/shared/status-state";
 import {
   Card,
   CardContent,
@@ -53,32 +55,63 @@ export function DashboardView({
   const criticalEvents = events.filter((e) => e.severity === "CRITICAL").length;
   const highEvents = events.filter((e) => e.severity === "HIGH").length;
   const unacknowledgedEvents = events.filter((e) => !e.isAcknowledged).length;
-  console.log({ sites });
+  const allHealthy =
+    cameras.length > 0 &&
+    nvrs.length > 0 &&
+    offlineCameras === 0 &&
+    offlineNVRs === 0 &&
+    unacknowledgedEvents === 0;
+  const siteFilterId = "cctv-dashboard-site-filter";
+
+  if (cameras.length === 0 && nvrs.length === 0 && events.length === 0) {
+    return (
+      <StatusState
+        variant="empty"
+        title="No CCTV equipment configured"
+        description="Add at least one NVR and camera to start monitoring this site."
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Site Filter */}
-      {/*<div className="flex items-center gap-4">
-        <label className="text-sm font-medium">Filter by Site:</label>
-        <Select
-          value={selectedSiteId}
-          onValueChange={(value) =>
-            onSiteChange(value === "__all_sites__" ? "" : value)
-          }
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Sites" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all_sites__">All Sites</SelectItem>
-            {sites.length > 0 &&
-              sites.map((site) => (
-                <SelectItem key={site.id} value={site.id ?? site.name}>
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium" htmlFor={siteFilterId}>
+            Filter by Site:
+          </label>
+          <Select
+            value={selectedSiteId}
+            onValueChange={(value) =>
+              onSiteChange(value === "__all_sites__" ? "" : value)
+            }
+          >
+            <SelectTrigger id={siteFilterId} className="w-[220px]">
+              <SelectValue placeholder="All Sites" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all_sites__">All Sites</SelectItem>
+              {sites.map((site) => (
+                <SelectItem key={site.id} value={site.id}>
                   {site.name}
                 </SelectItem>
               ))}
-          </SelectContent>
-        </Select>
-      </div>*/}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+          Showing {cameras.length} cameras, {nvrs.length} NVRs, and {events.length} recent events.
+        </p>
+      </div>
+
+      {allHealthy ? (
+        <Alert variant="success">
+          <AlertTitle>System healthy</AlertTitle>
+          <AlertDescription>
+            All listed cameras and NVRs are online with no unacknowledged events.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -191,7 +224,7 @@ export function DashboardView({
                       <div>
                         <p className="text-sm font-medium">{camera.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {camera.area} • {camera.site?.name || "Unknown Site"}
+                          {camera.area} | {camera.site?.name || "Unknown Site"}
                         </p>
                       </div>
                     </div>
@@ -237,7 +270,7 @@ export function DashboardView({
                     <div>
                       <p className="text-sm font-medium">{event.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {event.camera?.area || "Unknown"} •{" "}
+                        {event.camera?.area || "Unknown"} |{" "}
                         {new Date(event.eventTime).toLocaleString()}
                       </p>
                     </div>
@@ -262,7 +295,7 @@ export function DashboardView({
       )}
 
       {/* Empty State */}
-      {cameras.length === 0 && nvrs.length === 0 && (
+      {cameras.length === 0 && nvrs.length === 0 && events.length === 0 && (
         <Card>
           <CardHeader>
             <CardTitle>No CCTV Equipment Configured</CardTitle>

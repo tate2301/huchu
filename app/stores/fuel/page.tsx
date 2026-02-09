@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -63,8 +64,8 @@ export default function StoresFuelPage() {
     queryFn: () => fetchStockMovements({ category: "FUEL", limit: 200 }),
   });
 
-  const fuelItems = inventoryData?.data ?? [];
-  const fuelMovements = movementsData?.data ?? [];
+  const fuelItems = useMemo(() => inventoryData?.data ?? [], [inventoryData]);
+  const fuelMovements = useMemo(() => movementsData?.data ?? [], [movementsData]);
   const fuelUnit =
     fuelItems.length > 0
       ? fuelItems.every((item) => item.unit === fuelItems[0].unit)
@@ -118,6 +119,21 @@ export default function StoresFuelPage() {
           <AlertDescription>{getApiErrorMessage(pageError)}</AlertDescription>
         </Alert>
       )}
+
+      {!inventoryLoading && !movementsLoading && fuelItems.length === 0 && ledgerRows.length === 0 ? (
+        <StatusState
+          variant="empty"
+          title="No fuel records yet"
+          description="Add fuel inventory items and movements to start the ledger."
+        />
+      ) : null}
+
+      {!inventoryLoading && fuelItems.length > 0 && !fuelBelowMin ? (
+        <Alert variant="success">
+          <AlertTitle>Fuel stock healthy</AlertTitle>
+          <AlertDescription>Fuel balance is on or above the minimum threshold.</AlertDescription>
+        </Alert>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -188,7 +204,7 @@ export default function StoresFuelPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full" aria-label="Fuel ledger table">
               <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-3 text-sm font-semibold">Date</th>
