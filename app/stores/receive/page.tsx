@@ -4,16 +4,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -27,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { Plus } from "lucide-react";
 
 type NotesPayload = {
@@ -50,6 +46,7 @@ export default function StoresReceivePage() {
     receivedById: "",
     notes: "",
   });
+  const [formErrors, setFormErrors] = useState<string[]>([]);
 
   const {
     data: sites,
@@ -81,7 +78,7 @@ export default function StoresReceivePage() {
   });
 
   const inventoryItems = inventoryData?.data ?? [];
-  const employees = employeesData?.data ?? [];
+  const employees = useMemo(() => employeesData?.data ?? [], [employeesData]);
 
   const employeesById = useMemo(() => {
     const map = new Map<string, string>();
@@ -93,11 +90,12 @@ export default function StoresReceivePage() {
 
   const receiveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ movement?: { id?: string } }>("/api/inventory/movements", {
+      fetchJson<{ movement?: { id?: string; createdAt?: string } }>("/api/inventory/movements", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
     onSuccess: (result) => {
+      setFormErrors([]);
       toast({
         title: "Stock received",
         description: "Receipt recorded successfully.",
@@ -106,13 +104,19 @@ export default function StoresReceivePage() {
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
       const createdId = result?.movement?.id;
-      const query = new URLSearchParams();
-      if (activeSiteId) query.set("siteId", activeSiteId);
-      if (createdId) query.set("createdId", createdId);
-      query.set("source", "stores-receipt");
-      router.push(`/stores/movements?${query.toString()}`);
+      const destination = buildSavedRecordRedirect(
+        "/stores/movements",
+        {
+          createdId,
+          createdAt: result?.movement?.createdAt,
+          source: "stores-receipt",
+        },
+        { siteId: activeSiteId },
+      );
+      router.push(destination);
     },
     onError: (error) => {
+      setFormErrors([getApiErrorMessage(error)]);
       toast({
         title: "Unable to receive stock",
         description: getApiErrorMessage(error),
@@ -135,34 +139,39 @@ export default function StoresReceivePage() {
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    setFormErrors([]);
+
+    const errors: string[] = [];
 
     const selectedItem = inventoryItems.find((item) => item.id === form.itemId);
     if (!selectedItem) {
-      toast({
-        title: "Missing item",
-        description: "Select an inventory item to receive.",
-        variant: "destructive",
-      });
-      return;
+      errors.push("Select an inventory item to receive.");
     }
 
     const quantity = Number(form.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast({
-        title: "Invalid quantity",
-        description: "Enter a positive quantity.",
-        variant: "destructive",
-      });
-      return;
+      errors.push("Enter a quantity greater than zero.");
     }
 
     const receivedBy = employeesById.get(form.receivedById);
     if (!receivedBy) {
+      errors.push("Select the employee who received this stock.");
+    }
+
+    if (!form.supplier.trim()) {
+      errors.push("Provide the supplier name.");
+    }
+
+    if (errors.length) {
+      setFormErrors(errors);
       toast({
-        title: "Missing receiver",
-        description: "Select who received this stock.",
+        title: "Please fix the form",
+        description: errors[0],
         variant: "destructive",
       });
+      return;
+    }
+    if (!selectedItem || !receivedBy) {
       return;
     }
 
@@ -203,16 +212,31 @@ export default function StoresReceivePage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Receive Stock</CardTitle>
-          <CardDescription>Record new stock receipts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
+      <FormShell
+        title="Receive Stock"
+        description="Record new stock receipts"
+        onSubmit={handleSubmit}
+        errors={formErrors}
+        requiredHint="Fields marked * are required. After submit, you will be redirected to the movement log."
+        actions={
+          <>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              type="submit"
+              disabled={receiveMutation.isPending}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {receiveMutation.isPending ? "Saving Receipt..." : "Submit Receipt"}
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/stores/dashboard">Cancel</Link>
+            </Button>
+          </>
+        }
+      >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Date *</label>
+                <label className="mb-2 block text-field-label">Date *</label>
                 <Input
                   type="date"
                   value={form.date}
@@ -223,7 +247,7 @@ export default function StoresReceivePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Site *</label>
+                <label className="mb-2 block text-field-label">Site *</label>
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -248,7 +272,7 @@ export default function StoresReceivePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Item *</label>
+                <label className="mb-2 block text-field-label">Item *</label>
                 {inventoryLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -277,9 +301,10 @@ export default function StoresReceivePage() {
                     </SelectContent>
                   </Select>
                 )}
+                <FieldHelp hint="Choose an existing stock item or add a new one." />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Quantity *</label>
+                <label className="mb-2 block text-field-label">Quantity *</label>
                 <Input
                   type="number"
                   placeholder="e.g., 1500"
@@ -289,12 +314,13 @@ export default function StoresReceivePage() {
                   }
                   required
                 />
+                <FieldHelp hint="Use the same unit shown for the selected item." />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Supplier *</label>
+                <label className="mb-2 block text-field-label">Supplier *</label>
                 <Input
                   placeholder="Supplier name"
                   value={form.supplier}
@@ -305,7 +331,7 @@ export default function StoresReceivePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">
+                <label className="mb-2 block text-field-label">
                   Invoice/Delivery Number
                 </label>
                 <Input
@@ -320,7 +346,7 @@ export default function StoresReceivePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Unit Cost</label>
+                <label className="mb-2 block text-field-label">Unit Cost</label>
                 <Input
                   type="number"
                   step="0.01"
@@ -332,7 +358,7 @@ export default function StoresReceivePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">
+                <label className="mb-2 block text-field-label">
                   Received By *
                 </label>
                 {employeesLoading ? (
@@ -360,7 +386,7 @@ export default function StoresReceivePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Notes</label>
+              <label className="mb-2 block text-field-label">Notes</label>
               <Textarea
                 placeholder="Delivery notes, condition, etc..."
                 rows={3}
@@ -369,24 +395,9 @@ export default function StoresReceivePage() {
                   setForm((prev) => ({ ...prev, notes: event.target.value }))
                 }
               />
+              <FieldHelp hint="Include delivery condition or any discrepancy." />
             </div>
-
-            <div className="flex gap-3">
-              <Button
-                className="bg-green-600 hover:bg-green-700"
-                type="submit"
-                disabled={receiveMutation.isPending}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Submit Receipt
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/stores/dashboard">Cancel</Link>
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      </FormShell>
     </StoresShell>
   );
 }

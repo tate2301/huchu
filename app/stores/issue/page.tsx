@@ -4,16 +4,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -27,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { Minus } from "lucide-react";
 
 export default function StoresIssuePage() {
@@ -43,6 +39,7 @@ export default function StoresIssuePage() {
     approvedById: "",
     notes: "",
   });
+  const [formErrors, setFormErrors] = useState<string[]>([]);
 
   const {
     data: sites,
@@ -74,7 +71,7 @@ export default function StoresIssuePage() {
   });
 
   const inventoryItems = inventoryData?.data ?? [];
-  const employees = employeesData?.data ?? [];
+  const employees = useMemo(() => employeesData?.data ?? [], [employeesData]);
 
   const employeesById = useMemo(() => {
     const map = new Map<string, string>();
@@ -86,11 +83,12 @@ export default function StoresIssuePage() {
 
   const issueMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ movement?: { id?: string } }>("/api/inventory/movements", {
+      fetchJson<{ movement?: { id?: string; createdAt?: string } }>("/api/inventory/movements", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
     onSuccess: (result) => {
+      setFormErrors([]);
       toast({
         title: "Stock issued",
         description: "Issue recorded successfully.",
@@ -99,13 +97,19 @@ export default function StoresIssuePage() {
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
       const createdId = result?.movement?.id;
-      const query = new URLSearchParams();
-      if (activeSiteId) query.set("siteId", activeSiteId);
-      if (createdId) query.set("createdId", createdId);
-      query.set("source", "stores-issue");
-      router.push(`/stores/movements?${query.toString()}`);
+      const destination = buildSavedRecordRedirect(
+        "/stores/movements",
+        {
+          createdId,
+          createdAt: result?.movement?.createdAt,
+          source: "stores-issue",
+        },
+        { siteId: activeSiteId },
+      );
+      router.push(destination);
     },
     onError: (error) => {
+      setFormErrors([getApiErrorMessage(error)]);
       toast({
         title: "Unable to issue stock",
         description: getApiErrorMessage(error),
@@ -128,34 +132,39 @@ export default function StoresIssuePage() {
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    setFormErrors([]);
+
+    const errors: string[] = [];
 
     const selectedItem = inventoryItems.find((item) => item.id === form.itemId);
     if (!selectedItem) {
-      toast({
-        title: "Missing item",
-        description: "Select an inventory item to issue.",
-        variant: "destructive",
-      });
-      return;
+      errors.push("Select an inventory item to issue.");
     }
 
     const quantity = Number(form.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast({
-        title: "Invalid quantity",
-        description: "Enter a positive quantity.",
-        variant: "destructive",
-      });
-      return;
+      errors.push("Enter a quantity greater than zero.");
     }
 
     const requestedBy = employeesById.get(form.requestedById);
     if (!requestedBy) {
+      errors.push("Select the employee who requested this issue.");
+    }
+
+    if (!form.issuedTo.trim()) {
+      errors.push("Provide who the stock was issued to.");
+    }
+
+    if (errors.length) {
+      setFormErrors(errors);
       toast({
-        title: "Missing requester",
-        description: "Select who requested this issue.",
+        title: "Please fix the form",
+        description: errors[0],
         variant: "destructive",
       });
+      return;
+    }
+    if (!selectedItem || !requestedBy) {
       return;
     }
 
@@ -189,16 +198,31 @@ export default function StoresIssuePage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Issue Stock</CardTitle>
-          <CardDescription>Issue items to equipment or sections</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
+      <FormShell
+        title="Issue Stock"
+        description="Issue items to equipment or sections"
+        onSubmit={handleSubmit}
+        errors={formErrors}
+        requiredHint="Fields marked * are required. After submit, you will be redirected to the movement log."
+        actions={
+          <>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700"
+              type="submit"
+              disabled={issueMutation.isPending}
+            >
+              <Minus className="mr-2 h-4 w-4" />
+              {issueMutation.isPending ? "Saving Issue..." : "Submit Issue"}
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/stores/dashboard">Cancel</Link>
+            </Button>
+          </>
+        }
+      >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Date *</label>
+                <label className="mb-2 block text-field-label">Date *</label>
                 <Input
                   type="date"
                   value={form.date}
@@ -209,7 +233,7 @@ export default function StoresIssuePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Site *</label>
+                <label className="mb-2 block text-field-label">Site *</label>
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -234,7 +258,7 @@ export default function StoresIssuePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Item *</label>
+                <label className="mb-2 block text-field-label">Item *</label>
                 {inventoryLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
@@ -263,9 +287,10 @@ export default function StoresIssuePage() {
                     </SelectContent>
                   </Select>
                 )}
+                <FieldHelp hint="Choose an item from stock on hand." />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Quantity *</label>
+                <label className="mb-2 block text-field-label">Quantity *</label>
                 <Input
                   type="number"
                   placeholder="e.g., 50"
@@ -275,12 +300,13 @@ export default function StoresIssuePage() {
                   }
                   required
                 />
+                <FieldHelp hint="The quantity must be available in stock." />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">
+                <label className="mb-2 block text-field-label">
                   Issued To (Equipment/Section) *
                 </label>
                 <Input
@@ -293,7 +319,7 @@ export default function StoresIssuePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">
+                <label className="mb-2 block text-field-label">
                   Requested By *
                 </label>
                 {employeesLoading ? (
@@ -321,7 +347,7 @@ export default function StoresIssuePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Approved By</label>
+              <label className="mb-2 block text-field-label">Approved By</label>
               {employeesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -346,7 +372,7 @@ export default function StoresIssuePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Notes</label>
+              <label className="mb-2 block text-field-label">Notes</label>
               <Textarea
                 placeholder="Additional information about this issue..."
                 rows={3}
@@ -355,24 +381,9 @@ export default function StoresIssuePage() {
                   setForm((prev) => ({ ...prev, notes: event.target.value }))
                 }
               />
+              <FieldHelp hint="Include purpose or destination details for traceability." />
             </div>
-
-            <div className="flex gap-3">
-              <Button
-                className="bg-orange-600 hover:bg-orange-700"
-                type="submit"
-                disabled={issueMutation.isPending}
-              >
-                <Minus className="h-4 w-4 mr-2" />
-                Submit Issue
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/stores/dashboard">Cancel</Link>
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      </FormShell>
     </StoresShell>
   );
 }

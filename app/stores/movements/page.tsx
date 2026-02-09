@@ -2,19 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { DataListShell } from "@/components/shared/data-list-shell";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -78,6 +73,7 @@ export default function StoresMovementsPage() {
     data: sites,
     isLoading: sitesLoading,
     error: sitesError,
+    refetch: refetchSites,
   } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
@@ -87,6 +83,7 @@ export default function StoresMovementsPage() {
     data: movementsData,
     isLoading: movementsLoading,
     error: movementsError,
+    refetch: refetchMovements,
   } = useQuery({
     queryKey: ["stock-movements", "history", siteId, movementType],
     queryFn: () =>
@@ -108,7 +105,7 @@ export default function StoresMovementsPage() {
     enabled: !!selectedMovementId,
   });
 
-  const movements = movementsData?.data ?? [];
+  const movements = useMemo(() => movementsData?.data ?? [], [movementsData]);
   const filteredMovements = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return movements;
@@ -142,24 +139,28 @@ export default function StoresMovementsPage() {
     >
       <RecordSavedBanner entityLabel="movement" />
 
-      {pageError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load movement history</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(pageError)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Stock Movements</CardTitle>
-          <CardDescription>
-            Full action log for all inventory transactions
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <DataListShell
+        title="Stock Movements"
+        description="Full action log for all inventory transactions"
+        isLoading={sitesLoading || movementsLoading}
+        isError={Boolean(pageError)}
+        errorMessage={pageError ? getApiErrorMessage(pageError) : undefined}
+        onRetry={() => {
+          refetchSites();
+          refetchMovements();
+        }}
+        hasData={filteredMovements.length > 0}
+        emptyTitle="No stock movements found"
+        emptyDescription="Try changing filters or start by recording a stock receipt."
+        emptyAction={
+          <Button asChild size="sm">
+            <Link href="/stores/receive">Record Receipt</Link>
+          </Button>
+        }
+        filters={
           <div className="grid gap-3 md:grid-cols-3">
             <div>
-              <label className="mb-2 block text-sm font-semibold">Site</label>
+              <label className="mb-2 block text-field-label">Site</label>
               {sitesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -179,7 +180,7 @@ export default function StoresMovementsPage() {
               )}
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">
+              <label className="mb-2 block text-field-label">
                 Movement Type
               </label>
               <Select value={movementType} onValueChange={setMovementType}>
@@ -196,7 +197,7 @@ export default function StoresMovementsPage() {
               </Select>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Search</label>
+              <label className="mb-2 block text-field-label">Search</label>
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -204,88 +205,74 @@ export default function StoresMovementsPage() {
               />
             </div>
           </div>
-
+        }
+      >
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-muted">
+              <thead className="sticky top-0 z-10 bg-muted">
                 <tr>
-                  <th className="p-3 text-left text-sm font-semibold">Date</th>
-                  <th className="p-3 text-left text-sm font-semibold">Type</th>
-                  <th className="p-3 text-left text-sm font-semibold">Item</th>
-                  <th className="p-3 text-left text-sm font-semibold">Site</th>
-                  <th className="p-3 text-right text-sm font-semibold">Qty</th>
-                  <th className="p-3 text-left text-sm font-semibold">Actor</th>
-                  <th className="p-3 text-left text-sm font-semibold">Notes</th>
-                  <th className="p-3 text-right text-sm font-semibold">Actions</th>
+                  <th className="p-3 text-left text-table-cell">Date</th>
+                  <th className="p-3 text-left text-table-cell">Type</th>
+                  <th className="p-3 text-left text-table-cell">Item</th>
+                  <th className="p-3 text-left text-table-cell">Site</th>
+                  <th className="p-3 text-right text-table-cell">Qty</th>
+                  <th className="p-3 text-left text-table-cell">Actor</th>
+                  <th className="p-3 text-left text-table-cell">Notes</th>
+                  <th className="p-3 text-right text-table-cell">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {movementsLoading ? (
-                  <tr>
-                    <td colSpan={8} className="p-3">
-                      <Skeleton className="h-10 w-full" />
-                    </td>
-                  </tr>
-                ) : filteredMovements.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-3 text-sm text-muted-foreground">
-                      No stock movements found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredMovements.map((movement) => {
-                    const notes = parseNotes(movement.notes);
-                    const rowNotes = notes.notes ?? notes.invoiceNo ?? notes.supplier ?? "-";
-                    return (
-                      <tr
-                        key={movement.id}
-                        className={`border-b hover:bg-muted/60 ${
-                          createdId === movement.id ? "bg-emerald-50" : ""
-                        }`}
-                      >
-                        <td className="p-3 text-sm">
-                          {new Date(movement.createdAt).toLocaleString()}
-                        </td>
-                        <td className="p-3 text-sm">
-                          <Badge variant={movementVariant(movement.movementType)}>
-                            {movement.movementType}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-sm">
-                          <div className="font-semibold">{movement.item.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {movement.item.itemCode}
-                          </div>
-                        </td>
-                        <td className="p-3 text-sm">{movement.item.site.name}</td>
-                        <td className="p-3 text-right text-sm font-semibold">
-                          {movement.quantity} {movement.unit}
-                        </td>
-                        <td className="p-3 text-sm">
-                          {movement.approvedBy ?? movement.requestedBy ?? movement.issuedBy?.name ?? "-"}
-                        </td>
-                        <td className="max-w-52 truncate p-3 text-sm" title={rowNotes}>
-                          {rowNotes}
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedMovementId(movement.id)}
-                          >
-                            View
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                {filteredMovements.map((movement) => {
+                  const notes = parseNotes(movement.notes);
+                  const rowNotes = notes.notes ?? notes.invoiceNo ?? notes.supplier ?? "-";
+                  return (
+                    <tr
+                      key={movement.id}
+                      className={`border-b hover:bg-muted/60 ${
+                        createdId === movement.id ? "bg-[var(--status-success-bg)]" : ""
+                      }`}
+                    >
+                      <td className="p-3 text-sm">
+                        {new Date(movement.createdAt).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-sm">
+                        <Badge variant={movementVariant(movement.movementType)}>
+                          {movement.movementType}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-sm">
+                        <div className="font-semibold">{movement.item.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {movement.item.itemCode}
+                        </div>
+                      </td>
+                      <td className="p-3 text-sm">{movement.item.site.name}</td>
+                      <td className="p-3 text-right text-sm font-semibold">
+                        {movement.quantity} {movement.unit}
+                      </td>
+                      <td className="p-3 text-sm">
+                        {movement.approvedBy ?? movement.requestedBy ?? movement.issuedBy?.name ?? "-"}
+                      </td>
+                      <td className="max-w-52 truncate p-3 text-sm" title={rowNotes}>
+                        {rowNotes}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedMovementId(movement.id)}
+                        >
+                          View
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+      </DataListShell>
 
       <Dialog open={!!selectedMovementId} onOpenChange={(open) => !open && setSelectedMovementId(null)}>
         <DialogContent className="w-full sm:max-w-lg">
