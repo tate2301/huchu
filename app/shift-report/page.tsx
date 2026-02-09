@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Save, Send } from "lucide-react";
+import { Save, Send } from "@/lib/icons";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -93,7 +93,7 @@ export default function ShiftReportPage() {
       const reportDate = String(variables.date ?? "").slice(0, 10);
       const reportSiteId = String(variables.siteId ?? "");
       const destination = buildSavedRecordRedirect(
-        "/shift-report/history",
+        "/reports/shift",
         {
           createdId: report.id,
           createdAt: report.createdAt,
@@ -179,7 +179,7 @@ export default function ShiftReportPage() {
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <PageActions>
         <Button size="sm" asChild variant="outline">
-          <Link href="/shift-report/history">View Submitted Reports</Link>
+          <Link href="/reports/shift">View Submitted Reports</Link>
         </Button>
         <Button
           size="sm"

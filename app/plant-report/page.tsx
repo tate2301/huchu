@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, Save, Send } from "lucide-react";
+import { AlertCircle, Save, Send } from "@/lib/icons";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -87,7 +87,7 @@ export default function PlantReportPage() {
       const reportDate = String(variables.date ?? "").slice(0, 10);
       const reportSiteId = String(variables.siteId ?? "");
       const destination = buildSavedRecordRedirect(
-        "/plant-report/history",
+        "/reports/plant",
         {
           createdId: report.id,
           createdAt: report.createdAt,
@@ -193,7 +193,7 @@ export default function PlantReportPage() {
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <PageActions>
         <Button size="sm" asChild variant="outline">
-          <Link href="/plant-report/history">View Plant Reports</Link>
+          <Link href="/reports/plant">View Plant Reports</Link>
         </Button>
         <Button size="sm" variant="outline" onClick={handleSaveDraft}>
           <Save className="h-4 w-4" />

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Save, Send, UserCheck, UserPlus, UserX } from "lucide-react";
+import { Save, Send, UserCheck, UserPlus, UserX } from "@/lib/icons";
 import Image from "next/image";
 
 import { PageActions } from "@/components/layout/page-actions";
@@ -127,7 +127,7 @@ export default function AttendancePage() {
       const reportDate = payload.date.slice(0, 10);
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
       const destination = buildSavedRecordRedirect(
-        "/attendance/history",
+        "/reports/attendance",
         {
           createdId: `${payload.siteId}:${payload.shift}:${reportDate}`,
           createdAt: new Date(payload.date),
@@ -329,7 +329,7 @@ export default function AttendancePage() {
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <PageActions>
         <Button size="sm" asChild variant="outline">
-          <Link href="/attendance/history">View Attendance Records</Link>
+          <Link href="/reports/attendance">View Attendance Records</Link>
         </Button>
         <Button size="sm" variant="outline" onClick={handleSaveDraft}>
           <Save className="h-4 w-4" />

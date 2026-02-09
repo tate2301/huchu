@@ -10,10 +10,10 @@ function toQueryString(searchParams: Record<string, string | string[] | undefine
   return query ? `?${query}` : "";
 }
 
-export default function PlantReportHistoryRedirect({
+export default function GoldReportsRedirect({
   searchParams,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  redirect(`/reports/plant${toQueryString(searchParams)}`);
+  redirect(`/reports/gold-chain${toQueryString(searchParams)}`);
 }
