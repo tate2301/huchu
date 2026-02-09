@@ -83,11 +83,16 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
   const inspections = useMemo(() => data?.data ?? [], [data]);
   const pageError = sitesError || error;
 
-  const pushSaved = (id: string) => {
+  const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "inspections");
     params.set("createdId", id);
     params.set("source", "inspection");
+    if (createdAt) {
+      params.set("createdAt", createdAt);
+    } else {
+      params.delete("createdAt");
+    }
     router.push(`/compliance?${params.toString()}`);
   };
 
@@ -120,7 +125,7 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
       setDialogOpen(false);
       setForm(emptyForm);
       queryClient.invalidateQueries({ queryKey: ["compliance", "inspections"] });
-      pushSaved(inspection.id);
+      pushSaved(inspection.id, inspection.createdAt);
     },
     onError: (saveError) => {
       toast({
@@ -247,7 +252,10 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
                       !inspection.completedAt &&
                       toDateInput(inspection.actionsDue) < TODAY_ISO;
                     return (
-                      <tr key={inspection.id} className={`border-b ${createdId === inspection.id ? "bg-emerald-50" : ""}`}>
+                      <tr
+                        key={inspection.id}
+                        className={`border-b ${createdId === inspection.id ? "bg-[var(--status-success-bg)]" : ""}`}
+                      >
                         <td className="p-3">{toDateInput(inspection.inspectionDate)}</td>
                         <td className="p-3">{inspection.site.name}</td>
                         <td className="p-3">

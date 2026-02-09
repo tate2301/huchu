@@ -83,11 +83,16 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
   const incidents = useMemo(() => data?.data ?? [], [data]);
   const pageError = sitesError || error;
 
-  const pushSaved = (id: string) => {
+  const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "incidents");
     params.set("createdId", id);
     params.set("source", "incident");
+    if (createdAt) {
+      params.set("createdAt", createdAt);
+    } else {
+      params.delete("createdAt");
+    }
     router.push(`/compliance?${params.toString()}`);
   };
 
@@ -123,7 +128,7 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
       setDialogOpen(false);
       setForm(emptyForm);
       queryClient.invalidateQueries({ queryKey: ["compliance", "incidents"] });
-      pushSaved(incident.id);
+      pushSaved(incident.id, incident.createdAt);
     },
     onError: (saveError) => {
       toast({
@@ -262,7 +267,10 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
                 </thead>
                 <tbody>
                   {incidents.map((incident) => (
-                    <tr key={incident.id} className={`border-b ${createdId === incident.id ? "bg-emerald-50" : ""}`}>
+                    <tr
+                      key={incident.id}
+                      className={`border-b ${createdId === incident.id ? "bg-[var(--status-success-bg)]" : ""}`}
+                    >
                       <td className="p-3">{toDateInput(incident.incidentDate)}</td>
                       <td className="p-3">{incident.site.name}</td>
                       <td className="p-3">{incident.incidentType}</td>

@@ -70,11 +70,16 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
   const records = useMemo(() => data?.data ?? [], [data]);
   const pageError = usersError || error;
 
-  const pushSaved = (id: string) => {
+  const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "training");
     params.set("createdId", id);
     params.set("source", "training");
+    if (createdAt) {
+      params.set("createdAt", createdAt);
+    } else {
+      params.delete("createdAt");
+    }
     router.push(`/compliance?${params.toString()}`);
   };
 
@@ -104,7 +109,7 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
       setDialogOpen(false);
       setForm(emptyForm);
       queryClient.invalidateQueries({ queryKey: ["compliance", "training"] });
-      pushSaved(record.id);
+      pushSaved(record.id, record.createdAt);
     },
     onError: (saveError) => {
       toast({
@@ -209,7 +214,10 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
                       Boolean(record.expiryDate) &&
                       toDateInput(record.expiryDate) < TODAY_ISO;
                     return (
-                      <tr key={record.id} className={`border-b ${createdId === record.id ? "bg-emerald-50" : ""}`}>
+                      <tr
+                        key={record.id}
+                        className={`border-b ${createdId === record.id ? "bg-[var(--status-success-bg)]" : ""}`}
+                      >
                         <td className="p-3">{record.user.name}</td>
                         <td className="p-3">{record.trainingType}</td>
                         <td className="p-3">{toDateInput(record.trainingDate)}</td>

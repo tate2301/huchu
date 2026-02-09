@@ -159,6 +159,7 @@ export default function HrSalariesPage() {
       queryClient.invalidateQueries({ queryKey: ["fixed-salaries"] })
       const params = new URLSearchParams({
         createdId: salary.id,
+        createdAt: salary.createdAt,
         source: "fixed-salary",
         month: selectedMonth,
       })
@@ -195,6 +196,7 @@ export default function HrSalariesPage() {
       queryClient.invalidateQueries({ queryKey: ["fixed-salaries"] })
       const params = new URLSearchParams({
         createdId: salary.id,
+        createdAt: salary.createdAt,
         source: "fixed-salary",
         month: selectedMonth,
       })
@@ -211,7 +213,7 @@ export default function HrSalariesPage() {
 
   const createPaymentMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id: string }>("/api/employee-payments", {
+      fetchJson<EmployeePayment>("/api/employee-payments", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -225,6 +227,7 @@ export default function HrSalariesPage() {
       setPaymentOpen(false)
       const params = new URLSearchParams({
         createdId: payment.id,
+        createdAt: payment.createdAt,
         source: "salary-payment",
         month: selectedMonth,
       })
@@ -241,7 +244,7 @@ export default function HrSalariesPage() {
 
   const updatePaymentMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
-      fetchJson<{ id: string }>(`/api/employee-payments/${id}`, {
+      fetchJson<EmployeePayment>(`/api/employee-payments/${id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -255,6 +258,7 @@ export default function HrSalariesPage() {
       setPaymentOpen(false)
       const params = new URLSearchParams({
         createdId: payment.id,
+        createdAt: payment.createdAt,
         source: "salary-payment",
         month: selectedMonth,
       })
@@ -632,7 +636,9 @@ export default function HrSalariesPage() {
                       <tr
                         key={salary.id}
                         className={`border-b ${
-                          createdId === salary.id || createdId === payment?.id ? "bg-emerald-50" : ""
+                          createdId === salary.id || createdId === payment?.id
+                            ? "bg-[var(--status-success-bg)]"
+                            : ""
                         }`}
                       >
                         <td className="p-3">

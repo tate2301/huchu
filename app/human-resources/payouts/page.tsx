@@ -169,7 +169,7 @@ export default function HrPayoutsPage() {
 
   const createPaymentMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id: string }>("/api/employee-payments", {
+      fetchJson<EmployeePayment>("/api/employee-payments", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -183,6 +183,7 @@ export default function HrPayoutsPage() {
       setPaymentOpen(false)
       const params = new URLSearchParams({
         createdId: payment.id,
+        createdAt: payment.createdAt,
         source: "gold-payout",
         window: payoutWindowWeeks,
       })
@@ -199,7 +200,7 @@ export default function HrPayoutsPage() {
 
   const updatePaymentMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
-      fetchJson<{ id: string }>(`/api/employee-payments/${id}`, {
+      fetchJson<EmployeePayment>(`/api/employee-payments/${id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -213,6 +214,7 @@ export default function HrPayoutsPage() {
       setPaymentOpen(false)
       const params = new URLSearchParams({
         createdId: payment.id,
+        createdAt: payment.createdAt,
         source: "gold-payout",
         window: payoutWindowWeeks,
       })
@@ -459,7 +461,7 @@ export default function HrPayoutsPage() {
                     return (
                       <tr
                         key={row.id}
-                        className={`border-b ${createdId === payment?.id ? "bg-emerald-50" : ""}`}
+                        className={`border-b ${createdId === payment?.id ? "bg-[var(--status-success-bg)]" : ""}`}
                       >
                         <td className="p-3">
                           <div className="font-semibold">{row.name}</div>

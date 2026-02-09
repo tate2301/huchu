@@ -285,7 +285,9 @@ export function AuditTrail({
                   <div
                     key={entry.id}
                     className={`rounded border-l-4 p-3 ${
-                      isHighlighted ? "border-emerald-500 bg-emerald-50" : "border-border bg-muted/60"
+                      isHighlighted
+                        ? "border-[var(--status-success-border)] bg-[var(--status-success-bg)]"
+                        : "border-border bg-muted/60"
                     }`}
                   >
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">

@@ -31,6 +31,7 @@ export default function CompliancePage() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tab);
     params.delete("createdId");
+    params.delete("createdAt");
     params.delete("source");
     router.push(`/compliance?${params.toString()}`);
   };

@@ -691,7 +691,7 @@ export function MaintenanceContent({
 
   const createWorkOrderMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id?: string }>("/api/work-orders", {
+      fetchJson<{ id?: string; createdAt?: string }>("/api/work-orders", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -712,6 +712,7 @@ export function MaintenanceContent({
       queryClient.invalidateQueries({ queryKey: ["work-orders"] });
       const params = new URLSearchParams();
       if (workOrder?.id) params.set("createdId", workOrder.id);
+      if (workOrder?.createdAt) params.set("createdAt", workOrder.createdAt);
       if (activeSiteId) params.set("siteId", activeSiteId);
       params.set("source", "maintenance-work-order");
       router.push(`/maintenance/work-orders?${params.toString()}`);
@@ -1670,7 +1671,7 @@ export function MaintenanceContent({
                             key={order.id}
                             className={`border-b hover:bg-muted/60 ${
                               createdWorkOrderId === order.id
-                                ? "bg-emerald-50"
+                                ? "bg-[var(--status-success-bg)]"
                                 : ""
                             }`}
                           >

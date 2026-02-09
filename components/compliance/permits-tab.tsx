@@ -77,11 +77,16 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
   const permits = useMemo(() => data?.data ?? [], [data]);
   const pageError = sitesError || error;
 
-  const pushSaved = (id: string) => {
+  const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "permits");
     params.set("createdId", id);
     params.set("source", "permit");
+    if (createdAt) {
+      params.set("createdAt", createdAt);
+    } else {
+      params.delete("createdAt");
+    }
     router.push(`/compliance?${params.toString()}`);
   };
 
@@ -112,7 +117,7 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
       setDialogOpen(false);
       setForm(emptyForm);
       queryClient.invalidateQueries({ queryKey: ["compliance", "permits"] });
-      pushSaved(permit.id);
+      pushSaved(permit.id, permit.createdAt);
     },
     onError: (saveError) => {
       toast({
@@ -236,7 +241,10 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
                 </thead>
                 <tbody>
                   {permits.map((permit) => (
-                    <tr key={permit.id} className={`border-b ${createdId === permit.id ? "bg-emerald-50" : ""}`}>
+                    <tr
+                      key={permit.id}
+                      className={`border-b ${createdId === permit.id ? "bg-[var(--status-success-bg)]" : ""}`}
+                    >
                       <td className="p-3">
                         <div className="font-semibold">{permit.permitType}</div>
                         <div className="text-xs text-muted-foreground">{permit.permitNumber}</div>
