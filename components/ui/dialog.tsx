@@ -17,11 +17,11 @@ const DialogContent = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogPrimitive.Backdrop className="absolute inset-0 z-50 bg-black/40" />
-    <DialogPrimitive.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <DialogPrimitive.Viewport className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:items-center sm:p-6">
       <DialogPrimitive.Popup
         ref={ref}
         className={cn(
-          "relative grid w-full max-w-lg gap-4 border border-border bg-background p-6 shadow-lg sm:rounded-lg",
+          "relative grid w-full max-w-lg max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto overscroll-contain border border-border bg-background p-6 shadow-lg sm:rounded-lg",
           className
         )}
         {...props}

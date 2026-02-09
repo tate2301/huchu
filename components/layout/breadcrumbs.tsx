@@ -13,7 +13,6 @@ type Crumb = {
 const routeLabels: Record<string, string> = {
   analytics: "Downtime Analytics",
   attendance: "Attendance",
-  compliance: "Compliance",
   dashboard: "Production Dashboard",
   gold: "Gold Control",
   maintenance: "Maintenance",
@@ -22,7 +21,6 @@ const routeLabels: Record<string, string> = {
   reports: "Reports",
   shift: "Shift",
   "shift-report": "Shift Report",
-  status: "Implementation Status",
   stores: "Stores",
 };
 
@@ -46,6 +44,7 @@ const viewLabels: Record<string, Record<string, string>> = {
     pour: "Record Pour",
     dispatch: "Dispatch Manifest",
     receipt: "Buyer Receipt",
+    payouts: "Worker Payouts",
     reconciliation: "Reconciliation",
     audit: "Audit Trail",
   },

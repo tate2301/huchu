@@ -1,31 +1,37 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { 
-  Camera as CameraIcon, 
-  Server, 
-  AlertCircle, 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Camera as CameraIcon,
+  Server,
+  AlertCircle,
   CheckCircle,
   XCircle,
   Shield,
-} from "lucide-react"
-import { 
+} from "lucide-react";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Camera, NVR, CCTVEvent, Site } from "@/lib/api"
+} from "@/components/ui/select";
+import { Camera, NVR, CCTVEvent, Site } from "@/lib/api";
 
 interface DashboardViewProps {
-  cameras: Camera[]
-  nvrs: NVR[]
-  events: CCTVEvent[]
-  sites: Site[]
-  selectedSiteId: string
-  onSiteChange: (siteId: string) => void
+  cameras: Camera[];
+  nvrs: NVR[];
+  events: CCTVEvent[];
+  sites: Site[];
+  selectedSiteId: string;
+  onSiteChange: (siteId: string) => void;
 }
 
 export function DashboardView({
@@ -36,37 +42,43 @@ export function DashboardView({
   selectedSiteId,
   onSiteChange,
 }: DashboardViewProps) {
-  const onlineCameras = cameras.filter(c => c.isOnline).length
-  const offlineCameras = cameras.filter(c => !c.isOnline).length
-  const recordingCameras = cameras.filter(c => c.isRecording).length
-  const highSecurityCameras = cameras.filter(c => c.isHighSecurity).length
+  const onlineCameras = cameras.filter((c) => c.isOnline).length;
+  const offlineCameras = cameras.filter((c) => !c.isOnline).length;
+  const recordingCameras = cameras.filter((c) => c.isRecording).length;
+  const highSecurityCameras = cameras.filter((c) => c.isHighSecurity).length;
 
-  const onlineNVRs = nvrs.filter(n => n.isOnline).length
-  const offlineNVRs = nvrs.filter(n => !n.isOnline).length
+  const onlineNVRs = nvrs.filter((n) => n.isOnline).length;
+  const offlineNVRs = nvrs.filter((n) => !n.isOnline).length;
 
-  const criticalEvents = events.filter(e => e.severity === "CRITICAL").length
-  const highEvents = events.filter(e => e.severity === "HIGH").length
-  const unacknowledgedEvents = events.filter(e => !e.isAcknowledged).length
-
+  const criticalEvents = events.filter((e) => e.severity === "CRITICAL").length;
+  const highEvents = events.filter((e) => e.severity === "HIGH").length;
+  const unacknowledgedEvents = events.filter((e) => !e.isAcknowledged).length;
+  console.log({ sites });
   return (
     <div className="space-y-6">
       {/* Site Filter */}
-      <div className="flex items-center gap-4">
+      {/*<div className="flex items-center gap-4">
         <label className="text-sm font-medium">Filter by Site:</label>
-        <Select value={selectedSiteId} onValueChange={onSiteChange}>
+        <Select
+          value={selectedSiteId}
+          onValueChange={(value) =>
+            onSiteChange(value === "__all_sites__" ? "" : value)
+          }
+        >
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="All Sites" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Sites</SelectItem>
-            {sites.map((site) => (
-              <SelectItem key={site.id} value={site.id}>
-                {site.name}
-              </SelectItem>
-            ))}
+            <SelectItem value="__all_sites__">All Sites</SelectItem>
+            {sites.length > 0 &&
+              sites.map((site) => (
+                <SelectItem key={site.id} value={site.id ?? site.name}>
+                  {site.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
-      </div>
+      </div>*/}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -100,7 +112,7 @@ export function DashboardView({
           <CardContent>
             <div className="text-2xl font-bold">{recordingCameras}</div>
             <p className="text-xs text-muted-foreground mt-2">
-              {cameras.length > 0 
+              {cameras.length > 0
                 ? `${Math.round((recordingCameras / cameras.length) * 100)}% of cameras`
                 : "No cameras"}
             </p>
@@ -167,7 +179,7 @@ export function DashboardView({
           <CardContent>
             <div className="space-y-2">
               {cameras
-                .filter(c => c.isHighSecurity)
+                .filter((c) => c.isHighSecurity)
                 .slice(0, 5)
                 .map((camera) => (
                   <div
@@ -183,7 +195,7 @@ export function DashboardView({
                         </p>
                       </div>
                     </div>
-                    <Badge 
+                    <Badge
                       variant={camera.isOnline ? "outline" : "destructive"}
                       className="text-xs"
                     >
@@ -213,25 +225,30 @@ export function DashboardView({
                   className="flex items-center justify-between p-2 border rounded-lg"
                 >
                   <div className="flex items-center gap-3">
-                    <AlertCircle 
+                    <AlertCircle
                       className={`h-4 w-4 ${
-                        event.severity === "CRITICAL" ? "text-red-600" :
-                        event.severity === "HIGH" ? "text-orange-600" :
-                        "text-yellow-600"
-                      }`} 
+                        event.severity === "CRITICAL"
+                          ? "text-red-600"
+                          : event.severity === "HIGH"
+                            ? "text-orange-600"
+                            : "text-yellow-600"
+                      }`}
                     />
                     <div>
                       <p className="text-sm font-medium">{event.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {event.camera?.area || "Unknown"} • {new Date(event.eventTime).toLocaleString()}
+                        {event.camera?.area || "Unknown"} •{" "}
+                        {new Date(event.eventTime).toLocaleString()}
                       </p>
                     </div>
                   </div>
-                  <Badge 
+                  <Badge
                     variant={
-                      event.severity === "CRITICAL" ? "destructive" :
-                      event.severity === "HIGH" ? "outline" :
-                      "secondary"
+                      event.severity === "CRITICAL"
+                        ? "destructive"
+                        : event.severity === "HIGH"
+                          ? "outline"
+                          : "secondary"
                     }
                     className="text-xs"
                   >
@@ -262,5 +279,5 @@ export function DashboardView({
         </Card>
       )}
     </div>
-  )
+  );
 }

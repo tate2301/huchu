@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
+import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,11 +36,13 @@ import {
   fetchStockLocations,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { exportElementToPdf } from "@/lib/pdf";
 import { Download, Plus } from "lucide-react";
 
 export default function StoresInventoryPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const inventoryPdfRef = useRef<HTMLDivElement | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [inventoryFormOpen, setInventoryFormOpen] = useState(false);
@@ -118,6 +121,15 @@ export default function StoresInventoryPage() {
   const inventoryItems = inventoryData?.data ?? [];
   const stockLocations = stockLocationsData?.data ?? [];
   const stockLocationsAll = stockLocationsAllData?.data ?? [];
+  const activeSiteName =
+    sites?.find((site) => site.id === activeSiteId)?.name ??
+    (sites?.[0]?.name ?? "All sites");
+  const categoryLabel =
+    selectedCategory === "all" ? "All categories" : selectedCategory;
+  const totalValue = inventoryItems.reduce(
+    (sum, item) => sum + (item.unitCost ?? 0) * item.currentStock,
+    0,
+  );
 
   const handleSiteChange = (value: string) => {
     setSelectedSiteId(value);
@@ -522,9 +534,21 @@ export default function StoresInventoryPage() {
                 <Plus className="h-4 w-4 mr-2" />
                 Add Item
               </Button>
-              <Button variant="outline" size="sm">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (inventoryPdfRef.current) {
+                    exportElementToPdf(
+                      inventoryPdfRef.current,
+                      `inventory-${activeSiteId || "all-sites"}.pdf`,
+                    );
+                  }
+                }}
+                disabled={inventoryLoading || inventoryItems.length === 0}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Export CSV
+                Export PDF
               </Button>
             </div>
           </div>
@@ -802,16 +826,22 @@ export default function StoresInventoryPage() {
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select location" />
                         </SelectTrigger>
-                        <SelectContent>
-                          {stockLocations.map((location) => (
-                            <SelectItem key={location.id} value={location.id}>
-                              {location.name}
+                      <SelectContent>
+                          {stockLocations.length === 0 ? (
+                            <SelectItem value="__no_locations__" disabled>
+                              No locations available
                             </SelectItem>
-                          ))}
+                          ) : (
+                            stockLocations.map((location) => (
+                              <SelectItem key={location.id} value={location.id}>
+                                {location.name}
+                              </SelectItem>
+                            ))
+                          )}
                           <SelectItem value="__add_location__">
                             + Add new location
                           </SelectItem>
-                        </SelectContent>
+                      </SelectContent>
                       </Select>
                     )}
                   </div>
@@ -896,6 +926,100 @@ export default function StoresInventoryPage() {
           </Sheet>
         </CardContent>
       </Card>
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={inventoryPdfRef}>
+          <PdfTemplate
+            title="Stock on Hand"
+            subtitle="Stores inventory summary"
+            meta={[
+              { label: "Site", value: activeSiteName },
+              { label: "Category", value: categoryLabel },
+              { label: "Total items", value: String(inventoryItems.length) },
+              { label: "Total value", value: `$${totalValue.toFixed(2)}` },
+            ]}
+          >
+            <div className="space-y-6 text-xs">
+              <div>
+                <h2 className="text-sm font-semibold mb-2">Inventory Items</h2>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left">
+                      <th className="py-2">Code</th>
+                      <th className="py-2">Item</th>
+                      <th className="py-2">Category</th>
+                      <th className="py-2 text-right">Stock</th>
+                      <th className="py-2 text-right">Min</th>
+                      <th className="py-2">Location</th>
+                      <th className="py-2 text-right">Value</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryItems.map((item) => {
+                      const isLow =
+                        item.minStock !== null &&
+                        item.minStock !== undefined &&
+                        item.currentStock <= item.minStock;
+                      const value =
+                        item.unitCost !== null && item.unitCost !== undefined
+                          ? item.currentStock * item.unitCost
+                          : null;
+                      return (
+                        <tr key={item.id} className="border-b border-gray-100">
+                          <td className="py-2 font-mono">
+                            {item.itemCode ?? "-"}
+                          </td>
+                          <td className="py-2 font-semibold">{item.name}</td>
+                          <td className="py-2">{item.category}</td>
+                          <td className="py-2 text-right">
+                            {item.currentStock} {item.unit}
+                          </td>
+                          <td className="py-2 text-right">
+                            {item.minStock !== null &&
+                            item.minStock !== undefined
+                              ? `${item.minStock} ${item.unit}`
+                              : "-"}
+                          </td>
+                          <td className="py-2">{item.location?.name ?? "-"}</td>
+                          <td className="py-2 text-right">
+                            {value !== null ? `$${value.toFixed(2)}` : "-"}
+                          </td>
+                          <td className="py-2">{isLow ? "Low" : "OK"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h2 className="text-sm font-semibold mb-2">Stock Locations</h2>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left">
+                      <th className="py-2">Name</th>
+                      <th className="py-2">Site</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockLocationsAll.map((location) => (
+                      <tr key={location.id} className="border-b border-gray-100">
+                        <td className="py-2 font-semibold">{location.name}</td>
+                        <td className="py-2">{location.site?.name ?? "-"}</td>
+                        <td className="py-2">
+                          {location.isActive ? "Active" : "Inactive"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </PdfTemplate>
+        </div>
+      </div>
 
       <Card>
         <CardHeader>

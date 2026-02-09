@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Camera as CameraIcon, CheckCircle, XCircle, Shield, Radio, Mic } from "lucide-react"
+import { Camera as CameraIcon, CheckCircle, XCircle, Shield, Radio, Mic, Download } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PdfTemplate } from "@/components/pdf/pdf-template"
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchCameras, Site } from "@/lib/api"
+import { exportElementToPdf } from "@/lib/pdf"
 
 interface CamerasViewProps {
   sites: Site[]
@@ -24,6 +26,7 @@ interface CamerasViewProps {
 }
 
 export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasViewProps) {
+  const camerasPdfRef = useRef<HTMLDivElement | null>(null)
   const [areaFilter, setAreaFilter] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<string>("")
 
@@ -39,9 +42,16 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
   })
 
   const cameras = data?.data || []
+  const activeSiteName =
+    sites.find((site) => site.id === selectedSiteId)?.name || "All Sites"
+  const onlineCount = cameras.filter((camera) => camera.isOnline).length
+  const offlineCount = cameras.filter((camera) => !camera.isOnline).length
+  const exportDisabled = isLoading || cameras.length === 0
 
   // Get unique areas for filtering
-  const areas = Array.from(new Set(cameras.map(c => c.area))).sort()
+  const areas = Array.from(
+    new Set(cameras.map((camera) => camera.area).filter((area) => area && area.trim())),
+  ).sort()
 
   if (error) {
     return (
@@ -61,12 +71,17 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Site:</label>
-              <Select value={selectedSiteId} onValueChange={onSiteChange}>
+              <Select
+                value={selectedSiteId}
+                onValueChange={(value) =>
+                  onSiteChange(value === "__all_sites__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Sites" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Sites</SelectItem>
+                  <SelectItem value="__all_sites__">All Sites</SelectItem>
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
                       {site.name}
@@ -78,12 +93,17 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
 
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Area:</label>
-              <Select value={areaFilter} onValueChange={setAreaFilter}>
+              <Select
+                value={areaFilter}
+                onValueChange={(value) =>
+                  setAreaFilter(value === "__all_areas__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Areas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Areas</SelectItem>
+                  <SelectItem value="__all_areas__">All Areas</SelectItem>
                   {areas.map((area) => (
                     <SelectItem key={area} value={area}>
                       {area}
@@ -95,12 +115,17 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
 
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Status:</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) =>
+                  setStatusFilter(value === "__all_status__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="__all_status__">All Status</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
                   <SelectItem value="offline">Offline</SelectItem>
                 </SelectContent>
@@ -120,6 +145,23 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
                 Clear Filters
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (camerasPdfRef.current) {
+                  exportElementToPdf(
+                    camerasPdfRef.current,
+                    `cctv-cameras-${selectedSiteId || "all-sites"}.pdf`,
+                  )
+                }
+              }}
+              disabled={exportDisabled}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export PDF
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -246,6 +288,55 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
           ))}
         </div>
       )}
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={camerasPdfRef}>
+          <PdfTemplate
+            title="CCTV Cameras"
+            subtitle={`${activeSiteName} · ${areaFilter || "All areas"} · ${statusFilter || "All statuses"}`}
+            meta={[
+              { label: "Site", value: activeSiteName },
+              { label: "Total cameras", value: String(cameras.length) },
+              { label: "Online", value: String(onlineCount) },
+              { label: "Offline", value: String(offlineCount) },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Camera</th>
+                  <th className="py-2">Area</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">NVR</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2">Recording</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cameras.map((camera) => (
+                  <tr key={camera.id} className="border-b border-gray-100">
+                    <td className="py-2">
+                      <div className="font-semibold">{camera.name}</div>
+                      <div className="text-[10px] text-gray-500">
+                        Channel {camera.channelNumber}
+                      </div>
+                    </td>
+                    <td className="py-2">{camera.area}</td>
+                    <td className="py-2">{camera.site?.name || "Unknown"}</td>
+                    <td className="py-2">{camera.nvr?.name || "Unknown"}</td>
+                    <td className="py-2">
+                      {camera.isOnline ? "Online" : "Offline"}
+                    </td>
+                    <td className="py-2">
+                      {camera.isRecording ? "Active" : "Inactive"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
     </div>
   )
 }

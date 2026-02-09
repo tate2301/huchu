@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PdfTemplate } from "@/components/pdf/pdf-template";
 import {
   Card,
   CardContent,
@@ -11,13 +12,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Download } from "lucide-react";
 import {
   fetchGoldDispatches,
   fetchGoldPours,
   fetchGoldReceipts,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { exportElementToPdf } from "@/lib/pdf";
 
 export function ReconciliationView({
   setViewMode,
@@ -26,6 +28,7 @@ export function ReconciliationView({
     mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
   ) => void;
 }) {
+  const reconciliationPdfRef = useRef<HTMLDivElement | null>(null);
   const {
     data: poursData,
     isLoading: poursLoading,
@@ -99,6 +102,7 @@ export function ReconciliationView({
   );
   const isLoading = poursLoading || dispatchesLoading || receiptsLoading;
   const error = poursError || dispatchesError || receiptsError;
+  const exportDisabled = isLoading || reconciliationItems.length === 0;
   return (
     <div className="space-y-6">
       <Button variant="outline" onClick={() => setViewMode("menu")}>
@@ -234,12 +238,73 @@ export function ReconciliationView({
       </Card>
 
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1">
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            if (reconciliationPdfRef.current) {
+              exportElementToPdf(
+                reconciliationPdfRef.current,
+                `gold-reconciliation-${new Date().toISOString().slice(0, 10)}.pdf`,
+              );
+            }
+          }}
+          disabled={exportDisabled}
+        >
+          <Download className="h-4 w-4 mr-2" />
           Export Reconciliation Report (PDF)
         </Button>
-        <Button variant="outline" className="flex-1">
-          Export to CSV
-        </Button>
+      </div>
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={reconciliationPdfRef}>
+          <PdfTemplate
+            title="Gold Reconciliation"
+            subtitle="Pour to dispatch to sale chain"
+            meta={[
+              { label: "Total pours", value: String(reconciliationItems.length) },
+              {
+                label: "Incomplete transfers",
+                value: String(incompleteTransfers),
+              },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Pour ID</th>
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2 text-right">Weight (g)</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2">Dispatch</th>
+                  <th className="py-2">Receipt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reconciliationItems.map((item) => (
+                  <tr key={item.id} className="border-b border-gray-100">
+                    <td className="py-2 font-semibold">{item.id}</td>
+                    <td className="py-2">{item.date}</td>
+                    <td className="py-2">{item.site}</td>
+                    <td className="py-2 text-right">{item.weight}</td>
+                    <td className="py-2">{item.status}</td>
+                    <td className="py-2">
+                      {item.dispatch
+                        ? `${item.dispatch.courier} · ${item.dispatch.sealNumbers}`
+                        : "-"}
+                    </td>
+                    <td className="py-2">
+                      {item.receipt
+                        ? `#${item.receipt.receiptNumber} · Paid ${item.receipt.paidAmount}g`
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
       </div>
     </div>
   );

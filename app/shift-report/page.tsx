@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Camera, Save, Send } from "lucide-react";
+import { format, subDays } from "date-fns";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Save, Send } from "lucide-react";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
+import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +29,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchEmployees, fetchSections, fetchSites } from "@/lib/api";
+import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
+import { fetchEmployees, fetchShiftReports, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { exportElementToPdf } from "@/lib/pdf";
 
 const toNumber = (value: string) => {
   if (value.trim() === "") return undefined;
@@ -37,14 +42,16 @@ const toNumber = (value: string) => {
 
 export default function ShiftReportPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const createdId = searchParams.get("createdId");
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     shift: "DAY",
-    siteId: "",
-    sectionId: "",
+    siteId: searchParams.get("siteId") ?? "",
     groupLeaderId: "",
     crewCount: "",
-    workType: "PRODUCTION",
+    workType: "EXTRACTION",
     outputTonnes: "",
     outputTrips: "",
     outputWheelbarrows: "",
@@ -53,6 +60,14 @@ export default function ShiftReportPage() {
     incidentNotes: "",
     handoverNotes: "",
   });
+  const [listSiteId, setListSiteId] = useState(searchParams.get("siteId") ?? "all");
+  const [listStartDate, setListStartDate] = useState(
+    searchParams.get("startDate") ?? format(subDays(new Date(), 6), "yyyy-MM-dd"),
+  );
+  const [listEndDate, setListEndDate] = useState(
+    searchParams.get("endDate") ?? format(new Date(), "yyyy-MM-dd"),
+  );
+  const shiftReportPdfRef = useRef<HTMLDivElement>(null);
 
   const {
     data: sites,
@@ -73,34 +88,80 @@ export default function ShiftReportPage() {
     queryFn: () => fetchEmployees({ active: true, limit: 500 }),
   });
 
-  const { data: sectionsData, isLoading: sectionsLoading } = useQuery({
-    queryKey: ["sections", activeSiteId],
+  const activeListSiteId = listSiteId === "all" ? "" : listSiteId;
+  const {
+    data: shiftReportsData,
+    isLoading: shiftReportsLoading,
+    error: shiftReportsError,
+  } = useQuery({
+    queryKey: [
+      "shift-reports",
+      "list",
+      activeListSiteId || "all",
+      listStartDate,
+      listEndDate,
+    ],
     queryFn: () =>
-      fetchSections({ siteId: activeSiteId, active: true, limit: 200 }),
-    enabled: !!activeSiteId,
+      fetchShiftReports({
+        siteId: activeListSiteId || undefined,
+        startDate: listStartDate,
+        endDate: listEndDate,
+        limit: 200,
+      }),
+    enabled: !!listStartDate && !!listEndDate,
   });
 
   const groupLeaders = useMemo(
     () => employeesData?.data ?? [],
     [employeesData],
   );
-  const sections = sectionsData?.data ?? [];
-  const hasSections = sections.length > 0;
+  const shiftReportRecords = useMemo(
+    () => shiftReportsData?.data ?? [],
+    [shiftReportsData],
+  );
+  const activeListSiteName =
+    listSiteId === "all"
+      ? "All sites"
+      : sites?.find((site) => site.id === listSiteId)?.name ?? "Selected site";
   const hasGroupLeaders = groupLeaders.length > 0;
+  const isExtraction = formData.workType === "EXTRACTION";
+  const isHauling = formData.workType === "HAULING";
+  const isCrushing = formData.workType === "CRUSHING";
+  const isProcessing = formData.workType === "PROCESSING";
+  const showWheelbarrows = isExtraction || isHauling;
+  const showTonnes = isCrushing || isProcessing;
+  const showMetres = isExtraction;
 
   const shiftReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson("/api/shift-reports", {
+      fetchJson<{ id: string }>("/api/shift-reports", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (report, variables) => {
       toast({
         title: "Shift report submitted",
         description: "Report saved and ready for review.",
         variant: "success",
       });
       localStorage.removeItem("shiftReportDraft");
+      const reportDate = String(variables.date ?? "").slice(0, 10);
+      const reportSiteId = String(variables.siteId ?? "");
+      const params = new URLSearchParams({
+        createdId: report.id,
+        source: "shift-report",
+        siteId: reportSiteId,
+        startDate: reportDate,
+        endDate: reportDate,
+      });
+      router.push(`/shift-report?${params.toString()}`);
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to submit report",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
     },
   });
 
@@ -117,12 +178,7 @@ export default function ShiftReportPage() {
 
   const handleSelectChange =
     (field: keyof typeof formData) => (value: string) => {
-      setFormData((prev) => {
-        if (field === "siteId") {
-          return { ...prev, siteId: value, sectionId: "" };
-        }
-        return { ...prev, [field]: value };
-      });
+      setFormData((prev) => ({ ...prev, [field]: value }));
     };
 
   const handleSaveDraft = () => {
@@ -155,7 +211,6 @@ export default function ShiftReportPage() {
       date: formData.date,
       shift: formData.shift,
       siteId: activeSiteId,
-      sectionId: formData.sectionId || undefined,
       groupLeaderId: formData.groupLeaderId,
       crewCount: Number(formData.crewCount),
       workType: formData.workType,
@@ -200,6 +255,7 @@ export default function ShiftReportPage() {
         title="Shift Report"
         description="Quick 2-minute daily entry"
       />
+      <RecordSavedBanner entityLabel="shift report" />
 
       {error && (
         <Alert variant="destructive">
@@ -281,38 +337,6 @@ export default function ShiftReportPage() {
                   </Select>
                 )}
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Section/Level
-                </label>
-                {sectionsLoading ? (
-                  <Skeleton className="h-9 w-full" />
-                ) : (
-                  <Select
-                    name="sectionId"
-                    value={formData.sectionId || undefined}
-                    onValueChange={handleSelectChange("sectionId")}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select section..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hasSections ? (
-                        sections.map((section) => (
-                          <SelectItem key={section.id} value={section.id}>
-                            {section.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="__no_sections__" disabled>
-                          No sections found for this site
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -369,13 +393,16 @@ export default function ShiftReportPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Work & Output</CardTitle>
-            <CardDescription>What was done and produced</CardDescription>
+            <CardTitle>Process & Output</CardTitle>
+            <CardDescription>
+              Extraction - Haulage - Crushing - Processing (gold logged in Gold
+              Control)
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <label className="block text-sm font-semibold mb-2">
-                Work Type *
+                Process Stage *
               </label>
               <Select
                 name="workType"
@@ -384,14 +411,13 @@ export default function ShiftReportPage() {
                 required
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select work type" />
+                  <SelectValue placeholder="Select process stage" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="DEVELOPMENT">Development</SelectItem>
-                  <SelectItem value="PRODUCTION">Production/Stoping</SelectItem>
-                  <SelectItem value="HAULAGE">Haulage/Mucking</SelectItem>
-                  <SelectItem value="SUPPORT">Support Work</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
+                  <SelectItem value="EXTRACTION">Extraction</SelectItem>
+                  <SelectItem value="HAULING">Haulage</SelectItem>
+                  <SelectItem value="CRUSHING">Crushing</SelectItem>
+                  <SelectItem value="PROCESSING">Processing</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -401,51 +427,52 @@ export default function ShiftReportPage() {
                 Output Metrics (fill what applies)
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm mb-2">Tonnes</label>
-                  <Input
-                    type="number"
-                    name="outputTonnes"
-                    value={formData.outputTonnes}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    step="0.01"
-                  />
-                </div>
+                {showWheelbarrows && (
+                  <div>
+                    <label className="block text-sm mb-2">
+                      {isHauling ? "Wheelbarrows Hauled" : "Wheelbarrows Mined"}
+                    </label>
+                    <Input
+                      type="number"
+                      name="outputWheelbarrows"
+                      value={formData.outputWheelbarrows}
+                      onChange={handleChange}
+                      placeholder="0"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm mb-2">Trips</label>
-                  <Input
-                    type="number"
-                    name="outputTrips"
-                    value={formData.outputTrips}
-                    onChange={handleChange}
-                    placeholder="0"
-                  />
-                </div>
+                {showTonnes && (
+                  <div>
+                    <label className="block text-sm mb-2">
+                      {isCrushing ? "Tonnes Crushed" : "Tonnes Processed"}
+                    </label>
+                    <Input
+                      type="number"
+                      name="outputTonnes"
+                      value={formData.outputTonnes}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm mb-2">Wheelbarrows</label>
-                  <Input
-                    type="number"
-                    name="outputWheelbarrows"
-                    value={formData.outputWheelbarrows}
-                    onChange={handleChange}
-                    placeholder="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm mb-2">Metres Advanced</label>
-                  <Input
-                    type="number"
-                    name="metresAdvanced"
-                    value={formData.metresAdvanced}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    step="0.1"
-                  />
-                </div>
+                {showMetres && (
+                  <div>
+                    <label className="block text-sm mb-2">
+                      Metres Advanced
+                    </label>
+                    <Input
+                      type="number"
+                      name="metresAdvanced"
+                      value={formData.metresAdvanced}
+                      onChange={handleChange}
+                      placeholder="0.0"
+                      step="0.1"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -500,16 +527,6 @@ export default function ShiftReportPage() {
                 rows={3}
               />
             </div>
-
-            <div>
-              <Button type="button" variant="outline" className="w-full">
-                <Camera className="mr-2 h-5 w-5" />
-                Add Photos (Optional)
-              </Button>
-              <p className="text-xs text-muted-foreground mt-1 text-center">
-                Photos can be added as evidence
-              </p>
-            </div>
           </CardContent>
         </Card>
 
@@ -539,6 +556,167 @@ export default function ShiftReportPage() {
           Saves offline / Auto-syncs when connected / 2-minute form
         </p>
       </form>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Shift Reports</CardTitle>
+              <CardDescription>Review submitted shift reports</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (shiftReportPdfRef.current) {
+                  exportElementToPdf(
+                    shiftReportPdfRef.current,
+                    `shift-reports-${listStartDate}-to-${listEndDate}.pdf`,
+                  );
+                }
+              }}
+              disabled={shiftReportsLoading || shiftReportRecords.length === 0}
+            >
+              Export PDF
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {shiftReportsError && (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load shift reports</AlertTitle>
+              <AlertDescription>
+                {getApiErrorMessage(shiftReportsError)}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold mb-2">Site</label>
+              {sitesLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <Select value={listSiteId} onValueChange={setListSiteId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sites</SelectItem>
+                    {sites?.length ? (
+                      sites.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-sites" disabled>
+                        No sites available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">
+                Start Date
+              </label>
+              <Input
+                type="date"
+                value={listStartDate}
+                onChange={(event) => setListStartDate(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">
+                End Date
+              </label>
+              <Input
+                type="date"
+                value={listEndDate}
+                onChange={(event) => setListEndDate(event.target.value)}
+              />
+            </div>
+          </div>
+
+          {shiftReportsLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : shiftReportRecords.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No shift reports for this range.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-3 font-semibold">Date</th>
+                    <th className="text-left p-3 font-semibold">Shift</th>
+                    <th className="text-left p-3 font-semibold">Site</th>
+                    <th className="text-left p-3 font-semibold">Work Type</th>
+                    <th className="text-left p-3 font-semibold">Crew</th>
+                    <th className="text-left p-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shiftReportRecords.map((report) => (
+                    <tr key={report.id} className={`border-b ${createdId === report.id ? "bg-emerald-50" : ""}`}>
+                      <td className="p-3">
+                        {format(new Date(report.date), "MMM d, yyyy")}
+                      </td>
+                      <td className="p-3">{report.shift}</td>
+                      <td className="p-3">{report.site?.name}</td>
+                      <td className="p-3">{report.workType}</td>
+                      <td className="p-3">{report.crewCount}</td>
+                      <td className="p-3">{report.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={shiftReportPdfRef}>
+          <PdfTemplate
+            title="Shift Reports"
+            subtitle={`${listStartDate} to ${listEndDate}`}
+            meta={[
+              { label: "Site", value: activeListSiteName },
+              { label: "Total reports", value: String(shiftReportRecords.length) },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Shift</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">Work Type</th>
+                  <th className="py-2">Crew</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shiftReportRecords.map((report) => (
+                  <tr key={report.id} className="border-b border-gray-100">
+                    <td className="py-2">{format(new Date(report.date), "MMM d, yyyy")}</td>
+                    <td className="py-2">{report.shift}</td>
+                    <td className="py-2">{report.site?.name}</td>
+                    <td className="py-2">{report.workType}</td>
+                    <td className="py-2">{report.crewCount}</td>
+                    <td className="py-2">{report.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
     </div>
   );
 }

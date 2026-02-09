@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { AlertCircle, CheckCircle, Clock } from "lucide-react"
+import { AlertCircle, CheckCircle, Clock, Download } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PdfTemplate } from "@/components/pdf/pdf-template"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -19,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchCCTVEvents, Site } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { exportElementToPdf } from "@/lib/pdf"
 
 interface EventsViewProps {
   sites: Site[]
@@ -27,6 +29,7 @@ interface EventsViewProps {
 }
 
 export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewProps) {
+  const eventsPdfRef = useRef<HTMLDivElement | null>(null)
   const [severityFilter, setSeverityFilter] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<string>("unacknowledged")
   const [acknowledgingEvent, setAcknowledgingEvent] = useState<string | null>(null)
@@ -61,7 +64,7 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
         description: "The event has been marked as acknowledged.",
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Error",
         description: getApiErrorMessage(error),
@@ -71,6 +74,11 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
   })
 
   const events = data?.data || []
+  const activeSiteName =
+    sites.find((site) => site.id === selectedSiteId)?.name || "All Sites"
+  const acknowledgedCount = events.filter((event) => event.isAcknowledged).length
+  const unacknowledgedCount = events.filter((event) => !event.isAcknowledged).length
+  const exportDisabled = isLoading || events.length === 0
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -116,12 +124,17 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Severity:</label>
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <Select
+                value={severityFilter}
+                onValueChange={(value) =>
+                  setSeverityFilter(value === "__all_severities__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Severities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Severities</SelectItem>
+                  <SelectItem value="__all_severities__">All Severities</SelectItem>
                   <SelectItem value="CRITICAL">Critical</SelectItem>
                   <SelectItem value="HIGH">High</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
@@ -132,12 +145,17 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
 
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Status:</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) =>
+                  setStatusFilter(value === "__all_status__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="__all_status__">All Status</SelectItem>
                   <SelectItem value="unacknowledged">Unacknowledged</SelectItem>
                   <SelectItem value="acknowledged">Acknowledged</SelectItem>
                 </SelectContent>
@@ -156,6 +174,23 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
                 Clear Filters
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (eventsPdfRef.current) {
+                  exportElementToPdf(
+                    eventsPdfRef.current,
+                    `cctv-events-${new Date().toISOString().slice(0, 10)}.pdf`,
+                  )
+                }
+              }}
+              disabled={exportDisabled}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export PDF
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -284,6 +319,54 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
           ))}
         </div>
       )}
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={eventsPdfRef}>
+          <PdfTemplate
+            title="CCTV Events"
+            subtitle={`${activeSiteName} · ${severityFilter || "All severities"} · ${statusFilter || "All statuses"}`}
+            meta={[
+              { label: "Total events", value: String(events.length) },
+              { label: "Acknowledged", value: String(acknowledgedCount) },
+              { label: "Unacknowledged", value: String(unacknowledgedCount) },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Event</th>
+                  <th className="py-2">Severity</th>
+                  <th className="py-2">Camera</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">Time</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <tr key={event.id} className="border-b border-gray-100">
+                    <td className="py-2">
+                      <div className="font-semibold">{event.title}</div>
+                      <div className="text-[10px] text-gray-500">
+                        {event.description || "No description"}
+                      </div>
+                    </td>
+                    <td className="py-2">{event.severity}</td>
+                    <td className="py-2">{event.camera?.name || "-"}</td>
+                    <td className="py-2">{event.camera?.site?.name || "-"}</td>
+                    <td className="py-2">
+                      {new Date(event.eventTime).toLocaleString()}
+                    </td>
+                    <td className="py-2">
+                      {event.isAcknowledged ? "Acknowledged" : "Unacknowledged"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
     </div>
   )
 }

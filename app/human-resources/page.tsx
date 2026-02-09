@@ -4,8 +4,7 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 
-import { PageActions } from "@/components/layout/page-actions"
-import { PageHeading } from "@/components/layout/page-heading"
+import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -227,16 +226,16 @@ export default function HumanResourcesPage() {
 
   const handleEdit = (employee: EmployeeForm & { id: string }) => {
     setEditingId(employee.id)
-      setFormData({
-        name: employee.name,
-        phone: employee.phone,
-        nextOfKinName: employee.nextOfKinName,
-        nextOfKinPhone: employee.nextOfKinPhone,
-        passportPhotoUrl: employee.passportPhotoUrl,
-        villageOfOrigin: employee.villageOfOrigin,
-        position: employee.position,
-        isActive: employee.isActive,
-      })
+    setFormData({
+      name: employee.name,
+      phone: employee.phone,
+      nextOfKinName: employee.nextOfKinName,
+      nextOfKinPhone: employee.nextOfKinPhone,
+      passportPhotoUrl: employee.passportPhotoUrl,
+      villageOfOrigin: employee.villageOfOrigin,
+      position: employee.position,
+      isActive: employee.isActive,
+    })
     setFormOpen(true)
   }
 
@@ -266,16 +265,16 @@ export default function HumanResourcesPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageActions>
+    <HrShell
+      activeTab="employees"
+      actions={
         <Button size="sm" onClick={openNewEmployee}>
           <Plus className="h-4 w-4" />
           New Employee
         </Button>
-      </PageActions>
-
-      <PageHeading title="Human Resources" description="Employee records and attendance roster" />
-
+      }
+      description="Employee records and attendance roster"
+    >
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load employees</AlertTitle>
@@ -287,9 +286,7 @@ export default function HumanResourcesPage() {
         <SheetContent className="w-full sm:max-w-lg p-6">
           <SheetHeader>
             <SheetTitle>{editingId ? "Edit Employee" : "Add Employee"}</SheetTitle>
-            <SheetDescription>
-              Employee IDs are generated automatically.
-            </SheetDescription>
+            <SheetDescription>Employee IDs are generated automatically.</SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -387,9 +384,7 @@ export default function HumanResourcesPage() {
                 onChange={handlePassportPhotoChange}
                 disabled={passportUploading}
               />
-              <p className="text-xs text-muted-foreground">
-                JPG, PNG, or WebP up to 5MB.
-              </p>
+              <p className="text-xs text-muted-foreground">JPG, PNG, or WebP up to 5MB.</p>
               {passportUploading ? (
                 <p className="text-xs text-muted-foreground">Uploading photo...</p>
               ) : null}
@@ -545,6 +540,6 @@ export default function HumanResourcesPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </HrShell>
   )
 }

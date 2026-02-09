@@ -89,18 +89,22 @@ export function DispatchForm({
       receivedBy?: string;
       notes?: string;
     }) =>
-      fetchJson("/api/gold/dispatches", {
+      fetchJson<{ id: string }>("/api/gold/dispatches", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (dispatch) => {
       toast({
         title: "Dispatch recorded",
         description: "Chain of custody opened for this gold pour.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-dispatches"] });
-      setViewMode("menu");
+      const params = new URLSearchParams({
+        createdId: dispatch.id,
+        source: "gold-dispatch",
+      });
+      router.push(`/gold/audit?${params.toString()}`);
     },
   });
 

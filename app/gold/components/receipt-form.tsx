@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,7 @@ export function ReceiptForm({
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [formData, setFormData] = useState({
     receiptNumber: "",
     goldDispatchId: "",
@@ -80,18 +82,22 @@ export function ReceiptForm({
       paymentReference?: string;
       notes?: string;
     }) =>
-      fetchJson("/api/gold/receipts", {
+      fetchJson<{ id: string }>("/api/gold/receipts", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (receipt) => {
       toast({
         title: "Sale recorded",
         description: "Receipt saved and chain closed.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
-      setViewMode("menu");
+      const params = new URLSearchParams({
+        createdId: receipt.id,
+        source: "gold-receipt",
+      });
+      router.push(`/gold/audit?${params.toString()}`);
     },
   });
 

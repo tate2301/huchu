@@ -5,10 +5,16 @@ import { useSearchParams } from "next/navigation";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { cn } from "@/lib/utils";
-import { Fuel, Home, Minus, Package, Plus } from "lucide-react";
+import { Fuel, History, Home, Minus, Package, Plus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type StoresTab = "dashboard" | "inventory" | "fuel" | "issue" | "receive";
+export type StoresTab =
+  | "dashboard"
+  | "inventory"
+  | "movements"
+  | "fuel"
+  | "issue"
+  | "receive";
 
 type StoresTabItem = {
   id: StoresTab;
@@ -20,6 +26,7 @@ type StoresTabItem = {
 const storesTabs: StoresTabItem[] = [
   { id: "dashboard", label: "Overview", href: "/stores/dashboard", icon: Home },
   { id: "inventory", label: "Stock on Hand", href: "/stores/inventory", icon: Package },
+  { id: "movements", label: "Movements", href: "/stores/movements", icon: History },
   { id: "fuel", label: "Fuel Ledger", href: "/stores/fuel", icon: Fuel },
   { id: "issue", label: "Issue Stock", href: "/stores/issue", icon: Minus },
   { id: "receive", label: "Receive Stock", href: "/stores/receive", icon: Plus },

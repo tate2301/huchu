@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Server, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Server, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PdfTemplate } from "@/components/pdf/pdf-template"
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchNVRs, Site } from "@/lib/api"
+import { exportElementToPdf } from "@/lib/pdf"
 
 interface NVRsViewProps {
   sites: Site[]
@@ -24,6 +26,7 @@ interface NVRsViewProps {
 }
 
 export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps) {
+  const nvrsPdfRef = useRef<HTMLDivElement | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("")
 
   const { data, isLoading, error } = useQuery({
@@ -36,6 +39,11 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
   })
 
   const nvrs = data?.data || []
+  const activeSiteName =
+    sites.find((site) => site.id === selectedSiteId)?.name || "All Sites"
+  const onlineCount = nvrs.filter((nvr) => nvr.isOnline).length
+  const offlineCount = nvrs.filter((nvr) => !nvr.isOnline).length
+  const exportDisabled = isLoading || nvrs.length === 0
 
   if (error) {
     return (
@@ -55,12 +63,17 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Site:</label>
-              <Select value={selectedSiteId} onValueChange={onSiteChange}>
+              <Select
+                value={selectedSiteId}
+                onValueChange={(value) =>
+                  onSiteChange(value === "__all_sites__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Sites" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Sites</SelectItem>
+                  <SelectItem value="__all_sites__">All Sites</SelectItem>
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
                       {site.name}
@@ -72,12 +85,17 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
 
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Status:</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) =>
+                  setStatusFilter(value === "__all_status__" ? "" : value)
+                }
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="__all_status__">All Status</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
                   <SelectItem value="offline">Offline</SelectItem>
                 </SelectContent>
@@ -96,6 +114,23 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
                 Clear Filters
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (nvrsPdfRef.current) {
+                  exportElementToPdf(
+                    nvrsPdfRef.current,
+                    `cctv-nvrs-${selectedSiteId || "all-sites"}.pdf`,
+                  )
+                }
+              }}
+              disabled={exportDisabled}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export PDF
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -201,6 +236,58 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
           ))}
         </div>
       )}
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={nvrsPdfRef}>
+          <PdfTemplate
+            title="CCTV NVRs"
+            subtitle={`${activeSiteName} · ${statusFilter || "All statuses"}`}
+            meta={[
+              { label: "Site", value: activeSiteName },
+              { label: "Total NVRs", value: String(nvrs.length) },
+              { label: "Online", value: String(onlineCount) },
+              { label: "Offline", value: String(offlineCount) },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">NVR</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">IP</th>
+                  <th className="py-2">Ports</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2 text-right">Cameras</th>
+                </tr>
+              </thead>
+              <tbody>
+                {nvrs.map((nvr) => (
+                  <tr key={nvr.id} className="border-b border-gray-100">
+                    <td className="py-2">
+                      <div className="font-semibold">{nvr.name}</div>
+                      <div className="text-[10px] text-gray-500">
+                        {nvr.manufacturer}
+                        {nvr.model ? ` · ${nvr.model}` : ""}
+                      </div>
+                    </td>
+                    <td className="py-2">{nvr.site?.name || "Unknown"}</td>
+                    <td className="py-2 font-mono">{nvr.ipAddress}</td>
+                    <td className="py-2 font-mono">
+                      RTSP {nvr.port} / HTTP {nvr.httpPort}
+                    </td>
+                    <td className="py-2">
+                      {nvr.isOnline ? "Online" : "Offline"}
+                    </td>
+                    <td className="py-2 text-right">
+                      {nvr._count?.cameras ?? 0}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
     </div>
   )
 }

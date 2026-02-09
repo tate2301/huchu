@@ -43,6 +43,48 @@ export type EmployeeSummary = {
   isActive: boolean;
 };
 
+export type FixedSalary = {
+  id: string;
+  employeeId: string;
+  monthlyAmount: number;
+  currency: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  employee: {
+    id: string;
+    name: string;
+    employeeId: string;
+    position: string;
+    isActive: boolean;
+  };
+};
+
+export type EmployeePayment = {
+  id: string;
+  employeeId: string;
+  type: "GOLD" | "SALARY";
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string;
+  amount: number;
+  unit: string;
+  paidAmount?: number | null;
+  paidAt?: string | null;
+  status: "DUE" | "PARTIAL" | "PAID";
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  employee: {
+    id: string;
+    name: string;
+    employeeId: string;
+    position: string;
+    isActive: boolean;
+  };
+  createdBy?: { id: string; name: string } | null;
+};
+
 export type SectionSummary = {
   id: string;
   name: string;
@@ -83,7 +125,7 @@ export type WorkOrder = {
   workDone?: string | null;
   partsUsed?: string | null;
   createdAt: string;
-  technician?: { name: string } | null;
+  technician?: { id: string; name: string; employeeId: string } | null;
   equipment: {
     id: string;
     name: string;
@@ -158,6 +200,40 @@ export type ShiftReportSummary = {
   site: { name: string; code: string };
   section?: { name: string } | null;
   groupLeader?: { name: string } | null;
+  downtimeEvents?: Array<{
+    id: string;
+    durationHours: number;
+    notes?: string | null;
+    downtimeCode: { description: string; code: string };
+  }>;
+};
+
+export type PlantReportDowntimeEvent = {
+  id: string;
+  durationHours: number;
+  notes?: string | null;
+  downtimeCode: { description: string; code: string };
+};
+
+export type PlantReport = {
+  id: string;
+  date: string;
+  siteId: string;
+  tonnesFed?: number | null;
+  tonnesProcessed?: number | null;
+  runHours?: number | null;
+  dieselUsed?: number | null;
+  grindingMedia?: number | null;
+  reagentsUsed?: number | null;
+  waterUsed?: number | null;
+  goldRecovered?: number | null;
+  notes?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  site: { name: string; code: string };
+  reportedBy?: { name: string } | null;
+  downtimeEvents?: PlantReportDowntimeEvent[];
 };
 
 export type GoldPour = {
@@ -244,6 +320,86 @@ export type GoldShiftAllocation = {
   createdAt: string;
 };
 
+export type GoldCorrection = {
+  id: string;
+  pourId: string;
+  entityType: "POUR" | "DISPATCH" | "RECEIPT";
+  entityId: string;
+  reason: string;
+  beforeSnapshot?: unknown;
+  afterSnapshot?: unknown;
+  createdAt: string;
+  createdBy: { id: string; name: string };
+  pour: {
+    id: string;
+    pourBarId: string;
+    site: { id: string; name: string; code: string };
+  };
+};
+
+export type PermitRecord = {
+  id: string;
+  permitType: string;
+  permitNumber: string;
+  siteId: string;
+  issueDate: string;
+  expiryDate: string;
+  responsiblePerson: string;
+  documentUrl?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  site: { id: string; name: string; code: string };
+};
+
+export type InspectionRecord = {
+  id: string;
+  siteId: string;
+  inspectionDate: string;
+  inspectorName: string;
+  inspectorOrg: string;
+  findings: string;
+  actions?: string | null;
+  actionsDue?: string | null;
+  completedById?: string | null;
+  completedAt?: string | null;
+  documentUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  site: { id: string; name: string; code: string };
+  completedBy?: { id: string; name: string } | null;
+};
+
+export type IncidentRecord = {
+  id: string;
+  siteId: string;
+  incidentDate: string;
+  incidentType: string;
+  severity: string;
+  description: string;
+  actionsTaken?: string | null;
+  reportedBy: string;
+  photoUrls?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  site: { id: string; name: string; code: string };
+};
+
+export type TrainingRecordSummary = {
+  id: string;
+  userId: string;
+  trainingType: string;
+  trainingDate: string;
+  expiryDate?: string | null;
+  certificateUrl?: string | null;
+  trainedBy?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: { id: string; name: string; email: string };
+};
+
 export type DowntimeAnalytics = {
   siteId: string;
   startDate: string;
@@ -304,6 +460,32 @@ export async function fetchEmployees(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`);
+}
+
+export async function fetchFixedSalaries(
+  params: {
+    active?: boolean;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<FixedSalary>>(`/api/fixed-salaries${query}`);
+}
+
+export async function fetchEmployeePayments(
+  params: {
+    type?: "GOLD" | "SALARY";
+    employeeId?: string;
+    status?: "DUE" | "PARTIAL" | "PAID";
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<EmployeePayment>>(`/api/employee-payments${query}`);
 }
 
 export async function fetchSections(
@@ -431,6 +613,19 @@ export async function fetchShiftReports(
   );
 }
 
+export async function fetchPlantReports(
+  params: {
+    siteId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PlantReport>>(`/api/plant-reports${query}`);
+}
+
 export async function fetchGoldPours(
   params: { siteId?: string; page?: number; limit?: number } = {},
 ) {
@@ -476,6 +671,79 @@ export async function fetchGoldShiftAllocations(
   return fetchJson<Pagination<GoldShiftAllocation>>(
     `/api/gold/shift-allocations${query}`,
   );
+}
+
+export async function fetchGoldCorrections(
+  params: {
+    siteId?: string;
+    pourId?: string;
+    entityType?: "POUR" | "DISPATCH" | "RECEIPT";
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<GoldCorrection>>(`/api/gold/corrections${query}`);
+}
+
+export async function fetchPermits(
+  params: {
+    siteId?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PermitRecord>>(`/api/compliance/permits${query}`);
+}
+
+export async function fetchInspections(
+  params: {
+    siteId?: string;
+    startDate?: string;
+    endDate?: string;
+    overdue?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<InspectionRecord>>(`/api/compliance/inspections${query}`);
+}
+
+export async function fetchIncidents(
+  params: {
+    siteId?: string;
+    incidentType?: string;
+    severity?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<IncidentRecord>>(`/api/compliance/incidents${query}`);
+}
+
+export async function fetchTrainingRecords(
+  params: {
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+    expiringDays?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<TrainingRecordSummary>>(`/api/compliance/training-records${query}`);
 }
 
 // ============================================

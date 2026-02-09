@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Coins, Package, Scale } from "lucide-react";
 import { getApiErrorMessage } from "@/lib/api-client";
-import type { ShiftAllocation, WorkerPayout } from "@/app/gold/types";
+import type { ShiftAllocation } from "@/app/gold/types";
 
 export function GoldMenu({
   setViewMode,
@@ -21,22 +21,23 @@ export function GoldMenu({
   shiftAllocations,
   shiftAllocationsLoading,
   shiftAllocationsError,
-  payoutSummary,
-  payoutWindowWeeks,
-  onPayoutWindowChange,
   recentPours,
   incompleteDispatchCount,
 }: {
   setViewMode: (
-    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
+    mode:
+      | "menu"
+      | "pour"
+      | "dispatch"
+      | "receipt"
+      | "payouts"
+      | "reconciliation"
+      | "audit",
   ) => void;
   onOpenShiftModal: () => void;
   shiftAllocations: ShiftAllocation[];
   shiftAllocationsLoading: boolean;
   shiftAllocationsError: unknown;
-  payoutSummary: WorkerPayout[];
-  payoutWindowWeeks: string;
-  onPayoutWindowChange: (value: string) => void;
   recentPours: Array<{
     id: string;
     date: string;
@@ -154,54 +155,25 @@ export function GoldMenu({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>Worker Payout Preview</CardTitle>
+              <CardTitle>Worker Payouts</CardTitle>
               <CardDescription>
-                Equal share payout summary for selected pay window.
+                Review payout totals by pay window.
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={payoutWindowWeeks === "2" ? "default" : "outline"}
-                size="sm"
-                onClick={() => onPayoutWindowChange("2")}
-              >
-                2 weeks
-              </Button>
-              <Button
-                type="button"
-                variant={payoutWindowWeeks === "4" ? "default" : "outline"}
-                size="sm"
-                onClick={() => onPayoutWindowChange("4")}
-              >
-                4 weeks
-              </Button>
-            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setViewMode("payouts")}
+            >
+              View payouts
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {payoutSummary.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              Add shift allocations to preview worker payouts.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {payoutSummary.map((worker) => (
-                <div
-                  key={worker.id}
-                  className="flex items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <div>
-                    <div className="font-semibold">{worker.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {worker.employeeId}
-                    </div>
-                  </div>
-                  <Badge variant="secondary">{worker.total.toFixed(3)} g</Badge>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="text-sm text-muted-foreground">
+            Payout summaries are available in the Worker Payouts tab.
+          </div>
         </CardContent>
       </Card>
 

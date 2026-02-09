@@ -11,6 +11,15 @@ import {
   startOfWeek,
 } from "date-fns"
 import { Clock, TrendingDown, Zap } from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,7 +88,20 @@ export default function AnalyticsPage() {
     ? ((1 - totalHours / totalPossibleHours) * 100).toFixed(1)
     : "100.0"
 
-  const causes = analytics?.causes ?? []
+  const causes = useMemo(() => analytics?.causes ?? [], [analytics])
+  const chartData = useMemo(
+    () =>
+      [...causes]
+        .sort((a, b) => b.hours - a.hours)
+        .slice(0, 8)
+        .map((cause) => ({
+          code: cause.code,
+          description: cause.description,
+          hours: Number(cause.hours.toFixed(2)),
+          count: cause.count,
+        })),
+    [causes]
+  )
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -210,28 +232,47 @@ export default function AnalyticsPage() {
           ) : causes.length === 0 ? (
             <div className="text-sm text-muted-foreground">No downtime data for this range.</div>
           ) : (
-            <div className="space-y-4">
-              {causes.map((item) => {
-                const percentage = totalHours ? (item.hours / totalHours) * 100 : 0
-                return (
-                  <div key={item.code} className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{item.description}</span>
+            <div className="space-y-6">
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="code" />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value) => [`${Number(value).toFixed(1)}h`, "Hours"]}
+                      labelFormatter={(label) =>
+                        chartData.find((item) => item.code === label)?.description ?? String(label)
+                      }
+                    />
+                    <Bar dataKey="hours" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-4">
+                {causes.map((item) => {
+                  const percentage = totalHours ? (item.hours / totalHours) * 100 : 0
+                  return (
+                    <div key={item.code} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{item.description}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {item.hours.toFixed(1)}h ({percentage.toFixed(0)}%)
+                        </span>
                       </div>
-                      <span className="text-sm text-muted-foreground">
-                        {item.hours.toFixed(1)}h ({percentage.toFixed(0)}%)
-                      </span>
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                          className="bg-primary h-2 rounded-full"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </CardContent>

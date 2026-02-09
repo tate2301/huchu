@@ -7,6 +7,7 @@ type StoresPageProps = {
 const viewToRoute: Record<string, string> = {
   dashboard: "/stores/dashboard",
   inventory: "/stores/inventory",
+  movements: "/stores/movements",
   fuel: "/stores/fuel",
   issue: "/stores/issue",
   receive: "/stores/receive",

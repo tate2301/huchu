@@ -93,28 +93,24 @@ export default function StoresReceivePage() {
 
   const receiveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson("/api/inventory/movements", {
+      fetchJson<{ movement?: { id?: string } }>("/api/inventory/movements", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast({
         title: "Stock received",
         description: "Receipt recorded successfully.",
         variant: "success",
       });
-      setForm((prev) => ({
-        ...prev,
-        itemId: "",
-        quantity: "",
-        supplier: "",
-        invoiceNo: "",
-        unitCost: "",
-        receivedById: "",
-        notes: "",
-      }));
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
+      const createdId = result?.movement?.id;
+      const query = new URLSearchParams();
+      if (activeSiteId) query.set("siteId", activeSiteId);
+      if (createdId) query.set("createdId", createdId);
+      query.set("source", "stores-receipt");
+      router.push(`/stores/movements?${query.toString()}`);
     },
     onError: (error) => {
       toast({
@@ -264,11 +260,17 @@ export default function StoresReceivePage() {
                       <SelectValue placeholder="Select item..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {inventoryItems.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name} (Current: {item.currentStock} {item.unit})
+                      {inventoryItems.length === 0 ? (
+                        <SelectItem value="__no_items__" disabled>
+                          No items available
                         </SelectItem>
-                      ))}
+                      ) : (
+                        inventoryItems.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} (Current: {item.currentStock} {item.unit})
+                          </SelectItem>
+                        ))
+                      )}
                       <SelectItem value="__add_item__">
                         + Add new item
                       </SelectItem>

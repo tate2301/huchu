@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
               site: { select: { name: true, code: true } },
             },
           },
-          technician: { select: { name: true } },
+          technician: { select: { id: true, name: true, employeeId: true } },
         },
         orderBy: [
           { status: 'asc' },
@@ -117,6 +117,7 @@ export async function POST(request: NextRequest) {
             site: { select: { name: true, code: true } },
           },
         },
+        technician: { select: { id: true, name: true, employeeId: true } },
       },
     });
 

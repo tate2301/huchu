@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
+import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { exportElementToPdf } from "@/lib/pdf";
 import { Download, Fuel } from "lucide-react";
 
 type ParsedNotes = {
@@ -42,6 +44,7 @@ const movementDelta = (movementType: string, quantity: number) => {
 };
 
 export default function StoresFuelPage() {
+  const fuelPdfRef = useRef<HTMLDivElement | null>(null);
   const {
     data: inventoryData,
     isLoading: inventoryLoading,
@@ -77,19 +80,32 @@ export default function StoresFuelPage() {
   const fuelBelowMin = fuelMin > 0 && fuelStock < fuelMin;
 
   const ledgerRows = useMemo(() => {
-    let running = fuelStock;
-    return fuelMovements.map((movement) => {
-      const delta = movementDelta(movement.movementType, movement.quantity);
-      const closing = running;
-      const opening = closing - delta;
-      running = opening;
-      return {
-        ...movement,
-        delta,
-        opening,
-        closing,
-      };
-    });
+    return fuelMovements.reduce(
+      (acc, movement) => {
+        const delta = movementDelta(movement.movementType, movement.quantity);
+        const closing = acc.running;
+        const opening = closing - delta;
+        return {
+          running: opening,
+          rows: acc.rows.concat({
+            ...movement,
+            delta,
+            opening,
+            closing,
+          }),
+        };
+      },
+      {
+        running: fuelStock,
+        rows: [] as Array<
+          (typeof fuelMovements)[number] & {
+            delta: number;
+            opening: number;
+            closing: number;
+          }
+        >,
+      },
+    ).rows;
   }, [fuelMovements, fuelStock]);
 
   const pageError = inventoryError || movementsError;
@@ -115,7 +131,19 @@ export default function StoresFuelPage() {
                 Diesel receipts and issues with running balance
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (fuelPdfRef.current) {
+                  exportElementToPdf(
+                    fuelPdfRef.current,
+                    `fuel-ledger-${new Date().toISOString().slice(0, 10)}.pdf`,
+                  );
+                }
+              }}
+              disabled={movementsLoading || ledgerRows.length === 0}
+            >
               <Download className="h-4 w-4 mr-2" />
               Export PDF
             </Button>
@@ -243,6 +271,69 @@ export default function StoresFuelPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={fuelPdfRef}>
+          <PdfTemplate
+            title="Fuel Ledger"
+            subtitle="Diesel receipts and issues"
+            meta={[
+              { label: "Current stock", value: `${fuelStock} ${fuelUnit}` },
+              { label: "Minimum stock", value: `${fuelMin} ${fuelUnit}` },
+              { label: "Variance", value: `${fuelVariance} ${fuelUnit}` },
+              { label: "Total movements", value: String(ledgerRows.length) },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Type</th>
+                  <th className="py-2">Equipment/Supplier</th>
+                  <th className="py-2 text-right">Qty</th>
+                  <th className="py-2 text-right">Opening</th>
+                  <th className="py-2 text-right">Closing</th>
+                  <th className="py-2">Authorized</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledgerRows.map((entry) => {
+                  const notes = parseMovementNotes(entry.notes ?? null);
+                  const isReceipt = entry.movementType === "RECEIPT";
+                  const equipmentOrSupplier = isReceipt
+                    ? notes.supplier || entry.issuedTo || "-"
+                    : entry.issuedTo || "-";
+                  const authorizedBy = isReceipt
+                    ? entry.requestedBy || entry.issuedBy?.name || "-"
+                    : entry.approvedBy || entry.requestedBy || entry.issuedBy?.name || "-";
+                  return (
+                    <tr key={entry.id} className="border-b border-gray-100">
+                      <td className="py-2">
+                        {new Date(entry.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-2">
+                        {isReceipt ? "Receipt" : "Issue"}
+                      </td>
+                      <td className="py-2">{equipmentOrSupplier}</td>
+                      <td className="py-2 text-right">
+                        {entry.delta >= 0 ? "+" : "-"}
+                        {Math.abs(entry.delta)} {entry.unit}
+                      </td>
+                      <td className="py-2 text-right">
+                        {entry.opening} {entry.unit}
+                      </td>
+                      <td className="py-2 text-right">
+                        {entry.closing} {entry.unit}
+                      </td>
+                      <td className="py-2">{authorizedBy}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
     </StoresShell>
   );
 }

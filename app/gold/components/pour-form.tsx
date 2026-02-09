@@ -91,18 +91,22 @@ export function PourForm({
       storageLocation: string;
       notes?: string;
     }) =>
-      fetchJson("/api/gold/pours", {
+      fetchJson<{ id: string }>("/api/gold/pours", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (pour) => {
       toast({
         title: "Gold pour recorded",
         description: "Pour saved and ready for dispatch.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
-      setViewMode("menu");
+      const params = new URLSearchParams({
+        createdId: pour.id,
+        source: "gold-pour",
+      });
+      router.push(`/gold/audit?${params.toString()}`);
     },
   });
 

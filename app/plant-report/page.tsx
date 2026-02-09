@@ -1,11 +1,14 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
+import { format, subDays } from "date-fns"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle, Save, Send } from "lucide-react"
 
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
+import { PdfTemplate } from "@/components/pdf/pdf-template"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,8 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchDowntimeCodes, fetchSites } from "@/lib/api"
+import { RecordSavedBanner } from "@/components/shared/record-saved-banner"
+import { fetchDowntimeCodes, fetchPlantReports, fetchSites } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { exportElementToPdf } from "@/lib/pdf"
 
 const toNumber = (value: string) => {
   if (value.trim() === "") return undefined
@@ -31,9 +36,12 @@ type DowntimeEvent = {
 
 export default function PlantReportPage() {
   const { toast } = useToast()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const createdId = searchParams.get("createdId")
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
-    siteId: "",
+    siteId: searchParams.get("siteId") ?? "",
     tonnesFed: "",
     tonnesProcessed: "",
     runHours: "",
@@ -44,6 +52,14 @@ export default function PlantReportPage() {
     goldRecovered: "",
     notes: "",
   })
+  const [listSiteId, setListSiteId] = useState(searchParams.get("siteId") ?? "all")
+  const [listStartDate, setListStartDate] = useState(
+    searchParams.get("startDate") ?? format(subDays(new Date(), 6), "yyyy-MM-dd"),
+  )
+  const [listEndDate, setListEndDate] = useState(
+    searchParams.get("endDate") ?? format(new Date(), "yyyy-MM-dd"),
+  )
+  const plantReportPdfRef = useRef<HTMLDivElement>(null)
 
   const [downtimeEvents, setDowntimeEvents] = useState<DowntimeEvent[]>([])
 
@@ -64,19 +80,53 @@ export default function PlantReportPage() {
     enabled: !!activeSiteId,
   })
 
+  const activeListSiteId = listSiteId === "all" ? "" : listSiteId
+  const {
+    data: plantReportsData,
+    isLoading: plantReportsLoading,
+    error: plantReportsError,
+  } = useQuery({
+    queryKey: ["plant-reports", "list", activeListSiteId || "all", listStartDate, listEndDate],
+    queryFn: () =>
+      fetchPlantReports({
+        siteId: activeListSiteId || undefined,
+        startDate: listStartDate,
+        endDate: listEndDate,
+        limit: 200,
+      }),
+    enabled: !!listStartDate && !!listEndDate,
+  })
+
   const plantReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson("/api/plant-reports", {
+      fetchJson<{ id: string }>("/api/plant-reports", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (report, variables) => {
       toast({
         title: "Plant report submitted",
         description: "Production report saved successfully.",
         variant: "success",
       })
       localStorage.removeItem("plantReportDraft")
+      const reportDate = String(variables.date ?? "").slice(0, 10)
+      const reportSiteId = String(variables.siteId ?? "")
+      const params = new URLSearchParams({
+        createdId: report.id,
+        source: "plant-report",
+        siteId: reportSiteId,
+        startDate: reportDate,
+        endDate: reportDate,
+      })
+      router.push(`/plant-report?${params.toString()}`)
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to submit report",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
     },
   })
 
@@ -160,6 +210,14 @@ export default function PlantReportPage() {
     (sum, event) => sum + (parseFloat(event.durationHours) || 0),
     0,
   )
+  const plantReportRecords = useMemo(
+    () => plantReportsData?.data ?? [],
+    [plantReportsData],
+  )
+  const activeListSiteName =
+    listSiteId === "all"
+      ? "All sites"
+      : sites?.find((site) => site.id === listSiteId)?.name ?? "Selected site"
 
   const error = sitesError || downtimeError || plantReportMutation.error
 
@@ -177,6 +235,7 @@ export default function PlantReportPage() {
       </PageActions>
 
       <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+      <RecordSavedBanner entityLabel="plant report" />
 
       {error && (
         <Alert variant="destructive">
@@ -413,6 +472,168 @@ export default function PlantReportPage() {
           </Button>
         </div>
       </form>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Plant Reports</CardTitle>
+              <CardDescription>Review submitted plant reports</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (plantReportPdfRef.current) {
+                  exportElementToPdf(
+                    plantReportPdfRef.current,
+                    `plant-reports-${listStartDate}-to-${listEndDate}.pdf`,
+                  )
+                }
+              }}
+              disabled={plantReportsLoading || plantReportRecords.length === 0}
+            >
+              Export PDF
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {plantReportsError && (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load plant reports</AlertTitle>
+              <AlertDescription>{getApiErrorMessage(plantReportsError)}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold mb-2">Site</label>
+              {sitesLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <Select value={listSiteId} onValueChange={setListSiteId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sites</SelectItem>
+                    {sites?.length ? (
+                      sites.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-sites" disabled>
+                        No sites available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Start Date</label>
+              <Input
+                type="date"
+                value={listStartDate}
+                onChange={(event) => setListStartDate(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">End Date</label>
+              <Input
+                type="date"
+                value={listEndDate}
+                onChange={(event) => setListEndDate(event.target.value)}
+              />
+            </div>
+          </div>
+
+          {plantReportsLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : plantReportRecords.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No plant reports for this range.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-3 font-semibold">Date</th>
+                    <th className="text-left p-3 font-semibold">Site</th>
+                    <th className="text-left p-3 font-semibold">Tonnes Processed</th>
+                    <th className="text-left p-3 font-semibold">Run Hours</th>
+                    <th className="text-left p-3 font-semibold">Gold Recovered</th>
+                    <th className="text-left p-3 font-semibold">Downtime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plantReportRecords.map((report) => {
+                    const downtimeHours =
+                      report.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0
+                    return (
+                      <tr key={report.id} className={`border-b ${createdId === report.id ? "bg-emerald-50" : ""}`}>
+                        <td className="p-3">{format(new Date(report.date), "MMM d, yyyy")}</td>
+                        <td className="p-3">{report.site?.name}</td>
+                        <td className="p-3">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
+                        <td className="p-3">{(report.runHours ?? 0).toFixed(1)}</td>
+                        <td className="p-3">{(report.goldRecovered ?? 0).toFixed(2)}</td>
+                        <td className="p-3">{downtimeHours.toFixed(1)}h</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={plantReportPdfRef}>
+          <PdfTemplate
+            title="Plant Reports"
+            subtitle={`${listStartDate} to ${listEndDate}`}
+            meta={[
+              { label: "Site", value: activeListSiteName },
+              { label: "Total reports", value: String(plantReportRecords.length) },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">Tonnes Processed</th>
+                  <th className="py-2">Run Hours</th>
+                  <th className="py-2">Gold Recovered</th>
+                  <th className="py-2">Downtime</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plantReportRecords.map((report) => {
+                  const downtimeHours =
+                    report.downtimeEvents?.reduce(
+                      (sum, event) => sum + event.durationHours,
+                      0,
+                    ) ?? 0
+                  return (
+                    <tr key={report.id} className="border-b border-gray-100">
+                      <td className="py-2">{format(new Date(report.date), "MMM d, yyyy")}</td>
+                      <td className="py-2">{report.site?.name}</td>
+                      <td className="py-2">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
+                      <td className="py-2">{(report.runHours ?? 0).toFixed(1)}</td>
+                      <td className="py-2">{(report.goldRecovered ?? 0).toFixed(2)}</td>
+                      <td className="py-2">{downtimeHours.toFixed(1)}h</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
     </div>
   )
 }

@@ -101,6 +101,7 @@ model User {
   stockMovements        StockMovement[]
   inspections           Inspection[]
   trainingRecords       TrainingRecord[]
+  employeePayments      EmployeePayment[]
   accounts              Account[]         // For NextAuth
   sessions              Session[]         // For NextAuth
   
@@ -131,9 +132,48 @@ model Employee {
   goldPoursWitness2 GoldPour[]  @relation("Witness2")
   goldDispatches    GoldDispatch[] @relation("GoldDispatchHandovers")
   goldShiftWorkerShares GoldShiftWorkerShare[]
+  fixedSalary       FixedSalary?
+  payments          EmployeePayment[]
 
   @@unique([companyId, employeeId])
   @@index([companyId])
+}
+
+model FixedSalary {
+  id            String   @id @default(uuid())
+  employeeId    String   @unique
+  monthlyAmount Float
+  currency      String   @default("USD")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employee      Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+}
+
+model EmployeePayment {
+  id          String        @id @default(uuid())
+  employeeId  String
+  type        PaymentType
+  periodStart DateTime
+  periodEnd   DateTime
+  dueDate     DateTime
+  amount      Float
+  unit        String
+  paidAmount  Float?
+  paidAt      DateTime?
+  status      PaymentStatus @default(DUE)
+  notes       String?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  @@index([employeeId, type])
 }
 
 // ============================================
@@ -167,6 +207,17 @@ enum ReportStatus {
   VERIFIED
   APPROVED
   REJECTED
+}
+
+enum PaymentType {
+  GOLD
+  SALARY
+}
+
+enum PaymentStatus {
+  DUE
+  PARTIAL
+  PAID
 }
 
 model ShiftReport {

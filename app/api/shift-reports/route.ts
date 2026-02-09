@@ -19,16 +19,9 @@ const shiftReportSchema = z
       .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
     shift: z.enum(["DAY", "NIGHT"]),
     siteId: z.string().uuid(),
-    sectionId: z.string().uuid().optional(),
     groupLeaderId: z.string().uuid(),
     crewCount: z.number().int().min(0).max(1000),
-    workType: z.enum([
-      "DEVELOPMENT",
-      "PRODUCTION",
-      "HAULAGE",
-      "SUPPORT",
-      "OTHER",
-    ]),
+    workType: z.nativeEnum(WorkType),
     outputTonnes: z.number().min(0).optional(),
     outputTrips: z.number().int().min(0).optional(),
     outputWheelbarrows: z.number().int().min(0).optional(),
@@ -36,7 +29,6 @@ const shiftReportSchema = z
     hasIncident: z.boolean().optional(),
     incidentNotes: z.string().max(1000).optional(),
     handoverNotes: z.string().max(2000).optional(),
-    photos: z.array(z.string().max(2048)).optional(),
   })
   .refine((data) => !data.hasIncident || !!data.incidentNotes, {
     message: "Incident notes are required when an incident is reported",
@@ -73,7 +65,6 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           site: { select: { name: true, code: true } },
-          section: { select: { name: true } },
           groupLeader: { select: { name: true } },
           downtimeEvents: {
             include: {
@@ -103,9 +94,18 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
 
     const body = await request.json();
-    const validated = shiftReportSchema.parse(body);
+    const normalizedWorkType =
+      typeof body.workType === "string"
+        ? body.workType.trim().toUpperCase()
+        : body.workType;
+    const normalizedBody = {
+      ...body,
+      workType:
+        normalizedWorkType === "HAULAGE" ? "HAULING" : normalizedWorkType,
+    };
+    const validated = shiftReportSchema.parse(normalizedBody);
 
-    const [site, groupLeader, section] = await Promise.all([
+    const [site, groupLeader] = await Promise.all([
       prisma.site.findUnique({
         where: { id: validated.siteId },
         select: { companyId: true, isActive: true },
@@ -114,12 +114,6 @@ export async function POST(request: NextRequest) {
         where: { id: validated.groupLeaderId },
         select: { companyId: true, isActive: true },
       }),
-      validated.sectionId
-        ? prisma.section.findUnique({
-            where: { id: validated.sectionId },
-            select: { siteId: true },
-          })
-        : Promise.resolve(null),
     ]);
 
     if (!site || site.companyId !== session.user.companyId) {
@@ -136,10 +130,6 @@ export async function POST(request: NextRequest) {
       !groupLeader.isActive
     ) {
       return errorResponse("Invalid group leader", 400);
-    }
-
-    if (section && section.siteId !== validated.siteId) {
-      return errorResponse("Section does not belong to this site", 400);
     }
 
     // Check if report already exists for this site/date/shift
@@ -164,10 +154,9 @@ export async function POST(request: NextRequest) {
         date: new Date(validated.date),
         shift: validated.shift,
         siteId: validated.siteId,
-        sectionId: validated.sectionId,
         groupLeaderId: validated.groupLeaderId,
         crewCount: validated.crewCount,
-        workType: "DEVELOPMENT" as WorkType,
+        workType: validated.workType,
         outputTonnes: validated.outputTonnes,
         outputTrips: validated.outputTrips,
         outputWheelbarrows: validated.outputWheelbarrows,
@@ -175,13 +164,11 @@ export async function POST(request: NextRequest) {
         hasIncident: validated.hasIncident || false,
         incidentNotes: validated.incidentNotes,
         handoverNotes: validated.handoverNotes,
-        photos: validated.photos ? JSON.stringify(validated.photos) : undefined,
         status: "DRAFT",
         createdById: session.user.id,
       },
       include: {
         site: { select: { name: true, code: true } },
-        section: { select: { name: true } },
       },
     });
 

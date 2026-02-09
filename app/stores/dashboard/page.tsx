@@ -91,6 +91,12 @@ export default function StoresDashboardPage() {
             </Link>
           </Button>
           <Button size="sm" variant="outline" asChild>
+            <Link href="/stores/movements">
+              <TrendingUp className="h-4 w-4" />
+              Movements
+            </Link>
+          </Button>
+          <Button size="sm" variant="outline" asChild>
             <Link href="/stores/receive">
               <Plus className="h-4 w-4" />
               Receive Stock
