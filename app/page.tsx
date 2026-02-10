@@ -239,9 +239,32 @@ function DashboardTile({
 }
 
 export default function Home() {
-  const groupedSections = navSections.filter(
-    (section) => section.id !== "overview",
+  const sectionOrder = [
+    "daily",
+    "gold",
+    "stores",
+    "maintenance",
+    "hr",
+    "management",
+    "reporting",
+  ];
+  const orderIndex = new Map(
+    sectionOrder.map((sectionId, index) => [sectionId, index]),
   );
+  const groupedSections = navSections
+    .filter((section) => section.id !== "overview")
+    .slice()
+    .sort((a, b) => {
+      const aIndex = orderIndex.get(a.id);
+      const bIndex = orderIndex.get(b.id);
+
+      if (aIndex === undefined && bIndex === undefined) {
+        return a.title.localeCompare(b.title);
+      }
+      if (aIndex === undefined) return 1;
+      if (bIndex === undefined) return -1;
+      return aIndex - bIndex;
+    });
 
   return (
     <div className="space-y-8">

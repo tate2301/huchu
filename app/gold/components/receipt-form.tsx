@@ -17,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
-import { Send, Shield } from "lucide-react";
+import { goldRoutes } from "@/app/gold/routes";
+import { Send, Shield } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 
@@ -37,7 +38,6 @@ export function ReceiptForm({
   const queryClient = useQueryClient();
   const router = useRouter();
   const [formData, setFormData] = useState({
-    receiptNumber: "",
     goldDispatchId: "",
     receiptDate: new Date().toISOString().slice(0, 16),
     assayResult: "",
@@ -74,7 +74,6 @@ export function ReceiptForm({
   const createReceiptMutation = useMutation({
     mutationFn: async (payload: {
       goldDispatchId: string;
-      receiptNumber: string;
       receiptDate: string;
       assayResult?: number;
       paidAmount: number;
@@ -90,11 +89,11 @@ export function ReceiptForm({
     onSuccess: (receipt) => {
       toast({
         title: "Sale recorded",
-        description: "Receipt saved and chain closed.",
+        description: "Sale record saved successfully.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
-      const destination = buildSavedRecordRedirect("/gold/receipt", {
+      const destination = buildSavedRecordRedirect(goldRoutes.settlement.receipts, {
         createdId: receipt.id,
         createdAt: receipt.createdAt,
         source: "gold-receipt",
@@ -118,7 +117,6 @@ export function ReceiptForm({
     ? Number(formData.assayResult)
     : undefined;
   const canSubmit =
-    !!formData.receiptNumber &&
     !!formData.goldDispatchId &&
     !!formData.receiptDate &&
     !!formData.assayResult &&
@@ -138,7 +136,6 @@ export function ReceiptForm({
     }
     createReceiptMutation.mutate({
       goldDispatchId: formData.goldDispatchId,
-      receiptNumber: formData.receiptNumber.trim(),
       receiptDate: formData.receiptDate,
       assayResult: assayResultValue,
       paidAmount: paidAmountValue,
@@ -157,7 +154,7 @@ export function ReceiptForm({
 
       {createReceiptMutation.error ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to record sale receipt</AlertTitle>
+          <AlertTitle>Unable to record sale</AlertTitle>
           <AlertDescription>{getApiErrorMessage(createReceiptMutation.error)}</AlertDescription>
         </Alert>
       ) : null}
@@ -167,10 +164,9 @@ export function ReceiptForm({
           <div className="flex gap-3">
             <Shield className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
-              <strong className="block mb-1">Sale Confirmation</strong>
+              <strong className="block mb-1">Sale Details</strong>
               <p className="text-foreground">
-                Record final assay results and sale details to complete the
-                gold transaction cycle.
+                Record buyer test results and payment details.
               </p>
             </div>
           </div>
@@ -179,33 +175,30 @@ export function ReceiptForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Buyer Receipt</CardTitle>
-          <CardDescription>Record assay and sale confirmation</CardDescription>
+          <CardTitle>Sale Record</CardTitle>
+          <CardDescription>Fill all required fields.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {availableDispatches.length === 0 ? (
             <Alert>
               <AlertTitle>No dispatches awaiting receipt</AlertTitle>
               <AlertDescription>
-                Record a dispatch manifest before confirming a sale receipt.
+                Record a dispatch before adding a receipt.
               </AlertDescription>
             </Alert>
           ) : null}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold mb-2">Receipt Number *</label>
+              <label className="block text-sm font-semibold mb-2">Receipt Number</label>
               <Input
-                value={formData.receiptNumber}
-                onChange={(e) =>
-                  setFormData({ ...formData, receiptNumber: e.target.value })
-                }
-                placeholder="e.g., RCP-2026-001"
-                required
+                value="Generated automatically when saved"
+                readOnly
+                aria-readonly="true"
               />
             </div>
 
             <SearchableSelect
-              label="Dispatch ID *"
+              label="Select Dispatch *"
               value={formData.goldDispatchId || undefined}
               options={dispatchOptions}
               placeholder={
@@ -221,7 +214,7 @@ export function ReceiptForm({
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Receipt Date *</label>
+            <label className="block text-sm font-semibold mb-2">Sale Date *</label>
             <Input
               type="datetime-local"
               value={formData.receiptDate}
@@ -231,10 +224,10 @@ export function ReceiptForm({
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold mb-3">Assay Results</h4>
+            <h4 className="text-sm font-semibold mb-3">Buyer Test Results</h4>
             <div>
               <label className="block text-sm font-semibold mb-2">
-                Actual Purity/Fine Weight (grams) *
+                Final tested gold (grams) *
               </label>
               <Input
                 type="number"
@@ -245,13 +238,13 @@ export function ReceiptForm({
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                After buyer assay test
+                Enter the value from the buyer test.
               </p>
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold mb-3">Sale Details</h4>
+            <h4 className="text-sm font-semibold mb-3">Payment Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold mb-2">
@@ -268,20 +261,20 @@ export function ReceiptForm({
               </div>
 
               <SearchableSelect
-                label="Settlement Method *"
+                label="Payment Method *"
                 value={formData.paymentMethod}
                 options={paymentMethods}
                 placeholder="Select method"
                 searchPlaceholder="Search methods..."
                 onValueChange={handleSelectChange("paymentMethod")}
                 onAddOption={handleAddPaymentMethod}
-                addLabel="Add settlement method"
+                addLabel="Add payment method"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Settlement Channel</label>
+                <label className="block text-sm font-semibold mb-2">Payment Channel</label>
                 <Input
                   value={formData.paymentChannel}
                   onChange={(e) =>
@@ -293,7 +286,7 @@ export function ReceiptForm({
 
               <div>
                 <label className="block text-sm font-semibold mb-2">
-                  Settlement Reference
+                  Payment Reference
                 </label>
                 <Input
                   value={formData.paymentReference}
@@ -323,7 +316,7 @@ export function ReceiptForm({
 
       <Button type="submit" className="w-full" size="lg" disabled={!canSubmit}>
         <Send className="mr-2 h-5 w-5" />
-        {createReceiptMutation.isPending ? "Recording..." : "Confirm Sale Receipt"}
+        {createReceiptMutation.isPending ? "Recording..." : "Save Sale"}
       </Button>
     </form>
   );

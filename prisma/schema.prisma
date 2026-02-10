@@ -54,6 +54,7 @@ model Site {
   downtimeCodes     DowntimeCode[]
   nvrs              NVR[]
   cameras           Camera[]
+  streamSessions    StreamSession[]
   
   @@index([companyId])
 }
@@ -102,6 +103,7 @@ model User {
   inspections           Inspection[]
   trainingRecords       TrainingRecord[]
   employeePayments      EmployeePayment[]
+  streamSessions        StreamSession[]
   accounts              Account[]         // For NextAuth
   sessions              Session[]         // For NextAuth
   
@@ -743,6 +745,7 @@ model NVR {
   manufacturer    String   @default("Hikvision")
   model           String?
   firmware        String?
+  isActive        Boolean  @default(true)
   isOnline        Boolean  @default(false)
   lastHeartbeat   DateTime?
   
@@ -782,6 +785,7 @@ model Camera {
   hasAudio        Boolean  @default(false)
   hasMotionDetect Boolean  @default(true)
   hasLineDetect   Boolean  @default(false)
+  isActive        Boolean  @default(true)
   
   // Status
   isOnline        Boolean  @default(false)
@@ -798,6 +802,7 @@ model Camera {
   nvr             NVR      @relation(fields: [nvrId], references: [id])
   site            Site     @relation(fields: [siteId], references: [id])
   events          CCTVEvent[]
+  streamSessions  StreamSession[]
   playbackRecords PlaybackRecord[]
   accessLogs      CameraAccessLog[]
   
@@ -825,6 +830,17 @@ enum EventSeverity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum StreamProtocol {
+  WEBRTC
+  HLS
+}
+
+enum StreamSessionStatus {
+  ACTIVE
+  STOPPED
+  FAILED
 }
 
 model CCTVEvent {
@@ -858,6 +874,31 @@ model CCTVEvent {
   @@index([cameraId])
   @@index([eventType])
   @@index([isAcknowledged])
+}
+
+model StreamSession {
+  id          String              @id @default(uuid())
+  cameraId    String
+  siteId      String
+  userId      String
+  streamType  String              @default("sub")
+  protocol    StreamProtocol
+  status      StreamSessionStatus @default(ACTIVE)
+  playUrl     String?
+  purpose     String?
+  clientMeta  String?
+  startedAt   DateTime            @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  camera      Camera              @relation(fields: [cameraId], references: [id])
+  site        Site                @relation(fields: [siteId], references: [id])
+  user        User                @relation(fields: [userId], references: [id])
+
+  @@index([cameraId, status])
+  @@index([siteId, startedAt])
+  @@index([userId, startedAt])
 }
 
 model PlaybackRecord {

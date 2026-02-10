@@ -1,6 +1,6 @@
 "use client"
 
-import { ShieldAlert } from "lucide-react"
+import { ShieldAlert } from "@/lib/icons"
 import { useSession } from "next-auth/react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"

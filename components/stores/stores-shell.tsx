@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { cn } from "@/lib/utils";
-import { Fuel, History, Home, Minus, Package, Plus } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Fuel, History, Home, Minus, Package, Plus } from "@/lib/icons";
+import type { LucideIcon } from "@/lib/icons";
 
 export type StoresTab =
   | "dashboard"

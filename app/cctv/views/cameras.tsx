@@ -1,8 +1,19 @@
 "use client"
 
+import Link from "next/link"
 import { useRef, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Camera as CameraIcon, CheckCircle, XCircle, Shield, Radio, Mic, Download } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  Camera as CameraIcon,
+  CheckCircle,
+  XCircle,
+  Shield,
+  Radio,
+  Mic,
+  Download,
+  Pencil,
+  Trash2,
+} from "@/lib/icons"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,20 +29,25 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusState } from "@/components/shared/status-state"
+import { PageIntro } from "@/components/shared/page-intro"
 import { fetchCameras, Site } from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 import { exportElementToPdf } from "@/lib/pdf"
+import { useToast } from "@/components/ui/use-toast"
 
 interface CamerasViewProps {
   sites: Site[]
   selectedSiteId: string
   onSiteChange: (siteId: string) => void
+  createdId?: string | null
 }
 
-export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasViewProps) {
+export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: CamerasViewProps) {
   const camerasPdfRef = useRef<HTMLDivElement | null>(null)
   const [areaFilter, setAreaFilter] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<string>("")
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
   const siteFilterId = "cctv-cameras-site-filter"
   const areaFilterId = "cctv-cameras-area-filter"
   const statusFilterId = "cctv-cameras-status-filter"
@@ -54,6 +70,27 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
   const offlineCount = cameras.filter((camera) => !camera.isOnline).length
   const exportDisabled = isLoading || cameras.length === 0
 
+  const deactivateMutation = useMutation({
+    mutationFn: async (cameraId: string) =>
+      fetchJson(`/api/cctv/cameras/${cameraId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cameras"] })
+      toast({
+        title: "Camera deactivated",
+        description: "The camera has been removed from active monitoring.",
+      })
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Unable to deactivate camera",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
   // Get unique areas for filtering
   const areas = Array.from(
     new Set(cameras.map((camera) => camera.area).filter((area) => area && area.trim())),
@@ -71,6 +108,12 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
 
   return (
     <div className="space-y-4">
+      <PageIntro
+        title="Cameras"
+        purpose="View registered cameras, check health, and maintain monitoring assignments."
+        nextStep="Filter by site or status, then edit or deactivate where needed."
+      />
+
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
@@ -217,7 +260,12 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {cameras.map((camera) => (
-            <Card key={camera.id} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={camera.id}
+              className={`hover:shadow-lg transition-shadow ${
+                createdId === camera.id ? "border-[var(--status-success-border)] bg-[var(--status-success-bg)]" : ""
+              }`}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -306,6 +354,24 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange }: CamerasView
                       Last seen: {new Date(camera.lastSeen).toLocaleString()}
                     </p>
                   )}
+
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/cctv/cameras/${camera.id}/edit`}>
+                        <Pencil className="mr-1 h-3 w-3" />
+                        Edit
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deactivateMutation.mutate(camera.id)}
+                      disabled={deactivateMutation.isPending}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                      Deactivate
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

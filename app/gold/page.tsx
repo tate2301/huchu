@@ -1,12 +1,24 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
 import { GoldShell } from "@/components/gold/gold-shell";
+import { StatusState } from "@/components/shared/status-state";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ArrowRightLeft, CheckCircle2, Gem, Wallet } from "@/lib/icons";
+import { useToast } from "@/components/ui/use-toast";
 import {
   fetchAttendance,
   fetchGoldDispatches,
@@ -15,28 +27,13 @@ import {
   fetchGoldShiftAllocations,
   fetchShiftReports,
 } from "@/lib/api";
-import { fetchJson } from "@/lib/api-client";
-import { Coins, Package, Scale } from "lucide-react";
-import { GoldMenu } from "@/app/gold/components/gold-menu";
 import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
+import { goldRoutes } from "@/app/gold/routes";
 import type { AttendanceShiftSummary } from "@/app/gold/types";
-
-const goldRoutes = {
-  menu: "/gold",
-  pour: "/gold/pour/new",
-  dispatch: "/gold/dispatch/new",
-  receipt: "/gold/receipt/new",
-  payouts: "/gold/payouts",
-  reconciliation: "/gold/reconciliation",
-  audit: "/gold/audit",
-} as const;
-
-type GoldView = keyof typeof goldRoutes;
 
 export default function GoldPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const router = useRouter();
   const [shiftModalOpen, setShiftModalOpen] = useState(false);
 
   const attendanceStart = useMemo(() => {
@@ -45,10 +42,30 @@ export default function GoldPage() {
     return start.toISOString().slice(0, 10);
   }, []);
 
-  const handleNavigate = (view: GoldView) => {
-    router.push(goldRoutes[view]);
-  };
-
+  const {
+    data: poursData,
+    isLoading: poursLoading,
+    error: poursError,
+  } = useQuery({
+    queryKey: ["gold-pours", "command"],
+    queryFn: () => fetchGoldPours({ limit: 300 }),
+  });
+  const {
+    data: dispatchesData,
+    isLoading: dispatchesLoading,
+    error: dispatchesError,
+  } = useQuery({
+    queryKey: ["gold-dispatches", "command"],
+    queryFn: () => fetchGoldDispatches({ limit: 300 }),
+  });
+  const {
+    data: receiptsData,
+    isLoading: receiptsLoading,
+    error: receiptsError,
+  } = useQuery({
+    queryKey: ["gold-receipts", "command"],
+    queryFn: () => fetchGoldReceipts({ limit: 300 }),
+  });
   const { data: attendanceData, isLoading: attendanceLoading } = useQuery({
     queryKey: ["attendance", "gold", attendanceStart],
     queryFn: () => fetchAttendance({ startDate: attendanceStart, limit: 500 }),
@@ -56,38 +73,22 @@ export default function GoldPage() {
 
   const { data: shiftReportsData, isLoading: shiftReportsLoading } = useQuery({
     queryKey: ["shift-reports", "gold", attendanceStart],
-    queryFn: () => fetchShiftReports({ startDate: attendanceStart, limit: 200 }),
+    queryFn: () =>
+      fetchShiftReports({ startDate: attendanceStart, limit: 200 }),
   });
 
-  const {
-    data: shiftAllocationsData,
-    isLoading: shiftAllocationsLoading,
-    error: shiftAllocationsError,
-  } = useQuery({
+  useQuery({
     queryKey: ["gold-shift-allocations", attendanceStart],
     queryFn: () =>
       fetchGoldShiftAllocations({ startDate: attendanceStart, limit: 200 }),
   });
 
-  const { data: poursData } = useQuery({
-    queryKey: ["gold-pours"],
-    queryFn: () => fetchGoldPours({ limit: 50 }),
-  });
-
-  const { data: dispatchesData } = useQuery({
-    queryKey: ["gold-dispatches"],
-    queryFn: () => fetchGoldDispatches({ limit: 200 }),
-  });
-
-  const { data: receiptsData } = useQuery({
-    queryKey: ["gold-receipts"],
-    queryFn: () => fetchGoldReceipts({ limit: 200 }),
-  });
-
-  const shiftAllocations = useMemo(
-    () => shiftAllocationsData?.data ?? [],
-    [shiftAllocationsData],
+  const pours = useMemo(() => poursData?.data ?? [], [poursData]);
+  const dispatches = useMemo(
+    () => dispatchesData?.data ?? [],
+    [dispatchesData],
   );
+  const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
   const attendanceRecords = useMemo(
     () => attendanceData?.data ?? [],
     [attendanceData],
@@ -96,6 +97,57 @@ export default function GoldPage() {
     () => shiftReportsData?.data ?? [],
     [shiftReportsData],
   );
+
+  const dispatchByPourId = useMemo(() => {
+    const map = new Map<string, (typeof dispatches)[number]>();
+    dispatches.forEach((dispatch) => {
+      map.set(dispatch.goldPourId, dispatch);
+    });
+    return map;
+  }, [dispatches]);
+
+  const receiptByDispatchId = useMemo(() => {
+    const map = new Map<string, (typeof receipts)[number]>();
+    receipts.forEach((receipt) => {
+      map.set(receipt.goldDispatch.id, receipt);
+    });
+    return map;
+  }, [receipts]);
+
+  const pendingSettlementDispatches = useMemo(
+    () =>
+      dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id)),
+    [dispatches, receiptByDispatchId],
+  );
+
+  const commandError = poursError || dispatchesError || receiptsError;
+  const commandLoading =
+    poursLoading || dispatchesLoading || receiptsLoading;
+
+  const recentChain = useMemo(() => {
+    return pours
+      .slice()
+      .sort((a, b) => b.pourDate.localeCompare(a.pourDate))
+      .slice(0, 8)
+      .map((pour) => {
+        const dispatch = dispatchByPourId.get(pour.id);
+        const receipt = dispatch
+          ? receiptByDispatchId.get(dispatch.id)
+          : undefined;
+        const status = receipt
+          ? "Complete"
+          : dispatch
+            ? "Dispatched"
+            : "Waiting for dispatch";
+        return {
+          id: pour.id,
+          pourBarId: pour.pourBarId,
+          site: pour.site.code,
+          date: pour.pourDate,
+          status,
+        };
+      });
+  }, [dispatchByPourId, pours, receiptByDispatchId]);
 
   const attendanceShifts = useMemo(() => {
     const grouped = new Map<string, AttendanceShiftSummary>();
@@ -157,53 +209,6 @@ export default function GoldPage() {
     return map;
   }, [shiftReports]);
 
-  const dispatches = useMemo(
-    () => dispatchesData?.data ?? [],
-    [dispatchesData],
-  );
-  const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
-  const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-
-  const dispatchByPourId = useMemo(() => {
-    const map = new Map<string, (typeof dispatches)[number]>();
-    dispatches.forEach((dispatch) => {
-      map.set(dispatch.goldPourId, dispatch);
-    });
-    return map;
-  }, [dispatches]);
-
-  const receiptByDispatchId = useMemo(() => {
-    const map = new Map<string, (typeof receipts)[number]>();
-    receipts.forEach((receipt) => {
-      map.set(receipt.goldDispatch.id, receipt);
-    });
-    return map;
-  }, [receipts]);
-
-  const incompleteDispatchCount = useMemo(
-    () => dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id)).length,
-    [dispatches, receiptByDispatchId],
-  );
-
-  const recentPours = useMemo(() => {
-    return pours
-      .slice()
-      .sort((a, b) => b.pourDate.localeCompare(a.pourDate))
-      .slice(0, 3)
-      .map((pour) => {
-        const dispatch = dispatchByPourId.get(pour.id);
-        const receipt = dispatch ? receiptByDispatchId.get(dispatch.id) : undefined;
-        const status = receipt ? "sold" : dispatch ? "moved" : "in-storage";
-        return {
-          id: pour.pourBarId,
-          date: pour.pourDate.slice(0, 10),
-          site: pour.site.name,
-          weight: pour.grossWeight,
-          status,
-        };
-      });
-  }, [dispatchByPourId, pours, receiptByDispatchId]);
-
   const createShiftAllocationMutation = useMutation({
     mutationFn: async (payload: {
       date: string;
@@ -213,59 +218,218 @@ export default function GoldPage() {
       expenses: Array<{ type: string; weight: number }>;
       payCycleWeeks: number;
     }) =>
-      fetchJson("/api/gold/shift-allocations", {
+      fetchJson<{
+        id: string;
+        createdBatchCode?: string | null;
+        payoutRecordsCreated?: number;
+        warnings?: string[];
+      }>("/api/gold/shift-allocations", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (allocation) => {
+      queryClient.invalidateQueries({ queryKey: ["gold-shift-allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
+      queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
+      const warningText =
+        allocation.warnings && allocation.warnings.length > 0
+          ? ` ${allocation.warnings[0]}`
+          : "";
+      const payoutText =
+        allocation.payoutRecordsCreated && allocation.payoutRecordsCreated > 0
+          ? ` ${allocation.payoutRecordsCreated} worker payout records were created.`
+          : "";
       toast({
-        title: "Shift allocation recorded",
-        description: "Gold split recorded and ready for payout.",
+        title: "Shift output recorded",
+        description: allocation.createdBatchCode
+          ? `Batch ${allocation.createdBatchCode} was created automatically.${payoutText}${warningText}`
+          : `Shift allocation saved.${payoutText}${warningText}`,
         variant: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["gold-shift-allocations"] });
       setShiftModalOpen(false);
     },
   });
 
   return (
     <GoldShell
-      activeTab="overview"
-      description="Security-critical operations"
+      activeTab="command"
       actions={
-        <>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href={goldRoutes.intake.newPour}>Create Batch</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={goldRoutes.transit.newDispatch}>Send Batch</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={goldRoutes.settlement.newReceipt}>Record Sale</Link>
+          </Button>
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShiftModalOpen(true)}
           >
-            <Scale className="h-4 w-4" />
-            Record Shift Gold
+            Record Shift Output
           </Button>
-          <Button size="sm" onClick={() => router.push("/gold/pour/new")}>
-            <Coins className="h-4 w-4" />
-            Record Pour
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => router.push("/gold/dispatch/new")}
-          >
-            <Package className="h-4 w-4" />
-            Dispatch
-          </Button>
-        </>
+        </div>
       }
     >
-      <GoldMenu
-        setViewMode={handleNavigate}
-        onOpenShiftModal={() => setShiftModalOpen(true)}
-        shiftAllocations={shiftAllocations}
-        shiftAllocationsLoading={shiftAllocationsLoading}
-        shiftAllocationsError={shiftAllocationsError}
-        recentPours={recentPours}
-        incompleteDispatchCount={incompleteDispatchCount}
-      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-8 md:grid-cols-4 mt-4">
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto justify-start py-3"
+          >
+            <Link
+              href={goldRoutes.intake.newPour}
+              className="flex flex-col gap-4 items-start"
+            >
+              <Gem size={18} className="text-amber-700" />
+              <span className="flex flex-col items-start text-left">
+                <span>Create batch</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Start a trackable batch record for produced gold.
+                </span>
+              </span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto justify-start py-3"
+          >
+            <Link
+              href={goldRoutes.transit.newDispatch}
+              className="flex flex-col gap-4 items-start"
+            >
+              <ArrowRightLeft size={18} className="text-sky-700" />
+              <span className="flex flex-col items-start text-left">
+                <span>Send batch</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Record movement of a batch to the buyer.
+                </span>
+              </span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto justify-start py-3"
+          >
+            <Link
+              href={goldRoutes.settlement.newReceipt}
+              className="flex flex-col gap-4 items-start"
+            >
+              <CheckCircle2 size={18} className="text-emerald-700" />
+              <span className="flex flex-col items-start text-left">
+                <span>Record sale</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Save buyer test result and payment details.
+                </span>
+              </span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto justify-start py-3"
+          >
+            <Link
+              href={goldRoutes.settlement.payouts}
+              className="flex flex-col gap-4 items-start"
+            >
+              <Wallet size={18} className="text-rose-700" />
+              <span className="flex flex-col items-start text-left">
+                <span>Review worker payouts</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Check allocation outcomes before final payout.
+                </span>
+              </span>
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {pendingSettlementDispatches.length > 0 ? (
+        <Alert variant="destructive">
+          <AlertTitle>Needs Attention</AlertTitle>
+          <AlertDescription>
+            {pendingSettlementDispatches.length} dispatch
+            {pendingSettlementDispatches.length === 1 ? "" : "es"} are waiting
+            for sale records. Go to Sales to finish them.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Gold Chain</CardTitle>
+          <CardDescription>Latest batches and current status.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {commandError ? (
+            <StatusState
+              variant="error"
+              title="Unable to load data"
+              description={getApiErrorMessage(commandError)}
+            />
+          ) : commandLoading ? (
+            <StatusState variant="loading" />
+          ) : recentChain.length === 0 ? (
+            <StatusState
+              variant="empty"
+              title="No gold activity yet"
+              description="Create your first batch to start tracking gold."
+              action={
+                <Button asChild size="sm">
+                  <Link href={goldRoutes.intake.newPour}>Create Batch</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="p-3 text-left font-semibold">Batch ID</th>
+                    <th className="p-3 text-left font-semibold">Site</th>
+                    <th className="p-3 text-left font-semibold">Date</th>
+                    <th className="p-3 text-left font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentChain.map((entry) => (
+                    <tr key={entry.id} className="border-b">
+                      <td className="p-3 font-medium">{entry.pourBarId}</td>
+                      <td className="p-3">{entry.site}</td>
+                      <td className="p-3">
+                        {new Date(entry.date).toLocaleString()}
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant={
+                            entry.status === "Complete"
+                              ? "default"
+                              : entry.status === "Dispatched"
+                                ? "secondary"
+                                : "outline"
+                          }
+                        >
+                          {entry.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <ShiftAllocationModal
         open={shiftModalOpen}
@@ -276,7 +440,9 @@ export default function GoldPage() {
         shiftReportsLoading={shiftReportsLoading}
         isSubmitting={createShiftAllocationMutation.isPending}
         submitError={createShiftAllocationMutation.error}
-        onCreateAllocation={(payload) => createShiftAllocationMutation.mutate(payload)}
+        onCreateAllocation={(payload) =>
+          createShiftAllocationMutation.mutate(payload)
+        }
       />
     </GoldShell>
   );

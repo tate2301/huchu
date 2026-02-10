@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Download, Shield } from "lucide-react";
+import { Download, Shield } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";

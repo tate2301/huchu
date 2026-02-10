@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Package, Scale } from "lucide-react";
+import { Coins, Package, Scale } from "@/lib/icons";
 import { getApiErrorMessage } from "@/lib/api-client";
 import type { ShiftAllocation } from "@/app/gold/types";
 
@@ -191,9 +191,9 @@ export function GoldMenu({
             >
               <Coins className="h-5 w-5" />
               <div className="text-left">
-                <div className="font-semibold">Record Pour</div>
+                <div className="font-semibold">Log Gold Output</div>
                 <div className="text-xs text-muted-foreground">
-                  Create immutable gold pour entry
+                  Capture produced gold for the shift
                 </div>
               </div>
             </Button>

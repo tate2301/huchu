@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PageIntro } from "@/components/shared/page-intro";
 import { StatusState } from "@/components/shared/status-state";
 import {
   Card,
@@ -17,7 +18,7 @@ import {
   CheckCircle,
   XCircle,
   Shield,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   Select,
   SelectContent,
@@ -75,6 +76,12 @@ export function DashboardView({
 
   return (
     <div className="space-y-6">
+      <PageIntro
+        title="Overview"
+        purpose="Check CCTV health across cameras, recorders, and active security events."
+        nextStep="Use site filter to focus on an operation area, then open live monitor or events."
+      />
+
       <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium" htmlFor={siteFilterId}>

@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
-import { Download, Fuel } from "lucide-react";
+import { Download, Fuel } from "@/lib/icons";
 
 type ParsedNotes = {
   supplier?: string;

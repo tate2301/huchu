@@ -12,6 +12,7 @@ const COLOR_STYLE_PROPERTIES = [
   "caret-color",
   "fill",
   "stroke",
+  "-webkit-text-stroke-color",
 ] as const;
 
 type DetachedExportTarget = {
@@ -19,11 +20,21 @@ type DetachedExportTarget = {
   cleanup: () => void;
 };
 
+function getComputedStyleFromElement(
+  element: Element,
+  pseudoElt?: string | null,
+) {
+  const view = element.ownerDocument.defaultView;
+  return view
+    ? view.getComputedStyle(element, pseudoElt)
+    : getComputedStyle(element, pseudoElt);
+}
+
 function resolveColorToRgb(value: string, resolver: HTMLElement) {
   if (!value) return null;
   resolver.style.color = "";
   resolver.style.color = value;
-  const resolved = getComputedStyle(resolver).color;
+  const resolved = getComputedStyleFromElement(resolver).color;
   return resolved || null;
 }
 
@@ -38,23 +49,30 @@ function sanitizeColorValue(
 }
 
 function sanitizeCloneStyles(sourceRoot: HTMLElement, cloneRoot: HTMLElement) {
-  const resolver = document.createElement("span");
+  const ownerDocument = sourceRoot.ownerDocument;
+  const resolver = ownerDocument.createElement("span");
   resolver.style.position = "fixed";
   resolver.style.left = "-99999px";
   resolver.style.top = "0";
   resolver.style.opacity = "0";
   resolver.style.pointerEvents = "none";
-  document.body.appendChild(resolver);
+  ownerDocument.body?.appendChild(resolver);
 
   try {
-    const sourceElements = [sourceRoot, ...Array.from(sourceRoot.querySelectorAll<HTMLElement>("*"))];
-    const cloneElements = [cloneRoot, ...Array.from(cloneRoot.querySelectorAll<HTMLElement>("*"))];
+    const sourceElements = [
+      sourceRoot,
+      ...Array.from(sourceRoot.querySelectorAll<HTMLElement>("*")),
+    ];
+    const cloneElements = [
+      cloneRoot,
+      ...Array.from(cloneRoot.querySelectorAll<HTMLElement>("*")),
+    ];
     const length = Math.min(sourceElements.length, cloneElements.length);
 
     for (let index = 0; index < length; index += 1) {
       const sourceElement = sourceElements[index];
       const cloneElement = cloneElements[index];
-      const computed = getComputedStyle(sourceElement);
+      const computed = getComputedStyleFromElement(sourceElement);
       const fallbackColor = computed.color || "#111111";
 
       for (const property of COLOR_STYLE_PROPERTIES) {
@@ -94,20 +112,135 @@ function sanitizeCloneStyles(sourceRoot: HTMLElement, cloneRoot: HTMLElement) {
   }
 }
 
+function sanitizeDocumentBackground(documentClone: Document) {
+  const root = documentClone.documentElement;
+  const body = documentClone.body;
+  if (root) {
+    root.style.backgroundColor = "#ffffff";
+    root.style.backgroundImage = "none";
+  }
+  if (body) {
+    body.style.backgroundColor = "#ffffff";
+    body.style.backgroundImage = "none";
+  }
+}
+
+function isUnsupportedColorFunctionError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return /unsupported color function/i.test(error.message);
+}
+
+function isCanvasLikelyBlank(canvas: HTMLCanvasElement) {
+  const width = canvas.width;
+  const height = canvas.height;
+  if (width === 0 || height === 0) return true;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return true;
+
+  const { data } = context.getImageData(0, 0, width, height);
+  let opaqueSamples = 0;
+  let nonWhiteSamples = 0;
+
+  // Sample every 64th pixel to keep checks cheap on large canvases.
+  for (let index = 0; index < data.length; index += 64 * 4) {
+    const red = data[index];
+    const green = data[index + 1];
+    const blue = data[index + 2];
+    const alpha = data[index + 3];
+
+    if (alpha > 10) {
+      opaqueSamples += 1;
+      if (red < 245 || green < 245 || blue < 245) {
+        nonWhiteSamples += 1;
+      }
+    }
+
+    if (nonWhiteSamples > 12) {
+      return false;
+    }
+  }
+
+  if (opaqueSamples === 0) return true;
+  return nonWhiteSamples === 0;
+}
+
+function getRenderableDimensions(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const width = Math.ceil(
+    Math.max(rect.width, element.scrollWidth, element.clientWidth, 320),
+  );
+  const height = Math.ceil(
+    Math.max(rect.height, element.scrollHeight, element.clientHeight, 200),
+  );
+
+  return { width, height };
+}
+
+async function waitForFonts(ownerDocument: Document) {
+  const fonts = (ownerDocument as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fonts?.ready) return;
+  await fonts.ready;
+}
+
+async function waitForImages(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll<HTMLImageElement>("img"));
+  if (images.length === 0) return;
+
+  await Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete) {
+            resolve();
+            return;
+          }
+
+          const complete = () => {
+            image.removeEventListener("load", complete);
+            image.removeEventListener("error", complete);
+            resolve();
+          };
+
+          image.addEventListener("load", complete);
+          image.addEventListener("error", complete);
+        }),
+    ),
+  );
+}
+
+async function waitForLayout(ownerDocument: Document) {
+  const view = ownerDocument.defaultView;
+  if (!view) return;
+
+  await new Promise<void>((resolve) => {
+    view.requestAnimationFrame(() => {
+      view.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 function createDetachedExportTarget(element: HTMLElement): DetachedExportTarget {
-  const host = document.createElement("div");
+  const ownerDocument = element.ownerDocument;
+  const host = ownerDocument.createElement("div");
   host.style.position = "fixed";
-  host.style.left = "-100000px";
+  host.style.left = "0";
   host.style.top = "0";
-  host.style.opacity = "0";
+  host.style.visibility = "hidden";
   host.style.pointerEvents = "none";
   host.style.zIndex = "-1";
   host.style.background = "#ffffff";
+  host.style.transform = "translateX(-200vw)";
 
   const clone = element.cloneNode(true) as HTMLElement;
-  clone.style.width = `${Math.max(element.clientWidth, element.scrollWidth)}px`;
+  const { width } = getRenderableDimensions(element);
+  clone.style.width = `${width}px`;
+  clone.style.maxWidth = "none";
+  clone.style.opacity = "1";
+  clone.style.backgroundColor = "#ffffff";
+
   host.appendChild(clone);
-  document.body.appendChild(host);
+  ownerDocument.body.appendChild(host);
 
   sanitizeCloneStyles(element, clone);
 
@@ -115,6 +248,59 @@ function createDetachedExportTarget(element: HTMLElement): DetachedExportTarget 
     target: clone,
     cleanup: () => host.remove(),
   };
+}
+
+async function renderExportCanvas(
+  target: HTMLElement,
+  html2canvas: (element: HTMLElement, options: Record<string, unknown>) => Promise<HTMLCanvasElement>,
+) {
+  const dimensions = getRenderableDimensions(target);
+
+  if (dimensions.width < 1 || dimensions.height < 1) {
+    throw new Error("Export target has no measurable size.");
+  }
+
+  const baseCanvasOptions = {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    width: dimensions.width,
+    height: dimensions.height,
+    windowWidth: dimensions.width,
+    windowHeight: dimensions.height,
+    scrollX: 0,
+    scrollY: 0,
+    onclone: (documentClone: Document) => {
+      sanitizeDocumentBackground(documentClone);
+    },
+  } as const;
+
+  let canvas: HTMLCanvasElement;
+
+  try {
+    canvas = await html2canvas(target, baseCanvasOptions);
+  } catch (error) {
+    if (!isUnsupportedColorFunctionError(error)) {
+      throw error;
+    }
+    canvas = await html2canvas(target, {
+      ...baseCanvasOptions,
+      foreignObjectRendering: true,
+    });
+  }
+
+  if (isCanvasLikelyBlank(canvas)) {
+    canvas = await html2canvas(target, {
+      ...baseCanvasOptions,
+      foreignObjectRendering: true,
+    });
+  }
+
+  if (isCanvasLikelyBlank(canvas)) {
+    throw new Error("Rendered PDF canvas is blank.");
+  }
+
+  return canvas;
 }
 
 export async function exportElementToPdf(element: HTMLElement, filename: string) {
@@ -126,13 +312,13 @@ export async function exportElementToPdf(element: HTMLElement, filename: string)
   const detached = createDetachedExportTarget(element);
 
   try {
-    const canvas = await html2canvas(detached.target, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      windowWidth: Math.max(detached.target.scrollWidth, detached.target.clientWidth),
-    });
+    await waitForFonts(detached.target.ownerDocument);
+    await waitForImages(detached.target);
+    await waitForLayout(detached.target.ownerDocument);
+
+    const canvas = await renderExportCanvas(detached.target, html2canvas);
     const imgData = canvas.toDataURL("image/png");
+
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
@@ -155,8 +341,7 @@ export async function exportElementToPdf(element: HTMLElement, filename: string)
 
     pdf.save(filename);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown export error";
+    const message = error instanceof Error ? error.message : "Unknown export error";
     throw new Error(
       `PDF export failed. Try again or use CSV export. Details: ${message}`,
     );

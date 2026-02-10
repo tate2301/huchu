@@ -25,7 +25,7 @@ import {
   Plus,
   TrendingDown,
   TrendingUp,
-} from "lucide-react";
+} from "@/lib/icons";
 
 export default function StoresDashboardPage() {
   const {
@@ -383,26 +383,22 @@ export default function StoresDashboardPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="min-h-0 min-w-0 h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
+                      className="min-h-0 min-w-0 h-8 w-full justify-between gap-2 px-2"
                     >
-                      <div className="flex items-start gap-2 text-left">
+                      <div className="flex min-w-0 items-center gap-2 text-left">
                         {isIssue ? (
                           <TrendingDown className="h-4 w-4 text-destructive" />
                         ) : (
                           <TrendingUp className="h-4 w-4 text-muted-foreground" />
                         )}
-                        <div className="flex flex-col">
-                          <span className="text-sm font-semibold">
-                            {movement.item.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {isIssue ? "Issued to" : "Received to"}: {""}
-                            {movement.issuedTo ?? movement.item.location?.name ?? "-"} | {""}
-                            {movement.requestedBy ?? movement.issuedBy?.name ?? "-"}
-                          </span>
-                        </div>
+                        <span className="truncate text-xs">
+                          {movement.item.name} | {isIssue ? "Issued to" : "Received to"}{" "}
+                          {movement.issuedTo ?? movement.item.location?.name ?? "-"} |{" "}
+                          {movement.requestedBy ?? movement.issuedBy?.name ?? "-"} |{" "}
+                          {new Date(movement.createdAt).toLocaleString()}
+                        </span>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
+                      <div className="flex shrink-0 items-center gap-2">
                         <Badge variant={isIssue ? "destructive" : "secondary"}>
                           {label}
                         </Badge>
@@ -413,9 +409,6 @@ export default function StoresDashboardPage() {
                         >
                           {quantityPrefix}
                           {movement.quantity} {movement.unit}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(movement.createdAt).toLocaleString()}
                         </span>
                       </div>
                     </Button>

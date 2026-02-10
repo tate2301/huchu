@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, SearchX } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, SearchX } from "@/lib/icons";
 
 import { cn } from "@/lib/utils";
 

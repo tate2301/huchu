@@ -15,7 +15,7 @@ import {
   QrCode,
   Trash2,
   Wrench,
-} from "lucide-react";
+} from "@/lib/icons";
 
 import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
@@ -58,6 +58,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
+import { EmployeePosition } from "@prisma/client";
 
 export const maintenanceViews = [
   "dashboard",
@@ -184,7 +185,8 @@ export function MaintenanceContent({
   const createdWorkOrderId = searchParams.get("createdId");
   const activeSiteName =
     sites?.find((site) => site.id === activeSiteId)?.name ??
-    (sites?.[0]?.name ?? "All sites");
+    sites?.[0]?.name ??
+    "All sites";
 
   const {
     data: equipmentData,
@@ -222,8 +224,7 @@ export function MaintenanceContent({
   const hasEquipment = equipment.length > 0;
   const hasTechnicians = technicians.length > 0;
   const equipmentExportDisabled = equipmentLoading || equipment.length === 0;
-  const workOrdersExportDisabled =
-    workOrdersLoading || workOrders.length === 0;
+  const workOrdersExportDisabled = workOrdersLoading || workOrders.length === 0;
 
   const resetEquipmentForm = (
     overrides: Partial<typeof equipmentForm> = {},
@@ -549,7 +550,10 @@ export function MaintenanceContent({
     mutationFn: async (payload: typeof technicianForm) =>
       fetchJson("/api/employees", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          position: "ENGINEERS" as EmployeePosition,
+        }),
       }),
     onSuccess: (technician) => {
       toast({
@@ -727,7 +731,10 @@ export function MaintenanceContent({
   });
 
   const updateWorkOrderMutation = useMutation({
-    mutationFn: async (payload: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: async (payload: {
+      id: string;
+      data: Record<string, unknown>;
+    }) =>
       fetchJson(`/api/work-orders/${payload.id}`, {
         method: "PATCH",
         body: JSON.stringify(payload.data),
@@ -872,7 +879,6 @@ export function MaintenanceContent({
         </>
       }
     >
-
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load maintenance data</AlertTitle>
@@ -2016,9 +2022,7 @@ export function MaintenanceContent({
                   const statusInfo = equipmentStatus(item);
                   return (
                     <tr key={item.id} className="border-b border-gray-100">
-                      <td className="py-2 font-mono">
-                        {item.equipmentCode}
-                      </td>
+                      <td className="py-2 font-mono">{item.equipmentCode}</td>
                       <td className="py-2 font-semibold">{item.name}</td>
                       <td className="py-2">{item.category}</td>
                       <td className="py-2">{item.site?.code ?? "-"}</td>
@@ -2127,9 +2131,7 @@ export function MaintenanceContent({
                     className="border-b border-gray-100"
                   >
                     <td className="py-2">
-                      <div className="font-semibold">
-                        {item.equipment.name}
-                      </div>
+                      <div className="font-semibold">{item.equipment.name}</div>
                       <div className="text-[10px] text-gray-500">
                         {item.equipment.equipmentCode}
                       </div>

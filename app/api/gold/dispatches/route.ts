@@ -21,6 +21,7 @@ const goldDispatchSchema = z.object({
   sealNumbers: z.string().min(1).max(200),
   handedOverById: z.string().uuid(),
   receivedBy: z.string().max(200).optional(),
+  overrideReason: z.string().max(500).optional(),
   notes: z.string().max(1000).optional(),
 })
 
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
         include: {
           goldPour: {
             select: {
+              id: true,
               pourBarId: true,
               pourDate: true,
               grossWeight: true,
@@ -63,7 +65,20 @@ export async function GET(request: NextRequest) {
       prisma.goldDispatch.count({ where }),
     ])
 
-    return successResponse(paginationResponse(dispatches, total, page, limit))
+    const normalizedDispatches = dispatches.map((dispatch) => ({
+      ...dispatch,
+      batchId: dispatch.goldPour.id,
+      batchCode: dispatch.goldPour.pourBarId,
+      goldPour: {
+        ...dispatch.goldPour,
+        batchId: dispatch.goldPour.id,
+        batchCode: dispatch.goldPour.pourBarId,
+      },
+    }))
+
+    return successResponse(
+      paginationResponse(normalizedDispatches, total, page, limit),
+    )
   } catch (error) {
     console.error("[API] GET /api/gold/dispatches error:", error)
     return errorResponse("Failed to fetch gold dispatches")
@@ -92,13 +107,20 @@ export async function POST(request: NextRequest) {
       return errorResponse("Site is not active", 400)
     }
 
-    const existingDispatch = await prisma.goldDispatch.findFirst({
+    const existingDispatchCount = await prisma.goldDispatch.count({
       where: { goldPourId: validated.goldPourId },
-      select: { id: true },
     })
 
-    if (existingDispatch) {
-      return errorResponse("Dispatch already exists for this pour", 409)
+    const requiresOverride = existingDispatchCount > 0
+    if (requiresOverride && !validated.overrideReason?.trim()) {
+      return errorResponse(
+        "This batch already has a dispatch. Add an override reason to continue.",
+        409,
+        {
+          requiresOverride: true,
+          existingDispatchCount,
+        },
+      )
     }
 
     const handedOverBy = await prisma.employee.findUnique({
@@ -110,6 +132,12 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid handover user", 400)
     }
 
+    const notesSegments = [validated.notes?.trim()]
+    if (validated.overrideReason?.trim()) {
+      notesSegments.push(`Override reason: ${validated.overrideReason.trim()}`)
+    }
+    const mergedNotes = notesSegments.filter(Boolean).join("\n\n")
+
     const dispatchRecord = await prisma.goldDispatch.create({
       data: {
         goldPourId: validated.goldPourId,
@@ -120,11 +148,12 @@ export async function POST(request: NextRequest) {
         sealNumbers: validated.sealNumbers,
         handedOverById: validated.handedOverById,
         receivedBy: validated.receivedBy,
-        notes: validated.notes,
+        notes: mergedNotes || undefined,
       },
       include: {
         goldPour: {
           select: {
+            id: true,
             pourBarId: true,
             pourDate: true,
             grossWeight: true,
@@ -135,7 +164,24 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return successResponse(dispatchRecord, 201)
+    return successResponse(
+      {
+        ...dispatchRecord,
+        batchId: dispatchRecord.goldPour.id,
+        batchCode: dispatchRecord.goldPour.pourBarId,
+        goldPour: {
+          ...dispatchRecord.goldPour,
+          batchId: dispatchRecord.goldPour.id,
+          batchCode: dispatchRecord.goldPour.pourBarId,
+        },
+        warnings: requiresOverride
+          ? [
+              `This batch already had ${existingDispatchCount} dispatch record(s). Override reason was recorded.`,
+            ]
+          : [],
+      },
+      201,
+    )
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)

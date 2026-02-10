@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { AlertCircle, CheckCircle, Clock, Download } from "lucide-react"
+import { AlertCircle, CheckCircle, Clock, Download } from "@/lib/icons"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FieldHelp } from "@/components/shared/field-help"
+import { PageIntro } from "@/components/shared/page-intro"
 import { StatusState } from "@/components/shared/status-state"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchCCTVEvents, Site } from "@/lib/api"
@@ -50,6 +51,7 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
     queryKey: ["cctv-events", selectedSiteId, severityFilter, statusFilter],
     queryFn: () =>
       fetchCCTVEvents({
+        siteId: selectedSiteId || undefined,
         severity: severityFilter || undefined,
         isAcknowledged: statusFilter === "acknowledged" ? true : statusFilter === "unacknowledged" ? false : undefined,
         limit: 50,
@@ -81,15 +83,36 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
     },
   })
 
+  const escalateMutation = useMutation({
+    mutationFn: async ({ eventId }: { eventId: string }) => {
+      return fetchJson("/api/cctv/events", {
+        method: "PATCH",
+        body: JSON.stringify({
+          eventId,
+          action: "escalate",
+          notes: "Escalated from CCTV events view",
+        }),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cctv-events"] })
+      toast({
+        title: "Event escalated",
+        description: "The event severity and escalation note were updated.",
+      })
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Unable to escalate event",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
   const events = useMemo(() => data?.data ?? [], [data])
   const selectedSiteName = sites.find((site) => site.id === selectedSiteId)?.name
-  const filteredEvents = useMemo(
-    () =>
-      selectedSiteId && selectedSiteName
-        ? events.filter((event) => event.camera?.site?.name === selectedSiteName)
-        : events,
-    [events, selectedSiteId, selectedSiteName],
-  )
+  const filteredEvents = useMemo(() => events, [events])
   const activeSiteName = selectedSiteName || "All Sites"
   const acknowledgedCount = filteredEvents.filter((event) => event.isAcknowledged).length
   const unacknowledgedCount = filteredEvents.filter((event) => !event.isAcknowledged).length
@@ -133,6 +156,12 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
 
   return (
     <div className="space-y-4">
+      <PageIntro
+        title="Events"
+        purpose="Review security alerts from camera and recorder systems."
+        nextStep="Filter by site and severity, then acknowledge or escalate active events."
+      />
+
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
@@ -374,12 +403,22 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
                           </div>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => setAcknowledgingEvent(event.id)}
-                        >
-                          Acknowledge Event
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => setAcknowledgingEvent(event.id)}
+                          >
+                            Acknowledge Event
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => escalateMutation.mutate({ eventId: event.id })}
+                            disabled={escalateMutation.isPending}
+                          >
+                            Escalate
+                          </Button>
+                        </div>
                       )}
                     </div>
                   )}

@@ -24,7 +24,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
-import { Minus } from "lucide-react";
+import { Minus } from "@/lib/icons";
 
 export default function StoresIssuePage() {
   const { toast } = useToast();

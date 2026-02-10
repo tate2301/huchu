@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { useRef, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Server, CheckCircle, XCircle, Clock, Download } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Server, CheckCircle, XCircle, Clock, Download, Pencil, Trash2 } from "@/lib/icons"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,19 +19,24 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusState } from "@/components/shared/status-state"
+import { PageIntro } from "@/components/shared/page-intro"
 import { fetchNVRs, Site } from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
 import { exportElementToPdf } from "@/lib/pdf"
+import { useToast } from "@/components/ui/use-toast"
 
 interface NVRsViewProps {
   sites: Site[]
   selectedSiteId: string
   onSiteChange: (siteId: string) => void
+  createdId?: string | null
 }
 
-export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps) {
+export function NVRsView({ sites, selectedSiteId, onSiteChange, createdId }: NVRsViewProps) {
   const nvrsPdfRef = useRef<HTMLDivElement | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("")
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
   const siteFilterId = "cctv-nvrs-site-filter"
   const statusFilterId = "cctv-nvrs-status-filter"
 
@@ -50,6 +56,27 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
   const offlineCount = nvrs.filter((nvr) => !nvr.isOnline).length
   const exportDisabled = isLoading || nvrs.length === 0
 
+  const deactivateMutation = useMutation({
+    mutationFn: async (nvrId: string) =>
+      fetchJson(`/api/cctv/nvrs/${nvrId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nvrs"] })
+      toast({
+        title: "NVR deactivated",
+        description: "The recorder has been removed from active use.",
+      })
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Unable to deactivate NVR",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      })
+    },
+  })
+
   if (error) {
     return (
       <StatusState
@@ -62,6 +89,12 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
 
   return (
     <div className="space-y-4">
+      <PageIntro
+        title="NVRs"
+        purpose="Manage recorder devices and confirm network stream readiness by site."
+        nextStep="Filter recorders, inspect status, then edit or deactivate as required."
+      />
+
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
@@ -183,7 +216,12 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {nvrs.map((nvr) => (
-            <Card key={nvr.id} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={nvr.id}
+              className={`hover:shadow-lg transition-shadow ${
+                createdId === nvr.id ? "border-[var(--status-success-border)] bg-[var(--status-success-bg)]" : ""
+              }`}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -251,6 +289,24 @@ export function NVRsView({ sites, selectedSiteId, onSiteChange }: NVRsViewProps)
                       </p>
                     </div>
                   )}
+
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/cctv/nvrs/${nvr.id}/edit`}>
+                        <Pencil className="mr-1 h-3 w-3" />
+                        Edit
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deactivateMutation.mutate(nvr.id)}
+                      disabled={deactivateMutation.isPending}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                      Deactivate
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

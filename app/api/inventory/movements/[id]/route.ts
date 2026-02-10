@@ -2,16 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const sessionResult = await validateSession(_request);
+    const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
+
+    if (!id) {
+      return errorResponse("Stock movement id is required", 400);
+    }
 
     const movement = await prisma.stockMovement.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         item: {
           select: {

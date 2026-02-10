@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { StreamProtocol } from "@prisma/client"
+
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { generateRTSPUrl, generateStreamToken, StreamType } from "@/lib/cctv-utils"
+import { generateRTSPUrl, generateStreamToken } from "@/lib/cctv-utils"
+import { StreamType } from "@/lib/cctv-types"
+import {
+  isValidStreamType,
+  normalizeIp,
+  resolvePlaybackUrls,
+  VALID_STREAM_TYPES,
+} from "@/app/api/cctv/_helpers"
 
 /**
  * POST /api/cctv/stream-token
- * Generate a short-lived token and RTSP URL for streaming
- * 
- * Body:
- * - cameraId: Camera ID
- * - streamType: "main" | "sub" | "third" (optional, default: "sub")
- * - expiresInMinutes: Token expiration time (optional, default: 15)
- * 
- * Response:
- * - token: Short-lived token for conversion server
- * - rtspUrl: RTSP URL for the stream
- * - expiresAt: Token expiration timestamp
- * - camera: Camera details
+ * Generate a short-lived token and stream metadata
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,18 +25,35 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { cameraId, streamType = "sub", expiresInMinutes = 15 } = body
+    const {
+      cameraId,
+      streamType = "sub",
+      expiresInMinutes = 15,
+      preferredProtocol = "WEBRTC",
+      purpose,
+    } = body
 
     if (!cameraId) {
+      return NextResponse.json({ error: "cameraId is required" }, { status: 400 })
+    }
+
+    if (!isValidStreamType(streamType)) {
       return NextResponse.json(
-        { error: "cameraId is required" },
-        { status: 400 }
+        {
+          error: `Invalid stream type. Expected one of: ${VALID_STREAM_TYPES.join(", ")}`,
+        },
+        { status: 400 },
       )
     }
 
-    // Fetch camera with NVR details
-    const camera = await prisma.camera.findUnique({
-      where: { id: cameraId },
+    const camera = await prisma.camera.findFirst({
+      where: {
+        id: cameraId,
+        isActive: true,
+        site: {
+          companyId: session.user.companyId,
+        },
+      },
       include: {
         nvr: true,
         site: {
@@ -52,30 +67,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (!camera) {
-      return NextResponse.json(
-        { error: "Camera not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Camera not found" }, { status: 404 })
     }
 
-    // Validate stream type
-    const validStreamTypes = ["main", "sub", "third"]
-    if (!validStreamTypes.includes(streamType)) {
-      return NextResponse.json(
-        { error: "Invalid stream type" },
-        { status: 400 }
-      )
+    if (!camera.nvr.isActive) {
+      return NextResponse.json({ error: "NVR is inactive" }, { status: 400 })
     }
 
-    // Check if NVR is online
     if (!camera.nvr.isOnline) {
-      return NextResponse.json(
-        { error: "NVR is offline" },
-        { status: 503 }
-      )
+      return NextResponse.json({ error: "NVR is offline" }, { status: 503 })
     }
 
-    // Generate RTSP URL
     const rtspUrl = generateRTSPUrl(
       {
         host: camera.nvr.ipAddress,
@@ -85,24 +87,27 @@ export async function POST(request: NextRequest) {
       },
       camera.channelNumber,
       streamType as StreamType,
-      false // Use standard RTSP format
+      false,
     )
 
-    // Generate token
-    const tokenData = generateStreamToken(
-      cameraId,
-      streamType as StreamType,
-      expiresInMinutes
-    )
+    const tokenData = generateStreamToken(camera.id, streamType as StreamType, expiresInMinutes)
+    const playback = resolvePlaybackUrls({
+      cameraId: camera.id,
+      streamType,
+      token: tokenData.token,
+      preferredProtocol:
+        preferredProtocol === "HLS" ? StreamProtocol.HLS : StreamProtocol.WEBRTC,
+    })
 
-    // Log camera access
     await prisma.cameraAccessLog.create({
       data: {
-        cameraId,
+        cameraId: camera.id,
         userId: session.user.id,
         accessType: "LIVE_VIEW",
         startTime: new Date(),
-        ipAddress: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown",
+        ipAddress: normalizeIp(request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")),
+        purpose: purpose || "Live monitoring",
+        notes: `Stream token generated (${streamType})`,
       },
     })
 
@@ -110,12 +115,20 @@ export async function POST(request: NextRequest) {
       token: tokenData.token,
       rtspUrl,
       expiresAt: tokenData.expiresAt,
+      protocol: playback.protocol,
+      playUrl: playback.playUrl,
+      fallbackPlayUrl: playback.fallbackPlayUrl,
+      gatewayConfigured: playback.gatewayConfigured,
       camera: {
         id: camera.id,
         name: camera.name,
         area: camera.area,
         channelNumber: camera.channelNumber,
         site: camera.site,
+        nvr: {
+          id: camera.nvr.id,
+          name: camera.nvr.name,
+        },
       },
       streamInfo: {
         streamType,
@@ -125,9 +138,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Error generating stream token:", error)
-    return NextResponse.json(
-      { error: "Failed to generate stream token" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to generate stream token" }, { status: 500 })
   }
 }

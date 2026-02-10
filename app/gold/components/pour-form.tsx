@@ -17,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
-import { Send, Shield } from "lucide-react";
+import { goldRoutes } from "@/app/gold/routes";
+import { Send, Shield } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 
 export function PourForm({
@@ -44,7 +45,6 @@ export function PourForm({
   const queryClient = useQueryClient();
   const router = useRouter();
   const [formData, setFormData] = useState({
-    pourBarId: "",
     pourDate: new Date().toISOString().slice(0, 16),
     siteId: "",
     grossWeight: "",
@@ -83,7 +83,6 @@ export function PourForm({
   const createPourMutation = useMutation({
     mutationFn: async (payload: {
       siteId: string;
-      pourBarId: string;
       pourDate: string;
       grossWeight: number;
       estimatedPurity?: number;
@@ -98,12 +97,12 @@ export function PourForm({
       }),
     onSuccess: (pour) => {
       toast({
-        title: "Gold pour recorded",
-        description: "Pour saved and ready for dispatch.",
+        title: "Batch recorded",
+        description: "Batch saved and ready for dispatch.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
-      const destination = buildSavedRecordRedirect("/gold/pour", {
+      const destination = buildSavedRecordRedirect(goldRoutes.intake.pours, {
         createdId: pour.id,
         createdAt: pour.createdAt,
         source: "gold-pour",
@@ -117,7 +116,6 @@ export function PourForm({
     ? Number(formData.estimatedPurity)
     : undefined;
   const canSubmit =
-    !!formData.pourBarId &&
     !!formData.pourDate &&
     !!formData.siteId &&
     !!formData.witness1Id &&
@@ -146,7 +144,6 @@ export function PourForm({
     }
     createPourMutation.mutate({
       siteId: formData.siteId,
-      pourBarId: formData.pourBarId.trim(),
       pourDate: formData.pourDate,
       grossWeight: grossWeightValue,
       estimatedPurity: estimatedPurityValue,
@@ -169,7 +166,7 @@ export function PourForm({
 
       {createPourMutation.error ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to record pour</AlertTitle>
+          <AlertTitle>Unable to record batch</AlertTitle>
           <AlertDescription>
             {getApiErrorMessage(createPourMutation.error)}
           </AlertDescription>
@@ -178,30 +175,25 @@ export function PourForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Pour Details</CardTitle>
+          <CardTitle>Batch Details</CardTitle>
           <CardDescription>
-            All fields required for gold pour record
+            Fill all required fields.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold mb-2">
-                Pour/Bar ID *
-              </label>
+              <label className="block text-sm font-semibold mb-2">Batch ID</label>
               <Input
-                value={formData.pourBarId}
-                onChange={(e) =>
-                  setFormData({ ...formData, pourBarId: e.target.value })
-                }
-                placeholder="Auto-generated in production"
-                required
+                value="Generated automatically when saved"
+                readOnly
+                aria-readonly="true"
               />
             </div>
 
             <div>
               <label className="block text-sm font-semibold mb-2">
-                Pour Date/Time *
+                Batch Date/Time *
               </label>
               <Input
                 type="datetime-local"
@@ -333,7 +325,7 @@ export function PourForm({
         <Send className="mr-2 h-5 w-5" />
         {createPourMutation.isPending
           ? "Recording..."
-          : "Record Pour (Immutable)"}
+          : "Save Batch"}
       </Button>
     </form>
   );

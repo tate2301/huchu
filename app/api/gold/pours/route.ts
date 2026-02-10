@@ -5,7 +5,6 @@ import { z } from 'zod';
 
 const goldPourSchema = z.object({
   siteId: z.string().uuid(),
-  pourBarId: z.string().min(1).max(100),
   pourDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   grossWeight: z.number().positive(),
   witness1Id: z.string().uuid(),
@@ -14,6 +13,31 @@ const goldPourSchema = z.object({
   estimatedPurity: z.number().min(0).max(100).optional(),
   notes: z.string().max(1000).optional(),
 });
+
+function formatTwoDigits(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function buildPourBarIdCandidate() {
+  const now = new Date();
+  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
+  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}${formatTwoDigits(now.getSeconds())}`;
+  const randomPart = Math.floor(100 + Math.random() * 900);
+  return `BAR-${datePart}-${timePart}-${randomPart}`;
+}
+
+async function generateUniquePourBarId() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = buildPourBarIdCandidate();
+    const existing = await prisma.goldPour.findUnique({
+      where: { pourBarId: candidate },
+      select: { id: true },
+    });
+    if (!existing) return candidate;
+  }
+
+  return `BAR-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,7 +69,13 @@ export async function GET(request: NextRequest) {
       prisma.goldPour.count({ where }),
     ]);
 
-    return successResponse(paginationResponse(pours, total, page, limit));
+    const normalizedPours = pours.map((pour) => ({
+      ...pour,
+      batchId: pour.id,
+      batchCode: pour.pourBarId,
+    }));
+
+    return successResponse(paginationResponse(normalizedPours, total, page, limit));
   } catch (error) {
     console.error('[API] GET /api/gold/pours error:', error);
     return errorResponse('Failed to fetch gold pours');
@@ -98,8 +128,10 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid witness 2', 400);
     }
 
+    const pourBarId = await generateUniquePourBarId();
+
     const existingPour = await prisma.goldPour.findUnique({
-      where: { pourBarId: validated.pourBarId },
+      where: { pourBarId },
       select: { id: true },
     });
 
@@ -111,7 +143,7 @@ export async function POST(request: NextRequest) {
     const pour = await prisma.goldPour.create({
       data: {
         siteId: validated.siteId,
-        pourBarId: validated.pourBarId,
+        pourBarId,
         pourDate: new Date(validated.pourDate),
         grossWeight: validated.grossWeight,
         witness1Id: validated.witness1Id,
@@ -127,7 +159,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return successResponse(pour, 201);
+    return successResponse(
+      {
+        ...pour,
+        batchId: pour.id,
+        batchCode: pour.pourBarId,
+      },
+      201,
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse('Validation failed', 400, error.issues);

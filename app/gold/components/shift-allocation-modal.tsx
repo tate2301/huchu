@@ -29,7 +29,7 @@ import {
   Send,
   Users,
   X,
-} from "lucide-react";
+} from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type {
   AttendanceShiftSummary,
@@ -213,10 +213,10 @@ export function ShiftAllocationModal({
       <DialogContent className="max-w-3xl p-0">
         <div className="border-b border-border px-6 py-4">
           <DialogHeader className="space-y-2">
-            <DialogTitle>Shift Gold Allocation</DialogTitle>
+            <DialogTitle>Record Shift Output</DialogTitle>
             <DialogDescription>
-              Record gold produced per shift and split worker/company shares
-              using attendance.
+              Record shift gold, split worker/company shares, and auto-create
+              the next chain records.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -354,7 +354,7 @@ export function ShiftAllocationModal({
                   Gold Produced & Expenses
                 </CardTitle>
                 <CardDescription>
-                  All values recorded in gold weight.
+                  All values are recorded in grams.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -490,7 +490,7 @@ export function ShiftAllocationModal({
                   Allocation Summary
                 </CardTitle>
                 <CardDescription>
-                  Split net gold 50/50 between workers and company.
+                  Net gold is split 50/50 between workers and company.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -551,7 +551,7 @@ export function ShiftAllocationModal({
               </Button>
               <Button type="submit" disabled={!canSubmit || isSubmitting}>
                 <Send className="h-4 w-4" />
-                {isSubmitting ? "Recording..." : "Record allocation"}
+                {isSubmitting ? "Recording..." : "Save Shift Output"}
               </Button>
             </div>
           </div>

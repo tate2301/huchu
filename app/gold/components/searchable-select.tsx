@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus } from "@/lib/icons";
 import type { SearchableOption } from "@/app/gold/types";
 
 export function SearchableSelect({

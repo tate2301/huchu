@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { Pencil, Plus, Trash2 } from "@/lib/icons"
 
 import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -459,6 +459,8 @@ export default function HumanResourcesPage() {
                   <th className="text-left p-3 text-sm font-semibold">Position</th>
                   <th className="text-left p-3 text-sm font-semibold">Next of Kin</th>
                   <th className="text-left p-3 text-sm font-semibold">Village</th>
+                  <th className="text-left p-3 text-sm font-semibold">Gold Owed</th>
+                  <th className="text-left p-3 text-sm font-semibold">Salary Owed</th>
                   <th className="text-center p-3 text-sm font-semibold">Status</th>
                   <th className="text-right p-3 text-sm font-semibold">Actions</th>
                 </tr>
@@ -466,13 +468,13 @@ export default function HumanResourcesPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="p-3">
+                    <td colSpan={9} className="p-3">
                       <Skeleton className="h-10 w-full" />
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-3 text-sm text-muted-foreground">
+                    <td colSpan={9} className="p-3 text-sm text-muted-foreground">
                       No employees found.
                     </td>
                   </tr>
@@ -506,6 +508,14 @@ export default function HumanResourcesPage() {
                         </div>
                       </td>
                       <td className="p-3 text-sm">{employee.villageOfOrigin}</td>
+                      <td className="p-3 text-sm">
+                        <div className="font-semibold">{employee.goldOwed.toFixed(3)} g</div>
+                        <div className="text-xs text-muted-foreground">Outstanding gold</div>
+                      </td>
+                      <td className="p-3 text-sm">
+                        <div className="font-semibold">${employee.salaryOwed.toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground">Outstanding salary</div>
+                      </td>
                       <td className="p-3 text-center">
                         <Badge variant={employee.isActive ? "secondary" : "destructive"}>
                           {employee.isActive ? "Active" : "Inactive"}

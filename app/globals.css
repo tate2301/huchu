@@ -1,7 +1,17 @@
+@import "material-symbols";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+
+.material-symbols-rounded {
+    font-variation-settings:
+        "FILL" 1,
+        "wght" 500,
+        "GRAD" 0,
+        "opsz" 24;
+    font-size: 24px;
+}
 
 @font-face {
     font-family: "SS Huchu";
@@ -285,7 +295,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     body {
         @apply bg-background text-foreground;
     }
-    :where(a, button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+    :where(
+        a,
+        button,
+        input,
+        select,
+        textarea,
+        [role="button"],
+        [tabindex]
+    ):focus-visible {
         outline: 2px solid var(--focus-ring);
         outline-offset: 2px;
     }

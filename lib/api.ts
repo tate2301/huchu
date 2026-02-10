@@ -41,6 +41,8 @@ export type EmployeeSummary = {
   villageOfOrigin: string;
   position: string;
   isActive: boolean;
+  goldOwed: number;
+  salaryOwed: number;
 };
 
 export type FixedSalary = {
@@ -238,6 +240,8 @@ export type PlantReport = {
 
 export type GoldPour = {
   id: string;
+  batchId?: string;
+  batchCode?: string;
   pourBarId: string;
   pourDate: string;
   grossWeight: number;
@@ -250,6 +254,8 @@ export type GoldPour = {
 
 export type GoldDispatch = {
   id: string;
+  batchId?: string;
+  batchCode?: string;
   goldPourId: string;
   dispatchDate: string;
   courier: string;
@@ -259,7 +265,11 @@ export type GoldDispatch = {
   handedOverBy?: { name: string } | null;
   receivedBy?: string | null;
   notes?: string | null;
+  warnings?: string[];
   goldPour: {
+    id?: string;
+    batchId?: string;
+    batchCode?: string;
     pourBarId: string;
     pourDate: string;
     grossWeight: number;
@@ -279,9 +289,14 @@ export type BuyerReceipt = {
   notes?: string | null;
   goldDispatch: {
     id: string;
+    batchId?: string;
+    batchCode?: string;
     dispatchDate: string;
     courier: string;
     goldPour: {
+      id?: string;
+      batchId?: string;
+      batchCode?: string;
       pourBarId: string;
       grossWeight: number;
       pourDate: string;
@@ -317,6 +332,10 @@ export type GoldShiftAllocation = {
   shiftReport?: { id: string; status: string; crewCount: number } | null;
   expenses: GoldShiftAllocationExpense[];
   workerShares: GoldShiftAllocationWorkerShare[];
+  createdBatchId?: string | null;
+  createdBatchCode?: string | null;
+  payoutRecordsCreated?: number;
+  warnings?: string[];
   createdAt: string;
 };
 
@@ -762,12 +781,15 @@ export type Camera = {
   hasAudio: boolean;
   hasMotionDetect: boolean;
   hasLineDetect: boolean;
+  isActive: boolean;
   isOnline: boolean;
   isRecording: boolean;
   lastSeen?: string | null;
   isHighSecurity: boolean;
-  nvr?: { name: string; ipAddress: string; isOnline: boolean };
-  site?: { name: string; code: string };
+  createdAt?: string;
+  updatedAt?: string;
+  nvr?: { id: string; name: string; ipAddress: string; isOnline: boolean; isActive: boolean };
+  site?: { id: string; name: string; code: string };
 };
 
 export type NVR = {
@@ -779,9 +801,18 @@ export type NVR = {
   siteId: string;
   manufacturer: string;
   model?: string | null;
+  firmware?: string | null;
+  username?: string;
+  password?: string;
+  isActive: boolean;
   isOnline: boolean;
+  rtspPort: number;
+  isapiEnabled: boolean;
+  onvifEnabled: boolean;
   lastHeartbeat?: string | null;
-  site?: { name: string; code: string };
+  createdAt?: string;
+  updatedAt?: string;
+  site?: { id: string; name: string; code: string };
   _count?: { cameras: number };
 };
 
@@ -793,7 +824,105 @@ export type CCTVEvent = {
   title: string;
   description?: string | null;
   isAcknowledged: boolean;
-  camera?: { name: string; area: string; site: { name: string } };
+  linkedIncidentId?: string | null;
+  notes?: string | null;
+  camera?: { id: string; name: string; area: string; site: { id: string; name: string; code: string } };
+  nvr?: { id: string; name: string; siteId: string };
+};
+
+export type CCTVStreamSession = {
+  id: string;
+  cameraId: string;
+  siteId: string;
+  userId: string;
+  streamType: string;
+  protocol: "WEBRTC" | "HLS";
+  status: "ACTIVE" | "STOPPED" | "FAILED";
+  playUrl?: string | null;
+  purpose?: string | null;
+  clientMeta?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  camera?: {
+    id: string;
+    name: string;
+    area: string;
+    isOnline?: boolean;
+    nvr?: { id: string; name: string; isOnline?: boolean };
+    site: { id: string; name: string; code: string };
+  };
+  user?: { id: string; name: string; email: string };
+};
+
+export type CCTVAccessLog = {
+  id: string;
+  cameraId: string;
+  userId?: string | null;
+  accessType: string;
+  startTime: string;
+  endTime?: string | null;
+  duration?: number | null;
+  ipAddress?: string | null;
+  purpose?: string | null;
+  notes?: string | null;
+  camera: {
+    id: string;
+    name: string;
+    area: string;
+    site: { id: string; name: string; code: string };
+  };
+  user?: { id: string; name: string; email: string } | null;
+};
+
+export type PlaybackClip = {
+  startTime: string;
+  endTime: string;
+  duration: number;
+  fileSize: number;
+  playbackUri: string;
+  recordingType: string;
+};
+
+export type PlaybackSearchResponse = {
+  clips: PlaybackClip[];
+  totalClips: number;
+  pagination: PaginationMeta;
+  camera: {
+    id: string;
+    name: string;
+    area: string;
+    site: { id: string; name: string; code: string };
+  };
+  searchParams: {
+    startTime: string;
+    endTime: string;
+    recordType: string;
+  };
+  isapiSearchXML: string;
+  note: string;
+};
+
+export type StartStreamSessionResponse = {
+  session: CCTVStreamSession;
+  token: string;
+  rtspUrl: string;
+  expiresAt: string;
+  protocol: "WEBRTC" | "HLS";
+  playUrl: string | null;
+  fallbackPlayUrl: string | null;
+  gatewayConfigured: boolean;
+};
+
+export type StreamProfileResponse = {
+  session: CCTVStreamSession;
+  token: string;
+  rtspUrl: string;
+  playUrl: string | null;
+  fallbackPlayUrl: string | null;
+  protocol: "WEBRTC" | "HLS";
+  expiresAt: string;
 };
 
 export async function fetchCameras(
@@ -803,6 +932,7 @@ export async function fetchCameras(
     isOnline?: boolean;
     nvrId?: string;
     isHighSecurity?: boolean;
+    includeInactive?: boolean;
     page?: number;
     limit?: number;
   } = {},
@@ -815,6 +945,7 @@ export async function fetchNVRs(
   params: {
     siteId?: string;
     isOnline?: boolean;
+    includeInactive?: boolean;
     page?: number;
     limit?: number;
   } = {},
@@ -825,6 +956,7 @@ export async function fetchNVRs(
 
 export async function fetchCCTVEvents(
   params: {
+    siteId?: string;
     cameraId?: string;
     eventType?: string;
     severity?: string;
@@ -838,4 +970,80 @@ export async function fetchCCTVEvents(
   const query = buildQuery(params);
 
   return fetchJson<Pagination<CCTVEvent>>(`/api/cctv/events${query}`);
+}
+
+export async function fetchCCTVStreamSessions(
+  params: {
+    siteId?: string;
+    cameraId?: string;
+    status?: "ACTIVE" | "STOPPED" | "FAILED";
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CCTVStreamSession>>(`/api/cctv/streams/sessions${query}`);
+}
+
+export async function startCCTVStreamSession(input: {
+  cameraId: string;
+  streamType?: "main" | "sub" | "third";
+  preferredProtocol?: "WEBRTC" | "HLS";
+  purpose?: string;
+  clientMeta?: unknown;
+  expiresInMinutes?: number;
+}) {
+  return fetchJson<StartStreamSessionResponse>("/api/cctv/streams/session/start", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function stopCCTVStreamSession(sessionId: string) {
+  return fetchJson<{ session: CCTVStreamSession }>("/api/cctv/streams/session/stop", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
+export async function switchCCTVStreamProfile(input: {
+  sessionId: string;
+  streamType: "main" | "sub" | "third";
+  preferredProtocol?: "WEBRTC" | "HLS";
+}) {
+  return fetchJson<StreamProfileResponse>("/api/cctv/streams/profile", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function fetchCCTVAccessLogs(
+  params: {
+    siteId?: string;
+    cameraId?: string;
+    accessType?: string;
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CCTVAccessLog>>(`/api/cctv/access-logs${query}`);
+}
+
+export async function searchCCTVPlayback(input: {
+  cameraId: string;
+  startTime: string;
+  endTime: string;
+  recordType?: string;
+  purpose?: string;
+  page?: number;
+  limit?: number;
+}) {
+  return fetchJson<PlaybackSearchResponse>("/api/cctv/playback/search", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }

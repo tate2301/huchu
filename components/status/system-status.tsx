@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle2, Circle, Clock } from "lucide-react"
+import { CheckCircle2, Circle, Clock } from "@/lib/icons"
 
 interface PhaseItem {
   name: string

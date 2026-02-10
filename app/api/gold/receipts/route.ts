@@ -11,7 +11,6 @@ import { z } from "zod"
 
 const buyerReceiptSchema = z.object({
   goldDispatchId: z.string().uuid(),
-  receiptNumber: z.string().min(1).max(100),
   receiptDate: z
     .string()
     .datetime()
@@ -23,6 +22,31 @@ const buyerReceiptSchema = z.object({
   paymentReference: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
 })
+
+function formatTwoDigits(value: number) {
+  return String(value).padStart(2, "0")
+}
+
+function buildReceiptNumberCandidate() {
+  const now = new Date()
+  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`
+  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}${formatTwoDigits(now.getSeconds())}`
+  const randomPart = Math.floor(100 + Math.random() * 900)
+  return `RCP-${datePart}-${timePart}-${randomPart}`
+}
+
+async function generateUniqueReceiptNumber() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = buildReceiptNumberCandidate()
+    const existing = await prisma.buyerReceipt.findFirst({
+      where: { receiptNumber: candidate },
+      select: { id: true },
+    })
+    if (!existing) return candidate
+  }
+
+  return `RCP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +82,7 @@ export async function GET(request: NextRequest) {
             include: {
               goldPour: {
                 select: {
+                  id: true,
                   pourBarId: true,
                   grossWeight: true,
                   pourDate: true,
@@ -74,7 +99,21 @@ export async function GET(request: NextRequest) {
       prisma.buyerReceipt.count({ where }),
     ])
 
-    return successResponse(paginationResponse(receipts, total, page, limit))
+    const normalizedReceipts = receipts.map((receipt) => ({
+      ...receipt,
+      goldDispatch: {
+        ...receipt.goldDispatch,
+        batchId: receipt.goldDispatch.goldPour.id,
+        batchCode: receipt.goldDispatch.goldPour.pourBarId,
+        goldPour: {
+          ...receipt.goldDispatch.goldPour,
+          batchId: receipt.goldDispatch.goldPour.id,
+          batchCode: receipt.goldDispatch.goldPour.pourBarId,
+        },
+      },
+    }))
+
+    return successResponse(paginationResponse(normalizedReceipts, total, page, limit))
   } catch (error) {
     console.error("[API] GET /api/gold/receipts error:", error)
     return errorResponse("Failed to fetch buyer receipts")
@@ -110,10 +149,12 @@ export async function POST(request: NextRequest) {
       return errorResponse("Receipt already exists for this dispatch", 409)
     }
 
+    const receiptNumber = await generateUniqueReceiptNumber()
+
     const receipt = await prisma.buyerReceipt.create({
       data: {
         goldDispatchId: validated.goldDispatchId,
-        receiptNumber: validated.receiptNumber,
+        receiptNumber,
         receiptDate: new Date(validated.receiptDate),
         assayResult: validated.assayResult,
         paidAmount: validated.paidAmount,
@@ -127,6 +168,7 @@ export async function POST(request: NextRequest) {
           include: {
             goldPour: {
               select: {
+                id: true,
                 pourBarId: true,
                 grossWeight: true,
                 pourDate: true,
@@ -138,7 +180,22 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return successResponse(receipt, 201)
+    return successResponse(
+      {
+        ...receipt,
+        goldDispatch: {
+          ...receipt.goldDispatch,
+          batchId: receipt.goldDispatch.goldPour.id,
+          batchCode: receipt.goldDispatch.goldPour.pourBarId,
+          goldPour: {
+            ...receipt.goldDispatch.goldPour,
+            batchId: receipt.goldDispatch.goldPour.id,
+            batchCode: receipt.goldDispatch.goldPour.pourBarId,
+          },
+        },
+      },
+      201,
+    )
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)

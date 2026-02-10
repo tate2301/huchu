@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft } from "@/lib/icons"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -15,9 +15,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH = "18rem"
 const SIDEBAR_WIDTH_ICON = "3.5rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH_MOBILE = "20rem"
 
 type SidebarContextValue = {
   state: "expanded" | "collapsed"
@@ -125,10 +125,11 @@ SidebarProvider.displayName = "SidebarProvider"
 
 type SidebarProps = React.ComponentProps<"aside"> & {
   collapsible?: "offcanvas" | "icon" | "none"
+  variant?: "sidebar" | "inset"
 }
 
 const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
-  ({ className, collapsible = "icon", children, ...props }, ref) => {
+  ({ className, collapsible = "icon", variant = "sidebar", children, ...props }, ref) => {
     const { isMobile, openMobile, setOpenMobile, state } = useSidebar()
     const sidebar = (
       <aside
@@ -136,8 +137,9 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-sidebar="sidebar"
         data-state={state}
         data-collapsible={collapsible}
+        data-variant={variant}
         className={cn(
-          "group/sidebar flex h-screen flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-200",
+          "peer group/sidebar flex h-screen flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-200",
           collapsible === "icon" && state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -177,7 +179,7 @@ const SidebarHeader = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex h-14 items-center border-b border-border px-4", className)}
+      className={cn("flex flex-col gap-2 p-2", className)}
       {...props}
     />
   )
@@ -189,7 +191,7 @@ const SidebarFooter = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
     <div
       ref={ref}
       data-sidebar="footer"
-      className={cn("mt-auto border-t border-border px-3 py-3", className)}
+      className={cn("mt-auto p-2", className)}
       {...props}
     />
   )
@@ -201,7 +203,7 @@ const SidebarContent = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
     <div
       ref={ref}
       data-sidebar="content"
-      className={cn("flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-4", className)}
+      className={cn("flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2", className)}
       {...props}
     />
   )
@@ -225,7 +227,7 @@ const SidebarGroupLabel = React.forwardRef<HTMLDivElement, React.ComponentProps<
     <div
       ref={ref}
       data-sidebar="group-label"
-      className={cn("px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground", className)}
+      className={cn("px-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground", className)}
       {...props}
     />
   )
@@ -268,7 +270,8 @@ const sidebarMenuButtonVariants = cva(
       },
       size: {
         default: "h-9",
-        sm: "h-8 text-xs",
+        sm: "h-8 text-sm",
+        lg: "h-12 text-sm",
       },
     },
     defaultVariants: {
@@ -384,7 +387,11 @@ SidebarRail.displayName = "SidebarRail"
 
 const SidebarInset = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex min-h-screen w-full flex-1 flex-col", className)} {...props} />
+    <div
+      ref={ref}
+      className={cn("flex min-h-screen w-full flex-1 flex-col", className)}
+      {...props}
+    />
   )
 )
 SidebarInset.displayName = "SidebarInset"

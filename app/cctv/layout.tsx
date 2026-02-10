@@ -1,91 +1,26 @@
-"use client"
+"use client";
 
-import { usePathname } from "next/navigation"
-import Link from "next/link"
-import { 
-  Camera as CameraIcon, 
-  AlertCircle, 
-  Server,
-  Grid3x3,
-  Plus,
-} from "lucide-react"
+import { useMemo } from "react";
+import { usePathname } from "next/navigation";
 
-import { PageActions } from "@/components/layout/page-actions"
-import { PageHeading } from "@/components/layout/page-heading"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CCTVShell, type CCTVTab } from "@/components/cctv/cctv-shell";
 
 export default function CCTVLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const pathname = usePathname()
-  
-  // Determine active tab from pathname
-  const getActiveTab = () => {
-    if (pathname.includes("/cameras")) return "cameras"
-    if (pathname.includes("/events")) return "events"
-    if (pathname.includes("/nvrs")) return "nvrs"
-    return "dashboard"
-  }
+  const pathname = usePathname();
 
-  const activeView = getActiveTab()
+  const activeTab = useMemo<CCTVTab>(() => {
+    if (pathname.includes("/live")) return "live";
+    if (pathname.includes("/cameras")) return "cameras";
+    if (pathname.includes("/events")) return "events";
+    if (pathname.includes("/nvrs")) return "nvrs";
+    if (pathname.includes("/playback")) return "playback";
+    if (pathname.includes("/access-logs")) return "access-logs";
+    return "overview";
+  }, [pathname]);
 
-  return (
-    <div className="mx-auto w-full space-y-6">
-      <PageHeading 
-        title="CCTV Surveillance" 
-        description="Monitor cameras, review events, and manage security systems"
-      >
-        <PageActions>
-          {activeView === "cameras" && (
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Camera
-            </Button>
-          )}
-          {activeView === "nvrs" && (
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add NVR
-            </Button>
-          )}
-        </PageActions>
-      </PageHeading>
-
-      <Tabs value={activeView} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard" asChild>
-            <Link href="/cctv/dashboard">
-              <Grid3x3 className="mr-2 h-4 w-4" />
-              Dashboard
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="cameras" asChild>
-            <Link href="/cctv/cameras">
-              <CameraIcon className="mr-2 h-4 w-4" />
-              Cameras
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="events" asChild>
-            <Link href="/cctv/events">
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Events
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="nvrs" asChild>
-            <Link href="/cctv/nvrs">
-              <Server className="mr-2 h-4 w-4" />
-              NVRs
-            </Link>
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="mt-6">
-          {children}
-        </div>
-      </Tabs>
-    </div>
-  )
+  return <CCTVShell activeTab={activeTab}>{children}</CCTVShell>;
 }

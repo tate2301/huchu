@@ -28,6 +28,34 @@ const allocationSchema = z.object({
     }),
 })
 
+const AUTO_BATCH_NOTE_PREFIX = "AUTO_BATCH_FROM_SHIFT_ALLOCATION:"
+const AUTO_PAYOUT_NOTE_PREFIX = "AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:"
+
+function formatTwoDigits(value: number) {
+  return String(value).padStart(2, "0")
+}
+
+function buildBatchCodeCandidate() {
+  const now = new Date()
+  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`
+  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}${formatTwoDigits(now.getSeconds())}`
+  const randomPart = Math.floor(100 + Math.random() * 900)
+  return `BATCH-${datePart}-${timePart}-${randomPart}`
+}
+
+async function generateUniqueBatchCode(db: Pick<typeof prisma, "goldPour">) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = buildBatchCodeCandidate()
+    const existing = await db.goldPour.findUnique({
+      where: { pourBarId: candidate },
+      select: { id: true },
+    })
+    if (!existing) return candidate
+  }
+
+  return `BATCH-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`
+}
+
 function getDayRange(dateValue: string) {
   const start = new Date(dateValue)
   const end = new Date(dateValue)
@@ -170,47 +198,130 @@ export async function POST(request: NextRequest) {
     const companyShareWeight = netWeight / 2
     const perWorkerWeight = workerShareWeight / attendance.length
 
-    const allocation = await prisma.goldShiftAllocation.create({
-      data: {
-        date: start,
-        shift: validated.shift,
-        siteId: validated.siteId,
-        shiftReportId: shiftReport.id,
-        totalWeight: validated.totalWeight,
-        netWeight,
-        workerShareWeight,
-        companyShareWeight,
-        perWorkerWeight,
-        payCycleWeeks: validated.payCycleWeeks,
-        createdById: session.user.id,
-        expenses: {
-          create: (validated.expenses ?? []).map((expense) => ({
-            type: expense.type,
-            weight: expense.weight,
-          })),
+    const primaryWitnessId = attendance[0]?.employee.id
+    let secondaryWitnessId = attendance.find(
+      (record) => record.employee.id !== primaryWitnessId,
+    )?.employee.id
+
+    if (!secondaryWitnessId && primaryWitnessId) {
+      const fallbackWitness = await prisma.employee.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          isActive: true,
+          id: { not: primaryWitnessId },
         },
-        workerShares: {
-          create: attendance.map((record) => ({
-            employeeId: record.employee.id,
-            shareWeight: perWorkerWeight,
-          })),
-        },
-      },
-      include: {
-        site: { select: { name: true, code: true } },
-        shiftReport: { select: { id: true, status: true, crewCount: true } },
-        expenses: { select: { id: true, type: true, weight: true } },
-        workerShares: {
-          select: {
-            id: true,
-            shareWeight: true,
-            employee: { select: { id: true, name: true, employeeId: true } },
+        select: { id: true },
+      })
+      secondaryWitnessId = fallbackWitness?.id
+    }
+
+    const canAutoCreateBatch = Boolean(primaryWitnessId && secondaryWitnessId)
+
+    const result = await prisma.$transaction(async (tx) => {
+      const allocation = await tx.goldShiftAllocation.create({
+        data: {
+          date: start,
+          shift: validated.shift,
+          siteId: validated.siteId,
+          shiftReportId: shiftReport.id,
+          totalWeight: validated.totalWeight,
+          netWeight,
+          workerShareWeight,
+          companyShareWeight,
+          perWorkerWeight,
+          payCycleWeeks: validated.payCycleWeeks,
+          createdById: session.user.id,
+          expenses: {
+            create: (validated.expenses ?? []).map((expense) => ({
+              type: expense.type,
+              weight: expense.weight,
+            })),
+          },
+          workerShares: {
+            create: attendance.map((record) => ({
+              employeeId: record.employee.id,
+              shareWeight: perWorkerWeight,
+            })),
           },
         },
-      },
+        include: {
+          site: { select: { name: true, code: true } },
+          shiftReport: { select: { id: true, status: true, crewCount: true } },
+          expenses: { select: { id: true, type: true, weight: true } },
+          workerShares: {
+            select: {
+              id: true,
+              shareWeight: true,
+              employee: { select: { id: true, name: true, employeeId: true } },
+            },
+          },
+        },
+      })
+
+      const payoutDueDate = new Date(start)
+      payoutDueDate.setDate(payoutDueDate.getDate() + validated.payCycleWeeks * 7)
+
+      if (allocation.workerShares.length > 0) {
+        await tx.employeePayment.createMany({
+          data: allocation.workerShares.map((share) => ({
+            employeeId: share.employee.id,
+            type: "GOLD",
+            periodStart: start,
+            periodEnd: start,
+            dueDate: payoutDueDate,
+            amount: share.shareWeight,
+            unit: "g",
+            status: "DUE",
+            notes: `${AUTO_PAYOUT_NOTE_PREFIX}${allocation.id}`,
+            createdById: session.user.id,
+          })),
+        })
+      }
+
+      let createdBatchId: string | null = null
+      let createdBatchCode: string | null = null
+
+      if (canAutoCreateBatch && primaryWitnessId && secondaryWitnessId) {
+        const batchCode = await generateUniqueBatchCode(tx)
+        const batch = await tx.goldPour.create({
+          data: {
+            siteId: validated.siteId,
+            pourBarId: batchCode,
+            pourDate: start,
+            grossWeight: netWeight,
+            witness1Id: primaryWitnessId,
+            witness2Id: secondaryWitnessId,
+            storageLocation: "Shift Vault",
+            notes: `${AUTO_BATCH_NOTE_PREFIX}${allocation.id}`,
+          },
+          select: { id: true, pourBarId: true },
+        })
+        createdBatchId = batch.id
+        createdBatchCode = batch.pourBarId
+      }
+
+      return {
+        allocation,
+        createdBatchId,
+        createdBatchCode,
+        payoutRecordsCreated: allocation.workerShares.length,
+      }
     })
 
-    return successResponse(allocation, 201)
+    return successResponse(
+      {
+        ...result.allocation,
+        createdBatchId: result.createdBatchId,
+        createdBatchCode: result.createdBatchCode,
+        payoutRecordsCreated: result.payoutRecordsCreated,
+        warnings: canAutoCreateBatch
+          ? []
+          : [
+              "Shift allocation was saved, but no auto batch was created because two witness employees were not available.",
+            ],
+      },
+      201,
+    )
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)

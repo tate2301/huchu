@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { endOfMonth, format, startOfMonth } from "date-fns"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Pencil, Wallet } from "lucide-react"
+import { Pencil, Wallet } from "@/lib/icons"
 
 import { HrShell } from "@/components/human-resources/hr-shell"
 import { PdfTemplate } from "@/components/pdf/pdf-template"

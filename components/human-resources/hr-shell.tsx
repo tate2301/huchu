@@ -4,7 +4,7 @@ import Link from "next/link"
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
 import { cn } from "@/lib/utils"
-import { type LucideIcon, UserRound, Wallet } from "lucide-react"
+import { type LucideIcon, UserRound, Wallet } from "@/lib/icons"
 
 export type HrTab = "employees" | "payouts" | "salaries"
 

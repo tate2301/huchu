@@ -1,6 +1,6 @@
 "use client";
 
-import { HelpCircle } from "lucide-react";
+import { HelpCircle } from "@/lib/icons";
 
 import { Button } from "@/components/ui/button";
 import { useGuidedMode } from "@/hooks/use-guided-mode";

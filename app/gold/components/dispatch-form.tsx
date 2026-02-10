@@ -17,8 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
+import { goldRoutes } from "@/app/gold/routes";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
-import { Send, Shield } from "lucide-react";
+import { Send, Shield } from "@/lib/icons";
 
 export function DispatchForm({
   setViewMode,
@@ -34,8 +35,10 @@ export function DispatchForm({
   availablePours: Array<{
     id: string;
     pourBarId: string;
+    batchCode?: string;
     grossWeight: number;
     site: { name: string; code: string };
+    dispatchCount: number;
   }>;
 }) {
   const { toast } = useToast();
@@ -50,6 +53,7 @@ export function DispatchForm({
     sealNumbers: "",
     handedOverById: "",
     receivedBy: "",
+    overrideReason: "",
     notes: "",
   });
 
@@ -62,9 +66,14 @@ export function DispatchForm({
     () =>
       availablePours.map((pour) => ({
         value: pour.id,
-        label: pour.pourBarId,
-        description: `${pour.site.name} (${pour.site.code})`,
+        label: pour.batchCode ?? pour.pourBarId,
+        description: `${pour.site.name} (${pour.site.code}) - ${
+          pour.dispatchCount > 0
+            ? `${pour.dispatchCount} previous dispatch${pour.dispatchCount === 1 ? "" : "es"}`
+            : "No previous dispatch"
+        }`,
         meta: `${pour.grossWeight} g`,
+        badgeVariant: pour.dispatchCount > 0 ? "destructive" : "secondary",
       })),
     [availablePours],
   );
@@ -88,20 +97,24 @@ export function DispatchForm({
       sealNumbers: string;
       handedOverById: string;
       receivedBy?: string;
+      overrideReason?: string;
       notes?: string;
     }) =>
-      fetchJson<{ id: string; createdAt?: string }>("/api/gold/dispatches", {
+      fetchJson<{ id: string; createdAt?: string; warnings?: string[] }>("/api/gold/dispatches", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
     onSuccess: (dispatch) => {
       toast({
         title: "Dispatch recorded",
-        description: "Chain of custody opened for this gold pour.",
+        description:
+          dispatch.warnings && dispatch.warnings.length > 0
+            ? dispatch.warnings[0]
+            : "Dispatch saved successfully.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-dispatches"] });
-      const destination = buildSavedRecordRedirect("/gold/dispatch", {
+      const destination = buildSavedRecordRedirect(goldRoutes.transit.dispatches, {
         createdId: dispatch.id,
         createdAt: dispatch.createdAt,
         source: "gold-dispatch",
@@ -110,13 +123,17 @@ export function DispatchForm({
     },
   });
 
+  const selectedPour = availablePours.find((pour) => pour.id === formData.goldPourId);
+  const requiresOverrideReason = (selectedPour?.dispatchCount ?? 0) > 0;
+
   const canSubmit =
     !!formData.goldPourId &&
     !!formData.dispatchDate &&
     !!formData.courier &&
     !!formData.destination &&
     !!formData.sealNumbers &&
-    !!formData.handedOverById;
+    !!formData.handedOverById &&
+    (!requiresOverrideReason || !!formData.overrideReason.trim());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,6 +154,7 @@ export function DispatchForm({
       sealNumbers: formData.sealNumbers.trim(),
       handedOverById: formData.handedOverById,
       receivedBy: formData.receivedBy?.trim() || undefined,
+      overrideReason: formData.overrideReason?.trim() || undefined,
       notes: formData.notes?.trim() || undefined,
     });
   };
@@ -165,10 +183,9 @@ export function DispatchForm({
           <div className="flex gap-3">
             <Shield className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
-              <strong className="block mb-1">Chain of Custody</strong>
+              <strong className="block mb-1">Dispatch Record</strong>
               <p className="text-foreground">
-                This manifest creates an immutable record of gold transfer. Both
-                sender and receiver signatures required.
+                Save who sent the batch, who received it, and where it is going.
               </p>
             </div>
           </div>
@@ -179,33 +196,44 @@ export function DispatchForm({
         <CardHeader>
           <CardTitle>Dispatch Details</CardTitle>
           <CardDescription>
-            All fields required for dispatch manifest
+            Fill all required fields.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {availablePours.length === 0 ? (
             <Alert>
-              <AlertTitle>No pours ready for dispatch</AlertTitle>
+              <AlertTitle>No batches ready for dispatch</AlertTitle>
               <AlertDescription>
-                Record a gold pour before creating a dispatch manifest.
+                Record a batch before creating a dispatch.
               </AlertDescription>
             </Alert>
           ) : null}
           <SearchableSelect
-            label="Pour/Bar ID *"
+            label="Select Batch *"
             value={formData.goldPourId || undefined}
             options={pourOptions}
             placeholder={
-              availablePours.length === 0 ? "No pours available" : "Select pour"
+              availablePours.length === 0 ? "No batches available" : "Select batch"
             }
-            searchPlaceholder="Search pours..."
+            searchPlaceholder="Search batches..."
             onValueChange={handleSelectChange("goldPourId")}
             onAddOption={() => setViewMode("pour")}
-            addLabel="Record new pour"
+            addLabel="Record new batch"
           />
           <p className="text-xs text-muted-foreground">
-            Dispatch ID is generated automatically once the manifest is saved.
+            Dispatch ID is created automatically after save.
           </p>
+
+          {requiresOverrideReason ? (
+            <Alert>
+              <AlertTitle>Batch already dispatched before</AlertTitle>
+              <AlertDescription>
+                This batch already has {selectedPour?.dispatchCount} dispatch
+                record{selectedPour?.dispatchCount === 1 ? "" : "s"}.
+                Enter a reason to continue.
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
           <div>
             <label className="block text-sm font-semibold mb-2">
@@ -322,6 +350,29 @@ export function DispatchForm({
               placeholder="Additional dispatch notes..."
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">
+              Override Reason {requiresOverrideReason ? "*" : "(optional)"}
+            </label>
+            <Textarea
+              value={formData.overrideReason}
+              onChange={(e) =>
+                setFormData({ ...formData, overrideReason: e.target.value })
+              }
+              rows={2}
+              placeholder={
+                requiresOverrideReason
+                  ? "Explain why another dispatch is needed for this batch."
+                  : "Only required if this batch already has a dispatch record."
+              }
+            />
+            {requiresOverrideReason && !formData.overrideReason.trim() ? (
+              <p className="mt-1 text-xs text-destructive">
+                Override reason is required for already-dispatched batches.
+              </p>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -329,7 +380,7 @@ export function DispatchForm({
         <Send className="mr-2 h-5 w-5" />
         {createDispatchMutation.isPending
           ? "Recording..."
-          : "Create Dispatch Manifest"}
+          : "Save Dispatch"}
       </Button>
     </form>
   );

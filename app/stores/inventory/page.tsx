@@ -37,7 +37,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus } from "@/lib/icons";
 
 export default function StoresInventoryPage() {
   const { toast } = useToast();

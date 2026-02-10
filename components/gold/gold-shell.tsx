@@ -1,55 +1,74 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
+import {
+  ArrowRightLeft,
+  AlertTriangle,
+  BarChart3,
+  Gem,
+  PackageCheck,
+  Scale,
+} from "@/lib/icons";
+
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { cn } from "@/lib/utils";
-import {
-  Coins,
-  FileCheck,
-  FileText,
-  Home,
-  Package,
-  Wallet,
-  Shield,
-  type LucideIcon,
-} from "lucide-react";
+import { goldRoutes } from "@/app/gold/routes";
 
-export type GoldTab =
-  | "overview"
-  | "pour"
-  | "dispatch"
-  | "receipt"
-  | "reconciliation"
-  | "payouts"
-  | "audit";
+export type GoldLane =
+  | "command"
+  | "intake"
+  | "transit"
+  | "settlement"
+  | "exceptions"
+  | "reporting";
 
-type GoldTabItem = {
-  id: GoldTab;
+type GoldLaneItem = {
+  id: GoldLane;
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon: typeof Gem;
 };
 
-const goldTabs: GoldTabItem[] = [
-  { id: "overview", label: "Overview", href: "/gold", icon: Home },
-  { id: "pour", label: "Pour History", href: "/gold/pour", icon: Coins },
-  { id: "dispatch", label: "Dispatch History", href: "/gold/dispatch", icon: Package },
-  { id: "receipt", label: "Receipt History", href: "/gold/receipt", icon: FileCheck },
-  { id: "payouts", label: "Worker Payouts", href: "/gold/payouts", icon: Wallet },
+const laneTabs: GoldLaneItem[] = [
+  { id: "command", label: "Home", href: goldRoutes.command, icon: Gem },
   {
-    id: "reconciliation",
-    label: "Reconciliation",
-    href: "/gold/reconciliation",
-    icon: Shield,
+    id: "intake",
+    label: "Batches",
+    href: goldRoutes.intake.pours,
+    icon: PackageCheck,
   },
-  { id: "audit", label: "Audit Trail", href: "/gold/audit", icon: FileText },
+  {
+    id: "transit",
+    label: "Dispatch",
+    href: goldRoutes.transit.dispatches,
+    icon: ArrowRightLeft,
+  },
+  {
+    id: "settlement",
+    label: "Sales",
+    href: goldRoutes.settlement.receipts,
+    icon: Scale,
+  },
+  {
+    id: "exceptions",
+    label: "Issues",
+    href: goldRoutes.exceptions.home,
+    icon: AlertTriangle,
+  },
+  {
+    id: "reporting",
+    label: "Reports",
+    href: goldRoutes.reporting.home,
+    icon: BarChart3,
+  },
 ];
 
 type GoldShellProps = {
-  activeTab: GoldTab;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
+  activeTab: GoldLane;
+  actions?: ReactNode;
+  children: ReactNode;
   title?: string;
   description?: string;
 };
@@ -58,35 +77,35 @@ export function GoldShell({
   activeTab,
   actions,
   children,
-  title = "Gold Control",
-  description = "High-security workflows",
+  title = "Gold Chain",
+  description = "Track gold from shift output to sale and payout.",
 }: GoldShellProps) {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading title={title} description={description} />
 
       <nav
-        aria-label="Gold control navigation"
-        className="flex w-full flex-wrap justify-start gap-2 border-b bg-transparent p-0"
+        aria-label="Gold sections"
+        className="grid gap-2 rounded-lg border bg-card p-2 sm:grid-cols-3 lg:grid-cols-6"
       >
-        {goldTabs.map((tab) => {
-          const isActive = activeTab === tab.id;
+        {laneTabs.map((lane) => {
+          const isActive = lane.id === activeTab;
           return (
             <Link
-              key={tab.id}
-              href={tab.href}
+              key={lane.id}
+              href={lane.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                              "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors border-b border-transparent",
+                "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive
-                  ? "border-primary text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
               )}
             >
-              <tab.icon className="h-4 w-4" />
-              <span className="ml-2">{tab.label}</span>
+              <lane.icon className="h-4 w-4" />
+              <span>{lane.label}</span>
             </Link>
           );
         })}

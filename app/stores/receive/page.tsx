@@ -24,7 +24,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
-import { Plus } from "lucide-react";
+import { Plus } from "@/lib/icons";
 
 type NotesPayload = {
   supplier?: string;

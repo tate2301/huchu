@@ -107,7 +107,54 @@ export async function GET(request: NextRequest) {
       prisma.employee.count({ where }),
     ])
 
-    return successResponse(paginationResponse(employees, total, page, limit))
+    const employeeIds = employees.map((employee) => employee.id)
+    const owedByEmployee = new Map<
+      string,
+      { goldOwed: number; salaryOwed: number }
+    >()
+
+    if (employeeIds.length > 0) {
+      const outstandingTotals = await prisma.employeePayment.groupBy({
+        by: ["employeeId", "type"],
+        where: {
+          employeeId: { in: employeeIds },
+          status: { in: ["DUE", "PARTIAL"] },
+        },
+        _sum: {
+          amount: true,
+          paidAmount: true,
+        },
+      })
+
+      outstandingTotals.forEach((row) => {
+        const amount = row._sum.amount ?? 0
+        const paidAmount = row._sum.paidAmount ?? 0
+        const outstanding = Math.max(amount - paidAmount, 0)
+        const current = owedByEmployee.get(row.employeeId) ?? {
+          goldOwed: 0,
+          salaryOwed: 0,
+        }
+
+        if (row.type === "GOLD") {
+          current.goldOwed = outstanding
+        } else if (row.type === "SALARY") {
+          current.salaryOwed = outstanding
+        }
+
+        owedByEmployee.set(row.employeeId, current)
+      })
+    }
+
+    const enrichedEmployees = employees.map((employee) => {
+      const owed = owedByEmployee.get(employee.id)
+      return {
+        ...employee,
+        goldOwed: owed?.goldOwed ?? 0,
+        salaryOwed: owed?.salaryOwed ?? 0,
+      }
+    })
+
+    return successResponse(paginationResponse(enrichedEmployees, total, page, limit))
   } catch (error) {
     console.error("[API] GET /api/employees error:", error)
     return errorResponse("Failed to fetch employees")

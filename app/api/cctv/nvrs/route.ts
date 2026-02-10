@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { Prisma } from "@prisma/client"
+
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { validateNVRConfig } from "@/lib/cctv-utils"
+import { isManagerRole, parsePagination, sanitizeNVRPassword } from "@/app/api/cctv/_helpers"
 
 /**
  * GET /api/cctv/nvrs
- * List all NVRs with status
- * 
+ * List NVRs with filtering
+ *
  * Query params:
  * - siteId: Filter by site
  * - isOnline: Filter by online status
+ * - includeInactive: Include deactivated records
  * - page: Page number
  * - limit: Items per page
  */
@@ -24,16 +28,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const siteId = searchParams.get("siteId") || undefined
     const isOnline = searchParams.get("isOnline")
-    const page = parseInt(searchParams.get("page") || "1", 10)
-    const limit = parseInt(searchParams.get("limit") || "20", 10)
+    const includeInactive = searchParams.get("includeInactive") === "true"
+    const { page, limit, skip } = parsePagination(searchParams, { page: 1, limit: 20 })
 
-    const skip = (page - 1) * limit
-
-    // Build filter
-    const where: any = {}
-    if (siteId) where.siteId = siteId
-    if (isOnline !== null && isOnline !== undefined) {
-      where.isOnline = isOnline === "true"
+    const where: Prisma.NVRWhereInput = {
+      site: {
+        companyId: session.user.companyId,
+      },
+      ...(siteId ? { siteId } : {}),
+      ...(isOnline !== null && isOnline !== undefined ? { isOnline: isOnline === "true" } : {}),
+      ...(includeInactive ? {} : { isActive: true }),
     }
 
     const [nvrs, total] = await Promise.all([
@@ -53,21 +57,15 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { name: "asc" },
+        orderBy: [{ name: "asc" }],
         skip,
         take: limit,
       }),
       prisma.nVR.count({ where }),
     ])
 
-    // Hide passwords in response
-    const sanitizedNVRs = nvrs.map((nvr) => ({
-      ...nvr,
-      password: "***",
-    }))
-
     return NextResponse.json({
-      data: sanitizedNVRs,
+      data: nvrs.map((nvr) => sanitizeNVRPassword(nvr)),
       pagination: {
         page,
         limit,
@@ -78,10 +76,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("Error fetching NVRs:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch NVRs" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to fetch NVRs" }, { status: 500 })
   }
 }
 
@@ -96,13 +91,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if user is SUPERADMIN or MANAGER
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
-      select: { role: true },
-    })
-
-    if (!user || (user.role !== "SUPERADMIN" && user.role !== "MANAGER")) {
+    if (!isManagerRole(session.user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -121,17 +110,25 @@ export async function POST(request: NextRequest) {
       rtspPort = 554,
       isapiEnabled = true,
       onvifEnabled = false,
+      isOnline = false,
     } = body
 
-    // Validate required fields
     if (!name || !ipAddress || !username || !password || !siteId) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Validate NVR configuration
+    const site = await prisma.site.findFirst({
+      where: {
+        id: siteId,
+        companyId: session.user.companyId,
+      },
+      select: { id: true },
+    })
+
+    if (!site) {
+      return NextResponse.json({ error: "Site not found" }, { status: 404 })
+    }
+
     const validation = validateNVRConfig({
       host: ipAddress,
       port: rtspPort,
@@ -140,24 +137,22 @@ export async function POST(request: NextRequest) {
     })
 
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
 
-    // Check for duplicate IP address
     const existing = await prisma.nVR.findFirst({
       where: {
         ipAddress,
         siteId,
+        isActive: true,
       },
+      select: { id: true },
     })
 
     if (existing) {
       return NextResponse.json(
         { error: "NVR with this IP address already exists for this site" },
-        { status: 409 }
+        { status: 409 },
       )
     }
 
@@ -168,7 +163,7 @@ export async function POST(request: NextRequest) {
         port,
         httpPort,
         username,
-        password, // In production, encrypt this!
+        password,
         siteId,
         manufacturer,
         model: model || null,
@@ -176,30 +171,27 @@ export async function POST(request: NextRequest) {
         rtspPort,
         isapiEnabled,
         onvifEnabled,
+        isOnline,
       },
       include: {
         site: {
           select: {
+            id: true,
             name: true,
             code: true,
+          },
+        },
+        _count: {
+          select: {
+            cameras: true,
           },
         },
       },
     })
 
-    // Hide password in response
-    return NextResponse.json(
-      {
-        ...nvr,
-        password: "***",
-      },
-      { status: 201 }
-    )
+    return NextResponse.json(sanitizeNVRPassword(nvr), { status: 201 })
   } catch (error) {
     console.error("Error creating NVR:", error)
-    return NextResponse.json(
-      { error: "Failed to create NVR" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to create NVR" }, { status: 500 })
   }
 }

@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertTriangle, Download } from "lucide-react";
+import { AlertTriangle, Download } from "@/lib/icons";
 import {
   fetchGoldDispatches,
   fetchGoldPours,

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Shield, AlertCircle } from "lucide-react";
+import { Shield, AlertCircle } from "@/lib/icons";
 
 export default function LoginPage() {
   const router = useRouter();

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@/lib/icons";
 
 type Crumb = {
   label: string;
@@ -13,6 +13,7 @@ type Crumb = {
 const routeLabels: Record<string, string> = {
   analytics: "Downtime Analytics",
   attendance: "Attendance",
+  cctv: "CCTV",
   dashboard: "Production Dashboard",
   gold: "Gold Control",
   maintenance: "Maintenance",
@@ -42,12 +43,21 @@ const viewLabels: Record<string, Record<string, string>> = {
   },
   gold: {
     menu: "Overview",
-    pour: "Record Pour",
+    pour: "Log Gold Output",
     dispatch: "Create Dispatch",
     receipt: "Buyer Receipt",
     payouts: "Worker Payouts",
     reconciliation: "Reconciliation",
     audit: "Audit Trail",
+  },
+  cctv: {
+    overview: "Overview",
+    live: "Live Monitor",
+    cameras: "Cameras",
+    nvrs: "NVRs",
+    events: "Events",
+    playback: "Playback",
+    "access-logs": "Access Logs",
   },
 };
 
