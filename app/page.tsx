@@ -197,6 +197,7 @@ const tileMetaByHref: Record<string, TileMeta> = {
 
 const sectionIconAccentById: Record<string, string> = {
   daily: "bg-emerald-100 text-emerald-700 ring-emerald-300",
+  reporting: "bg-cyan-100 text-cyan-700 ring-cyan-300",
   hr: "bg-indigo-100 text-indigo-700 ring-indigo-300",
   maintenance: "bg-amber-100 text-amber-700 ring-amber-300",
   stores: "bg-sky-100 text-sky-700 ring-sky-300",

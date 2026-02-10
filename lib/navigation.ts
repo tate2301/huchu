@@ -82,13 +82,39 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    id: "records",
+    id: "reporting",
     title: "Reports",
-    description: "Open submitted records and audit views",
+    description: "Open report pages across operations",
     items: [
+      { href: "/reports", icon: FileCheck, label: "Reports Dashboard" },
       { href: "/reports/shift", icon: EventNote, label: "Shift Reports" },
       { href: "/reports/attendance", icon: Checklist, label: "Attendance" },
       { href: "/reports/plant", icon: TableRows, label: "Plant Reports" },
+      { href: "/reports/stores-movements", icon: History, label: "Stock Movements" },
+      { href: "/reports/fuel-ledger", icon: Fuel, label: "Fuel Ledger" },
+      { href: "/reports/maintenance-work-orders", icon: Wrench, label: "Work Orders" },
+      { href: "/reports/maintenance-equipment", icon: Package, label: "Equipment Service" },
+      { href: "/reports/gold-chain", icon: ChartLine, label: "Gold Chain" },
+      { href: "/reports/gold-receipts", icon: ReceiptLong, label: "Gold Receipts" },
+      { href: "/reports/audit-trails", icon: FileCheck, label: "Audit Trails" },
+      {
+        href: "/reports/downtime",
+        icon: BarChart3,
+        label: "Downtime Analytics",
+        roles: ["SUPERADMIN", "MANAGER"],
+      },
+      {
+        href: "/reports/compliance-incidents",
+        icon: ShieldCheck,
+        label: "Incidents",
+        roles: ["SUPERADMIN", "MANAGER"],
+      },
+      {
+        href: "/reports/cctv-events",
+        icon: Video,
+        label: "CCTV Events",
+        roles: ["SUPERADMIN", "MANAGER"],
+      },
     ],
   },
   {
@@ -153,14 +179,8 @@ export const navSections: NavSection[] = [
   {
     id: "management",
     title: "Management",
-    description: "Analytics, dashboards, audits",
+    description: "Dashboards and management modules",
     items: [
-      {
-        href: "/reports/downtime",
-        icon: BarChart3,
-        label: "Downtime Analytics",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
       {
         href: "/dashboard",
         icon: Dashboard,
@@ -177,12 +197,6 @@ export const navSections: NavSection[] = [
         href: "/cctv",
         icon: Video,
         label: "CCTV",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/reports",
-        icon: FileCheck,
-        label: "Reports",
         roles: ["SUPERADMIN", "MANAGER"],
       },
     ],
