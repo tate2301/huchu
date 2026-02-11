@@ -21,6 +21,8 @@ const prisma = new PrismaClient({ adapter });
 
 const rawArgs = process.argv.slice(2);
 const actorArg = getArgFrom(rawArgs, "--actor");
+const contextCompanyIdArg = getArgFrom(rawArgs, "--company-id");
+const isReadOnlyMode = hasFlag(rawArgs, "--read-only");
 const hasSection = rawArgs[0] && !rawArgs[0].startsWith("-");
 const section = hasSection ? rawArgs[0].toLowerCase() : null;
 const hasAction = hasSection && rawArgs[1] && !rawArgs[1].startsWith("-");
@@ -31,6 +33,8 @@ const ORG_STATUSES = ["PROVISIONING", "ACTIVE", "SUSPENDED", "DISABLED"];
 const SUBSCRIPTION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "CANCELED", "EXPIRED"];
 const ADMIN_STATUSES = ["ACTIVE", "INACTIVE"];
 const ADMIN_ROLES = ["SUPERADMIN", "MANAGER"];
+const READ_ACTION_LABEL = "read";
+const WRITE_ACTION_LABEL = "write";
 
 function getArgFrom(list, flag) {
   const index = list.indexOf(flag);
@@ -139,7 +143,7 @@ function printObject(title, payload) {
 function printUsage() {
   console.log(`Usage:
   pnpm manage-platform --help
-  pnpm manage-platform --actor <operator-email>
+  pnpm manage-platform --actor <operator-email> [--read-only] [--company-id <uuid>]
   pnpm manage-platform org list [--status <provisioning|active|suspended|disabled>] [--search <text>] [--limit <n>] [--skip <n>]
   pnpm manage-platform org show --id <uuid>
   pnpm manage-platform org provision --name <name> [--slug <slug>] --admin-email <email> --admin-name <name> --admin-password <password> --actor <operator-email> [--yes]
@@ -162,15 +166,143 @@ function printUsage() {
   pnpm manage-platform audit note --company-id <uuid> --message <text> --actor <operator-email> [--yes]
 
 Interactive:
-  pnpm manage-platform --actor <operator-email>
+  pnpm manage-platform --actor <operator-email> [--read-only] [--company-id <uuid>]
 
 Notes:
   - Interactive mode sections: Organizations, Subscriptions, Features, Admins, Audit.
+  - --read-only allows lookups while blocking write actions in both interactive and command modes.
+  - --company-id sets a focus context shown in the footer.
   - Mutations and audit writes require --actor.
   - Command mutations prompt for confirmation unless --yes.
   - Organization status updates also synchronize tenantStatus for host access control.
   - Audit data is written into ProvisioningEvent records.
 `);
+}
+
+function normalizeSectionAlias(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "org" || normalized === "organization" || normalized === "organizations") return "org";
+  if (normalized === "subscription" || normalized === "subscriptions") return "subscription";
+  if (normalized === "feature" || normalized === "features") return "feature";
+  if (normalized === "admin" || normalized === "admins") return "admin";
+  if (normalized === "audit") return "audit";
+  return normalized;
+}
+
+function isWriteCommand(sectionName, commandName) {
+  const normalizedSection = normalizeSectionAlias(sectionName);
+  const normalizedCommand = String(commandName || "").trim().toLowerCase();
+  if (!normalizedSection || !normalizedCommand) return false;
+
+  if (normalizedSection === "org") {
+    return ["provision", "suspend", "activate", "disable"].includes(normalizedCommand);
+  }
+  if (normalizedSection === "subscription") {
+    return normalizedCommand === "set-status";
+  }
+  if (normalizedSection === "feature") {
+    return normalizedCommand === "set";
+  }
+  if (normalizedSection === "admin") {
+    return ["create", "activate", "deactivate"].includes(normalizedCommand);
+  }
+  if (normalizedSection === "audit") {
+    return normalizedCommand === "note";
+  }
+  return false;
+}
+
+function ensureWritableMode(actionLabel) {
+  if (isReadOnlyMode) {
+    throw new Error(`${actionLabel} is unavailable in --read-only mode.`);
+  }
+}
+
+function getModeLabel() {
+  return isReadOnlyMode ? "READ-ONLY" : "READ-WRITE";
+}
+
+function normalizeMenuInput(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isHelpInput(value) {
+  return value === "h" || value === "help" || value === "?";
+}
+
+function isBackInput(value) {
+  return value === "b" || value === "back";
+}
+
+function isQuitInput(value) {
+  return value === "q" || value === "quit";
+}
+
+function formatActionLabel(label, access) {
+  if (access === WRITE_ACTION_LABEL && isReadOnlyMode) {
+    return `${label} [${access} - blocked]`;
+  }
+  return `${label} [${access}]`;
+}
+
+function printMenuHeader(title, actor, pathLabel) {
+  console.log("\n------------------------------------------------------------");
+  console.log(`${title}`);
+  console.log(`Path: ${pathLabel}`);
+  console.log(`Actor: ${actor} | Mode: ${getModeLabel()} | Context org: ${contextCompanyIdArg || "all"}`);
+  console.log("------------------------------------------------------------");
+}
+
+function printMenuFooter({ includeBack = true } = {}) {
+  const backHint = includeBack ? " | b=back" : "";
+  console.log(`Hint: choose by number | h=help${backHint} | q=quit`);
+  console.log("Hint: run with --help to see command-mode examples.");
+}
+
+function printReadOnlyBlocked(actionLabel) {
+  console.log(`Blocked in read-only mode: ${actionLabel}.`);
+}
+
+function printMainHelp() {
+  console.log("\nHelp: Main navigation");
+  console.log("  - Choose a section by number.");
+  console.log("  - Use h for help, q to quit.");
+  console.log("  - Mode and context are always shown in the header.");
+}
+
+function printOrganizationsHelp() {
+  console.log("\nHelp: Organizations");
+  console.log("  - Read actions: list organizations, show organization.");
+  console.log("  - Write actions: provision, suspend, activate, disable.");
+  console.log("  - Command hint: pnpm manage-platform org list --status active --limit 25");
+}
+
+function printSubscriptionsHelp() {
+  console.log("\nHelp: Subscriptions");
+  console.log("  - Read action: list subscriptions.");
+  console.log("  - Write action: set subscription status.");
+  console.log("  - Command hint: pnpm manage-platform subscription set-status --company-id <uuid> --status active --actor <email>");
+}
+
+function printFeaturesHelp() {
+  console.log("\nHelp: Features");
+  console.log("  - Read action: list features.");
+  console.log("  - Write action: set feature flag.");
+  console.log("  - Command hint: pnpm manage-platform feature set --company-id <uuid> --feature cctv-live --enable --actor <email>");
+}
+
+function printAdminsHelp() {
+  console.log("\nHelp: Admins");
+  console.log("  - Read action: list admins.");
+  console.log("  - Write actions: create, deactivate, activate.");
+  console.log("  - Command hint: pnpm manage-platform admin list --company-id <uuid> --status active");
+}
+
+function printAuditHelp() {
+  console.log("\nHelp: Audit");
+  console.log("  - Read action: list audit events.");
+  console.log("  - Write action: add audit note.");
+  console.log("  - Command hint: pnpm manage-platform audit list --company-id <uuid> --limit 50");
 }
 
 function createRl() {
@@ -1107,6 +1239,7 @@ async function runOrgCommand(command, list, actor) {
       return;
     }
     case "provision": {
+      ensureWritableMode("org provision");
       const confirmedActor = requireActor(actor, "org provision");
       const name = requiredArg(list, "--name");
       const slug = getArgFrom(list, "--slug");
@@ -1128,6 +1261,7 @@ async function runOrgCommand(command, list, actor) {
     case "suspend":
     case "activate":
     case "disable": {
+      ensureWritableMode(`org ${command}`);
       const companyId = requiredArg(list, "--id", "--company-id");
       const confirmedActor = requireActor(actor, `org ${command}`);
       const reason = getArgFrom(list, "--reason");
@@ -1161,6 +1295,7 @@ async function runSubscriptionCommand(command, list, actor) {
       return;
     }
     case "set-status": {
+      ensureWritableMode("subscription set-status");
       const companyId = requiredArg(list, "--company-id");
       const status = requiredArg(list, "--status");
       const confirmedActor = requireActor(actor, "subscription set-status");
@@ -1184,6 +1319,7 @@ async function runFeatureCommand(command, list, actor) {
       return;
     }
     case "set": {
+      ensureWritableMode("feature set");
       const companyId = requiredArg(list, "--company-id");
       const feature = requiredArg(list, "--feature");
       const enabled = parseEnabled(list);
@@ -1229,6 +1365,7 @@ async function runAdminCommand(command, list, actor) {
       return;
     }
     case "create": {
+      ensureWritableMode("admin create");
       const companyId = requiredArg(list, "--company-id");
       const email = requiredArg(list, "--email");
       const name = requiredArg(list, "--name");
@@ -1249,6 +1386,7 @@ async function runAdminCommand(command, list, actor) {
     }
     case "activate":
     case "deactivate": {
+      ensureWritableMode(`admin ${command}`);
       const userId = requiredArg(list, "--id", "--user-id");
       const confirmedActor = requireActor(actor, `admin ${command}`);
       const reason = getArgFrom(list, "--reason");
@@ -1287,6 +1425,7 @@ async function runAuditCommand(command, list, actor) {
       return;
     }
     case "note": {
+      ensureWritableMode("audit note");
       const message = requiredArg(list, "--message");
       const companyId = requiredArg(list, "--company-id");
       const confirmedActor = requireActor(actor, "audit note");
@@ -1301,26 +1440,28 @@ async function runAuditCommand(command, list, actor) {
 }
 
 async function runCommandMode() {
-  switch (section) {
+  const normalizedSection = normalizeSectionAlias(section);
+  const resolvedCommand = action || "list";
+
+  if (isReadOnlyMode && isWriteCommand(normalizedSection, resolvedCommand)) {
+    throw new Error(`Command "${normalizedSection} ${resolvedCommand}" is unavailable in --read-only mode.`);
+  }
+
+  switch (normalizedSection) {
     case "org":
-    case "organization":
-    case "organizations":
-      await runOrgCommand(action || "list", args, actorArg);
+      await runOrgCommand(resolvedCommand, args, actorArg);
       return;
     case "subscription":
-    case "subscriptions":
-      await runSubscriptionCommand(action || "list", args, actorArg);
+      await runSubscriptionCommand(resolvedCommand, args, actorArg);
       return;
     case "feature":
-    case "features":
-      await runFeatureCommand(action || "list", args, actorArg);
+      await runFeatureCommand(resolvedCommand, args, actorArg);
       return;
     case "admin":
-    case "admins":
-      await runAdminCommand(action || "list", args, actorArg);
+      await runAdminCommand(resolvedCommand, args, actorArg);
       return;
     case "audit":
-      await runAuditCommand(action || "list", args, actorArg);
+      await runAuditCommand(resolvedCommand, args, actorArg);
       return;
     default:
       throw new Error(`Unknown section: ${section}`);
@@ -1329,17 +1470,24 @@ async function runCommandMode() {
 
 async function runOrganizationsMenu(rl, actor) {
   while (true) {
-    console.log("\nOrganizations");
-    console.log("  1) List organizations");
-    console.log("  2) Show organization");
-    console.log("  3) Provision organization");
-    console.log("  4) Suspend organization");
-    console.log("  5) Activate organization");
-    console.log("  6) Disable organization");
+    printMenuHeader("Organizations", actor, "Main > Organizations");
+    console.log(`  1) ${formatActionLabel("List organizations", READ_ACTION_LABEL)}`);
+    console.log(`  2) ${formatActionLabel("Show organization", READ_ACTION_LABEL)}`);
+    console.log(`  3) ${formatActionLabel("Provision organization", WRITE_ACTION_LABEL)}`);
+    console.log(`  4) ${formatActionLabel("Suspend organization", WRITE_ACTION_LABEL)}`);
+    console.log(`  5) ${formatActionLabel("Activate organization", WRITE_ACTION_LABEL)}`);
+    console.log(`  6) ${formatActionLabel("Disable organization", WRITE_ACTION_LABEL)}`);
     console.log("  7) Back");
+    printMenuFooter({ includeBack: true });
 
-    const choice = await ask(rl, "Choose an option: ");
-    if (choice === "7") return;
+    const choice = normalizeMenuInput(await ask(rl, "Choose an option: "));
+    if (choice === "7" || isBackInput(choice)) return;
+    if (isQuitInput(choice)) return "quit";
+    if (isHelpInput(choice)) {
+      printOrganizationsHelp();
+      await pause(rl);
+      continue;
+    }
 
     try {
       if (choice === "1") {
@@ -1356,6 +1504,11 @@ async function runOrganizationsMenu(rl, actor) {
         const org = await getOrganization(companyId);
         printObject("Organization", org);
       } else if (choice === "3") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("provision organization");
+          await pause(rl);
+          continue;
+        }
         const name = await ask(rl, "Organization name: ");
         const slug = await ask(rl, "Slug (optional): ");
         const adminEmail = await ask(rl, "Admin email: ");
@@ -1379,6 +1532,11 @@ async function runOrganizationsMenu(rl, actor) {
           printObject("Organization provisioned", result);
         }
       } else if (choice === "4" || choice === "5" || choice === "6") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("organization status updates");
+          await pause(rl);
+          continue;
+        }
         const companyId = await ask(rl, "Organization id: ");
         const reason = await ask(rl, "Reason (optional): ");
         const targetStatus = choice === "4" ? "SUSPENDED" : choice === "5" ? "ACTIVE" : "DISABLED";
@@ -1412,13 +1570,20 @@ async function runOrganizationsMenu(rl, actor) {
 
 async function runSubscriptionsMenu(rl, actor) {
   while (true) {
-    console.log("\nSubscriptions");
-    console.log("  1) List subscriptions");
-    console.log("  2) Set subscription status");
+    printMenuHeader("Subscriptions", actor, "Main > Subscriptions");
+    console.log(`  1) ${formatActionLabel("List subscriptions", READ_ACTION_LABEL)}`);
+    console.log(`  2) ${formatActionLabel("Set subscription status", WRITE_ACTION_LABEL)}`);
     console.log("  3) Back");
+    printMenuFooter({ includeBack: true });
 
-    const choice = await ask(rl, "Choose an option: ");
-    if (choice === "3") return;
+    const choice = normalizeMenuInput(await ask(rl, "Choose an option: "));
+    if (choice === "3" || isBackInput(choice)) return;
+    if (isQuitInput(choice)) return "quit";
+    if (isHelpInput(choice)) {
+      printSubscriptionsHelp();
+      await pause(rl);
+      continue;
+    }
 
     try {
       if (choice === "1") {
@@ -1436,6 +1601,11 @@ async function runSubscriptionsMenu(rl, actor) {
         });
         printTable("Subscriptions", rows);
       } else if (choice === "2") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("subscription status changes");
+          await pause(rl);
+          continue;
+        }
         const companyId = await ask(rl, "Company id: ");
         const status = await ask(rl, "Target status (trialing/active/past_due/canceled/expired): ");
         const reason = await ask(rl, "Reason (optional): ");
@@ -1468,13 +1638,20 @@ async function runSubscriptionsMenu(rl, actor) {
 
 async function runFeaturesMenu(rl, actor) {
   while (true) {
-    console.log("\nFeatures");
-    console.log("  1) List features");
-    console.log("  2) Set feature flag");
+    printMenuHeader("Features", actor, "Main > Features");
+    console.log(`  1) ${formatActionLabel("List features", READ_ACTION_LABEL)}`);
+    console.log(`  2) ${formatActionLabel("Set feature flag", WRITE_ACTION_LABEL)}`);
     console.log("  3) Back");
+    printMenuFooter({ includeBack: true });
 
-    const choice = await ask(rl, "Choose an option: ");
-    if (choice === "3") return;
+    const choice = normalizeMenuInput(await ask(rl, "Choose an option: "));
+    if (choice === "3" || isBackInput(choice)) return;
+    if (isQuitInput(choice)) return "quit";
+    if (isHelpInput(choice)) {
+      printFeaturesHelp();
+      await pause(rl);
+      continue;
+    }
 
     try {
       if (choice === "1") {
@@ -1482,6 +1659,11 @@ async function runFeaturesMenu(rl, actor) {
         const rows = await listFeatures({ companyId: companyId || undefined });
         printTable("Features", rows);
       } else if (choice === "2") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("feature updates");
+          await pause(rl);
+          continue;
+        }
         const companyId = await ask(rl, "Company id: ");
         console.log("Tip: feature keys are slug-like, for example: cctv-live, advanced-payroll");
         const featureKey = await ask(rl, "Feature key: ");
@@ -1519,15 +1701,22 @@ async function runFeaturesMenu(rl, actor) {
 
 async function runAdminsMenu(rl, actor) {
   while (true) {
-    console.log("\nAdmins");
-    console.log("  1) List admins");
-    console.log("  2) Create admin");
-    console.log("  3) Deactivate admin");
-    console.log("  4) Activate admin");
+    printMenuHeader("Admins", actor, "Main > Admins");
+    console.log(`  1) ${formatActionLabel("List admins", READ_ACTION_LABEL)}`);
+    console.log(`  2) ${formatActionLabel("Create admin", WRITE_ACTION_LABEL)}`);
+    console.log(`  3) ${formatActionLabel("Deactivate admin", WRITE_ACTION_LABEL)}`);
+    console.log(`  4) ${formatActionLabel("Activate admin", WRITE_ACTION_LABEL)}`);
     console.log("  5) Back");
+    printMenuFooter({ includeBack: true });
 
-    const choice = await ask(rl, "Choose an option: ");
-    if (choice === "5") return;
+    const choice = normalizeMenuInput(await ask(rl, "Choose an option: "));
+    if (choice === "5" || isBackInput(choice)) return;
+    if (isQuitInput(choice)) return "quit";
+    if (isHelpInput(choice)) {
+      printAdminsHelp();
+      await pause(rl);
+      continue;
+    }
 
     try {
       if (choice === "1") {
@@ -1547,6 +1736,11 @@ async function runAdminsMenu(rl, actor) {
         });
         printTable("Admins", mapAdminRowsForPrint(rows));
       } else if (choice === "2") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("admin creation");
+          await pause(rl);
+          continue;
+        }
         const companyId = await ask(rl, "Company id: ");
         const email = await ask(rl, "Email: ");
         const name = await ask(rl, "Name: ");
@@ -1570,6 +1764,11 @@ async function runAdminsMenu(rl, actor) {
           printObject("Admin created", result);
         }
       } else if (choice === "3" || choice === "4") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("admin status updates");
+          await pause(rl);
+          continue;
+        }
         const userId = await ask(rl, "Admin user id: ");
         const reason = await ask(rl, "Reason (optional): ");
         const isActive = choice === "4";
@@ -1596,13 +1795,20 @@ async function runAdminsMenu(rl, actor) {
 
 async function runAuditMenu(rl, actor) {
   while (true) {
-    console.log("\nAudit");
-    console.log("  1) List audit events");
-    console.log("  2) Add audit note");
+    printMenuHeader("Audit", actor, "Main > Audit");
+    console.log(`  1) ${formatActionLabel("List audit events", READ_ACTION_LABEL)}`);
+    console.log(`  2) ${formatActionLabel("Add audit note", WRITE_ACTION_LABEL)}`);
     console.log("  3) Back");
+    printMenuFooter({ includeBack: true });
 
-    const choice = await ask(rl, "Choose an option: ");
-    if (choice === "3") return;
+    const choice = normalizeMenuInput(await ask(rl, "Choose an option: "));
+    if (choice === "3" || isBackInput(choice)) return;
+    if (isQuitInput(choice)) return "quit";
+    if (isHelpInput(choice)) {
+      printAuditHelp();
+      await pause(rl);
+      continue;
+    }
 
     try {
       if (choice === "1") {
@@ -1622,6 +1828,11 @@ async function runAuditMenu(rl, actor) {
         });
         printTable("Audit events", mapAuditRowsForPrint(rows));
       } else if (choice === "2") {
+        if (isReadOnlyMode) {
+          printReadOnlyBlocked("audit note creation");
+          await pause(rl);
+          continue;
+        }
         const companyId = await ask(rl, "Company id: ");
         const message = await ask(rl, "Message: ");
         const ok = await confirm(rl, "About to append audit note.");
@@ -1650,27 +1861,38 @@ async function runInteractiveMode(actor) {
   const rl = createRl();
   try {
     while (true) {
-      console.log("\n=== Platform Management CLI ===");
-      console.log(`Actor: ${actor}`);
+      printMenuHeader("Platform Management CLI", actor, "Main");
       console.log("  1) Organizations");
       console.log("  2) Subscriptions");
       console.log("  3) Features");
       console.log("  4) Admins");
       console.log("  5) Audit");
       console.log("  6) Exit");
+      printMenuFooter({ includeBack: false });
 
-      const choice = await ask(rl, "Select section: ");
-      if (choice === "6") return;
+      const choice = normalizeMenuInput(await ask(rl, "Select section: "));
+      if (choice === "6" || isQuitInput(choice)) return;
+      if (isHelpInput(choice)) {
+        printMainHelp();
+        await pause(rl);
+        continue;
+      }
+
       if (choice === "1") {
-        await runOrganizationsMenu(rl, actor);
+        const result = await runOrganizationsMenu(rl, actor);
+        if (result === "quit") return;
       } else if (choice === "2") {
-        await runSubscriptionsMenu(rl, actor);
+        const result = await runSubscriptionsMenu(rl, actor);
+        if (result === "quit") return;
       } else if (choice === "3") {
-        await runFeaturesMenu(rl, actor);
+        const result = await runFeaturesMenu(rl, actor);
+        if (result === "quit") return;
       } else if (choice === "4") {
-        await runAdminsMenu(rl, actor);
+        const result = await runAdminsMenu(rl, actor);
+        if (result === "quit") return;
       } else if (choice === "5") {
-        await runAuditMenu(rl, actor);
+        const result = await runAuditMenu(rl, actor);
+        if (result === "quit") return;
       } else {
         console.log("Invalid option.");
       }
