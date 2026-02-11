@@ -4,7 +4,27 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
 import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { getTenantClaimsForCompany } from "@/lib/platform/tenant";
+import { hasActiveSubscription } from "@/lib/platform/subscription";
 import bcrypt from "bcryptjs";
+
+type PlatformJWT = JWT & {
+  id?: string;
+  role?: string;
+  companyId?: string;
+  companySlug?: string;
+  tenantStatus?: string;
+};
+
+function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
+  const normalizedStatus = rawStatus?.trim().toUpperCase();
+
+  if (normalizedStatus && normalizedStatus !== "ACTIVE") {
+    return normalizedStatus;
+  }
+
+  return subscriptionActive ? "ACTIVE" : "SUBSCRIPTION_INACTIVE";
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -64,28 +84,42 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      const extendedToken = token as JWT & {
-        id?: string;
-        role?: string;
-        companyId?: string;
-      };
+      const extendedToken = token as PlatformJWT;
+
       if (user) {
         const typedUser = user as { id: string; role?: string; companyId?: string };
         extendedToken.id = typedUser.id;
         extendedToken.role = typedUser.role;
         extendedToken.companyId = typedUser.companyId;
       }
+
+      if (extendedToken.companyId) {
+        const tenantClaims = await getTenantClaimsForCompany(extendedToken.companyId);
+        const subscriptionActive = await hasActiveSubscription(extendedToken.companyId);
+
+        extendedToken.companySlug = tenantClaims.companySlug;
+        extendedToken.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
+      }
+
       return extendedToken;
     },
     async session({ session, token }) {
       if (session.user) {
-        const typedToken = token as { id?: string; role?: string; companyId?: string };
+        const typedToken = token as PlatformJWT;
         session.user = {
           ...session.user,
           id: typedToken.id,
           role: typedToken.role,
           companyId: typedToken.companyId,
-        } as typeof session.user & { id?: string; role?: string; companyId?: string };
+          companySlug: typedToken.companySlug,
+          tenantStatus: typedToken.tenantStatus,
+        } as typeof session.user & {
+          id?: string;
+          role?: string;
+          companyId?: string;
+          companySlug?: string;
+          tenantStatus?: string;
+        };
       }
       return session;
     }
