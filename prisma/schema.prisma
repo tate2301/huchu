@@ -16,6 +16,11 @@ datasource db {
 model Company {
   id                   String             @id @default(uuid())
   name                 String
+  slug                 String             @unique
+  tenantStatus         TenantStatus       @default(PROVISIONING)
+  isProvisioned        Boolean            @default(false)
+  suspendedAt          DateTime?
+  disabledAt           DateTime?
   payrollCycle         PayrollCycle       @default(MONTHLY)
   goldPayoutCycle      PayrollCycle       @default(FORTNIGHTLY)
   goldSettlementMode   GoldSettlementMode @default(CURRENT_PERIOD)
@@ -39,6 +44,120 @@ model Company {
   approvalActions     ApprovalAction[]
   adjustmentEntries   AdjustmentEntry[]
   notifications       Notification[]
+  subscriptions       CompanySubscription[]
+  featureFlags        CompanyFeatureFlag[]
+  provisioningEvents  ProvisioningEvent[]
+
+  @@index([tenantStatus])
+  @@index([isProvisioned])
+}
+
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+model SubscriptionPlan {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String?
+  monthlyPrice Float
+  annualPrice  Float?
+  currency     String   @default("USD")
+  maxSites     Int?
+  maxUsers     Int?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions CompanySubscription[]
+
+  @@index([isActive])
+}
+
+model CompanySubscription {
+  id                     String             @id @default(uuid())
+  companyId              String
+  planId                 String
+  status                 SubscriptionStatus @default(TRIALING)
+  externalSubscriptionId String?            @unique
+  startedAt              DateTime           @default(now())
+  trialEndsAt            DateTime?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  canceledAt             DateTime?
+  endedAt                DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan    SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([companyId, status])
+  @@index([planId])
+  @@index([currentPeriodEnd])
+}
+
+model PlatformFeature {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyFlags CompanyFeatureFlag[]
+
+  @@index([isActive])
+}
+
+model CompanyFeatureFlag {
+  id        String   @id @default(uuid())
+  companyId String
+  featureId String
+  isEnabled Boolean  @default(true)
+  reason    String?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feature PlatformFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, featureId])
+  @@index([featureId])
+  @@index([companyId, isEnabled])
+}
+
+model ProvisioningEvent {
+  id          String   @id @default(uuid())
+  companyId   String
+  eventType   String
+  status      String   @default("PENDING")
+  message     String?
+  payloadJson String?
+  errorJson   String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([status])
 }
 
 model Site {
