@@ -17,12 +17,15 @@ export function FooterBar({
   readOnly,
 }: FooterBarProps) {
   return (
-    <Box borderStyle="single" paddingX={1} flexDirection="column">
+    <Box borderStyle="classic" paddingX={1} flexDirection="column">
       <Text>
-        Actor: {actor} | Context: {contextLabel} | Module: {moduleLabel} | Company:{' '}
-        {focusCompanyId ?? 'none'} | Mode: {readOnly ? 'read-only' : 'read-write'}
+        Actor: {actor} | Context: {contextLabel} | Module: {moduleLabel} | Company: {focusCompanyId ?? 'none'} |
+        Mode: {readOnly ? 'read-only' : 'read-write'}
       </Text>
-      <Text dimColor>↑/↓ modules  ←/→ pane  Enter select  / or p palette  g orgs  r mode  esc close  q quit</Text>
+      <Text dimColor>
+        Keys: Up/Down modules | Left/Right panes | Enter select | / or p palette | g orgs | r mode | Esc nav |
+        q or Ctrl+C quit
+      </Text>
     </Box>
   );
 }

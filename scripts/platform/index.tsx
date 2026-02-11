@@ -1,11 +1,18 @@
 #!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-import React from 'react';
-import { render } from 'ink';
+import React from "react";
+import { render } from "ink";
 
-import { PlatformApp, type PlatformAppProps } from './app';
+import { PlatformApp, type PlatformAppProps } from "./app";
+import { createPlatformServices } from "./services";
+import { AdminsModule } from "./modules/admins";
+import { AuditModule } from "./modules/audit";
+import { FeaturesModule } from "./modules/features";
+import { OrganizationsModule } from "./modules/organizations";
+import { SubscriptionsModule } from "./modules/subscriptions";
+import type { ModuleRenderProps } from "./components/types";
 
 function readArg(flag: string) {
   const index = process.argv.indexOf(flag);
@@ -32,25 +39,92 @@ function isDirectRun() {
 }
 
 export function runPlatformInkShell(overrides: Partial<PlatformAppProps> = {}) {
-  const actor = overrides.actor ?? readArg('--actor') ?? process.env.PLATFORM_ACTOR ?? 'operator@local';
-  const initialCompanyId = overrides.initialCompanyId ?? readArg('--company');
-  const initialReadOnly = overrides.initialReadOnly ?? hasFlag('--read-only');
-  const contextLabel = overrides.contextLabel ?? readArg('--context') ?? 'platform';
+  const initialReadOnly = overrides.initialReadOnly ?? hasFlag("--read-only");
+  const actor = overrides.actor ?? readArg("--actor") ?? process.env.PLATFORM_ACTOR ?? "";
+  if (!actor && !initialReadOnly) {
+    throw new Error("Missing required --actor <email> (unless --read-only is set).");
+  }
 
-  return render(
+  const resolvedActor = actor || "read-only@local";
+  const initialCompanyId =
+    overrides.initialCompanyId ?? readArg("--company-id") ?? readArg("--company");
+  const contextLabel = overrides.contextLabel ?? readArg("--context") ?? "platform";
+  const services = createPlatformServices();
+
+  const moduleMounts = {
+    orgs: (props: ModuleRenderProps) => (
+      <OrganizationsModule
+        actor={resolvedActor}
+        services={services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+      />
+    ),
+    subscriptions: (props: ModuleRenderProps) => (
+      <SubscriptionsModule
+        actor={resolvedActor}
+        services={services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+      />
+    ),
+    features: (props: ModuleRenderProps) => (
+      <FeaturesModule
+        actor={resolvedActor}
+        services={services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+      />
+    ),
+    admins: (props: ModuleRenderProps) => (
+      <AdminsModule
+        actor={resolvedActor}
+        services={services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+      />
+    ),
+    audit: (props: ModuleRenderProps) => (
+      <AuditModule
+        actor={resolvedActor}
+        services={services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+      />
+    ),
+  };
+
+  const app = render(
     <PlatformApp
-      actor={actor}
+      actor={resolvedActor}
       initialCompanyId={initialCompanyId}
       initialReadOnly={initialReadOnly}
       contextLabel={contextLabel}
       modules={overrides.modules}
-      moduleMounts={overrides.moduleMounts}
+      moduleMounts={overrides.moduleMounts ?? moduleMounts}
       initialModuleId={overrides.initialModuleId}
-      onQuit={overrides.onQuit}
+      onQuit={() => {
+        void services.disconnect();
+        overrides.onQuit?.();
+      }}
     />,
   );
+
+  void app.waitUntilExit().finally(async () => {
+    await services.disconnect();
+  });
+
+  return app;
 }
 
 if (isDirectRun()) {
-  runPlatformInkShell();
+  try {
+    runPlatformInkShell();
+  } catch (error) {
+    console.error(
+      "Error starting platform Ink shell:",
+      error instanceof Error ? error.message : String(error),
+    );
+    process.exitCode = 1;
+  }
 }

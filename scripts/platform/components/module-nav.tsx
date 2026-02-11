@@ -16,24 +16,26 @@ export function ModuleNav({ modules, selectedModuleId, cursorIndex, activePane }
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       <Text bold color={isPaneFocused ? 'cyan' : undefined}>
-        Modules
+        Module Nav {isPaneFocused ? '[FOCUSED]' : '[idle]'}
       </Text>
       <Box marginTop={1} flexDirection="column">
         {modules.map((module, index) => {
           const isSelected = module.id === selectedModuleId;
           const isCursor = index === cursorIndex;
-          const prefix = isCursor ? (isPaneFocused ? '>' : '*') : ' ';
-          const marker = isSelected ? '●' : ' ';
+          const prefix = isCursor ? (isPaneFocused ? '>>' : '->') : '  ';
+          const marker = isSelected ? '[active]' : '';
+          const shortcut = module.shortcut ? ` key:${module.shortcut}` : '';
 
           return (
             <Text key={module.id} color={isSelected ? 'green' : undefined}>
-              {prefix} {module.label} {marker}
+              {prefix} {module.label} {marker} {shortcut}
             </Text>
           );
         })}
       </Box>
-      <Box marginTop={1}>
-        <Text dimColor>Use ↑/↓ to move and Enter to select</Text>
+      <Box marginTop={1} flexDirection="column">
+        <Text dimColor>Keys: Up/Down move cursor, Enter selects module</Text>
+        <Text dimColor>Keys: Left/Right switch pane, Esc returns focus here</Text>
       </Box>
     </Box>
   );

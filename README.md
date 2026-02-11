@@ -234,13 +234,22 @@ pnpm manage-equipment create --equipment-code EQ001 --name "Crusher 1" --categor
 pnpm manage-equipment list --company-id <uuid> --active
 pnpm manage-equipment update --equipment-code EQ001 --site-id <uuid> --inactive
 
-# Platform management (interactive + command mode)
+# Platform management
+# Ink TUI app (default)
+pnpm platform --actor ops@huchu.com
+pnpm platform --actor ops@huchu.com --company-id <uuid>
+pnpm platform --actor ops@huchu.com --read-only
+
+# Legacy command mode (kept for automation)
 pnpm manage-platform --actor ops@huchu.com
 pnpm manage-platform org list --status active
 pnpm manage-platform org show --id <uuid>
 pnpm manage-platform org suspend --id <uuid> --actor ops@huchu.com --reason "compliance hold"
 pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "restored"
-pnpm platform --help
+
+# Ink TUI shortcuts
+# Up/Down select, Left/Right pane, Enter action
+# / or p command palette, g Organizations, r read-only toggle, q quit
 ```
 
 ## 📖 Deployment

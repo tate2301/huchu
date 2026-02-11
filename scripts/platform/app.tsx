@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 
 import { CommandPalette } from './components/command-palette';
@@ -44,6 +44,11 @@ const DEFAULT_MODULES: PlatformModuleDefinition[] = [
 ];
 
 const PANE_ORDER: AppPane[] = ['nav', 'main', 'inspector'];
+const PANE_LABEL: Record<AppPane, string> = {
+  nav: 'Module Nav',
+  main: 'Main Workspace',
+  inspector: 'Inspector',
+};
 
 interface ResolvedPaletteCommand extends PaletteCommand {
   run: () => void;
@@ -101,19 +106,14 @@ export function PlatformApp({
   const [activePane, setActivePane] = useState<AppPane>('nav');
   const [focusCompanyId, setFocusCompanyId] = useState<string | null>(initialCompanyId);
   const [readOnly, setReadOnly] = useState<boolean>(initialReadOnly);
-  const [statusMessage, setStatusMessage] = useState<string>('Ready');
+  const [statusMessage, setStatusMessage] = useState<string>('Ready. Press / to open the command palette.');
   const [isPaletteOpen, setPaletteOpen] = useState<boolean>(false);
   const [paletteQuery, setPaletteQuery] = useState<string>('');
   const [paletteIndex, setPaletteIndex] = useState<number>(0);
 
-  const selectedModule = moduleById.get(selectedModuleId)?.module ?? activeModules[0];
-
-  useEffect(() => {
-    if (!moduleById.has(selectedModuleId)) {
-      setSelectedModuleId(fallbackModuleId);
-      setCursorIndex(0);
-    }
-  }, [fallbackModuleId, moduleById, selectedModuleId]);
+  const maxCursorIndex = Math.max(0, activeModules.length - 1);
+  const effectiveCursorIndex = clamp(cursorIndex, 0, maxCursorIndex);
+  const selectedModule = moduleById.get(selectedModuleId)?.module ?? activeModules[effectiveCursorIndex] ?? activeModules[0];
 
   const quitShell = useCallback(() => {
     onQuit?.();
@@ -148,7 +148,11 @@ export function PlatformApp({
     setActivePane((current) => {
       const currentIndex = PANE_ORDER.indexOf(current);
       const nextIndex = clamp(currentIndex + direction, 0, PANE_ORDER.length - 1);
-      return PANE_ORDER[nextIndex];
+      const nextPane = PANE_ORDER[nextIndex];
+      if (nextPane !== current) {
+        setStatusMessage(`Focus moved to ${PANE_LABEL[nextPane]}`);
+      }
+      return nextPane;
     });
   }, []);
 
@@ -164,14 +168,14 @@ export function PlatformApp({
     setPaletteOpen(true);
     setPaletteQuery('');
     setPaletteIndex(0);
-    setStatusMessage('Command palette open');
+    setStatusMessage('Command palette opened. Type to filter commands.');
   }, []);
 
   const closePalette = useCallback(() => {
     setPaletteOpen(false);
     setPaletteQuery('');
     setPaletteIndex(0);
-    setStatusMessage('Command palette closed');
+    setStatusMessage('Command palette closed.');
   }, []);
 
   const normalizedQuery = paletteQuery.trim().toLowerCase();
@@ -243,25 +247,24 @@ export function PlatformApp({
     toggleReadOnly,
   ]);
 
-  useEffect(() => {
-    setPaletteIndex((current) => {
-      if (paletteCommands.length === 0) {
-        return 0;
-      }
-      return clamp(current, 0, paletteCommands.length - 1);
-    });
-  }, [paletteCommands.length]);
+  const maxPaletteIndex = Math.max(0, paletteCommands.length - 1);
+  const effectivePaletteIndex = clamp(paletteIndex, 0, maxPaletteIndex);
 
   const runPaletteSelection = useCallback(() => {
-    const command = paletteCommands[paletteIndex];
-    if (!command || command.disabled) {
+    const command = paletteCommands[effectivePaletteIndex];
+    if (!command) {
+      setStatusMessage('No command is selected.');
+      return;
+    }
+    if (command.disabled) {
+      setStatusMessage('Selected command is currently unavailable.');
       return;
     }
     command.run();
     setPaletteOpen(false);
     setPaletteQuery('');
     setPaletteIndex(0);
-  }, [paletteCommands, paletteIndex]);
+  }, [effectivePaletteIndex, paletteCommands]);
 
   useInput((input, key) => {
     if ((key.ctrl && input === 'c') || input === 'q') {
@@ -317,7 +320,7 @@ export function PlatformApp({
 
     if (key.escape) {
       setActivePane('nav');
-      setStatusMessage('Focus reset to navigation');
+      setStatusMessage('Focus moved to Module Nav.');
       return;
     }
 
@@ -332,17 +335,17 @@ export function PlatformApp({
     }
 
     if (key.upArrow) {
-      selectModuleByIndex(cursorIndex - 1);
+      selectModuleByIndex(effectiveCursorIndex - 1);
       return;
     }
 
     if (key.downArrow) {
-      selectModuleByIndex(cursorIndex + 1);
+      selectModuleByIndex(effectiveCursorIndex + 1);
       return;
     }
 
     if (key.return) {
-      selectModuleByIndex(cursorIndex);
+      selectModuleByIndex(effectiveCursorIndex);
     }
   });
 
@@ -359,15 +362,15 @@ export function PlatformApp({
   return (
     <Box flexDirection="column" width="100%" height="100%">
       <Box flexGrow={1}>
-        <Box width={32} borderStyle="single">
+        <Box width={32} borderStyle="classic">
           <ModuleNav
             modules={activeModules}
             selectedModuleId={selectedModule.id}
-            cursorIndex={cursorIndex}
+            cursorIndex={effectiveCursorIndex}
             activePane={activePane}
           />
         </Box>
-        <Box flexGrow={1} borderStyle="single" marginLeft={1}>
+        <Box flexGrow={1} borderStyle="classic" marginLeft={1}>
           <MainContent
             module={selectedModule}
             mount={activeMount}
@@ -376,7 +379,7 @@ export function PlatformApp({
             activePane={activePane}
           />
         </Box>
-        <Box width={44} borderStyle="single" marginLeft={1}>
+        <Box width={44} borderStyle="classic" marginLeft={1}>
           <InspectorPanel
             actor={actor}
             module={selectedModule}
@@ -392,7 +395,7 @@ export function PlatformApp({
         isOpen={isPaletteOpen}
         query={paletteQuery}
         commands={palettePresentation}
-        selectedIndex={paletteIndex}
+        selectedIndex={effectivePaletteIndex}
       />
       <Box marginTop={1}>
         <FooterBar

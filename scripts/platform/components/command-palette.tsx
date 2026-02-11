@@ -24,15 +24,15 @@ export function CommandPalette({ isOpen, query, commands, selectedIndex }: Comma
   const visible = commands.slice(start, start + WINDOW_SIZE);
 
   return (
-    <Box marginTop={1} borderStyle="double" flexDirection="column" paddingX={1} paddingY={1}>
+    <Box marginTop={1} borderStyle="classic" flexDirection="column" paddingX={1} paddingY={1}>
       <Text bold>Command Palette</Text>
-      <Text dimColor>Query: {query || '(type to filter)'}</Text>
+      <Text dimColor>Filter: {query || '(type to filter)'}</Text>
       <Box marginTop={1} flexDirection="column">
         {visible.length > 0 ? (
           visible.map((command, index) => {
             const absoluteIndex = start + index;
             const isSelected = absoluteIndex === selectedIndex;
-            const prefix = isSelected ? '>' : ' ';
+            const prefix = isSelected ? '>>' : '  ';
             const suffix = command.shortcut ? ` [${command.shortcut}]` : '';
 
             return (
@@ -47,7 +47,7 @@ export function CommandPalette({ isOpen, query, commands, selectedIndex }: Comma
           <Text dimColor>No matching commands.</Text>
         )}
       </Box>
-      <Text dimColor>Enter run • Esc close • Backspace edit query</Text>
+      <Text dimColor>Keys: Up/Down move, Enter run, Esc close, Backspace edit</Text>
     </Box>
   );
 }
