@@ -211,7 +211,8 @@ pnpm lint                # Run ESLint
 
 # Database
 pnpm prisma generate     # Generate Prisma client
-pnpm prisma db push      # Push schema to database
+pnpm db:prepare:platform # Backfill legacy Company rows for platform tenancy fields
+pnpm db:push             # Backfill + push schema to database
 pnpm prisma studio       # Open Prisma Studio GUI
 pnpm prisma migrate dev  # Create and apply migrations
 
