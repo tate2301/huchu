@@ -7,6 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { emitIncidentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const incidentSchema = z.object({
@@ -110,6 +111,20 @@ export async function POST(request: NextRequest) {
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    await emitIncidentNotification(prisma, {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      actorRole: session.user.role,
+      event: "CREATED",
+      incident: {
+        id: incident.id,
+        incidentType: incident.incidentType,
+        severity: incident.severity,
+        status: incident.status,
+        site: incident.site,
       },
     });
 

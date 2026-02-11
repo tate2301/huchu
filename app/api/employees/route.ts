@@ -8,6 +8,7 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { ensureApproverRole } from "@/lib/hr-payroll"
 
 const employeeSchema = z.object({
   name: z.string().min(1).max(200),
@@ -24,7 +25,25 @@ const employeeSchema = z.object({
     "CHEMIST",
     "MINERS",
   ]),
+  departmentId: z.string().uuid().optional(),
+  gradeId: z.string().uuid().optional(),
+  supervisorId: z.string().uuid().optional(),
+  employmentType: z
+    .enum(["FULL_TIME", "PART_TIME", "CONTRACT", "CASUAL"])
+    .optional(),
+  hireDate: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .optional(),
+  terminationDate: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .optional(),
+  defaultCurrency: z.string().min(1).max(10).optional(),
   isActive: z.boolean().optional(),
+  compensationTemplateId: z.string().uuid().optional(),
 })
 
 const EMPLOYEE_ID_PREFIX = "EMP-"
@@ -69,6 +88,8 @@ export async function GET(request: NextRequest) {
     const active = searchParams.get("active")
     const search = searchParams.get("search")
     const position = searchParams.get("position")
+    const departmentId = searchParams.get("departmentId")
+    const gradeId = searchParams.get("gradeId")
     const { page, limit, skip } = getPaginationParams(request)
 
     const where: Record<string, unknown> = {
@@ -77,6 +98,8 @@ export async function GET(request: NextRequest) {
 
     if (active !== null) where.isActive = active === "true"
     if (position) where.position = position
+    if (departmentId) where.departmentId = departmentId
+    if (gradeId) where.gradeId = gradeId
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -98,7 +121,17 @@ export async function GET(request: NextRequest) {
           passportPhotoUrl: true,
           villageOfOrigin: true,
           position: true,
+          departmentId: true,
+          gradeId: true,
+          supervisorId: true,
+          employmentType: true,
+          hireDate: true,
+          terminationDate: true,
+          defaultCurrency: true,
           isActive: true,
+          department: { select: { id: true, code: true, name: true } },
+          grade: { select: { id: true, code: true, name: true, rank: true } },
+          supervisor: { select: { id: true, employeeId: true, name: true } },
         },
         orderBy: { name: "asc" },
         skip,
@@ -170,23 +203,154 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = employeeSchema.parse(body)
 
+    const [department, grade, supervisor, compensationTemplate] = await Promise.all([
+      validated.departmentId
+        ? prisma.department.findUnique({
+            where: { id: validated.departmentId },
+            select: { companyId: true },
+          })
+        : Promise.resolve(null),
+      validated.gradeId
+        ? prisma.jobGrade.findUnique({
+            where: { id: validated.gradeId },
+            select: { companyId: true },
+          })
+        : Promise.resolve(null),
+      validated.supervisorId
+        ? prisma.employee.findUnique({
+            where: { id: validated.supervisorId },
+            select: { companyId: true },
+          })
+        : Promise.resolve(null),
+      validated.compensationTemplateId
+        ? prisma.compensationTemplate.findUnique({
+            where: { id: validated.compensationTemplateId },
+            include: {
+              rules: {
+                include: {
+                  compensationRule: true,
+                },
+                orderBy: { sortOrder: "asc" },
+              },
+            },
+          })
+        : Promise.resolve(null),
+    ])
+
+    if (department && department.companyId !== session.user.companyId) {
+      return errorResponse("Invalid department", 403)
+    }
+    if (grade && grade.companyId !== session.user.companyId) {
+      return errorResponse("Invalid grade", 403)
+    }
+    if (supervisor && supervisor.companyId !== session.user.companyId) {
+      return errorResponse("Invalid supervisor", 403)
+    }
+    if (compensationTemplate && compensationTemplate.companyId !== session.user.companyId) {
+      return errorResponse("Invalid compensation template", 403)
+    }
+    if (compensationTemplate && !compensationTemplate.isActive) {
+      return errorResponse("Selected compensation template is inactive", 400)
+    }
+    if (compensationTemplate && !ensureApproverRole(session)) {
+      return errorResponse(
+        "Only managers and superadmins can apply compensation templates during onboarding",
+        403,
+      )
+    }
+
     const employeeId = await generateEmployeeId(session.user.companyId)
-    const employee = await prisma.employee.create({
-      data: {
-        employeeId,
-        name: validated.name,
-        phone: validated.phone,
-        nextOfKinName: validated.nextOfKinName,
-        nextOfKinPhone: validated.nextOfKinPhone,
-        passportPhotoUrl: validated.passportPhotoUrl,
-        villageOfOrigin: validated.villageOfOrigin,
-        position: validated.position,
-        isActive: validated.isActive ?? true,
-        companyId: session.user.companyId,
-      },
+    const hireDate = validated.hireDate ? new Date(validated.hireDate) : undefined
+    const terminationDate = validated.terminationDate
+      ? new Date(validated.terminationDate)
+      : undefined
+
+    const result = await prisma.$transaction(async (tx) => {
+      const createdEmployee = await tx.employee.create({
+        data: {
+          employeeId,
+          name: validated.name,
+          phone: validated.phone,
+          nextOfKinName: validated.nextOfKinName,
+          nextOfKinPhone: validated.nextOfKinPhone,
+          passportPhotoUrl: validated.passportPhotoUrl,
+          villageOfOrigin: validated.villageOfOrigin,
+          position: validated.position,
+          departmentId: validated.departmentId,
+          gradeId: validated.gradeId,
+          supervisorId: validated.supervisorId,
+          employmentType: validated.employmentType ?? "FULL_TIME",
+          hireDate,
+          terminationDate,
+          defaultCurrency: validated.defaultCurrency ?? "USD",
+          isActive: validated.isActive ?? true,
+          companyId: session.user.companyId,
+        },
+      })
+
+      if (!compensationTemplate) {
+        return {
+          employee: createdEmployee,
+          compensationTemplateApplied: null,
+        }
+      }
+
+      const now = new Date()
+      const profile = await tx.compensationProfile.create({
+        data: {
+          employeeId: createdEmployee.id,
+          baseAmount: compensationTemplate.baseAmount,
+          currency: compensationTemplate.currency || createdEmployee.defaultCurrency,
+          effectiveFrom: hireDate ?? now,
+          status: "ACTIVE",
+          workflowStatus: "APPROVED",
+          notes: `Auto-applied from template ${compensationTemplate.name}.`,
+          createdById: session.user.id,
+          submittedById: session.user.id,
+          approvedById: session.user.id,
+          submittedAt: now,
+          approvedAt: now,
+        },
+      })
+
+      let rulesCreated = 0
+      for (const templateRule of compensationTemplate.rules) {
+        const sourceRule = templateRule.compensationRule
+        await tx.compensationRule.create({
+          data: {
+            companyId: session.user.companyId,
+            name: `${sourceRule.name} - ${createdEmployee.employeeId}`,
+            type: sourceRule.type,
+            calcMethod: sourceRule.calcMethod,
+            value: sourceRule.value,
+            cap: sourceRule.cap,
+            taxable: sourceRule.taxable,
+            currency: sourceRule.currency,
+            isActive: sourceRule.isActive,
+            workflowStatus: "APPROVED",
+            employeeId: createdEmployee.id,
+            createdById: session.user.id,
+            submittedById: session.user.id,
+            approvedById: session.user.id,
+            submittedAt: now,
+            approvedAt: now,
+          },
+        })
+        rulesCreated += 1
+      }
+
+      return {
+        employee: createdEmployee,
+        compensationTemplateApplied: {
+          id: compensationTemplate.id,
+          name: compensationTemplate.name,
+          profileId: profile.id,
+          rulesCreated,
+        },
+      }
     })
 
-    return successResponse(employee, 201)
+    return successResponse(result, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)

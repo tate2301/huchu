@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const parseNotes = (raw?: string | null) => {
   if (!raw) return "";
@@ -165,43 +166,43 @@ export default function StoresMovementsReportPage() {
             <div className="text-sm text-muted-foreground">No movement records found for the current filters.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Type</th>
-                    <th className="p-3 text-left font-semibold">Item</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-right font-semibold">Quantity</th>
-                    <th className="p-3 text-left font-semibold">Actor</th>
-                    <th className="p-3 text-left font-semibold">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Item</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-right font-semibold">Quantity</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Actor</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredRows.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy HH:mm")}</td>
-                      <td className="p-3">
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy HH:mm")}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={row.movementType === "ISSUE" ? "destructive" : "secondary"}>
                           {row.movementType}
                         </Badge>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <div className="font-semibold">{row.item.name}</div>
                         <div className="text-xs text-muted-foreground">{row.item.itemCode}</div>
-                      </td>
-                      <td className="p-3">{row.item.site.name}</td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3">{row.item.site.name}</TableCell>
+                      <TableCell className="p-3 text-right">
                         {row.quantity} {row.unit}
-                      </td>
-                      <td className="p-3">{row.approvedBy ?? row.requestedBy ?? row.issuedBy?.name ?? "-"}</td>
-                      <td className="max-w-56 truncate p-3" title={parseNotes(row.notes)}>
+                      </TableCell>
+                      <TableCell className="p-3">{row.approvedBy ?? row.requestedBy ?? row.issuedBy?.name ?? "-"}</TableCell>
+                      <TableCell className="max-w-56 truncate p-3" title={parseNotes(row.notes)}>
                         {parseNotes(row.notes) || "-"}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -209,4 +210,6 @@ export default function StoresMovementsReportPage() {
     </div>
   );
 }
+
+
 

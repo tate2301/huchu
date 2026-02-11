@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchPermits, fetchSites, type PermitRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type PermitForm = {
   id?: string;
@@ -228,34 +229,34 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
             <div className="text-sm text-muted-foreground">No permits found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Permit</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Issue</th>
-                    <th className="p-3 text-left font-semibold">Expiry</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                    <th className="p-3 text-right font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Permit</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Issue</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Expiry</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {permits.map((permit) => (
-                    <tr
+                    <TableRow
                       key={permit.id}
                       className={`border-b ${createdId === permit.id ? "bg-[var(--status-success-bg)]" : ""}`}
                     >
-                      <td className="p-3">
+                      <TableCell className="p-3">
                         <div className="font-semibold">{permit.permitType}</div>
                         <div className="text-xs text-muted-foreground">{permit.permitNumber}</div>
-                      </td>
-                      <td className="p-3">{permit.site.name}</td>
-                      <td className="p-3">{toDateInput(permit.issueDate)}</td>
-                      <td className="p-3">{toDateInput(permit.expiryDate)}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">{permit.site.name}</TableCell>
+                      <TableCell className="p-3">{toDateInput(permit.issueDate)}</TableCell>
+                      <TableCell className="p-3">{toDateInput(permit.expiryDate)}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={badgeVariant(permit.status)}>{permit.status}</Badge>
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             size="sm"
@@ -289,11 +290,11 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
                             Delete
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -428,3 +429,5 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
     </>
   );
 }
+
+

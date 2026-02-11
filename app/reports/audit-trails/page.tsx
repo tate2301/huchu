@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchGoldCorrections, fetchSites, fetchStockMovements, fetchWorkOrders } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type AuditRow = {
   id: string;
@@ -174,34 +175,34 @@ export default function AuditTrailsReportPage() {
             <div className="text-sm text-muted-foreground">No audit events for the selected filters.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Time</th>
-                    <th className="p-3 text-left font-semibold">Module</th>
-                    <th className="p-3 text-left font-semibold">Action</th>
-                    <th className="p-3 text-left font-semibold">Actor</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Details</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Time</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Module</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Action</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Actor</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredRows.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.at), "MMM d, yyyy HH:mm")}</td>
-                      <td className="p-3">
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.at), "MMM d, yyyy HH:mm")}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={row.module === "GOLD" ? "secondary" : row.module === "STORES" ? "outline" : "default"}>
                           {row.module}
                         </Badge>
-                      </td>
-                      <td className="p-3">{row.action}</td>
-                      <td className="p-3">{row.actor}</td>
-                      <td className="p-3">{row.site}</td>
-                      <td className="p-3">{row.details}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="p-3">{row.action}</TableCell>
+                      <TableCell className="p-3">{row.actor}</TableCell>
+                      <TableCell className="p-3">{row.site}</TableCell>
+                      <TableCell className="p-3">{row.details}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -209,4 +210,6 @@ export default function AuditTrailsReportPage() {
     </div>
   );
 }
+
+
 

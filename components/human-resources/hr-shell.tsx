@@ -4,9 +4,26 @@ import Link from "next/link"
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
 import { cn } from "@/lib/utils"
-import { type LucideIcon, UserRound, Wallet } from "@/lib/icons"
+import {
+  type LucideIcon,
+  Checklist,
+  Coins,
+  ManageAccounts,
+  Payments,
+  ShieldCheck,
+  UserRound,
+  Wallet,
+} from "@/lib/icons"
 
-export type HrTab = "employees" | "payouts" | "salaries"
+export type HrTab =
+  | "employees"
+  | "payouts"
+  | "salaries"
+  | "salary-outstanding"
+  | "compensation"
+  | "payroll"
+  | "disbursements"
+  | "approvals"
 
 type HrTabItem = {
   id: HrTab
@@ -16,9 +33,34 @@ type HrTabItem = {
 }
 
 const hrTabs: HrTabItem[] = [
-  { id: "employees", label: "Employees", href: "/human-resources", icon: UserRound },
-  { id: "payouts", label: "Payouts", href: "/human-resources/payouts", icon: Wallet },
-  { id: "salaries", label: "Fixed Salaries", href: "/human-resources/salaries", icon: Wallet },
+  { id: "employees", label: "Employees", href: "/human-resources", icon: ManageAccounts },
+  { id: "payouts", label: "Gold Payouts", href: "/human-resources/payouts", icon: Coins },
+  { id: "salaries", label: "Salary Ops", href: "/human-resources/salaries", icon: Payments },
+  {
+    id: "salary-outstanding",
+    label: "Outstanding Salaries",
+    href: "/human-resources/salaries/outstanding",
+    icon: Wallet,
+  },
+  {
+    id: "compensation",
+    label: "Compensation",
+    href: "/human-resources/compensation",
+    icon: UserRound,
+  },
+  { id: "payroll", label: "Payroll", href: "/human-resources/payroll", icon: Checklist },
+  {
+    id: "disbursements",
+    label: "Disbursements",
+    href: "/human-resources/disbursements",
+    icon: Wallet,
+  },
+  {
+    id: "approvals",
+    label: "Approvals",
+    href: "/human-resources/approvals",
+    icon: ShieldCheck,
+  },
 ]
 
 type HrShellProps = {

@@ -59,6 +59,7 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { EmployeePosition } from "@prisma/client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const maintenanceViews = [
   "dashboard",
@@ -1236,70 +1237,70 @@ export function MaintenanceContent({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left p-3 text-sm font-semibold">
+                <Table className="w-full">
+                  <TableHeader className="bg-muted">
+                    <TableRow>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Code
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Equipment Name
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Category
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         QR Code
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Last Service
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Next Service
-                      </th>
-                      <th className="text-right p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-right p-3 text-sm font-semibold">
                         Hours
-                      </th>
-                      <th className="text-center p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-center p-3 text-sm font-semibold">
                         Status
-                      </th>
-                      <th className="text-right p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-right p-3 text-sm font-semibold">
                         Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {equipmentLoading ? (
-                      <tr>
-                        <td colSpan={9} className="p-3">
+                      <TableRow>
+                        <TableCell colSpan={9} className="p-3">
                           <Skeleton className="h-10 w-full" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : equipment.length === 0 ? (
-                      <tr>
-                        <td
+                      <TableRow>
+                        <TableCell
                           colSpan={9}
                           className="p-3 text-sm text-muted-foreground"
                         >
                           No equipment found for this site.
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : (
                       equipment.map((item) => {
                         const statusInfo = equipmentStatus(item);
                         return (
-                          <tr
+                          <TableRow
                             key={item.id}
                             className="border-b hover:bg-muted/60"
                           >
-                            <td className="p-3 text-sm font-mono">
+                            <TableCell className="p-3 text-sm font-mono">
                               {item.equipmentCode}
-                            </td>
-                            <td className="p-3 text-sm font-semibold">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm font-semibold">
                               {item.name}
-                            </td>
-                            <td className="p-3 text-sm">{item.category}</td>
-                            <td className="p-3 text-sm">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">{item.category}</TableCell>
+                            <TableCell className="p-3 text-sm">
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1308,24 +1309,24 @@ export function MaintenanceContent({
                                 <QrCode className="h-4 w-4" />
                                 {item.qrCode || "—"}
                               </Button>
-                            </td>
-                            <td className="p-3 text-sm">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">
                               {formatDate(item.lastServiceDate)}
-                            </td>
-                            <td className="p-3 text-sm">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">
                               {formatDate(item.nextServiceDue)}
-                            </td>
-                            <td className="p-3 text-sm text-right font-semibold">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm text-right font-semibold">
                               {item.serviceHours
                                 ? `${item.serviceHours}h`
                                 : "—"}
-                            </td>
-                            <td className="p-3 text-center">
+                            </TableCell>
+                            <TableCell className="p-3 text-center">
                               <Badge className={statusInfo.className}>
                                 {statusInfo.label}
                               </Badge>
-                            </td>
-                            <td className="p-3 text-right">
+                            </TableCell>
+                            <TableCell className="p-3 text-right">
                               <div className="flex justify-end gap-2">
                                 <Button
                                   type="button"
@@ -1345,13 +1346,13 @@ export function MaintenanceContent({
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         );
                       })
                     )}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
 
               <Dialog
@@ -1627,53 +1628,53 @@ export function MaintenanceContent({
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left p-3 text-sm font-semibold">
+                <Table className="w-full">
+                  <TableHeader className="bg-muted">
+                    <TableRow>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Equipment
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Issue
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Technician
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Status
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Started
-                      </th>
-                      <th className="text-right p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-right p-3 text-sm font-semibold">
                         Downtime
-                      </th>
-                      <th className="text-right p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-right p-3 text-sm font-semibold">
                         Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {workOrdersLoading ? (
-                      <tr>
-                        <td colSpan={7} className="p-3">
+                      <TableRow>
+                        <TableCell colSpan={7} className="p-3">
                           <Skeleton className="h-10 w-full" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : workOrders.length === 0 ? (
-                      <tr>
-                        <td
+                      <TableRow>
+                        <TableCell
                           colSpan={7}
                           className="p-3 text-sm text-muted-foreground"
                         >
                           No work orders logged for this site.
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : (
                       workOrders.map((order) => {
                         const statusInfo = workOrderStatusInfo(order.status);
                         return (
-                          <tr
+                          <TableRow
                             key={order.id}
                             className={`border-b hover:bg-muted/60 ${
                               createdWorkOrderId === order.id
@@ -1681,7 +1682,7 @@ export function MaintenanceContent({
                                 : ""
                             }`}
                           >
-                            <td className="p-3 text-sm">
+                            <TableCell className="p-3 text-sm">
                               <div className="font-semibold">
                                 {order.equipment.name}
                               </div>
@@ -1689,27 +1690,27 @@ export function MaintenanceContent({
                                 {order.equipment.equipmentCode} |{" "}
                                 {order.equipment.site.code}
                               </div>
-                            </td>
-                            <td className="p-3 text-sm">{order.issue}</td>
-                            <td className="p-3 text-sm">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">{order.issue}</TableCell>
+                            <TableCell className="p-3 text-sm">
                               {order.technician?.name || "-"}
-                            </td>
-                            <td className="p-3 text-sm">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">
                               <Badge variant={statusInfo.variant}>
                                 {statusInfo.label}
                               </Badge>
-                            </td>
-                            <td className="p-3 text-sm">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">
                               {formatDateTime(order.downtimeStart)}
-                            </td>
-                            <td className="p-3 text-sm text-right">
+                            </TableCell>
+                            <TableCell className="p-3 text-sm text-right">
                               {getDowntimeHours(
                                 order.downtimeStart,
                                 order.downtimeEnd,
                               )}
                               h
-                            </td>
-                            <td className="p-3 text-right">
+                            </TableCell>
+                            <TableCell className="p-3 text-right">
                               <div className="flex flex-wrap justify-end gap-2">
                                 {order.status === "OPEN" ? (
                                   <Button
@@ -1783,13 +1784,13 @@ export function MaintenanceContent({
                                   Delete
                                 </Button>
                               </div>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         );
                       })
                     )}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
@@ -1913,64 +1914,64 @@ export function MaintenanceContent({
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left p-3 text-sm font-semibold">
+                <Table className="w-full">
+                  <TableHeader className="bg-muted">
+                    <TableRow>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Equipment
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Category
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Site
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         Due Date
-                      </th>
-                      <th className="text-right p-3 text-sm font-semibold">
+                      </TableHead>
+                      <TableHead className="text-right p-3 text-sm font-semibold">
                         Days Left
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {equipmentLoading ? (
-                      <tr>
-                        <td colSpan={5} className="p-3">
+                      <TableRow>
+                        <TableCell colSpan={5} className="p-3">
                           <Skeleton className="h-10 w-full" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : upcomingMaintenance.length === 0 ? (
-                      <tr>
-                        <td
+                      <TableRow>
+                        <TableCell
                           colSpan={5}
                           className="p-3 text-sm text-muted-foreground"
                         >
                           No upcoming maintenance within the next 90 days.
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ) : (
                       upcomingMaintenance.map((item) => (
-                        <tr
+                        <TableRow
                           key={item.equipment.id}
                           className="border-b hover:bg-muted/60"
                         >
-                          <td className="p-3 text-sm">
+                          <TableCell className="p-3 text-sm">
                             <div className="font-semibold">
                               {item.equipment.name}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {item.equipment.equipmentCode}
                             </div>
-                          </td>
-                          <td className="p-3 text-sm">
+                          </TableCell>
+                          <TableCell className="p-3 text-sm">
                             {item.equipment.category}
-                          </td>
-                          <td className="p-3 text-sm">
+                          </TableCell>
+                          <TableCell className="p-3 text-sm">
                             {item.equipment.site.code}
-                          </td>
-                          <td className="p-3 text-sm">{item.dueDate}</td>
-                          <td className="p-3 text-sm text-right">
+                          </TableCell>
+                          <TableCell className="p-3 text-sm">{item.dueDate}</TableCell>
+                          <TableCell className="p-3 text-sm text-right">
                             <Badge
                               variant={
                                 item.daysUntil < 14
@@ -1980,12 +1981,12 @@ export function MaintenanceContent({
                             >
                               {item.daysUntil} days
                             </Badge>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))
                     )}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
@@ -2530,3 +2531,5 @@ export function MaintenanceContent({
     </MaintenanceShell>
   );
 }
+
+

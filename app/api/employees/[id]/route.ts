@@ -21,6 +21,25 @@ const employeeUpdateSchema = z
         "MINERS",
       ])
       .optional(),
+    departmentId: z.string().uuid().nullable().optional(),
+    gradeId: z.string().uuid().nullable().optional(),
+    supervisorId: z.string().uuid().nullable().optional(),
+    employmentType: z
+      .enum(["FULL_TIME", "PART_TIME", "CONTRACT", "CASUAL"])
+      .optional(),
+    hireDate: z
+      .string()
+      .datetime()
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+      .nullable()
+      .optional(),
+    terminationDate: z
+      .string()
+      .datetime()
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+      .nullable()
+      .optional(),
+    defaultCurrency: z.string().min(1).max(10).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
@@ -50,8 +69,18 @@ export async function GET(
         passportPhotoUrl: true,
         villageOfOrigin: true,
         position: true,
+        departmentId: true,
+        gradeId: true,
+        supervisorId: true,
+        employmentType: true,
+        hireDate: true,
+        terminationDate: true,
+        defaultCurrency: true,
         isActive: true,
         companyId: true,
+        department: { select: { id: true, code: true, name: true } },
+        grade: { select: { id: true, code: true, name: true, rank: true } },
+        supervisor: { select: { id: true, employeeId: true, name: true } },
       },
     })
 
@@ -96,9 +125,46 @@ export async function PATCH(
       return errorResponse("Forbidden", 403)
     }
 
+    const [department, grade, supervisor] = await Promise.all([
+      validated.departmentId
+        ? prisma.department.findUnique({
+            where: { id: validated.departmentId },
+            select: { companyId: true },
+          })
+        : Promise.resolve(null),
+      validated.gradeId
+        ? prisma.jobGrade.findUnique({
+            where: { id: validated.gradeId },
+            select: { companyId: true },
+          })
+        : Promise.resolve(null),
+      validated.supervisorId
+        ? prisma.employee.findUnique({
+            where: { id: validated.supervisorId },
+            select: { companyId: true },
+          })
+        : Promise.resolve(null),
+    ])
+
+    if (department && department.companyId !== session.user.companyId) {
+      return errorResponse("Invalid department", 403)
+    }
+    if (grade && grade.companyId !== session.user.companyId) {
+      return errorResponse("Invalid grade", 403)
+    }
+    if (supervisor && supervisor.companyId !== session.user.companyId) {
+      return errorResponse("Invalid supervisor", 403)
+    }
+
     const employee = await prisma.employee.update({
       where: { id },
-      data: validated,
+      data: {
+        ...validated,
+        hireDate: validated.hireDate ? new Date(validated.hireDate) : validated.hireDate,
+        terminationDate: validated.terminationDate
+          ? new Date(validated.terminationDate)
+          : validated.terminationDate,
+      },
     })
 
     return successResponse(employee)

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { fetchGoldReceipts } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldSettlementReceiptsPage() {
   const searchParams = useSearchParams();
@@ -89,33 +90,35 @@ export default function GoldSettlementReceiptsPage() {
         }
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-3 text-left font-semibold">Date</th>
-                <th className="p-3 text-left font-semibold">Sale No.</th>
-                <th className="p-3 text-left font-semibold">Batch</th>
-                <th className="p-3 text-left font-semibold">Method</th>
-                <th className="p-3 text-right font-semibold">Paid Amount</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Sale No.</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Batch</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Method</TableHead>
+                <TableHead className="p-3 text-right font-semibold">Paid Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filtered.map((receipt) => (
-                <tr
+                <TableRow
                   key={receipt.id}
                   className={`border-b ${createdId === receipt.id ? "bg-[var(--status-success-bg)]" : ""}`}
                 >
-                  <td className="p-3">{new Date(receipt.receiptDate).toLocaleString()}</td>
-                  <td className="p-3 font-medium">{receipt.receiptNumber}</td>
-                  <td className="p-3">{receipt.goldDispatch.goldPour.pourBarId}</td>
-                  <td className="p-3">{receipt.paymentMethod}</td>
-                  <td className="p-3 text-right">{receipt.paidAmount.toFixed(3)} g</td>
-                </tr>
+                  <TableCell className="p-3">{new Date(receipt.receiptDate).toLocaleString()}</TableCell>
+                  <TableCell className="p-3 font-medium">{receipt.receiptNumber}</TableCell>
+                  <TableCell className="p-3">{receipt.goldDispatch.goldPour.pourBarId}</TableCell>
+                  <TableCell className="p-3">{receipt.paymentMethod}</TableCell>
+                  <TableCell className="p-3 text-right">{receipt.paidAmount.toFixed(3)} g</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </DataListShell>
     </GoldShell>
   );
 }
+
+

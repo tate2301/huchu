@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchAttendance, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AttendanceHistoryPage() {
   const { toast } = useToast();
@@ -163,20 +164,20 @@ export default function AttendanceHistoryPage() {
             <div className="text-sm text-muted-foreground">No attendance records for this range.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Shift</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Employee</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                    <th className="p-3 text-left font-semibold">Overtime</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Shift</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Employee</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Overtime</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {attendanceRecords.map((record) => (
-                    <tr
+                    <TableRow
                       key={record.id}
                       className={`border-b ${
                         createdId &&
@@ -190,19 +191,19 @@ export default function AttendanceHistoryPage() {
                           : ""
                       }`}
                     >
-                      <td className="p-3">{format(new Date(record.date), "MMM d, yyyy")}</td>
-                      <td className="p-3">{record.shift}</td>
-                      <td className="p-3">{record.site?.name}</td>
-                      <td className="p-3">
+                      <TableCell className="p-3">{format(new Date(record.date), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">{record.shift}</TableCell>
+                      <TableCell className="p-3">{record.site?.name}</TableCell>
+                      <TableCell className="p-3">
                         <div className="font-semibold">{record.employee?.name}</div>
                         <div className="text-xs text-muted-foreground">{record.employee?.employeeId}</div>
-                      </td>
-                      <td className="p-3">{record.status}</td>
-                      <td className="p-3">{record.overtime ?? "-"}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="p-3">{record.status}</TableCell>
+                      <TableCell className="p-3">{record.overtime ?? "-"}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -251,3 +252,5 @@ export default function AttendanceHistoryPage() {
     </div>
   );
 }
+
+

@@ -7,6 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { emitPermitRiskNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const permitSchema = z.object({
@@ -106,6 +107,20 @@ export async function POST(request: NextRequest) {
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    await emitPermitRiskNotification(prisma, {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      actorRole: session.user.role,
+      permit: {
+        id: permit.id,
+        permitNumber: permit.permitNumber,
+        permitType: permit.permitType,
+        status: permit.status,
+        expiryDate: permit.expiryDate,
+        site: permit.site,
       },
     });
 

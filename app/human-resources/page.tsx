@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "next/navigation"
 import { Pencil, Plus, Trash2 } from "@/lib/icons"
 
 import { HrShell } from "@/components/human-resources/hr-shell"
@@ -20,8 +21,15 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchEmployees } from "@/lib/api"
+import {
+  fetchCompensationTemplates,
+  fetchDepartments,
+  fetchEmployees,
+  fetchJobGrades,
+  type EmployeeSummary,
+} from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 const employeePositions = [
   { value: "MANAGER", label: "Manager" },
@@ -32,7 +40,15 @@ const employeePositions = [
   { value: "MINERS", label: "Miners" },
 ] as const
 
+const employmentTypes = [
+  { value: "FULL_TIME", label: "Full Time" },
+  { value: "PART_TIME", label: "Part Time" },
+  { value: "CONTRACT", label: "Contract" },
+  { value: "CASUAL", label: "Casual" },
+] as const
+
 type EmployeePosition = (typeof employeePositions)[number]["value"]
+type EmploymentType = (typeof employmentTypes)[number]["value"]
 
 type EmployeeForm = {
   name: string
@@ -42,6 +58,14 @@ type EmployeeForm = {
   passportPhotoUrl: string
   villageOfOrigin: string
   position: EmployeePosition
+  departmentId: string
+  gradeId: string
+  supervisorId: string
+  employmentType: EmploymentType
+  compensationTemplateId: string
+  hireDate: string
+  terminationDate: string
+  defaultCurrency: string
   isActive: boolean
 }
 
@@ -53,11 +77,20 @@ const emptyEmployee: EmployeeForm = {
   passportPhotoUrl: "",
   villageOfOrigin: "",
   position: "MINERS",
+  departmentId: "",
+  gradeId: "",
+  supervisorId: "",
+  employmentType: "FULL_TIME",
+  compensationTemplateId: "",
+  hireDate: "",
+  terminationDate: "",
+  defaultCurrency: "USD",
   isActive: true,
 }
 
 export default function HumanResourcesPage() {
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState<EmployeeForm>(emptyEmployee)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -78,13 +111,46 @@ export default function HumanResourcesPage() {
       }),
   })
 
+  const { data: departmentsData, error: departmentsError } = useQuery({
+    queryKey: ["departments", "hr"],
+    queryFn: () => fetchDepartments({ active: true, limit: 500 }),
+  })
+
+  const { data: gradesData, error: gradesError } = useQuery({
+    queryKey: ["job-grades", "hr"],
+    queryFn: () => fetchJobGrades({ active: true, limit: 500 }),
+  })
+  const { data: templatesData, error: templatesError } = useQuery({
+    queryKey: ["compensation-templates", "hr"],
+    queryFn: () => fetchCompensationTemplates({ active: true, limit: 500 }),
+  })
+
   const employees = useMemo(() => data?.data ?? [], [data])
+  const departments = useMemo(() => departmentsData?.data ?? [], [departmentsData])
+  const grades = useMemo(() => gradesData?.data ?? [], [gradesData])
+  const templates = useMemo(() => templatesData?.data ?? [], [templatesData])
+
+  const toEmployeePayload = (
+    payload: EmployeeForm,
+    options?: { includeTemplate?: boolean },
+  ) => ({
+    ...payload,
+    departmentId: payload.departmentId || undefined,
+    gradeId: payload.gradeId || undefined,
+    supervisorId: payload.supervisorId || undefined,
+    compensationTemplateId: options?.includeTemplate
+      ? payload.compensationTemplateId || undefined
+      : undefined,
+    hireDate: payload.hireDate || undefined,
+    terminationDate: payload.terminationDate || undefined,
+    defaultCurrency: payload.defaultCurrency || "USD",
+  })
 
   const createEmployeeMutation = useMutation({
     mutationFn: async (payload: EmployeeForm) =>
       fetchJson("/api/employees", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(toEmployeePayload(payload, { includeTemplate: true })),
       }),
     onSuccess: () => {
       toast({
@@ -110,7 +176,7 @@ export default function HumanResourcesPage() {
     mutationFn: async ({ id, payload }: { id: string; payload: EmployeeForm }) =>
       fetchJson(`/api/employees/${id}`, {
         method: "PATCH",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(toEmployeePayload(payload)),
       }),
     onSuccess: () => {
       toast({
@@ -165,7 +231,31 @@ export default function HumanResourcesPage() {
     setFormData((prev) => ({ ...prev, position: value as EmployeeForm["position"] }))
   }
 
-  const uploadPassportPhoto = async (_file: File) => {
+  const handleSelectDepartment = (value: string) => {
+    setFormData((prev) => ({ ...prev, departmentId: value === "none" ? "" : value }))
+  }
+
+  const handleSelectGrade = (value: string) => {
+    setFormData((prev) => ({ ...prev, gradeId: value === "none" ? "" : value }))
+  }
+
+  const handleSelectSupervisor = (value: string) => {
+    setFormData((prev) => ({ ...prev, supervisorId: value === "none" ? "" : value }))
+  }
+
+  const handleSelectEmploymentType = (value: string) => {
+    setFormData((prev) => ({ ...prev, employmentType: value as EmploymentType }))
+  }
+
+  const handleSelectCompensationTemplate = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      compensationTemplateId: value === "none" ? "" : value,
+    }))
+  }
+
+  const uploadPassportPhoto = async (file: File) => {
+    void file
     return "https://placehold.co/240x320?text=Passport"
   }
 
@@ -224,7 +314,7 @@ export default function HumanResourcesPage() {
     }
   }
 
-  const handleEdit = (employee: EmployeeForm & { id: string }) => {
+  const handleEdit = (employee: EmployeeSummary) => {
     setEditingId(employee.id)
     setFormData({
       name: employee.name,
@@ -233,7 +323,15 @@ export default function HumanResourcesPage() {
       nextOfKinPhone: employee.nextOfKinPhone,
       passportPhotoUrl: employee.passportPhotoUrl,
       villageOfOrigin: employee.villageOfOrigin,
-      position: employee.position,
+      position: employee.position as EmployeePosition,
+      departmentId: employee.departmentId ?? "",
+      gradeId: employee.gradeId ?? "",
+      supervisorId: employee.supervisorId ?? "",
+      employmentType: employee.employmentType ?? "FULL_TIME",
+      compensationTemplateId: "",
+      hireDate: employee.hireDate ? String(employee.hireDate).slice(0, 10) : "",
+      terminationDate: employee.terminationDate ? String(employee.terminationDate).slice(0, 10) : "",
+      defaultCurrency: employee.defaultCurrency ?? "USD",
       isActive: employee.isActive,
     })
     setFormOpen(true)
@@ -253,7 +351,11 @@ export default function HumanResourcesPage() {
   }
 
   const openNewEmployee = () => {
+    const templateId = searchParams.get("templateId")
     resetForm()
+    if (templateId) {
+      setFormData((prev) => ({ ...prev, compensationTemplateId: templateId }))
+    }
     setFormOpen(true)
   }
 
@@ -275,10 +377,12 @@ export default function HumanResourcesPage() {
       }
       description="Employee records and attendance roster"
     >
-      {error && (
+      {(error || departmentsError || gradesError || templatesError) && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load employees</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(error || departmentsError || gradesError || templatesError)}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -336,6 +440,129 @@ export default function HumanResourcesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Department</label>
+                <Select
+                  value={formData.departmentId || "none"}
+                  onValueChange={handleSelectDepartment}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No department</SelectItem>
+                    {departments.map((department) => (
+                      <SelectItem key={department.id} value={department.id}>
+                        {department.code} - {department.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Grade</label>
+                <Select value={formData.gradeId || "none"} onValueChange={handleSelectGrade}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No grade</SelectItem>
+                    {grades.map((grade) => (
+                      <SelectItem key={grade.id} value={grade.id}>
+                        {grade.code} - {grade.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Supervisor</label>
+                <Select
+                  value={formData.supervisorId || "none"}
+                  onValueChange={handleSelectSupervisor}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select supervisor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No supervisor</SelectItem>
+                    {employees
+                      .filter((employee) => !editingId || employee.id !== editingId)
+                      .map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name} ({employee.employeeId})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Employment Type</label>
+                <Select value={formData.employmentType} onValueChange={handleSelectEmploymentType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employmentTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Hire Date</label>
+                <Input
+                  type="date"
+                  value={formData.hireDate}
+                  onChange={handleChange("hireDate")}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Termination Date</label>
+                <Input
+                  type="date"
+                  value={formData.terminationDate}
+                  onChange={handleChange("terminationDate")}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Currency</label>
+                <Input
+                  value={formData.defaultCurrency}
+                  onChange={handleChange("defaultCurrency")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Compensation Template</label>
+              <Select
+                value={formData.compensationTemplateId || "none"}
+                onValueChange={handleSelectCompensationTemplate}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select compensation template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No template</SelectItem>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name} ({template.currency} {template.baseAmount.toFixed(2)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Applying a template creates a compensation profile and employee-scoped approved rules.
+              </p>
             </div>
 
             <div>
@@ -451,37 +678,39 @@ export default function HumanResourcesPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3 text-sm font-semibold">Employee</th>
-                  <th className="text-left p-3 text-sm font-semibold">Contact</th>
-                  <th className="text-left p-3 text-sm font-semibold">Position</th>
-                  <th className="text-left p-3 text-sm font-semibold">Next of Kin</th>
-                  <th className="text-left p-3 text-sm font-semibold">Village</th>
-                  <th className="text-left p-3 text-sm font-semibold">Gold Owed</th>
-                  <th className="text-left p-3 text-sm font-semibold">Salary Owed</th>
-                  <th className="text-center p-3 text-sm font-semibold">Status</th>
-                  <th className="text-right p-3 text-sm font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Employee</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Contact</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Position</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Org</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Employment</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Next of Kin</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Village</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Gold Owed</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Salary Owed</TableHead>
+                  <TableHead className="text-center p-3 text-sm font-semibold">Status</TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={9} className="p-3">
+                  <TableRow>
+                    <TableCell colSpan={11} className="p-3">
                       <Skeleton className="h-10 w-full" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : employees.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-3 text-sm text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={11} className="p-3 text-sm text-muted-foreground">
                       No employees found.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   employees.map((employee) => (
-                    <tr key={employee.id} className="border-b hover:bg-muted/60">
-                      <td className="p-3 text-sm">
+                    <TableRow key={employee.id} className="border-b hover:bg-muted/60">
+                      <TableCell className="p-3 text-sm">
                         <div className="flex items-center gap-3">
                           <img
                             src={employee.passportPhotoUrl}
@@ -495,33 +724,60 @@ export default function HumanResourcesPage() {
                             </div>
                           </div>
                         </div>
-                      </td>
-                      <td className="p-3 text-sm">{employee.phone}</td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">{employee.phone}</TableCell>
+                      <TableCell className="p-3 text-sm">
                         {employeePositions.find((position) => position.value === employee.position)
                           ?.label ?? employee.position}
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
+                        <div className="font-semibold">
+                          {employee.department
+                            ? `${employee.department.code} - ${employee.department.name}`
+                            : "-"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {employee.grade
+                            ? `${employee.grade.code} - ${employee.grade.name}`
+                            : "No grade"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
+                        <div className="font-semibold">
+                          {employmentTypes.find((type) => type.value === employee.employmentType)
+                            ?.label ?? employee.employmentType}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Hire:{" "}
+                          {employee.hireDate
+                            ? String(employee.hireDate).slice(0, 10)
+                            : "-"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Currency: {employee.defaultCurrency ?? "USD"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         <div className="font-semibold">{employee.nextOfKinName}</div>
                         <div className="text-xs text-muted-foreground">
                           {employee.nextOfKinPhone}
                         </div>
-                      </td>
-                      <td className="p-3 text-sm">{employee.villageOfOrigin}</td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">{employee.villageOfOrigin}</TableCell>
+                      <TableCell className="p-3 text-sm">
                         <div className="font-semibold">{employee.goldOwed.toFixed(3)} g</div>
                         <div className="text-xs text-muted-foreground">Outstanding gold</div>
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         <div className="font-semibold">${employee.salaryOwed.toFixed(2)}</div>
                         <div className="text-xs text-muted-foreground">Outstanding salary</div>
-                      </td>
-                      <td className="p-3 text-center">
+                      </TableCell>
+                      <TableCell className="p-3 text-center">
                         <Badge variant={employee.isActive ? "secondary" : "destructive"}>
                           {employee.isActive ? "Active" : "Inactive"}
                         </Badge>
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             type="button"
@@ -541,15 +797,17 @@ export default function HumanResourcesPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
     </HrShell>
   )
 }
+
+

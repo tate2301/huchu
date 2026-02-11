@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInventoryItems, fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function FuelLedgerReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -144,39 +145,39 @@ export default function FuelLedgerReportPage() {
             <div className="text-sm text-muted-foreground">No fuel movements for the selected filters.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Type</th>
-                    <th className="p-3 text-left font-semibold">Item</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-right font-semibold">Quantity</th>
-                    <th className="p-3 text-left font-semibold">Issued To</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Item</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-right font-semibold">Quantity</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Issued To</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredMovements.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy HH:mm")}</td>
-                      <td className="p-3">
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy HH:mm")}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={row.movementType === "ISSUE" ? "destructive" : "secondary"}>
                           {row.movementType}
                         </Badge>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <div className="font-semibold">{row.item.name}</div>
                         <div className="text-xs text-muted-foreground">{row.item.itemCode}</div>
-                      </td>
-                      <td className="p-3">{row.item.site.name}</td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3">{row.item.site.name}</TableCell>
+                      <TableCell className="p-3 text-right">
                         {row.quantity} {row.unit}
-                      </td>
-                      <td className="p-3">{row.issuedTo ?? "-"}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="p-3">{row.issuedTo ?? "-"}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -184,4 +185,6 @@ export default function FuelLedgerReportPage() {
     </div>
   );
 }
+
+
 

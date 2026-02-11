@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { fetchGoldDispatches, fetchGoldReceipts } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldTransitDispatchesPage() {
   const searchParams = useSearchParams();
@@ -102,40 +103,42 @@ export default function GoldTransitDispatchesPage() {
         }
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-3 text-left font-semibold">Date</th>
-                <th className="p-3 text-left font-semibold">Batch</th>
-                <th className="p-3 text-left font-semibold">Courier</th>
-                <th className="p-3 text-left font-semibold">Destination</th>
-                <th className="p-3 text-left font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Batch</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Courier</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Destination</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filtered.map((dispatch) => {
                 const settled = settledDispatchIds.has(dispatch.id);
                 return (
-                  <tr
+                  <TableRow
                     key={dispatch.id}
                     className={`border-b ${createdId === dispatch.id ? "bg-[var(--status-success-bg)]" : ""}`}
                   >
-                    <td className="p-3">{new Date(dispatch.dispatchDate).toLocaleString()}</td>
-                    <td className="p-3 font-medium">{dispatch.goldPour.pourBarId}</td>
-                    <td className="p-3">{dispatch.courier}</td>
-                    <td className="p-3">{dispatch.destination}</td>
-                    <td className="p-3">
+                    <TableCell className="p-3">{new Date(dispatch.dispatchDate).toLocaleString()}</TableCell>
+                    <TableCell className="p-3 font-medium">{dispatch.goldPour.pourBarId}</TableCell>
+                    <TableCell className="p-3">{dispatch.courier}</TableCell>
+                    <TableCell className="p-3">{dispatch.destination}</TableCell>
+                    <TableCell className="p-3">
                       <Badge variant={settled ? "default" : "secondary"}>
                         {settled ? "Settled" : "Awaiting sale"}
                       </Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </DataListShell>
     </GoldShell>
   );
 }
+
+

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { emitWorkOrderStatusNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const updateWorkOrderSchema = z.object({
@@ -22,7 +23,7 @@ const updateWorkOrderSchema = z.object({
   status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
 });
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
 async function getWorkOrderForCompany(id: string, companyId: string) {
   const workOrder = await prisma.workOrder.findUnique({
@@ -49,14 +50,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getWorkOrderForCompany(params.id, session.user.companyId);
+    const existing = await getWorkOrderForCompany(id, session.user.companyId);
     if (!existing) {
       return errorResponse("Work order not found", 404);
     }
 
     const workOrder = await prisma.workOrder.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         equipment: {
           include: {
@@ -79,8 +81,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getWorkOrderForCompany(params.id, session.user.companyId);
+    const existing = await getWorkOrderForCompany(id, session.user.companyId);
     if (!existing) {
       return errorResponse("Work order not found", 404);
     }
@@ -113,7 +116,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           : undefined;
 
     const updated = await prisma.workOrder.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         issue: validated.issue,
         downtimeStart: validated.downtimeStart ? new Date(validated.downtimeStart) : undefined,
@@ -136,6 +139,24 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    if (validated.status && validated.status !== existing.status) {
+      await emitWorkOrderStatusNotification(prisma, {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        actorRole: session.user.role,
+        workOrder: {
+          id: updated.id,
+          issue: updated.issue,
+          status: updated.status,
+          equipment: {
+            id: updated.equipment.id,
+            equipmentCode: updated.equipment.equipmentCode,
+            name: updated.equipment.name,
+          },
+        },
+      });
+    }
+
     return successResponse(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -151,14 +172,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getWorkOrderForCompany(params.id, session.user.companyId);
+    const existing = await getWorkOrderForCompany(id, session.user.companyId);
     if (!existing) {
       return errorResponse("Work order not found", 404);
     }
 
     await prisma.workOrder.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return successResponse({ success: true });

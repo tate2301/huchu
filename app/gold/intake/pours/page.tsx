@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { fetchGoldPours } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldIntakePoursPage() {
   const searchParams = useSearchParams();
@@ -84,33 +85,35 @@ export default function GoldIntakePoursPage() {
         }
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-3 text-left font-semibold">Date</th>
-                <th className="p-3 text-left font-semibold">Batch ID</th>
-                <th className="p-3 text-left font-semibold">Site</th>
-                <th className="p-3 text-left font-semibold">Storage</th>
-                <th className="p-3 text-right font-semibold">Gross Weight</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Batch ID</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Storage</TableHead>
+                <TableHead className="p-3 text-right font-semibold">Gross Weight</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filtered.map((pour) => (
-                <tr
+                <TableRow
                   key={pour.id}
                   className={`border-b ${createdId === pour.id ? "bg-[var(--status-success-bg)]" : ""}`}
                 >
-                  <td className="p-3">{new Date(pour.pourDate).toLocaleString()}</td>
-                  <td className="p-3 font-medium">{pour.pourBarId}</td>
-                  <td className="p-3">{pour.site.name}</td>
-                  <td className="p-3">{pour.storageLocation}</td>
-                  <td className="p-3 text-right">{pour.grossWeight.toFixed(3)} g</td>
-                </tr>
+                  <TableCell className="p-3">{new Date(pour.pourDate).toLocaleString()}</TableCell>
+                  <TableCell className="p-3 font-medium">{pour.pourBarId}</TableCell>
+                  <TableCell className="p-3">{pour.site.name}</TableCell>
+                  <TableCell className="p-3">{pour.storageLocation}</TableCell>
+                  <TableCell className="p-3 text-right">{pour.grossWeight.toFixed(3)} g</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </DataListShell>
     </GoldShell>
   );
 }
+
+

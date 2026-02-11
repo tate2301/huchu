@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchEquipment, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function MaintenanceEquipmentReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -83,44 +84,44 @@ export default function MaintenanceEquipmentReportPage() {
             <div className="text-sm text-muted-foreground">No equipment records found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Code</th>
-                    <th className="p-3 text-left font-semibold">Name</th>
-                    <th className="p-3 text-left font-semibold">Category</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Last Service</th>
-                    <th className="p-3 text-left font-semibold">Next Service</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Code</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Name</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Category</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Last Service</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Next Service</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rows.map((row) => {
                     const needsService =
                       row.nextServiceDue && new Date(row.nextServiceDue).getTime() < nowTimestamp;
                     return (
-                      <tr key={row.id} className="border-b">
-                        <td className="p-3 font-mono">{row.equipmentCode}</td>
-                        <td className="p-3 font-semibold">{row.name}</td>
-                        <td className="p-3">{row.category}</td>
-                        <td className="p-3">{row.site.name}</td>
-                        <td className="p-3">
+                      <TableRow key={row.id} className="border-b">
+                        <TableCell className="p-3 font-mono">{row.equipmentCode}</TableCell>
+                        <TableCell className="p-3 font-semibold">{row.name}</TableCell>
+                        <TableCell className="p-3">{row.category}</TableCell>
+                        <TableCell className="p-3">{row.site.name}</TableCell>
+                        <TableCell className="p-3">
                           {row.lastServiceDate ? format(new Date(row.lastServiceDate), "yyyy-MM-dd") : "-"}
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell className="p-3">
                           {row.nextServiceDue ? format(new Date(row.nextServiceDue), "yyyy-MM-dd") : "-"}
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell className="p-3">
                           <Badge variant={!row.isActive ? "destructive" : needsService ? "secondary" : "default"}>
                             {!row.isActive ? "Down" : needsService ? "Needs Service" : "Operational"}
                           </Badge>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -128,3 +129,5 @@ export default function MaintenanceEquipmentReportPage() {
     </div>
   );
 }
+
+

@@ -6,27 +6,164 @@ import {
   getPaginationParams,
   paginationResponse,
 } from "@/lib/api-utils"
+import {
+  buildGoldPayoutNotes,
+  extractAllocationIdFromPayoutNotes,
+} from "@/lib/gold-payouts"
+import { derivePaidStatus } from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
-const paymentSchema = z.object({
+const dateInputSchema = z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+
+const employeePaymentCreateSchema = z.object({
   employeeId: z.string().uuid(),
   type: z.enum(["GOLD", "SALARY"]),
-  periodStart: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  periodEnd: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  dueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  amount: z.number().min(0),
+  periodStart: dateInputSchema,
+  periodEnd: dateInputSchema,
+  dueDate: dateInputSchema,
+  amount: z.number().nonnegative(),
   unit: z.string().min(1).max(20),
-  paidAmount: z.number().min(0).optional(),
-  paidAt: z.string().datetime().optional(),
+  paidAmount: z.number().nonnegative().optional(),
+  paidAt: dateInputSchema.optional(),
   status: z.enum(["DUE", "PARTIAL", "PAID"]).optional(),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(2000).optional(),
 })
 
-function deriveStatus(amount: number, paidAmount?: number) {
-  if (!paidAmount || paidAmount <= 0) return "DUE"
-  if (paidAmount >= amount) return "PAID"
-  return "PARTIAL"
+function normalizePaymentState(input: {
+  amount: number
+  paidAmount?: number
+  status?: "DUE" | "PARTIAL" | "PAID"
+}) {
+  const amount = Math.max(input.amount, 0)
+  let paidAmount = input.paidAmount ?? 0
+  let status = input.status ?? derivePaidStatus(amount, paidAmount)
+
+  if (status === "PAID") {
+    paidAmount = amount
+  } else if (status === "DUE") {
+    paidAmount = 0
+  } else if (status === "PARTIAL") {
+    if (amount <= 0 || paidAmount <= 0 || paidAmount >= amount) {
+      status = derivePaidStatus(amount, paidAmount)
+    }
+  }
+
+  status = derivePaidStatus(amount, paidAmount)
+
+  return {
+    status,
+    paidAmount: paidAmount > 0 ? paidAmount : null,
+  }
+}
+
+type GoldAllocationResolution =
+  | {
+      allocationId: string
+      workflowStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
+    }
+  | {
+      error: string
+      status: number
+    }
+
+function fullDayRange(startInput: string, endInput: string) {
+  const start = new Date(startInput)
+  const end = new Date(endInput)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null
+  }
+
+  start.setHours(0, 0, 0, 0)
+  end.setHours(23, 59, 59, 999)
+  if (start.getTime() > end.getTime()) {
+    return { start: end, end: start }
+  }
+  return { start, end }
+}
+
+async function resolveGoldAllocationForPayment(input: {
+  companyId: string
+  employeeId: string
+  periodStart: string
+  periodEnd: string
+  notes?: string | null
+}): Promise<GoldAllocationResolution> {
+  const linkedAllocationId = extractAllocationIdFromPayoutNotes(input.notes)
+  if (linkedAllocationId) {
+    const linked = await prisma.goldShiftAllocation.findUnique({
+      where: { id: linkedAllocationId },
+      select: {
+        id: true,
+        workflowStatus: true,
+        site: { select: { companyId: true } },
+        workerShares: {
+          where: { employeeId: input.employeeId },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    })
+
+    if (!linked || linked.site.companyId !== input.companyId) {
+      return {
+        error: "Linked gold shift allocation was not found for this company",
+        status: 404,
+      }
+    }
+    if (linked.workerShares.length === 0) {
+      return {
+        error: "Linked allocation does not include the selected employee",
+        status: 400,
+      }
+    }
+    return { allocationId: linked.id, workflowStatus: linked.workflowStatus }
+  }
+
+  const range = fullDayRange(input.periodStart, input.periodEnd)
+  if (!range) {
+    return {
+      error: "Invalid payment period for gold payout linkage",
+      status: 400,
+    }
+  }
+
+  const candidates = await prisma.goldShiftAllocation.findMany({
+    where: {
+      site: { companyId: input.companyId },
+      workerShares: { some: { employeeId: input.employeeId } },
+      date: {
+        gte: range.start,
+        lte: range.end,
+      },
+    },
+    select: {
+      id: true,
+      workflowStatus: true,
+    },
+    orderBy: { date: "desc" },
+    take: 2,
+  })
+
+  if (candidates.length === 0) {
+    return {
+      error: "Gold payouts must be linked to a shift allocation for this worker and period",
+      status: 400,
+    }
+  }
+
+  if (candidates.length > 1) {
+    return {
+      error:
+        "Multiple shift allocations match this payout period. Use allocation-linked notes to target one allocation.",
+      status: 409,
+    }
+  }
+
+  return {
+    allocationId: candidates[0].id,
+    workflowStatus: candidates[0].workflowStatus,
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -50,8 +187,8 @@ export async function GET(request: NextRequest) {
     if (type) where.type = type
     if (employeeId) where.employeeId = employeeId
     if (status) where.status = status
-    if (startDate) where.periodStart = { ...where.periodStart, gte: new Date(startDate) }
-    if (endDate) where.periodEnd = { ...where.periodEnd, lte: new Date(endDate) }
+    if (startDate) where.periodStart = { gte: new Date(startDate) }
+    if (endDate) where.periodEnd = { lte: new Date(endDate) }
 
     const [payments, total] = await Promise.all([
       prisma.employeePayment.findMany({
@@ -67,6 +204,22 @@ export async function GET(request: NextRequest) {
             },
           },
           createdBy: { select: { id: true, name: true } },
+          payrollRun: {
+            select: {
+              id: true,
+              runNumber: true,
+              domain: true,
+              status: true,
+              period: { select: { id: true, periodKey: true } },
+            },
+          },
+          disbursementBatch: {
+            select: {
+              id: true,
+              code: true,
+              status: true,
+            },
+          },
         },
         orderBy: { periodEnd: "desc" },
         skip,
@@ -89,18 +242,52 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult
 
     const body = await request.json()
-    const validated = paymentSchema.parse(body)
+    const validated = employeePaymentCreateSchema.parse(body)
 
     const employee = await prisma.employee.findUnique({
       where: { id: validated.employeeId },
-      select: { companyId: true },
+      select: { companyId: true, isActive: true },
     })
-
     if (!employee || employee.companyId !== session.user.companyId) {
       return errorResponse("Invalid employee", 403)
     }
 
-    const status = validated.status ?? deriveStatus(validated.amount, validated.paidAmount)
+    let notes = validated.notes
+    if (validated.type === "GOLD") {
+      const allocationResolution = await resolveGoldAllocationForPayment({
+        companyId: session.user.companyId,
+        employeeId: validated.employeeId,
+        periodStart: validated.periodStart,
+        periodEnd: validated.periodEnd,
+        notes: validated.notes,
+      })
+
+      if ("error" in allocationResolution) {
+        return errorResponse(allocationResolution.error, allocationResolution.status)
+      }
+      if (allocationResolution.workflowStatus !== "APPROVED") {
+        return errorResponse(
+          "Gold payout allocation must be approved before recording payouts",
+          409,
+        )
+      }
+
+      notes = buildGoldPayoutNotes(allocationResolution.allocationId, validated.notes)
+    }
+
+    const normalized = normalizePaymentState({
+      amount: validated.amount,
+      paidAmount: validated.paidAmount,
+      status: validated.status,
+    })
+
+    const paidAt =
+      normalized.paidAmount && normalized.paidAmount > 0
+        ? validated.paidAt
+          ? new Date(validated.paidAt)
+          : new Date()
+        : null
+
     const payment = await prisma.employeePayment.create({
       data: {
         employeeId: validated.employeeId,
@@ -110,10 +297,10 @@ export async function POST(request: NextRequest) {
         dueDate: new Date(validated.dueDate),
         amount: validated.amount,
         unit: validated.unit,
-        paidAmount: validated.paidAmount,
-        paidAt: validated.paidAt ? new Date(validated.paidAt) : undefined,
-        status,
-        notes: validated.notes,
+        paidAmount: normalized.paidAmount,
+        paidAt,
+        status: normalized.status,
+        notes,
         createdById: session.user.id,
       },
       include: {
@@ -127,6 +314,22 @@ export async function POST(request: NextRequest) {
           },
         },
         createdBy: { select: { id: true, name: true } },
+        payrollRun: {
+          select: {
+            id: true,
+            runNumber: true,
+            domain: true,
+            status: true,
+            period: { select: { id: true, periodKey: true } },
+          },
+        },
+        disbursementBatch: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+          },
+        },
       },
     })
 
@@ -136,6 +339,6 @@ export async function POST(request: NextRequest) {
       return errorResponse("Validation failed", 400, error.issues)
     }
     console.error("[API] POST /api/employee-payments error:", error)
-    return errorResponse("Failed to create payment record")
+    return errorResponse("Failed to create employee payment")
   }
 }

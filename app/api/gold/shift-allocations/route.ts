@@ -6,6 +6,10 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import {
+  AUTO_BATCH_NOTE_PREFIX,
+  AUTO_PAYOUT_NOTE_PREFIX,
+} from "@/lib/gold-payouts"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -27,9 +31,6 @@ const allocationSchema = z.object({
       message: "Pay cycle must be 2 or 4 weeks",
     }),
 })
-
-const AUTO_BATCH_NOTE_PREFIX = "AUTO_BATCH_FROM_SHIFT_ALLOCATION:"
-const AUTO_PAYOUT_NOTE_PREFIX = "AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:"
 
 function formatTwoDigits(value: number) {
   return String(value).padStart(2, "0")
@@ -95,6 +96,9 @@ export async function GET(request: NextRequest) {
         include: {
           site: { select: { name: true, code: true } },
           shiftReport: { select: { id: true, status: true, crewCount: true } },
+          createdBy: { select: { id: true, name: true } },
+          submittedBy: { select: { id: true, name: true } },
+          approvedBy: { select: { id: true, name: true } },
           expenses: { select: { id: true, type: true, weight: true } },
           workerShares: {
             select: {
@@ -247,6 +251,9 @@ export async function POST(request: NextRequest) {
         include: {
           site: { select: { name: true, code: true } },
           shiftReport: { select: { id: true, status: true, crewCount: true } },
+          createdBy: { select: { id: true, name: true } },
+          submittedBy: { select: { id: true, name: true } },
+          approvedBy: { select: { id: true, name: true } },
           expenses: { select: { id: true, type: true, weight: true } },
           workerShares: {
             select: {

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchGoldCorrections, fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldChainReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -142,40 +143,40 @@ export default function GoldChainReportPage() {
             <div className="text-sm text-muted-foreground">No gold records found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Pour Date</th>
-                    <th className="p-3 text-left font-semibold">Bar ID</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Weight</th>
-                    <th className="p-3 text-left font-semibold">Dispatch Date</th>
-                    <th className="p-3 text-left font-semibold">Receipt Date</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Pour Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Bar ID</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Weight</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Dispatch Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Receipt Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rows.map((row) => (
-                    <tr key={row.pour.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.pour.pourDate), "MMM d, yyyy")}</td>
-                      <td className="p-3 font-semibold">{row.pour.pourBarId}</td>
-                      <td className="p-3">{row.pour.site.name}</td>
-                      <td className="p-3">{row.pour.grossWeight.toFixed(2)} g</td>
-                      <td className="p-3">
+                    <TableRow key={row.pour.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.pour.pourDate), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3 font-semibold">{row.pour.pourBarId}</TableCell>
+                      <TableCell className="p-3">{row.pour.site.name}</TableCell>
+                      <TableCell className="p-3">{row.pour.grossWeight.toFixed(2)} g</TableCell>
+                      <TableCell className="p-3">
                         {row.dispatch ? format(new Date(row.dispatch.dispatchDate), "MMM d, yyyy") : "-"}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         {row.receipt ? format(new Date(row.receipt.receiptDate), "MMM d, yyyy") : "-"}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={row.status === "Receipted" ? "default" : row.status === "Dispatched" ? "secondary" : "outline"}>
                           {row.status}
                         </Badge>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -183,4 +184,6 @@ export default function GoldChainReportPage() {
     </div>
   );
 }
+
+
 

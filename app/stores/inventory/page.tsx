@@ -38,6 +38,7 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { Download, Plus } from "@/lib/icons";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function StoresInventoryPage() {
   const { toast } = useToast();
@@ -590,48 +591,48 @@ export default function StoresInventoryPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3 text-sm font-semibold">Code</th>
-                  <th className="text-left p-3 text-sm font-semibold">
+            <Table className="w-full">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Code</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">
                     Item Name
-                  </th>
-                  <th className="text-left p-3 text-sm font-semibold">
+                  </TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">
                     Category
-                  </th>
-                  <th className="text-right p-3 text-sm font-semibold">
+                  </TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">
                     Current Stock
-                  </th>
-                  <th className="text-right p-3 text-sm font-semibold">Min</th>
-                  <th className="text-left p-3 text-sm font-semibold">
+                  </TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Min</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">
                     Location
-                  </th>
-                  <th className="text-right p-3 text-sm font-semibold">Value</th>
-                  <th className="text-center p-3 text-sm font-semibold">
+                  </TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Value</TableHead>
+                  <TableHead className="text-center p-3 text-sm font-semibold">
                     Status
-                  </th>
-                  <th className="text-right p-3 text-sm font-semibold">
+                  </TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">
                     Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {inventoryLoading ? (
-                  <tr>
-                    <td colSpan={9} className="p-3">
+                  <TableRow>
+                    <TableCell colSpan={9} className="p-3">
                       <Skeleton className="h-10 w-full" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : inventoryItems.length === 0 ? (
-                  <tr>
-                    <td
+                  <TableRow>
+                    <TableCell
                       colSpan={9}
                       className="p-3 text-sm text-muted-foreground"
                     >
                       No inventory items found.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   inventoryItems.map((item) => {
                     const isLow =
@@ -639,33 +640,33 @@ export default function StoresInventoryPage() {
                       item.minStock !== undefined &&
                       item.currentStock <= item.minStock;
                     return (
-                      <tr key={item.id} className="border-b hover:bg-muted/60">
-                        <td className="p-3 text-sm font-mono">
+                      <TableRow key={item.id} className="border-b hover:bg-muted/60">
+                        <TableCell className="p-3 text-sm font-mono">
                           {item.itemCode}
-                        </td>
-                        <td className="p-3 text-sm font-semibold">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm font-semibold">
                           {item.name}
-                        </td>
-                        <td className="p-3 text-sm">{item.category}</td>
-                        <td className="p-3 text-sm text-right font-semibold">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm">{item.category}</TableCell>
+                        <TableCell className="p-3 text-sm text-right font-semibold">
                           {item.currentStock} {item.unit}
-                        </td>
-                        <td className="p-3 text-sm text-right text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm text-right text-muted-foreground">
                           {item.minStock !== null &&
                           item.minStock !== undefined
                             ? `${item.minStock} ${item.unit}`
                             : "-"}
-                        </td>
-                        <td className="p-3 text-sm">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm">
                           {item.location?.name ?? "-"}
-                        </td>
-                        <td className="p-3 text-sm text-right">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm text-right">
                           {item.unitCost !== null &&
                           item.unitCost !== undefined
                             ? `$${(item.currentStock * item.unitCost).toFixed(2)}`
                             : "-"}
-                        </td>
-                        <td className="p-3 text-center">
+                        </TableCell>
+                        <TableCell className="p-3 text-center">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-semibold ${
                               isLow
@@ -675,8 +676,8 @@ export default function StoresInventoryPage() {
                           >
                             {isLow ? "Low" : "OK"}
                           </span>
-                        </td>
-                        <td className="p-3 text-right">
+                        </TableCell>
+                        <TableCell className="p-3 text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               type="button"
@@ -696,13 +697,13 @@ export default function StoresInventoryPage() {
                               Delete
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           <Sheet
             open={inventoryFormOpen}
@@ -1038,47 +1039,47 @@ export default function StoresInventoryPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3 text-sm font-semibold">Name</th>
-                  <th className="text-left p-3 text-sm font-semibold">Site</th>
-                  <th className="text-left p-3 text-sm font-semibold">Status</th>
-                  <th className="text-right p-3 text-sm font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Name</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Site</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Status</TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {stockLocationsAllLoading ? (
-                  <tr>
-                    <td colSpan={4} className="p-3">
+                  <TableRow>
+                    <TableCell colSpan={4} className="p-3">
                       <Skeleton className="h-10 w-full" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : stockLocationsAll.length === 0 ? (
-                  <tr>
-                    <td
+                  <TableRow>
+                    <TableCell
                       colSpan={4}
                       className="p-3 text-sm text-muted-foreground"
                     >
                       No stock locations found.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   stockLocationsAll.map((location) => (
-                    <tr
+                    <TableRow
                       key={location.id}
                       className="border-b hover:bg-muted/60"
                     >
-                      <td className="p-3 text-sm font-semibold">
+                      <TableCell className="p-3 text-sm font-semibold">
                         {location.name}
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         {location.site?.name ?? "-"}
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         {location.isActive ? "Active" : "Inactive"}
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             type="button"
@@ -1098,12 +1099,12 @@ export default function StoresInventoryPage() {
                             Delete
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           <Sheet
@@ -1200,3 +1201,5 @@ export default function StoresInventoryPage() {
     </StoresShell>
   );
 }
+
+

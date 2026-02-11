@@ -14,62 +14,79 @@ datasource db {
 // ============================================
 
 model Company {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  sites     Site[]
-  users     User[]
-  employees Employee[]
+  id                   String             @id @default(uuid())
+  name                 String
+  payrollCycle         PayrollCycle       @default(MONTHLY)
+  goldPayoutCycle      PayrollCycle       @default(FORTNIGHTLY)
+  goldSettlementMode   GoldSettlementMode @default(CURRENT_PERIOD)
+  cashDisbursementOnly Boolean            @default(true)
+  autoGeneratePayrollPeriods  Boolean     @default(true)
+  autoGenerateGoldPayoutPeriods Boolean   @default(true)
+  periodGenerationHorizon Int             @default(3)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  sites               Site[]
+  users               User[]
+  employees           Employee[]
+  departments         Department[]
+  jobGrades           JobGrade[]
+  compensationRules   CompensationRule[]
+  compensationTemplates CompensationTemplate[]
+  payrollPeriods      PayrollPeriod[]
+  payrollRuns         PayrollRun[]
+  disbursementBatches DisbursementBatch[]
+  approvalActions     ApprovalAction[]
+  adjustmentEntries   AdjustmentEntry[]
+  notifications       Notification[]
 }
 
 model Site {
-  id          String   @id @default(uuid())
-  name        String
-  code        String   @unique
-  location    String?
-  companyId   String
-  isActive    Boolean  @default(true)
-  
+  id        String  @id @default(uuid())
+  name      String
+  code      String  @unique
+  location  String?
+  companyId String
+  isActive  Boolean @default(true)
+
   // Configurable per site
   measurementUnit String @default("tonnes") // tonnes, trips, wheelbarrows
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  company           Company            @relation(fields: [companyId], references: [id])
-  sections          Section[]
-  shiftReports      ShiftReport[]
-  plantReports      PlantReport[]
-  goldPours         GoldPour[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company              Company               @relation(fields: [companyId], references: [id])
+  sections             Section[]
+  shiftReports         ShiftReport[]
+  plantReports         PlantReport[]
+  goldPours            GoldPour[]
   goldShiftAllocations GoldShiftAllocation[]
-  attendance        Attendance[]
-  equipment         Equipment[]
-  inventory         InventoryItem[]
-  permits           Permit[]
-  incidents         Incident[]
-  inspections       Inspection[]
-  stockLocations    StockLocation[]
-  downtimeCodes     DowntimeCode[]
-  nvrs              NVR[]
-  cameras           Camera[]
-  streamSessions    StreamSession[]
-  
+  attendance           Attendance[]
+  equipment            Equipment[]
+  inventory            InventoryItem[]
+  permits              Permit[]
+  incidents            Incident[]
+  inspections          Inspection[]
+  stockLocations       StockLocation[]
+  downtimeCodes        DowntimeCode[]
+  nvrs                 NVR[]
+  cameras              Camera[]
+  streamSessions       StreamSession[]
+
   @@index([companyId])
 }
 
 model Section {
   id        String   @id @default(uuid())
-  name      String   // shaft, level, pit name
+  name      String // shaft, level, pit name
   siteId    String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  site          Site           @relation(fields: [siteId], references: [id])
-  shiftReports  ShiftReport[]
-  
+
+  site         Site          @relation(fields: [siteId], references: [id])
+  shiftReports ShiftReport[]
+
   @@index([siteId])
 }
 
@@ -83,62 +100,106 @@ model User {
   id            String    @id @default(uuid())
   email         String    @unique
   name          String
-  password      String?   // Optional for OAuth users
+  password      String? // Optional for OAuth users
   role          UserRole
   companyId     String
   phone         String?
   isActive      Boolean   @default(true)
   emailVerified DateTime? // For NextAuth
-  image         String?   // For NextAuth
+  image         String? // For NextAuth
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  
-  company               Company           @relation(fields: [companyId], references: [id])
-  createdShiftReports   ShiftReport[]     @relation("CreatedBy")
-  verifiedShiftReports  ShiftReport[]     @relation("VerifiedBy")
-  approvedShiftReports  ShiftReport[]     @relation("ApprovedBy")
-  plantReports          PlantReport[]
-  goldShiftAllocations  GoldShiftAllocation[]
-  stockMovements        StockMovement[]
-  inspections           Inspection[]
-  trainingRecords       TrainingRecord[]
-  employeePayments      EmployeePayment[]
-  streamSessions        StreamSession[]
-  accounts              Account[]         // For NextAuth
-  sessions              Session[]         // For NextAuth
-  
+
+  company                       Company                     @relation(fields: [companyId], references: [id])
+  createdShiftReports           ShiftReport[]               @relation("CreatedBy")
+  verifiedShiftReports          ShiftReport[]               @relation("VerifiedBy")
+  approvedShiftReports          ShiftReport[]               @relation("ApprovedBy")
+  plantReports                  PlantReport[]
+  createdGoldShiftAllocations   GoldShiftAllocation[]       @relation("GoldShiftAllocationCreatedBy")
+  submittedGoldShiftAllocations GoldShiftAllocation[]       @relation("GoldShiftAllocationSubmittedBy")
+  approvedGoldShiftAllocations  GoldShiftAllocation[]       @relation("GoldShiftAllocationApprovedBy")
+  stockMovements                StockMovement[]
+  inspections                   Inspection[]
+  trainingRecords               TrainingRecord[]
+  employeePayments              EmployeePayment[]
+  streamSessions                StreamSession[]
+  createdCompensationProfiles   CompensationProfile[]       @relation("CompProfileCreatedBy")
+  submittedCompensationProfiles CompensationProfile[]       @relation("CompProfileSubmittedBy")
+  approvedCompensationProfiles  CompensationProfile[]       @relation("CompProfileApprovedBy")
+  createdCompensationRules      CompensationRule[]          @relation("CompRuleCreatedBy")
+  submittedCompensationRules    CompensationRule[]          @relation("CompRuleSubmittedBy")
+  approvedCompensationRules     CompensationRule[]          @relation("CompRuleApprovedBy")
+  createdCompensationTemplates  CompensationTemplate[]       @relation("CompTemplateCreatedBy")
+  createdPayrollPeriods         PayrollPeriod[]             @relation("PayrollPeriodCreatedBy")
+  submittedPayrollPeriods       PayrollPeriod[]             @relation("PayrollPeriodSubmittedBy")
+  approvedPayrollPeriods        PayrollPeriod[]             @relation("PayrollPeriodApprovedBy")
+  createdPayrollRuns            PayrollRun[]                @relation("PayrollRunCreatedBy")
+  submittedPayrollRuns          PayrollRun[]                @relation("PayrollRunSubmittedBy")
+  approvedPayrollRuns           PayrollRun[]                @relation("PayrollRunApprovedBy")
+  createdDisbursementBatches    DisbursementBatch[]         @relation("DisbursementBatchCreatedBy")
+  submittedDisbursementBatches  DisbursementBatch[]         @relation("DisbursementBatchSubmittedBy")
+  approvedDisbursementBatches   DisbursementBatch[]         @relation("DisbursementBatchApprovedBy")
+  approvalActions               ApprovalAction[]            @relation("ApprovalActionActor")
+  createdAdjustmentEntries      AdjustmentEntry[]           @relation("AdjustmentCreatedBy")
+  submittedAdjustmentEntries    AdjustmentEntry[]           @relation("AdjustmentSubmittedBy")
+  approvedAdjustmentEntries     AdjustmentEntry[]           @relation("AdjustmentApprovedBy")
+  notificationRecipients        NotificationRecipient[]
+  notificationPreference        UserNotificationPreference?
+  webPushSubscriptions          WebPushSubscription[]
+  accounts                      Account[] // For NextAuth
+  sessions                      Session[] // For NextAuth
+
   @@index([companyId])
   @@index([email])
 }
 
 model Employee {
-  id                String   @id @default(uuid())
-  employeeId        String
-  name              String
-  phone             String
-  nextOfKinName     String
-  nextOfKinPhone    String
-  passportPhotoUrl  String
-  villageOfOrigin   String
-  position          EmployeePosition @default(MINERS)
-  companyId         String
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String           @id @default(uuid())
+  employeeId       String
+  name             String
+  phone            String
+  nextOfKinName    String
+  nextOfKinPhone   String
+  passportPhotoUrl String
+  villageOfOrigin  String
+  position         EmployeePosition @default(MINERS)
+  departmentId     String?
+  gradeId          String?
+  supervisorId     String?
+  employmentType   EmploymentType   @default(FULL_TIME)
+  hireDate         DateTime?
+  terminationDate  DateTime?
+  defaultCurrency  String           @default("USD")
+  companyId        String
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  company           Company    @relation(fields: [companyId], references: [id])
-  attendance        Attendance[]
-  groupLeaderReports ShiftReport[] @relation("GroupLeaderReports")
-  workOrders        WorkOrder[] @relation("WorkOrderTechnicians")
-  goldPoursWitness1 GoldPour[]  @relation("Witness1")
-  goldPoursWitness2 GoldPour[]  @relation("Witness2")
-  goldDispatches    GoldDispatch[] @relation("GoldDispatchHandovers")
-  goldShiftWorkerShares GoldShiftWorkerShare[]
-  fixedSalary       FixedSalary?
-  payments          EmployeePayment[]
+  company                   Company                @relation(fields: [companyId], references: [id])
+  department                Department?            @relation(fields: [departmentId], references: [id])
+  grade                     JobGrade?              @relation(fields: [gradeId], references: [id])
+  supervisor                Employee?              @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
+  supervisees               Employee[]             @relation("EmployeeSupervisor")
+  attendance                Attendance[]
+  groupLeaderReports        ShiftReport[]          @relation("GroupLeaderReports")
+  workOrders                WorkOrder[]            @relation("WorkOrderTechnicians")
+  goldPoursWitness1         GoldPour[]             @relation("Witness1")
+  goldPoursWitness2         GoldPour[]             @relation("Witness2")
+  goldDispatches            GoldDispatch[]         @relation("GoldDispatchHandovers")
+  goldShiftWorkerShares     GoldShiftWorkerShare[]
+  fixedSalary               FixedSalary?
+  payments                  EmployeePayment[]
+  compensationProfiles      CompensationProfile[]
+  targetedCompensationRules CompensationRule[]     @relation("CompRuleEmployeeTarget")
+  payrollLineItems          PayrollLineItem[]
+  disbursementItems         DisbursementItem[]
+  adjustmentEntries         AdjustmentEntry[]
 
   @@unique([companyId, employeeId])
   @@index([companyId])
+  @@index([departmentId])
+  @@index([gradeId])
+  @@index([supervisorId])
 }
 
 model FixedSalary {
@@ -150,32 +211,490 @@ model FixedSalary {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  employee      Employee @relation(fields: [employeeId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
 
   @@index([employeeId])
 }
 
 model EmployeePayment {
-  id          String        @id @default(uuid())
-  employeeId  String
-  type        PaymentType
-  periodStart DateTime
-  periodEnd   DateTime
-  dueDate     DateTime
-  amount      Float
-  unit        String
-  paidAmount  Float?
-  paidAt      DateTime?
-  status      PaymentStatus @default(DUE)
-  notes       String?
-  createdById String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                  String        @id @default(uuid())
+  employeeId          String
+  type                PaymentType
+  periodStart         DateTime
+  periodEnd           DateTime
+  dueDate             DateTime
+  amount              Float
+  unit                String
+  paidAmount          Float?
+  paidAt              DateTime?
+  status              PaymentStatus @default(DUE)
+  notes               String?
+  payrollRunId        String?
+  payrollLineItemId   String?
+  disbursementBatchId String?
+  disbursementItemId  String?
+  createdById         String
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  createdBy   User     @relation(fields: [createdById], references: [id])
+  employee          Employee           @relation(fields: [employeeId], references: [id])
+  createdBy         User               @relation(fields: [createdById], references: [id])
+  payrollRun        PayrollRun?        @relation(fields: [payrollRunId], references: [id])
+  payrollLineItem   PayrollLineItem?   @relation(fields: [payrollLineItemId], references: [id])
+  disbursementBatch DisbursementBatch? @relation(fields: [disbursementBatchId], references: [id])
+  disbursementItem  DisbursementItem?  @relation(fields: [disbursementItemId], references: [id])
 
   @@index([employeeId, type])
+  @@index([payrollRunId])
+  @@index([payrollLineItemId])
+  @@index([disbursementBatchId])
+  @@index([disbursementItemId])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  employees         Employee[]
+  compensationRules CompensationRule[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+model JobGrade {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  rank      Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  employees         Employee[]
+  compensationRules CompensationRule[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+model CompensationProfile {
+  id             String                    @id @default(uuid())
+  employeeId     String
+  baseAmount     Float
+  currency       String                    @default("USD")
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  status         CompensationProfileStatus @default(ACTIVE)
+  workflowStatus WorkflowStatus            @default(DRAFT)
+  notes          String?
+  createdById    String
+  submittedById  String?
+  approvedById   String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  employee    Employee          @relation(fields: [employeeId], references: [id])
+  createdBy   User              @relation("CompProfileCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?             @relation("CompProfileSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?             @relation("CompProfileApprovedBy", fields: [approvedById], references: [id])
+  lineItems   PayrollLineItem[]
+
+  @@index([employeeId, status])
+  @@index([workflowStatus])
+  @@index([effectiveFrom])
+}
+
+model CompensationRule {
+  id             String                 @id @default(uuid())
+  companyId      String
+  name           String
+  type           CompensationRuleType
+  calcMethod     CompensationCalcMethod
+  value          Float
+  cap            Float?
+  taxable        Boolean                @default(false)
+  currency       String                 @default("USD")
+  isActive       Boolean                @default(true)
+  workflowStatus WorkflowStatus         @default(DRAFT)
+  employeeId     String?
+  departmentId   String?
+  gradeId        String?
+  createdById    String
+  submittedById  String?
+  approvedById   String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  company     Company                @relation(fields: [companyId], references: [id])
+  employee    Employee?              @relation("CompRuleEmployeeTarget", fields: [employeeId], references: [id])
+  department  Department?            @relation(fields: [departmentId], references: [id])
+  grade       JobGrade?              @relation(fields: [gradeId], references: [id])
+  createdBy   User                   @relation("CompRuleCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?                  @relation("CompRuleSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?                  @relation("CompRuleApprovedBy", fields: [approvedById], references: [id])
+  components  PayrollLineComponent[]
+  templateLinks CompensationTemplateRule[]
+
+  @@index([companyId, isActive])
+  @@index([workflowStatus])
+  @@index([employeeId])
+  @@index([departmentId])
+  @@index([gradeId])
+}
+
+model CompensationTemplate {
+  id             String          @id @default(uuid())
+  companyId      String
+  name           String
+  description    String?
+  employmentType EmploymentType?
+  position       EmployeePosition?
+  baseAmount     Float
+  currency       String          @default("USD")
+  isActive       Boolean         @default(true)
+  createdById    String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  company   Company                   @relation(fields: [companyId], references: [id])
+  createdBy User                      @relation("CompTemplateCreatedBy", fields: [createdById], references: [id])
+  rules     CompensationTemplateRule[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+  @@index([employmentType, position])
+}
+
+model CompensationTemplateRule {
+  id                 String @id @default(uuid())
+  templateId         String
+  compensationRuleId String
+  sortOrder          Int    @default(0)
+
+  template         CompensationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  compensationRule CompensationRule     @relation(fields: [compensationRuleId], references: [id])
+
+  @@unique([templateId, compensationRuleId])
+  @@index([compensationRuleId])
+}
+
+model PayrollPeriod {
+  id            String              @id @default(uuid())
+  companyId     String
+  domain        RunDomain           @default(PAYROLL)
+  periodKey     String
+  startDate     DateTime
+  endDate       DateTime
+  dueDate       DateTime
+  cycle         PayrollCycle        @default(MONTHLY)
+  status        PayrollPeriodStatus @default(DRAFT)
+  isAutoGenerated Boolean           @default(false)
+  periodPurpose PeriodPurpose       @default(STANDARD)
+  appliesToContractorsOnly Boolean  @default(false)
+  employeeScopeJson String?
+  notes         String?
+  createdById   String
+  submittedById String?
+  approvedById  String?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id])
+  createdBy   User         @relation("PayrollPeriodCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?        @relation("PayrollPeriodSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?        @relation("PayrollPeriodApprovedBy", fields: [approvedById], references: [id])
+  runs        PayrollRun[]
+
+  @@unique([companyId, domain, periodKey])
+  @@index([companyId, domain, startDate])
+  @@index([status])
+}
+
+model PayrollRun {
+  id                 String             @id @default(uuid())
+  companyId          String
+  periodId           String
+  domain             RunDomain          @default(PAYROLL)
+  runNumber          Int                @default(1)
+  status             PayrollRunStatus   @default(DRAFT)
+  notes              String?
+  grossTotal         Float              @default(0)
+  allowancesTotal    Float              @default(0)
+  deductionsTotal    Float              @default(0)
+  netTotal           Float              @default(0)
+  goldRatePerUnit    Float?
+  goldRateUnit       String             @default("g")
+  goldSettlementMode GoldSettlementMode @default(CURRENT_PERIOD)
+  createdById        String
+  submittedById      String?
+  approvedById       String?
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company             Company             @relation(fields: [companyId], references: [id])
+  period              PayrollPeriod       @relation(fields: [periodId], references: [id])
+  createdBy           User                @relation("PayrollRunCreatedBy", fields: [createdById], references: [id])
+  submittedBy         User?               @relation("PayrollRunSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy          User?               @relation("PayrollRunApprovedBy", fields: [approvedById], references: [id])
+  lineItems           PayrollLineItem[]
+  disbursementBatches DisbursementBatch[]
+  adjustments         AdjustmentEntry[]
+  legacyPayments      EmployeePayment[]
+
+  @@unique([periodId, runNumber])
+  @@index([companyId, status, domain])
+}
+
+model PayrollLineItem {
+  id                    String   @id @default(uuid())
+  runId                 String
+  employeeId            String
+  compensationProfileId String?
+  baseAmount            Float    @default(0)
+  variableAmount        Float    @default(0)
+  allowancesTotal       Float    @default(0)
+  deductionsTotal       Float    @default(0)
+  grossAmount           Float    @default(0)
+  netAmount             Float    @default(0)
+  currency              String   @default("USD")
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  run                 PayrollRun             @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee            Employee               @relation(fields: [employeeId], references: [id])
+  compensationProfile CompensationProfile?   @relation(fields: [compensationProfileId], references: [id])
+  components          PayrollLineComponent[]
+  disbursementItems   DisbursementItem[]
+  adjustments         AdjustmentEntry[]
+  legacyPayments      EmployeePayment[]
+
+  @@unique([runId, employeeId])
+  @@index([employeeId])
+  @@index([compensationProfileId])
+}
+
+model PayrollLineComponent {
+  id           String                 @id @default(uuid())
+  lineItemId   String
+  ruleId       String?
+  name         String
+  type         CompensationRuleType
+  calcMethod   CompensationCalcMethod
+  rateOrAmount Float
+  amount       Float
+  isTaxable    Boolean                @default(false)
+  createdAt    DateTime               @default(now())
+
+  lineItem PayrollLineItem   @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  rule     CompensationRule? @relation(fields: [ruleId], references: [id])
+
+  @@index([lineItemId])
+  @@index([ruleId])
+}
+
+model DisbursementBatch {
+  id            String                  @id @default(uuid())
+  companyId     String
+  payrollRunId  String
+  code          String
+  status        DisbursementBatchStatus @default(DRAFT)
+  method        PayoutMethod            @default(CASH)
+  notes         String?
+  cashCustodian String?
+  cashIssuedAt  DateTime?
+  totalAmount   Float                   @default(0)
+  itemCount     Int                     @default(0)
+  createdById   String
+  submittedById String?
+  approvedById  String?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  company        Company            @relation(fields: [companyId], references: [id])
+  payrollRun     PayrollRun         @relation(fields: [payrollRunId], references: [id])
+  createdBy      User               @relation("DisbursementBatchCreatedBy", fields: [createdById], references: [id])
+  submittedBy    User?              @relation("DisbursementBatchSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy     User?              @relation("DisbursementBatchApprovedBy", fields: [approvedById], references: [id])
+  items          DisbursementItem[]
+  adjustments    AdjustmentEntry[]
+  legacyPayments EmployeePayment[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([payrollRunId])
+}
+
+model DisbursementItem {
+  id               String        @id @default(uuid())
+  batchId          String
+  lineItemId       String
+  employeeId       String
+  amount           Float
+  paidAmount       Float?
+  status           PaymentStatus @default(DUE)
+  paidAt           DateTime?
+  receiptReference String?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  batch          DisbursementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  lineItem       PayrollLineItem   @relation(fields: [lineItemId], references: [id])
+  employee       Employee          @relation(fields: [employeeId], references: [id])
+  adjustments    AdjustmentEntry[]
+  legacyPayments EmployeePayment[]
+
+  @@unique([batchId, employeeId])
+  @@index([lineItemId])
+  @@index([employeeId])
+}
+
+model ApprovalAction {
+  id         String             @id @default(uuid())
+  companyId  String
+  entityType ApprovalTargetType
+  entityId   String
+  action     ApprovalActionType
+  fromStatus String?
+  toStatus   String?
+  note       String?
+  actedById  String
+  actedAt    DateTime           @default(now())
+  createdAt  DateTime           @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  actedBy User    @relation("ApprovalActionActor", fields: [actedById], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@index([actedById, actedAt])
+}
+
+model Notification {
+  id           String                    @id @default(uuid())
+  companyId    String
+  type         NotificationType
+  title        String
+  summary      String
+  severity     NotificationSeverity      @default(INFO)
+  payloadJson  String?
+  entityType   NotificationEntityType?
+  entityId     String?
+  sourceAction NotificationSourceAction?
+  expiresAt    DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  company    Company                 @relation(fields: [companyId], references: [id])
+  recipients NotificationRecipient[]
+
+  @@index([companyId, createdAt])
+  @@index([companyId, type, createdAt])
+  @@index([companyId, severity, createdAt])
+  @@index([entityType, entityId])
+}
+
+model NotificationRecipient {
+  id             String    @id @default(uuid())
+  notificationId String
+  userId         String
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  actionTaken    String?
+  actedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, createdAt])
+  @@index([userId, isRead, isArchived, createdAt])
+}
+
+model UserNotificationPreference {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  inAppEnabled   Boolean  @default(true)
+  webPushEnabled Boolean  @default(false)
+  hrEnabled      Boolean  @default(true)
+  opsEnabled     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebPushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+}
+
+model AdjustmentEntry {
+  id                  String               @id @default(uuid())
+  companyId           String
+  targetType          AdjustmentTargetType
+  payrollRunId        String?
+  disbursementBatchId String?
+  lineItemId          String?
+  disbursementItemId  String?
+  employeeId          String?
+  amountDelta         Float
+  reason              String
+  status              AdjustmentStatus     @default(DRAFT)
+  createdById         String
+  submittedById       String?
+  approvedById        String?
+  submittedAt         DateTime?
+  approvedAt          DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  payrollRun        PayrollRun?        @relation(fields: [payrollRunId], references: [id])
+  disbursementBatch DisbursementBatch? @relation(fields: [disbursementBatchId], references: [id])
+  lineItem          PayrollLineItem?   @relation(fields: [lineItemId], references: [id])
+  disbursementItem  DisbursementItem?  @relation(fields: [disbursementItemId], references: [id])
+  employee          Employee?          @relation(fields: [employeeId], references: [id])
+  createdBy         User               @relation("AdjustmentCreatedBy", fields: [createdById], references: [id])
+  submittedBy       User?              @relation("AdjustmentSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy        User?              @relation("AdjustmentApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([companyId, targetType, status])
+  @@index([employeeId])
 }
 
 // ============================================
@@ -222,50 +741,214 @@ enum PaymentStatus {
   PAID
 }
 
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  CASUAL
+}
+
+enum WorkflowStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum CompensationProfileStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CompensationRuleType {
+  ALLOWANCE
+  DEDUCTION
+}
+
+enum CompensationCalcMethod {
+  FIXED
+  PERCENT
+}
+
+enum PayrollCycle {
+  MONTHLY
+  FORTNIGHTLY
+}
+
+enum GoldSettlementMode {
+  CURRENT_PERIOD
+  NEXT_PERIOD
+}
+
+enum RunDomain {
+  PAYROLL
+  GOLD_PAYOUT
+}
+
+enum PeriodPurpose {
+  STANDARD
+  CONTRACTOR
+  EDGE_CASE
+}
+
+enum PayrollPeriodStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  CLOSED
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  REJECTED
+}
+
+enum DisbursementBatchStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum PayoutMethod {
+  CASH
+  BANK
+  MOBILE
+}
+
+enum ApprovalTargetType {
+  PAYROLL_RUN
+  DISBURSEMENT_BATCH
+  ADJUSTMENT_ENTRY
+  COMPENSATION_PROFILE
+  COMPENSATION_RULE
+  GOLD_SHIFT_ALLOCATION
+}
+
+enum ApprovalActionType {
+  CREATE
+  SUBMIT
+  APPROVE
+  REJECT
+  ADJUST
+}
+
+enum NotificationType {
+  HR_PAYROLL_SUBMITTED
+  HR_PAYROLL_APPROVED
+  HR_PAYROLL_REJECTED
+  HR_DISBURSEMENT_SUBMITTED
+  HR_DISBURSEMENT_APPROVED
+  HR_DISBURSEMENT_REJECTED
+  HR_ADJUSTMENT_SUBMITTED
+  HR_ADJUSTMENT_APPROVED
+  HR_ADJUSTMENT_REJECTED
+  HR_COMP_PROFILE_SUBMITTED
+  HR_COMP_PROFILE_APPROVED
+  HR_COMP_PROFILE_REJECTED
+  HR_COMP_RULE_SUBMITTED
+  HR_COMP_RULE_APPROVED
+  HR_COMP_RULE_REJECTED
+  HR_GOLD_PAYOUT_SUBMITTED
+  HR_GOLD_PAYOUT_APPROVED
+  HR_GOLD_PAYOUT_REJECTED
+  OPS_INCIDENT_CREATED
+  OPS_INCIDENT_STATUS_CHANGED
+  OPS_PERMIT_EXPIRING
+  OPS_PERMIT_EXPIRED
+  OPS_WORK_ORDER_OPENED
+  OPS_WORK_ORDER_IN_PROGRESS
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum NotificationEntityType {
+  PAYROLL_RUN
+  DISBURSEMENT_BATCH
+  ADJUSTMENT_ENTRY
+  COMPENSATION_PROFILE
+  COMPENSATION_RULE
+  GOLD_SHIFT_ALLOCATION
+  INCIDENT
+  PERMIT
+  WORK_ORDER
+}
+
+enum NotificationSourceAction {
+  CREATE
+  SUBMIT
+  APPROVE
+  REJECT
+  STATUS_CHANGE
+  EXPIRY_ALERT
+}
+
+enum AdjustmentTargetType {
+  PAYROLL_RUN
+  DISBURSEMENT_BATCH
+  DISBURSEMENT_ITEM
+  PAYROLL_LINE_ITEM
+}
+
+enum AdjustmentStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 model ShiftReport {
-  id              String       @id @default(uuid())
-  date            DateTime
-  shift           ShiftType
-  siteId          String
-  sectionId       String?
-  groupLeaderId   String
-  crewCount       Int
-  workType        WorkType
-  
+  id            String    @id @default(uuid())
+  date          DateTime
+  shift         ShiftType
+  siteId        String
+  sectionId     String?
+  groupLeaderId String
+  crewCount     Int
+  workType      WorkType
+
   // Output metrics (flexible per site)
-  outputTonnes    Float?
-  outputTrips     Int?
+  outputTonnes       Float?
+  outputTrips        Int?
   outputWheelbarrows Int?
-  metresAdvanced  Float?
-  
+  metresAdvanced     Float?
+
   // Safety and handover
-  hasIncident     Boolean      @default(false)
-  incidentNotes   String?
-  handoverNotes   String?
-  
+  hasIncident   Boolean @default(false)
+  incidentNotes String?
+  handoverNotes String?
+
   // Photos (stored as JSON array of URLs)
-  photos          String?      // JSON array
-  
+  photos String? // JSON array
+
   // Workflow
-  status          ReportStatus @default(DRAFT)
-  createdById     String
-  verifiedById    String?
-  approvedById    String?
-  verifiedAt      DateTime?
-  approvedAt      DateTime?
-  
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  
-  site            Site         @relation(fields: [siteId], references: [id])
-  section         Section?     @relation(fields: [sectionId], references: [id])
-  groupLeader     Employee     @relation("GroupLeaderReports", fields: [groupLeaderId], references: [id])
-  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
-  verifiedBy      User?        @relation("VerifiedBy", fields: [verifiedById], references: [id])
-  approvedBy      User?        @relation("ApprovedBy", fields: [approvedById], references: [id])
-  downtimeEvents  DowntimeEvent[]
+  status       ReportStatus @default(DRAFT)
+  createdById  String
+  verifiedById String?
+  approvedById String?
+  verifiedAt   DateTime?
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site                Site                 @relation(fields: [siteId], references: [id])
+  section             Section?             @relation(fields: [sectionId], references: [id])
+  groupLeader         Employee             @relation("GroupLeaderReports", fields: [groupLeaderId], references: [id])
+  createdBy           User                 @relation("CreatedBy", fields: [createdById], references: [id])
+  verifiedBy          User?                @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  approvedBy          User?                @relation("ApprovedBy", fields: [approvedById], references: [id])
+  downtimeEvents      DowntimeEvent[]
   goldShiftAllocation GoldShiftAllocation?
-  
+
   @@index([siteId, date])
   @@index([date])
 }
@@ -274,48 +957,48 @@ model DowntimeCode {
   id          String   @id @default(uuid())
   code        String
   description String
-  siteId      String?  // null = company-wide defaults
+  siteId      String? // null = company-wide defaults
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
-  
-  site        Site?    @relation(fields: [siteId], references: [id])
-  events      DowntimeEvent[]
-  
+
+  site   Site?           @relation(fields: [siteId], references: [id])
+  events DowntimeEvent[]
+
   @@index([siteId])
 }
 
 model DowntimeEvent {
-  id              String      @id @default(uuid())
-  shiftReportId   String?
-  plantReportId   String?
-  downtimeCodeId  String
-  durationHours   Float
-  notes           String?
-  createdAt       DateTime    @default(now())
-  
-  shiftReport     ShiftReport? @relation(fields: [shiftReportId], references: [id])
-  plantReport     PlantReport? @relation(fields: [plantReportId], references: [id])
-  downtimeCode    DowntimeCode @relation(fields: [downtimeCodeId], references: [id])
-  
+  id             String   @id @default(uuid())
+  shiftReportId  String?
+  plantReportId  String?
+  downtimeCodeId String
+  durationHours  Float
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  shiftReport  ShiftReport? @relation(fields: [shiftReportId], references: [id])
+  plantReport  PlantReport? @relation(fields: [plantReportId], references: [id])
+  downtimeCode DowntimeCode @relation(fields: [downtimeCodeId], references: [id])
+
   @@index([shiftReportId])
   @@index([plantReportId])
 }
 
 model Attendance {
-  id          String   @id @default(uuid())
-  date        DateTime
-  siteId      String
-  shift       ShiftType
-  employeeId  String
-  status      String   // PRESENT, ABSENT, LATE
-  overtime    Float?   // hours
-  notes       String?
-  createdAt   DateTime @default(now())
-  
-  site        Site     @relation(fields: [siteId], references: [id])
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  
+  id         String    @id @default(uuid())
+  date       DateTime
+  siteId     String
+  shift      ShiftType
+  employeeId String
+  status     String // PRESENT, ABSENT, LATE
+  overtime   Float? // hours
+  notes      String?
+  createdAt  DateTime  @default(now())
+
+  site     Site     @relation(fields: [siteId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
   @@unique([date, siteId, shift, employeeId])
   @@index([siteId, date])
 }
@@ -325,32 +1008,32 @@ model Attendance {
 // ============================================
 
 model PlantReport {
-  id              String          @id @default(uuid())
+  id              String   @id @default(uuid())
   date            DateTime
   siteId          String
   tonnesFed       Float?
   tonnesProcessed Float?
   runHours        Float?
-  
+
   // Consumables
-  dieselUsed      Float?
-  grindingMedia   Float?
-  reagentsUsed    Float?
-  waterUsed       Float?
-  
+  dieselUsed    Float?
+  grindingMedia Float?
+  reagentsUsed  Float?
+  waterUsed     Float?
+
   // Gold recovered (if poured)
-  goldRecovered   Float?
-  
-  notes           String?
-  reportedById    String
-  status          ReportStatus    @default(DRAFT)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  site            Site            @relation(fields: [siteId], references: [id])
-  reportedBy      User            @relation(fields: [reportedById], references: [id])
-  downtimeEvents  DowntimeEvent[]
-  
+  goldRecovered Float?
+
+  notes        String?
+  reportedById String
+  status       ReportStatus @default(DRAFT)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  site           Site            @relation(fields: [siteId], references: [id])
+  reportedBy     User            @relation(fields: [reportedById], references: [id])
+  downtimeEvents DowntimeEvent[]
+
   @@index([siteId, date])
 }
 
@@ -359,8 +1042,8 @@ model PlantReport {
 // ============================================
 
 model GoldPour {
-  id              String       @id @default(uuid())
-  pourBarId       String       @unique
+  id              String   @id @default(uuid())
+  pourBarId       String   @unique
   pourDate        DateTime
   siteId          String
   grossWeight     Float
@@ -369,108 +1052,116 @@ model GoldPour {
   witness2Id      String
   storageLocation String
   notes           String?
-  
+
   // Audit trail
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  corrections     String?      // JSON log of corrections
-  
-  site            Site         @relation(fields: [siteId], references: [id])
-  witness1        Employee     @relation("Witness1", fields: [witness1Id], references: [id])
-  witness2        Employee     @relation("Witness2", fields: [witness2Id], references: [id])
-  dispatches      GoldDispatch[]
-  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  corrections String? // JSON log of corrections
+
+  site       Site           @relation(fields: [siteId], references: [id])
+  witness1   Employee       @relation("Witness1", fields: [witness1Id], references: [id])
+  witness2   Employee       @relation("Witness2", fields: [witness2Id], references: [id])
+  dispatches GoldDispatch[]
+
   @@index([siteId])
   @@index([pourDate])
 }
 
 model GoldDispatch {
-  id              String    @id @default(uuid())
-  goldPourId      String
-  dispatchDate    DateTime
-  courier         String
-  vehicle         String?
-  destination     String
-  sealNumbers     String
-  handedOverById  String
-  receivedBy      String?
-  notes           String?
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  goldPour        GoldPour  @relation(fields: [goldPourId], references: [id])
-  handedOverBy    Employee  @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
-  buyerReceipt    BuyerReceipt?
-  
+  id             String   @id @default(uuid())
+  goldPourId     String
+  dispatchDate   DateTime
+  courier        String
+  vehicle        String?
+  destination    String
+  sealNumbers    String
+  handedOverById String
+  receivedBy     String?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goldPour     GoldPour      @relation(fields: [goldPourId], references: [id])
+  handedOverBy Employee      @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
+  buyerReceipt BuyerReceipt?
+
   @@index([goldPourId])
 }
 
 model BuyerReceipt {
-  id              String       @id @default(uuid())
-  goldDispatchId  String       @unique
-  receiptNumber   String
-  receiptDate     DateTime
-  assayResult     Float?       // actual purity
-  paidAmount      Float
-  paymentMethod   String
-  paymentChannel  String?
+  id               String   @id @default(uuid())
+  goldDispatchId   String   @unique
+  receiptNumber    String
+  receiptDate      DateTime
+  assayResult      Float? // actual purity
+  paidAmount       Float
+  paymentMethod    String
+  paymentChannel   String?
   paymentReference String?
-  notes           String?
-  
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  
-  goldDispatch    GoldDispatch @relation(fields: [goldDispatchId], references: [id])
-  
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goldDispatch GoldDispatch @relation(fields: [goldDispatchId], references: [id])
+
   @@index([receiptDate])
 }
 
 model GoldShiftAllocation {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   date               DateTime
   shift              ShiftType
   siteId             String
-  shiftReportId      String   @unique
+  shiftReportId      String    @unique
   totalWeight        Float
   netWeight          Float
   workerShareWeight  Float
   companyShareWeight Float
   perWorkerWeight    Float
-  payCycleWeeks      Int      @default(2)
+  payCycleWeeks      Int       @default(2)
+  workflowStatus     WorkflowStatus @default(DRAFT)
   createdById        String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  submittedById      String?
+  approvedById       String?
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  site         Site        @relation(fields: [siteId], references: [id])
-  shiftReport  ShiftReport @relation(fields: [shiftReportId], references: [id])
-  createdBy    User        @relation(fields: [createdById], references: [id])
+  site         Site                   @relation(fields: [siteId], references: [id])
+  shiftReport  ShiftReport            @relation(fields: [shiftReportId], references: [id])
+  createdBy    User                   @relation("GoldShiftAllocationCreatedBy", fields: [createdById], references: [id])
+  submittedBy  User?                  @relation("GoldShiftAllocationSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy   User?                  @relation("GoldShiftAllocationApprovedBy", fields: [approvedById], references: [id])
   expenses     GoldShiftExpense[]
   workerShares GoldShiftWorkerShare[]
 
   @@unique([siteId, date, shift])
   @@index([siteId, date])
+  @@index([workflowStatus])
 }
 
 model GoldShiftExpense {
-  id            String   @id @default(uuid())
-  allocationId  String
-  type          String
-  weight        Float
+  id           String @id @default(uuid())
+  allocationId String
+  type         String
+  weight       Float
 
-  allocation    GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
 
   @@index([allocationId])
 }
 
 model GoldShiftWorkerShare {
-  id            String   @id @default(uuid())
-  allocationId  String
-  employeeId    String
-  shareWeight   Float
+  id           String @id @default(uuid())
+  allocationId String
+  employeeId   String
+  shareWeight  Float
 
-  allocation    GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
-  employee      Employee            @relation(fields: [employeeId], references: [id])
+  allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  employee   Employee            @relation(fields: [employeeId], references: [id])
 
   @@unique([allocationId, employeeId])
   @@index([allocationId])
@@ -487,33 +1178,33 @@ model StockLocation {
   siteId    String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  
-  site      Site     @relation(fields: [siteId], references: [id])
-  items     InventoryItem[]
-  
+
+  site  Site            @relation(fields: [siteId], references: [id])
+  items InventoryItem[]
+
   @@index([siteId])
 }
 
 model InventoryItem {
-  id              String   @id @default(uuid())
-  itemCode        String
-  name            String
-  category        String   // FUEL, SPARES, CONSUMABLES, PPE, REAGENTS
-  unit            String   // litres, kg, pieces, etc.
-  siteId          String
-  locationId      String
-  currentStock    Float    @default(0)
-  minStock        Float?
-  maxStock        Float?
-  unitCost        Float?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  site            Site     @relation(fields: [siteId], references: [id])
-  location        StockLocation @relation(fields: [locationId], references: [id])
-  movements       StockMovement[]
-  
+  id           String @id @default(uuid())
+  itemCode     String
+  name         String
+  category     String // FUEL, SPARES, CONSUMABLES, PPE, REAGENTS
+  unit         String // litres, kg, pieces, etc.
+  siteId       String
+  locationId   String
+  currentStock Float  @default(0)
+  minStock     Float?
+  maxStock     Float?
+  unitCost     Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site      Site            @relation(fields: [siteId], references: [id])
+  location  StockLocation   @relation(fields: [locationId], references: [id])
+  movements StockMovement[]
+
   @@unique([siteId, itemCode])
   @@index([siteId])
 }
@@ -526,48 +1217,48 @@ enum MovementType {
 }
 
 model StockMovement {
-  id              String       @id @default(uuid())
-  itemId          String
-  movementType    MovementType
-  quantity        Float
-  unit            String
-  issuedTo        String?      // section/equipment/cost code
-  requestedBy     String?
-  issuedById      String?
-  approvedBy      String?
-  notes           String?
-  photoUrl        String?
-  
-  createdAt       DateTime     @default(now())
-  
-  item            InventoryItem @relation(fields: [itemId], references: [id])
-  issuedBy        User?        @relation(fields: [issuedById], references: [id])
-  
+  id           String       @id @default(uuid())
+  itemId       String
+  movementType MovementType
+  quantity     Float
+  unit         String
+  issuedTo     String? // section/equipment/cost code
+  requestedBy  String?
+  issuedById   String?
+  approvedBy   String?
+  notes        String?
+  photoUrl     String?
+
+  createdAt DateTime @default(now())
+
+  item     InventoryItem @relation(fields: [itemId], references: [id])
+  issuedBy User?         @relation(fields: [issuedById], references: [id])
+
   @@index([itemId])
   @@index([createdAt])
 }
 
 model Equipment {
-  id              String   @id @default(uuid())
-  equipmentCode   String
-  name            String
-  category        String   // CRUSHER, MILL, PUMP, VEHICLE, etc.
-  siteId          String
-  qrCode          String?  @unique
-  isActive        Boolean  @default(true)
-  
+  id            String  @id @default(uuid())
+  equipmentCode String
+  name          String
+  category      String // CRUSHER, MILL, PUMP, VEHICLE, etc.
+  siteId        String
+  qrCode        String? @unique
+  isActive      Boolean @default(true)
+
   // Service tracking
   serviceHours    Float?
   serviceDays     Int?
   lastServiceDate DateTime?
   nextServiceDue  DateTime?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  site            Site     @relation(fields: [siteId], references: [id])
-  workOrders      WorkOrder[]
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site       Site        @relation(fields: [siteId], references: [id])
+  workOrders WorkOrder[]
+
   @@unique([siteId, equipmentCode])
   @@index([siteId])
 }
@@ -580,22 +1271,22 @@ enum WorkOrderStatus {
 }
 
 model WorkOrder {
-  id              String          @id @default(uuid())
-  equipmentId     String
-  issue           String
-  downtimeStart   DateTime
-  downtimeEnd     DateTime?
-  workDone        String?
-  partsUsed       String?         // JSON array
-  technicianId    String?
-  status          WorkOrderStatus @default(OPEN)
-  
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  equipment       Equipment       @relation(fields: [equipmentId], references: [id])
-  technician      Employee?       @relation("WorkOrderTechnicians", fields: [technicianId], references: [id])
-  
+  id            String          @id @default(uuid())
+  equipmentId   String
+  issue         String
+  downtimeStart DateTime
+  downtimeEnd   DateTime?
+  workDone      String?
+  partsUsed     String? // JSON array
+  technicianId  String?
+  status        WorkOrderStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  equipment  Equipment @relation(fields: [equipmentId], references: [id])
+  technician Employee? @relation("WorkOrderTechnicians", fields: [technicianId], references: [id])
+
   @@index([equipmentId])
   @@index([status])
 }
@@ -605,83 +1296,83 @@ model WorkOrder {
 // ============================================
 
 model Permit {
-  id              String   @id @default(uuid())
-  permitType      String
-  permitNumber    String
-  siteId          String
-  issueDate       DateTime
-  expiryDate      DateTime
+  id                String   @id @default(uuid())
+  permitType        String
+  permitNumber      String
+  siteId            String
+  issueDate         DateTime
+  expiryDate        DateTime
   responsiblePerson String
-  documentUrl     String?
-  status          String   @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  site            Site     @relation(fields: [siteId], references: [id])
-  
+  documentUrl       String?
+  status            String   @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id])
+
   @@index([siteId])
   @@index([expiryDate])
 }
 
 model Inspection {
-  id              String   @id @default(uuid())
-  siteId          String
-  inspectionDate  DateTime
-  inspectorName   String
-  inspectorOrg    String
-  findings        String
-  actions         String?
-  actionsDue      DateTime?
-  completedById   String?
-  completedAt     DateTime?
-  documentUrl     String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  site            Site     @relation(fields: [siteId], references: [id], onDelete: Restrict)
-  completedBy     User?    @relation(fields: [completedById], references: [id])
-  
+  id             String    @id @default(uuid())
+  siteId         String
+  inspectionDate DateTime
+  inspectorName  String
+  inspectorOrg   String
+  findings       String
+  actions        String?
+  actionsDue     DateTime?
+  completedById  String?
+  completedAt    DateTime?
+  documentUrl    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site        Site  @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  completedBy User? @relation(fields: [completedById], references: [id])
+
   @@index([siteId])
 }
 
 model Incident {
-  id              String   @id @default(uuid())
-  siteId          String
-  incidentDate    DateTime
-  incidentType    String   // INJURY, NEAR_MISS, ENVIRONMENTAL, SECURITY
-  severity        String   // LOW, MEDIUM, HIGH, CRITICAL
-  description     String
-  actionsTaken    String?
-  reportedBy      String
-  photoUrls       String?  // JSON array
-  status          String   @default("OPEN") // OPEN, INVESTIGATING, CLOSED
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  site            Site     @relation(fields: [siteId], references: [id])
-  
+  id           String   @id @default(uuid())
+  siteId       String
+  incidentDate DateTime
+  incidentType String // INJURY, NEAR_MISS, ENVIRONMENTAL, SECURITY
+  severity     String // LOW, MEDIUM, HIGH, CRITICAL
+  description  String
+  actionsTaken String?
+  reportedBy   String
+  photoUrls    String? // JSON array
+  status       String   @default("OPEN") // OPEN, INVESTIGATING, CLOSED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id])
+
   @@index([siteId])
   @@index([incidentDate])
 }
 
 model TrainingRecord {
-  id              String   @id @default(uuid())
-  userId          String
-  trainingType    String
-  trainingDate    DateTime
-  expiryDate      DateTime?
-  certificateUrl  String?
-  trainedBy       String?
-  notes           String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  user            User     @relation(fields: [userId], references: [id])
-  
+  id             String    @id @default(uuid())
+  userId         String
+  trainingType   String
+  trainingDate   DateTime
+  expiryDate     DateTime?
+  certificateUrl String?
+  trainedBy      String?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([expiryDate])
 }
@@ -703,9 +1394,9 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([provider, providerAccountId])
   @@index([userId])
 }
@@ -715,9 +1406,9 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId])
 }
 
@@ -725,7 +1416,7 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
-  
+
   @@unique([identifier, token])
 }
 
@@ -734,78 +1425,78 @@ model VerificationToken {
 // ============================================
 
 model NVR {
-  id              String   @id @default(uuid())
-  name            String
-  ipAddress       String
-  port            Int      @default(554) // RTSP port
-  httpPort        Int      @default(80)  // ISAPI port
-  username        String
-  password        String   // Encrypted in production
-  siteId          String
-  manufacturer    String   @default("Hikvision")
-  model           String?
-  firmware        String?
-  isActive        Boolean  @default(true)
-  isOnline        Boolean  @default(false)
-  lastHeartbeat   DateTime?
-  
+  id            String    @id @default(uuid())
+  name          String
+  ipAddress     String
+  port          Int       @default(554) // RTSP port
+  httpPort      Int       @default(80) // ISAPI port
+  username      String
+  password      String // Encrypted in production
+  siteId        String
+  manufacturer  String    @default("Hikvision")
+  model         String?
+  firmware      String?
+  isActive      Boolean   @default(true)
+  isOnline      Boolean   @default(false)
+  lastHeartbeat DateTime?
+
   // Network settings
-  rtspPort        Int      @default(554)
-  isapiEnabled    Boolean  @default(true)
-  onvifEnabled    Boolean  @default(false)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  site            Site     @relation(fields: [siteId], references: [id])
-  cameras         Camera[]
-  events          CCTVEvent[]
-  
+  rtspPort     Int     @default(554)
+  isapiEnabled Boolean @default(true)
+  onvifEnabled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site    Site        @relation(fields: [siteId], references: [id])
+  cameras Camera[]
+  events  CCTVEvent[]
+
   @@index([siteId])
   @@index([ipAddress])
 }
 
 model Camera {
-  id              String   @id @default(uuid())
-  name            String
-  channelNumber   Int
-  nvrId           String
-  siteId          String
-  
+  id            String @id @default(uuid())
+  name          String
+  channelNumber Int
+  nvrId         String
+  siteId        String
+
   // Location/Area
-  area            String   // "Gate", "Gold Room", "Crusher", "Processing"
-  description     String?
-  
+  area        String // "Gate", "Gold Room", "Crusher", "Processing"
+  description String?
+
   // Stream configuration
-  mainStreamId    String?  // e.g., "101" for channel 1 main
-  subStreamId     String?  // e.g., "102" for channel 1 sub
-  
+  mainStreamId String? // e.g., "101" for channel 1 main
+  subStreamId  String? // e.g., "102" for channel 1 sub
+
   // Camera capabilities
-  hasPTZ          Boolean  @default(false)
-  hasAudio        Boolean  @default(false)
-  hasMotionDetect Boolean  @default(true)
-  hasLineDetect   Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  
+  hasPTZ          Boolean @default(false)
+  hasAudio        Boolean @default(false)
+  hasMotionDetect Boolean @default(true)
+  hasLineDetect   Boolean @default(false)
+  isActive        Boolean @default(true)
+
   // Status
-  isOnline        Boolean  @default(false)
-  isRecording     Boolean  @default(true)
-  lastSeen        DateTime?
-  
+  isOnline    Boolean   @default(false)
+  isRecording Boolean   @default(true)
+  lastSeen    DateTime?
+
   // Business context
-  isHighSecurity  Boolean  @default(false) // e.g., gold room cameras
-  requiredUptime  Float?   // percentage
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  nvr             NVR      @relation(fields: [nvrId], references: [id])
-  site            Site     @relation(fields: [siteId], references: [id])
+  isHighSecurity Boolean @default(false) // e.g., gold room cameras
+  requiredUptime Float? // percentage
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nvr             NVR               @relation(fields: [nvrId], references: [id])
+  site            Site              @relation(fields: [siteId], references: [id])
   events          CCTVEvent[]
   streamSessions  StreamSession[]
   playbackRecords PlaybackRecord[]
   accessLogs      CameraAccessLog[]
-  
+
   @@unique([nvrId, channelNumber])
   @@index([siteId])
   @@index([nvrId])
@@ -844,32 +1535,32 @@ enum StreamSessionStatus {
 }
 
 model CCTVEvent {
-  id              String         @id @default(uuid())
-  nvrId           String?
-  cameraId        String?
-  eventType       CCTVEventType
-  severity        EventSeverity  @default(MEDIUM)
-  eventTime       DateTime
-  
+  id        String        @id @default(uuid())
+  nvrId     String?
+  cameraId  String?
+  eventType CCTVEventType
+  severity  EventSeverity @default(MEDIUM)
+  eventTime DateTime
+
   // Event details
-  title           String
-  description     String?
-  snapshotUrl     String?        // URL to event snapshot
-  
+  title       String
+  description String?
+  snapshotUrl String? // URL to event snapshot
+
   // Context
-  linkedIncidentId String?       // Link to Incident model if escalated
-  
+  linkedIncidentId String? // Link to Incident model if escalated
+
   // Status
-  isAcknowledged  Boolean        @default(false)
-  acknowledgedBy  String?
-  acknowledgedAt  DateTime?
-  notes           String?
-  
-  createdAt       DateTime       @default(now())
-  
-  nvr             NVR?           @relation(fields: [nvrId], references: [id])
-  camera          Camera?        @relation(fields: [cameraId], references: [id])
-  
+  isAcknowledged Boolean   @default(false)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  notes          String?
+
+  createdAt DateTime @default(now())
+
+  nvr    NVR?    @relation(fields: [nvrId], references: [id])
+  camera Camera? @relation(fields: [cameraId], references: [id])
+
   @@index([eventTime])
   @@index([cameraId])
   @@index([eventType])
@@ -877,24 +1568,24 @@ model CCTVEvent {
 }
 
 model StreamSession {
-  id          String              @id @default(uuid())
-  cameraId    String
-  siteId      String
-  userId      String
-  streamType  String              @default("sub")
-  protocol    StreamProtocol
-  status      StreamSessionStatus @default(ACTIVE)
-  playUrl     String?
-  purpose     String?
-  clientMeta  String?
-  startedAt   DateTime            @default(now())
-  endedAt     DateTime?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id         String              @id @default(uuid())
+  cameraId   String
+  siteId     String
+  userId     String
+  streamType String              @default("sub")
+  protocol   StreamProtocol
+  status     StreamSessionStatus @default(ACTIVE)
+  playUrl    String?
+  purpose    String?
+  clientMeta String?
+  startedAt  DateTime            @default(now())
+  endedAt    DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
 
-  camera      Camera              @relation(fields: [cameraId], references: [id])
-  site        Site                @relation(fields: [siteId], references: [id])
-  user        User                @relation(fields: [userId], references: [id])
+  camera Camera @relation(fields: [cameraId], references: [id])
+  site   Site   @relation(fields: [siteId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   @@index([cameraId, status])
   @@index([siteId, startedAt])
@@ -902,51 +1593,51 @@ model StreamSession {
 }
 
 model PlaybackRecord {
-  id              String   @id @default(uuid())
-  cameraId        String
-  startTime       DateTime
-  endTime         DateTime
-  fileSize        Int?     // in MB
-  
+  id        String   @id @default(uuid())
+  cameraId  String
+  startTime DateTime
+  endTime   DateTime
+  fileSize  Int? // in MB
+
   // Playback access
-  playbackUri     String?  // RTSP URI for playback
-  recordingType   String   @default("CONTINUOUS") // CONTINUOUS, EVENT, MANUAL
-  
+  playbackUri   String? // RTSP URI for playback
+  recordingType String  @default("CONTINUOUS") // CONTINUOUS, EVENT, MANUAL
+
   // Metadata
-  duration        Int?     // in seconds
-  hasAudio        Boolean  @default(false)
-  resolution      String?  // e.g., "1920x1080"
-  
+  duration   Int? // in seconds
+  hasAudio   Boolean @default(false)
+  resolution String? // e.g., "1920x1080"
+
   // Access tracking
-  requestedBy     String?  // User who requested playback
-  purpose         String?  // "Incident review", "Audit", etc.
-  
-  createdAt       DateTime @default(now())
-  
-  camera          Camera   @relation(fields: [cameraId], references: [id])
-  
+  requestedBy String? // User who requested playback
+  purpose     String? // "Incident review", "Audit", etc.
+
+  createdAt DateTime @default(now())
+
+  camera Camera @relation(fields: [cameraId], references: [id])
+
   @@index([cameraId])
   @@index([startTime, endTime])
 }
 
 model CameraAccessLog {
-  id              String   @id @default(uuid())
-  cameraId        String
-  userId          String?
-  accessType      String   // "LIVE_VIEW", "PLAYBACK", "PTZ_CONTROL"
-  startTime       DateTime
-  endTime         DateTime?
-  duration        Int?     // in seconds
-  ipAddress       String?
-  
+  id         String    @id @default(uuid())
+  cameraId   String
+  userId     String?
+  accessType String // "LIVE_VIEW", "PLAYBACK", "PTZ_CONTROL"
+  startTime  DateTime
+  endTime    DateTime?
+  duration   Int? // in seconds
+  ipAddress  String?
+
   // Business context
-  purpose         String?
-  notes           String?
-  
-  createdAt       DateTime @default(now())
-  
-  camera          Camera   @relation(fields: [cameraId], references: [id])
-  
+  purpose String?
+  notes   String?
+
+  createdAt DateTime @default(now())
+
+  camera Camera @relation(fields: [cameraId], references: [id])
+
   @@index([cameraId])
   @@index([userId])
   @@index([startTime])

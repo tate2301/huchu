@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchSites, fetchWorkOrders } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function MaintenanceWorkOrdersReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -123,37 +124,37 @@ export default function MaintenanceWorkOrdersReportPage() {
             <div className="text-sm text-muted-foreground">No work orders for the selected filters.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Created</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Equipment</th>
-                    <th className="p-3 text-left font-semibold">Issue</th>
-                    <th className="p-3 text-left font-semibold">Technician</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Created</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Equipment</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Issue</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Technician</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredRows.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy")}</td>
-                      <td className="p-3">{row.equipment.site.name}</td>
-                      <td className="p-3">
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">{row.equipment.site.name}</TableCell>
+                      <TableCell className="p-3">
                         <div className="font-semibold">{row.equipment.name}</div>
                         <div className="text-xs text-muted-foreground">{row.equipment.equipmentCode}</div>
-                      </td>
-                      <td className="p-3">{row.issue}</td>
-                      <td className="p-3">{row.technician?.name ?? "-"}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">{row.issue}</TableCell>
+                      <TableCell className="p-3">{row.technician?.name ?? "-"}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={row.status === "COMPLETED" ? "default" : row.status === "OPEN" ? "destructive" : "secondary"}>
                           {row.status}
                         </Badge>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -161,4 +162,6 @@ export default function MaintenanceWorkOrdersReportPage() {
     </div>
   );
 }
+
+
 

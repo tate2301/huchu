@@ -30,6 +30,7 @@ import {
 import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
 import { goldRoutes } from "@/app/gold/routes";
 import type { AttendanceShiftSummary } from "@/app/gold/types";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldPage() {
   const { toast } = useToast();
@@ -339,14 +340,14 @@ export default function GoldPage() {
             className="h-auto justify-start py-3"
           >
             <Link
-              href={goldRoutes.settlement.payouts}
+              href="/human-resources/disbursements"
               className="flex flex-col gap-4 items-start"
             >
               <Wallet size={18} className="text-rose-700" />
               <span className="flex flex-col items-start text-left">
-                <span>Review worker payouts</span>
+                <span>Review cash disbursements</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  Check allocation outcomes before final payout.
+                  Process approved payroll payouts in HR disbursements.
                 </span>
               </span>
             </Link>
@@ -392,24 +393,24 @@ export default function GoldPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Batch ID</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Batch ID</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {recentChain.map((entry) => (
-                    <tr key={entry.id} className="border-b">
-                      <td className="p-3 font-medium">{entry.pourBarId}</td>
-                      <td className="p-3">{entry.site}</td>
-                      <td className="p-3">
+                    <TableRow key={entry.id} className="border-b">
+                      <TableCell className="p-3 font-medium">{entry.pourBarId}</TableCell>
+                      <TableCell className="p-3">{entry.site}</TableCell>
+                      <TableCell className="p-3">
                         {new Date(entry.date).toLocaleString()}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <Badge
                           variant={
                             entry.status === "Complete"
@@ -421,11 +422,11 @@ export default function GoldPage() {
                         >
                           {entry.status}
                         </Badge>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -447,3 +448,5 @@ export default function GoldPage() {
     </GoldShell>
   );
 }
+
+

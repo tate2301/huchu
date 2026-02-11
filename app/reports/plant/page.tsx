@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchPlantReports, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function PlantReportHistoryPage() {
   const { toast } = useToast();
@@ -159,37 +160,37 @@ export default function PlantReportHistoryPage() {
             <div className="text-sm text-muted-foreground">No plant reports for this range.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Tonnes Processed</th>
-                    <th className="p-3 text-left font-semibold">Run Hours</th>
-                    <th className="p-3 text-left font-semibold">Gold Recovered</th>
-                    <th className="p-3 text-left font-semibold">Downtime</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Tonnes Processed</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Run Hours</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Gold Recovered</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Downtime</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {plantReportRecords.map((report) => {
                     const downtimeHours =
                       report.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0;
                     return (
-                      <tr
+                      <TableRow
                         key={report.id}
                         className={`border-b ${createdId === report.id ? "bg-[var(--status-success-bg)]" : ""}`}
                       >
-                        <td className="p-3">{format(new Date(report.date), "MMM d, yyyy")}</td>
-                        <td className="p-3">{report.site?.name}</td>
-                        <td className="p-3">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
-                        <td className="p-3">{(report.runHours ?? 0).toFixed(1)}</td>
-                        <td className="p-3">{(report.goldRecovered ?? 0).toFixed(2)}</td>
-                        <td className="p-3">{downtimeHours.toFixed(1)}h</td>
-                      </tr>
+                        <TableCell className="p-3">{format(new Date(report.date), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="p-3">{report.site?.name}</TableCell>
+                        <TableCell className="p-3">{(report.tonnesProcessed ?? 0).toFixed(1)}</TableCell>
+                        <TableCell className="p-3">{(report.runHours ?? 0).toFixed(1)}</TableCell>
+                        <TableCell className="p-3">{(report.goldRecovered ?? 0).toFixed(2)}</TableCell>
+                        <TableCell className="p-3">{downtimeHours.toFixed(1)}h</TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -239,3 +240,5 @@ export default function PlantReportHistoryPage() {
     </div>
   );
 }
+
+

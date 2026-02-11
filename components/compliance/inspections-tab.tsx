@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInspections, fetchSites, fetchUsers, type InspectionRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type InspectionForm = {
   id?: string;
@@ -234,41 +235,41 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
             <div className="text-sm text-muted-foreground">No inspections found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Inspector</th>
-                    <th className="p-3 text-left font-semibold">Actions Due</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                    <th className="p-3 text-right font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Inspector</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Actions Due</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {inspections.map((inspection) => {
                     const overdue =
                       Boolean(inspection.actionsDue) &&
                       !inspection.completedAt &&
                       toDateInput(inspection.actionsDue) < TODAY_ISO;
                     return (
-                      <tr
+                      <TableRow
                         key={inspection.id}
                         className={`border-b ${createdId === inspection.id ? "bg-[var(--status-success-bg)]" : ""}`}
                       >
-                        <td className="p-3">{toDateInput(inspection.inspectionDate)}</td>
-                        <td className="p-3">{inspection.site.name}</td>
-                        <td className="p-3">
+                        <TableCell className="p-3">{toDateInput(inspection.inspectionDate)}</TableCell>
+                        <TableCell className="p-3">{inspection.site.name}</TableCell>
+                        <TableCell className="p-3">
                           <div className="font-semibold">{inspection.inspectorName}</div>
                           <div className="text-xs text-muted-foreground">{inspection.inspectorOrg}</div>
-                        </td>
-                        <td className="p-3">{toDateInput(inspection.actionsDue)}</td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell className="p-3">{toDateInput(inspection.actionsDue)}</TableCell>
+                        <TableCell className="p-3">
                           <Badge variant={overdue ? "destructive" : inspection.completedAt ? "secondary" : "outline"}>
                             {overdue ? "OVERDUE" : inspection.completedAt ? "COMPLETED" : "OPEN"}
                           </Badge>
-                        </td>
-                        <td className="p-3 text-right">
+                        </TableCell>
+                        <TableCell className="p-3 text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
@@ -304,12 +305,12 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
                               Delete
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -469,3 +470,5 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
     </>
   );
 }
+
+

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchTrainingRecords, fetchUsers, type TrainingRecordSummary } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type TrainingForm = {
   id?: string;
@@ -198,30 +199,30 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
             <div className="text-sm text-muted-foreground">No training records found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">User</th>
-                    <th className="p-3 text-left font-semibold">Training</th>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Expiry</th>
-                    <th className="p-3 text-right font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">User</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Training</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Expiry</TableHead>
+                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {records.map((record) => {
                     const expired =
                       Boolean(record.expiryDate) &&
                       toDateInput(record.expiryDate) < TODAY_ISO;
                     return (
-                      <tr
+                      <TableRow
                         key={record.id}
                         className={`border-b ${createdId === record.id ? "bg-[var(--status-success-bg)]" : ""}`}
                       >
-                        <td className="p-3">{record.user.name}</td>
-                        <td className="p-3">{record.trainingType}</td>
-                        <td className="p-3">{toDateInput(record.trainingDate)}</td>
-                        <td className="p-3">
+                        <TableCell className="p-3">{record.user.name}</TableCell>
+                        <TableCell className="p-3">{record.trainingType}</TableCell>
+                        <TableCell className="p-3">{toDateInput(record.trainingDate)}</TableCell>
+                        <TableCell className="p-3">
                           <div className="flex items-center gap-2">
                             <span>{toDateInput(record.expiryDate)}</span>
                             {record.expiryDate ? (
@@ -230,8 +231,8 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
                               </Badge>
                             ) : null}
                           </div>
-                        </td>
-                        <td className="p-3 text-right">
+                        </TableCell>
+                        <TableCell className="p-3 text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
@@ -264,12 +265,12 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
                               Delete
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -382,3 +383,5 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
     </>
   );
 }
+
+

@@ -32,8 +32,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { AUTO_PAYOUT_NOTE_PREFIX } from "@/lib/gold-payouts";
 import { exportElementToPdf } from "@/lib/pdf";
 import type { EmployeePayment } from "@/lib/api";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const statusOptions = [
   { value: "DUE", label: "Due" },
@@ -75,6 +77,11 @@ type ShiftPayoutGroup = {
   siteName: string;
   siteCode: string;
   payCycleWeeks: number;
+  workflowStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  submittedAt?: Date;
+  approvedAt?: Date;
+  submittedByName?: string;
+  approvedByName?: string;
   expectedDueDate: Date;
   workers: ShiftWorkerPayout[];
   totalGold: number;
@@ -96,6 +103,10 @@ const emptyPaymentForm: PaymentForm = {
   status: "DUE",
   notes: "",
 };
+
+function workflowBadgeVariant(status: ShiftPayoutGroup["workflowStatus"]) {
+  return status === "APPROVED" ? "secondary" : "outline";
+}
 
 function toDateOnly(value: string | Date) {
   const date = value instanceof Date ? value : new Date(value);
@@ -133,6 +144,7 @@ export default function HrPayoutsPage() {
   const queryClient = useQueryClient();
 
   const createdId = searchParams.get("createdId");
+  const allocationIdFilter = searchParams.get("allocationId");
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(searchParams.get("window") ?? "2");
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -148,20 +160,20 @@ export default function HrPayoutsPage() {
   const windowEndDate = new Date();
 
   const { data: allocationsData, isLoading: allocationsLoading, error: allocationsError } = useQuery({
-    queryKey: ["gold-shift-allocations", "hr-payouts", payoutWindowWeeks],
+    queryKey: ["gold-shift-allocations", "hr-payouts", payoutWindowWeeks, allocationIdFilter],
     queryFn: () =>
       fetchGoldShiftAllocations({
-        startDate: windowStartDate.toISOString().slice(0, 10),
+        startDate: allocationIdFilter ? undefined : windowStartDate.toISOString().slice(0, 10),
         limit: 500,
       }),
   });
 
   const { data: paymentsData, isLoading: paymentsLoading, error: paymentsError } = useQuery({
-    queryKey: ["employee-payments", "gold", "shift-grouped", payoutWindowWeeks],
+    queryKey: ["employee-payments", "gold", "shift-grouped", payoutWindowWeeks, allocationIdFilter],
     queryFn: () =>
       fetchEmployeePayments({
         type: "GOLD",
-        startDate: windowStartDate.toISOString(),
+        startDate: allocationIdFilter ? undefined : windowStartDate.toISOString(),
         limit: 1000,
       }),
   });
@@ -171,7 +183,9 @@ export default function HrPayoutsPage() {
 
   const payoutGroups = useMemo<ShiftPayoutGroup[]>(() => {
     return shiftAllocations
-      .filter((allocation) => allocation.payCycleWeeks === windowWeeks)
+      .filter((allocation) =>
+        allocationIdFilter ? allocation.id === allocationIdFilter : allocation.payCycleWeeks === windowWeeks,
+      )
       .map((allocation) => {
         const allocationDate = new Date(allocation.date);
         const expectedDueDate = addDays(allocationDate, allocation.payCycleWeeks * 7);
@@ -204,6 +218,11 @@ export default function HrPayoutsPage() {
           siteName: allocation.site.name,
           siteCode: allocation.site.code,
           payCycleWeeks: allocation.payCycleWeeks,
+          workflowStatus: allocation.workflowStatus,
+          submittedAt: allocation.submittedAt ? new Date(allocation.submittedAt) : undefined,
+          approvedAt: allocation.approvedAt ? new Date(allocation.approvedAt) : undefined,
+          submittedByName: allocation.submittedBy?.name,
+          approvedByName: allocation.approvedBy?.name,
           expectedDueDate,
           workers,
           totalGold,
@@ -213,7 +232,7 @@ export default function HrPayoutsPage() {
         } satisfies ShiftPayoutGroup;
       })
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [payments, shiftAllocations, windowWeeks]);
+  }, [allocationIdFilter, payments, shiftAllocations, windowWeeks]);
 
   const totalGoldDue = useMemo(
     () => payoutGroups.reduce((sum, group) => sum + group.totalGold, 0),
@@ -289,29 +308,101 @@ export default function HrPayoutsPage() {
     },
   });
 
-  const openPaymentForm = (group: ShiftPayoutGroup, worker: ShiftWorkerPayout) => {
-    const periodStart = toDateOnly(group.date);
-    const periodEnd = toDateOnly(group.date);
-    const dueDate = worker.payment?.dueDate
-      ? worker.payment.dueDate.slice(0, 10)
-      : toDateOnly(group.expectedDueDate);
+  const invalidatePayoutWorkflowData = () => {
+    queryClient.invalidateQueries({ queryKey: ["gold-shift-allocations"] });
+    queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
+    queryClient.invalidateQueries({ queryKey: ["approval-history"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  };
 
-    setPaymentForm({
-      id: worker.payment?.id,
-      employeeId: worker.employeeId,
-      employeeName: worker.employeeName,
-      periodStart,
-      periodEnd,
-      dueDate,
-      amount: worker.payment ? String(worker.payment.amount) : worker.shareWeight.toFixed(3),
-      unit: worker.payment?.unit ?? "g",
-      paidAmount: worker.payment?.paidAmount ? String(worker.payment.paidAmount) : "",
-      paidAt: worker.payment?.paidAt ? worker.payment.paidAt.slice(0, 10) : "",
-      status: worker.payment?.status ?? "DUE",
-      notes: worker.payment?.notes ?? `Shift ${format(group.date, "yyyy-MM-dd")} (${group.shift})`,
-    });
-    setSelectedGroup(null);
-    setPaymentOpen(true);
+  const submitAllocationMutation = useMutation({
+    mutationFn: async (allocationId: string) =>
+      fetchJson(`/api/gold/shift-allocations/${allocationId}/submit`, { method: "POST" }),
+    onSuccess: () => {
+      toast({
+        title: "Allocation submitted",
+        description: "Gold payout allocation is now pending approval.",
+        variant: "success",
+      });
+      invalidatePayoutWorkflowData();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to submit allocation",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const approveAllocationMutation = useMutation({
+    mutationFn: async (allocationId: string) =>
+      fetchJson(`/api/gold/shift-allocations/${allocationId}/approve`, { method: "POST" }),
+    onSuccess: () => {
+      toast({
+        title: "Allocation approved",
+        description: "Gold payouts can now be recorded for this shift allocation.",
+        variant: "success",
+      });
+      invalidatePayoutWorkflowData();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to approve allocation",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rejectAllocationMutation = useMutation({
+    mutationFn: async ({ allocationId, note }: { allocationId: string; note: string }) =>
+      fetchJson(`/api/gold/shift-allocations/${allocationId}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Allocation rejected",
+        description: "Allocation returned for correction before payout recording.",
+        variant: "success",
+      });
+      invalidatePayoutWorkflowData();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to reject allocation",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const requestRejectionNote = () => window.prompt("Enter rejection reason");
+
+  const openPaymentForm = (group: ShiftPayoutGroup, worker: ShiftWorkerPayout) => {
+    if (group.workflowStatus !== "APPROVED") {
+      toast({
+        title: "Approval required",
+        description: "Submit and approve this allocation before recording worker payouts.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPaymentForm((prev) => ({
+      ...prev,
+      notes:
+        worker.payment?.notes ??
+        `${AUTO_PAYOUT_NOTE_PREFIX}${group.allocationId} Shift ${format(group.date, "yyyy-MM-dd")} (${group.shift})`,
+    }))
+    toast({
+      title: "Continue in payroll",
+      description: "Generate and approve a Gold Run, then disburse the batch to complete payout.",
+      variant: "success",
+    })
+    setSelectedGroup(null)
+    router.push("/human-resources/payroll/gold")
   };
 
   const handlePaymentChange =
@@ -358,7 +449,7 @@ export default function HrPayoutsPage() {
   };
 
   return (
-    <HrShell activeTab="payouts" description="Gold payout management and approvals">
+    <HrShell activeTab="payouts" description="Gold shift payout approvals that feed payroll disbursement">
       <RecordSavedBanner entityLabel="gold payout record" />
       {(allocationsError || paymentsError) && (
         <Alert variant="destructive">
@@ -456,7 +547,9 @@ export default function HrPayoutsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle>Gold Payouts by Shift</CardTitle>
-              <CardDescription>Track when each shift payout is due and who is included.</CardDescription>
+              <CardDescription>
+                Approve shift payouts here, then convert and disburse them from Payroll at the current gold rate.
+              </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -512,7 +605,9 @@ export default function HrPayoutsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Shift Groups</CardTitle>
-          <CardDescription>Each row represents one shift payout group.</CardDescription>
+          <CardDescription>
+            Each row represents one shift payout group with workflow controls.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -520,41 +615,118 @@ export default function HrPayoutsPage() {
           ) : payoutGroups.length === 0 ? (
             <div className="text-sm text-muted-foreground">No payouts for this window.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="text-left p-3 font-semibold">Shift</th>
-                    <th className="text-left p-3 font-semibold">Site</th>
-                    <th className="text-left p-3 font-semibold">Workers</th>
-                    <th className="text-left p-3 font-semibold">Gold Due (g)</th>
-                    <th className="text-left p-3 font-semibold">Expected Due</th>
-                    <th className="text-left p-3 font-semibold">Status</th>
-                    <th className="text-right p-3 font-semibold">Members</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="space-y-3">
+              {allocationIdFilter ? (
+                <div className="text-xs text-muted-foreground">
+                  Focused view for allocation <span className="font-semibold text-foreground">{allocationIdFilter}</span>.
+                </div>
+              ) : null}
+              <div className="overflow-x-auto">
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="text-left p-3 font-semibold">Shift</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Site</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Workers</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Gold Due (g)</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Expected Due</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Payout Status</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Workflow</TableHead>
+                    <TableHead className="text-right p-3 font-semibold">Workflow Actions</TableHead>
+                    <TableHead className="text-right p-3 font-semibold">Members</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {payoutGroups.map((group) => (
-                    <tr key={group.allocationId} className="border-b">
-                      <td className="p-3">
+                    <TableRow
+                      key={group.allocationId}
+                      className={`border-b ${allocationIdFilter === group.allocationId ? "bg-[var(--status-success-bg)]" : ""}`}
+                    >
+                      <TableCell className="p-3">
                         <div className="font-semibold">{format(group.date, "MMM d, yyyy")} ({group.shift})</div>
                         <div className="text-xs text-muted-foreground">Allocation {group.allocationId.slice(0, 8)}</div>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <div className="font-semibold">{group.siteName}</div>
                         <div className="text-xs text-muted-foreground">{group.siteCode}</div>
-                      </td>
-                      <td className="p-3">{group.workers.length}</td>
-                      <td className="p-3">{group.totalGold.toFixed(3)}</td>
-                      <td className="p-3">{format(group.expectedDueDate, "MMM d, yyyy")}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">{group.workers.length}</TableCell>
+                      <TableCell className="p-3">{group.totalGold.toFixed(3)}</TableCell>
+                      <TableCell className="p-3">{format(group.expectedDueDate, "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="secondary">Paid {group.paidCount}</Badge>
                           {group.partialCount > 0 ? <Badge variant="outline">Partial {group.partialCount}</Badge> : null}
                           {group.dueCount > 0 ? <Badge variant="outline">Due {group.dueCount}</Badge> : null}
                         </div>
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3">
+                        <div className="space-y-1">
+                          <Badge variant={workflowBadgeVariant(group.workflowStatus)}>
+                            {group.workflowStatus}
+                          </Badge>
+                          {group.submittedAt ? (
+                            <div className="text-xs text-muted-foreground">
+                              Submitted {format(group.submittedAt, "MMM d, yyyy HH:mm")}
+                              {group.submittedByName ? ` by ${group.submittedByName}` : ""}
+                            </div>
+                          ) : null}
+                          {group.approvedAt ? (
+                            <div className="text-xs text-muted-foreground">
+                              Approved {format(group.approvedAt, "MMM d, yyyy HH:mm")}
+                              {group.approvedByName ? ` by ${group.approvedByName}` : ""}
+                            </div>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              !["DRAFT", "REJECTED"].includes(group.workflowStatus) ||
+                              submitAllocationMutation.isPending
+                            }
+                            onClick={() => submitAllocationMutation.mutate(group.allocationId)}
+                          >
+                            Submit
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              group.workflowStatus !== "SUBMITTED" ||
+                              approveAllocationMutation.isPending
+                            }
+                            onClick={() => approveAllocationMutation.mutate(group.allocationId)}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              group.workflowStatus !== "SUBMITTED" ||
+                              rejectAllocationMutation.isPending
+                            }
+                            onClick={() => {
+                              const note = requestRejectionNote();
+                              if (!note || !note.trim()) return;
+                              rejectAllocationMutation.mutate({
+                                allocationId: group.allocationId,
+                                note: note.trim(),
+                              });
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <Button
                           type="button"
                           size="sm"
@@ -563,11 +735,12 @@ export default function HrPayoutsPage() {
                         >
                           View Members
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -593,6 +766,17 @@ export default function HrPayoutsPage() {
           </DialogHeader>
           {selectedGroup ? (
             <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Workflow:</span>
+                <Badge variant={workflowBadgeVariant(selectedGroup.workflowStatus)}>
+                  {selectedGroup.workflowStatus}
+                </Badge>
+                {selectedGroup.workflowStatus !== "APPROVED" ? (
+                  <span className="text-xs text-muted-foreground">
+                    Payout recording unlocks after approval.
+                  </span>
+                ) : null}
+              </div>
               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
                 <div>
                   Site: <span className="font-semibold text-foreground">{selectedGroup.siteCode}</span>
@@ -609,59 +793,67 @@ export default function HrPayoutsPage() {
               </div>
 
               <div className="max-h-[60dvh] overflow-auto rounded-md border border-border">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted">
-                    <tr>
-                      <th className="p-2 text-left font-semibold">Worker</th>
-                      <th className="p-2 text-left font-semibold">Shift Earned (g)</th>
-                      <th className="p-2 text-left font-semibold">Due Date</th>
-                      <th className="p-2 text-left font-semibold">Status</th>
-                      <th className="p-2 text-left font-semibold">Paid</th>
-                      <th className="p-2 text-left font-semibold">Paid Date</th>
-                      <th className="p-2 text-right font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="w-full text-sm">
+                  <TableHeader className="sticky top-0 bg-muted">
+                    <TableRow>
+                      <TableHead className="p-2 text-left font-semibold">Worker</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Shift Earned (g)</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Due Date</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Status</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Paid</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Paid Date</TableHead>
+                      <TableHead className="p-2 text-right font-semibold">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {selectedGroup.workers.map((worker) => {
                       const isOverdue =
                         isBefore(worker.dueDate, new Date()) && worker.status !== "PAID";
 
                       return (
-                        <tr
+                        <TableRow
                           key={`${selectedGroup.allocationId}-${worker.employeeId}`}
                           className={`border-b ${createdId === worker.payment?.id ? "bg-[var(--status-success-bg)]" : ""}`}
                         >
-                          <td className="p-2">
+                          <TableCell className="p-2">
                             <div className="font-semibold">{worker.employeeName}</div>
                             <div className="text-xs text-muted-foreground">{worker.employeeCode}</div>
-                          </td>
-                          <td className="p-2">{worker.shareWeight.toFixed(3)}</td>
-                          <td className="p-2">
+                          </TableCell>
+                          <TableCell className="p-2">{worker.shareWeight.toFixed(3)}</TableCell>
+                          <TableCell className="p-2">
                             {format(worker.dueDate, "MMM d, yyyy")}
                             {isOverdue ? <div className="text-[10px] text-red-600">Past due</div> : null}
-                          </td>
-                          <td className="p-2">
+                          </TableCell>
+                          <TableCell className="p-2">
                             <Badge variant={worker.status === "PAID" ? "secondary" : "outline"}>
                               {worker.status}
                             </Badge>
-                          </td>
-                          <td className="p-2">{worker.paidAmount > 0 ? worker.paidAmount.toFixed(3) : "-"}</td>
-                          <td className="p-2">{worker.paidAt ? format(worker.paidAt, "MMM d, yyyy") : "-"}</td>
-                          <td className="p-2 text-right">
+                          </TableCell>
+                          <TableCell className="p-2">{worker.paidAmount > 0 ? worker.paidAmount.toFixed(3) : "-"}</TableCell>
+                          <TableCell className="p-2">{worker.paidAt ? format(worker.paidAt, "MMM d, yyyy") : "-"}</TableCell>
+                          <TableCell className="p-2 text-right">
                             <Button
                               type="button"
                               size="sm"
                               variant="outline"
+                              disabled={selectedGroup.workflowStatus !== "APPROVED"}
+                              title={
+                                selectedGroup.workflowStatus !== "APPROVED"
+                                  ? "Submit and approve allocation before recording payouts"
+                                  : undefined
+                              }
                               onClick={() => openPaymentForm(selectedGroup, worker)}
                             >
-                              {worker.payment ? "Update" : "Record"}
+                              {selectedGroup.workflowStatus === "APPROVED"
+                                ? "Disburse"
+                                : "Pending"}
                             </Button>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           ) : null}

@@ -59,6 +59,14 @@ const viewLabels: Record<string, Record<string, string>> = {
     playback: "Playback",
     "access-logs": "Access Logs",
   },
+  "human-resources": {
+    payouts: "Payouts",
+    salaries: "Fixed Salaries",
+    compensation: "Compensation",
+    payroll: "Payroll",
+    disbursements: "Disbursements",
+    approvals: "Approvals",
+  },
 };
 
 function toTitleCase(value: string) {

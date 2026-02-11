@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { emitWorkOrderStatusNotification } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -118,6 +119,22 @@ export async function POST(request: NextRequest) {
           },
         },
         technician: { select: { id: true, name: true, employeeId: true } },
+      },
+    });
+
+    await emitWorkOrderStatusNotification(prisma, {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      actorRole: session.user.role,
+      workOrder: {
+        id: workOrder.id,
+        issue: workOrder.issue,
+        status: workOrder.status,
+        equipment: {
+          id: workOrder.equipment.id,
+          equipmentCode: workOrder.equipment.equipmentCode,
+          name: workOrder.equipment.name,
+        },
       },
     });
 

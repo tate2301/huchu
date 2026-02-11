@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchShiftReports, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function ShiftReportHistoryPage() {
   const { toast } = useToast();
@@ -163,33 +164,33 @@ export default function ShiftReportHistoryPage() {
             <div className="text-sm text-muted-foreground">No shift reports for this range.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Shift</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Work Type</th>
-                    <th className="p-3 text-left font-semibold">Crew</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Shift</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Work Type</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Crew</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {shiftReportRecords.map((report) => (
-                    <tr
+                    <TableRow
                       key={report.id}
                       className={`border-b ${createdId === report.id ? "bg-[var(--status-success-bg)]" : ""}`}
                     >
-                      <td className="p-3">{format(new Date(report.date), "MMM d, yyyy")}</td>
-                      <td className="p-3">{report.shift}</td>
-                      <td className="p-3">{report.site?.name}</td>
-                      <td className="p-3">{report.workType}</td>
-                      <td className="p-3">{report.crewCount}</td>
-                      <td className="p-3">{report.status}</td>
-                    </tr>
+                      <TableCell className="p-3">{format(new Date(report.date), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">{report.shift}</TableCell>
+                      <TableCell className="p-3">{report.site?.name}</TableCell>
+                      <TableCell className="p-3">{report.workType}</TableCell>
+                      <TableCell className="p-3">{report.crewCount}</TableCell>
+                      <TableCell className="p-3">{report.status}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -235,3 +236,5 @@ export default function ShiftReportHistoryPage() {
     </div>
   );
 }
+
+

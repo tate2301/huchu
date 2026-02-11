@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchIncidents, fetchSites, type IncidentRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type IncidentForm = {
   id?: string;
@@ -254,33 +255,33 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
             <div className="text-sm text-muted-foreground">No incidents found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Type</th>
-                    <th className="p-3 text-left font-semibold">Severity</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                    <th className="p-3 text-right font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Severity</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {incidents.map((incident) => (
-                    <tr
+                    <TableRow
                       key={incident.id}
                       className={`border-b ${createdId === incident.id ? "bg-[var(--status-success-bg)]" : ""}`}
                     >
-                      <td className="p-3">{toDateInput(incident.incidentDate)}</td>
-                      <td className="p-3">{incident.site.name}</td>
-                      <td className="p-3">{incident.incidentType}</td>
-                      <td className="p-3">
+                      <TableCell className="p-3">{toDateInput(incident.incidentDate)}</TableCell>
+                      <TableCell className="p-3">{incident.site.name}</TableCell>
+                      <TableCell className="p-3">{incident.incidentType}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={badgeVariant(incident.severity)}>{incident.severity}</Badge>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={badgeVariant(incident.status)}>{incident.status}</Badge>
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             size="sm"
@@ -324,11 +325,11 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
                             Delete
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -478,3 +479,5 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
     </>
   );
 }
+
+

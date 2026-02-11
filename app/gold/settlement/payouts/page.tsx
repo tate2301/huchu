@@ -24,6 +24,7 @@ import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { goldRoutes } from "@/app/gold/routes";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type WorkerPayoutDetail = {
   employeeId: string;
@@ -306,41 +307,41 @@ export default function GoldSettlementPayoutsPage() {
             <div className="text-sm text-muted-foreground">No shift payouts recorded for this window.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="text-left p-3 font-semibold">Shift</th>
-                    <th className="text-left p-3 font-semibold">Site</th>
-                    <th className="text-left p-3 font-semibold">Workers</th>
-                    <th className="text-left p-3 font-semibold">Worker Gold (g)</th>
-                    <th className="text-left p-3 font-semibold">Pay Cycle</th>
-                    <th className="text-left p-3 font-semibold">Expected Due</th>
-                    <th className="text-left p-3 font-semibold">Payment Progress</th>
-                    <th className="text-right p-3 font-semibold">Members</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="text-left p-3 font-semibold">Shift</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Site</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Workers</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Worker Gold (g)</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Pay Cycle</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Expected Due</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">Payment Progress</TableHead>
+                    <TableHead className="text-right p-3 font-semibold">Members</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {shiftPayouts.map((shift) => (
-                    <tr key={shift.allocationId} className="border-b">
-                      <td className="p-3">
+                    <TableRow key={shift.allocationId} className="border-b">
+                      <TableCell className="p-3">
                         <div className="font-semibold">
                           {format(shift.date, "MMM d, yyyy")} ({shift.shift})
                         </div>
                         <div className="text-xs text-muted-foreground">
                           Allocation {shift.allocationId.slice(0, 8)}
                         </div>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         <div className="font-semibold">{shift.siteName}</div>
                         <div className="text-xs text-muted-foreground">{shift.siteCode}</div>
-                      </td>
-                      <td className="p-3">{shift.workerCount}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">{shift.workerCount}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant="secondary">{shift.workerShareWeight.toFixed(3)} g</Badge>
-                      </td>
-                      <td className="p-3">{shift.payCycleWeeks} weeks</td>
-                      <td className="p-3">{format(shift.expectedDueDate, "MMM d, yyyy")}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">{shift.payCycleWeeks} weeks</TableCell>
+                      <TableCell className="p-3">{format(shift.expectedDueDate, "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="secondary">Paid {shift.paidCount}</Badge>
                           {shift.partialCount > 0 ? (
@@ -348,8 +349,8 @@ export default function GoldSettlementPayoutsPage() {
                           ) : null}
                           {shift.dueCount > 0 ? <Badge variant="outline">Due {shift.dueCount}</Badge> : null}
                         </div>
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <Button
                           type="button"
                           variant="outline"
@@ -358,11 +359,11 @@ export default function GoldSettlementPayoutsPage() {
                         >
                           View Members
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -404,37 +405,37 @@ export default function GoldSettlementPayoutsPage() {
               </div>
 
               <div className="max-h-[60dvh] overflow-auto rounded-md border border-border">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted">
-                    <tr>
-                      <th className="p-2 text-left font-semibold">Worker</th>
-                      <th className="p-2 text-left font-semibold">Share (g)</th>
-                      <th className="p-2 text-left font-semibold">Due</th>
-                      <th className="p-2 text-left font-semibold">Status</th>
-                      <th className="p-2 text-left font-semibold">Paid</th>
-                      <th className="p-2 text-left font-semibold">Paid Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="w-full text-sm">
+                  <TableHeader className="sticky top-0 bg-muted">
+                    <TableRow>
+                      <TableHead className="p-2 text-left font-semibold">Worker</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Share (g)</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Due</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Status</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Paid</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">Paid Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {selectedShift.workers.map((worker) => (
-                      <tr key={`${selectedShift.allocationId}-${worker.employeeId}`} className="border-b">
-                        <td className="p-2">
+                      <TableRow key={`${selectedShift.allocationId}-${worker.employeeId}`} className="border-b">
+                        <TableCell className="p-2">
                           <div className="font-semibold">{worker.employeeName}</div>
                           <div className="text-xs text-muted-foreground">{worker.code}</div>
-                        </td>
-                        <td className="p-2">{worker.shareWeight.toFixed(3)}</td>
-                        <td className="p-2">{format(worker.dueDate, "MMM d, yyyy")}</td>
-                        <td className="p-2">
+                        </TableCell>
+                        <TableCell className="p-2">{worker.shareWeight.toFixed(3)}</TableCell>
+                        <TableCell className="p-2">{format(worker.dueDate, "MMM d, yyyy")}</TableCell>
+                        <TableCell className="p-2">
                           <Badge variant={worker.status === "PAID" ? "secondary" : "outline"}>
                             {worker.status}
                           </Badge>
-                        </td>
-                        <td className="p-2">{worker.paidAmount > 0 ? worker.paidAmount.toFixed(3) : "-"}</td>
-                        <td className="p-2">{worker.paidAt ? format(worker.paidAt, "MMM d, yyyy") : "-"}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="p-2">{worker.paidAmount > 0 ? worker.paidAmount.toFixed(3) : "-"}</TableCell>
+                        <TableCell className="p-2">{worker.paidAt ? format(worker.paidAt, "MMM d, yyyy") : "-"}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           ) : null}
@@ -482,3 +483,5 @@ export default function GoldSettlementPayoutsPage() {
     </GoldShell>
   );
 }
+
+

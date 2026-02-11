@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldExceptionsPage() {
   const exceptionPdfRef = useRef<HTMLDivElement>(null);
@@ -148,30 +149,30 @@ export default function GoldExceptionsPage() {
         emptyDescription="Correction notes will appear here after they are saved."
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-3 text-left font-semibold">Date</th>
-                <th className="p-3 text-left font-semibold">Type</th>
-                <th className="p-3 text-left font-semibold">Reference</th>
-                <th className="p-3 text-left font-semibold">Reason</th>
-                <th className="p-3 text-left font-semibold">By</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Type</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Reference</TableHead>
+                <TableHead className="p-3 text-left font-semibold">Reason</TableHead>
+                <TableHead className="p-3 text-left font-semibold">By</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {corrections.map((correction) => (
-                <tr key={correction.id} className="border-b">
-                  <td className="p-3">{new Date(correction.createdAt).toLocaleString()}</td>
-                  <td className="p-3">
+                <TableRow key={correction.id} className="border-b">
+                  <TableCell className="p-3">{new Date(correction.createdAt).toLocaleString()}</TableCell>
+                  <TableCell className="p-3">
                     <Badge variant="outline">{correction.entityType}</Badge>
-                  </td>
-                  <td className="p-3">{correction.pour.pourBarId}</td>
-                  <td className="p-3">{correction.reason}</td>
-                  <td className="p-3">{correction.createdBy.name}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="p-3">{correction.pour.pourBarId}</TableCell>
+                  <TableCell className="p-3">{correction.reason}</TableCell>
+                  <TableCell className="p-3">{correction.createdBy.name}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </DataListShell>
 
@@ -242,3 +243,5 @@ export default function GoldExceptionsPage() {
     </GoldShell>
   );
 }
+
+

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { fetchSites, fetchStockMovements, type StockMovement } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ParsedNotes = {
   supplier?: string;
@@ -208,55 +209,55 @@ export default function StoresMovementsPage() {
         }
       >
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 z-10 bg-muted">
-                <tr>
-                  <th className="p-3 text-left text-table-cell">Date</th>
-                  <th className="p-3 text-left text-table-cell">Type</th>
-                  <th className="p-3 text-left text-table-cell">Item</th>
-                  <th className="p-3 text-left text-table-cell">Site</th>
-                  <th className="p-3 text-right text-table-cell">Qty</th>
-                  <th className="p-3 text-left text-table-cell">Actor</th>
-                  <th className="p-3 text-left text-table-cell">Notes</th>
-                  <th className="p-3 text-right text-table-cell">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full">
+              <TableHeader className="sticky top-0 z-10 bg-muted">
+                <TableRow>
+                  <TableHead className="p-3 text-left text-table-cell">Date</TableHead>
+                  <TableHead className="p-3 text-left text-table-cell">Type</TableHead>
+                  <TableHead className="p-3 text-left text-table-cell">Item</TableHead>
+                  <TableHead className="p-3 text-left text-table-cell">Site</TableHead>
+                  <TableHead className="p-3 text-right text-table-cell">Qty</TableHead>
+                  <TableHead className="p-3 text-left text-table-cell">Actor</TableHead>
+                  <TableHead className="p-3 text-left text-table-cell">Notes</TableHead>
+                  <TableHead className="p-3 text-right text-table-cell">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredMovements.map((movement) => {
                   const notes = parseNotes(movement.notes);
                   const rowNotes = notes.notes ?? notes.invoiceNo ?? notes.supplier ?? "-";
                   return (
-                    <tr
+                    <TableRow
                       key={movement.id}
                       className={`border-b hover:bg-muted/60 ${
                         createdId === movement.id ? "bg-[var(--status-success-bg)]" : ""
                       }`}
                     >
-                      <td className="p-3 text-sm">
+                      <TableCell className="p-3 text-sm">
                         {new Date(movement.createdAt).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         <Badge variant={movementVariant(movement.movementType)}>
                           {movement.movementType}
                         </Badge>
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         <div className="font-semibold">{movement.item.name}</div>
                         <div className="text-xs text-muted-foreground">
                           {movement.item.itemCode}
                         </div>
-                      </td>
-                      <td className="p-3 text-sm">{movement.item.site.name}</td>
-                      <td className="p-3 text-right text-sm font-semibold">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">{movement.item.site.name}</TableCell>
+                      <TableCell className="p-3 text-right text-sm font-semibold">
                         {movement.quantity} {movement.unit}
-                      </td>
-                      <td className="p-3 text-sm">
+                      </TableCell>
+                      <TableCell className="p-3 text-sm">
                         {movement.approvedBy ?? movement.requestedBy ?? movement.issuedBy?.name ?? "-"}
-                      </td>
-                      <td className="max-w-52 truncate p-3 text-sm" title={rowNotes}>
+                      </TableCell>
+                      <TableCell className="max-w-52 truncate p-3 text-sm" title={rowNotes}>
                         {rowNotes}
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="p-3 text-right">
                         <Button
                           type="button"
                           size="sm"
@@ -265,12 +266,12 @@ export default function StoresMovementsPage() {
                         >
                           View
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
       </DataListShell>
 
@@ -345,3 +346,5 @@ export default function StoresMovementsPage() {
     </StoresShell>
   );
 }
+
+

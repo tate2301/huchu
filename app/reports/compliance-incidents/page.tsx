@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchIncidents, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function ComplianceIncidentsReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -116,34 +117,34 @@ export default function ComplianceIncidentsReportPage() {
             <div className="text-sm text-muted-foreground">No incident records found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Date</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Type</th>
-                    <th className="p-3 text-left font-semibold">Severity</th>
-                    <th className="p-3 text-left font-semibold">Status</th>
-                    <th className="p-3 text-left font-semibold">Reported By</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Severity</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Reported By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.incidentDate), "MMM d, yyyy")}</td>
-                      <td className="p-3">{row.site.name}</td>
-                      <td className="p-3">{row.incidentType}</td>
-                      <td className="p-3">
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.incidentDate), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">{row.site.name}</TableCell>
+                      <TableCell className="p-3">{row.incidentType}</TableCell>
+                      <TableCell className="p-3">
                         <Badge variant={row.severity === "CRITICAL" || row.severity === "HIGH" ? "destructive" : "secondary"}>
                           {row.severity}
                         </Badge>
-                      </td>
-                      <td className="p-3">{row.status}</td>
-                      <td className="p-3">{row.reportedBy}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="p-3">{row.status}</TableCell>
+                      <TableCell className="p-3">{row.reportedBy}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -151,4 +152,6 @@ export default function ComplianceIncidentsReportPage() {
     </div>
   );
 }
+
+
 

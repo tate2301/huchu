@@ -7,6 +7,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { GuidedModeToggle } from "@/components/layout/guided-mode-toggle"
 import { usePageActions } from "@/components/layout/page-actions"
+import { NotificationCenter } from "@/components/notifications/notification-center"
 
 export function Navbar() {
   const { actions } = usePageActions()
@@ -28,6 +29,7 @@ export function Navbar() {
           ) : null}
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <NotificationCenter />
           <GuidedModeToggle />
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>

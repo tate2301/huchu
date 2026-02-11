@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { emitIncidentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const updateIncidentSchema = z.object({
@@ -14,7 +15,7 @@ const updateIncidentSchema = z.object({
   status: z.string().max(50).optional(),
 });
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
 async function getIncidentForCompany(id: string, companyId: string) {
   const incident = await prisma.incident.findUnique({
@@ -32,8 +33,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const incident = await getIncidentForCompany(params.id, session.user.companyId);
+    const incident = await getIncidentForCompany(id, session.user.companyId);
     if (!incident) return errorResponse("Incident not found", 404);
     return successResponse(incident);
   } catch (error) {
@@ -47,8 +49,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getIncidentForCompany(params.id, session.user.companyId);
+    const existing = await getIncidentForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Incident not found", 404);
 
     const body = await request.json();
@@ -58,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const incident = await prisma.incident.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         incidentDate: validated.incidentDate ? new Date(validated.incidentDate) : undefined,
         incidentType: validated.incidentType,
@@ -80,6 +83,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    if (validated.status && validated.status !== existing.status) {
+      await emitIncidentNotification(prisma, {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        actorRole: session.user.role,
+        event: "STATUS_CHANGED",
+        previousStatus: existing.status,
+        incident: {
+          id: incident.id,
+          incidentType: incident.incidentType,
+          severity: incident.severity,
+          status: incident.status,
+          site: incident.site,
+        },
+      });
+    }
+
     return successResponse(incident);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -95,11 +115,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getIncidentForCompany(params.id, session.user.companyId);
+    const existing = await getIncidentForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Incident not found", 404);
 
-    await prisma.incident.delete({ where: { id: params.id } });
+    await prisma.incident.delete({ where: { id } });
     return successResponse({ success: true });
   } catch (error) {
     console.error("[API] DELETE /api/compliance/incidents/[id] error:", error);

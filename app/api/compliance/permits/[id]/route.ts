@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { emitPermitRiskNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const updatePermitSchema = z.object({
@@ -13,7 +14,7 @@ const updatePermitSchema = z.object({
   status: z.string().max(50).optional(),
 });
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
 const permitStatusFromDate = (expiryDate: Date) => {
   const now = new Date();
@@ -40,8 +41,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const permit = await getPermitForCompany(params.id, session.user.companyId);
+    const permit = await getPermitForCompany(id, session.user.companyId);
     if (!permit) return errorResponse("Permit not found", 404);
     return successResponse(permit);
   } catch (error) {
@@ -55,8 +57,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getPermitForCompany(params.id, session.user.companyId);
+    const existing = await getPermitForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Permit not found", 404);
 
     const body = await request.json();
@@ -69,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       validated.expiryDate !== undefined ? new Date(validated.expiryDate) : existing.expiryDate;
 
     const updated = await prisma.permit.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         permitType: validated.permitType,
         permitNumber: validated.permitNumber,
@@ -81,6 +84,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    await emitPermitRiskNotification(prisma, {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      actorRole: session.user.role,
+      permit: {
+        id: updated.id,
+        permitNumber: updated.permitNumber,
+        permitType: updated.permitType,
+        status: updated.status,
+        expiryDate: updated.expiryDate,
+        site: updated.site,
       },
     });
 
@@ -99,11 +116,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getPermitForCompany(params.id, session.user.companyId);
+    const existing = await getPermitForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Permit not found", 404);
 
-    await prisma.permit.delete({ where: { id: params.id } });
+    await prisma.permit.delete({ where: { id } });
     return successResponse({ success: true });
   } catch (error) {
     console.error("[API] DELETE /api/compliance/permits/[id] error:", error);

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Clock, Video } from "@/lib/icons";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type PlaybackViewProps = {
   sites: Site[];
@@ -227,29 +228,29 @@ export function PlaybackView({ sites, cameras }: PlaybackViewProps) {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="p-3 text-left font-semibold">Start</th>
-                      <th className="p-3 text-left font-semibold">End</th>
-                      <th className="p-3 text-left font-semibold">Duration</th>
-                      <th className="p-3 text-left font-semibold">Size (MB)</th>
-                      <th className="p-3 text-left font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="w-full text-sm">
+                  <TableHeader className="bg-muted">
+                    <TableRow>
+                      <TableHead className="p-3 text-left font-semibold">Start</TableHead>
+                      <TableHead className="p-3 text-left font-semibold">End</TableHead>
+                      <TableHead className="p-3 text-left font-semibold">Duration</TableHead>
+                      <TableHead className="p-3 text-left font-semibold">Size (MB)</TableHead>
+                      <TableHead className="p-3 text-left font-semibold">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {result.clips.map((clip) => (
-                      <tr key={`${clip.startTime}-${clip.endTime}`} className="border-b">
-                        <td className="p-3">{new Date(clip.startTime).toLocaleString()}</td>
-                        <td className="p-3">{new Date(clip.endTime).toLocaleString()}</td>
-                        <td className="p-3">
+                      <TableRow key={`${clip.startTime}-${clip.endTime}`} className="border-b">
+                        <TableCell className="p-3">{new Date(clip.startTime).toLocaleString()}</TableCell>
+                        <TableCell className="p-3">{new Date(clip.endTime).toLocaleString()}</TableCell>
+                        <TableCell className="p-3">
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3 text-muted-foreground" />
                             <span>{Math.max(1, Math.round(clip.duration / 60))} min</span>
                           </div>
-                        </td>
-                        <td className="p-3">{clip.fileSize}</td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell className="p-3">{clip.fileSize}</TableCell>
+                        <TableCell className="p-3">
                           <Button
                             type="button"
                             size="sm"
@@ -258,11 +259,11 @@ export function PlaybackView({ sites, cameras }: PlaybackViewProps) {
                           >
                             Open URI
                           </Button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
@@ -271,3 +272,5 @@ export function PlaybackView({ sites, cameras }: PlaybackViewProps) {
     </div>
   );
 }
+
+

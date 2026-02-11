@@ -19,6 +19,7 @@ import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { Download, Fuel } from "@/lib/icons";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ParsedNotes = {
   supplier?: string;
@@ -204,38 +205,38 @@ export default function StoresFuelPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full" aria-label="Fuel ledger table">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3 text-sm font-semibold">Date</th>
-                  <th className="text-left p-3 text-sm font-semibold">Type</th>
-                  <th className="text-left p-3 text-sm font-semibold">
+            <Table className="w-full" aria-label="Fuel ledger table">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Date</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">Type</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">
                     Equipment/Supplier
-                  </th>
-                  <th className="text-right p-3 text-sm font-semibold">Quantity</th>
-                  <th className="text-right p-3 text-sm font-semibold">Opening</th>
-                  <th className="text-right p-3 text-sm font-semibold">Closing</th>
-                  <th className="text-left p-3 text-sm font-semibold">
+                  </TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Quantity</TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Opening</TableHead>
+                  <TableHead className="text-right p-3 text-sm font-semibold">Closing</TableHead>
+                  <TableHead className="text-left p-3 text-sm font-semibold">
                     Authorized By
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {movementsLoading ? (
-                  <tr>
-                    <td colSpan={7} className="p-3">
+                  <TableRow>
+                    <TableCell colSpan={7} className="p-3">
                       <Skeleton className="h-10 w-full" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : ledgerRows.length === 0 ? (
-                  <tr>
-                    <td
+                  <TableRow>
+                    <TableCell
                       colSpan={7}
                       className="p-3 text-sm text-muted-foreground"
                     >
                       No fuel movements recorded.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   ledgerRows.map((entry) => {
                     const notes = parseMovementNotes(entry.notes ?? null);
@@ -247,11 +248,11 @@ export default function StoresFuelPage() {
                       ? entry.requestedBy || entry.issuedBy?.name || "-"
                       : entry.approvedBy || entry.requestedBy || entry.issuedBy?.name || "-";
                     return (
-                      <tr key={entry.id} className="border-b hover:bg-muted/60">
-                        <td className="p-3 text-sm">
+                      <TableRow key={entry.id} className="border-b hover:bg-muted/60">
+                        <TableCell className="p-3 text-sm">
                           {new Date(entry.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="p-3 text-sm">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-semibold ${
                               isReceipt
@@ -261,29 +262,29 @@ export default function StoresFuelPage() {
                           >
                             {isReceipt ? "Receipt" : "Issue"}
                           </span>
-                        </td>
-                        <td className="p-3 text-sm">{equipmentOrSupplier}</td>
-                        <td
+                        </TableCell>
+                        <TableCell className="p-3 text-sm">{equipmentOrSupplier}</TableCell>
+                        <TableCell
                           className={`p-3 text-sm text-right font-semibold ${
                             isReceipt ? "text-green-600" : "text-red-600"
                           }`}
                         >
                           {entry.delta >= 0 ? "+" : "-"}
                           {Math.abs(entry.delta)} {entry.unit}
-                        </td>
-                        <td className="p-3 text-sm text-right">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm text-right">
                           {entry.opening} {entry.unit}
-                        </td>
-                        <td className="p-3 text-sm text-right font-semibold">
+                        </TableCell>
+                        <TableCell className="p-3 text-sm text-right font-semibold">
                           {entry.closing} {entry.unit}
-                        </td>
-                        <td className="p-3 text-sm">{authorizedBy}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="p-3 text-sm">{authorizedBy}</TableCell>
+                      </TableRow>
                     );
                   })
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
@@ -353,3 +354,5 @@ export default function StoresFuelPage() {
     </StoresShell>
   );
 }
+
+

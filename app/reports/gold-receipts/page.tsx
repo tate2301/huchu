@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchGoldReceipts, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldReceiptsReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -81,30 +82,30 @@ export default function GoldReceiptsReportPage() {
             <div className="text-sm text-muted-foreground">No receipt records found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Receipt Date</th>
-                    <th className="p-3 text-left font-semibold">Receipt No.</th>
-                    <th className="p-3 text-left font-semibold">Bar ID</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Amount</th>
-                    <th className="p-3 text-left font-semibold">Payment Method</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Receipt Date</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Receipt No.</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Bar ID</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Amount</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Payment Method</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="p-3">{format(new Date(row.receiptDate), "MMM d, yyyy")}</td>
-                      <td className="p-3 font-semibold">{row.receiptNumber}</td>
-                      <td className="p-3">{row.goldDispatch.goldPour.pourBarId}</td>
-                      <td className="p-3">{row.goldDispatch.goldPour.site.name}</td>
-                      <td className="p-3">{row.paidAmount.toLocaleString()}</td>
-                      <td className="p-3">{row.paymentMethod}</td>
-                    </tr>
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3">{format(new Date(row.receiptDate), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3 font-semibold">{row.receiptNumber}</TableCell>
+                      <TableCell className="p-3">{row.goldDispatch.goldPour.pourBarId}</TableCell>
+                      <TableCell className="p-3">{row.goldDispatch.goldPour.site.name}</TableCell>
+                      <TableCell className="p-3">{row.paidAmount.toLocaleString()}</TableCell>
+                      <TableCell className="p-3">{row.paymentMethod}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -112,4 +113,6 @@ export default function GoldReceiptsReportPage() {
     </div>
   );
 }
+
+
 

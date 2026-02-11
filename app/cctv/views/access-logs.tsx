@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type AccessLogsViewProps = {
   sites: Site[];
@@ -159,34 +160,34 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Start Time</th>
-                    <th className="p-3 text-left font-semibold">End Time</th>
-                    <th className="p-3 text-left font-semibold">Type</th>
-                    <th className="p-3 text-left font-semibold">User</th>
-                    <th className="p-3 text-left font-semibold">Camera</th>
-                    <th className="p-3 text-left font-semibold">Site</th>
-                    <th className="p-3 text-left font-semibold">Purpose</th>
-                    <th className="p-3 text-left font-semibold">IP</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="p-3 text-left font-semibold">Start Time</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">End Time</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">User</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Camera</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">Purpose</TableHead>
+                    <TableHead className="p-3 text-left font-semibold">IP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {logs.map((log) => (
-                    <tr key={log.id} className="border-b">
-                      <td className="p-3">{new Date(log.startTime).toLocaleString()}</td>
-                      <td className="p-3">{log.endTime ? new Date(log.endTime).toLocaleString() : "-"}</td>
-                      <td className="p-3">{log.accessType}</td>
-                      <td className="p-3">{log.user?.name || "Unknown user"}</td>
-                      <td className="p-3">{log.camera.name}</td>
-                      <td className="p-3">{log.camera.site.name}</td>
-                      <td className="p-3">{log.purpose || "-"}</td>
-                      <td className="p-3">{log.ipAddress || "-"}</td>
-                    </tr>
+                    <TableRow key={log.id} className="border-b">
+                      <TableCell className="p-3">{new Date(log.startTime).toLocaleString()}</TableCell>
+                      <TableCell className="p-3">{log.endTime ? new Date(log.endTime).toLocaleString() : "-"}</TableCell>
+                      <TableCell className="p-3">{log.accessType}</TableCell>
+                      <TableCell className="p-3">{log.user?.name || "Unknown user"}</TableCell>
+                      <TableCell className="p-3">{log.camera.name}</TableCell>
+                      <TableCell className="p-3">{log.camera.site.name}</TableCell>
+                      <TableCell className="p-3">{log.purpose || "-"}</TableCell>
+                      <TableCell className="p-3">{log.ipAddress || "-"}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
@@ -194,3 +195,5 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
     </div>
   );
 }
+
+
