@@ -18,6 +18,21 @@ function redirectToAccessBlocked(request: NextRequestWithAuth) {
   return NextResponse.redirect(redirectUrl);
 }
 
+function getRootDomain() {
+  return process.env.PLATFORM_ROOT_DOMAIN?.trim().toLowerCase() || null;
+}
+
+function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string) {
+  const rootDomain = getRootDomain();
+  if (!rootDomain) {
+    return NextResponse.next();
+  }
+
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.hostname = `${companySlug}.${rootDomain}`;
+  return NextResponse.redirect(redirectUrl);
+}
+
 export default withAuth(
   function middleware(request) {
     const { pathname } = request.nextUrl;
@@ -28,16 +43,21 @@ export default withAuth(
 
     const hostContext = getPlatformHostContext(request.headers.get("host"));
 
+    const token = request.nextauth.token as PlatformToken | null;
+    const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
+
+    if (hostContext.strictTenantEnforcement && hostContext.isCentralHost && normalizedCompanySlug) {
+      return redirectToTenantHost(request, normalizedCompanySlug);
+    }
+
     if (!hostContext.strictTenantEnforcement || !hostContext.isTenantHost || !hostContext.tenantSlug) {
       return NextResponse.next();
     }
 
-    const token = request.nextauth.token as PlatformToken | null;
     if (!token?.companyId) {
       return redirectToAccessBlocked(request);
     }
 
-    const normalizedCompanySlug = token.companySlug?.trim().toLowerCase();
     if (!normalizedCompanySlug || normalizedCompanySlug !== hostContext.tenantSlug) {
       return redirectToAccessBlocked(request);
     }

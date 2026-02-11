@@ -14,6 +14,8 @@
     "manage-employees": "node scripts/manage-employees.js",
     "manage-inventory": "node scripts/manage-inventory.js",
     "manage-equipment": "node scripts/manage-equipment.js",
+    "manage-platform": "node scripts/manage-platform.js",
+    "platform": "node scripts/manage-platform.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push"
   },

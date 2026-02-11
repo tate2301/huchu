@@ -28,12 +28,34 @@ function hasFlag(flag) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm create-company --name <name>
+  pnpm create-company --name <name> [--slug <slug>] [--status <provisioning|active|suspended|disabled>] [--not-provisioned]
 
 Options:
-  --name   Company name (required)
-  --help   Show this help message
+  --name             Company name (required)
+  --slug             Company slug (optional; derived from name when omitted)
+  --status           Tenant status (default: active)
+  --not-provisioned  Set isProvisioned=false (default: true)
+  --help             Show this help message
 `);
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function normalizeStatus(value) {
+  const allowed = new Set(["PROVISIONING", "ACTIVE", "SUSPENDED", "DISABLED"]);
+  if (!value) return "ACTIVE";
+  const normalized = value.trim().toUpperCase();
+  if (!allowed.has(normalized)) {
+    throw new Error(`Invalid --status: ${value}. Use provisioning, active, suspended, or disabled.`);
+  }
+  return normalized;
 }
 
 async function main() {
@@ -43,6 +65,9 @@ async function main() {
   }
 
   const nameArg = getArg("--name");
+  const slugArg = getArg("--slug");
+  const statusArg = getArg("--status");
+  const isProvisioned = !hasFlag("--not-provisioned");
 
   if (!nameArg) {
     printUsage();
@@ -53,21 +78,35 @@ async function main() {
   if (!name) {
     throw new Error("Company name cannot be empty.");
   }
+  const slug = slugify(slugArg || name);
+  if (!slug) {
+    throw new Error("Company slug cannot be empty. Provide --slug.");
+  }
+  const tenantStatus = normalizeStatus(statusArg);
 
   const existingCompany = await prisma.company.findFirst({
-    where: { name },
-    select: { id: true, name: true },
+    where: {
+      OR: [{ name }, { slug }],
+    },
+    select: { id: true, name: true, slug: true },
   });
 
   if (existingCompany) {
     throw new Error(
-      `Company already exists with name: ${existingCompany.name} (${existingCompany.id}).`,
+      `Company already exists (${existingCompany.id}) with name "${existingCompany.name}" or slug "${existingCompany.slug}".`,
     );
   }
 
   const company = await prisma.company.create({
-    data: { name },
-    select: { id: true, name: true },
+    data: {
+      name,
+      slug,
+      tenantStatus,
+      isProvisioned,
+      suspendedAt: tenantStatus === "SUSPENDED" ? new Date() : null,
+      disabledAt: tenantStatus === "DISABLED" ? new Date() : null,
+    },
+    select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true },
   });
 
   console.log("Company created:");

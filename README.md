@@ -232,6 +232,14 @@ pnpm manage-inventory update --item-code CON001 --site-id <uuid> --unit "pair"
 pnpm manage-equipment create --equipment-code EQ001 --name "Crusher 1" --category crusher --site-id <uuid>
 pnpm manage-equipment list --company-id <uuid> --active
 pnpm manage-equipment update --equipment-code EQ001 --site-id <uuid> --inactive
+
+# Platform management (interactive + command mode)
+pnpm manage-platform --actor ops@huchu.com
+pnpm manage-platform org list --status active
+pnpm manage-platform org show --id <uuid>
+pnpm manage-platform org suspend --id <uuid> --actor ops@huchu.com --reason "compliance hold"
+pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "restored"
+pnpm platform --help
 ```
 
 ## 📖 Deployment
