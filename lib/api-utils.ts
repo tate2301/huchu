@@ -5,6 +5,7 @@ import { authOptions } from './auth';
 import { Session } from 'next-auth';
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { canAccessRouteForCompany } from "@/lib/platform/gating/enforcer-server";
+import { getTenantClaimsForCompany, isTenantStatusActive } from "@/lib/platform/tenant";
 
 export interface AuthenticatedSession extends Session {
   user: {
@@ -13,6 +14,9 @@ export interface AuthenticatedSession extends Session {
     name: string;
     role: string;
     companyId: string;
+    companySlug?: string;
+    tenantStatus?: string;
+    subscriptionHealth?: string;
     enabledFeatures?: string[];
   };
 }
@@ -27,6 +31,26 @@ export async function validateSession(
   
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!session.user.companyId) {
+    return NextResponse.json({ error: "Missing tenant context" }, { status: 401 });
+  }
+
+  let tenantStatus = session.user.tenantStatus?.trim();
+  if (!tenantStatus) {
+    const claims = await getTenantClaimsForCompany(session.user.companyId);
+    tenantStatus = claims.tenantStatus?.trim();
+  }
+  if (!isTenantStatusActive(tenantStatus)) {
+    return NextResponse.json(
+      {
+        error: "Tenant is inactive",
+        code: "TENANT_INACTIVE",
+        tenantStatus: tenantStatus ?? null,
+      },
+      { status: 403 },
+    );
   }
 
   const pathname = new URL(request.url).pathname;

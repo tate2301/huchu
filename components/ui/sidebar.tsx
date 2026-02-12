@@ -261,12 +261,13 @@ const SidebarMenuItem = React.forwardRef<HTMLLIElement, React.ComponentProps<"li
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-foreground data-[collapsed=true]:justify-center data-[collapsed=true]:px-2 data-[collapsed=true]:[&_span]:hidden",
+  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-sidebar-accent hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-foreground data-[collapsed=true]:justify-center data-[collapsed=true]:px-2 data-[collapsed=true]:[&_span]:hidden",
   {
     variants: {
       variant: {
         default: "",
-        outline: "border border-border bg-card",
+        outline:
+          "border border-[var(--action-outline-border)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--action-outline-shadow)] hover:border-[var(--action-outline-border-hover)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:border-[var(--action-outline-border-hover)] data-[active=true]:bg-[var(--action-outline-hover-bg)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)]",
       },
       size: {
         default: "h-9",

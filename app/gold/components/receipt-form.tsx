@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,7 +88,7 @@ export function ReceiptForm({
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: (receipt) => {
+    onSuccess: (receipt, payload) => {
       toast({
         title: "Sale recorded",
         description: "Sale record saved successfully.",
@@ -95,7 +97,7 @@ export function ReceiptForm({
       queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
       const destination = buildSavedRecordRedirect(goldRoutes.settlement.receipts, {
         createdId: receipt.id,
-        createdAt: receipt.createdAt,
+        createdAt: receipt.createdAt ?? payload.receiptDate,
         source: "gold-receipt",
       });
       router.push(destination);
@@ -147,19 +149,31 @@ export function ReceiptForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Button type="button" variant="outline" onClick={() => setViewMode("menu")}>
-        Back to Menu
-      </Button>
-
-      {createReceiptMutation.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to record sale</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(createReceiptMutation.error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="bg-green-50 border-green-200">
+    <FormShell
+      title="Sale Record"
+      description="Capture buyer test results and payment details."
+      onSubmit={handleSubmit}
+      formClassName="space-y-6"
+      requiredHint="Fields marked * are required. Submitting redirects to sales history with this record highlighted."
+      errors={
+        createReceiptMutation.error
+          ? [getApiErrorMessage(createReceiptMutation.error)]
+          : undefined
+      }
+      errorTitle="Unable to record sale"
+      actions={
+        <>
+          <Button type="button" variant="outline" onClick={() => setViewMode("menu")} className="flex-1 sm:flex-none">
+            Back to Menu
+          </Button>
+          <Button type="submit" size="lg" disabled={!canSubmit || createReceiptMutation.isPending} className="flex-1 sm:flex-none">
+            <Send className="mr-2 h-5 w-5" />
+            {createReceiptMutation.isPending ? "Recording..." : "Save Sale"}
+          </Button>
+        </>
+      }
+    >
+      <Card className="border-green-200 bg-green-50">
         <CardContent className="pt-6">
           <div className="flex gap-3">
             <Shield className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -237,9 +251,7 @@ export function ReceiptForm({
                 placeholder="e.g., 42.35"
                 required
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Enter the value from the buyer test.
-              </p>
+              <FieldHelp hint="Enter the buyer-confirmed tested gold weight." />
             </div>
           </div>
 
@@ -258,6 +270,7 @@ export function ReceiptForm({
                   placeholder="0.000"
                   required
                 />
+                <FieldHelp hint="Paid weight used for settlement and payout calculations." />
               </div>
 
               <SearchableSelect
@@ -310,14 +323,10 @@ export function ReceiptForm({
               rows={2}
               placeholder="Additional payment notes..."
             />
+            <FieldHelp hint="Optional notes for discrepancies, buyer comments, or exceptions." />
           </div>
         </CardContent>
       </Card>
-
-      <Button type="submit" className="w-full" size="lg" disabled={!canSubmit}>
-        <Send className="mr-2 h-5 w-5" />
-        {createReceiptMutation.isPending ? "Recording..." : "Save Sale"}
-      </Button>
-    </form>
+    </FormShell>
   );
 }

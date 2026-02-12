@@ -152,6 +152,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --action-secondary-bg: #eaf0ff;
     --action-secondary-fg: #1a2f66;
     --action-secondary-hover: #dde7ff;
+    --action-outline-bg: #f8fbff;
+    --action-outline-hover-bg: #ffffff;
+    --action-outline-border: #d6dfeb;
+    --action-outline-border-hover: #c3d0e0;
+    --action-outline-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+    --action-outline-shadow-hover: 0 8px 18px rgb(15 23 42 / 0.12);
     --action-destructive-bg: #e5484d;
     --action-destructive-fg: #ffffff;
     --action-disabled-bg: #e4eaf5;
@@ -270,6 +276,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --action-secondary-bg: #22314a;
     --action-secondary-fg: #dbe7ff;
     --action-secondary-hover: #2a3b58;
+    --action-outline-bg: #22314a;
+    --action-outline-hover-bg: #2a3b58;
+    --action-outline-border: #2f4564;
+    --action-outline-border-hover: #3d5b83;
+    --action-outline-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --action-outline-shadow-hover: 0 10px 20px rgb(0 0 0 / 0.45);
     --action-destructive-bg: #ff7b82;
     --action-destructive-fg: #240b0c;
     --action-disabled-bg: #2a3549;

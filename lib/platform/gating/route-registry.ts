@@ -93,7 +93,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/payroll", featureKey: "hr.payroll" },
   { scope: "api", prefix: "/api/disbursements", featureKey: "hr.disbursements" },
   { scope: "api", prefix: "/api/compensation", featureKey: "hr.compensation-rules" },
-  { scope: "api", prefix: "/api/fixed-salaries", featureKey: "hr.salaries" },
   { scope: "api", prefix: "/api/employee-payments", featureKey: "hr.salaries" },
   { scope: "api", prefix: "/api/approvals/history", featureKey: "hr.approvals-history" },
   { scope: "api", prefix: "/api/hr/incidents", featureKey: "hr.incidents" },

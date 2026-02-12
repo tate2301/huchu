@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
+import { PageIntro } from "@/components/shared/page-intro";
 import { ContextHelp } from "@/components/shared/context-help";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -88,7 +89,7 @@ export default function StoresIssuePage() {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       setFormErrors([]);
       toast({
         title: "Stock issued",
@@ -102,7 +103,9 @@ export default function StoresIssuePage() {
         "/stores/movements",
         {
           createdId,
-          createdAt: result?.movement?.createdAt,
+          createdAt:
+            result?.movement?.createdAt ??
+            String(variables.movementDate ?? "").slice(0, 10),
           source: "stores-issue",
         },
         { siteId: activeSiteId },
@@ -199,6 +202,11 @@ export default function StoresIssuePage() {
         </Alert>
       )}
       <ContextHelp href="/help#stores" />
+      <PageIntro
+        title="Issue stock in 3 steps"
+        purpose="Step 1: select site and item. Step 2: enter quantity and destination. Step 3: submit and review the saved movement."
+        nextStep="Start with date, site, and item."
+      />
 
       <FormShell
         title="Issue Stock"

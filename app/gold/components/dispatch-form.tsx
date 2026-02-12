@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -104,7 +106,7 @@ export function DispatchForm({
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: (dispatch) => {
+    onSuccess: (dispatch, payload) => {
       toast({
         title: "Dispatch recorded",
         description:
@@ -116,7 +118,7 @@ export function DispatchForm({
       queryClient.invalidateQueries({ queryKey: ["gold-dispatches"] });
       const destination = buildSavedRecordRedirect(goldRoutes.transit.dispatches, {
         createdId: dispatch.id,
-        createdAt: dispatch.createdAt,
+        createdAt: dispatch.createdAt ?? payload.dispatchDate,
         source: "gold-dispatch",
       });
       router.push(destination);
@@ -160,25 +162,41 @@ export function DispatchForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => setViewMode("menu")}
-      >
-        Back to Menu
-      </Button>
-
-      {createDispatchMutation.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to record dispatch</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(createDispatchMutation.error)}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="bg-blue-50 border-blue-200">
+    <FormShell
+      title="Dispatch Details"
+      description="Capture full custody and transit details for this batch."
+      onSubmit={handleSubmit}
+      formClassName="space-y-6"
+      requiredHint="Fields marked * are required. Submitting redirects to dispatch history with this record highlighted."
+      errors={
+        createDispatchMutation.error
+          ? [getApiErrorMessage(createDispatchMutation.error)]
+          : undefined
+      }
+      errorTitle="Unable to record dispatch"
+      actions={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setViewMode("menu")}
+            className="flex-1 sm:flex-none"
+          >
+            Back to Menu
+          </Button>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={!canSubmit || createDispatchMutation.isPending}
+            className="flex-1 sm:flex-none"
+          >
+            <Send className="mr-2 h-5 w-5" />
+            {createDispatchMutation.isPending ? "Recording..." : "Save Dispatch"}
+          </Button>
+        </>
+      }
+    >
+      <Card className="border-blue-200 bg-blue-50">
         <CardContent className="pt-6">
           <div className="flex gap-3">
             <Shield className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -372,16 +390,10 @@ export function DispatchForm({
                 Override reason is required for already-dispatched batches.
               </p>
             ) : null}
+            <FieldHelp hint="Provide override reason whenever a batch already has a previous dispatch." />
           </div>
         </CardContent>
       </Card>
-
-      <Button type="submit" className="w-full" size="lg" disabled={!canSubmit}>
-        <Send className="mr-2 h-5 w-5" />
-        {createDispatchMutation.isPending
-          ? "Recording..."
-          : "Save Dispatch"}
-      </Button>
-    </form>
+    </FormShell>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import {
+  canTransitionStandardWorkflow,
   createApprovalAction,
   ensureApproverRole,
   isTwoStepActionAllowed,
@@ -33,7 +34,7 @@ export async function POST(
     if (!existing || existing.companyId !== session.user.companyId) {
       return errorResponse("Compensation rule not found", 404)
     }
-    if (existing.workflowStatus !== "SUBMITTED") {
+    if (!canTransitionStandardWorkflow(existing.workflowStatus, "APPROVE")) {
       return errorResponse("Rule must be submitted before approval", 400)
     }
     if (

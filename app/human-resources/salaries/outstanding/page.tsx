@@ -373,7 +373,7 @@ export default function OutstandingSalariesPage() {
               <div className="flex flex-wrap justify-end gap-2 pt-2">
                 {selected.payrollRun ? (
                   <Button asChild size="sm" variant="outline">
-                    <Link href={`/human-resources/payroll?runId=${selected.payrollRun.id}`}>Open Run</Link>
+                    <Link href={`/human-resources/payroll/salary?runId=${selected.payrollRun.id}`}>Open Run</Link>
                   </Button>
                 ) : null}
                 {selected.disbursementBatch ? (

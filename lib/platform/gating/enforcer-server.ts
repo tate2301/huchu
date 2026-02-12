@@ -3,6 +3,7 @@ import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/ca
 import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability-registry";
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
 import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
 
 export async function canAccessRouteForCompany(
@@ -13,7 +14,11 @@ export async function canAccessRouteForCompany(
   if (!featureKey) return { allowed: true, path: pathname };
 
   const normalized = normalizeFeatureKey(featureKey);
+  const allowByDefault = isAllowByDefaultFeaturePolicy();
   if (!isKnownFeatureKey(normalized)) {
+    if (allowByDefault) {
+      return { allowed: true, featureKey: normalized, path: pathname };
+    }
     return {
       allowed: false,
       code: "UNKNOWN_FEATURE",
@@ -65,8 +70,16 @@ export async function canAccessCapabilityForCompany(
     };
   }
   const normalized = normalizeFeatureKey(featureKey);
+  const allowByDefault = isAllowByDefaultFeaturePolicy();
 
   if (!isKnownFeatureKey(normalized)) {
+    if (allowByDefault) {
+      return {
+        allowed: true,
+        featureKey: normalized,
+        capabilityId,
+      };
+    }
     return {
       allowed: false,
       code: "UNKNOWN_FEATURE",

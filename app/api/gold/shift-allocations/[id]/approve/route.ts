@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import {
+  canTransitionStandardWorkflow,
   createApprovalAction,
   ensureApproverRole,
   isTwoStepActionAllowed,
@@ -34,7 +35,7 @@ export async function POST(
     if (!existing || existing.site.companyId !== session.user.companyId) {
       return errorResponse("Gold payout allocation not found", 404)
     }
-    if (existing.workflowStatus !== "SUBMITTED") {
+    if (!canTransitionStandardWorkflow(existing.workflowStatus, "APPROVE")) {
       return errorResponse("Allocation must be submitted first", 400)
     }
     if (

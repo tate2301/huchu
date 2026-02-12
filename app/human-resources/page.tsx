@@ -10,6 +10,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -96,6 +104,7 @@ export default function HumanResourcesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [passportUploading, setPassportUploading] = useState(false)
+  const [employeeIdPendingDelete, setEmployeeIdPendingDelete] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
     "active",
@@ -129,6 +138,10 @@ export default function HumanResourcesPage() {
   const departments = useMemo(() => departmentsData?.data ?? [], [departmentsData])
   const grades = useMemo(() => gradesData?.data ?? [], [gradesData])
   const templates = useMemo(() => templatesData?.data ?? [], [templatesData])
+  const employeePendingDelete = useMemo(
+    () => employees.find((employee) => employee.id === employeeIdPendingDelete) ?? null,
+    [employeeIdPendingDelete, employees],
+  )
 
   const toEmployeePayload = (
     payload: EmployeeForm,
@@ -207,6 +220,7 @@ export default function HumanResourcesPage() {
         description: "Employee record removed.",
         variant: "success",
       })
+      setEmployeeIdPendingDelete(null)
       queryClient.invalidateQueries({ queryKey: ["employees"] })
     },
     onError: (error) => {
@@ -255,8 +269,27 @@ export default function HumanResourcesPage() {
   }
 
   const uploadPassportPhoto = async (file: File) => {
-    void file
-    return "https://placehold.co/240x320?text=Passport"
+    const formDataPayload = new FormData()
+    formDataPayload.append("file", file)
+
+    const response = await fetch("/api/uploads/passport-photo", {
+      method: "POST",
+      credentials: "include",
+      body: formDataPayload,
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      const message = data && typeof data.error === "string" ? data.error : "Upload failed"
+      throw new Error(message)
+    }
+
+    if (!data || typeof data.url !== "string") {
+      throw new Error("Upload response missing file URL")
+    }
+
+    return data.url as string
   }
 
   const handlePassportPhotoChange = async (
@@ -338,10 +371,12 @@ export default function HumanResourcesPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (!window.confirm("Delete this employee? This cannot be undone.")) {
-      return
-    }
-    deleteEmployeeMutation.mutate(id)
+    setEmployeeIdPendingDelete(id)
+  }
+
+  const confirmDelete = () => {
+    if (!employeeIdPendingDelete) return
+    deleteEmployeeMutation.mutate(employeeIdPendingDelete)
   }
 
   const resetForm = () => {
@@ -806,6 +841,41 @@ export default function HumanResourcesPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={Boolean(employeeIdPendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) setEmployeeIdPendingDelete(null)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Employee</DialogTitle>
+            <DialogDescription>
+              {employeePendingDelete
+                ? `Delete ${employeePendingDelete.name} (${employeePendingDelete.employeeId})? This cannot be undone.`
+                : "Delete this employee record? This cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEmployeeIdPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteEmployeeMutation.isPending}
+              onClick={confirmDelete}
+            >
+              {deleteEmployeeMutation.isPending ? "Deleting..." : "Delete Employee"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </HrShell>
   )
 }

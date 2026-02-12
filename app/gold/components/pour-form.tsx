@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -95,7 +96,7 @@ export function PourForm({
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: (pour) => {
+    onSuccess: (pour, payload) => {
       toast({
         title: "Batch recorded",
         description: "Batch saved and ready for dispatch.",
@@ -104,7 +105,7 @@ export function PourForm({
       queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
       const destination = buildSavedRecordRedirect(goldRoutes.intake.pours, {
         createdId: pour.id,
-        createdAt: pour.createdAt,
+        createdAt: pour.createdAt ?? payload.pourDate,
         source: "gold-pour",
       });
       router.push(destination);
@@ -155,24 +156,40 @@ export function PourForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => setViewMode("menu")}
-      >
-        Back to Menu
-      </Button>
-
-      {createPourMutation.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to record batch</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(createPourMutation.error)}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
+    <FormShell
+      title="Batch Details"
+      description="Capture all required fields for this gold batch."
+      onSubmit={handleSubmit}
+      formClassName="space-y-6"
+      requiredHint="Fields marked * are required. Submitting redirects to the batches list with this record highlighted."
+      errors={
+        createPourMutation.error
+          ? [getApiErrorMessage(createPourMutation.error)]
+          : undefined
+      }
+      errorTitle="Unable to record batch"
+      actions={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setViewMode("menu")}
+            className="flex-1 sm:flex-none"
+          >
+            Back to Menu
+          </Button>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={!canSubmit || createPourMutation.isPending}
+            className="flex-1 sm:flex-none"
+          >
+            <Send className="mr-2 h-5 w-5" />
+            {createPourMutation.isPending ? "Recording..." : "Save Batch"}
+          </Button>
+        </>
+      }
+    >
       <Card>
         <CardHeader>
           <CardTitle>Batch Details</CardTitle>
@@ -236,6 +253,7 @@ export function PourForm({
                 }
                 required
               />
+              <FieldHelp hint="Capture the measured gross bar weight in grams." />
             </div>
 
             <div>
@@ -252,6 +270,7 @@ export function PourForm({
                 }
                 placeholder="Optional"
               />
+              <FieldHelp hint="Optional estimated purity from internal checks." />
             </div>
           </div>
 
@@ -305,6 +324,7 @@ export function PourForm({
               placeholder="e.g., Safe 1, Vault A"
               required
             />
+            <FieldHelp hint="Specify exact secure storage location for custody tracking." />
           </div>
 
           <div>
@@ -317,16 +337,10 @@ export function PourForm({
               rows={2}
               placeholder="Additional observations..."
             />
+            <FieldHelp hint="Optional notes for unusual conditions or context." />
           </div>
         </CardContent>
       </Card>
-
-      <Button type="submit" className="w-full" size="lg" disabled={!canSubmit}>
-        <Send className="mr-2 h-5 w-5" />
-        {createPourMutation.isPending
-          ? "Recording..."
-          : "Save Batch"}
-      </Button>
-    </form>
+    </FormShell>
   );
 }

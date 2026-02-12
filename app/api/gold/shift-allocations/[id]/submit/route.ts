@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import { createApprovalAction, ensureApproverRole } from "@/lib/hr-payroll"
+import {
+  canTransitionStandardWorkflow,
+  createApprovalAction,
+  ensureApproverRole,
+} from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(
@@ -30,7 +34,7 @@ export async function POST(
     if (!existing || existing.site.companyId !== session.user.companyId) {
       return errorResponse("Gold payout allocation not found", 404)
     }
-    if (!["DRAFT", "REJECTED"].includes(existing.workflowStatus)) {
+    if (!canTransitionStandardWorkflow(existing.workflowStatus, "SUBMIT")) {
       return errorResponse("Only draft or rejected allocations can be submitted", 400)
     }
     if (existing._count.workerShares === 0) {

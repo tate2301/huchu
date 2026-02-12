@@ -3,6 +3,7 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import {
+  canTransitionStandardWorkflow,
   createApprovalAction,
   ensureApproverRole,
   isTwoStepActionAllowed,
@@ -40,7 +41,7 @@ export async function POST(
     if (!existing || existing.companyId !== session.user.companyId) {
       return errorResponse("Compensation rule not found", 404)
     }
-    if (existing.workflowStatus !== "SUBMITTED") {
+    if (!canTransitionStandardWorkflow(existing.workflowStatus, "REJECT")) {
       return errorResponse("Only submitted rules can be rejected", 400)
     }
     if (!isTwoStepActionAllowed(existing.submittedById, session.user.id)) {

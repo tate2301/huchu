@@ -2,11 +2,20 @@ import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/ca
 import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability-registry";
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
 import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
 
 function evaluateFeature(featureKey: string, enabledFeatures: string[] | undefined): FeatureGateDecision {
   const normalized = normalizeFeatureKey(featureKey);
+  const allowByDefault = isAllowByDefaultFeaturePolicy();
+
   if (!isKnownFeatureKey(normalized)) {
+    if (allowByDefault) {
+      return {
+        allowed: true,
+        featureKey: normalized,
+      };
+    }
     return {
       allowed: false,
       code: "UNKNOWN_FEATURE",
@@ -22,7 +31,17 @@ function evaluateFeature(featureKey: string, enabledFeatures: string[] | undefin
     };
   }
 
-  const normalizedEnabled = new Set((enabledFeatures ?? []).map((entry) => normalizeFeatureKey(entry)));
+  const normalizedEnabledSource = enabledFeatures ?? [];
+  if (normalizedEnabledSource.length === 0 && allowByDefault) {
+    return {
+      allowed: true,
+      featureKey: normalized,
+    };
+  }
+
+  const normalizedEnabled = new Set(
+    normalizedEnabledSource.map((entry) => normalizeFeatureKey(entry)),
+  );
   if (normalizedEnabled.has(normalized)) {
     return {
       allowed: true,

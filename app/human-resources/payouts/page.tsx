@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, isAfter, isBefore } from "date-fns";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,48 +15,19 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { AUTO_PAYOUT_NOTE_PREFIX } from "@/lib/gold-payouts";
 import { exportElementToPdf } from "@/lib/pdf";
 import type { EmployeePayment } from "@/lib/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-const statusOptions = [
-  { value: "DUE", label: "Due" },
-  { value: "PARTIAL", label: "Partial" },
-  { value: "PAID", label: "Paid" },
-] as const;
-
-type PaymentForm = {
-  id?: string;
-  employeeId: string;
-  employeeName: string;
-  periodStart: string;
-  periodEnd: string;
-  dueDate: string;
-  amount: string;
-  unit: string;
-  paidAmount: string;
-  paidAt: string;
-  status: "DUE" | "PARTIAL" | "PAID";
-  notes: string;
-};
 
 type ShiftWorkerPayout = {
   employeeId: string;
@@ -88,20 +59,6 @@ type ShiftPayoutGroup = {
   paidCount: number;
   partialCount: number;
   dueCount: number;
-};
-
-const emptyPaymentForm: PaymentForm = {
-  employeeId: "",
-  employeeName: "",
-  periodStart: "",
-  periodEnd: "",
-  dueDate: "",
-  amount: "",
-  unit: "g",
-  paidAmount: "",
-  paidAt: "",
-  status: "DUE",
-  notes: "",
 };
 
 function workflowBadgeVariant(status: ShiftPayoutGroup["workflowStatus"]) {
@@ -146,9 +103,9 @@ export default function HrPayoutsPage() {
   const createdId = searchParams.get("createdId");
   const allocationIdFilter = searchParams.get("allocationId");
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(searchParams.get("window") ?? "2");
-  const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ShiftPayoutGroup | null>(null);
+  const [rejectionAllocationId, setRejectionAllocationId] = useState<string | null>(null);
+  const [rejectionNote, setRejectionNote] = useState("");
   const payoutPdfRef = useRef<HTMLDivElement>(null);
 
   const windowWeeks = Number(payoutWindowWeeks);
@@ -246,68 +203,6 @@ export default function HrPayoutsPage() {
 
   const isLoading = allocationsLoading || paymentsLoading;
 
-  const createPaymentMutation = useMutation({
-    mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<EmployeePayment>("/api/employee-payments", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: (payment) => {
-      toast({
-        title: "Payout recorded",
-        description: "Gold payout has been saved.",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
-      setPaymentOpen(false);
-      const params = new URLSearchParams({
-        createdId: payment.id,
-        createdAt: payment.createdAt,
-        source: "gold-payout",
-        window: payoutWindowWeeks,
-      });
-      router.push(`/human-resources/payouts?${params.toString()}`);
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to record payout",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updatePaymentMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
-      fetchJson<EmployeePayment>(`/api/employee-payments/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: (payment) => {
-      toast({
-        title: "Payout updated",
-        description: "Gold payout changes saved.",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
-      setPaymentOpen(false);
-      const params = new URLSearchParams({
-        createdId: payment.id,
-        createdAt: payment.createdAt,
-        source: "gold-payout",
-        window: payoutWindowWeeks,
-      });
-      router.push(`/human-resources/payouts?${params.toString()}`);
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to update payout",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
   const invalidatePayoutWorkflowData = () => {
     queryClient.invalidateQueries({ queryKey: ["gold-shift-allocations"] });
     queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
@@ -367,6 +262,8 @@ export default function HrPayoutsPage() {
         description: "Allocation returned for correction before payout recording.",
         variant: "success",
       });
+      setRejectionAllocationId(null);
+      setRejectionNote("");
       invalidatePayoutWorkflowData();
     },
     onError: (error) => {
@@ -378,9 +275,23 @@ export default function HrPayoutsPage() {
     },
   });
 
-  const requestRejectionNote = () => window.prompt("Enter rejection reason");
+  const openRejectionDialog = (allocationId: string) => {
+    setRejectionAllocationId(allocationId);
+    setRejectionNote("");
+  };
+
+  const handleRejectAllocation = () => {
+    if (!rejectionAllocationId) return;
+    const note = rejectionNote.trim();
+    if (!note) return;
+    rejectAllocationMutation.mutate({
+      allocationId: rejectionAllocationId,
+      note,
+    });
+  };
 
   const openPaymentForm = (group: ShiftPayoutGroup, worker: ShiftWorkerPayout) => {
+    void worker;
     if (group.workflowStatus !== "APPROVED") {
       toast({
         title: "Approval required",
@@ -390,54 +301,13 @@ export default function HrPayoutsPage() {
       return;
     }
 
-    setPaymentForm((prev) => ({
-      ...prev,
-      notes:
-        worker.payment?.notes ??
-        `${AUTO_PAYOUT_NOTE_PREFIX}${group.allocationId} Shift ${format(group.date, "yyyy-MM-dd")} (${group.shift})`,
-    }))
     toast({
       title: "Continue in payroll",
       description: "Generate and approve a Gold Run, then disburse the batch to complete payout.",
       variant: "success",
-    })
-    setSelectedGroup(null)
-    router.push("/human-resources/payroll/gold")
-  };
-
-  const handlePaymentChange =
-    (field: keyof PaymentForm) => (event: ChangeEvent<HTMLInputElement>) => {
-      setPaymentForm((prev) => ({ ...prev, [field]: event.target.value }));
-    };
-
-  const handleStatusChange = (value: string) => {
-    setPaymentForm((prev) => ({ ...prev, status: value as PaymentForm["status"] }));
-  };
-
-  const handlePaymentSubmit = (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!paymentForm.employeeId) return;
-
-    const payload = {
-      employeeId: paymentForm.employeeId,
-      type: "GOLD",
-      periodStart: paymentForm.periodStart,
-      periodEnd: paymentForm.periodEnd,
-      dueDate: paymentForm.dueDate,
-      amount: Number(paymentForm.amount),
-      unit: paymentForm.unit,
-      paidAmount: paymentForm.paidAmount ? Number(paymentForm.paidAmount) : undefined,
-      paidAt: paymentForm.paidAt ? new Date(paymentForm.paidAt).toISOString() : undefined,
-      status: paymentForm.status,
-      notes: paymentForm.notes || undefined,
-    };
-
-    if (paymentForm.id) {
-      updatePaymentMutation.mutate({ id: paymentForm.id, payload });
-    } else {
-      createPaymentMutation.mutate(payload);
-    }
+    });
+    setSelectedGroup(null);
+    router.push(`/human-resources/payroll/gold?allocationId=${group.allocationId}`);
   };
 
   const handleExportPdf = () => {
@@ -457,90 +327,6 @@ export default function HrPayoutsPage() {
           <AlertDescription>{getApiErrorMessage(allocationsError || paymentsError)}</AlertDescription>
         </Alert>
       )}
-
-      <Sheet open={paymentOpen} onOpenChange={setPaymentOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
-          <SheetHeader>
-            <SheetTitle>{paymentForm.id ? "Update Payment" : "Record Payment"}</SheetTitle>
-            <SheetDescription>
-              Record shift-based payout status for this worker.
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handlePaymentSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold mb-2">Employee</label>
-              <Input value={paymentForm.employeeName} disabled />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-semibold mb-2">Shift Date</label>
-                <Input value={paymentForm.periodStart} disabled />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold mb-2">Due Date</label>
-                <Input type="date" value={paymentForm.dueDate} onChange={handlePaymentChange("dueDate")} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-semibold mb-2">Status</label>
-                <Select value={paymentForm.status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold mb-2">Gold Amount (g)</label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  value={paymentForm.amount}
-                  onChange={handlePaymentChange("amount")}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-semibold mb-2">Paid Amount (g)</label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  value={paymentForm.paidAmount}
-                  onChange={handlePaymentChange("paidAmount")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold mb-2">Paid Date</label>
-                <Input type="date" value={paymentForm.paidAt} onChange={handlePaymentChange("paidAt")} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">Notes</label>
-              <Input value={paymentForm.notes} onChange={handlePaymentChange("notes")} placeholder="Optional notes" />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="submit"
-                className="flex-1"
-                disabled={createPaymentMutation.isPending || updatePaymentMutation.isPending}
-              >
-                {paymentForm.id ? "Save Changes" : "Record Payment"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setPaymentOpen(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </SheetContent>
-      </Sheet>
 
       <Card>
         <CardHeader>
@@ -713,14 +499,7 @@ export default function HrPayoutsPage() {
                               group.workflowStatus !== "SUBMITTED" ||
                               rejectAllocationMutation.isPending
                             }
-                            onClick={() => {
-                              const note = requestRejectionNote();
-                              if (!note || !note.trim()) return;
-                              rejectAllocationMutation.mutate({
-                                allocationId: group.allocationId,
-                                note: note.trim(),
-                              });
-                            }}
+                            onClick={() => openRejectionDialog(group.allocationId)}
                           >
                             Reject
                           </Button>
@@ -745,6 +524,54 @@ export default function HrPayoutsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={Boolean(rejectionAllocationId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectionAllocationId(null);
+            setRejectionNote("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Reject Allocation</DialogTitle>
+            <DialogDescription>
+              Capture a rejection reason so the submitter can correct this payout allocation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Rejection Note</label>
+            <Textarea
+              value={rejectionNote}
+              onChange={(event) => setRejectionNote(event.target.value)}
+              placeholder="Describe why this allocation is being rejected."
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRejectionAllocationId(null);
+                setRejectionNote("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!rejectionNote.trim() || rejectAllocationMutation.isPending}
+              onClick={handleRejectAllocation}
+            >
+              Reject Allocation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(selectedGroup)}

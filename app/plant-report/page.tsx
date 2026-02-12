@@ -8,7 +8,10 @@ import { AlertCircle, Save, Send } from "@/lib/icons";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { PageIntro } from "@/components/shared/page-intro";
+import { StatusState } from "@/components/shared/status-state";
 import { ContextHelp } from "@/components/shared/context-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -90,7 +93,7 @@ export default function PlantReportPage() {
         "/reports/plant",
         {
           createdId: report.id,
-          createdAt: report.createdAt,
+          createdAt: report.createdAt ?? reportDate,
           source: "plant-report",
         },
         {
@@ -195,14 +198,6 @@ export default function PlantReportPage() {
         <Button size="sm" asChild variant="outline">
           <Link href="/reports/plant">View Plant Reports</Link>
         </Button>
-        <Button size="sm" variant="outline" onClick={handleSaveDraft}>
-          <Save className="h-4 w-4" />
-          Save Draft
-        </Button>
-        <Button size="sm" type="submit" form="plant-report-form" disabled={plantReportMutation.isPending}>
-          <Send className="h-4 w-4" />
-          Submit
-        </Button>
       </PageActions>
 
       <PageHeading title="Plant Report" description="Processing and consumables tracking" />
@@ -220,7 +215,25 @@ export default function PlantReportPage() {
         </Alert>
       )}
 
-      <form id="plant-report-form" onSubmit={handleSubmit} className="space-y-6">
+      <FormShell
+        title="Plant Entry Form"
+        description="Capture production, consumables, and downtime details for this site."
+        onSubmit={handleSubmit}
+        formClassName="space-y-6"
+        requiredHint="Date and site are required. Submitting redirects to Plant Reports with this entry highlighted."
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1 sm:flex-none">
+              <Save className="mr-2 h-4 w-4" />
+              Save Draft
+            </Button>
+            <Button type="submit" disabled={plantReportMutation.isPending} className="flex-1 sm:flex-none">
+              <Send className="mr-2 h-4 w-4" />
+              Submit Report
+            </Button>
+          </>
+        }
+      >
         <Card>
           <CardHeader>
             <CardTitle>Plant Details</CardTitle>
@@ -271,6 +284,7 @@ export default function PlantReportPage() {
               <div>
                 <label className="mb-2 block text-sm font-semibold">Tonnes Fed</label>
                 <Input type="number" name="tonnesFed" value={formData.tonnesFed} onChange={handleChange} placeholder="0" />
+                <FieldHelp hint="Enter material fed to the plant during this shift." />
               </div>
 
               <div>
@@ -287,6 +301,7 @@ export default function PlantReportPage() {
               <div>
                 <label className="mb-2 block text-sm font-semibold">Run Hours</label>
                 <Input type="number" name="runHours" value={formData.runHours} onChange={handleChange} placeholder="0" />
+                <FieldHelp hint="Total equipment run time in hours." />
               </div>
             </div>
           </CardContent>
@@ -342,7 +357,12 @@ export default function PlantReportPage() {
             )}
 
             {downtimeEvents.length === 0 ? (
-              <div className="py-6 text-center text-muted-foreground">No downtime events recorded</div>
+              <StatusState
+                variant="empty"
+                title="No downtime events recorded"
+                description="Add an event only if a stoppage occurred."
+                className="min-h-24"
+              />
             ) : (
               <div className="space-y-4">
                 {downtimeEvents.map((event, index) => (
@@ -402,6 +422,7 @@ export default function PlantReportPage() {
             <Button type="button" variant="outline" onClick={addDowntime} className="w-full">
               + Add Downtime Event
             </Button>
+            <FieldHelp hint="Add one row per downtime event with code and duration." />
           </CardContent>
         </Card>
 
@@ -439,21 +460,10 @@ export default function PlantReportPage() {
               placeholder="Any additional observations or issues..."
               rows={3}
             />
+            <FieldHelp hint="Use notes for unusual observations not captured above." />
           </CardContent>
         </Card>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1">
-            <Save className="mr-2 h-5 w-5" />
-            Save Draft
-          </Button>
-
-          <Button type="submit" disabled={plantReportMutation.isPending} className="flex-1">
-            <Send className="mr-2 h-5 w-5" />
-            Submit Report
-          </Button>
-        </div>
-      </form>
+      </FormShell>
     </div>
   );
 }

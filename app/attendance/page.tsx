@@ -9,7 +9,10 @@ import Image from "next/image";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { PageIntro } from "@/components/shared/page-intro";
+import { StatusState } from "@/components/shared/status-state";
 import { ContextHelp } from "@/components/shared/context-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -331,10 +334,6 @@ export default function AttendancePage() {
         <Button size="sm" asChild variant="outline">
           <Link href="/reports/attendance">View Attendance Records</Link>
         </Button>
-        <Button size="sm" variant="outline" onClick={handleSaveDraft}>
-          <Save className="h-4 w-4" />
-          Save Draft
-        </Button>
         <Sheet open={addEmployeeOpen} onOpenChange={handleAddEmployeeOpenChange}>
           <SheetTrigger asChild>
             <Button size="sm" variant="outline" type="button">
@@ -425,10 +424,6 @@ export default function AttendancePage() {
             </form>
           </SheetContent>
         </Sheet>
-        <Button size="sm" type="submit" form="attendance-form" disabled={attendanceMutation.isPending}>
-          <Send className="h-4 w-4" />
-          Submit
-        </Button>
       </PageActions>
 
       <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
@@ -446,7 +441,25 @@ export default function AttendancePage() {
         </Alert>
       )}
 
-      <form id="attendance-form" onSubmit={handleSubmit} className="space-y-6">
+      <FormShell
+        title="Attendance Entry Form"
+        description="Set shift details, mark crew status, and submit attendance."
+        onSubmit={handleSubmit}
+        formClassName="space-y-6"
+        requiredHint="Fields marked * are required. Submitting redirects to attendance history with the saved batch highlighted."
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1 sm:flex-none">
+              <Save className="mr-2 h-4 w-4" />
+              Save Draft
+            </Button>
+            <Button type="submit" disabled={attendanceMutation.isPending} className="flex-1 sm:flex-none">
+              <Send className="mr-2 h-4 w-4" />
+              Submit Attendance
+            </Button>
+          </>
+        }
+      >
         <Card>
           <CardHeader>
             <CardTitle>Shift Details</CardTitle>
@@ -533,13 +546,17 @@ export default function AttendancePage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-16 w-full" />
-                ))}
-              </div>
+              <StatusState
+                variant="loading"
+                title="Loading crew list"
+                description="Please wait while we fetch active employees for this shift."
+              />
             ) : crew.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No crew members available.</div>
+              <StatusState
+                variant="empty"
+                title="No crew members available"
+                description="Add employees first, then return here to mark attendance."
+              />
             ) : (
               <div className="space-y-3">
                 {crew.map((member) => (
@@ -589,6 +606,7 @@ export default function AttendancePage() {
                           step="0.5"
                           className="h-9"
                         />
+                        <FieldHelp hint="Optional overtime in hours." />
                       </div>
                     )}
                   </div>
@@ -597,19 +615,7 @@ export default function AttendancePage() {
             )}
           </CardContent>
         </Card>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1">
-            <Save className="mr-2 h-5 w-5" />
-            Save Draft
-          </Button>
-
-          <Button type="submit" disabled={attendanceMutation.isPending} className="flex-1">
-            <Send className="mr-2 h-5 w-5" />
-            Submit Attendance
-          </Button>
-        </div>
-      </form>
+      </FormShell>
     </div>
   );
 }

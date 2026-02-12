@@ -392,23 +392,6 @@ export type UserNotificationPreferences = {
   opsEnabled: boolean;
 };
 
-export type FixedSalary = {
-  id: string;
-  employeeId: string;
-  monthlyAmount: number;
-  currency: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  employee: {
-    id: string;
-    name: string;
-    employeeId: string;
-    position: string;
-    isActive: boolean;
-  };
-};
-
 export type EmployeePayment = {
   id: string;
   employeeId: string;
@@ -1155,17 +1138,6 @@ export async function removeWebPushSubscription(input: { endpoint: string }) {
     method: "DELETE",
     body: JSON.stringify(input),
   });
-}
-
-export async function fetchFixedSalaries(
-  params: {
-    active?: boolean;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<FixedSalary>>(`/api/fixed-salaries${query}`);
 }
 
 export async function fetchEmployeePayments(

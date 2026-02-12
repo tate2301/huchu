@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { FieldHelp } from "@/components/shared/field-help";
+import { FormShell } from "@/components/shared/form-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { ContextHelp } from "@/components/shared/context-help";
 import { fetchEmployees, fetchSites } from "@/lib/api";
@@ -96,7 +98,7 @@ export default function ShiftReportPage() {
         "/reports/shift",
         {
           createdId: report.id,
-          createdAt: report.createdAt,
+          createdAt: report.createdAt ?? reportDate,
           source: "shift-report",
         },
         {
@@ -181,24 +183,6 @@ export default function ShiftReportPage() {
         <Button size="sm" asChild variant="outline">
           <Link href="/reports/shift">View Submitted Reports</Link>
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleSaveDraft}
-          disabled={shiftReportMutation.isPending}
-        >
-          <Save className="h-4 w-4" />
-          Save Draft
-        </Button>
-        <Button
-          size="sm"
-          type="submit"
-          form="shift-report-form"
-          disabled={shiftReportMutation.isPending}
-        >
-          <Send className="h-4 w-4" />
-          Submit
-        </Button>
       </PageActions>
 
       <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
@@ -216,7 +200,31 @@ export default function ShiftReportPage() {
         </Alert>
       )}
 
-      <form id="shift-report-form" onSubmit={handleSubmit} className="space-y-6">
+      <FormShell
+        title="Shift Entry Form"
+        description="Capture shift details, output, and handover notes."
+        onSubmit={handleSubmit}
+        formClassName="space-y-6"
+        requiredHint="Fields marked * are required. Submitting redirects to Shift Reports with this record highlighted."
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSaveDraft}
+              disabled={shiftReportMutation.isPending}
+              className="flex-1 sm:flex-none"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Save Draft
+            </Button>
+            <Button type="submit" disabled={shiftReportMutation.isPending} className="flex-1 sm:flex-none">
+              <Send className="mr-2 h-4 w-4" />
+              Submit Report
+            </Button>
+          </>
+        }
+      >
         <Card>
           <CardHeader className="border-b pb-2">
             <CardTitle>Shift Information</CardTitle>
@@ -313,6 +321,7 @@ export default function ShiftReportPage() {
                   min="0"
                   required
                 />
+                <FieldHelp hint="Enter the number of crew members who worked this shift." />
               </div>
             </div>
           </CardContent>
@@ -344,10 +353,12 @@ export default function ShiftReportPage() {
                   <SelectItem value="PROCESSING">Processing</SelectItem>
                 </SelectContent>
               </Select>
+              <FieldHelp hint="Pick the main process for this report; output fields adjust automatically." />
             </div>
 
             <div className="border-t pt-4">
               <h4 className="mb-3 text-sm font-semibold">Output Metrics (fill what applies)</h4>
+              <FieldHelp hint="Complete only the metrics relevant to the selected process stage." />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {showWheelbarrows && (
                   <div>
@@ -424,6 +435,7 @@ export default function ShiftReportPage() {
                   rows={3}
                   required={formData.hasIncident}
                 />
+                <FieldHelp hint="Include what happened, location, and immediate action taken." />
               </div>
             )}
 
@@ -436,32 +448,15 @@ export default function ShiftReportPage() {
                 placeholder="What should the next shift know?"
                 rows={3}
               />
+              <FieldHelp hint="Call out outstanding tasks, hazards, or equipment status." />
             </div>
           </CardContent>
         </Card>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleSaveDraft}
-            disabled={shiftReportMutation.isPending}
-            className="flex-1"
-          >
-            <Save className="mr-2 h-5 w-5" />
-            Save Draft
-          </Button>
-
-          <Button type="submit" disabled={shiftReportMutation.isPending} className="flex-1">
-            <Send className="mr-2 h-5 w-5" />
-            Submit Report
-          </Button>
-        </div>
-
         <p className="text-center text-xs text-muted-foreground">
           Saves offline / Auto-syncs when connected / 2-minute form
         </p>
-      </form>
+      </FormShell>
     </div>
   );
 }

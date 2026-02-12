@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { createApprovalAction, ensureApproverRole } from "@/lib/hr-payroll"
+import {
+  canTransitionStandardWorkflow,
+  createApprovalAction,
+  ensureApproverRole,
+} from "@/lib/hr-payroll"
 
 export async function POST(
   request: NextRequest,
@@ -24,7 +28,7 @@ export async function POST(
     if (!existing || existing.employee.companyId !== session.user.companyId) {
       return errorResponse("Compensation profile not found", 404)
     }
-    if (!["DRAFT", "REJECTED"].includes(existing.workflowStatus)) {
+    if (!canTransitionStandardWorkflow(existing.workflowStatus, "SUBMIT")) {
       return errorResponse("Only draft or rejected profiles can be submitted", 400)
     }
 

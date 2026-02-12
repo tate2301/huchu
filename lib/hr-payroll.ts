@@ -26,6 +26,38 @@ type ApprovalActionInput = {
   note?: string | null
 }
 
+export type StandardWorkflowStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "APPROVED"
+  | "REJECTED"
+
+export type StandardWorkflowAction = "SUBMIT" | "APPROVE" | "REJECT"
+
+const STANDARD_WORKFLOW_TRANSITIONS: Record<
+  StandardWorkflowAction,
+  StandardWorkflowStatus[]
+> = {
+  SUBMIT: ["DRAFT", "REJECTED"],
+  APPROVE: ["SUBMITTED"],
+  REJECT: ["SUBMITTED"],
+}
+
+export function canTransitionStandardWorkflow(
+  fromStatus: StandardWorkflowStatus,
+  action: StandardWorkflowAction,
+) {
+  return STANDARD_WORKFLOW_TRANSITIONS[action].includes(fromStatus)
+}
+
+export function normalizeWorkflowNote(
+  note: string | null | undefined,
+  fallback: string,
+) {
+  const trimmed = note?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : fallback
+}
+
 export function isApproverRole(role: string | undefined) {
   return role === "MANAGER" || role === "SUPERADMIN"
 }

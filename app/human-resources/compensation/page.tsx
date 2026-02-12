@@ -10,6 +10,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -20,6 +28,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import {
   fetchCompensationProfiles,
@@ -66,6 +75,10 @@ type TemplateForm = {
   ruleIds: string[]
 }
 
+type RejectionTarget =
+  | { id: string; kind: "PROFILE" | "RULE"; label: string }
+  | null
+
 const emptyProfileForm: ProfileForm = {
   employeeId: "",
   baseAmount: "",
@@ -109,6 +122,8 @@ export default function CompensationPage() {
   const [templateForm, setTemplateForm] = useState<TemplateForm>(emptyTemplateForm)
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm)
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRuleForm)
+  const [rejectionTarget, setRejectionTarget] = useState<RejectionTarget>(null)
+  const [rejectionNote, setRejectionNote] = useState("")
 
   const { data: employeesData } = useQuery({
     queryKey: ["employees", "compensation"],
@@ -280,6 +295,8 @@ export default function CompensationPage() {
         description: "Profile returned to draft for corrections.",
         variant: "success",
       })
+      setRejectionTarget(null)
+      setRejectionNote("")
       queryClient.invalidateQueries({ queryKey: ["compensation-profiles"] })
       queryClient.invalidateQueries({ queryKey: ["approval-history"] })
     },
@@ -382,6 +399,8 @@ export default function CompensationPage() {
         description: "Rule returned to draft for corrections.",
         variant: "success",
       })
+      setRejectionTarget(null)
+      setRejectionNote("")
       queryClient.invalidateQueries({ queryKey: ["compensation-rules"] })
       queryClient.invalidateQueries({ queryKey: ["approval-history"] })
     },
@@ -394,7 +413,23 @@ export default function CompensationPage() {
     },
   })
 
-  const requestRejectionNote = () => window.prompt("Enter rejection reason")
+  const openRejectionDialog = (target: NonNullable<RejectionTarget>) => {
+    setRejectionTarget(target)
+    setRejectionNote("")
+  }
+
+  const handleReject = () => {
+    if (!rejectionTarget) return
+    const note = rejectionNote.trim()
+    if (!note) return
+
+    if (rejectionTarget.kind === "PROFILE") {
+      rejectProfileMutation.mutate({ id: rejectionTarget.id, note })
+      return
+    }
+
+    rejectRuleMutation.mutate({ id: rejectionTarget.id, note })
+  }
 
   return (
     <HrShell
@@ -1037,11 +1072,13 @@ export default function CompensationPage() {
                             disabled={
                               profile.workflowStatus !== "SUBMITTED" || rejectProfileMutation.isPending
                             }
-                            onClick={() => {
-                              const note = requestRejectionNote()
-                              if (!note || !note.trim()) return
-                              rejectProfileMutation.mutate({ id: profile.id, note })
-                            }}
+                            onClick={() =>
+                              openRejectionDialog({
+                                id: profile.id,
+                                kind: "PROFILE",
+                                label: `Compensation profile for ${profile.employee.name}`,
+                              })
+                            }
                           >
                             Reject
                           </Button>
@@ -1135,11 +1172,13 @@ export default function CompensationPage() {
                             size="sm"
                             variant="outline"
                             disabled={rule.workflowStatus !== "SUBMITTED" || rejectRuleMutation.isPending}
-                            onClick={() => {
-                              const note = requestRejectionNote()
-                              if (!note || !note.trim()) return
-                              rejectRuleMutation.mutate({ id: rule.id, note })
-                            }}
+                            onClick={() =>
+                              openRejectionDialog({
+                                id: rule.id,
+                                kind: "RULE",
+                                label: `Compensation rule ${rule.name}`,
+                              })
+                            }
                           >
                             Reject
                           </Button>
@@ -1153,6 +1192,60 @@ export default function CompensationPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={Boolean(rejectionTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectionTarget(null)
+            setRejectionNote("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Reject Item</DialogTitle>
+            <DialogDescription>
+              {rejectionTarget
+                ? `Provide an audit note before rejecting ${rejectionTarget.label}.`
+                : "Provide a rejection note."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold">Rejection Note</label>
+            <Textarea
+              value={rejectionNote}
+              onChange={(event) => setRejectionNote(event.target.value)}
+              placeholder="Explain what needs correction."
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRejectionTarget(null)
+                setRejectionNote("")
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                !rejectionNote.trim() ||
+                rejectProfileMutation.isPending ||
+                rejectRuleMutation.isPending
+              }
+              onClick={handleReject}
+            >
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </HrShell>
   )
 }
