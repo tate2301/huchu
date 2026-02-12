@@ -2,6 +2,7 @@ import { withAuth } from "next-auth/middleware";
 import type { NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { getPlatformHostContext, isTenantStatusActive } from "@/lib/platform/tenant";
+import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 
@@ -9,6 +10,7 @@ type PlatformToken = {
   companyId?: string;
   companySlug?: string;
   tenantStatus?: string;
+  enabledFeatures?: string[];
 };
 
 function redirectToAccessBlocked(request: NextRequestWithAuth) {
@@ -16,6 +18,28 @@ function redirectToAccessBlocked(request: NextRequestWithAuth) {
   redirectUrl.pathname = ACCESS_BLOCKED_PATH;
   redirectUrl.search = "";
   return NextResponse.redirect(redirectUrl);
+}
+
+function denyAccess(request: NextRequestWithAuth, message = "Access blocked") {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: message }, { status: 403 });
+  }
+  return redirectToAccessBlocked(request);
+}
+
+function denyFeature(request: NextRequestWithAuth, decision: { message?: string; featureKey?: string; path?: string }) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      {
+        error: decision.message ?? "Feature disabled for this company.",
+        code: "FEATURE_DISABLED",
+        feature: decision.featureKey ?? null,
+        path: decision.path ?? request.nextUrl.pathname,
+      },
+      { status: 403 },
+    );
+  }
+  return redirectToAccessBlocked(request);
 }
 
 function getRootDomain() {
@@ -36,6 +60,7 @@ function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string)
 export default withAuth(
   function middleware(request) {
     const { pathname } = request.nextUrl;
+    const isApiRequest = pathname.startsWith("/api/");
 
     if (pathname === ACCESS_BLOCKED_PATH) {
       return NextResponse.next();
@@ -45,25 +70,53 @@ export default withAuth(
 
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
+    const tenantHostEnforcementDecision = canAccessCapabilityWithToken(
+      "core.multitenancy.host-enforcement",
+      token?.enabledFeatures,
+    );
+    const tenantHostEnforcementEnabled = tenantHostEnforcementDecision.allowed;
 
-    if (hostContext.strictTenantEnforcement && hostContext.isCentralHost && normalizedCompanySlug) {
+    if (isApiRequest) {
+      if (!token?.companyId) {
+        return denyAccess(request, "Missing tenant context");
+      }
+      if (!isTenantStatusActive(token.tenantStatus)) {
+        return denyAccess(request, "Tenant is inactive");
+      }
+      const apiFeatureDecision = canAccessRouteWithToken(pathname, token.enabledFeatures);
+      if (!apiFeatureDecision.allowed) {
+        return denyFeature(request, apiFeatureDecision);
+      }
+      return NextResponse.next();
+    }
+
+    if (tenantHostEnforcementEnabled && hostContext.strictTenantEnforcement && hostContext.isCentralHost && normalizedCompanySlug) {
       return redirectToTenantHost(request, normalizedCompanySlug);
     }
 
-    if (!hostContext.strictTenantEnforcement || !hostContext.isTenantHost || !hostContext.tenantSlug) {
+    if (!tenantHostEnforcementEnabled || !hostContext.strictTenantEnforcement || !hostContext.isTenantHost || !hostContext.tenantSlug) {
+      const pageFeatureDecision = canAccessRouteWithToken(pathname, token?.enabledFeatures);
+      if (!pageFeatureDecision.allowed) {
+        return denyFeature(request, pageFeatureDecision);
+      }
       return NextResponse.next();
     }
 
     if (!token?.companyId) {
-      return redirectToAccessBlocked(request);
+      return denyAccess(request, "Missing tenant context");
     }
 
     if (!normalizedCompanySlug || normalizedCompanySlug !== hostContext.tenantSlug) {
-      return redirectToAccessBlocked(request);
+      return denyAccess(request, "Tenant host mismatch");
     }
 
     if (!isTenantStatusActive(token.tenantStatus)) {
-      return redirectToAccessBlocked(request);
+      return denyAccess(request, "Tenant is inactive");
+    }
+
+    const pageFeatureDecision = canAccessRouteWithToken(pathname, token.enabledFeatures);
+    if (!pageFeatureDecision.allowed) {
+      return denyFeature(request, pageFeatureDecision);
     }
 
     return NextResponse.next();
@@ -81,5 +134,9 @@ export default withAuth(
 export const config = {
   matcher: [
     "/((?!api/auth|api|login|_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)).*)",
+    "/api/cctv/:path*",
+    "/api/gold/:path*",
+    "/api/payroll/:path*",
+    "/api/compliance/:path*",
   ],
 };

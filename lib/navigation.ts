@@ -128,6 +128,11 @@ export const navSections: NavSection[] = [
     items: [
       { href: "/human-resources", icon: ManageAccounts, label: "Employees" },
       {
+        href: "/human-resources/incidents",
+        icon: ShieldCheck,
+        label: "Workforce Incidents",
+      },
+      {
         href: "/human-resources/payouts",
         icon: Coins,
         label: "Gold Payouts",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import {
   NoteAdd,
   UserCheck,
@@ -14,7 +15,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { navSections } from "@/lib/navigation";
+import { authOptions } from "@/lib/auth";
+import { getNavSectionsForRole } from "@/lib/navigation";
+import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -238,7 +242,15 @@ function DashboardTile({
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  const roleSections = getNavSectionsForRole(role);
+  const filteredSections = filterNavSectionsByEnabledFeatures(roleSections, enabledFeatures);
+  const canCreateShiftReport = hasTokenFeature(enabledFeatures, "ops.shift-report.submit");
+  const canTakeAttendance = hasTokenFeature(enabledFeatures, "ops.attendance.mark");
+
   const sectionOrder = [
     "daily",
     "gold",
@@ -251,7 +263,7 @@ export default function Home() {
   const orderIndex = new Map(
     sectionOrder.map((sectionId, index) => [sectionId, index]),
   );
-  const groupedSections = navSections
+  const groupedSections = filteredSections
     .filter((section) => section.id !== "overview")
     .slice()
     .sort((a, b) => {
@@ -268,20 +280,26 @@ export default function Home() {
 
   return (
     <div className="space-y-8">
-      <PageActions>
-        <Link href="/shift-report">
-          <Button size="sm">
-            <NoteAdd className="h-4 w-4" />
-            New Shift Report
-          </Button>
-        </Link>
-        <Link href="/attendance">
-          <Button size="sm" variant="outline">
-            <UserCheck className="h-4 w-4" />
-            Take Attendance
-          </Button>
-        </Link>
-      </PageActions>
+      {canCreateShiftReport || canTakeAttendance ? (
+        <PageActions>
+          {canCreateShiftReport ? (
+            <Link href="/shift-report">
+              <Button size="sm">
+                <NoteAdd className="h-4 w-4" />
+                New Shift Report
+              </Button>
+            </Link>
+          ) : null}
+          {canTakeAttendance ? (
+            <Link href="/attendance">
+              <Button size="sm" variant="outline">
+                <UserCheck className="h-4 w-4" />
+                Take Attendance
+              </Button>
+            </Link>
+          ) : null}
+        </PageActions>
+      ) : null}
 
       <div className="grid gap-8">
         {groupedSections.map((group) => (

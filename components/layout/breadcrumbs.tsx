@@ -61,7 +61,8 @@ const viewLabels: Record<string, Record<string, string>> = {
   },
   "human-resources": {
     payouts: "Payouts",
-    salaries: "Fixed Salaries",
+    salaries: "Salary Ops",
+    incidents: "Workforce Incidents",
     compensation: "Compensation",
     payroll: "Payroll",
     disbursements: "Disbursements",

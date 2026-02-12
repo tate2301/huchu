@@ -1,5 +1,6 @@
 # Repository Guidelines
 
+
 ## Project Structure & Module Organization
 - `app/` holds the Next.js App Router routes and feature modules (e.g., `app/shift-report`, `app/gold`).
 - `components/` contains reusable UI and feature components, with primitives in `components/ui`.

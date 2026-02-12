@@ -3,11 +3,65 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma, disconnectPrisma } from "./prisma";
 import {
+  getSubdomainReservation as getOrgSubdomainReservation,
+  previewProvisionBundle,
+  provisionBundle,
+  reserveSubdomain as reserveOrgSubdomain,
+  resolveOrganizations,
+  suggestSubdomains,
+} from "./domain/organization-advanced";
+import {
+  appendAuditEvent as appendLedgerAuditEvent,
+  exportAudit,
+  listAuditEvents as listLedgerAuditEvents,
+  verifyAuditChain,
+} from "./domain/audit-ledger";
+import {
+  approveSupportAccess,
+  endSupportSession,
+  expireSupportSessions,
+  listSupportRequests,
+  listSupportSessions,
+  requestSupportAccess,
+  startSupportSession,
+} from "./domain/support-service";
+import {
+  executeRunbook,
+  listRunbookDefinitions,
+  listRunbookExecutions,
+  setRunbookEnabled,
+  upsertRunbookDefinition,
+} from "./domain/runbook-service";
+import {
+  listHealthIncidents,
+  listMetrics,
+  recordMetric,
+  triggerRemediation,
+} from "./domain/health-service";
+import {
+  enforceContract,
+  evaluateContract,
+  getContractState,
+  overrideContract,
+} from "./domain/contract-service";
+import {
+  assignTier,
+  getSubscriptionHealthSummary,
+  listAddOnBundles,
+  listTierPlans,
+  recomputeSubscriptionPricing,
+  setAddOnBundle,
+  syncCommercialCatalog,
+} from "./domain/commercial-service";
+import { searchGlobal } from "./domain/search-service";
+import { FEATURE_BUNDLES, getTierDefinition } from "../../lib/platform/feature-catalog";
+import {
   ADMIN_ACCOUNT_STATUSES,
   ADMIN_ROLES,
   ORGANIZATION_STATUSES,
   SUBSCRIPTION_STATUSES,
   type AddAuditNoteInput,
+  type AssignSubscriptionTierInput,
   type AdminCreateResult,
   type AdminResetPasswordResult,
   type AdminRole,
@@ -21,6 +75,7 @@ import {
   type ListFeaturesInput,
   type ListOrganizationsInput,
   type ListSubscriptionsInput,
+  type ListAddonsInput,
   type MutationResult,
   type OrganizationDetail,
   type OrganizationListItem,
@@ -33,13 +88,14 @@ import {
   type SetAdminStatusInput,
   type SetFeatureInput,
   type SetSubscriptionStatusInput,
+  type SetAddonInput,
   type SubscriptionStatusResult,
+  type SubscriptionPricingSummary,
+  type SubscriptionHealthSummary,
   type SubscriptionStatusValue,
   type SubscriptionSummary,
   type AuditEventRecord,
 } from "./types";
-
-type JsonRecord = Record<string, unknown>;
 
 function formatDate(value: unknown): string | null {
   if (!value) return null;
@@ -81,15 +137,6 @@ function toErrorCode(error: unknown): string {
   return "OPERATION_FAILED";
 }
 
-function parsePayload(raw: string | null): JsonRecord {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as JsonRecord;
-  } catch {
-    return {};
-  }
-}
-
 async function toMutation<T>(task: () => Promise<T>): Promise<MutationResult<T>> {
   try {
     return { ok: true, resource: await task() };
@@ -113,63 +160,7 @@ async function appendAuditEvent(event: {
   after?: unknown;
   metadata?: unknown;
 }): Promise<AuditEventRecord> {
-  const companyId = event.companyId ?? null;
-  const payload = {
-    actor: event.actor ?? null,
-    action: event.action ?? null,
-    entityType: event.entityType ?? null,
-    entityId: event.entityId ?? null,
-    reason: event.reason ?? null,
-    before: event.before ?? null,
-    after: event.after ?? null,
-    metadata: event.metadata ?? null,
-  };
-
-  if (!companyId) {
-    return {
-      id: `local-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      actor: payload.actor,
-      action: payload.action,
-      entityType: payload.entityType,
-      entityId: payload.entityId,
-      companyId: null,
-      reason: payload.reason,
-      payload,
-    };
-  }
-
-  const created = await prisma.provisioningEvent.create({
-    data: {
-      companyId,
-      eventType: payload.action ?? "AUDIT_EVENT",
-      status: "SUCCESS",
-      message: payload.reason ?? payload.action ?? "Audit event",
-      payloadJson: JSON.stringify(payload),
-      startedAt: new Date(),
-      finishedAt: new Date(),
-    },
-    select: {
-      id: true,
-      companyId: true,
-      eventType: true,
-      message: true,
-      payloadJson: true,
-      createdAt: true,
-    },
-  });
-
-  return {
-    id: created.id,
-    timestamp: formatDate(created.createdAt),
-    actor: payload.actor,
-    action: created.eventType,
-    entityType: payload.entityType,
-    entityId: payload.entityId,
-    companyId: created.companyId,
-    reason: created.message,
-    payload: parsePayload(created.payloadJson),
-  };
+  return appendLedgerAuditEvent(event);
 }
 
 async function ensureDefaultPlan() {
@@ -520,17 +511,64 @@ async function setSubscriptionStatus(input: SetSubscriptionStatusInput): Promise
 }
 
 function getFeatureDefinition(featureKey: string) {
-  const key = featureKey.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const key = featureKey.trim().toLowerCase().replace(/\s+/g, "-");
   if (!key) throw new Error("Feature key cannot be empty.");
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(key)) {
+    throw new Error(`Invalid feature key: ${featureKey}`);
+  }
   return {
     key,
-    label: key.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" "),
+    label: key
+      .split(/[._-]+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" "),
   };
+}
+
+function buildBundleFeatureSet(bundleCodes: string[]): Set<string> {
+  const set = new Set<string>();
+  for (const code of bundleCodes) {
+    const bundle = FEATURE_BUNDLES.find((row) => row.code === code);
+    if (!bundle) continue;
+    for (const key of bundle.features) {
+      set.add(String(key || "").trim().toLowerCase());
+    }
+  }
+  return set;
+}
+
+async function getSubscriptionEntitledFeatureSet(companyId: string): Promise<Set<string>> {
+  const [subscription, enabledAddons] = await Promise.all([
+    prisma.companySubscription.findFirst({
+      where: { companyId },
+      include: { plan: { select: { code: true } } },
+      orderBy: [{ updatedAt: "desc" }],
+    }),
+    prisma.companySubscriptionAddon.findMany({
+      where: { companyId, isEnabled: true },
+      include: { bundle: { select: { code: true } } },
+    }),
+  ]);
+
+  const tier = getTierDefinition(subscription?.plan?.code);
+  const entitled = new Set<string>();
+  for (const key of tier?.includedFeatures ?? []) {
+    entitled.add(String(key || "").trim().toLowerCase());
+  }
+
+  const tierBundleFeatures = buildBundleFeatureSet(tier?.includedBundles ?? []);
+  for (const key of tierBundleFeatures) entitled.add(key);
+
+  const addonBundleCodes = enabledAddons.map((row) => row.bundle.code);
+  const addonBundleFeatures = buildBundleFeatureSet(addonBundleCodes);
+  for (const key of addonBundleFeatures) entitled.add(key);
+
+  return entitled;
 }
 
 async function listFeatures(input?: ListFeaturesInput): Promise<FeatureSummary[]> {
   const features = await prisma.platformFeature.findMany({
-    select: { id: true, key: true, name: true, isActive: true, updatedAt: true },
+    select: { id: true, key: true, name: true, defaultEnabled: true, isBillable: true, isActive: true, updatedAt: true },
     orderBy: { key: "asc" },
   });
 
@@ -546,19 +584,30 @@ async function listFeatures(input?: ListFeaturesInput): Promise<FeatureSummary[]
   }
 
   const flags = await prisma.companyFeatureFlag.findMany({
-    where: { companyId: input.companyId },
+    where: {
+      companyId: input.companyId,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
     select: { featureId: true, isEnabled: true, reason: true, updatedAt: true },
   });
   const flagByFeatureId = new Map(flags.map((flag) => [flag.featureId, flag]));
+  const entitledBySubscription = await getSubscriptionEntitledFeatureSet(input.companyId);
 
   return features.map((feature) => {
     const flag = flagByFeatureId.get(feature.id);
+    const normalizedKey = feature.key.trim().toLowerCase();
+    const subscriptionEntitled = entitledBySubscription.has(normalizedKey);
+    const requested = flag ? flag.isEnabled : feature.defaultEnabled;
+    const effectiveEnabled = feature.isBillable ? (subscriptionEntitled ? requested : false) : requested;
+    const restrictionReason = feature.isBillable && !subscriptionEntitled
+      ? "Not included in active tier/add-ons."
+      : null;
     return {
       feature: feature.key,
       featureLabel: feature.name,
       platformActive: feature.isActive,
-      enabled: flag ? flag.isEnabled : false,
-      reason: flag?.reason ?? null,
+      enabled: effectiveEnabled,
+      reason: restrictionReason ? (flag?.reason ? `${flag.reason} | ${restrictionReason}` : restrictionReason) : (flag?.reason ?? null),
       updatedAt: formatDate(flag?.updatedAt ?? feature.updatedAt),
     };
   });
@@ -573,8 +622,23 @@ async function setFeature(input: SetFeatureInput): Promise<FeatureSetResult> {
     where: { key: definition.key },
     update: { name: definition.label, isActive: true },
     create: { key: definition.key, name: definition.label, description: `Feature flag for ${definition.key}`, isActive: true },
-    select: { id: true },
+    select: { id: true, key: true, isBillable: true },
   });
+
+  if (input.enabled && feature.isBillable) {
+    const entitledBySubscription = await getSubscriptionEntitledFeatureSet(input.companyId);
+    if (!entitledBySubscription.has(feature.key.toLowerCase())) {
+      const suggestedBundles = FEATURE_BUNDLES
+        .filter((bundle) => bundle.features.map((key) => key.toLowerCase()).includes(feature.key.toLowerCase()))
+        .map((bundle) => bundle.code);
+      const bundleHint = suggestedBundles.length > 0
+        ? ` Enable an add-on bundle first: ${suggestedBundles.join(", ")}.`
+        : "";
+      throw new Error(
+        `Cannot enable "${feature.key}" because it is not included in the company's active tier/add-ons.${bundleHint}`,
+      );
+    }
+  }
 
   const before = await prisma.companyFeatureFlag.findUnique({
     where: { companyId_featureId: { companyId: input.companyId, featureId: feature.id } },
@@ -761,35 +825,7 @@ async function resetAdminPassword(input: ResetAdminPasswordInput): Promise<Admin
 }
 
 async function listAuditEvents(input?: ListAuditEventsInput): Promise<AuditEventRecord[]> {
-  const where: Prisma.ProvisioningEventWhereInput = {};
-  if (input?.companyId) where.companyId = input.companyId;
-  if (input?.action) where.eventType = input.action.trim().toUpperCase();
-
-  const rows = await prisma.provisioningEvent.findMany({
-    where,
-    select: { id: true, companyId: true, eventType: true, message: true, payloadJson: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-    take: input?.limit ?? 50,
-  });
-
-  const mapped = rows.map((row) => {
-    const payload = parsePayload(row.payloadJson);
-    return {
-      id: row.id,
-      timestamp: formatDate(row.createdAt),
-      actor: typeof payload.actor === "string" ? payload.actor : null,
-      action: row.eventType,
-      entityType: typeof payload.entityType === "string" ? payload.entityType : null,
-      entityId: typeof payload.entityId === "string" ? payload.entityId : null,
-      companyId: row.companyId,
-      reason: row.message,
-      payload,
-    } as AuditEventRecord;
-  });
-
-  if (!input?.actor) return mapped;
-  const actorFilter = input.actor.trim().toLowerCase();
-  return mapped.filter((entry) => String(entry.actor || "").toLowerCase() === actorFilter);
+  return listLedgerAuditEvents(input);
 }
 
 async function addAuditNote(input: AddAuditNoteInput): Promise<AuditEventRecord> {
@@ -814,8 +850,14 @@ export function createPlatformServices(): PlatformServices {
   return {
     org: {
       list: listOrganizations,
+      resolve: resolveOrganizations,
       detail: getOrganization,
       provision: (input) => toMutation(() => provisionOrganization(input)),
+      previewProvisionBundle: (input) => toMutation(() => previewProvisionBundle(input)),
+      provisionBundle: (input) => toMutation(() => provisionBundle(input)),
+      suggestSubdomains,
+      reserveSubdomain: (input) => toMutation(() => reserveOrgSubdomain(input)),
+      getSubdomainReservation: getOrgSubdomainReservation,
       suspend: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "SUSPENDED" })),
       activate: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "ACTIVE" })),
       disable: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "DISABLED" })),
@@ -823,6 +865,16 @@ export function createPlatformServices(): PlatformServices {
     subscription: {
       list: listSubscriptions,
       setStatus: (input) => toMutation(() => setSubscriptionStatus(input)),
+      listPlans: listTierPlans,
+      assignTier: (input) => toMutation(() => assignTier(input as AssignSubscriptionTierInput)),
+      listAddons: (input) => listAddOnBundles((input as ListAddonsInput).companyId),
+      setAddon: (input) => toMutation(() => setAddOnBundle(input as SetAddonInput)),
+      recomputePricing: (companyId) => toMutation(() => recomputeSubscriptionPricing(companyId) as Promise<SubscriptionPricingSummary>),
+      health: (companyId) => getSubscriptionHealthSummary(companyId) as Promise<SubscriptionHealthSummary>,
+      syncCatalog: (actor: string) => {
+        void actor;
+        return toMutation(() => syncCommercialCatalog());
+      },
     },
     feature: {
       list: listFeatures,
@@ -838,6 +890,39 @@ export function createPlatformServices(): PlatformServices {
     audit: {
       list: listAuditEvents,
       addNote: (input) => toMutation(() => addAuditNote(input)),
+      export: (input) => toMutation(() => exportAudit(input)),
+      verifyChain: (companyId?: string) => toMutation(() => verifyAuditChain(companyId)),
+    },
+    support: {
+      listRequests: listSupportRequests,
+      listSessions: listSupportSessions,
+      requestAccess: (input) => toMutation(() => requestSupportAccess(input)),
+      approveRequest: (input) => toMutation(() => approveSupportAccess(input)),
+      startSession: (input) => toMutation(() => startSupportSession(input)),
+      endSession: (input) => toMutation(() => endSupportSession(input)),
+      expireSessions: (nowIso?: string) => toMutation(() => expireSupportSessions(nowIso)),
+    },
+    runbook: {
+      listDefinitions: listRunbookDefinitions,
+      upsertDefinition: (input) => toMutation(() => upsertRunbookDefinition(input)),
+      listExecutions: listRunbookExecutions,
+      execute: (input) => toMutation(() => executeRunbook(input)),
+      setEnabled: (id, enabled, actor) => toMutation(() => setRunbookEnabled(id, enabled, actor)),
+    },
+    health: {
+      recordMetric: (input) => toMutation(() => recordMetric(input)),
+      listMetrics,
+      listIncidents: listHealthIncidents,
+      triggerRemediation: (input) => toMutation(() => triggerRemediation(input)),
+    },
+    contract: {
+      evaluate: (input) => toMutation(() => evaluateContract(input)),
+      enforce: (input) => toMutation(() => enforceContract(input)),
+      override: (input) => toMutation(() => overrideContract(input)),
+      getState: getContractState,
+    },
+    search: {
+      global: searchGlobal,
     },
     disconnect: disconnectPrisma,
   };

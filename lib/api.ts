@@ -289,7 +289,8 @@ export type ApprovalHistoryRecord = {
     | "ADJUSTMENT_ENTRY"
     | "COMPENSATION_PROFILE"
     | "COMPENSATION_RULE"
-    | "GOLD_SHIFT_ALLOCATION";
+    | "GOLD_SHIFT_ALLOCATION"
+    | "DISCIPLINARY_ACTION";
   entityId: string;
   action: "CREATE" | "SUBMIT" | "APPROVE" | "REJECT" | "ADJUST";
   fromStatus?: string | null;
@@ -319,6 +320,11 @@ export type NotificationType =
   | "HR_GOLD_PAYOUT_SUBMITTED"
   | "HR_GOLD_PAYOUT_APPROVED"
   | "HR_GOLD_PAYOUT_REJECTED"
+  | "HR_DISCIPLINARY_SUBMITTED"
+  | "HR_DISCIPLINARY_APPROVED"
+  | "HR_DISCIPLINARY_REJECTED"
+  | "HR_INCIDENT_CREATED"
+  | "HR_INCIDENT_STATUS_CHANGED"
   | "OPS_INCIDENT_CREATED"
   | "OPS_INCIDENT_STATUS_CHANGED"
   | "OPS_PERMIT_EXPIRING"
@@ -335,6 +341,8 @@ export type NotificationEntityType =
   | "COMPENSATION_PROFILE"
   | "COMPENSATION_RULE"
   | "GOLD_SHIFT_ALLOCATION"
+  | "DISCIPLINARY_ACTION"
+  | "HR_INCIDENT"
   | "INCIDENT"
   | "PERMIT"
   | "WORK_ORDER";
@@ -766,6 +774,76 @@ export type IncidentRecord = {
   site: { id: string; name: string; code: string };
 };
 
+export type HrIncidentRecord = {
+  id: string;
+  companyId: string;
+  employeeId: string;
+  siteId?: string | null;
+  sourceIncidentId?: string | null;
+  incidentDate: string;
+  category: "MISCONDUCT" | "ATTENDANCE" | "SAFETY_POLICY" | "PERFORMANCE" | "OTHER";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  status: "OPEN" | "UNDER_REVIEW" | "CLOSED";
+  title: string;
+  description: string;
+  investigationNotes?: string | null;
+  reportedById: string;
+  resolvedById?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  employee: { id: string; employeeId: string; name: string };
+  site?: { id: string; name: string; code: string } | null;
+  sourceIncident?: {
+    id: string;
+    incidentType: string;
+    severity: string;
+    status: string;
+    incidentDate: string;
+    site: { id: string; name: string; code: string };
+  } | null;
+  reportedBy: { id: string; name: string };
+  resolvedBy?: { id: string; name: string } | null;
+  _count?: { actions: number };
+};
+
+export type DisciplinaryActionRecord = {
+  id: string;
+  companyId: string;
+  incidentId?: string | null;
+  employeeId: string;
+  actionType: "WARNING" | "PENALTY" | "SUSPENSION" | "TERMINATION" | "OTHER";
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "APPLIED";
+  summary: string;
+  notes?: string | null;
+  effectiveDate?: string | null;
+  penaltyAmount: number;
+  penaltyCurrency: string;
+  penaltyStatus: "NONE" | "PENDING" | "DEDUCTED" | "PAID" | "WAIVED";
+  createdById: string;
+  submittedById?: string | null;
+  approvedById?: string | null;
+  appliedById?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  appliedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  employee: { id: string; employeeId: string; name: string };
+  incident?: {
+    id: string;
+    title: string;
+    category: string;
+    severity: string;
+    status: string;
+    incidentDate: string;
+  } | null;
+  createdBy: { id: string; name: string };
+  submittedBy?: { id: string; name: string } | null;
+  approvedBy?: { id: string; name: string } | null;
+  appliedBy?: { id: string; name: string } | null;
+};
+
 export type TrainingRecordSummary = {
   id: string;
   userId: string;
@@ -1001,7 +1079,8 @@ export async function fetchApprovalHistory(
       | "ADJUSTMENT_ENTRY"
       | "COMPENSATION_PROFILE"
       | "COMPENSATION_RULE"
-      | "GOLD_SHIFT_ALLOCATION";
+      | "GOLD_SHIFT_ALLOCATION"
+      | "DISCIPLINARY_ACTION";
     entityId?: string;
     actedById?: string;
     startDate?: string;
@@ -1345,6 +1424,41 @@ export async function fetchIncidents(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<IncidentRecord>>(`/api/compliance/incidents${query}`);
+}
+
+export async function fetchHrIncidents(
+  params: {
+    employeeId?: string;
+    siteId?: string;
+    sourceIncidentId?: string;
+    status?: "OPEN" | "UNDER_REVIEW" | "CLOSED";
+    severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    category?: "MISCONDUCT" | "ATTENDANCE" | "SAFETY_POLICY" | "PERFORMANCE" | "OTHER";
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<HrIncidentRecord>>(`/api/hr/incidents${query}`);
+}
+
+export async function fetchDisciplinaryActions(
+  params: {
+    employeeId?: string;
+    incidentId?: string;
+    status?: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "APPLIED";
+    actionType?: "WARNING" | "PENALTY" | "SUSPENSION" | "TERMINATION" | "OTHER";
+    penaltyStatus?: "NONE" | "PENDING" | "DEDUCTED" | "PAID" | "WAIVED";
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<DisciplinaryActionRecord>>(
+    `/api/hr/disciplinary-actions${query}`,
+  );
 }
 
 export async function fetchTrainingRecords(

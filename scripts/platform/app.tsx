@@ -1,54 +1,39 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Box, Text, useApp, useInput } from 'ink';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Box, Text, useApp, useInput } from "ink";
 
-import { CommandPalette } from './components/command-palette';
-import { FooterBar } from './components/footer-bar';
-import { InspectorPanel } from './components/inspector-panel';
-import { MainContent } from './components/main-content';
-import { ModuleNav } from './components/module-nav';
+import { CommandPalette } from "./components/command-palette";
+import { CompanyPicker } from "./components/company-picker";
+import { FooterBar } from "./components/footer-bar";
+import { InspectorPanel } from "./components/inspector-panel";
+import { MainContent } from "./components/main-content";
+import { ModuleNav } from "./components/module-nav";
+import { TreeMenu, type TreeMenuItem } from "./components/tree-menu";
 import type {
   AppPane,
+  CompanyPickerItem,
   ModuleMount,
   PaletteCommand,
   PlatformModuleDefinition,
   PlatformModuleId,
-} from './components/types';
+} from "./components/types";
+import { ACTION_TREE, findOperationById, type ActionDomain } from "./tree/action-tree";
+
+type WorkspaceMode = "tree" | "operation";
+type TreeLevel = "task" | "operation";
 
 const DEFAULT_MODULES: PlatformModuleDefinition[] = [
-  {
-    id: 'orgs',
-    label: 'Organizations',
-    description: 'Provisioning and tenant state controls.',
-    shortcut: 'g',
-  },
-  {
-    id: 'subscriptions',
-    label: 'Subscriptions',
-    description: 'Billing plan and status management.',
-  },
-  {
-    id: 'features',
-    label: 'Features',
-    description: 'Platform feature flag operations.',
-  },
-  {
-    id: 'admins',
-    label: 'Admins',
-    description: 'Admin lifecycle and role controls.',
-  },
-  {
-    id: 'audit',
-    label: 'Audit',
-    description: 'Operational trail and notes.',
-  },
+  { id: "orgs", label: "Organizations", description: "Provisioning and tenant state controls.", shortcut: "g" },
+  { id: "subscriptions", label: "Subscriptions", description: "Billing plan and status management." },
+  { id: "features", label: "Features", description: "Platform feature flag operations." },
+  { id: "admins", label: "Admins", description: "Admin lifecycle and role controls." },
+  { id: "support", label: "Support", description: "Support requests and operator sessions." },
+  { id: "contracts", label: "Contracts", description: "Warning and suspension enforcement." },
+  { id: "health", label: "Health", description: "SLO snapshots and remediation incidents." },
+  { id: "runbooks", label: "Runbooks", description: "Automation schedules and executions." },
+  { id: "audit", label: "Audit", description: "Operational and compliance event trail." },
 ];
 
-const PANE_ORDER: AppPane[] = ['nav', 'main', 'inspector'];
-const PANE_LABEL: Record<AppPane, string> = {
-  nav: 'Module Nav',
-  main: 'Main Workspace',
-  inspector: 'Inspector',
-};
+const PANE_ORDER: AppPane[] = ["nav", "main", "inspector"];
 
 interface ResolvedPaletteCommand extends PaletteCommand {
   run: () => void;
@@ -62,6 +47,7 @@ export interface PlatformAppProps {
   initialModuleId?: PlatformModuleId;
   initialCompanyId?: string | null;
   initialReadOnly?: boolean;
+  resolveCompanies?: (query: string, limit?: number) => Promise<CompanyPickerItem[]>;
   onQuit?: () => void;
 }
 
@@ -70,205 +56,356 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function normalizeModules(modules?: PlatformModuleDefinition[]) {
-  if (modules && modules.length > 0) {
-    return modules;
-  }
+  if (modules && modules.length > 0) return modules;
   return DEFAULT_MODULES;
 }
 
 function isPrintableInput(input: string, key: { ctrl: boolean; meta: boolean }) {
-  return !key.ctrl && !key.meta && input.length === 1 && input >= ' ';
+  return !key.ctrl && !key.meta && input.length === 1 && input >= " ";
+}
+
+function domainAsModule(domain: ActionDomain): PlatformModuleDefinition {
+  return {
+    id: domain.id,
+    label: domain.label,
+    description: domain.description,
+  };
+}
+
+function createTaskCursorMap() {
+  return Object.fromEntries(ACTION_TREE.map((domain) => [domain.id, 0])) as Record<string, number>;
+}
+
+function createOperationCursorMap() {
+  return Object.fromEntries(
+    ACTION_TREE.flatMap((domain) => domain.tasks.map((task) => [task.id, 0])),
+  ) as Record<string, number>;
 }
 
 export function PlatformApp({
   actor,
-  contextLabel = 'platform',
+  contextLabel = "platform",
   modules,
   moduleMounts,
-  initialModuleId,
   initialCompanyId = null,
   initialReadOnly = false,
+  resolveCompanies,
   onQuit,
 }: PlatformAppProps) {
   const { exit } = useApp();
-  const activeModules = useMemo(() => normalizeModules(modules), [modules]);
-  const moduleById = useMemo(() => {
-    return new Map<PlatformModuleId, { module: PlatformModuleDefinition; index: number }>(
-      activeModules.map((module, index) => [module.id, { module, index }]),
-    );
-  }, [activeModules]);
+  const moduleDefinitions = useMemo(() => normalizeModules(modules), [modules]);
+  const moduleById = useMemo(
+    () => new Map<PlatformModuleId, PlatformModuleDefinition>(moduleDefinitions.map((module) => [module.id, module])),
+    [moduleDefinitions],
+  );
 
-  const fallbackModuleId = activeModules[0].id;
-  const initialSelection = initialModuleId && moduleById.has(initialModuleId) ? initialModuleId : fallbackModuleId;
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("tree");
+  const [treeLevel, setTreeLevel] = useState<TreeLevel>("task");
+  const [openedOperationId, setOpenedOperationId] = useState<string | null>(null);
 
-  const [selectedModuleId, setSelectedModuleId] = useState<PlatformModuleId>(initialSelection);
-  const [cursorIndex, setCursorIndex] = useState<number>(moduleById.get(initialSelection)?.index ?? 0);
-  const [activePane, setActivePane] = useState<AppPane>('nav');
+  const [domainCursor, setDomainCursor] = useState(0);
+  const [taskCursorByDomain, setTaskCursorByDomain] = useState<Record<string, number>>(createTaskCursorMap);
+  const [operationCursorByTask, setOperationCursorByTask] = useState<Record<string, number>>(createOperationCursorMap);
+
+  const [activePane, setActivePane] = useState<AppPane>("nav");
   const [focusCompanyId, setFocusCompanyId] = useState<string | null>(initialCompanyId);
+  const [focusCompanyDisplay, setFocusCompanyDisplay] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState<boolean>(initialReadOnly);
-  const [statusMessage, setStatusMessage] = useState<string>('Ready. Press / to open the command palette.');
+  const [statusMessage, setStatusMessage] = useState<string>(
+    "Ready. Pick a domain, then task, then operation. Press Enter to move forward.",
+  );
   const [isPaletteOpen, setPaletteOpen] = useState<boolean>(false);
-  const [paletteQuery, setPaletteQuery] = useState<string>('');
+  const [paletteQuery, setPaletteQuery] = useState<string>("");
   const [paletteIndex, setPaletteIndex] = useState<number>(0);
+  const [isInputLocked, setInputLocked] = useState(false);
 
-  const maxCursorIndex = Math.max(0, activeModules.length - 1);
-  const effectiveCursorIndex = clamp(cursorIndex, 0, maxCursorIndex);
-  const selectedModule = moduleById.get(selectedModuleId)?.module ?? activeModules[effectiveCursorIndex] ?? activeModules[0];
+  const [isCompanyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [companyRows, setCompanyRows] = useState<CompanyPickerItem[]>([]);
+  const [companyPickerIndex, setCompanyPickerIndex] = useState(0);
+  const [companyPickerLoading, setCompanyPickerLoading] = useState(false);
+
+  const selectedDomain = ACTION_TREE[clamp(domainCursor, 0, ACTION_TREE.length - 1)] ?? ACTION_TREE[0];
+  const taskCursor = clamp(
+    taskCursorByDomain[selectedDomain.id] ?? 0,
+    0,
+    Math.max(0, selectedDomain.tasks.length - 1),
+  );
+  const selectedTask = selectedDomain.tasks[taskCursor] ?? null;
+  const operationCursor = selectedTask
+    ? clamp(
+        operationCursorByTask[selectedTask.id] ?? 0,
+        0,
+        Math.max(0, selectedTask.operations.length - 1),
+      )
+    : 0;
+  const selectedOperation = selectedTask?.operations[operationCursor] ?? null;
+
+  const openedContext = openedOperationId ? findOperationById(openedOperationId) : null;
+  const activeOperation = workspaceMode === "operation" ? openedContext?.operation ?? selectedOperation : selectedOperation;
+  const activeTask = workspaceMode === "operation" ? openedContext?.task ?? selectedTask : selectedTask;
+  const activeDomain = workspaceMode === "operation" ? openedContext?.domain ?? selectedDomain : selectedDomain;
+  const selectedModule = activeOperation
+    ? moduleById.get(activeOperation.moduleId) ?? moduleDefinitions[0]
+    : moduleDefinitions[0];
+
+  const mainTitle =
+    workspaceMode === "operation" && activeOperation
+      ? `${activeTask?.label || "Action"} > ${activeOperation.label}`
+      : `${selectedDomain.label} Tasks`;
+  const mainDescription =
+    workspaceMode === "operation" && activeOperation
+      ? activeOperation.description
+      : "Step 1: select a task. Step 2: select an operation. Step 3: launch wizard.";
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadCompanies() {
+      if (!isCompanyPickerOpen) return;
+      if (!resolveCompanies) {
+        setCompanyRows([]);
+        return;
+      }
+      setCompanyPickerLoading(true);
+      try {
+        const rows = await resolveCompanies(companyQuery, 20);
+        if (!ignore) {
+          setCompanyRows(rows);
+          setCompanyPickerIndex((current) => clamp(current, 0, Math.max(0, rows.length - 1)));
+        }
+      } catch {
+        if (!ignore) setCompanyRows([]);
+      } finally {
+        if (!ignore) setCompanyPickerLoading(false);
+      }
+    }
+    void loadCompanies();
+    return () => {
+      ignore = true;
+    };
+  }, [companyQuery, isCompanyPickerOpen, resolveCompanies]);
 
   const quitShell = useCallback(() => {
     onQuit?.();
     exit();
   }, [exit, onQuit]);
 
-  const selectModuleByIndex = useCallback(
-    (index: number) => {
-      const nextIndex = clamp(index, 0, activeModules.length - 1);
-      const nextModule = activeModules[nextIndex];
-      setCursorIndex(nextIndex);
-      setSelectedModuleId(nextModule.id);
-      setStatusMessage(`Selected ${nextModule.label}`);
-    },
-    [activeModules],
-  );
+  const openCompanyPicker = useCallback(() => {
+    setCompanyPickerOpen(true);
+    setCompanyQuery("");
+    setCompanyPickerIndex(0);
+    setStatusMessage("Focus company picker opened. Type to search.");
+  }, []);
 
-  const selectModuleById = useCallback(
-    (moduleId: PlatformModuleId) => {
-      const lookup = moduleById.get(moduleId);
-      if (!lookup) {
-        return;
-      }
-      setSelectedModuleId(lookup.module.id);
-      setCursorIndex(lookup.index);
-      setStatusMessage(`Selected ${lookup.module.label}`);
-    },
-    [moduleById],
-  );
+  const closeCompanyPicker = useCallback(() => {
+    setCompanyPickerOpen(false);
+    setCompanyQuery("");
+    setCompanyPickerIndex(0);
+    setStatusMessage("Focus company picker closed.");
+  }, []);
 
-  const movePane = useCallback((direction: -1 | 1) => {
-    setActivePane((current) => {
-      const currentIndex = PANE_ORDER.indexOf(current);
-      const nextIndex = clamp(currentIndex + direction, 0, PANE_ORDER.length - 1);
-      const nextPane = PANE_ORDER[nextIndex];
-      if (nextPane !== current) {
-        setStatusMessage(`Focus moved to ${PANE_LABEL[nextPane]}`);
-      }
-      return nextPane;
-    });
+  const openSelectedOperation = useCallback(() => {
+    if (!selectedOperation) {
+      setStatusMessage("No operation selected.");
+      return;
+    }
+    setOpenedOperationId(selectedOperation.id);
+    setWorkspaceMode("operation");
+    setActivePane("main");
+    setStatusMessage(`Opened wizard: ${selectedOperation.label}`);
+  }, [selectedOperation]);
+
+  const backToTree = useCallback(() => {
+    setWorkspaceMode("tree");
+    setOpenedOperationId(null);
+    setTreeLevel("operation");
+    setStatusMessage("Returned to operations tree.");
+  }, []);
+
+  const openPalette = useCallback(() => {
+    setPaletteOpen(true);
+    setPaletteQuery("");
+    setPaletteIndex(0);
+    setStatusMessage("Command palette opened.");
+  }, []);
+
+  const closePalette = useCallback(() => {
+    setPaletteOpen(false);
+    setPaletteQuery("");
+    setPaletteIndex(0);
+    setStatusMessage("Command palette closed.");
   }, []);
 
   const toggleReadOnly = useCallback(() => {
     setReadOnly((current) => {
       const next = !current;
-      setStatusMessage(next ? 'Switched to read-only mode' : 'Switched to read-write mode');
+      setStatusMessage(next ? "Switched to read-only mode" : "Switched to read-write mode");
       return next;
     });
-  }, []);
-
-  const openPalette = useCallback(() => {
-    setPaletteOpen(true);
-    setPaletteQuery('');
-    setPaletteIndex(0);
-    setStatusMessage('Command palette opened. Type to filter commands.');
-  }, []);
-
-  const closePalette = useCallback(() => {
-    setPaletteOpen(false);
-    setPaletteQuery('');
-    setPaletteIndex(0);
-    setStatusMessage('Command palette closed.');
   }, []);
 
   const normalizedQuery = paletteQuery.trim().toLowerCase();
 
   const paletteCommands = useMemo<ResolvedPaletteCommand[]>(() => {
-    const commands: ResolvedPaletteCommand[] = activeModules.map((module) => ({
-      id: `module:${module.id}`,
-      title: `Go to ${module.label}`,
-      detail: module.description,
-      shortcut: module.shortcut,
-      run: () => selectModuleById(module.id),
-    }));
+    const commands: ResolvedPaletteCommand[] = [];
+
+    for (const [domainIndex, domain] of ACTION_TREE.entries()) {
+      commands.push({
+        id: `domain:${domain.id}`,
+        title: `Open ${domain.label}`,
+        detail: domain.description,
+        run: () => {
+          setDomainCursor(domainIndex);
+          setTreeLevel("task");
+          setWorkspaceMode("tree");
+          setActivePane("main");
+          setStatusMessage(`Opened ${domain.label}.`);
+        },
+      });
+
+      for (const [taskIndex, task] of domain.tasks.entries()) {
+        commands.push({
+          id: `task:${task.id}`,
+          title: `${domain.label}: ${task.label}`,
+          detail: task.description,
+          run: () => {
+            setDomainCursor(domainIndex);
+            setTaskCursorByDomain((current) => ({ ...current, [domain.id]: taskIndex }));
+            setTreeLevel("operation");
+            setWorkspaceMode("tree");
+            setActivePane("main");
+            setStatusMessage(`Opened task ${task.label}.`);
+          },
+        });
+
+        for (const [operationIndex, operation] of task.operations.entries()) {
+          commands.push({
+            id: `operation:${operation.id}`,
+            title: operation.label,
+            detail: `${task.label} - ${operation.description}`,
+            run: () => {
+              setDomainCursor(domainIndex);
+              setTaskCursorByDomain((current) => ({ ...current, [domain.id]: taskIndex }));
+              setOperationCursorByTask((current) => ({ ...current, [task.id]: operationIndex }));
+              setOpenedOperationId(operation.id);
+              setWorkspaceMode("operation");
+              setActivePane("main");
+              setStatusMessage(`Opened wizard: ${operation.label}`);
+            },
+          });
+        }
+      }
+    }
 
     commands.push({
-      id: 'toggle:read-only',
-      title: readOnly ? 'Switch to read-write mode' : 'Switch to read-only mode',
-      detail: 'Toggle mutation lock',
-      shortcut: 'r',
-      run: toggleReadOnly,
+      id: "focus:company",
+      title: "Set focused company",
+      detail: "Search and select company from list",
+      shortcut: "f",
+      run: openCompanyPicker,
     });
 
     commands.push({
-      id: 'clear:company',
-      title: 'Clear focused company',
-      detail: 'Reset organization context',
+      id: "focus:clear",
+      title: "Clear focused company",
+      detail: "Reset company context",
       disabled: focusCompanyId === null,
       run: () => {
         setFocusCompanyId(null);
-        setStatusMessage('Cleared focused company');
+        setFocusCompanyDisplay(null);
+        setStatusMessage("Cleared focused company.");
       },
     });
 
-    if (normalizedQuery.length > 0) {
-      const raw = paletteQuery.trim();
+    commands.push({
+      id: "toggle:read-only",
+      title: readOnly ? "Switch to read-write mode" : "Switch to read-only mode",
+      detail: "Toggle mutation lock",
+      shortcut: "r",
+      run: toggleReadOnly,
+    });
+
+    if (workspaceMode === "operation") {
       commands.push({
-        id: 'set:company',
-        title: `Focus company "${raw}"`,
-        detail: 'Use query as company slug or id',
-        run: () => {
-          setFocusCompanyId(raw);
-          setStatusMessage(`Focused company ${raw}`);
-        },
+        id: "workspace:back",
+        title: "Back to operation tree",
+        detail: "Return to task/operation selection",
+        shortcut: "esc",
+        run: backToTree,
       });
     }
 
     commands.push({
-      id: 'app:quit',
-      title: 'Quit shell',
-      shortcut: 'q',
+      id: "app:quit",
+      title: "Quit shell",
+      shortcut: "q",
       run: quitShell,
     });
 
-    if (!normalizedQuery) {
-      return commands;
-    }
-
+    if (!normalizedQuery) return commands;
     return commands.filter((command) => {
-      const haystack = `${command.title} ${command.detail ?? ''} ${command.shortcut ?? ''}`.toLowerCase();
+      const haystack = `${command.title} ${command.detail ?? ""} ${command.shortcut ?? ""}`.toLowerCase();
       return haystack.includes(normalizedQuery);
     });
-  }, [
-    activeModules,
-    focusCompanyId,
-    normalizedQuery,
-    paletteQuery,
-    quitShell,
-    readOnly,
-    selectModuleById,
-    toggleReadOnly,
-  ]);
+  }, [backToTree, focusCompanyId, normalizedQuery, openCompanyPicker, quitShell, readOnly, toggleReadOnly, workspaceMode]);
 
-  const maxPaletteIndex = Math.max(0, paletteCommands.length - 1);
-  const effectivePaletteIndex = clamp(paletteIndex, 0, maxPaletteIndex);
-
+  const effectivePaletteIndex = clamp(paletteIndex, 0, Math.max(0, paletteCommands.length - 1));
   const runPaletteSelection = useCallback(() => {
     const command = paletteCommands[effectivePaletteIndex];
     if (!command) {
-      setStatusMessage('No command is selected.');
+      setStatusMessage("No command selected.");
       return;
     }
     if (command.disabled) {
-      setStatusMessage('Selected command is currently unavailable.');
+      setStatusMessage("Command is unavailable.");
       return;
     }
     command.run();
     setPaletteOpen(false);
-    setPaletteQuery('');
+    setPaletteQuery("");
     setPaletteIndex(0);
   }, [effectivePaletteIndex, paletteCommands]);
 
   useInput((input, key) => {
-    if ((key.ctrl && input === 'c') || input === 'q') {
+    if (key.ctrl && input === "c") {
       quitShell();
+      return;
+    }
+
+    if (isCompanyPickerOpen) {
+      if (key.escape) {
+        closeCompanyPicker();
+        return;
+      }
+      if (key.upArrow) {
+        setCompanyPickerIndex((current) => clamp(current - 1, 0, Math.max(0, companyRows.length - 1)));
+        return;
+      }
+      if (key.downArrow) {
+        setCompanyPickerIndex((current) => clamp(current + 1, 0, Math.max(0, companyRows.length - 1)));
+        return;
+      }
+      if (key.return) {
+        const selected = companyRows[companyPickerIndex];
+        if (!selected) {
+          setStatusMessage("No company selected.");
+          return;
+        }
+        setFocusCompanyId(selected.id);
+        setFocusCompanyDisplay(`${selected.name} (${selected.slug})`);
+        setCompanyPickerOpen(false);
+        setCompanyQuery("");
+        setCompanyPickerIndex(0);
+        setStatusMessage(`Focused company ${selected.name} (${selected.slug})`);
+        return;
+      }
+      if (key.backspace || key.delete) {
+        setCompanyQuery((current) => current.slice(0, -1));
+        return;
+      }
+      if (isPrintableInput(input, key)) {
+        setCompanyQuery((current) => `${current}${input}`);
+      }
       return;
     }
 
@@ -293,62 +430,152 @@ export function PlatformApp({
         setPaletteQuery((current) => current.slice(0, -1));
         return;
       }
-      if (input === '/') {
-        return;
-      }
+      if (input === "/") return;
       if (isPrintableInput(input, key)) {
         setPaletteQuery((current) => `${current}${input}`);
-        return;
       }
       return;
     }
 
-    if (input === '/' || input === 'p') {
+    if (isInputLocked) return;
+
+    if (input === "q") {
+      quitShell();
+      return;
+    }
+    if (input === "/" || input === "p") {
       openPalette();
       return;
     }
-
-    if (input === 'g') {
-      selectModuleById('orgs');
+    if (input === "f") {
+      openCompanyPicker();
       return;
     }
-
-    if (input === 'r') {
+    if (input === "r") {
       toggleReadOnly();
       return;
     }
 
-    if (key.escape) {
-      setActivePane('nav');
-      setStatusMessage('Focus moved to Module Nav.');
-      return;
-    }
-
     if (key.leftArrow) {
-      movePane(-1);
+      setActivePane((current) => PANE_ORDER[clamp(PANE_ORDER.indexOf(current) - 1, 0, PANE_ORDER.length - 1)]);
       return;
     }
-
     if (key.rightArrow) {
-      movePane(1);
+      setActivePane((current) => PANE_ORDER[clamp(PANE_ORDER.indexOf(current) + 1, 0, PANE_ORDER.length - 1)]);
       return;
     }
 
-    if (key.upArrow) {
-      selectModuleByIndex(effectiveCursorIndex - 1);
+    if (workspaceMode === "operation") {
+      if (key.escape) {
+        backToTree();
+        return;
+      }
+      if (activePane === "nav") {
+        if (key.upArrow) {
+          setDomainCursor((current) => clamp(current - 1, 0, ACTION_TREE.length - 1));
+          return;
+        }
+        if (key.downArrow) {
+          setDomainCursor((current) => clamp(current + 1, 0, ACTION_TREE.length - 1));
+          return;
+        }
+      }
       return;
     }
 
-    if (key.downArrow) {
-      selectModuleByIndex(effectiveCursorIndex + 1);
+    if (key.escape) {
+      if (activePane === "main" && treeLevel === "operation") {
+        setTreeLevel("task");
+        setStatusMessage("Back to task list.");
+        return;
+      }
+      setActivePane("nav");
       return;
     }
 
-    if (key.return) {
-      selectModuleByIndex(effectiveCursorIndex);
+    if (activePane === "nav") {
+      if (key.upArrow) {
+        setDomainCursor((current) => clamp(current - 1, 0, ACTION_TREE.length - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setDomainCursor((current) => clamp(current + 1, 0, ACTION_TREE.length - 1));
+        return;
+      }
+      if (key.return) {
+        setActivePane("main");
+        setTreeLevel("task");
+        setStatusMessage(`Selected ${selectedDomain.label}. Pick a task.`);
+      }
+      return;
+    }
+
+    if (activePane === "main") {
+      if (treeLevel === "task") {
+        if (key.upArrow) {
+          setTaskCursorByDomain((current) => ({
+            ...current,
+            [selectedDomain.id]: clamp(
+              (current[selectedDomain.id] ?? 0) - 1,
+              0,
+              Math.max(0, selectedDomain.tasks.length - 1),
+            ),
+          }));
+          return;
+        }
+        if (key.downArrow) {
+          setTaskCursorByDomain((current) => ({
+            ...current,
+            [selectedDomain.id]: clamp(
+              (current[selectedDomain.id] ?? 0) + 1,
+              0,
+              Math.max(0, selectedDomain.tasks.length - 1),
+            ),
+          }));
+          return;
+        }
+        if (key.return && selectedTask) {
+          setTreeLevel("operation");
+          setStatusMessage(`Selected task ${selectedTask.label}. Pick an operation.`);
+          return;
+        }
+      } else {
+        if (key.upArrow) {
+          if (!selectedTask) return;
+          setOperationCursorByTask((current) => ({
+            ...current,
+            [selectedTask.id]: clamp(
+              (current[selectedTask.id] ?? 0) - 1,
+              0,
+              Math.max(0, selectedTask.operations.length - 1),
+            ),
+          }));
+          return;
+        }
+        if (key.downArrow) {
+          if (!selectedTask) return;
+          setOperationCursorByTask((current) => ({
+            ...current,
+            [selectedTask.id]: clamp(
+              (current[selectedTask.id] ?? 0) + 1,
+              0,
+              Math.max(0, selectedTask.operations.length - 1),
+            ),
+          }));
+          return;
+        }
+        if (key.return) {
+          openSelectedOperation();
+        }
+      }
     }
   });
 
+  useEffect(() => {
+    setTreeLevel("task");
+  }, [domainCursor]);
+
+  const activeMount = selectedModule ? moduleMounts?.[selectedModule.id] : undefined;
   const palettePresentation: PaletteCommand[] = paletteCommands.map((command) => ({
     id: command.id,
     title: command.title,
@@ -357,40 +584,112 @@ export function PlatformApp({
     disabled: command.disabled,
   }));
 
-  const activeMount = moduleMounts?.[selectedModule.id];
+  const taskItems: TreeMenuItem[] = selectedDomain.tasks.map((task) => ({
+    id: task.id,
+    label: task.label,
+    description: task.description,
+  }));
+  const operationItems: TreeMenuItem[] = (selectedTask?.operations ?? []).map((operation) => ({
+    id: operation.id,
+    label: operation.label,
+    description: operation.description,
+  }));
+
+  const domainModules = ACTION_TREE.map(domainAsModule);
 
   return (
     <Box flexDirection="column" width="100%" height="100%">
       <Box flexGrow={1}>
-        <Box width={32} borderStyle="classic">
+        <Box width={36} borderStyle="classic">
           <ModuleNav
-            modules={activeModules}
-            selectedModuleId={selectedModule.id}
-            cursorIndex={effectiveCursorIndex}
+            modules={domainModules}
+            selectedModuleId={selectedDomain.id}
+            cursorIndex={domainCursor}
             activePane={activePane}
           />
         </Box>
         <Box flexGrow={1} borderStyle="classic" marginLeft={1}>
-          <MainContent
-            module={selectedModule}
-            mount={activeMount}
-            focusCompanyId={focusCompanyId}
-            readOnly={readOnly}
-            activePane={activePane}
-          />
+          <Box flexDirection="column" paddingX={1} paddingY={1}>
+            <Text bold color={activePane === "main" ? "cyan" : undefined}>
+              {mainTitle} {activePane === "main" ? "[FOCUSED]" : "[idle]"}
+            </Text>
+            <Text dimColor>{mainDescription}</Text>
+            <Box marginTop={1} flexDirection="column">
+              {workspaceMode === "tree" ? (
+                <Box flexDirection="column">
+                  <TreeMenu
+                    title={`Step 1: Tasks in ${selectedDomain.label}`}
+                    items={taskItems}
+                    cursorIndex={taskCursor}
+                    focused={activePane === "main" && treeLevel === "task"}
+                    emptyMessage="No tasks in this domain."
+                  />
+                  <Box marginTop={1}>
+                    <TreeMenu
+                      title={`Step 2: Operations in ${selectedTask?.label ?? "no task selected"}`}
+                      items={operationItems}
+                      cursorIndex={operationCursor}
+                      focused={activePane === "main" && treeLevel === "operation"}
+                      emptyMessage="No operations in this task."
+                    />
+                  </Box>
+                  <Box marginTop={1} flexDirection="column">
+                    <Text dimColor>
+                      Path: {selectedDomain.label} / {selectedTask?.label ?? "none"} /{" "}
+                      {selectedOperation?.label ?? "none"}
+                    </Text>
+                    <Text dimColor>
+                      Flow: Enter on task to open operations. Enter on operation to launch wizard. Esc to go back one level.
+                    </Text>
+                  </Box>
+                </Box>
+              ) : selectedModule && activeOperation ? (
+                <MainContent
+                  module={selectedModule}
+                  mount={activeMount}
+                  focusCompanyId={focusCompanyId}
+                  readOnly={readOnly}
+                  activePane={activePane}
+                  operationId={activeOperation.id}
+                  setInputLocked={setInputLocked}
+                  onBackToTree={backToTree}
+                />
+              ) : (
+                <Text dimColor>No module available for selected operation.</Text>
+              )}
+            </Box>
+          </Box>
         </Box>
         <Box width={44} borderStyle="classic" marginLeft={1}>
           <InspectorPanel
             actor={actor}
-            module={selectedModule}
+            module={
+              workspaceMode === "operation" && selectedModule
+                ? selectedModule
+                : {
+                    id: selectedDomain.id,
+                    label: `${selectedDomain.label} > ${selectedTask?.label ?? "none"}`,
+                    description: "Tree navigation mode",
+                  }
+            }
             focusCompanyId={focusCompanyId}
             readOnly={readOnly}
             activePane={activePane}
-            paletteOpen={isPaletteOpen}
+            paletteOpen={isPaletteOpen || isCompanyPickerOpen}
             statusMessage={statusMessage}
+            focusCompanyDisplay={focusCompanyDisplay}
+            workspaceMode={workspaceMode}
+            treeLevel={treeLevel}
           />
         </Box>
       </Box>
+      <CompanyPicker
+        isOpen={isCompanyPickerOpen}
+        query={companyQuery}
+        rows={companyRows}
+        selectedIndex={companyPickerIndex}
+        loading={companyPickerLoading}
+      />
       <CommandPalette
         isOpen={isPaletteOpen}
         query={paletteQuery}
@@ -401,13 +700,25 @@ export function PlatformApp({
         <FooterBar
           actor={actor}
           contextLabel={contextLabel}
-          moduleLabel={selectedModule.label}
-          focusCompanyId={focusCompanyId}
+          moduleLabel={
+            workspaceMode === "operation"
+              ? `${activeDomain?.label ?? "Domain"} > ${activeTask?.label ?? "Task"} > ${activeOperation?.label ?? "Operation"}`
+              : `${selectedDomain.label} > ${selectedTask?.label ?? "Task"}`
+          }
+          focusCompanyId={focusCompanyDisplay ?? focusCompanyId}
           readOnly={readOnly}
         />
       </Box>
       <Box marginTop={1}>
         <Text dimColor>{statusMessage}</Text>
+      </Box>
+      <Box marginTop={0}>
+        <Text dimColor>
+          Next:{" "}
+          {workspaceMode === "tree"
+            ? "Choose task then operation in Main pane."
+            : "Complete wizard, or press Esc to return to operation tree."}
+        </Text>
       </Box>
     </Box>
   );

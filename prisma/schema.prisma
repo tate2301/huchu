@@ -44,9 +44,21 @@ model Company {
   approvalActions     ApprovalAction[]
   adjustmentEntries   AdjustmentEntry[]
   notifications       Notification[]
+  hrIncidents         HrIncident[]
+  disciplinaryActions DisciplinaryAction[]
   subscriptions       CompanySubscription[]
   featureFlags        CompanyFeatureFlag[]
   provisioningEvents  ProvisioningEvent[]
+  subdomainReservations SubdomainReservation[]
+  supportAccessRequests SupportAccessRequest[]
+  supportSessions       SupportSession[]
+  runbookDefinitions    RunbookDefinition[]
+  runbookExecutions     RunbookExecution[]
+  sloMetricSnapshots    TenantSloMetricSnapshot[]
+  healthIncidents       HealthIncident[]
+  contractEnforcementEvents ContractEnforcementEvent[]
+  auditLedgerEvents     PlatformAuditEvent[]
+  subscriptionAddons    CompanySubscriptionAddon[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -77,6 +89,8 @@ model SubscriptionPlan {
   currency     String   @default("USD")
   maxSites     Int?
   maxUsers     Int?
+  warningDays  Int      @default(14)
+  graceDays    Int      @default(7)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -98,6 +112,9 @@ model CompanySubscription {
   currentPeriodEnd       DateTime?
   canceledAt             DateTime?
   endedAt                DateTime?
+  effectiveMonthlyAmount Float?
+  priceSnapshotJson      String?
+  lastPriceComputedAt    DateTime?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
@@ -114,11 +131,16 @@ model PlatformFeature {
   key         String   @unique
   name        String
   description String?
+  domain      String?
+  defaultEnabled Boolean @default(false)
+  isBillable  Boolean  @default(false)
+  monthlyPrice Float?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   companyFlags CompanyFeatureFlag[]
+  bundleItems  FeatureBundleItem[]
 
   @@index([isActive])
 }
@@ -141,6 +163,51 @@ model CompanyFeatureFlag {
   @@index([companyId, isEnabled])
 }
 
+model FeatureBundle {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  monthlyPrice Float   @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items            FeatureBundleItem[]
+  companyAddons    CompanySubscriptionAddon[]
+
+  @@index([isActive])
+}
+
+model FeatureBundleItem {
+  id        String   @id @default(uuid())
+  bundleId  String
+  featureId String
+  createdAt DateTime @default(now())
+
+  bundle  FeatureBundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  feature PlatformFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, featureId])
+  @@index([featureId])
+}
+
+model CompanySubscriptionAddon {
+  id        String   @id @default(uuid())
+  companyId String
+  bundleId  String
+  isEnabled Boolean  @default(true)
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bundle  FeatureBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, bundleId])
+  @@index([bundleId, isEnabled])
+}
+
 model ProvisioningEvent {
   id          String   @id @default(uuid())
   companyId   String
@@ -158,6 +225,230 @@ model ProvisioningEvent {
 
   @@index([companyId, createdAt])
   @@index([status])
+}
+
+enum SubdomainReservationStatus {
+  RESERVED
+  ACTIVE
+  RELEASED
+}
+
+model SubdomainReservation {
+  id            String                     @id @default(uuid())
+  companyId     String
+  subdomain     String                     @unique
+  status        SubdomainReservationStatus @default(RESERVED)
+  provider      String                     @default("registry-stub")
+  providerRef   String?
+  lastCheckedAt DateTime?
+  reservedAt    DateTime                   @default(now())
+  activatedAt   DateTime?
+  releasedAt    DateTime?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+}
+
+enum SupportAccessStatus {
+  REQUESTED
+  APPROVED
+  ACTIVE
+  EXPIRED
+  REVOKED
+  DENIED
+}
+
+enum SupportAccessScope {
+  READ_ONLY
+  READ_WRITE
+}
+
+enum SupportSessionMode {
+  IMPERSONATE
+  SHADOW
+}
+
+model SupportAccessRequest {
+  id          String              @id @default(uuid())
+  companyId   String
+  requestedBy String
+  approvedBy  String?
+  reason      String
+  scope       SupportAccessScope  @default(READ_ONLY)
+  status      SupportAccessStatus @default(REQUESTED)
+  requestedAt DateTime            @default(now())
+  approvedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([requestedBy])
+}
+
+model SupportSession {
+  id         String              @id @default(uuid())
+  requestId  String?
+  companyId  String
+  actor      String
+  mode       SupportSessionMode  @default(IMPERSONATE)
+  scope      SupportAccessScope  @default(READ_ONLY)
+  status     SupportAccessStatus @default(ACTIVE)
+  reason     String
+  startedAt  DateTime            @default(now())
+  endedAt    DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([requestId])
+  @@index([actor])
+}
+
+enum RunbookRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RunbookExecutionStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+model RunbookDefinition {
+  id         String           @id @default(uuid())
+  companyId  String?
+  name       String
+  actionType String
+  schedule   String?
+  enabled    Boolean          @default(true)
+  riskLevel  RunbookRiskLevel @default(LOW)
+  inputJson  String?
+  createdBy  String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  company    Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  executions RunbookExecution[]
+
+  @@index([companyId, enabled])
+  @@index([actionType])
+}
+
+model RunbookExecution {
+  id         String                 @id @default(uuid())
+  runbookId  String
+  companyId  String?
+  status     RunbookExecutionStatus @default(QUEUED)
+  dryRun     Boolean                @default(false)
+  startedAt  DateTime               @default(now())
+  finishedAt DateTime?
+  resultJson String?
+  errorJson  String?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  runbook RunbookDefinition @relation(fields: [runbookId], references: [id], onDelete: Cascade)
+  company Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([runbookId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([status])
+}
+
+model TenantSloMetricSnapshot {
+  id          String   @id @default(uuid())
+  companyId   String
+  metricKey   String
+  value       Float
+  status      String   @default("OK")
+  windowStart DateTime?
+  windowEnd   DateTime?
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, metricKey, createdAt])
+}
+
+enum HealthIncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model HealthIncident {
+  id             String               @id @default(uuid())
+  companyId      String
+  metricKey      String
+  riskLevel      RunbookRiskLevel     @default(LOW)
+  actionType     String
+  status         HealthIncidentStatus @default(OPEN)
+  message        String
+  actualValue    Float?
+  thresholdValue Float?
+  createdAt      DateTime             @default(now())
+  resolvedAt     DateTime?
+  updatedAt      DateTime             @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, createdAt])
+  @@index([riskLevel, status])
+}
+
+enum ContractAccessState {
+  ACTIVE
+  WARNING
+  SUSPENDED
+  OVERRIDE
+}
+
+model ContractEnforcementEvent {
+  id          String              @id @default(uuid())
+  companyId   String
+  fromState   ContractAccessState
+  toState     ContractAccessState
+  reason      String
+  overrideBy  String?
+  expiresAt   DateTime?
+  effectiveAt DateTime            @default(now())
+  createdAt   DateTime            @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+}
+
+model PlatformAuditEvent {
+  id           String   @id @default(uuid())
+  companyId    String?
+  actor        String?
+  eventType    String
+  entityType   String?
+  entityId     String?
+  reason       String?
+  payloadJson  String?
+  eventHash    String   @unique
+  prevEventHash String?
+  createdAt    DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model Site {
@@ -185,6 +476,7 @@ model Site {
   inventory            InventoryItem[]
   permits              Permit[]
   incidents            Incident[]
+  hrIncidents          HrIncident[]
   inspections          Inspection[]
   stockLocations       StockLocation[]
   downtimeCodes        DowntimeCode[]
@@ -240,6 +532,12 @@ model User {
   stockMovements                StockMovement[]
   inspections                   Inspection[]
   trainingRecords               TrainingRecord[]
+  reportedHrIncidents           HrIncident[]               @relation("HrIncidentReportedBy")
+  resolvedHrIncidents           HrIncident[]               @relation("HrIncidentResolvedBy")
+  createdDisciplinaryActions    DisciplinaryAction[]       @relation("DisciplinaryActionCreatedBy")
+  submittedDisciplinaryActions  DisciplinaryAction[]       @relation("DisciplinaryActionSubmittedBy")
+  approvedDisciplinaryActions   DisciplinaryAction[]       @relation("DisciplinaryActionApprovedBy")
+  appliedDisciplinaryActions    DisciplinaryAction[]       @relation("DisciplinaryActionAppliedBy")
   employeePayments              EmployeePayment[]
   streamSessions                StreamSession[]
   createdCompensationProfiles   CompensationProfile[]       @relation("CompProfileCreatedBy")
@@ -313,6 +611,8 @@ model Employee {
   payrollLineItems          PayrollLineItem[]
   disbursementItems         DisbursementItem[]
   adjustmentEntries         AdjustmentEntry[]
+  hrIncidents               HrIncident[]
+  disciplinaryActions       DisciplinaryAction[]
 
   @@unique([companyId, employeeId])
   @@index([companyId])
@@ -946,6 +1246,7 @@ enum ApprovalTargetType {
   COMPENSATION_PROFILE
   COMPENSATION_RULE
   GOLD_SHIFT_ALLOCATION
+  DISCIPLINARY_ACTION
 }
 
 enum ApprovalActionType {
@@ -975,6 +1276,11 @@ enum NotificationType {
   HR_GOLD_PAYOUT_SUBMITTED
   HR_GOLD_PAYOUT_APPROVED
   HR_GOLD_PAYOUT_REJECTED
+  HR_DISCIPLINARY_SUBMITTED
+  HR_DISCIPLINARY_APPROVED
+  HR_DISCIPLINARY_REJECTED
+  HR_INCIDENT_CREATED
+  HR_INCIDENT_STATUS_CHANGED
   OPS_INCIDENT_CREATED
   OPS_INCIDENT_STATUS_CHANGED
   OPS_PERMIT_EXPIRING
@@ -996,9 +1302,56 @@ enum NotificationEntityType {
   COMPENSATION_PROFILE
   COMPENSATION_RULE
   GOLD_SHIFT_ALLOCATION
+  DISCIPLINARY_ACTION
+  HR_INCIDENT
   INCIDENT
   PERMIT
   WORK_ORDER
+}
+
+enum HrIncidentCategory {
+  MISCONDUCT
+  ATTENDANCE
+  SAFETY_POLICY
+  PERFORMANCE
+  OTHER
+}
+
+enum HrIncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum HrIncidentStatus {
+  OPEN
+  UNDER_REVIEW
+  CLOSED
+}
+
+enum DisciplinaryActionType {
+  WARNING
+  PENALTY
+  SUSPENSION
+  TERMINATION
+  OTHER
+}
+
+enum DisciplinaryActionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+enum PenaltyStatus {
+  NONE
+  PENDING
+  DEDUCTED
+  PAID
+  WAIVED
 }
 
 enum NotificationSourceAction {
@@ -1471,10 +1824,82 @@ model Incident {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  site Site @relation(fields: [siteId], references: [id])
+  site             Site         @relation(fields: [siteId], references: [id])
+  linkedHrIncidents HrIncident[] @relation("SourceOpsIncident")
 
   @@index([siteId])
   @@index([incidentDate])
+}
+
+model HrIncident {
+  id               String             @id @default(uuid())
+  companyId        String
+  employeeId       String
+  siteId           String?
+  sourceIncidentId String?
+  incidentDate     DateTime
+  category         HrIncidentCategory
+  severity         HrIncidentSeverity @default(MEDIUM)
+  status           HrIncidentStatus   @default(OPEN)
+  title            String
+  description      String
+  investigationNotes String?
+  reportedById     String
+  resolvedById     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  company        Company               @relation(fields: [companyId], references: [id])
+  employee       Employee              @relation(fields: [employeeId], references: [id])
+  site           Site?                 @relation(fields: [siteId], references: [id])
+  sourceIncident Incident?             @relation("SourceOpsIncident", fields: [sourceIncidentId], references: [id])
+  reportedBy     User                  @relation("HrIncidentReportedBy", fields: [reportedById], references: [id])
+  resolvedBy     User?                 @relation("HrIncidentResolvedBy", fields: [resolvedById], references: [id])
+  actions        DisciplinaryAction[]
+
+  @@index([companyId, status, incidentDate])
+  @@index([employeeId, incidentDate])
+  @@index([siteId])
+  @@index([sourceIncidentId])
+  @@index([reportedById])
+}
+
+model DisciplinaryAction {
+  id            String                   @id @default(uuid())
+  companyId     String
+  incidentId    String?
+  employeeId    String
+  actionType    DisciplinaryActionType
+  status        DisciplinaryActionStatus @default(DRAFT)
+  summary       String
+  notes         String?
+  effectiveDate DateTime?
+  penaltyAmount Float                    @default(0)
+  penaltyCurrency String                 @default("USD")
+  penaltyStatus PenaltyStatus            @default(NONE)
+  createdById   String
+  submittedById String?
+  approvedById  String?
+  appliedById   String?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  appliedAt     DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  company     Company     @relation(fields: [companyId], references: [id])
+  incident    HrIncident? @relation(fields: [incidentId], references: [id])
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+  createdBy   User        @relation("DisciplinaryActionCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?       @relation("DisciplinaryActionSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?       @relation("DisciplinaryActionApprovedBy", fields: [approvedById], references: [id])
+  appliedBy   User?       @relation("DisciplinaryActionAppliedBy", fields: [appliedById], references: [id])
+
+  @@index([companyId, status, createdAt])
+  @@index([employeeId, createdAt])
+  @@index([incidentId])
+  @@index([actionType, penaltyStatus])
 }
 
 model TrainingRecord {

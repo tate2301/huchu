@@ -8,6 +8,8 @@ declare module "next-auth" {
       companyId: string;
       companySlug?: string;
       tenantStatus?: string;
+      enabledFeatures?: string[];
+      subscriptionHealth?: string;
     } & DefaultSession["user"];
   }
 
@@ -17,6 +19,8 @@ declare module "next-auth" {
     companyId: string;
     companySlug?: string;
     tenantStatus?: string;
+    enabledFeatures?: string[];
+    subscriptionHealth?: string;
   }
 }
 
@@ -27,5 +31,7 @@ declare module "next-auth/jwt" {
     companyId: string;
     companySlug?: string;
     tenantStatus?: string;
+    enabledFeatures?: string[];
+    subscriptionHealth?: string;
   }
 }

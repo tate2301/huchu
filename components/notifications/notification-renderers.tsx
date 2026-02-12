@@ -54,6 +54,31 @@ function IncidentRenderer({ item }: RendererProps) {
   )
 }
 
+function HrIncidentRenderer({ item }: RendererProps) {
+  const incidentTitle = payloadValue(item, "incidentTitle")
+  const status = payloadValue(item, "status")
+  const employeeName = payloadValue(item, "employeeName")
+  const employeeId = payloadValue(item, "employeeId")
+  const severity = payloadValue(item, "severity")
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm text-muted-foreground">{item.summary}</p>
+      <div className="text-xs text-muted-foreground">
+        {incidentTitle ? `Incident: ${incidentTitle}` : null}
+        {incidentTitle && employeeName ? " | " : null}
+        {employeeName ? `Employee: ${employeeName}` : null}
+        {(incidentTitle || employeeName) && employeeId ? " | " : null}
+        {employeeId ? `ID: ${employeeId}` : null}
+        {(incidentTitle || employeeName || employeeId) && status ? " | " : null}
+        {status ? `Status: ${status}` : null}
+        {(incidentTitle || employeeName || employeeId || status) && severity ? " | " : null}
+        {severity ? `Severity: ${severity}` : null}
+      </div>
+    </div>
+  )
+}
+
 function PermitRenderer({ item }: RendererProps) {
   const permitNumber = payloadValue(item, "permitNumber")
   const permitType = payloadValue(item, "permitType")
@@ -116,6 +141,11 @@ const registry: Partial<Record<NotificationType, (props: RendererProps) => React
   HR_GOLD_PAYOUT_SUBMITTED: WorkflowRenderer,
   HR_GOLD_PAYOUT_APPROVED: WorkflowRenderer,
   HR_GOLD_PAYOUT_REJECTED: WorkflowRenderer,
+  HR_DISCIPLINARY_SUBMITTED: WorkflowRenderer,
+  HR_DISCIPLINARY_APPROVED: WorkflowRenderer,
+  HR_DISCIPLINARY_REJECTED: WorkflowRenderer,
+  HR_INCIDENT_CREATED: HrIncidentRenderer,
+  HR_INCIDENT_STATUS_CHANGED: HrIncidentRenderer,
   OPS_INCIDENT_CREATED: IncidentRenderer,
   OPS_INCIDENT_STATUS_CHANGED: IncidentRenderer,
   OPS_PERMIT_EXPIRING: PermitRenderer,

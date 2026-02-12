@@ -17,6 +17,7 @@ type ApprovalActionInput = {
     | "COMPENSATION_PROFILE"
     | "COMPENSATION_RULE"
     | "GOLD_SHIFT_ALLOCATION"
+    | "DISCIPLINARY_ACTION"
   entityId: string
   action: "CREATE" | "SUBMIT" | "APPROVE" | "REJECT" | "ADJUST"
   actedById: string

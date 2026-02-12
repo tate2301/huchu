@@ -5,6 +5,10 @@ export type PlatformModuleId =
   | 'subscriptions'
   | 'features'
   | 'admins'
+  | 'support'
+  | 'runbooks'
+  | 'health'
+  | 'contracts'
   | 'audit'
   | (string & {});
 
@@ -22,6 +26,9 @@ export interface ModuleRenderProps {
   focusCompanyId: string | null;
   readOnly: boolean;
   activePane: AppPane;
+  operationId?: string;
+  setInputLocked?: (locked: boolean) => void;
+  onBackToTree?: () => void;
 }
 
 export type ModuleMount = (props: ModuleRenderProps) => ReactNode;
@@ -32,4 +39,10 @@ export interface PaletteCommand {
   detail?: string;
   shortcut?: string;
   disabled?: boolean;
+}
+
+export interface CompanyPickerItem {
+  id: string;
+  name: string;
+  slug: string;
 }

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from './auth';
 import { Session } from 'next-auth';
+import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
+import { canAccessRouteForCompany } from "@/lib/platform/gating/enforcer-server";
 
 export interface AuthenticatedSession extends Session {
   user: {
@@ -11,6 +13,7 @@ export interface AuthenticatedSession extends Session {
     name: string;
     role: string;
     companyId: string;
+    enabledFeatures?: string[];
   };
 }
 
@@ -18,12 +21,29 @@ export interface AuthenticatedSession extends Session {
  * Validates user session and returns it or sends 401 response
  */
 export async function validateSession(
-  _request: NextRequest
+  request: NextRequest
 ): Promise<{ session: AuthenticatedSession } | NextResponse> {
   const session = (await getServerSession(authOptions)) as AuthenticatedSession | null;
   
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const pathname = new URL(request.url).pathname;
+  let decision = canAccessRouteWithToken(pathname, session.user.enabledFeatures);
+  if (!decision.allowed && (!session.user.enabledFeatures || session.user.enabledFeatures.length === 0)) {
+    decision = await canAccessRouteForCompany(session.user.companyId, pathname);
+  }
+  if (!decision.allowed) {
+    return NextResponse.json(
+      {
+        error: decision.message ?? "Feature disabled for this company.",
+        code: decision.code ?? "FEATURE_DISABLED",
+        feature: decision.featureKey ?? null,
+        path: pathname,
+      },
+      { status: decision.code === "UNAUTHORIZED" ? 401 : 403 },
+    );
   }
   
   return { session };

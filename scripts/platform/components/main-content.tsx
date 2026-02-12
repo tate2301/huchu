@@ -9,6 +9,9 @@ interface MainContentProps {
   focusCompanyId: string | null;
   readOnly: boolean;
   activePane: AppPane;
+  operationId?: string;
+  setInputLocked?: (locked: boolean) => void;
+  onBackToTree?: () => void;
 }
 
 export function MainContent({
@@ -17,6 +20,9 @@ export function MainContent({
   focusCompanyId,
   readOnly,
   activePane,
+  operationId,
+  setInputLocked,
+  onBackToTree,
 }: MainContentProps) {
   const isPaneFocused = activePane === 'main';
 
@@ -30,6 +36,9 @@ export function MainContent({
         focusCompanyId,
         readOnly,
         activePane,
+        operationId,
+        setInputLocked,
+        onBackToTree,
       });
     } catch (error) {
       mountError = error instanceof Error ? error.message : 'Unknown mount error';

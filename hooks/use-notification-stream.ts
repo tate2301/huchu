@@ -4,8 +4,12 @@ import { useEffect } from "react"
 
 type StreamCallback = () => void
 
-export function useNotificationStream(onSnapshot: StreamCallback) {
+export function useNotificationStream(onSnapshot: StreamCallback, enabled = true) {
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
     let eventSource: EventSource | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
@@ -53,5 +57,5 @@ export function useNotificationStream(onSnapshot: StreamCallback) {
       closed = true
       closeConnection()
     }
-  }, [onSnapshot])
+  }, [enabled, onSnapshot])
 }

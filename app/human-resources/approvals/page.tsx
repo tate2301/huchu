@@ -34,7 +34,8 @@ export default function ApprovalsPage() {
                 | "ADJUSTMENT_ENTRY"
                 | "COMPENSATION_PROFILE"
                 | "COMPENSATION_RULE"
-                | "GOLD_SHIFT_ALLOCATION"),
+                | "GOLD_SHIFT_ALLOCATION"
+                | "DISCIPLINARY_ACTION"),
         entityId: entityId || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
@@ -72,6 +73,7 @@ export default function ApprovalsPage() {
                 <SelectItem value="COMPENSATION_PROFILE">Compensation profiles</SelectItem>
                 <SelectItem value="COMPENSATION_RULE">Compensation rules</SelectItem>
                 <SelectItem value="GOLD_SHIFT_ALLOCATION">Gold payout allocations</SelectItem>
+                <SelectItem value="DISCIPLINARY_ACTION">Disciplinary actions</SelectItem>
               </SelectContent>
             </Select>
             <Input

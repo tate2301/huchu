@@ -20,9 +20,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <PageActionsProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="flex flex-col">
+        <SidebarInset className="flex min-h-screen flex-col bg-background">
           <Navbar />
-          <main className="flex-1 bg-background px-6 py-6">{children}</main>
+          <main className="flex-1 bg-background px-4 py-5 sm:px-6 lg:px-8">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </PageActionsProvider>

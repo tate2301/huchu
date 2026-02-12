@@ -23,8 +23,8 @@ export function FooterBar({
         Mode: {readOnly ? 'read-only' : 'read-write'}
       </Text>
       <Text dimColor>
-        Keys: Up/Down modules | Left/Right panes | Enter select | / or p palette | g orgs | r mode | Esc nav |
-        q or Ctrl+C quit
+        Keys: Up/Down navigate | Left/Right panes | Enter open | / or p palette | f company picker | r mode |
+        Esc back | q or Ctrl+C quit
       </Text>
     </Box>
   );

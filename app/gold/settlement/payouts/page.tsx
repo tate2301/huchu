@@ -8,7 +8,13 @@ import { addDays, format, isAfter, isBefore } from "date-fns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +30,14 @@ import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { goldRoutes } from "@/app/gold/routes";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type WorkerPayoutDetail = {
   employeeId: string;
@@ -92,7 +105,9 @@ function findPaymentForShiftWorker(
 
 export default function GoldSettlementPayoutsPage() {
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState("2");
-  const [selectedShift, setSelectedShift] = useState<ShiftPayoutSummary | null>(null);
+  const [selectedShift, setSelectedShift] = useState<ShiftPayoutSummary | null>(
+    null,
+  );
   const payoutTableRef = useRef<HTMLDivElement>(null);
 
   const windowWeeks = Number(payoutWindowWeeks);
@@ -110,7 +125,11 @@ export default function GoldSettlementPayoutsPage() {
     isLoading: allocationsLoading,
     error: allocationsError,
   } = useQuery({
-    queryKey: ["gold-shift-allocations", "gold-payout-shifts", payoutWindowWeeks],
+    queryKey: [
+      "gold-shift-allocations",
+      "gold-payout-shifts",
+      payoutWindowWeeks,
+    ],
     queryFn: () =>
       fetchGoldShiftAllocations({
         startDate: windowStartDate.toISOString().slice(0, 10),
@@ -144,7 +163,10 @@ export default function GoldSettlementPayoutsPage() {
       .filter((allocation) => allocation.payCycleWeeks === windowWeeks)
       .map((allocation) => {
         const allocationDate = new Date(allocation.date);
-        const expectedDueDate = addDays(allocationDate, allocation.payCycleWeeks * 7);
+        const expectedDueDate = addDays(
+          allocationDate,
+          allocation.payCycleWeeks * 7,
+        );
 
         const workers = allocation.workerShares.map((share) => {
           const payment = findPaymentForShiftWorker(
@@ -165,8 +187,12 @@ export default function GoldSettlementPayoutsPage() {
           } satisfies WorkerPayoutDetail;
         });
 
-        const paidCount = workers.filter((worker) => worker.status === "PAID").length;
-        const partialCount = workers.filter((worker) => worker.status === "PARTIAL").length;
+        const paidCount = workers.filter(
+          (worker) => worker.status === "PAID",
+        ).length;
+        const partialCount = workers.filter(
+          (worker) => worker.status === "PARTIAL",
+        ).length;
         const dueCount = workers.length - paidCount - partialCount;
 
         return {
@@ -233,7 +259,9 @@ export default function GoldSettlementPayoutsPage() {
       {allocationsError || paymentsError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load payouts</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(allocationsError || paymentsError)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(allocationsError || paymentsError)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -242,7 +270,9 @@ export default function GoldSettlementPayoutsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle>Payout Window</CardTitle>
-              <CardDescription>Review allocations and due timing by shift.</CardDescription>
+              <CardDescription>
+                Review allocations and due timing by shift.
+              </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -279,16 +309,26 @@ export default function GoldSettlementPayoutsPage() {
           ) : (
             <div className="flex flex-wrap items-center gap-4 text-sm">
               <div className="rounded-lg border border-border px-3 py-2">
-                <div className="text-xs text-muted-foreground">Shifts in window</div>
-                <div className="text-lg font-semibold">{shiftPayouts.length}</div>
+                <div className="text-xs text-muted-foreground">
+                  Shifts in window
+                </div>
+                <div className="text-lg font-semibold">
+                  {shiftPayouts.length}
+                </div>
               </div>
               <div className="rounded-lg border border-border px-3 py-2">
-                <div className="text-xs text-muted-foreground">Worker slots</div>
+                <div className="text-xs text-muted-foreground">
+                  Worker slots
+                </div>
                 <div className="text-lg font-semibold">{totalWorkers}</div>
               </div>
               <div className="rounded-lg border border-border px-3 py-2">
-                <div className="text-xs text-muted-foreground">Gold for workers</div>
-                <div className="text-lg font-semibold">{totalWorkerGold.toFixed(3)} g</div>
+                <div className="text-xs text-muted-foreground">
+                  Gold for workers
+                </div>
+                <div className="text-lg font-semibold">
+                  {totalWorkerGold.toFixed(3)} g
+                </div>
               </div>
             </div>
           )}
@@ -298,26 +338,46 @@ export default function GoldSettlementPayoutsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Shift Payout Schedule</CardTitle>
-          <CardDescription>Each row is one attendance-linked shift allocation.</CardDescription>
+          <CardDescription>
+            Each row is one attendance-linked shift allocation.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : shiftPayouts.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No shift payouts recorded for this window.</div>
+            <div className="text-sm text-muted-foreground">
+              No shift payouts recorded for this window.
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
-                    <TableHead className="text-left p-3 font-semibold">Shift</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Site</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Workers</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Worker Gold (g)</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Pay Cycle</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Expected Due</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Payment Progress</TableHead>
-                    <TableHead className="text-right p-3 font-semibold">Members</TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Shift
+                    </TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Site
+                    </TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Workers
+                    </TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Worker Gold (g)
+                    </TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Pay Cycle
+                    </TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Expected Due
+                    </TableHead>
+                    <TableHead className="text-left p-3 font-semibold">
+                      Payment Progress
+                    </TableHead>
+                    <TableHead className="text-right p-3 font-semibold">
+                      Members
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -333,21 +393,37 @@ export default function GoldSettlementPayoutsPage() {
                       </TableCell>
                       <TableCell className="p-3">
                         <div className="font-semibold">{shift.siteName}</div>
-                        <div className="text-xs text-muted-foreground">{shift.siteCode}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {shift.siteCode}
+                        </div>
                       </TableCell>
                       <TableCell className="p-3">{shift.workerCount}</TableCell>
                       <TableCell className="p-3">
-                        <Badge variant="secondary">{shift.workerShareWeight.toFixed(3)} g</Badge>
+                        <Badge variant="secondary">
+                          {shift.workerShareWeight.toFixed(3)} g
+                        </Badge>
                       </TableCell>
-                      <TableCell className="p-3">{shift.payCycleWeeks} weeks</TableCell>
-                      <TableCell className="p-3">{format(shift.expectedDueDate, "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">
+                        {shift.payCycleWeeks} weeks
+                      </TableCell>
+                      <TableCell className="p-3">
+                        {format(shift.expectedDueDate, "MMM d, yyyy")}
+                      </TableCell>
                       <TableCell className="p-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">Paid {shift.paidCount}</Badge>
+                          <Badge variant="secondary">
+                            Paid {shift.paidCount}
+                          </Badge>
                           {shift.partialCount > 0 ? (
-                            <Badge variant="outline">Partial {shift.partialCount}</Badge>
+                            <Badge variant="outline">
+                              Partial {shift.partialCount}
+                            </Badge>
                           ) : null}
-                          {shift.dueCount > 0 ? <Badge variant="outline">Due {shift.dueCount}</Badge> : null}
+                          {shift.dueCount > 0 ? (
+                            <Badge variant="outline">
+                              Due {shift.dueCount}
+                            </Badge>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className="p-3 text-right">
@@ -375,7 +451,7 @@ export default function GoldSettlementPayoutsPage() {
           if (!open) setSelectedShift(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] max-w-5xl">
+        <DialogContent className="max-h-[90dvh] max-w-9xl">
           <DialogHeader>
             <DialogTitle>
               Shift Members
@@ -391,16 +467,28 @@ export default function GoldSettlementPayoutsPage() {
             <div className="space-y-3">
               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
                 <div>
-                  Site: <span className="font-semibold text-foreground">{selectedShift.siteCode}</span>
+                  Site:{" "}
+                  <span className="font-semibold text-foreground">
+                    {selectedShift.siteCode}
+                  </span>
                 </div>
                 <div>
-                  Workers: <span className="font-semibold text-foreground">{selectedShift.workerCount}</span>
+                  Workers:{" "}
+                  <span className="font-semibold text-foreground">
+                    {selectedShift.workerCount}
+                  </span>
                 </div>
                 <div>
-                  Worker gold: <span className="font-semibold text-foreground">{selectedShift.workerShareWeight.toFixed(3)} g</span>
+                  Worker gold:{" "}
+                  <span className="font-semibold text-foreground">
+                    {selectedShift.workerShareWeight.toFixed(3)} g
+                  </span>
                 </div>
                 <div>
-                  Expected due: <span className="font-semibold text-foreground">{format(selectedShift.expectedDueDate, "MMM d, yyyy")}</span>
+                  Expected due:{" "}
+                  <span className="font-semibold text-foreground">
+                    {format(selectedShift.expectedDueDate, "MMM d, yyyy")}
+                  </span>
                 </div>
               </div>
 
@@ -408,30 +496,65 @@ export default function GoldSettlementPayoutsPage() {
                 <Table className="w-full text-sm">
                   <TableHeader className="sticky top-0 bg-muted">
                     <TableRow>
-                      <TableHead className="p-2 text-left font-semibold">Worker</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Share (g)</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Due</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Status</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Paid</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Paid Date</TableHead>
+                      <TableHead className="p-2 text-left font-semibold">
+                        Worker
+                      </TableHead>
+                      <TableHead className="p-2 text-left font-semibold">
+                        Share (g)
+                      </TableHead>
+                      <TableHead className="p-2 text-left font-semibold">
+                        Due
+                      </TableHead>
+                      <TableHead className="p-2 text-left font-semibold">
+                        Status
+                      </TableHead>
+                      <TableHead className="p-2 text-left font-semibold">
+                        Paid
+                      </TableHead>
+                      <TableHead className="p-2 text-left font-semibold">
+                        Paid Date
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {selectedShift.workers.map((worker) => (
-                      <TableRow key={`${selectedShift.allocationId}-${worker.employeeId}`} className="border-b">
+                      <TableRow
+                        key={`${selectedShift.allocationId}-${worker.employeeId}`}
+                        className="border-b"
+                      >
                         <TableCell className="p-2">
-                          <div className="font-semibold">{worker.employeeName}</div>
-                          <div className="text-xs text-muted-foreground">{worker.code}</div>
+                          <div className="font-semibold">
+                            {worker.employeeName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {worker.code}
+                          </div>
                         </TableCell>
-                        <TableCell className="p-2">{worker.shareWeight.toFixed(3)}</TableCell>
-                        <TableCell className="p-2">{format(worker.dueDate, "MMM d, yyyy")}</TableCell>
                         <TableCell className="p-2">
-                          <Badge variant={worker.status === "PAID" ? "secondary" : "outline"}>
+                          {worker.shareWeight.toFixed(3)}
+                        </TableCell>
+                        <TableCell className="p-2">
+                          {format(worker.dueDate, "MMM d, yyyy")}
+                        </TableCell>
+                        <TableCell className="p-2">
+                          <Badge
+                            variant={
+                              worker.status === "PAID" ? "secondary" : "outline"
+                            }
+                          >
                             {worker.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="p-2">{worker.paidAmount > 0 ? worker.paidAmount.toFixed(3) : "-"}</TableCell>
-                        <TableCell className="p-2">{worker.paidAt ? format(worker.paidAt, "MMM d, yyyy") : "-"}</TableCell>
+                        <TableCell className="p-2">
+                          {worker.paidAmount > 0
+                            ? worker.paidAmount.toFixed(3)
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="p-2">
+                          {worker.paidAt
+                            ? format(worker.paidAt, "MMM d, yyyy")
+                            : "-"}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -449,8 +572,14 @@ export default function GoldSettlementPayoutsPage() {
             subtitle={`${format(windowStartDate, "yyyy-MM-dd")} to ${format(windowEndDate, "yyyy-MM-dd")}`}
             meta={[
               { label: "Pay window", value: `${payoutWindowWeeks} weeks` },
-              { label: "Shift allocations", value: String(shiftPayouts.length) },
-              { label: "Worker gold total", value: `${totalWorkerGold.toFixed(3)} g` },
+              {
+                label: "Shift allocations",
+                value: String(shiftPayouts.length),
+              },
+              {
+                label: "Worker gold total",
+                value: `${totalWorkerGold.toFixed(3)} g`,
+              },
             ]}
           >
             <table className="w-full text-xs">
@@ -466,13 +595,24 @@ export default function GoldSettlementPayoutsPage() {
               </thead>
               <tbody>
                 {shiftPayouts.map((shift) => (
-                  <tr key={`pdf-${shift.allocationId}`} className="border-b border-gray-100">
-                    <td className="py-2">{format(shift.date, "yyyy-MM-dd")} ({shift.shift})</td>
-                    <td className="py-2">{shift.siteName} ({shift.siteCode})</td>
+                  <tr
+                    key={`pdf-${shift.allocationId}`}
+                    className="border-b border-gray-100"
+                  >
+                    <td className="py-2">
+                      {format(shift.date, "yyyy-MM-dd")} ({shift.shift})
+                    </td>
+                    <td className="py-2">
+                      {shift.siteName} ({shift.siteCode})
+                    </td>
                     <td className="py-2">{shift.workerCount}</td>
-                    <td className="py-2">{shift.workerShareWeight.toFixed(3)}</td>
+                    <td className="py-2">
+                      {shift.workerShareWeight.toFixed(3)}
+                    </td>
                     <td className="py-2">{shift.payCycleWeeks} weeks</td>
-                    <td className="py-2">{format(shift.expectedDueDate, "yyyy-MM-dd")}</td>
+                    <td className="py-2">
+                      {format(shift.expectedDueDate, "yyyy-MM-dd")}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -483,5 +623,3 @@ export default function GoldSettlementPayoutsPage() {
     </GoldShell>
   );
 }
-
-

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { useCallback, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useSession } from "next-auth/react"
 
 import { NotificationRichBody } from "@/components/notifications/notification-renderers"
 import { Badge } from "@/components/ui/badge"
@@ -25,7 +26,8 @@ import {
   type NotificationListItem,
   type NotificationSeverity,
 } from "@/lib/api"
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check"
 import { Bell, CheckCircle2, Loader2 } from "@/lib/icons"
 import { cn } from "@/lib/utils"
 
@@ -49,6 +51,14 @@ function actionButtonVariant(action: NotificationAction) {
 }
 
 export function NotificationCenter() {
+  const { data: session } = useSession()
+  const enabledFeatures =
+    (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures
+  const centerEnabled = canAccessCapabilityWithToken(
+    "notification.center.stream",
+    enabledFeatures,
+  ).allowed
+
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
@@ -56,6 +66,7 @@ export function NotificationCenter() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications", filterMode],
+    enabled: centerEnabled,
     queryFn: () =>
       fetchNotifications({
         unreadOnly: filterMode === "unread",
@@ -69,10 +80,14 @@ export function NotificationCenter() {
     queryClient.invalidateQueries({ queryKey: ["notifications"] })
   }, [queryClient])
 
-  useNotificationStream(invalidateNotifications)
+  useNotificationStream(invalidateNotifications, centerEnabled)
 
   const items = useMemo(() => data?.data ?? [], [data])
   const unreadCount = data?.unreadCount ?? 0
+  const featureDisabled =
+    error instanceof ApiError &&
+    error.status === 403 &&
+    /feature disabled/i.test(error.message)
   const unreadIds = useMemo(
     () => items.filter((item) => !item.isRead).map((item) => item.recipientId),
     [items],
@@ -151,6 +166,10 @@ export function NotificationCenter() {
       return
     }
     quickActionMutation.mutate({ item, action })
+  }
+
+  if (!centerEnabled || featureDisabled) {
+    return null
   }
 
   return (

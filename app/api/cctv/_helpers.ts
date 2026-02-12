@@ -1,4 +1,7 @@
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { StreamProtocol } from "@prisma/client"
+import { enforceFeatureForCompany } from "@/lib/platform/feature-gate";
 
 export const VALID_STREAM_TYPES = ["main", "sub", "third"] as const
 
@@ -84,4 +87,14 @@ export function resolvePlaybackUrls({
 
 export function calculateDurationSeconds(start: Date, end: Date) {
   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000))
+}
+
+export async function enforceCctvFeatureGate(request: NextRequest, companyId: string | undefined) {
+  const gate = await enforceFeatureForCompany(companyId, new URL(request.url).pathname);
+  if (!gate) return null;
+
+  if (gate.status === 403) {
+    return NextResponse.json({ error: "CCTV feature disabled for your subscription." }, { status: 403 });
+  }
+  return gate;
 }

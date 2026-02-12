@@ -4,14 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "relative w-full rounded-md border border-border bg-card px-4 py-3 text-sm text-foreground [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg+div]:translate-y-[-2px] [&>svg+div]:pl-7",
+  "relative w-full rounded-md border border-border bg-card px-4 py-3 text-sm text-foreground shadow-[var(--elevation-0)] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg+div]:translate-y-[-2px] [&>svg+div]:pl-7",
   {
     variants: {
       variant: {
         default: "bg-card text-foreground",
-        destructive: "border-destructive/40 text-destructive [&>svg]:text-destructive",
-        warning: "border-amber-400/40 text-foreground [&>svg]:text-amber-600",
-        success: "border-emerald-400/40 text-foreground [&>svg]:text-emerald-600",
+        destructive:
+          "border-[var(--status-error-border)] bg-[var(--status-error-bg)] text-[var(--status-error-text)] [&>svg]:text-[var(--status-error-text)]",
+        warning:
+          "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] [&>svg]:text-[var(--status-warning-text)]",
+        success:
+          "border-[var(--status-success-border)] bg-[var(--status-success-bg)] text-[var(--status-success-text)] [&>svg]:text-[var(--status-success-text)]",
       },
     },
     defaultVariants: {

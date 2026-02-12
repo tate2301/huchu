@@ -28,7 +28,14 @@ import {
 } from "@/components/ui/select";
 import { fetchSites, fetchStockMovements, type StockMovement } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type ParsedNotes = {
   supplier?: string;
@@ -102,7 +109,9 @@ export default function StoresMovementsPage() {
   } = useQuery({
     queryKey: ["stock-movement", selectedMovementId],
     queryFn: () =>
-      fetchJson<StockMovementDetail>(`/api/inventory/movements/${selectedMovementId}`),
+      fetchJson<StockMovementDetail>(
+        `/api/inventory/movements/${selectedMovementId}`,
+      ),
     enabled: !!selectedMovementId,
   });
 
@@ -165,7 +174,12 @@ export default function StoresMovementsPage() {
               {sitesLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
-                <Select value={siteId || "all"} onValueChange={(value) => setSiteId(value === "all" ? "" : value)}>
+                <Select
+                  value={siteId || "all"}
+                  onValueChange={(value) =>
+                    setSiteId(value === "all" ? "" : value)
+                  }
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="All sites" />
                   </SelectTrigger>
@@ -208,74 +222,104 @@ export default function StoresMovementsPage() {
           </div>
         }
       >
-          <div className="overflow-x-auto">
-            <Table className="w-full">
-              <TableHeader className="sticky top-0 z-10 bg-muted">
-                <TableRow>
-                  <TableHead className="p-3 text-left text-table-cell">Date</TableHead>
-                  <TableHead className="p-3 text-left text-table-cell">Type</TableHead>
-                  <TableHead className="p-3 text-left text-table-cell">Item</TableHead>
-                  <TableHead className="p-3 text-left text-table-cell">Site</TableHead>
-                  <TableHead className="p-3 text-right text-table-cell">Qty</TableHead>
-                  <TableHead className="p-3 text-left text-table-cell">Actor</TableHead>
-                  <TableHead className="p-3 text-left text-table-cell">Notes</TableHead>
-                  <TableHead className="p-3 text-right text-table-cell">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMovements.map((movement) => {
-                  const notes = parseNotes(movement.notes);
-                  const rowNotes = notes.notes ?? notes.invoiceNo ?? notes.supplier ?? "-";
-                  return (
-                    <TableRow
-                      key={movement.id}
-                      className={`border-b hover:bg-muted/60 ${
-                        createdId === movement.id ? "bg-[var(--status-success-bg)]" : ""
-                      }`}
+        <div className="overflow-x-auto">
+          <Table className="w-full">
+            <TableHeader className="sticky top-0 z-10 bg-muted">
+              <TableRow>
+                <TableHead className="p-3 text-left text-table-cell">
+                  Date
+                </TableHead>
+                <TableHead className="p-3 text-left text-table-cell">
+                  Type
+                </TableHead>
+                <TableHead className="p-3 text-left text-table-cell">
+                  Item
+                </TableHead>
+                <TableHead className="p-3 text-left text-table-cell">
+                  Site
+                </TableHead>
+                <TableHead className="p-3 text-right text-table-cell">
+                  Qty
+                </TableHead>
+                <TableHead className="p-3 text-left text-table-cell">
+                  Actor
+                </TableHead>
+                <TableHead className="p-3 text-left text-table-cell">
+                  Notes
+                </TableHead>
+                <TableHead className="p-3 text-right text-table-cell">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMovements.map((movement) => {
+                const notes = parseNotes(movement.notes);
+                const rowNotes =
+                  notes.notes ?? notes.invoiceNo ?? notes.supplier ?? "-";
+                return (
+                  <TableRow
+                    key={movement.id}
+                    className={`border-b hover:bg-muted/60 ${
+                      createdId === movement.id
+                        ? "bg-[var(--status-success-bg)]"
+                        : ""
+                    }`}
+                  >
+                    <TableCell className="p-3 text-sm">
+                      {new Date(movement.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="p-3 text-sm">
+                      <Badge variant={movementVariant(movement.movementType)}>
+                        {movement.movementType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="p-3 text-sm">
+                      <div className="font-semibold">{movement.item.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {movement.item.itemCode}
+                      </div>
+                    </TableCell>
+                    <TableCell className="p-3 text-sm">
+                      {movement.item.site.name}
+                    </TableCell>
+                    <TableCell className="p-3 text-right text-sm font-semibold">
+                      {movement.quantity} {movement.unit}
+                    </TableCell>
+                    <TableCell className="p-3 text-sm">
+                      {movement.approvedBy ??
+                        movement.requestedBy ??
+                        movement.issuedBy?.name ??
+                        "-"}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-92 truncate p-3 text-sm"
+                      title={rowNotes}
                     >
-                      <TableCell className="p-3 text-sm">
-                        {new Date(movement.createdAt).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <Badge variant={movementVariant(movement.movementType)}>
-                          {movement.movementType}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <div className="font-semibold">{movement.item.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {movement.item.itemCode}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">{movement.item.site.name}</TableCell>
-                      <TableCell className="p-3 text-right text-sm font-semibold">
-                        {movement.quantity} {movement.unit}
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        {movement.approvedBy ?? movement.requestedBy ?? movement.issuedBy?.name ?? "-"}
-                      </TableCell>
-                      <TableCell className="max-w-52 truncate p-3 text-sm" title={rowNotes}>
-                        {rowNotes}
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedMovementId(movement.id)}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                      {rowNotes}
+                    </TableCell>
+                    <TableCell className="p-3 text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedMovementId(movement.id)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </DataListShell>
 
-      <Dialog open={!!selectedMovementId} onOpenChange={(open) => !open && setSelectedMovementId(null)}>
+      <Dialog
+        open={!!selectedMovementId}
+        onOpenChange={(open) => !open && setSelectedMovementId(null)}
+      >
         <DialogContent className="w-full sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Movement Details</DialogTitle>
@@ -346,5 +390,3 @@ export default function StoresMovementsPage() {
     </StoresShell>
   );
 }
-
-

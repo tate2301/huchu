@@ -16,12 +16,12 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Popup>
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
-    <DialogPrimitive.Backdrop className="absolute inset-0 z-50 bg-black/40" />
+    <DialogPrimitive.Backdrop className="absolute inset-0 z-50 bg-[var(--surface-overlay)] backdrop-blur-sm" />
     <DialogPrimitive.Viewport className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:items-center sm:p-6">
       <DialogPrimitive.Popup
         ref={ref}
         className={cn(
-          "relative grid w-full max-w-lg max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto overscroll-contain border border-border bg-background p-6 shadow-lg sm:rounded-lg",
+          "relative grid w-full max-w-lg max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto overscroll-contain rounded-xl border border-border/90 bg-popover p-6 shadow-[var(--elevation-3)]",
           className
         )}
         {...props}

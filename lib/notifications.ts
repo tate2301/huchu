@@ -163,6 +163,11 @@ function mapApprovalToNotificationType(
     if (action === "APPROVE") return NotificationType.HR_GOLD_PAYOUT_APPROVED
     if (action === "REJECT") return NotificationType.HR_GOLD_PAYOUT_REJECTED
   }
+  if (entityType === "DISCIPLINARY_ACTION") {
+    if (action === "SUBMIT") return NotificationType.HR_DISCIPLINARY_SUBMITTED
+    if (action === "APPROVE") return NotificationType.HR_DISCIPLINARY_APPROVED
+    if (action === "REJECT") return NotificationType.HR_DISCIPLINARY_REJECTED
+  }
   return null
 }
 
@@ -181,6 +186,7 @@ function toNotificationEntityType(entityType: ApprovalTargetType): NotificationE
   if (entityType === "GOLD_SHIFT_ALLOCATION") {
     return NotificationEntityType.GOLD_SHIFT_ALLOCATION
   }
+  if (entityType === "DISCIPLINARY_ACTION") return NotificationEntityType.DISCIPLINARY_ACTION
   return NotificationEntityType.COMPENSATION_RULE
 }
 
@@ -344,6 +350,38 @@ async function getWorkflowEntityContext(
     }
   }
 
+  if (input.entityType === "DISCIPLINARY_ACTION") {
+    const action = await db.disciplinaryAction.findUnique({
+      where: { id: input.entityId },
+      select: {
+        id: true,
+        actionType: true,
+        status: true,
+        penaltyAmount: true,
+        penaltyCurrency: true,
+        submittedById: true,
+        createdById: true,
+        employee: { select: { name: true, employeeId: true } },
+      },
+    })
+    if (!action) return null
+    const label = `${action.actionType} for ${action.employee.name} (${action.employee.employeeId})`
+    return {
+      submittedById: action.submittedById,
+      createdById: action.createdById,
+      label,
+      viewPath: `/human-resources/incidents?disciplinaryId=${action.id}`,
+      payload: {
+        actionType: action.actionType,
+        status: action.status,
+        employeeName: action.employee.name,
+        employeeId: action.employee.employeeId,
+        penaltyAmount: action.penaltyAmount,
+        penaltyCurrency: action.penaltyCurrency,
+      },
+    }
+  }
+
   const rule = await db.compensationRule.findUnique({
     where: { id: input.entityId },
     select: {
@@ -459,6 +497,21 @@ function buildWorkflowCopy(input: {
     case NotificationType.HR_GOLD_PAYOUT_REJECTED:
       return {
         title: "Gold payout allocation rejected",
+        summary: `${input.actorName} rejected ${input.label}.`,
+      }
+    case NotificationType.HR_DISCIPLINARY_SUBMITTED:
+      return {
+        title: "Disciplinary action pending approval",
+        summary: `${input.actorName} submitted ${input.label}.`,
+      }
+    case NotificationType.HR_DISCIPLINARY_APPROVED:
+      return {
+        title: "Disciplinary action approved",
+        summary: `${input.actorName} approved ${input.label}.`,
+      }
+    case NotificationType.HR_DISCIPLINARY_REJECTED:
+      return {
+        title: "Disciplinary action rejected",
         summary: `${input.actorName} rejected ${input.label}.`,
       }
     default:
@@ -600,6 +653,104 @@ async function getOpsRecipientIds(
   }
 
   return Array.from(recipientIds)
+}
+
+async function getHrRecipientIds(
+  db: DbClient,
+  input: {
+    companyId: string
+    actorId: string
+    actorRole?: string
+    severity: NotificationSeverity
+  },
+) {
+  const approvers = await db.user.findMany({
+    where: {
+      companyId: input.companyId,
+      role: { in: ["MANAGER", "SUPERADMIN"] },
+      isActive: true,
+    },
+    select: { id: true },
+  })
+
+  const recipientIds = new Set(approvers.map((user) => user.id))
+  if (input.actorRole === "CLERK" && input.severity !== NotificationSeverity.CRITICAL) {
+    recipientIds.add(input.actorId)
+  }
+
+  return Array.from(recipientIds)
+}
+
+export async function emitHrIncidentNotification(
+  db: DbClient,
+  input: {
+    companyId: string
+    actorId: string
+    actorRole?: string
+    event: "CREATED" | "STATUS_CHANGED"
+    incident: {
+      id: string
+      title: string
+      severity: string
+      status: string
+      employee: { id: string; employeeId: string; name: string }
+      site?: { id?: string; name?: string; code?: string } | null
+    }
+    previousStatus?: string | null
+  },
+) {
+  try {
+    const severity = normalizeIncidentSeverity(input.incident.severity)
+    const recipientIds = await getHrRecipientIds(db, {
+      companyId: input.companyId,
+      actorId: input.actorId,
+      actorRole: input.actorRole,
+      severity,
+    })
+
+    const type =
+      input.event === "CREATED"
+        ? NotificationType.HR_INCIDENT_CREATED
+        : NotificationType.HR_INCIDENT_STATUS_CHANGED
+    const title =
+      input.event === "CREATED"
+        ? `HR incident reported: ${input.incident.title}`
+        : `HR incident status changed: ${input.incident.status}`
+    const summary =
+      input.event === "CREATED"
+        ? `${input.incident.employee.name} (${input.incident.employee.employeeId}) has a new HR incident.`
+        : `${input.incident.employee.name} moved from ${input.previousStatus ?? "UNKNOWN"} to ${input.incident.status}.`
+
+    return createNotification(db, {
+      companyId: input.companyId,
+      type,
+      title,
+      summary,
+      severity,
+      category: "HR",
+      recipientIds,
+      payload: {
+        incidentTitle: input.incident.title,
+        status: input.incident.status,
+        severity: input.incident.severity,
+        employeeName: input.incident.employee.name,
+        employeeId: input.incident.employee.employeeId,
+        siteName: input.incident.site?.name ?? null,
+        siteCode: input.incident.site?.code ?? null,
+        previousStatus: input.previousStatus ?? null,
+        viewPath: `/human-resources/incidents?incidentId=${input.incident.id}`,
+      },
+      entityType: NotificationEntityType.HR_INCIDENT,
+      entityId: input.incident.id,
+      sourceAction:
+        input.event === "CREATED"
+          ? NotificationSourceAction.CREATE
+          : NotificationSourceAction.STATUS_CHANGE,
+    })
+  } catch (error) {
+    console.error("[Notifications] Failed to emit HR incident notification:", error)
+    return null
+  }
 }
 
 export async function emitIncidentNotification(
@@ -816,6 +967,8 @@ function defaultViewPath(entityType?: NotificationEntityType | null, entityId?: 
   if (entityType === "COMPENSATION_PROFILE") return `/human-resources/compensation?profileId=${entityId}`
   if (entityType === "COMPENSATION_RULE") return `/human-resources/compensation?ruleId=${entityId}`
   if (entityType === "GOLD_SHIFT_ALLOCATION") return `/human-resources/payouts?allocationId=${entityId}`
+  if (entityType === "DISCIPLINARY_ACTION") return `/human-resources/incidents?disciplinaryId=${entityId}`
+  if (entityType === "HR_INCIDENT") return `/human-resources/incidents?incidentId=${entityId}`
   if (entityType === "INCIDENT") return `/compliance?tab=incidents&createdId=${entityId}`
   if (entityType === "PERMIT") return `/compliance?tab=permits&createdId=${entityId}`
   if (entityType === "WORK_ORDER") return `/maintenance/work-orders?workOrderId=${entityId}`
@@ -943,6 +1096,28 @@ function approvalApiActions(type: NotificationType, entityId: string) {
         variant: "destructive" as const,
         confirmMessage:
           "Reject this gold payout allocation? You can add a note from the allocation screen.",
+      },
+    ]
+  }
+
+  if (type === NotificationType.HR_DISCIPLINARY_SUBMITTED) {
+    return [
+      {
+        key: "approve_disciplinary_action",
+        label: "Approve",
+        kind: "api" as const,
+        href: `/api/hr/disciplinary-actions/${entityId}/approve`,
+        method: "POST" as const,
+        variant: "default" as const,
+      },
+      {
+        key: "reject_disciplinary_action",
+        label: "Reject",
+        kind: "api" as const,
+        href: `/api/hr/disciplinary-actions/${entityId}/reject`,
+        method: "POST" as const,
+        variant: "destructive" as const,
+        confirmMessage: "Reject this disciplinary action?",
       },
     ]
   }

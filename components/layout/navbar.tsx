@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -8,10 +9,18 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { GuidedModeToggle } from "@/components/layout/guided-mode-toggle"
 import { usePageActions } from "@/components/layout/page-actions"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check"
 
 export function Navbar() {
   const { actions } = usePageActions()
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const enabledFeatures =
+    (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures
+  const showNotificationCenter = canAccessCapabilityWithToken(
+    "notification.center.widget",
+    enabledFeatures,
+  ).allowed
 
   const successHint = getSuccessHint(pathname)
 
@@ -29,7 +38,7 @@ export function Navbar() {
           ) : null}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <NotificationCenter />
+          {showNotificationCenter ? <NotificationCenter /> : null}
           <GuidedModeToggle />
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>

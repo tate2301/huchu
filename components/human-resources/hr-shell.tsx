@@ -17,6 +17,7 @@ import {
 
 export type HrTab =
   | "employees"
+  | "incidents"
   | "payouts"
   | "salaries"
   | "salary-outstanding"
@@ -34,6 +35,12 @@ type HrTabItem = {
 
 const hrTabs: HrTabItem[] = [
   { id: "employees", label: "Employees", href: "/human-resources", icon: ManageAccounts },
+  {
+    id: "incidents",
+    label: "Workforce Incidents",
+    href: "/human-resources/incidents",
+    icon: ShieldCheck,
+  },
   { id: "payouts", label: "Gold Payouts", href: "/human-resources/payouts", icon: Coins },
   { id: "salaries", label: "Salary Ops", href: "/human-resources/salaries", icon: Payments },
   {

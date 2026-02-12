@@ -16,6 +16,7 @@
     "manage-equipment": "node scripts/manage-equipment.js",
     "manage-platform": "node scripts/manage-platform.js",
     "platform": "vite-node --script scripts/platform/index.tsx",
+    "platform:audit-feature-gates": "tsx scripts/platform/audit-feature-gates.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
     "db:push": "pnpm db:prepare:platform && prisma db push"

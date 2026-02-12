@@ -22,6 +22,7 @@ import {
 import { useSession } from "next-auth/react";
 
 import { getNavSectionsForRole, type NavSection } from "@/lib/navigation";
+import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -87,9 +88,16 @@ export function AppSidebar() {
   const view = searchParams.get("view");
   const { data: session } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
+  const enabledFeatures = React.useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
   const { state, isMobile, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const sections = React.useMemo(() => getNavSectionsForRole(role), [role]);
+  const sections = React.useMemo(() => {
+    const roleSections = getNavSectionsForRole(role);
+    return filterNavSectionsByEnabledFeatures(roleSections, enabledFeatures);
+  }, [enabledFeatures, role]);
   const overviewSection = React.useMemo(
     () => sections.find((section) => section.id === "overview"),
     [sections],

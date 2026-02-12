@@ -4,8 +4,10 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
 import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { hasFeature } from "@/lib/platform/features";
 import { getTenantClaimsForCompany } from "@/lib/platform/tenant";
-import { hasActiveSubscription } from "@/lib/platform/subscription";
+import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
+import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import bcrypt from "bcryptjs";
 
 type PlatformJWT = JWT & {
@@ -14,6 +16,8 @@ type PlatformJWT = JWT & {
   companyId?: string;
   companySlug?: string;
   tenantStatus?: string;
+  enabledFeatures?: string[];
+  subscriptionHealth?: string;
 };
 
 function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
@@ -71,6 +75,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
+        const loginEnabled = await hasFeature(user.companyId, "core.auth.login");
+        if (!loginEnabled) {
+          throw new Error("Login is disabled for this organization");
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -95,10 +104,16 @@ export const authOptions: NextAuthOptions = {
 
       if (extendedToken.companyId) {
         const tenantClaims = await getTenantClaimsForCompany(extendedToken.companyId);
-        const subscriptionActive = await hasActiveSubscription(extendedToken.companyId);
+        const [subscriptionHealth, enabledFeatures] = await Promise.all([
+          getSubscriptionHealth(extendedToken.companyId),
+          getEnabledFeatureKeys(extendedToken.companyId),
+        ]);
+        const subscriptionActive = !subscriptionHealth.shouldBlock;
 
         extendedToken.companySlug = tenantClaims.companySlug;
         extendedToken.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
+        extendedToken.subscriptionHealth = subscriptionHealth.state;
+        extendedToken.enabledFeatures = enabledFeatures;
       }
 
       return extendedToken;
@@ -113,12 +128,16 @@ export const authOptions: NextAuthOptions = {
           companyId: typedToken.companyId,
           companySlug: typedToken.companySlug,
           tenantStatus: typedToken.tenantStatus,
+          enabledFeatures: typedToken.enabledFeatures,
+          subscriptionHealth: typedToken.subscriptionHealth,
         } as typeof session.user & {
           id?: string;
           role?: string;
           companyId?: string;
           companySlug?: string;
           tenantStatus?: string;
+          enabledFeatures?: string[];
+          subscriptionHealth?: string;
         };
       }
       return session;
