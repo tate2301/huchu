@@ -2,6 +2,12 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../prisma";
+import { FEATURE_BUNDLES, FEATURE_CATALOG } from "../../../lib/platform/feature-catalog";
+import {
+  getClientTemplateBundleCodes,
+  getClientTemplateDefinition,
+  getClientTemplateFeatureKeys,
+} from "../../../lib/platform/client-templates";
 import type {
   AdminRole,
   OrganizationResolveItem,
@@ -27,12 +33,6 @@ const RESERVED_SUBDOMAINS = new Set([
   "mail",
   "ftp",
 ]);
-
-const FEATURE_TEMPLATES: Record<string, string[]> = {
-  BASE: ["core-access", "audit-log"],
-  GOLD: ["core-access", "audit-log", "gold-ledger", "gold-reconciliation"],
-  FULL: ["core-access", "audit-log", "gold-ledger", "gold-reconciliation", "advanced-analytics"],
-};
 
 function isUniqueConstraint(error: unknown, field?: string): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
@@ -210,6 +210,7 @@ function actionPreview(preview: ProvisionBundlePreview): string {
         adminName: preview.adminName,
         tierCode: preview.tierCode,
         featureTemplate: preview.featureTemplate,
+        bundleCodes: preview.bundleCodes,
         subdomain: preview.subdomainCandidate,
       },
     },
@@ -218,9 +219,38 @@ function actionPreview(preview: ProvisionBundlePreview): string {
   );
 }
 
-function featureList(template: string): string[] {
-  const normalized = template.trim().toUpperCase();
-  return FEATURE_TEMPLATES[normalized] ?? FEATURE_TEMPLATES.BASE;
+function resolveTemplateSelection(featureTemplate: string, tierCodeInput?: string) {
+  const warnings: string[] = [];
+  const requestedTemplateCode = String(featureTemplate || "TEMPLATE_CORE_STARTER").trim().toUpperCase();
+  const template =
+    getClientTemplateDefinition(requestedTemplateCode) ??
+    getClientTemplateDefinition("TEMPLATE_CORE_STARTER");
+  if (!template) {
+    throw new Error("Template catalog is unavailable.");
+  }
+  if (!getClientTemplateDefinition(requestedTemplateCode)) {
+    warnings.push(`Unknown feature template "${requestedTemplateCode}". Falling back to ${template.code}.`);
+  }
+
+  const tierCode = String(tierCodeInput || template.recommendedTierCode || "CUSTOM")
+    .trim()
+    .toUpperCase();
+  const bundleCodes = getClientTemplateBundleCodes(template.code);
+  const featuresToEnable = getClientTemplateFeatureKeys(template.code, tierCode);
+
+  return {
+    tierCode,
+    templateCode: template.code,
+    templateLabel: template.label,
+    bundleCodes,
+    featuresToEnable,
+    warnings,
+  };
+}
+
+function getFeatureCatalogDefinition(featureKey: string) {
+  const normalized = featureKey.trim().toLowerCase();
+  return FEATURE_CATALOG.find((feature) => feature.key.toLowerCase() === normalized) ?? null;
 }
 
 export async function suggestSubdomains(seed: string, limit = 6): Promise<SubdomainSuggestion[]> {
@@ -307,17 +337,15 @@ export async function previewProvisionBundle(input: ProvisionBundleInput): Promi
   const adminEmail = normalizeEmail(input.adminEmail, "admin email");
   const adminName = String(input.adminName || "").trim();
   if (!adminName) throw new Error("adminName is required.");
-  const tierCode = String(input.tierCode || "CUSTOM").trim().toUpperCase();
-  const featureTemplate = String(input.featureTemplate || "BASE").trim().toUpperCase();
+  const templateSelection = resolveTemplateSelection(String(input.featureTemplate || "TEMPLATE_CORE_STARTER"), input.tierCode);
+  const tierCode = templateSelection.tierCode;
+  const featureTemplate = templateSelection.templateCode;
   const subdomainCandidate = normalizeSubdomain(input.subdomain || organizationSlug);
 
   const availability = await isSubdomainAvailable(subdomainCandidate);
   const suggestions = await suggestSubdomains(subdomainCandidate, 6);
-  const featuresToEnable = featureList(featureTemplate);
-  const warnings: string[] = [];
-  if (!FEATURE_TEMPLATES[featureTemplate]) {
-    warnings.push(`Unknown feature template "${featureTemplate}". Falling back to BASE.`);
-  }
+  const featuresToEnable = templateSelection.featuresToEnable;
+  const warnings: string[] = [...templateSelection.warnings];
   if (!availability.available) {
     warnings.push(`Subdomain "${subdomainCandidate}" is unavailable.`);
   }
@@ -329,6 +357,8 @@ export async function previewProvisionBundle(input: ProvisionBundleInput): Promi
     adminName,
     tierCode,
     featureTemplate,
+    templateLabel: templateSelection.templateLabel,
+    bundleCodes: templateSelection.bundleCodes,
     subdomainCandidate,
     subdomainAvailable: availability.available,
     subdomainSuggestions: suggestions,
@@ -363,12 +393,14 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
 
   const plan = await ensurePlan(preview.tierCode);
   const passwordHash = await bcrypt.hash(input.adminPassword, 12);
-  const featuresToEnable = featureList(preview.featureTemplate);
+  const featuresToEnable = preview.featuresToEnable;
+  const bundleCodesToEnable = preview.bundleCodes;
 
   let tx: {
     company: { id: string; name: string; slug: string; tenantStatus: string; isProvisioned: boolean };
     admin: { id: string; email: string; name: string; role: string };
     subscription: { id: string; status: string };
+    appliedBundles: string[];
     appliedFeatures: string[];
     reservation: Awaited<ReturnType<typeof prisma.subdomainReservation.create>>;
   };
@@ -407,15 +439,82 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
         select: { id: true, status: true },
       });
 
-      const appliedFeatures: string[] = [];
-      for (const featureKey of featuresToEnable) {
-        const key = slugify(featureKey);
-        const feature = await trx.platformFeature.upsert({
+      async function upsertFeature(featureKey: string) {
+        const catalog = getFeatureCatalogDefinition(featureKey);
+        const key = catalog?.key ?? featureKey.trim().toLowerCase();
+        return trx.platformFeature.upsert({
           where: { key },
-          update: { name: key, isActive: true },
-          create: { key, name: key, description: `Feature flag for ${key}`, isActive: true },
+          update: {
+            name: catalog?.name ?? key,
+            description: catalog?.description ?? `Feature flag for ${key}`,
+            domain: catalog?.domain ?? null,
+            defaultEnabled: catalog?.defaultEnabled ?? false,
+            isBillable: catalog?.isBillable ?? false,
+            monthlyPrice: catalog?.monthlyPrice ?? null,
+            isActive: true,
+          },
+          create: {
+            key,
+            name: catalog?.name ?? key,
+            description: catalog?.description ?? `Feature flag for ${key}`,
+            domain: catalog?.domain ?? null,
+            defaultEnabled: catalog?.defaultEnabled ?? false,
+            isBillable: catalog?.isBillable ?? false,
+            monthlyPrice: catalog?.monthlyPrice ?? null,
+            isActive: true,
+          },
           select: { id: true, key: true },
         });
+      }
+
+      const appliedBundles: string[] = [];
+      for (const bundleCode of bundleCodesToEnable) {
+        const bundleDefinition = FEATURE_BUNDLES.find((bundle) => bundle.code === bundleCode);
+        if (!bundleDefinition) continue;
+        const bundle = await trx.featureBundle.upsert({
+          where: { code: bundleDefinition.code },
+          update: {
+            name: bundleDefinition.name,
+            description: bundleDefinition.description,
+            monthlyPrice: bundleDefinition.monthlyPrice,
+            isActive: true,
+          },
+          create: {
+            code: bundleDefinition.code,
+            name: bundleDefinition.name,
+            description: bundleDefinition.description,
+            monthlyPrice: bundleDefinition.monthlyPrice,
+            isActive: true,
+          },
+          select: { id: true, code: true },
+        });
+        await trx.companySubscriptionAddon.upsert({
+          where: { companyId_bundleId: { companyId: company.id, bundleId: bundle.id } },
+          update: {
+            isEnabled: true,
+            reason: `Provision template ${preview.featureTemplate}`,
+          },
+          create: {
+            companyId: company.id,
+            bundleId: bundle.id,
+            isEnabled: true,
+            reason: `Provision template ${preview.featureTemplate}`,
+          },
+        });
+        for (const bundleFeatureKey of bundleDefinition.features) {
+          const feature = await upsertFeature(bundleFeatureKey);
+          await trx.featureBundleItem.upsert({
+            where: { bundleId_featureId: { bundleId: bundle.id, featureId: feature.id } },
+            update: {},
+            create: { bundleId: bundle.id, featureId: feature.id },
+          });
+        }
+        appliedBundles.push(bundle.code);
+      }
+
+      const appliedFeatures: string[] = [];
+      for (const featureKey of featuresToEnable) {
+        const feature = await upsertFeature(featureKey);
         await trx.companyFeatureFlag.upsert({
           where: { companyId_featureId: { companyId: company.id, featureId: feature.id } },
           update: { isEnabled: true, reason: `Provision template ${preview.featureTemplate}` },
@@ -431,7 +530,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
 
       const reservation = await reserveSubdomainRecord(trx, company.id, preview.subdomainCandidate);
 
-      return { company, admin, subscription, appliedFeatures, reservation };
+      return { company, admin, subscription, appliedBundles, appliedFeatures, reservation };
     });
   } catch (error) {
     if (isUniqueConstraint(error, "subdomain")) {
@@ -450,6 +549,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     { action: "PROVISION_ORG_CREATED", entityType: "organization", entityId: tx.company.id, reason: `Created ${tx.company.slug}` },
     { action: "PROVISION_ADMIN_CREATED", entityType: "admin", entityId: tx.admin.id, reason: `Created ${tx.admin.email}` },
     { action: "PROVISION_TIER_ASSIGNED", entityType: "subscription", entityId: tx.subscription.id, reason: `Assigned tier ${plan.code}` },
+    { action: "PROVISION_BUNDLES_APPLIED", entityType: "subscription_addon", entityId: tx.company.id, reason: `Applied ${tx.appliedBundles.length} bundles` },
     { action: "PROVISION_FEATURES_APPLIED", entityType: "feature", entityId: tx.company.id, reason: `Applied ${tx.appliedFeatures.length} features` },
     { action: "PROVISION_SUBDOMAIN_RESERVED", entityType: "subdomain", entityId: tx.reservation.subdomain, reason: `Reserved ${tx.reservation.subdomain}` },
   ];
@@ -495,6 +595,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
       planCode: plan.code,
       planName: plan.name,
     },
+    bundlesApplied: tx.appliedBundles,
     featuresApplied: tx.appliedFeatures,
     subdomainReservation: mapReservation(tx.reservation),
     auditEventIds: auditIds,

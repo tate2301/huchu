@@ -6,6 +6,7 @@ This document is the current source of truth for:
 
 - subscription tiers and pricing
 - add-on bundles and pricing
+- client template bundles (by client type)
 - pricing calculation logic
 - feature flag behavior in app/platform code
 - current TUI modules and how to extend them
@@ -78,11 +79,17 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `hr.payroll`
 - `hr.disbursements`
 - `hr.compensation-rules`
+- `hr.incidents`
+- `hr.disciplinary-actions`
+- `hr.salaries`
+- `hr.approvals-history`
+- `hr.gold-payouts`
 - `admin.payroll-config`
 
 `ADDON_GOLD_ADVANCED`
 
 - `gold.reconciliation`
+- `gold.exceptions`
 - `gold.audit-trail`
 - `gold.payouts`
 - `reports.gold-chain`
@@ -108,9 +115,35 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 
 `ADDON_ANALYTICS_PRO`
 
+- `stores.fuel-ledger`
 - `reports.downtime-analytics`
 - `reports.audit-trails`
 - `reports.fuel-ledger`
+- `core.notifications.push`
+
+### Bundle Behavior in TUI
+
+- Enabling an add-on now auto-enables feature flags for every feature in that bundle.
+- Disabling an add-on now auto-disables only bundle features that are no longer entitled by tier/other enabled bundles.
+- This keeps bundle provisioning aligned with effective feature access.
+
+## Client Template Bundles
+
+Defined in `lib/platform/client-templates.ts`.
+
+Current templates:
+
+- `TEMPLATE_CORE_STARTER` (`BASIC`)
+- `TEMPLATE_GOLD_MINE` (`ENTERPRISE`)
+- `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` (`STANDARD`) - HR + CCTV + stock + fuel oriented
+- `TEMPLATE_TECH_WORKSHOP` (`STANDARD`) - stock + maintenance + HR/payroll depth
+- `TEMPLATE_ALL_FEATURES` (`ENTERPRISE`) - enables all catalog features
+
+Template aliases accepted in provisioning:
+
+- `BASE` -> `TEMPLATE_CORE_STARTER`
+- `GOLD` -> `TEMPLATE_GOLD_MINE`
+- `FULL` / `ALL` -> `TEMPLATE_ALL_FEATURES`
 
 ## Subscription Lifecycle and Health
 
@@ -148,6 +181,7 @@ The subscriptions domain includes:
 
 - `Set Subscription Status`
 - `Assign Subscription Tier`
+- `Apply Client Template`
 - `Manage Add-ons`
 - `Recompute Pricing`
 - `Sync Catalog`
@@ -159,6 +193,7 @@ Relevant files:
 - Wizards:
   - `scripts/platform/modules/wizards/subscription-status-wizard.tsx`
   - `scripts/platform/modules/wizards/subscription-tier-wizard.tsx`
+  - `scripts/platform/modules/wizards/subscription-template-wizard.tsx`
   - `scripts/platform/modules/wizards/subscription-addons-wizard.tsx`
   - `scripts/platform/modules/wizards/subscription-pricing-wizard.tsx`
   - `scripts/platform/modules/wizards/subscription-catalog-sync-wizard.tsx`
@@ -246,4 +281,3 @@ Reference:
 3. Implement wizard in `scripts/platform/modules/wizards/<wizard>.tsx`.
 4. Use selector-first UX patterns instead of raw ID typing.
 5. Keep input-lock enabled in wizard (`useInputLock`) to avoid global hotkey conflicts while typing.
-

@@ -152,6 +152,8 @@ export interface ProvisionBundlePreview {
   adminName: string;
   tierCode: string;
   featureTemplate: string;
+  templateLabel: string;
+  bundleCodes: string[];
   subdomainCandidate: string;
   subdomainAvailable: boolean;
   subdomainSuggestions: SubdomainSuggestion[];
@@ -180,6 +182,7 @@ export interface ProvisionBundleResult {
     planCode: string;
     planName: string;
   };
+  bundlesApplied: string[];
   featuresApplied: string[];
   subdomainReservation: SubdomainReservationRecord;
   auditEventIds: string[];
@@ -275,6 +278,32 @@ export interface AddonSetResult {
   bundleCode: string;
   enabled: boolean;
   reason: string | null;
+  auditEventId: string;
+}
+
+export interface ClientTemplateSummary {
+  code: string;
+  label: string;
+  description: string;
+  targetClients: string[];
+  recommendedTierCode: string;
+  bundleCodes: string[];
+  featureCount: number;
+  includeAllFeatures: boolean;
+}
+
+export interface ApplySubscriptionTemplateResult {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  templateCode: string;
+  templateLabel: string;
+  applyMode: "ADDITIVE" | "REPLACE";
+  beforePlanCode: string | null;
+  afterPlanCode: string;
+  enabledBundles: string[];
+  disabledBundles: string[];
+  enabledFeatures: string[];
   auditEventId: string;
 }
 
@@ -629,6 +658,15 @@ export interface SetAddonInput {
   reason?: string;
 }
 
+export interface ApplySubscriptionTemplateInput {
+  companyId: string;
+  templateCode: string;
+  actor: string;
+  tierCode?: string;
+  mode?: "ADDITIVE" | "REPLACE" | string;
+  reason?: string;
+}
+
 export interface ListFeaturesInput {
   companyId?: string;
 }
@@ -799,6 +837,8 @@ export interface SubscriptionService {
   setStatus(input: SetSubscriptionStatusInput): Promise<MutationResult<SubscriptionStatusResult>>;
   listPlans(): Promise<TierPlanSummary[]>;
   assignTier(input: AssignSubscriptionTierInput): Promise<MutationResult<TierAssignResult>>;
+  listTemplates(): Promise<ClientTemplateSummary[]>;
+  applyTemplate(input: ApplySubscriptionTemplateInput): Promise<MutationResult<ApplySubscriptionTemplateResult>>;
   listAddons(input: ListAddonsInput): Promise<AddonBundleSummary[]>;
   setAddon(input: SetAddonInput): Promise<MutationResult<AddonSetResult>>;
   recomputePricing(companyId: string): Promise<MutationResult<SubscriptionPricingSummary>>;

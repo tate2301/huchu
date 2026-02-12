@@ -68,7 +68,10 @@ export function SubscriptionStatusWizard({
   const selected = rows[selectedIndex] ?? null;
   const statusOptions: SubscriptionStatusValue[] = [...SUBSCRIPTION_STATUSES];
   const targetStatus = statusOptions[statusIndex] as SubscriptionStatusValue;
-  const requiresTypedConfirmation = true;
+  const requiresTypedConfirmation = targetStatus === "CANCELED" || targetStatus === "EXPIRED";
+  const stepLabels = requiresTypedConfirmation
+    ? ["Select Subscription", "Target Status", "Reason", "Review & Confirm"]
+    : ["Select Subscription", "Target Status", "Reason & Apply"];
   const confirmPhrase = useMemo(
     () => `CONFIRM SET_STATUS ${selected?.companySlug || selected?.companyId || "company"}`,
     [selected?.companyId, selected?.companySlug],
@@ -154,7 +157,11 @@ export function SubscriptionStatusWizard({
 
     if (step === 2) {
       if (key.return) {
-        setStep(3);
+        if (requiresTypedConfirmation) {
+          setStep(3);
+          return;
+        }
+        void runSetStatus();
         return;
       }
       setReason((current) => applyTextInput(current, input, key));
@@ -181,7 +188,7 @@ export function SubscriptionStatusWizard({
       title="Set Subscription Status Wizard"
       description="Linear workflow to update subscription status safely."
       step={step}
-      steps={["Select Subscription", "Target Status", "Reason", "Review & Confirm"]}
+      steps={stepLabels}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -212,6 +219,7 @@ export function SubscriptionStatusWizard({
               <Text>company: {selected?.companySlug || selected?.companyId || "<none>"}</Text>
               <Text>targetStatus: {targetStatus}</Text>
               <Text>reason: {reason || "<optional>"}</Text>
+              {!requiresTypedConfirmation ? <Text color="yellow">Press Enter to apply immediately.</Text> : null}
             </>
           ) : null}
           {step === 3 ? (

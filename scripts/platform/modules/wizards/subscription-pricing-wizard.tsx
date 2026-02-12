@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
 import type { PlatformServices, SubscriptionHealthSummary, SubscriptionPricingSummary, SubscriptionSummary } from "../../types";
-import { applyTextInput, useInputLock } from "../input-utils";
+import { useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
 
@@ -31,7 +31,6 @@ export function SubscriptionPricingWizard({
   const [subscriptionIndex, setSubscriptionIndex] = useState(0);
   const [health, setHealth] = useState<SubscriptionHealthSummary | null>(null);
   const [summary, setSummary] = useState<SubscriptionPricingSummary | null>(null);
-  const [confirmDraft, setConfirmDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -53,7 +52,6 @@ export function SubscriptionPricingWizard({
           setSubscriptions(rows);
           setSubscriptionIndex(0);
           setSummary(null);
-          setConfirmDraft("");
         }
       } catch (error) {
         if (!ignore) {
@@ -70,7 +68,6 @@ export function SubscriptionPricingWizard({
   }, [focusCompanyId, services.subscription]);
 
   const selectedSubscription = subscriptions[subscriptionIndex] ?? null;
-  const requiresTypedConfirmation = true;
 
   useEffect(() => {
     let ignore = false;
@@ -92,11 +89,6 @@ export function SubscriptionPricingWizard({
     };
   }, [selectedSubscription?.companyId, services.subscription]);
 
-  const confirmPhrase = useMemo(
-    () => `CONFIRM RECOMPUTE_PRICING ${companyLabel(selectedSubscription)}`,
-    [selectedSubscription],
-  );
-
   async function runRecomputePricing() {
     if (!selectedSubscription) return;
     if (readOnly) {
@@ -117,7 +109,6 @@ export function SubscriptionPricingWizard({
         `${result.resource.companySlug}: ${result.resource.totalAmount.toFixed(2)} ${result.resource.currency}/month`,
       );
       setStatusMessage("Pricing recomputed and persisted.");
-      setConfirmDraft("");
       setStep(1);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to recompute pricing.");
@@ -147,23 +138,10 @@ export function SubscriptionPricingWizard({
 
     if (step === 1) {
       if (key.return) {
-        setStep(2);
-      }
-      return;
-    }
-
-    if (step === 2) {
-      if (key.return) {
-        if (requiresTypedConfirmation && confirmDraft.trim() !== confirmPhrase) {
-          setErrorMessage(`Type exact phrase: ${confirmPhrase}`);
-          return;
-        }
         void runRecomputePricing();
         return;
       }
-      if (requiresTypedConfirmation) {
-        setConfirmDraft((current) => applyTextInput(current, input, key));
-      }
+      return;
     }
   });
 
@@ -172,7 +150,7 @@ export function SubscriptionPricingWizard({
       title="Recompute Subscription Pricing Wizard"
       description="Recalculate tier + add-ons + billable feature total and persist snapshot."
       step={step}
-      steps={["Select Company", "Preview", "Review & Confirm"]}
+      steps={["Select Company", "Preview & Run"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -215,20 +193,6 @@ export function SubscriptionPricingWizard({
                 </>
               ) : (
                 <Text dimColor>No persisted preview loaded in this session yet. Continue to recompute now.</Text>
-              )}
-            </>
-          ) : null}
-          {step === 2 ? (
-            <>
-              <Text>company: {companyLabel(selectedSubscription)}</Text>
-              <Text>action: recompute and persist monthly pricing snapshot</Text>
-              {requiresTypedConfirmation ? (
-                <>
-                  <Text color="yellow">Type: {confirmPhrase}</Text>
-                  <Text>Input: {confirmDraft || "<waiting>"}</Text>
-                </>
-              ) : (
-                <Text color="yellow">Press Enter to confirm.</Text>
               )}
             </>
           ) : null}

@@ -1,4 +1,4 @@
-import { resolveFeatureKeyForPath as resolveFeatureKeyForPathFromRegistry } from "@/lib/platform/gating/route-registry";
+import { resolveFeatureKeyForPath as resolveFeatureKeyForPathFromRegistry } from "./gating/route-registry";
 
 export type FeatureDomain =
   | "core"
@@ -153,7 +153,17 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     description: "Payroll and disbursement heavy workflows.",
     monthlyPrice: 250,
     additionalSiteMonthlyPrice: 30,
-    features: ["hr.payroll", "hr.disbursements", "hr.compensation-rules", "admin.payroll-config"],
+    features: [
+      "hr.payroll",
+      "hr.disbursements",
+      "hr.compensation-rules",
+      "hr.incidents",
+      "hr.disciplinary-actions",
+      "hr.salaries",
+      "hr.approvals-history",
+      "hr.gold-payouts",
+      "admin.payroll-config",
+    ],
   },
   {
     code: "ADDON_GOLD_ADVANCED",
@@ -161,7 +171,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     description: "Advanced gold controls and audit/reconciliation.",
     monthlyPrice: 220,
     additionalSiteMonthlyPrice: 25,
-    features: ["gold.reconciliation", "gold.audit-trail", "gold.payouts", "reports.gold-chain", "reports.gold-receipts"],
+    features: ["gold.reconciliation", "gold.exceptions", "gold.audit-trail", "gold.payouts", "reports.gold-chain", "reports.gold-receipts"],
   },
   {
     code: "ADDON_COMPLIANCE_PRO",
@@ -185,7 +195,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     description: "Advanced reports and analytical surfaces.",
     monthlyPrice: 160,
     additionalSiteMonthlyPrice: 15,
-    features: ["reports.downtime-analytics", "reports.audit-trails", "reports.fuel-ledger"],
+    features: ["stores.fuel-ledger", "reports.downtime-analytics", "reports.audit-trails", "reports.fuel-ledger", "core.notifications.push"],
   },
 ];
 

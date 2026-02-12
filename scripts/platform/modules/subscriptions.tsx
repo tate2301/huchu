@@ -6,11 +6,13 @@ import { SubscriptionAddonsWizard } from "./wizards/subscription-addons-wizard";
 import { SubscriptionCatalogSyncWizard } from "./wizards/subscription-catalog-sync-wizard";
 import { SubscriptionPricingWizard } from "./wizards/subscription-pricing-wizard";
 import { SubscriptionStatusWizard } from "./wizards/subscription-status-wizard";
+import { SubscriptionTemplateWizard } from "./wizards/subscription-template-wizard";
 import { SubscriptionTierWizard } from "./wizards/subscription-tier-wizard";
 
 const SUPPORTED_OPERATIONS = [
   "subscription.set-status",
   "subscription.assign-tier",
+  "subscription.apply-template",
   "subscription.manage-addons",
   "subscription.recompute-pricing",
   "subscription.sync-catalog",
@@ -33,6 +35,19 @@ export function SubscriptionsModule(props: ModuleProps) {
   if (props.operationId === "subscription.assign-tier") {
     return (
       <SubscriptionTierWizard
+        actor={props.actor}
+        services={props.services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+        setInputLocked={props.setInputLocked}
+        onBackToTree={props.onBackToTree}
+      />
+    );
+  }
+
+  if (props.operationId === "subscription.apply-template") {
+    return (
+      <SubscriptionTemplateWizard
         actor={props.actor}
         services={props.services}
         focusCompanyId={props.focusCompanyId}

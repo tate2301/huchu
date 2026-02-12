@@ -56,11 +56,19 @@ import {
 import { searchGlobal } from "./domain/search-service";
 import { FEATURE_BUNDLES, getTierDefinition } from "../../lib/platform/feature-catalog";
 import {
+  CLIENT_BUNDLE_TEMPLATES,
+  getClientTemplateBundleCodes,
+  getClientTemplateDefinition,
+  getClientTemplateFeatureKeys,
+} from "../../lib/platform/client-templates";
+import {
   ADMIN_ACCOUNT_STATUSES,
   ADMIN_ROLES,
   ORGANIZATION_STATUSES,
   SUBSCRIPTION_STATUSES,
   type AddAuditNoteInput,
+  type ApplySubscriptionTemplateInput,
+  type ApplySubscriptionTemplateResult,
   type AssignSubscriptionTierInput,
   type AdminCreateResult,
   type AdminResetPasswordResult,
@@ -68,6 +76,7 @@ import {
   type AdminStatusResult,
   type AdminSummary,
   type CreateAdminInput,
+  type ClientTemplateSummary,
   type FeatureSetResult,
   type FeatureSummary,
   type ListAdminsInput,
@@ -510,6 +519,146 @@ async function setSubscriptionStatus(input: SetSubscriptionStatusInput): Promise
   };
 }
 
+function normalizeTemplateApplyMode(mode: string | undefined): "ADDITIVE" | "REPLACE" {
+  const normalized = String(mode || "ADDITIVE").trim().toUpperCase();
+  return normalized === "REPLACE" ? "REPLACE" : "ADDITIVE";
+}
+
+async function listClientTemplates(): Promise<ClientTemplateSummary[]> {
+  return CLIENT_BUNDLE_TEMPLATES.map((template) => ({
+    code: template.code,
+    label: template.label,
+    description: template.description,
+    targetClients: [...template.targetClients],
+    recommendedTierCode: template.recommendedTierCode,
+    bundleCodes: getClientTemplateBundleCodes(template.code),
+    featureCount: getClientTemplateFeatureKeys(template.code, template.recommendedTierCode).length,
+    includeAllFeatures: template.includeAllFeatures === true,
+  }));
+}
+
+async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promise<ApplySubscriptionTemplateResult> {
+  const company = await prisma.company.findUnique({
+    where: { id: input.companyId },
+    select: { id: true, name: true, slug: true },
+  });
+  if (!company) throw new Error(`Organization not found for id: ${input.companyId}`);
+
+  const template = getClientTemplateDefinition(input.templateCode);
+  if (!template) {
+    throw new Error(`Unknown template code: ${input.templateCode}`);
+  }
+  const applyMode = normalizeTemplateApplyMode(input.mode);
+  const tierCode = String(input.tierCode || template.recommendedTierCode || "").trim().toUpperCase();
+  if (!tierCode) throw new Error(`Template ${template.code} does not define a tier.`);
+
+  const bundleCodes = getClientTemplateBundleCodes(template.code);
+  const featureKeys = getClientTemplateFeatureKeys(template.code, tierCode);
+
+  const beforeSubscription = await prisma.companySubscription.findFirst({
+    where: { companyId: input.companyId },
+    include: { plan: { select: { code: true } } },
+    orderBy: [{ updatedAt: "desc" }],
+  });
+  const beforePlanCode = beforeSubscription?.plan?.code ?? null;
+
+  const addonRowsBefore = await prisma.companySubscriptionAddon.findMany({
+    where: { companyId: input.companyId },
+    include: { bundle: { select: { code: true } } },
+  });
+  const beforeAddonState = new Map(addonRowsBefore.map((row) => [row.bundle.code, row.isEnabled]));
+
+  const tierResult = await assignTier({
+    companyId: input.companyId,
+    tierCode,
+    actor: input.actor,
+    reason: input.reason ?? `Template ${template.code} applied`,
+  });
+
+  const enabledBundles: string[] = [];
+  const disabledBundles: string[] = [];
+
+  if (applyMode === "REPLACE") {
+    for (const addon of addonRowsBefore) {
+      if (!addon.isEnabled) continue;
+      if (bundleCodes.includes(addon.bundle.code)) continue;
+      const result = await setAddOnBundle({
+        companyId: input.companyId,
+        bundleCode: addon.bundle.code,
+        enabled: false,
+        actor: input.actor,
+        reason: input.reason ?? `Template ${template.code} replace mode`,
+      });
+      if (!result.enabled) {
+        disabledBundles.push(addon.bundle.code);
+      }
+    }
+  }
+
+  for (const bundleCode of bundleCodes) {
+    const result = await setAddOnBundle({
+      companyId: input.companyId,
+      bundleCode,
+      enabled: true,
+      actor: input.actor,
+      reason: input.reason ?? `Template ${template.code} applied`,
+    });
+    if (result.enabled && beforeAddonState.get(bundleCode) !== true) {
+      enabledBundles.push(bundleCode);
+    }
+  }
+
+  const enabledFeatures: string[] = [];
+  for (const featureKey of featureKeys) {
+    const result = await setFeature({
+      companyId: input.companyId,
+      featureKey,
+      enabled: true,
+      actor: input.actor,
+      reason: input.reason ?? `Template ${template.code} applied`,
+    });
+    if (result.enabled) {
+      enabledFeatures.push(result.feature);
+    }
+  }
+
+  const audit = await appendAuditEvent({
+    actor: input.actor,
+    action: "SUBSCRIPTION_APPLY_TEMPLATE",
+    entityType: "subscription_template",
+    entityId: `${input.companyId}:${template.code}`,
+    companyId: input.companyId,
+    reason: input.reason ?? `Applied template ${template.code}`,
+    before: {
+      planCode: beforePlanCode,
+      enabledAddonCodes: addonRowsBefore.filter((row) => row.isEnabled).map((row) => row.bundle.code),
+    },
+    after: {
+      planCode: tierResult.afterPlanCode,
+      applyMode,
+      templateCode: template.code,
+      enabledBundles,
+      disabledBundles,
+      enabledFeatureCount: enabledFeatures.length,
+    },
+  });
+
+  return {
+    companyId: company.id,
+    companyName: company.name,
+    companySlug: company.slug,
+    templateCode: template.code,
+    templateLabel: template.label,
+    applyMode,
+    beforePlanCode,
+    afterPlanCode: tierResult.afterPlanCode,
+    enabledBundles,
+    disabledBundles,
+    enabledFeatures,
+    auditEventId: audit.id,
+  };
+}
+
 function getFeatureDefinition(featureKey: string) {
   const key = featureKey.trim().toLowerCase().replace(/\s+/g, "-");
   if (!key) throw new Error("Feature key cannot be empty.");
@@ -867,6 +1016,8 @@ export function createPlatformServices(): PlatformServices {
       setStatus: (input) => toMutation(() => setSubscriptionStatus(input)),
       listPlans: listTierPlans,
       assignTier: (input) => toMutation(() => assignTier(input as AssignSubscriptionTierInput)),
+      listTemplates: listClientTemplates,
+      applyTemplate: (input) => toMutation(() => applyClientTemplate(input as ApplySubscriptionTemplateInput)),
       listAddons: (input) => listAddOnBundles((input as ListAddonsInput).companyId),
       setAddon: (input) => toMutation(() => setAddOnBundle(input as SetAddonInput)),
       recomputePricing: (companyId) => toMutation(() => recomputeSubscriptionPricing(companyId) as Promise<SubscriptionPricingSummary>),

@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Text, useInput } from "ink";
 
 import type { PlatformServices } from "../../types";
+import { TIERS } from "../../../../lib/platform/feature-catalog";
+import { CLIENT_BUNDLE_TEMPLATES } from "../../../../lib/platform/client-templates";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { WizardFrame } from "./wizard-frame";
 
@@ -31,6 +33,15 @@ const STEPS = ["Organization", "Admin", "Configuration", "Review"];
 const ORG_FIELDS: OrgField[] = ["name", "slug"];
 const ADMIN_FIELDS: AdminField[] = ["adminEmail", "adminName", "adminPassword"];
 const CONFIG_FIELDS: ConfigField[] = ["tierCode", "featureTemplate", "subdomain"];
+const TIER_OPTIONS = ["CUSTOM", ...TIERS.map((tier) => tier.code)];
+const TEMPLATE_OPTIONS = CLIENT_BUNDLE_TEMPLATES.map((template) => template.code);
+
+function cycleOption(options: string[], current: string, direction: 1 | -1): string {
+  if (options.length === 0) return current;
+  const currentIndex = Math.max(0, options.indexOf(String(current || "").trim().toUpperCase()));
+  const nextIndex = (currentIndex + direction + options.length) % options.length;
+  return options[nextIndex];
+}
 
 export function OrgProvisionWizard({
   actor,
@@ -56,7 +67,7 @@ export function OrgProvisionWizard({
     adminName: "",
     adminPassword: "",
     tierCode: "CUSTOM",
-    featureTemplate: "BASE",
+    featureTemplate: TEMPLATE_OPTIONS[0] || "TEMPLATE_CORE_STARTER",
     subdomain: "",
   });
 
@@ -64,6 +75,10 @@ export function OrgProvisionWizard({
 
   const resolvedSlug = useMemo(() => slugify(draft.slug || draft.name), [draft.name, draft.slug]);
   const resolvedSubdomain = useMemo(() => slugify(draft.subdomain || resolvedSlug), [draft.subdomain, resolvedSlug]);
+  const selectedTemplate = useMemo(
+    () => CLIENT_BUNDLE_TEMPLATES.find((template) => template.code === draft.featureTemplate),
+    [draft.featureTemplate],
+  );
   const requiresTypedConfirmation = false;
   const confirmationPhrase = `PROVISION ${resolvedSlug || "org"}`;
 
@@ -185,7 +200,23 @@ export function OrgProvisionWizard({
         return;
       }
       const field = CONFIG_FIELDS[configField];
-      setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
+      if (field === "tierCode" && (key.leftArrow || key.rightArrow)) {
+        setDraft((current) => ({
+          ...current,
+          tierCode: cycleOption(TIER_OPTIONS, current.tierCode, key.rightArrow ? 1 : -1),
+        }));
+        return;
+      }
+      if (field === "featureTemplate" && (key.leftArrow || key.rightArrow)) {
+        setDraft((current) => ({
+          ...current,
+          featureTemplate: cycleOption(TEMPLATE_OPTIONS, current.featureTemplate, key.rightArrow ? 1 : -1),
+        }));
+        return;
+      }
+      if (field === "subdomain") {
+        setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
+      }
       return;
     }
 
@@ -239,17 +270,22 @@ export function OrgProvisionWizard({
             <>
               <Text color={configField === 0 ? "cyan" : undefined}>tierCode: {draft.tierCode || "CUSTOM"}</Text>
               <Text color={configField === 1 ? "cyan" : undefined}>
-                featureTemplate: {draft.featureTemplate || "BASE"}
+                featureTemplate: {draft.featureTemplate || "TEMPLATE_CORE_STARTER"}
               </Text>
               <Text color={configField === 2 ? "cyan" : undefined}>subdomain: {draft.subdomain || "<auto>"}</Text>
               <Text dimColor>Resolved subdomain: {resolvedSubdomain || "<none>"}</Text>
+              <Text dimColor>Template label: {selectedTemplate?.label || "Unknown template"}</Text>
+              <Text dimColor>Use Left/Right to cycle tier/template options.</Text>
             </>
           ) : null}
           {step === 3 ? (
             <>
               <Text>org: {draft.name || "<none>"} ({resolvedSlug || "<none>"})</Text>
               <Text>admin: {draft.adminEmail || "<none>"} ({draft.adminName || "<none>"})</Text>
-              <Text>tier/template: {draft.tierCode || "CUSTOM"} / {draft.featureTemplate || "BASE"}</Text>
+              <Text>
+                tier/template: {draft.tierCode || "CUSTOM"} / {draft.featureTemplate || "TEMPLATE_CORE_STARTER"}{" "}
+                ({selectedTemplate?.label || "Unknown template"})
+              </Text>
               <Text>subdomain: {resolvedSubdomain || "<none>"}</Text>
               <Text>actor: {actor}</Text>
               {requiresTypedConfirmation ? (

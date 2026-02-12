@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
 import type { AdminSummary, PlatformServices } from "../../types";
@@ -16,7 +16,7 @@ interface AdminStatusWizardProps {
   onBackToTree?: () => void;
 }
 
-type Step = 0 | 1 | 2;
+type Step = 0 | 1;
 
 export function AdminStatusWizard({
   actor,
@@ -31,7 +31,6 @@ export function AdminStatusWizard({
   const [admins, setAdmins] = useState<AdminSummary[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [reason, setReason] = useState("");
-  const [confirmDraft, setConfirmDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,8 +59,6 @@ export function AdminStatusWizard({
 
   const selected = admins[selectedIndex] ?? null;
   const actionWord = activate ? "ACTIVATE" : "DEACTIVATE";
-  const requiresTypedConfirmation = !activate;
-  const confirmPhrase = useMemo(() => `CONFIRM ${actionWord} ${selected?.email || "admin"}`, [actionWord, selected?.email]);
 
   async function runStatusChange() {
     if (!selected) return;
@@ -82,7 +79,6 @@ export function AdminStatusWizard({
       }
       setSuccessMessage(`${actionWord} completed for ${selected.email}`);
       setStatusMessage("Admin status update completed.");
-      setConfirmDraft("");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Status update failed.");
     } finally {
@@ -123,25 +119,11 @@ export function AdminStatusWizard({
 
     if (step === 1) {
       if (key.return) {
-        setStep(2);
+        void runStatusChange();
         return;
       }
       setReason((current) => applyTextInput(current, input, key));
       return;
-    }
-
-    if (step === 2) {
-      if (key.return) {
-        if (requiresTypedConfirmation && confirmDraft.trim() !== confirmPhrase) {
-          setErrorMessage(`Type exact phrase: ${confirmPhrase}`);
-          return;
-        }
-        void runStatusChange();
-        return;
-      }
-      if (requiresTypedConfirmation) {
-        setConfirmDraft((current) => applyTextInput(current, input, key));
-      }
     }
   });
 
@@ -150,7 +132,7 @@ export function AdminStatusWizard({
       title={`${activate ? "Activate" : "Deactivate"} Admin Wizard`}
       description="Guided admin status update."
       step={step}
-      steps={["Select Admin", "Reason", "Review & Confirm"]}
+      steps={["Select Admin", "Reason & Apply"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -169,21 +151,6 @@ export function AdminStatusWizard({
             <>
               <Text>admin: {selected?.email || "<none>"}</Text>
               <Text>reason: {reason || "<optional>"}</Text>
-            </>
-          ) : null}
-          {step === 2 ? (
-            <>
-              <Text>admin: {selected?.email || "<none>"}</Text>
-              <Text>target: {activate ? "active" : "inactive"}</Text>
-              <Text>reason: {reason || "<none>"}</Text>
-              {requiresTypedConfirmation ? (
-                <>
-                  <Text color="yellow">Type: {confirmPhrase}</Text>
-                  <Text>Input: {confirmDraft || "<waiting>"}</Text>
-                </>
-              ) : (
-                <Text color="yellow">Press Enter to confirm.</Text>
-              )}
             </>
           ) : null}
         </>

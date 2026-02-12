@@ -1,7 +1,7 @@
 import "material-symbols";
 
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,6 +9,12 @@ import { AppShell } from "@/components/layout/app-shell";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-ibm-plex-mono",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -30,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans subpixel-antialiased`}>
+      <body className={`${inter.variable} ${ibmPlexMono.variable} font-sans subpixel-antialiased`}>
         <div className="app-root">
           <AppProviders>
             <AppShell>{children}</AppShell>

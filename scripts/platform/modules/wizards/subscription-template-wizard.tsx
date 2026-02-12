@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { AddonBundleSummary, PlatformServices, SubscriptionSummary } from "../../types";
+import type { ClientTemplateSummary, PlatformServices, SubscriptionSummary } from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
 
-interface SubscriptionAddonsWizardProps {
+interface SubscriptionTemplateWizardProps {
   actor: string;
   services: PlatformServices;
   focusCompanyId: string | null;
@@ -15,27 +15,27 @@ interface SubscriptionAddonsWizardProps {
   onBackToTree?: () => void;
 }
 
-type ActionChoice = "ENABLE" | "DISABLE";
+type ApplyMode = "ADDITIVE" | "REPLACE";
 
 function companyLabel(subscription: SubscriptionSummary | null): string {
   if (!subscription) return "<none>";
   return subscription.companySlug || subscription.companyName || subscription.companyId;
 }
 
-export function SubscriptionAddonsWizard({
+export function SubscriptionTemplateWizard({
   actor,
   services,
   focusCompanyId,
   readOnly,
   setInputLocked,
   onBackToTree,
-}: SubscriptionAddonsWizardProps) {
+}: SubscriptionTemplateWizardProps) {
   const [step, setStep] = useState(0);
   const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
-  const [addons, setAddons] = useState<AddonBundleSummary[]>([]);
+  const [templates, setTemplates] = useState<ClientTemplateSummary[]>([]);
   const [subscriptionIndex, setSubscriptionIndex] = useState(0);
-  const [addonIndex, setAddonIndex] = useState(0);
-  const [actionIndex, setActionIndex] = useState(0);
+  const [templateIndex, setTemplateIndex] = useState(0);
+  const [modeIndex, setModeIndex] = useState(0);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -46,84 +46,40 @@ export function SubscriptionAddonsWizard({
 
   useEffect(() => {
     let ignore = false;
-    async function loadSubscriptions() {
+    async function loadData() {
       setLoading(true);
       setErrorMessage(null);
       try {
-        const rows = await services.subscription.list({
-          companyId: focusCompanyId || undefined,
-          limit: 100,
-        });
+        const [subscriptionRows, templateRows] = await Promise.all([
+          services.subscription.list({ companyId: focusCompanyId || undefined, limit: 100 }),
+          services.subscription.listTemplates(),
+        ]);
         if (!ignore) {
-          setSubscriptions(rows);
+          setSubscriptions(subscriptionRows);
+          setTemplates(templateRows);
           setSubscriptionIndex(0);
+          setTemplateIndex(0);
         }
       } catch (error) {
         if (!ignore) {
-          setErrorMessage(error instanceof Error ? error.message : "Failed to load subscriptions.");
+          setErrorMessage(error instanceof Error ? error.message : "Failed to load templates.");
         }
       } finally {
         if (!ignore) setLoading(false);
       }
     }
-    void loadSubscriptions();
+    void loadData();
     return () => {
       ignore = true;
     };
   }, [focusCompanyId, services.subscription]);
 
   const selectedSubscription = subscriptions[subscriptionIndex] ?? null;
+  const selectedTemplate = templates[templateIndex] ?? null;
+  const mode = (modeIndex === 0 ? "ADDITIVE" : "REPLACE") as ApplyMode;
 
-  useEffect(() => {
-    let ignore = false;
-    async function loadAddons() {
-      if (!selectedSubscription?.companyId) {
-        setAddons([]);
-        setAddonIndex(0);
-        return;
-      }
-      setLoading(true);
-      setErrorMessage(null);
-      try {
-        const rows = await services.subscription.listAddons({
-          companyId: selectedSubscription.companyId,
-        });
-        if (!ignore) {
-          setAddons(rows);
-          setAddonIndex(0);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setErrorMessage(error instanceof Error ? error.message : "Failed to load add-ons.");
-        }
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-    void loadAddons();
-    return () => {
-      ignore = true;
-    };
-  }, [selectedSubscription?.companyId, services.subscription]);
-
-  const selectedAddon = addons[addonIndex] ?? null;
-
-  useEffect(() => {
-    if (!selectedAddon) return;
-    setActionIndex(selectedAddon.enabled ? 1 : 0);
-  }, [selectedAddon]);
-
-  const actionChoice = (actionIndex === 0 ? "ENABLE" : "DISABLE") as ActionChoice;
-  const targetEnabled = actionChoice === "ENABLE";
-
-  async function refreshAddons(companyId: string) {
-    const rows = await services.subscription.listAddons({ companyId });
-    setAddons(rows);
-    setAddonIndex((current) => Math.min(current, Math.max(0, rows.length - 1)));
-  }
-
-  async function runSetAddon() {
-    if (!selectedSubscription || !selectedAddon) return;
+  async function runApplyTemplate() {
+    if (!selectedSubscription || !selectedTemplate) return;
     if (readOnly) {
       setErrorMessage("Read-only mode is enabled.");
       return;
@@ -132,26 +88,25 @@ export function SubscriptionAddonsWizard({
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
-      const result = await services.subscription.setAddon({
+      const result = await services.subscription.applyTemplate({
         companyId: selectedSubscription.companyId,
-        bundleCode: selectedAddon.code,
-        enabled: targetEnabled,
+        templateCode: selectedTemplate.code,
         actor,
+        mode,
         reason: reason || undefined,
       });
       if (!result.ok) {
         setErrorMessage(result.message);
         return;
       }
-      await refreshAddons(selectedSubscription.companyId);
       setSuccessMessage(
-        `${result.resource.companySlug}: ${result.resource.bundleCode} -> ${result.resource.enabled ? "enabled" : "disabled"}`,
+        `${result.resource.companySlug}: template ${result.resource.templateCode} | tier ${result.resource.beforePlanCode || "none"} -> ${result.resource.afterPlanCode}`,
       );
-      setStatusMessage("Add-on state updated.");
+      setStatusMessage("Subscription template applied.");
       setReason("");
       setStep(1);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to update add-on.");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to apply template.");
     } finally {
       setLoading(false);
     }
@@ -177,15 +132,15 @@ export function SubscriptionAddonsWizard({
     }
 
     if (step === 1) {
-      if (key.upArrow) setAddonIndex((current) => Math.max(0, current - 1));
-      if (key.downArrow) setAddonIndex((current) => Math.min(Math.max(0, addons.length - 1), current + 1));
+      if (key.upArrow) setTemplateIndex((current) => Math.max(0, current - 1));
+      if (key.downArrow) setTemplateIndex((current) => Math.min(Math.max(0, templates.length - 1), current + 1));
       if (key.return) setStep(2);
       return;
     }
 
     if (step === 2) {
       if (key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) {
-        setActionIndex((current) => (current === 0 ? 1 : 0));
+        setModeIndex((current) => (current === 0 ? 1 : 0));
         return;
       }
       if (key.return) {
@@ -196,7 +151,7 @@ export function SubscriptionAddonsWizard({
 
     if (step === 3) {
       if (key.return) {
-        void runSetAddon();
+        void runApplyTemplate();
         return;
       }
       setReason((current) => applyTextInput(current, input, key));
@@ -205,10 +160,10 @@ export function SubscriptionAddonsWizard({
 
   return (
     <WizardFrame
-      title="Manage Subscription Add-ons Wizard"
-      description="Select company and bundle, choose target state, then confirm."
+      title="Apply Client Template Wizard"
+      description="Apply a client profile (tier + bundles + feature flags) to a subscription."
       step={step}
-      steps={["Select Company", "Select Add-on", "Select Action", "Reason & Apply"]}
+      steps={["Select Company", "Select Template", "Apply Mode", "Reason & Apply"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -227,11 +182,11 @@ export function SubscriptionAddonsWizard({
             <>
               <Text>company: {companyLabel(selectedSubscription)}</Text>
               <SelectorList
-                items={addons}
-                selectedIndex={addonIndex}
-                emptyMessage="No add-on bundles available."
+                items={templates}
+                selectedIndex={templateIndex}
+                emptyMessage="No templates available."
                 render={(item) =>
-                  `${item.code} | ${item.name} | ${item.monthlyPrice.toFixed(2)} base + ${item.additionalSiteMonthlyPrice.toFixed(2)}/site | ${item.enabled ? "enabled" : "disabled"}`
+                  `${item.code} | tier ${item.recommendedTierCode} | ${item.bundleCodes.length} bundles | ${item.featureCount} features`
                 }
               />
             </>
@@ -239,12 +194,11 @@ export function SubscriptionAddonsWizard({
           {step === 2 ? (
             <>
               <Text>company: {companyLabel(selectedSubscription)}</Text>
-              <Text>bundle: {selectedAddon?.code || "<none>"}</Text>
-              <Text>current: {selectedAddon?.enabled ? "enabled" : "disabled"}</Text>
+              <Text>template: {selectedTemplate?.code || "<none>"} ({selectedTemplate?.label || "Unknown"})</Text>
               <SelectorList
-                items={["ENABLE", "DISABLE"] as ActionChoice[]}
-                selectedIndex={actionIndex}
-                emptyMessage="No action."
+                items={["ADDITIVE", "REPLACE"] as ApplyMode[]}
+                selectedIndex={modeIndex}
+                emptyMessage="No mode."
                 render={(item) => item}
               />
             </>
@@ -252,13 +206,12 @@ export function SubscriptionAddonsWizard({
           {step === 3 ? (
             <>
               <Text>company: {companyLabel(selectedSubscription)}</Text>
-              <Text>bundle: {selectedAddon?.code || "<none>"}</Text>
-              <Text>
-                bundle pricing: {selectedAddon?.monthlyPrice.toFixed(2) || "0.00"} base +{" "}
-                {selectedAddon?.additionalSiteMonthlyPrice.toFixed(2) || "0.00"}/site
-              </Text>
-              <Text>target: {targetEnabled ? "enabled" : "disabled"}</Text>
+              <Text>template: {selectedTemplate?.code || "<none>"} ({selectedTemplate?.label || "Unknown"})</Text>
+              <Text>tier target: {selectedTemplate?.recommendedTierCode || "<none>"}</Text>
+              <Text>bundles: {selectedTemplate?.bundleCodes.join(", ") || "<none>"}</Text>
+              <Text>mode: {mode}</Text>
               <Text>reason: {reason || "<optional>"}</Text>
+              <Text color="yellow">Press Enter to apply.</Text>
             </>
           ) : null}
         </>

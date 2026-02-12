@@ -112,7 +112,7 @@ export function PlatformApp({
   const [focusCompanyDisplay, setFocusCompanyDisplay] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState<boolean>(initialReadOnly);
   const [statusMessage, setStatusMessage] = useState<string>(
-    "Ready. Pick a domain, then task, then operation. Press Enter to move forward.",
+    "Ready. Pick a domain, then drill down section > action. Enter goes deeper, Esc goes back.",
   );
   const [isPaletteOpen, setPaletteOpen] = useState<boolean>(false);
   const [paletteQuery, setPaletteQuery] = useState<string>("");
@@ -152,11 +152,15 @@ export function PlatformApp({
   const mainTitle =
     workspaceMode === "operation" && activeOperation
       ? `${activeTask?.label || "Action"} > ${activeOperation.label}`
-      : `${selectedDomain.label} Tasks`;
+      : treeLevel === "task"
+        ? `${selectedDomain.label} Sections`
+        : `${selectedTask?.label ?? "Section"} Actions`;
   const mainDescription =
     workspaceMode === "operation" && activeOperation
       ? activeOperation.description
-      : "Step 1: select a task. Step 2: select an operation. Step 3: launch wizard.";
+      : treeLevel === "task"
+        ? "Control-panel navigation: choose a section to drill into."
+        : "Choose an action to launch its wizard. Esc returns to section list.";
 
   useEffect(() => {
     let ignore = false;
@@ -219,7 +223,7 @@ export function PlatformApp({
     setWorkspaceMode("tree");
     setOpenedOperationId(null);
     setTreeLevel("operation");
-    setStatusMessage("Returned to operations tree.");
+    setStatusMessage("Returned to actions list.");
   }, []);
 
   const openPalette = useCallback(() => {
@@ -486,7 +490,7 @@ export function PlatformApp({
     if (key.escape) {
       if (activePane === "main" && treeLevel === "operation") {
         setTreeLevel("task");
-        setStatusMessage("Back to task list.");
+        setStatusMessage("Back to section list.");
         return;
       }
       setActivePane("nav");
@@ -505,7 +509,7 @@ export function PlatformApp({
       if (key.return) {
         setActivePane("main");
         setTreeLevel("task");
-        setStatusMessage(`Selected ${selectedDomain.label}. Pick a task.`);
+        setStatusMessage(`Selected ${selectedDomain.label}. Pick a section to continue.`);
       }
       return;
     }
@@ -536,7 +540,7 @@ export function PlatformApp({
         }
         if (key.return && selectedTask) {
           setTreeLevel("operation");
-          setStatusMessage(`Selected task ${selectedTask.label}. Pick an operation.`);
+          setStatusMessage(`Opened ${selectedTask.label}. Pick an action.`);
           return;
         }
       } else {
@@ -594,6 +598,14 @@ export function PlatformApp({
     label: operation.label,
     description: operation.description,
   }));
+  const drillItems = treeLevel === "task" ? taskItems : operationItems;
+  const drillTitle =
+    treeLevel === "task"
+      ? `Sections in ${selectedDomain.label}`
+      : `Actions in ${selectedTask?.label ?? "selected section"}`;
+  const drillEmptyMessage =
+    treeLevel === "task" ? "No sections in this domain." : "No actions in this section.";
+  const drillCursor = treeLevel === "task" ? taskCursor : operationCursor;
 
   const domainModules = ACTION_TREE.map(domainAsModule);
 
@@ -618,28 +630,20 @@ export function PlatformApp({
               {workspaceMode === "tree" ? (
                 <Box flexDirection="column">
                   <TreeMenu
-                    title={`Step 1: Tasks in ${selectedDomain.label}`}
-                    items={taskItems}
-                    cursorIndex={taskCursor}
-                    focused={activePane === "main" && treeLevel === "task"}
-                    emptyMessage="No tasks in this domain."
+                    title={drillTitle}
+                    items={drillItems}
+                    cursorIndex={drillCursor}
+                    focused={activePane === "main"}
+                    emptyMessage={drillEmptyMessage}
                   />
-                  <Box marginTop={1}>
-                    <TreeMenu
-                      title={`Step 2: Operations in ${selectedTask?.label ?? "no task selected"}`}
-                      items={operationItems}
-                      cursorIndex={operationCursor}
-                      focused={activePane === "main" && treeLevel === "operation"}
-                      emptyMessage="No operations in this task."
-                    />
-                  </Box>
                   <Box marginTop={1} flexDirection="column">
                     <Text dimColor>
-                      Path: {selectedDomain.label} / {selectedTask?.label ?? "none"} /{" "}
-                      {selectedOperation?.label ?? "none"}
+                      Path: {selectedDomain.label}
+                      {treeLevel === "operation" ? ` / ${selectedTask?.label ?? "none"}` : ""}
+                      {workspaceMode === "operation" ? ` / ${selectedOperation?.label ?? "none"}` : ""}
                     </Text>
                     <Text dimColor>
-                      Flow: Enter on task to open operations. Enter on operation to launch wizard. Esc to go back one level.
+                      Flow: Enter drills down. Esc moves one level up. Enter on action opens wizard.
                     </Text>
                   </Box>
                 </Box>
@@ -716,8 +720,10 @@ export function PlatformApp({
         <Text dimColor>
           Next:{" "}
           {workspaceMode === "tree"
-            ? "Choose task then operation in Main pane."
-            : "Complete wizard, or press Esc to return to operation tree."}
+            ? treeLevel === "task"
+              ? "Choose a section in Main pane and press Enter."
+              : "Choose an action and press Enter to open wizard (Esc goes back)."
+            : "Complete wizard, or press Esc to return to actions list."}
         </Text>
       </Box>
     </Box>

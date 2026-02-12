@@ -15,10 +15,10 @@ export function QuickGuide({ workspaceMode, treeLevel, hasFocusedCompany, readOn
       {workspaceMode === "tree" ? (
         <>
           <Text dimColor>1. Use Up/Down in Module Nav to pick a domain.</Text>
-          <Text dimColor>2. In Main pane, pick a task and press Enter.</Text>
-          <Text dimColor>3. Pick an operation and press Enter to open its wizard.</Text>
+          <Text dimColor>2. In Main pane, pick a section and press Enter.</Text>
+          <Text dimColor>3. Drill into an action, then press Enter to open its wizard.</Text>
           <Text dimColor>
-            4. Current step: {treeLevel === "task" ? "choosing task" : "choosing operation"}.
+            4. Current step: {treeLevel === "task" ? "choosing section" : "choosing action"}.
           </Text>
         </>
       ) : (

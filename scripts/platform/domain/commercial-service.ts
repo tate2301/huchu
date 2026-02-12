@@ -298,6 +298,91 @@ export async function setAddOnBundle(input: {
     },
   });
 
+  const bundleDefinition = getBundleDefinition(bundle.code);
+  const bundleFeatureKeys = bundleDefinition?.features ?? [];
+  if (bundleFeatureKeys.length > 0) {
+    if (input.enabled) {
+      for (const featureKey of bundleFeatureKeys) {
+        const normalizedKey = featureKey.trim().toLowerCase();
+        const catalog = FEATURE_CATALOG.find((feature) => feature.key.toLowerCase() === normalizedKey);
+        const feature = await prisma.platformFeature.upsert({
+          where: { key: catalog?.key ?? normalizedKey },
+          update: {
+            name: catalog?.name ?? normalizedKey,
+            description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
+            domain: catalog?.domain ?? null,
+            defaultEnabled: catalog?.defaultEnabled ?? false,
+            isBillable: catalog?.isBillable ?? false,
+            monthlyPrice: catalog?.monthlyPrice ?? null,
+            isActive: true,
+          },
+          create: {
+            key: catalog?.key ?? normalizedKey,
+            name: catalog?.name ?? normalizedKey,
+            description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
+            domain: catalog?.domain ?? null,
+            defaultEnabled: catalog?.defaultEnabled ?? false,
+            isBillable: catalog?.isBillable ?? false,
+            monthlyPrice: catalog?.monthlyPrice ?? null,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        await prisma.companyFeatureFlag.upsert({
+          where: { companyId_featureId: { companyId: input.companyId, featureId: feature.id } },
+          update: {
+            isEnabled: true,
+            reason: input.reason ?? `Enabled via add-on ${bundle.code}`,
+          },
+          create: {
+            companyId: input.companyId,
+            featureId: feature.id,
+            isEnabled: true,
+            reason: input.reason ?? `Enabled via add-on ${bundle.code}`,
+          },
+        });
+      }
+    } else {
+      const [subscription, enabledAddons] = await Promise.all([
+        prisma.companySubscription.findFirst({
+          where: { companyId: input.companyId },
+          include: { plan: { select: { code: true } } },
+          orderBy: [{ updatedAt: "desc" }],
+        }),
+        prisma.companySubscriptionAddon.findMany({
+          where: { companyId: input.companyId, isEnabled: true },
+          include: { bundle: { select: { code: true } } },
+        }),
+      ]);
+      const entitledAfter = buildIncludedFeatureSet(
+        subscription?.plan?.code ?? null,
+        enabledAddons.map((row) => row.bundle.code),
+      );
+      for (const featureKey of bundleFeatureKeys) {
+        const normalizedKey = featureKey.trim().toLowerCase();
+        if (entitledAfter.has(normalizedKey)) continue;
+        const feature = await prisma.platformFeature.findUnique({
+          where: { key: normalizedKey },
+          select: { id: true },
+        });
+        if (!feature) continue;
+        await prisma.companyFeatureFlag.upsert({
+          where: { companyId_featureId: { companyId: input.companyId, featureId: feature.id } },
+          update: {
+            isEnabled: false,
+            reason: input.reason ?? `Disabled via add-on ${bundle.code}`,
+          },
+          create: {
+            companyId: input.companyId,
+            featureId: feature.id,
+            isEnabled: false,
+            reason: input.reason ?? `Disabled via add-on ${bundle.code}`,
+          },
+        });
+      }
+    }
+  }
+
   const audit = await appendAuditEvent({
     actor: input.actor,
     action: "SUBSCRIPTION_SET_ADDON",

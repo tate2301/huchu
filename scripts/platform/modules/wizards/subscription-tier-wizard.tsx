@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
 import type { PlatformServices, SubscriptionSummary, TierPlanSummary } from "../../types";
@@ -29,7 +29,6 @@ export function SubscriptionTierWizard({
   const [subscriptionIndex, setSubscriptionIndex] = useState(0);
   const [planIndex, setPlanIndex] = useState(0);
   const [reason, setReason] = useState("");
-  const [confirmDraft, setConfirmDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,11 +66,6 @@ export function SubscriptionTierWizard({
 
   const selectedSubscription = subscriptions[subscriptionIndex] ?? null;
   const selectedPlan = plans[planIndex] ?? null;
-  const requiresTypedConfirmation = true;
-  const confirmPhrase = useMemo(
-    () => `CONFIRM ASSIGN_TIER ${selectedSubscription?.companySlug || selectedSubscription?.companyId || "company"}`,
-    [selectedSubscription?.companyId, selectedSubscription?.companySlug],
-  );
 
   async function runAssignTier() {
     if (!selectedSubscription || !selectedPlan) return;
@@ -97,7 +91,6 @@ export function SubscriptionTierWizard({
         `${result.resource.companySlug}: ${result.resource.beforePlanCode || "none"} -> ${result.resource.afterPlanCode}`,
       );
       setStatusMessage("Subscription tier updated.");
-      setConfirmDraft("");
     } finally {
       setLoading(false);
     }
@@ -131,25 +124,11 @@ export function SubscriptionTierWizard({
 
     if (step === 2) {
       if (key.return) {
-        setStep(3);
+        void runAssignTier();
         return;
       }
       setReason((current) => applyTextInput(current, input, key));
       return;
-    }
-
-    if (step === 3) {
-      if (key.return) {
-        if (requiresTypedConfirmation && confirmDraft.trim() !== confirmPhrase) {
-          setErrorMessage(`Type exact phrase: ${confirmPhrase}`);
-          return;
-        }
-        void runAssignTier();
-        return;
-      }
-      if (requiresTypedConfirmation) {
-        setConfirmDraft((current) => applyTextInput(current, input, key));
-      }
     }
   });
 
@@ -158,7 +137,7 @@ export function SubscriptionTierWizard({
       title="Assign Subscription Tier Wizard"
       description="Select company, choose tier, and confirm."
       step={step}
-      steps={["Select Company", "Select Tier", "Reason", "Review & Confirm"]}
+      steps={["Select Company", "Select Tier", "Reason & Apply"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -191,26 +170,6 @@ export function SubscriptionTierWizard({
               <Text>company: {selectedSubscription?.companySlug || selectedSubscription?.companyId || "<none>"}</Text>
               <Text>target tier: {selectedPlan?.code || "<none>"}</Text>
               <Text>reason: {reason || "<optional>"}</Text>
-            </>
-          ) : null}
-          {step === 3 ? (
-            <>
-              <Text>company: {selectedSubscription?.companySlug || selectedSubscription?.companyId || "<none>"}</Text>
-              <Text>current tier: {selectedSubscription?.planCode || "<none>"}</Text>
-              <Text>target tier: {selectedPlan?.code || "<none>"}</Text>
-              <Text>
-                tier pricing: {selectedPlan?.monthlyPrice.toFixed(2) || "0.00"} base | includes{" "}
-                {selectedPlan?.includedSites ?? 0} site(s) | +{selectedPlan?.additionalSiteMonthlyPrice.toFixed(2) || "0.00"}/site
-              </Text>
-              <Text>reason: {reason || "<none>"}</Text>
-              {requiresTypedConfirmation ? (
-                <>
-                  <Text color="yellow">Type: {confirmPhrase}</Text>
-                  <Text>Input: {confirmDraft || "<waiting>"}</Text>
-                </>
-              ) : (
-                <Text color="yellow">Press Enter to confirm.</Text>
-              )}
             </>
           ) : null}
         </>

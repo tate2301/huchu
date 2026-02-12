@@ -153,6 +153,12 @@ export const ACTION_TREE: ActionDomain[] = [
             moduleId: "subscriptions",
           },
           {
+            id: "subscription.apply-template",
+            label: "Apply Client Template",
+            description: "Apply preset tier + bundle + feature profile (includes all-features option).",
+            moduleId: "subscriptions",
+          },
+          {
             id: "subscription.manage-addons",
             label: "Manage Add-ons",
             description: "Enable or disable add-on bundles for a company.",
