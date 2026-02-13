@@ -107,7 +107,7 @@ export default function AnalyticsPage() {
   )
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Downtime Analytics" description="Downtime causes, loss hours, and availability by site" />
 
       {(sitesError || analyticsError) && (

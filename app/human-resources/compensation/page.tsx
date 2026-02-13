@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowRight, Plus } from "@/lib/icons"
 
@@ -9,7 +10,7 @@ import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import {
   Dialog,
   DialogContent,
@@ -30,16 +31,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
+import { VerticalDataViews } from "@/components/ui/vertical-data-views"
 import {
   fetchCompensationProfiles,
+  type CompensationProfileRecord,
   fetchCompensationRules,
+  type CompensationRuleRecord,
   fetchCompensationTemplates,
+  type CompensationTemplateRecord,
   fetchDepartments,
   fetchEmployees,
   fetchJobGrades,
 } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type ProfileForm = {
   employeeId: string
@@ -79,6 +83,8 @@ type RejectionTarget =
   | { id: string; kind: "PROFILE" | "RULE"; label: string }
   | null
 
+type CompensationView = "templates" | "profiles" | "rules"
+
 const emptyProfileForm: ProfileForm = {
   employeeId: "",
   baseAmount: "",
@@ -116,6 +122,7 @@ const emptyTemplateForm: TemplateForm = {
 export default function CompensationPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const [activeView, setActiveView] = useState<CompensationView>("templates")
   const [templateOpen, setTemplateOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [ruleOpen, setRuleOpen] = useState(false)
@@ -124,6 +131,24 @@ export default function CompensationPage() {
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRuleForm)
   const [rejectionTarget, setRejectionTarget] = useState<RejectionTarget>(null)
   const [rejectionNote, setRejectionNote] = useState("")
+  const [templatesQuery, setTemplatesQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  })
+  const [profilesQuery, setProfilesQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  })
+  const [rulesQuery, setRulesQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  })
 
   const { data: employeesData } = useQuery({
     queryKey: ["employees", "compensation"],
@@ -413,10 +438,10 @@ export default function CompensationPage() {
     },
   })
 
-  const openRejectionDialog = (target: NonNullable<RejectionTarget>) => {
+  const openRejectionDialog = useCallback((target: NonNullable<RejectionTarget>) => {
     setRejectionTarget(target)
     setRejectionNote("")
-  }
+  }, [])
 
   const handleReject = () => {
     if (!rejectionTarget) return
@@ -431,25 +456,307 @@ export default function CompensationPage() {
     rejectRuleMutation.mutate({ id: rejectionTarget.id, note })
   }
 
+  const templateColumns = useMemo<ColumnDef<CompensationTemplateRecord>[]>(
+    () => [
+      {
+        id: "template",
+        header: "Template",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.name}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.description || "No description"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "scope",
+        header: "Scope",
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.employmentType || "All employment types"}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.position || "All positions"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "base",
+        header: "Base",
+        cell: ({ row }) => `${row.original.currency} ${row.original.baseAmount.toFixed(2)}`,
+      },
+      {
+        id: "rules",
+        header: "Rules",
+        cell: ({ row }) => row.original._count?.rules ?? row.original.rules.length,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.isActive ? "secondary" : "outline"}>
+            {row.original.isActive ? "ACTIVE" : "INACTIVE"}
+          </Badge>
+        ),
+      },
+      {
+        id: "action",
+        header: "",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/human-resources?templateId=${row.original.id}`}>
+                Use in Onboarding
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  )
+
+  const profileColumns = useMemo<ColumnDef<CompensationProfileRecord>[]>(
+    () => [
+      {
+        id: "employee",
+        header: "Employee",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.employee.name}</div>
+            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          </div>
+        ),
+      },
+      {
+        id: "baseAmount",
+        header: "Base Amount",
+        cell: ({ row }) => `${row.original.currency} ${row.original.baseAmount.toFixed(2)}`,
+      },
+      {
+        id: "window",
+        header: "Effective Window",
+        cell: ({ row }) =>
+          `${row.original.effectiveFrom.slice(0, 10)} to ${
+            row.original.effectiveTo ? row.original.effectiveTo.slice(0, 10) : "Open"
+          }`,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "ACTIVE" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "workflow",
+        header: "Workflow",
+        cell: ({ row }) => (
+          <Badge variant={row.original.workflowStatus === "APPROVED" ? "secondary" : "outline"}>
+            {row.original.workflowStatus}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const status = row.original.workflowStatus
+          return (
+            <div className="flex justify-end gap-2">
+              {(status === "DRAFT" || status === "REJECTED") ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={submitProfileMutation.isPending}
+                  onClick={() => submitProfileMutation.mutate(row.original.id)}
+                >
+                  Submit
+                </Button>
+              ) : null}
+              {status === "SUBMITTED" ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={approveProfileMutation.isPending}
+                    onClick={() => approveProfileMutation.mutate(row.original.id)}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={rejectProfileMutation.isPending}
+                    onClick={() =>
+                      openRejectionDialog({
+                        id: row.original.id,
+                        kind: "PROFILE",
+                        label: `Compensation profile for ${row.original.employee.name}`,
+                      })
+                    }
+                  >
+                    Reject
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          )
+        },
+      },
+    ],
+    [
+      approveProfileMutation,
+      openRejectionDialog,
+      rejectProfileMutation.isPending,
+      submitProfileMutation,
+    ],
+  )
+
+  const ruleColumns = useMemo<ColumnDef<CompensationRuleRecord>[]>(
+    () => [
+      {
+        id: "rule",
+        header: "Rule",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.name}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.calcMethod === "PERCENT" ? "Percent of base" : "Fixed amount"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        cell: ({ row }) => row.original.type,
+      },
+      {
+        id: "value",
+        header: "Value",
+        cell: ({ row }) => (
+          <div>
+            <div>
+              {row.original.calcMethod === "PERCENT"
+                ? `${row.original.value}%`
+                : `${row.original.currency} ${row.original.value}`}
+            </div>
+            {row.original.cap ? (
+              <div className="text-xs text-muted-foreground">Cap {row.original.cap}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: "scope",
+        header: "Scope",
+        cell: ({ row }) =>
+          row.original.employee?.name ||
+          row.original.department?.name ||
+          row.original.grade?.name ||
+          "Global",
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.isActive ? "secondary" : "outline"}>
+            {row.original.isActive ? "ACTIVE" : "INACTIVE"}
+          </Badge>
+        ),
+      },
+      {
+        id: "workflow",
+        header: "Workflow",
+        cell: ({ row }) => (
+          <Badge variant={row.original.workflowStatus === "APPROVED" ? "secondary" : "outline"}>
+            {row.original.workflowStatus}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const status = row.original.workflowStatus
+          return (
+            <div className="flex justify-end gap-2">
+              {(status === "DRAFT" || status === "REJECTED") ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={submitRuleMutation.isPending}
+                  onClick={() => submitRuleMutation.mutate(row.original.id)}
+                >
+                  Submit
+                </Button>
+              ) : null}
+              {status === "SUBMITTED" ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={approveRuleMutation.isPending}
+                    onClick={() => approveRuleMutation.mutate(row.original.id)}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={rejectRuleMutation.isPending}
+                    onClick={() =>
+                      openRejectionDialog({
+                        id: row.original.id,
+                        kind: "RULE",
+                        label: `Compensation rule ${row.original.name}`,
+                      })
+                    }
+                  >
+                    Reject
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          )
+        },
+      },
+    ],
+    [
+      approveRuleMutation,
+      openRejectionDialog,
+      rejectRuleMutation.isPending,
+      submitRuleMutation,
+    ],
+  )
+
   return (
     <HrShell
       activeTab="compensation"
       description="Manage base pay profiles and allowance/deduction rules"
       actions={
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setTemplateOpen(true)}>
+        activeView === "templates" ? (
+          <Button size="sm" onClick={() => setTemplateOpen(true)}>
             <Plus className="h-4 w-4" />
             New Template
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setRuleOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New Rule
-          </Button>
+        ) : activeView === "profiles" ? (
           <Button size="sm" onClick={() => setProfileOpen(true)}>
             <Plus className="h-4 w-4" />
             New Profile
           </Button>
-        </div>
+        ) : (
+          <Button size="sm" onClick={() => setRuleOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Rule
+          </Button>
+        )
       }
     >
       {(templatesError || profilesError || rulesError) && (
@@ -922,276 +1229,99 @@ export default function CompensationPage() {
         </SheetContent>
       </Sheet>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Compensation Templates</CardTitle>
-          <CardDescription>
-            Reusable profile + rule bundles for onboarding permanent, contract, or role-specific staff.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {templatesLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : templates.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No compensation templates yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Template</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Scope</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Base</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Rules</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {templates.map((template) => (
-                    <TableRow key={template.id} className="border-b">
-                      <TableCell className="p-3">
-                        <div className="font-semibold">{template.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {template.description || "No description"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <div>
-                          {template.employmentType || "All employment types"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {template.position || "All positions"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        {template.currency} {template.baseAmount.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        {template._count?.rules ?? template.rules.length}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={template.isActive ? "secondary" : "outline"}>
-                          {template.isActive ? "ACTIVE" : "INACTIVE"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/human-resources?templateId=${template.id}`}>
-                            Use in Onboarding
-                            <ArrowRight className="size-4" />
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <VerticalDataViews
+        items={[
+          { id: "templates", label: "Templates", count: templates.length },
+          { id: "profiles", label: "Profiles", count: profiles.length },
+          { id: "rules", label: "Rules", count: rules.length },
+        ]}
+        value={activeView}
+        onValueChange={(value) => setActiveView(value as CompensationView)}
+        railLabel="Compensation Context"
+      >
+        {activeView === "templates" ? (
+          <>
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Compensation Templates
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Reusable profile + rule bundles for onboarding permanent, contract, or role-specific staff.
+              </p>
+            </header>
+            {templatesLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : templates.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No compensation templates yet.</div>
+            ) : (
+              <DataTable
+                data={templates}
+                columns={templateColumns}
+                queryState={templatesQuery}
+                onQueryStateChange={(next) => setTemplatesQuery((prev) => ({ ...prev, ...next }))}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search templates"
+                tableClassName="text-sm"
+              />
+            )}
+          </>
+        ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Compensation Profiles</CardTitle>
-          <CardDescription>Employee base pay with effective-date history.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {profilesLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : profiles.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No compensation profiles yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Employee</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Base Amount</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Effective Window</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Workflow</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {profiles.map((profile) => (
-                    <TableRow key={profile.id} className="border-b">
-                      <TableCell className="p-3">
-                        <div className="font-semibold">{profile.employee.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {profile.employee.employeeId}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        {profile.currency} {profile.baseAmount.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        {profile.effectiveFrom.slice(0, 10)} to{" "}
-                        {profile.effectiveTo ? profile.effectiveTo.slice(0, 10) : "Open"}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={profile.status === "ACTIVE" ? "secondary" : "outline"}>
-                          {profile.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={profile.workflowStatus === "APPROVED" ? "secondary" : "outline"}>
-                          {profile.workflowStatus}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              !["DRAFT", "REJECTED"].includes(profile.workflowStatus) ||
-                              submitProfileMutation.isPending
-                            }
-                            onClick={() => submitProfileMutation.mutate(profile.id)}
-                          >
-                            Submit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              profile.workflowStatus !== "SUBMITTED" || approveProfileMutation.isPending
-                            }
-                            onClick={() => approveProfileMutation.mutate(profile.id)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              profile.workflowStatus !== "SUBMITTED" || rejectProfileMutation.isPending
-                            }
-                            onClick={() =>
-                              openRejectionDialog({
-                                id: profile.id,
-                                kind: "PROFILE",
-                                label: `Compensation profile for ${profile.employee.name}`,
-                              })
-                            }
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {activeView === "profiles" ? (
+          <>
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Compensation Profiles
+              </h2>
+              <p className="text-sm text-muted-foreground">Employee base pay with effective-date history.</p>
+            </header>
+            {profilesLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : profiles.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No compensation profiles yet.</div>
+            ) : (
+              <DataTable
+                data={profiles}
+                columns={profileColumns}
+                queryState={profilesQuery}
+                onQueryStateChange={(next) => setProfilesQuery((prev) => ({ ...prev, ...next }))}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search profiles"
+                tableClassName="text-sm"
+              />
+            )}
+          </>
+        ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Compensation Rules</CardTitle>
-          <CardDescription>Reusable allowance and deduction rules.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {rulesLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : rules.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No compensation rules yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Rule</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Value</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Scope</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Workflow</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rules.map((rule) => (
-                    <TableRow key={rule.id} className="border-b">
-                      <TableCell className="p-3">
-                        <div className="font-semibold">{rule.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {rule.calcMethod === "PERCENT" ? "Percent of base" : "Fixed amount"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3">{rule.type}</TableCell>
-                      <TableCell className="p-3">
-                        {rule.calcMethod === "PERCENT" ? `${rule.value}%` : `${rule.currency} ${rule.value}`}
-                        {rule.cap ? <div className="text-xs text-muted-foreground">Cap {rule.cap}</div> : null}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        {rule.employee?.name ||
-                          rule.department?.name ||
-                          rule.grade?.name ||
-                          "Global"}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={rule.isActive ? "secondary" : "outline"}>
-                          {rule.isActive ? "ACTIVE" : "INACTIVE"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={rule.workflowStatus === "APPROVED" ? "secondary" : "outline"}>
-                          {rule.workflowStatus}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              !["DRAFT", "REJECTED"].includes(rule.workflowStatus) ||
-                              submitRuleMutation.isPending
-                            }
-                            onClick={() => submitRuleMutation.mutate(rule.id)}
-                          >
-                            Submit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={rule.workflowStatus !== "SUBMITTED" || approveRuleMutation.isPending}
-                            onClick={() => approveRuleMutation.mutate(rule.id)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={rule.workflowStatus !== "SUBMITTED" || rejectRuleMutation.isPending}
-                            onClick={() =>
-                              openRejectionDialog({
-                                id: rule.id,
-                                kind: "RULE",
-                                label: `Compensation rule ${rule.name}`,
-                              })
-                            }
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {activeView === "rules" ? (
+          <>
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Compensation Rules
+              </h2>
+              <p className="text-sm text-muted-foreground">Reusable allowance and deduction rules.</p>
+            </header>
+            {rulesLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : rules.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No compensation rules yet.</div>
+            ) : (
+              <DataTable
+                data={rules}
+                columns={ruleColumns}
+                queryState={rulesQuery}
+                onQueryStateChange={(next) => setRulesQuery((prev) => ({ ...prev, ...next }))}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search rules"
+                tableClassName="text-sm"
+              />
+            )}
+          </>
+        ) : null}
+      </VerticalDataViews>
 
       <Dialog
         open={Boolean(rejectionTarget)}

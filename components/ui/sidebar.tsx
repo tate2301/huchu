@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "18rem"
+const SIDEBAR_WIDTH = "17.75rem"
 const SIDEBAR_WIDTH_ICON = "3.5rem"
 const SIDEBAR_WIDTH_MOBILE = "20rem"
 
@@ -139,7 +139,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible}
         data-variant={variant}
         className={cn(
-          "peer group/sidebar flex h-screen flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-200",
+          "peer group/sidebar relative flex h-screen flex-col border-0 bg-sidebar text-sidebar-foreground shadow-[var(--surface-frame-shadow)] transition-[width] duration-200",
           collapsible === "icon" && state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -179,7 +179,7 @@ const SidebarHeader = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn("flex flex-col gap-2 px-2 pt-2.5 pb-2", className)}
       {...props}
     />
   )
@@ -191,7 +191,7 @@ const SidebarFooter = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
     <div
       ref={ref}
       data-sidebar="footer"
-      className={cn("mt-auto p-2", className)}
+      className={cn("mt-auto px-2 pt-2 pb-2.5", className)}
       {...props}
     />
   )
@@ -203,7 +203,7 @@ const SidebarContent = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
     <div
       ref={ref}
       data-sidebar="content"
-      className={cn("flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2", className)}
+      className={cn("flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1.5 pb-2", className)}
       {...props}
     />
   )
@@ -215,7 +215,7 @@ const SidebarGroup = React.forwardRef<HTMLDivElement, React.ComponentProps<"div"
     <div
       ref={ref}
       data-sidebar="group"
-      className={cn("rounded-md", className)}
+      className={cn("rounded-xl", className)}
       {...props}
     />
   )
@@ -227,7 +227,7 @@ const SidebarGroupLabel = React.forwardRef<HTMLDivElement, React.ComponentProps<
     <div
       ref={ref}
       data-sidebar="group-label"
-      className={cn("px-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground", className)}
+      className={cn("px-2 text-[11px] font-semibold tracking-[0.06em] text-foreground/65", className)}
       {...props}
     />
   )
@@ -239,7 +239,7 @@ const SidebarGroupContent = React.forwardRef<HTMLDivElement, React.ComponentProp
     <div
       ref={ref}
       data-sidebar="group-content"
-      className={cn("mt-1 space-y-1", className)}
+      className={cn("mt-1 space-y-0.5", className)}
       {...props}
     />
   )
@@ -248,7 +248,7 @@ SidebarGroupContent.displayName = "SidebarGroupContent"
 
 const SidebarMenu = React.forwardRef<HTMLUListElement, React.ComponentProps<"ul">>(
   ({ className, ...props }, ref) => (
-    <ul ref={ref} data-sidebar="menu" className={cn("space-y-1", className)} {...props} />
+    <ul ref={ref} data-sidebar="menu" className={cn("space-y-0.5", className)} {...props} />
   )
 )
 SidebarMenu.displayName = "SidebarMenu"
@@ -261,18 +261,18 @@ const SidebarMenuItem = React.forwardRef<HTMLLIElement, React.ComponentProps<"li
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-sidebar-accent hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-foreground data-[collapsed=true]:justify-center data-[collapsed=true]:px-2 data-[collapsed=true]:[&_span]:hidden",
+  "relative flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium text-sidebar-foreground/80 transition-[color,background-color,box-shadow] duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-[var(--surface-frame-shadow)] data-[active=true]:before:absolute data-[active=true]:before:left-1.5 data-[active=true]:before:top-2 data-[active=true]:before:bottom-2 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-full data-[active=true]:before:bg-primary data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:mx-auto data-[collapsed=true]:[&_span]:hidden data-[collapsed=true]:before:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
   {
     variants: {
       variant: {
         default: "",
         outline:
-          "border border-[var(--action-outline-border)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--action-outline-shadow)] hover:border-[var(--action-outline-border-hover)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:border-[var(--action-outline-border-hover)] data-[active=true]:bg-[var(--action-outline-hover-bg)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)]",
+          "border-0 bg-[var(--action-outline-bg)] text-foreground shadow-[var(--action-outline-shadow)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:bg-[var(--action-outline-hover-bg)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)]",
       },
       size: {
         default: "h-9",
-        sm: "h-8 text-sm",
-        lg: "h-12 text-sm",
+        sm: "h-8 text-[12px]",
+        lg: "h-11 text-[13px]",
       },
     },
     defaultVariants: {
@@ -336,7 +336,7 @@ const SidebarInput = React.forwardRef<
   <Input
     ref={ref}
     data-sidebar="input"
-    className={cn("h-8 bg-card shadow-none", className)}
+    className={cn("h-8 rounded-lg bg-sidebar-accent/70 shadow-[var(--surface-frame-shadow)]", className)}
     {...props}
   />
 ))
@@ -376,7 +376,7 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentProps<"bu
         aria-label="Toggle sidebar"
         onClick={toggleSidebar}
         className={cn(
-          "absolute -right-3 top-1/2 hidden h-16 w-2 -translate-y-1/2 rounded-full bg-border opacity-0 transition md:block group-hover/sidebar:opacity-100",
+          "absolute -right-1.5 top-1/2 hidden h-12 w-1 -translate-y-1/2 rounded-full bg-sidebar-accent shadow-[var(--surface-frame-shadow)] opacity-0 transition md:block group-hover/sidebar:opacity-100",
           className
         )}
         {...props}

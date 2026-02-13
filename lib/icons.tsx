@@ -19,7 +19,7 @@ function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
         className,
       )}
       style={{
-        fontSize: size ?? "1em",
+        ...(size !== undefined ? { fontSize: size } : null),
         ...style,
       }}
     >

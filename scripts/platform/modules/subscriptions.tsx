@@ -3,6 +3,8 @@ import React from "react";
 import type { ModuleProps } from "./module-props";
 import { OperationNotAvailable } from "./wizards/operation-not-available";
 import { SubscriptionAddonsWizard } from "./wizards/subscription-addons-wizard";
+import { SubscriptionBundleFeatureMapWizard } from "./wizards/subscription-bundle-feature-map-wizard";
+import { SubscriptionBundleUpsertWizard } from "./wizards/subscription-bundle-upsert-wizard";
 import { SubscriptionCatalogSyncWizard } from "./wizards/subscription-catalog-sync-wizard";
 import { SubscriptionPricingWizard } from "./wizards/subscription-pricing-wizard";
 import { SubscriptionStatusWizard } from "./wizards/subscription-status-wizard";
@@ -15,6 +17,8 @@ const SUPPORTED_OPERATIONS = [
   "subscription.apply-template",
   "subscription.manage-addons",
   "subscription.recompute-pricing",
+  "subscription.bundle.upsert",
+  "subscription.bundle.set-features",
   "subscription.sync-catalog",
 ] as const;
 
@@ -76,6 +80,30 @@ export function SubscriptionsModule(props: ModuleProps) {
       <SubscriptionPricingWizard
         services={props.services}
         focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+        setInputLocked={props.setInputLocked}
+        onBackToTree={props.onBackToTree}
+      />
+    );
+  }
+
+  if (props.operationId === "subscription.bundle.upsert") {
+    return (
+      <SubscriptionBundleUpsertWizard
+        actor={props.actor}
+        services={props.services}
+        readOnly={props.readOnly}
+        setInputLocked={props.setInputLocked}
+        onBackToTree={props.onBackToTree}
+      />
+    );
+  }
+
+  if (props.operationId === "subscription.bundle.set-features") {
+    return (
+      <SubscriptionBundleFeatureMapWizard
+        actor={props.actor}
+        services={props.services}
         readOnly={props.readOnly}
         setInputLocked={props.setInputLocked}
         onBackToTree={props.onBackToTree}

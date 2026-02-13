@@ -54,7 +54,7 @@ export default function FuelLedgerReportPage() {
   const pageError = sitesError || stockError || movementError;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Fuel Ledger" description="Fuel stock levels and movement history" />
 
       {pageError ? (

@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
-import { GuidedModeToggle } from "@/components/layout/guided-mode-toggle"
 import { usePageActions } from "@/components/layout/page-actions"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check"
@@ -25,8 +24,8 @@ export function Navbar() {
   const successHint = getSuccessHint(pathname)
 
   return (
-    <header className="sticky top-0 z-20 h-16 max-h-16 border-b border-border bg-card">
-      <div className="flex h-16 items-center gap-3 px-4">
+    <header className="sticky top-0 z-20 h-16 max-h-16 bg-card/90 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)] backdrop-blur">
+      <div className="content-shell flex h-16 items-center gap-3">
         <SidebarTrigger />
         <Separator orientation="vertical" className="hidden h-6 md:block" />
         <div className="min-w-0">
@@ -39,7 +38,6 @@ export function Navbar() {
         </div>
         <div className="ml-auto flex items-center gap-3">
           {showNotificationCenter ? <NotificationCenter /> : null}
-          <GuidedModeToggle />
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>
       </div>

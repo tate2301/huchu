@@ -81,13 +81,17 @@ export function GoldShell({
   description = "Track gold from shift output to sale and payout.",
 }: GoldShellProps) {
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
-      <PageHeading title={title} description={description} />
+      <PageHeading
+        title={title}
+        description={description}
+        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+      />
 
       <nav
         aria-label="Gold sections"
-        className="grid gap-2 rounded-lg border bg-card p-2 sm:grid-cols-3 lg:grid-cols-6"
+        className="grid w-full gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)] sm:grid-cols-3 lg:grid-cols-6"
       >
         {laneTabs.map((lane) => {
           const isActive = lane.id === activeTab;
@@ -97,11 +101,11 @@ export function GoldShell({
               href={lane.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors",
+                "inline-flex min-h-11 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                  ? "bg-primary/8 text-primary"
+                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
               )}
             >
               <lane.icon className="h-4 w-4" />

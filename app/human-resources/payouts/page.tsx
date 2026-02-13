@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { addDays, format, isAfter, isBefore } from "date-fns";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -10,7 +11,7 @@ import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -21,13 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import type { EmployeePayment } from "@/lib/api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ShiftWorkerPayout = {
   employeeId: string;
@@ -103,6 +105,12 @@ export default function HrPayoutsPage() {
   const createdId = searchParams.get("createdId");
   const allocationIdFilter = searchParams.get("allocationId");
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(searchParams.get("window") ?? "2");
+  const [groupsQuery, setGroupsQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
   const [selectedGroup, setSelectedGroup] = useState<ShiftPayoutGroup | null>(null);
   const [rejectionAllocationId, setRejectionAllocationId] = useState<string | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
@@ -318,6 +326,213 @@ export default function HrPayoutsPage() {
     );
   };
 
+  const payoutColumns = useMemo<ColumnDef<ShiftPayoutGroup>[]>(
+    () => [
+      {
+        id: "shift",
+        header: "Shift",
+        accessorFn: (row) => `${format(row.date, "MMM d, yyyy")} ${row.shift}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{format(row.original.date, "MMM d, yyyy")} ({row.original.shift})</div>
+            <div className="text-xs text-muted-foreground">Allocation {row.original.allocationId.slice(0, 8)}</div>
+          </div>
+        ),
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorFn: (row) => `${row.siteCode} ${row.siteName}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.siteName}</div>
+            <div className="text-xs text-muted-foreground">{row.original.siteCode}</div>
+          </div>
+        ),
+      },
+      {
+        id: "workers",
+        header: "Workers",
+        accessorFn: (row) => row.workers.length,
+        cell: ({ row }) => <NumericCell>{row.original.workers.length}</NumericCell>,
+      },
+      {
+        id: "goldDue",
+        header: "Gold Due (g)",
+        accessorFn: (row) => row.totalGold,
+        cell: ({ row }) => <NumericCell>{row.original.totalGold.toFixed(3)}</NumericCell>,
+      },
+      {
+        id: "expectedDue",
+        header: "Expected Due",
+        accessorFn: (row) => format(row.expectedDueDate, "yyyy-MM-dd"),
+        cell: ({ row }) => <NumericCell align="left">{format(row.original.expectedDueDate, "MMM d, yyyy")}</NumericCell>,
+      },
+      {
+        id: "payoutStatus",
+        header: "Payout Status",
+        accessorFn: (row) => `paid:${row.paidCount} partial:${row.partialCount} due:${row.dueCount}`,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">Paid {row.original.paidCount}</Badge>
+            {row.original.partialCount > 0 ? <Badge variant="outline">Partial {row.original.partialCount}</Badge> : null}
+            {row.original.dueCount > 0 ? <Badge variant="outline">Due {row.original.dueCount}</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        id: "workflow",
+        header: "Workflow",
+        accessorFn: (row) => row.workflowStatus,
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <Badge variant={workflowBadgeVariant(row.original.workflowStatus)}>
+              {row.original.workflowStatus}
+            </Badge>
+            {row.original.submittedAt ? (
+              <div className="text-xs text-muted-foreground">
+                Submitted {format(row.original.submittedAt, "MMM d, yyyy HH:mm")}
+              </div>
+            ) : null}
+            {row.original.approvedAt ? (
+              <div className="text-xs text-muted-foreground">
+                Approved {format(row.original.approvedAt, "MMM d, yyyy HH:mm")}
+              </div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: "workflowActions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            {row.original.workflowStatus === "DRAFT" || row.original.workflowStatus === "REJECTED" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={submitAllocationMutation.isPending}
+                onClick={() => submitAllocationMutation.mutate(row.original.allocationId)}
+              >
+                Submit
+              </Button>
+            ) : null}
+            {row.original.workflowStatus === "SUBMITTED" ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={approveAllocationMutation.isPending}
+                  onClick={() => approveAllocationMutation.mutate(row.original.allocationId)}
+                >
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={rejectAllocationMutation.isPending}
+                  onClick={() => openRejectionDialog(row.original.allocationId)}
+                >
+                  Reject
+                </Button>
+              </>
+            ) : null}
+            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedGroup(row.original)}>
+              View Members
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [approveAllocationMutation, rejectAllocationMutation, submitAllocationMutation],
+  );
+
+  const selectedGroupWorkerColumns: ColumnDef<ShiftWorkerPayout>[] = [
+    {
+      id: "worker",
+      header: "Worker",
+      accessorFn: (row) => `${row.employeeName} ${row.employeeCode}`,
+      cell: ({ row }) => (
+        <div>
+          <div className="font-semibold">{row.original.employeeName}</div>
+          <div className="text-xs text-muted-foreground">{row.original.employeeCode}</div>
+          {createdId && createdId === row.original.payment?.id ? (
+            <Badge variant="secondary" className="mt-1">Saved</Badge>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: "earned",
+      header: "Shift Earned (g)",
+      accessorFn: (row) => row.shareWeight,
+      cell: ({ row }) => <NumericCell>{row.original.shareWeight.toFixed(3)}</NumericCell>,
+    },
+    {
+      id: "dueDate",
+      header: "Due Date",
+      accessorFn: (row) => format(row.dueDate, "yyyy-MM-dd"),
+      cell: ({ row }) => {
+        const isOverdue = isBefore(row.original.dueDate, new Date()) && row.original.status !== "PAID";
+        return (
+          <div>
+            <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
+            {isOverdue ? <div className="text-[10px] text-red-600">Past due</div> : null}
+          </div>
+        );
+      },
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorKey: "status",
+      cell: ({ row }) => (
+        <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
+          {row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      id: "paid",
+      header: "Paid",
+      accessorFn: (row) => row.paidAmount,
+      cell: ({ row }) => (
+        <NumericCell>{row.original.paidAmount > 0 ? row.original.paidAmount.toFixed(3) : "-"}</NumericCell>
+      ),
+    },
+    {
+      id: "paidDate",
+      header: "Paid Date",
+      accessorFn: (row) => (row.paidAt ? format(row.paidAt, "yyyy-MM-dd") : ""),
+      cell: ({ row }) => (
+        <NumericCell align="left">{row.original.paidAt ? format(row.original.paidAt, "MMM d, yyyy") : "-"}</NumericCell>
+      ),
+    },
+    {
+      id: "action",
+      header: "",
+      cell: ({ row }) => (
+        <div className="text-right">
+          {selectedGroup?.workflowStatus === "APPROVED" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => selectedGroup && openPaymentForm(selectedGroup, row.original)}
+            >
+              Disburse
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">Pending approval</span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <HrShell activeTab="payouts" description="Gold shift payout approvals that feed payroll disbursement">
       <RecordSavedBanner entityLabel="gold payout record" />
@@ -328,202 +543,67 @@ export default function HrPayoutsPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Gold Payouts by Shift</CardTitle>
-              <CardDescription>
-                Approve shift payouts here, then convert and disburse them from Payroll at the current gold rate.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant={payoutWindowWeeks === "2" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPayoutWindowWeeks("2")}
-              >
-                2 weeks
-              </Button>
-              <Button
-                type="button"
-                variant={payoutWindowWeeks === "4" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPayoutWindowWeeks("4")}
-              >
-                4 weeks
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleExportPdf}
-                disabled={isLoading || payoutGroups.length === 0}
-              >
-                Export PDF
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : (
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="rounded-lg border border-border px-3 py-2">
-                <div className="text-xs text-muted-foreground">Shifts</div>
-                <div className="text-lg font-semibold">{payoutGroups.length}</div>
-              </div>
-              <div className="rounded-lg border border-border px-3 py-2">
-                <div className="text-xs text-muted-foreground">Workers in window</div>
-                <div className="text-lg font-semibold">{totalWorkers}</div>
-              </div>
-              <div className="rounded-lg border border-border px-3 py-2">
-                <div className="text-xs text-muted-foreground">Gold due</div>
-                <div className="text-lg font-semibold">{totalGoldDue.toFixed(3)} g</div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Shift Groups</CardTitle>
-          <CardDescription>
-            Each row represents one shift payout group with workflow controls.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : payoutGroups.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No payouts for this window.</div>
-          ) : (
-            <div className="space-y-3">
-              {allocationIdFilter ? (
-                <div className="text-xs text-muted-foreground">
-                  Focused view for allocation <span className="font-semibold text-foreground">{allocationIdFilter}</span>.
-                </div>
-              ) : null}
-              <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="text-left p-3 font-semibold">Shift</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Site</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Workers</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Gold Due (g)</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Expected Due</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Payout Status</TableHead>
-                    <TableHead className="text-left p-3 font-semibold">Workflow</TableHead>
-                    <TableHead className="text-right p-3 font-semibold">Workflow Actions</TableHead>
-                    <TableHead className="text-right p-3 font-semibold">Members</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payoutGroups.map((group) => (
-                    <TableRow
-                      key={group.allocationId}
-                      className={`border-b ${allocationIdFilter === group.allocationId ? "bg-[var(--status-success-bg)]" : ""}`}
-                    >
-                      <TableCell className="p-3">
-                        <div className="font-semibold">{format(group.date, "MMM d, yyyy")} ({group.shift})</div>
-                        <div className="text-xs text-muted-foreground">Allocation {group.allocationId.slice(0, 8)}</div>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <div className="font-semibold">{group.siteName}</div>
-                        <div className="text-xs text-muted-foreground">{group.siteCode}</div>
-                      </TableCell>
-                      <TableCell className="p-3">{group.workers.length}</TableCell>
-                      <TableCell className="p-3">{group.totalGold.toFixed(3)}</TableCell>
-                      <TableCell className="p-3">{format(group.expectedDueDate, "MMM d, yyyy")}</TableCell>
-                      <TableCell className="p-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="secondary">Paid {group.paidCount}</Badge>
-                          {group.partialCount > 0 ? <Badge variant="outline">Partial {group.partialCount}</Badge> : null}
-                          {group.dueCount > 0 ? <Badge variant="outline">Due {group.dueCount}</Badge> : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <div className="space-y-1">
-                          <Badge variant={workflowBadgeVariant(group.workflowStatus)}>
-                            {group.workflowStatus}
-                          </Badge>
-                          {group.submittedAt ? (
-                            <div className="text-xs text-muted-foreground">
-                              Submitted {format(group.submittedAt, "MMM d, yyyy HH:mm")}
-                              {group.submittedByName ? ` by ${group.submittedByName}` : ""}
-                            </div>
-                          ) : null}
-                          {group.approvedAt ? (
-                            <div className="text-xs text-muted-foreground">
-                              Approved {format(group.approvedAt, "MMM d, yyyy HH:mm")}
-                              {group.approvedByName ? ` by ${group.approvedByName}` : ""}
-                            </div>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              !["DRAFT", "REJECTED"].includes(group.workflowStatus) ||
-                              submitAllocationMutation.isPending
-                            }
-                            onClick={() => submitAllocationMutation.mutate(group.allocationId)}
-                          >
-                            Submit
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              group.workflowStatus !== "SUBMITTED" ||
-                              approveAllocationMutation.isPending
-                            }
-                            onClick={() => approveAllocationMutation.mutate(group.allocationId)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              group.workflowStatus !== "SUBMITTED" ||
-                              rejectAllocationMutation.isPending
-                            }
-                            onClick={() => openRejectionDialog(group.allocationId)}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedGroup(group)}
-                        >
-                          View Members
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Gold Payouts by Shift
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Approve shift allocations here, then finalize cash disbursement from payroll runs.
+          </p>
+        </header>
+        {isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : payoutGroups.length === 0 ? (
+          <div className="section-shell text-sm text-muted-foreground">No payouts for this window.</div>
+        ) : (
+          <DataTable
+            data={payoutGroups}
+            columns={payoutColumns}
+            queryState={groupsQuery}
+            onQueryStateChange={(next) => setGroupsQuery((prev) => ({ ...prev, ...next }))}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search by site, shift, or allocation"
+            tableClassName="text-sm"
+            toolbar={
+              <>
+                <Select value={payoutWindowWeeks} onValueChange={setPayoutWindowWeeks}>
+                  <SelectTrigger size="sm" className="h-8 w-[110px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2 weeks</SelectItem>
+                    <SelectItem value="4">4 weeks</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={handleExportPdf}
+                  disabled={payoutGroups.length === 0}
+                >
+                  Export PDF
+                </Button>
+                {allocationIdFilter ? (
+                  <Badge variant="outline">Focused: {allocationIdFilter}</Badge>
+                ) : null}
+                <span className="text-xs text-muted-foreground">
+                  Shifts <span className="font-mono text-foreground">{payoutGroups.length}</span>
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Workers <span className="font-mono text-foreground">{totalWorkers}</span>
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Gold Due <span className="font-mono text-foreground">{totalGoldDue.toFixed(3)} g</span>
+                </span>
+              </>
+            }
+          />
+        )}
+      </section>
 
       <Dialog
         open={Boolean(rejectionAllocationId)}
@@ -619,68 +699,15 @@ export default function HrPayoutsPage() {
                 </div>
               </div>
 
-              <div className="max-h-[60dvh] overflow-auto rounded-md border border-border">
-                <Table className="w-full text-sm">
-                  <TableHeader className="sticky top-0 bg-muted">
-                    <TableRow>
-                      <TableHead className="p-2 text-left font-semibold">Worker</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Shift Earned (g)</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Due Date</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Status</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Paid</TableHead>
-                      <TableHead className="p-2 text-left font-semibold">Paid Date</TableHead>
-                      <TableHead className="p-2 text-right font-semibold">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedGroup.workers.map((worker) => {
-                      const isOverdue =
-                        isBefore(worker.dueDate, new Date()) && worker.status !== "PAID";
-
-                      return (
-                        <TableRow
-                          key={`${selectedGroup.allocationId}-${worker.employeeId}`}
-                          className={`border-b ${createdId === worker.payment?.id ? "bg-[var(--status-success-bg)]" : ""}`}
-                        >
-                          <TableCell className="p-2">
-                            <div className="font-semibold">{worker.employeeName}</div>
-                            <div className="text-xs text-muted-foreground">{worker.employeeCode}</div>
-                          </TableCell>
-                          <TableCell className="p-2">{worker.shareWeight.toFixed(3)}</TableCell>
-                          <TableCell className="p-2">
-                            {format(worker.dueDate, "MMM d, yyyy")}
-                            {isOverdue ? <div className="text-[10px] text-red-600">Past due</div> : null}
-                          </TableCell>
-                          <TableCell className="p-2">
-                            <Badge variant={worker.status === "PAID" ? "secondary" : "outline"}>
-                              {worker.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="p-2">{worker.paidAmount > 0 ? worker.paidAmount.toFixed(3) : "-"}</TableCell>
-                          <TableCell className="p-2">{worker.paidAt ? format(worker.paidAt, "MMM d, yyyy") : "-"}</TableCell>
-                          <TableCell className="p-2 text-right">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={selectedGroup.workflowStatus !== "APPROVED"}
-                              title={
-                                selectedGroup.workflowStatus !== "APPROVED"
-                                  ? "Submit and approve allocation before recording payouts"
-                                  : undefined
-                              }
-                              onClick={() => openPaymentForm(selectedGroup, worker)}
-                            >
-                              {selectedGroup.workflowStatus === "APPROVED"
-                                ? "Disburse"
-                                : "Pending"}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+              <div className="rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
+                <DataTable
+                  data={selectedGroup.workers}
+                  columns={selectedGroupWorkerColumns}
+                  features={{ globalFilter: false, pagination: false, sorting: false }}
+                  maxBodyHeight="60dvh"
+                  tableContainerClassName="overflow-auto"
+                  tableClassName="text-sm"
+                />
               </div>
             </div>
           ) : null}

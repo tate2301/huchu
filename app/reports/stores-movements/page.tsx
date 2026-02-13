@@ -111,7 +111,7 @@ export default function StoresMovementsReportPage() {
   const pageError = sitesError || error;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading
         title="Stock Movements"
         description="Inventory receipts, issues, adjustments, and transfers"

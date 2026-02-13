@@ -53,8 +53,14 @@ import {
   setAddOnBundle,
   syncCommercialCatalog,
 } from "./domain/commercial-service";
+import {
+  getBundleFeatureKeysByCodes,
+  listBundleCatalog,
+  setBundleFeatures,
+  upsertBundleCatalog,
+} from "./domain/bundle-catalog-service";
 import { searchGlobal } from "./domain/search-service";
-import { FEATURE_BUNDLES, getTierDefinition } from "../../lib/platform/feature-catalog";
+import { getTierDefinition } from "../../lib/platform/feature-catalog";
 import {
   CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateBundleCodes,
@@ -67,6 +73,7 @@ import {
   ORGANIZATION_STATUSES,
   SUBSCRIPTION_STATUSES,
   type AddAuditNoteInput,
+  type BundleCatalogSummary,
   type ApplySubscriptionTemplateInput,
   type ApplySubscriptionTemplateResult,
   type AssignSubscriptionTierInput,
@@ -96,8 +103,10 @@ import {
   type ResetAdminPasswordInput,
   type SetAdminStatusInput,
   type SetFeatureInput,
+  type SetBundleFeaturesInput,
   type SetSubscriptionStatusInput,
   type SetAddonInput,
+  type UpsertBundleCatalogInput,
   type SubscriptionStatusResult,
   type SubscriptionPricingSummary,
   type SubscriptionHealthSummary,
@@ -659,6 +668,18 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
   };
 }
 
+async function listSubscriptionBundleCatalog(): Promise<BundleCatalogSummary[]> {
+  return listBundleCatalog();
+}
+
+async function upsertSubscriptionBundleCatalog(input: UpsertBundleCatalogInput): Promise<BundleCatalogSummary> {
+  return upsertBundleCatalog(input);
+}
+
+async function setSubscriptionBundleFeatures(input: SetBundleFeaturesInput): Promise<BundleCatalogSummary> {
+  return setBundleFeatures(input);
+}
+
 function getFeatureDefinition(featureKey: string) {
   const key = featureKey.trim().toLowerCase().replace(/\s+/g, "-");
   if (!key) throw new Error("Feature key cannot be empty.");
@@ -672,18 +693,6 @@ function getFeatureDefinition(featureKey: string) {
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" "),
   };
-}
-
-function buildBundleFeatureSet(bundleCodes: string[]): Set<string> {
-  const set = new Set<string>();
-  for (const code of bundleCodes) {
-    const bundle = FEATURE_BUNDLES.find((row) => row.code === code);
-    if (!bundle) continue;
-    for (const key of bundle.features) {
-      set.add(String(key || "").trim().toLowerCase());
-    }
-  }
-  return set;
 }
 
 async function getSubscriptionEntitledFeatureSet(companyId: string): Promise<Set<string>> {
@@ -705,11 +714,11 @@ async function getSubscriptionEntitledFeatureSet(companyId: string): Promise<Set
     entitled.add(String(key || "").trim().toLowerCase());
   }
 
-  const tierBundleFeatures = buildBundleFeatureSet(tier?.includedBundles ?? []);
+  const tierBundleFeatures = await getBundleFeatureKeysByCodes(tier?.includedBundles ?? []);
   for (const key of tierBundleFeatures) entitled.add(key);
 
   const addonBundleCodes = enabledAddons.map((row) => row.bundle.code);
-  const addonBundleFeatures = buildBundleFeatureSet(addonBundleCodes);
+  const addonBundleFeatures = await getBundleFeatureKeysByCodes(addonBundleCodes);
   for (const key of addonBundleFeatures) entitled.add(key);
 
   return entitled;
@@ -777,9 +786,22 @@ async function setFeature(input: SetFeatureInput): Promise<FeatureSetResult> {
   if (input.enabled && feature.isBillable) {
     const entitledBySubscription = await getSubscriptionEntitledFeatureSet(input.companyId);
     if (!entitledBySubscription.has(feature.key.toLowerCase())) {
-      const suggestedBundles = FEATURE_BUNDLES
-        .filter((bundle) => bundle.features.map((key) => key.toLowerCase()).includes(feature.key.toLowerCase()))
-        .map((bundle) => bundle.code);
+      const suggestedBundles = (
+        await prisma.featureBundle.findMany({
+          where: {
+            isActive: true,
+            items: {
+              some: {
+                feature: {
+                  key: feature.key,
+                },
+              },
+            },
+          },
+          select: { code: true },
+          orderBy: [{ code: "asc" }],
+        })
+      ).map((bundle) => bundle.code);
       const bundleHint = suggestedBundles.length > 0
         ? ` Enable an add-on bundle first: ${suggestedBundles.join(", ")}.`
         : "";
@@ -1018,6 +1040,9 @@ export function createPlatformServices(): PlatformServices {
       assignTier: (input) => toMutation(() => assignTier(input as AssignSubscriptionTierInput)),
       listTemplates: listClientTemplates,
       applyTemplate: (input) => toMutation(() => applyClientTemplate(input as ApplySubscriptionTemplateInput)),
+      listBundleCatalog: listSubscriptionBundleCatalog,
+      upsertBundleCatalog: (input) => toMutation(() => upsertSubscriptionBundleCatalog(input as UpsertBundleCatalogInput)),
+      setBundleFeatures: (input) => toMutation(() => setSubscriptionBundleFeatures(input as SetBundleFeaturesInput)),
       listAddons: (input) => listAddOnBundles((input as ListAddonsInput).companyId),
       setAddon: (input) => toMutation(() => setAddOnBundle(input as SetAddonInput)),
       recomputePricing: (companyId) => toMutation(() => recomputeSubscriptionPricing(companyId) as Promise<SubscriptionPricingSummary>),

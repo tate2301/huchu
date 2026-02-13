@@ -1,16 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useCallback, useMemo, useState } from "react"
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { ColumnDef } from "@tanstack/react-table"
 import { format } from "date-fns"
+import { useRouter } from "next/navigation"
 import { ArrowRight, FileText, Plus, Wrench } from "@/lib/icons"
 import { HrShell } from "@/components/human-resources/hr-shell"
 import { PayrollModeSwitch } from "@/components/human-resources/payroll/payroll-mode-switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import {
   Dialog,
   DialogContent,
@@ -29,15 +31,17 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
+import { NumericCell } from "@/components/ui/numeric-cell"
+import { VerticalDataViews } from "@/components/ui/vertical-data-views"
 import {
   fetchPayrollConfig,
+  type PayrollPeriodRecord,
   fetchPayrollPeriods,
   fetchPayrollRuns,
   updatePayrollConfig,
   type PayrollRunRecord,
 } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type GoldSettingsForm = {
   goldPayoutCycle: "MONTHLY" | "FORTNIGHTLY"
@@ -72,6 +76,8 @@ type RunDetails = {
   }>
 }
 
+type RunDetailLine = RunDetails["lineItems"][number]
+
 const defaultManualPeriodForm: ManualPeriodForm = {
   monthKey: format(new Date(), "yyyy-MM"),
   cycle: "FORTNIGHTLY",
@@ -91,15 +97,37 @@ function mapGoldSettings(config: Awaited<ReturnType<typeof fetchPayrollConfig>>)
 
 export default function GoldPayrollPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [selectedPeriodId, setSelectedPeriodId] = useState("")
   const [goldRatePerUnit, setGoldRatePerUnit] = useState("0")
   const [goldRateUnit, setGoldRateUnit] = useState("g")
+  const [generateRunOpen, setGenerateRunOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [manualPeriodOpen, setManualPeriodOpen] = useState(false)
   const [settingsOverrides, setSettingsOverrides] = useState<Partial<GoldSettingsForm>>({})
   const [manualPeriodForm, setManualPeriodForm] = useState<ManualPeriodForm>(defaultManualPeriodForm)
   const [runDetailsId, setRunDetailsId] = useState<string | null>(null)
+  const [activeView, setActiveView] = useState<"periods" | "pending" | "archived">("periods")
+  const [periodsQuery, setPeriodsQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  })
+  const [runsQuery, setRunsQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  })
+  const [archivedRunsQuery, setArchivedRunsQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  })
+  const [expandedPeriodIds, setExpandedPeriodIds] = useState<string[]>([])
 
   const { data: config, isLoading: configLoading, error: configError } = useQuery({
     queryKey: ["payroll-config"],
@@ -117,6 +145,39 @@ export default function GoldPayrollPage() {
   const periods = useMemo(() => periodsData?.data ?? [], [periodsData])
   const activePeriodId = selectedPeriodId || periods[0]?.id || ""
   const activePeriod = periods.find((period) => period.id === activePeriodId)
+  const expandedRunsQueries = useQueries({
+    queries: expandedPeriodIds.map((periodId) => ({
+      queryKey: ["payroll-runs", "gold", periodId],
+      queryFn: () => fetchPayrollRuns({ domain: "GOLD_PAYOUT", periodId, limit: 200 }),
+      staleTime: 30_000,
+    })),
+  })
+  const expandedRunsByPeriodId = useMemo(() => {
+    const rowsByPeriodId: Record<string, PayrollRunRecord[]> = {}
+    expandedPeriodIds.forEach((periodId, index) => {
+      rowsByPeriodId[periodId] = expandedRunsQueries[index]?.data?.data ?? []
+    })
+    return rowsByPeriodId
+  }, [expandedPeriodIds, expandedRunsQueries])
+  const expandedRunsLoadingIds = useMemo(
+    () =>
+      expandedPeriodIds.filter((periodId, index) => {
+        const query = expandedRunsQueries[index]
+        if (!query) return false
+        return query.isLoading || (query.isFetching && !query.data)
+      }),
+    [expandedPeriodIds, expandedRunsQueries],
+  )
+  const expandedRunsErrorByPeriodId = useMemo(() => {
+    const errors: Record<string, string | undefined> = {}
+    expandedPeriodIds.forEach((periodId, index) => {
+      const error = expandedRunsQueries[index]?.error
+      if (error) {
+        errors[periodId] = getApiErrorMessage(error)
+      }
+    })
+    return errors
+  }, [expandedPeriodIds, expandedRunsQueries])
 
   const { data: runsData, isLoading: runsLoading, error: runsError } = useQuery({
     queryKey: ["payroll-runs", "gold", activePeriodId],
@@ -124,6 +185,14 @@ export default function GoldPayrollPage() {
     enabled: Boolean(activePeriodId),
   })
   const runs = useMemo(() => runsData?.data ?? [], [runsData])
+  const pendingRuns = useMemo(
+    () => runs.filter((run) => run.status === "DRAFT" || run.status === "SUBMITTED" || run.status === "REJECTED"),
+    [runs],
+  )
+  const archivedRuns = useMemo(
+    () => runs.filter((run) => run.status === "APPROVED" || run.status === "POSTED"),
+    [runs],
+  )
 
   const { data: runDetails, isLoading: runDetailsLoading, error: runDetailsError } = useQuery({
     queryKey: ["payroll-run-details", runDetailsId],
@@ -216,43 +285,311 @@ export default function GoldPayrollPage() {
   })
 
   const approveRunMutation = useMutation({
-    mutationFn: async (runId: string) => fetchJson(`/api/payroll/runs/${runId}/approve`, { method: "POST" }),
-    onSuccess: () => {
+    mutationFn: async (runId: string) => fetchJson<{ id?: string }>(`/api/payroll/runs/${runId}/approve`, { method: "POST" }),
+    onSuccess: (run: { id?: string }) => {
       toast({ title: "Run approved", variant: "success" })
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] })
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] })
+      if (run?.id) {
+        router.push(`/human-resources/disbursements?runId=${run.id}`)
+      }
     },
     onError: (error) =>
       toast({ title: "Unable to approve run", description: getApiErrorMessage(error), variant: "destructive" }),
   })
 
-  const renderPrimaryAction = (run: PayrollRunRecord) => {
-    if (run.status === "DRAFT") {
-      return (
-        <Button size="sm" onClick={() => submitRunMutation.mutate(run.id)} disabled={submitRunMutation.isPending}>
-          Submit
-        </Button>
-      )
-    }
-    if (run.status === "SUBMITTED") {
-      return (
-        <Button size="sm" onClick={() => approveRunMutation.mutate(run.id)} disabled={approveRunMutation.isPending}>
-          Approve
-        </Button>
-      )
-    }
-    if (run.status === "APPROVED") {
-      return (
-        <Button asChild size="sm">
-          <Link href={`/human-resources/disbursements?runId=${run.id}`}>
-            Disburse
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
-      )
-    }
-    return <Button size="sm" variant="outline">View</Button>
-  }
+  const renderPrimaryAction = useCallback(
+    (run: PayrollRunRecord) => {
+      if (run.status === "DRAFT") {
+        return (
+          <Button size="sm" onClick={() => submitRunMutation.mutate(run.id)} disabled={submitRunMutation.isPending}>
+            Submit
+          </Button>
+        )
+      }
+      if (run.status === "SUBMITTED") {
+        return (
+          <Button size="sm" onClick={() => approveRunMutation.mutate(run.id)} disabled={approveRunMutation.isPending}>
+            Approve
+          </Button>
+        )
+      }
+      if (run.status === "APPROVED") {
+        return (
+          <Button asChild size="sm">
+            <Link href={`/human-resources/disbursements?runId=${run.id}`}>
+              Disburse
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        )
+      }
+      return null
+    },
+    [approveRunMutation, submitRunMutation],
+  )
+
+  const canGenerateForPeriod = useCallback(
+    (period: PayrollPeriodRecord) => period.status !== "APPROVED" && period.status !== "CLOSED",
+    [],
+  )
+
+  const renderRunGroup = useCallback(
+    (
+      label: string,
+      runRows: PayrollRunRecord[],
+      emptyMessage: string,
+      options?: { statusVariant?: (run: PayrollRunRecord) => "outline" | "secondary" },
+    ) => (
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+        {runRows.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+        ) : (
+          <div className="overflow-hidden rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
+            {runRows.map((run) => (
+              <div
+                key={run.id}
+                className="grid gap-3 px-3 py-2 text-sm md:grid-cols-[minmax(0,1.6fr)_auto_auto_minmax(0,1fr)_auto] md:items-center [&:not(:last-child)]:shadow-[inset_0_-1px_0_0_var(--color-border)]"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">
+                    <NumericCell align="left">Run #{run.runNumber}</NumericCell>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <NumericCell align="left">{format(new Date(run.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
+                  </div>
+                </div>
+                <div>
+                  <Badge variant={options?.statusVariant?.(run) ?? "outline"}>{run.status}</Badge>
+                </div>
+                <div>
+                  <NumericCell>{run.netTotal.toFixed(2)}</NumericCell>
+                </div>
+                <div className="truncate text-sm text-muted-foreground">{run.createdBy?.name ?? "-"}</div>
+                <div className="flex justify-start gap-2 md:justify-end">
+                  {renderPrimaryAction(run)}
+                  <Button size="sm" variant="outline" onClick={() => setRunDetailsId(run.id)}>
+                    <FileText className="size-4" />
+                    Details
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    ),
+    [renderPrimaryAction],
+  )
+
+  const periodColumns = useMemo<ColumnDef<PayrollPeriodRecord>[]>(
+    () => [
+      {
+        accessorKey: "periodKey",
+        header: "Period",
+        cell: ({ row }) => (
+          <div className="font-medium">
+            <NumericCell align="left">{row.original.periodKey}</NumericCell>
+          </div>
+        ),
+      },
+      {
+        id: "window",
+        header: "Window",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.startDate), "MMM d")} - {format(new Date(row.original.endDate), "MMM d, yyyy")}
+          </NumericCell>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "APPROVED" ? "secondary" : "outline"}>{row.original.status}</Badge>
+        ),
+      },
+      {
+        id: "source",
+        header: "Source",
+        cell: ({ row }) => (
+          <Badge variant={row.original.isAutoGenerated ? "secondary" : "outline"}>
+            {row.original.isAutoGenerated ? "Auto" : "Manual"}
+          </Badge>
+        ),
+      },
+      {
+        id: "action",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedPeriodId(row.original.id)
+                setGenerateRunOpen(true)
+              }}
+              disabled={!canGenerateForPeriod(row.original) || generateRunMutation.isPending}
+            >
+              {canGenerateForPeriod(row.original) ? "Generate Run" : "Locked"}
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [canGenerateForPeriod, generateRunMutation.isPending],
+  )
+
+  const pendingRunColumns = useMemo<ColumnDef<PayrollRunRecord>[]>(
+    () => [
+      {
+        id: "run",
+        header: "Run",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">
+              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">
+              <NumericCell align="left">{format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <Badge variant={row.original.status === "APPROVED" ? "secondary" : "outline"}>{row.original.status}</Badge>,
+      },
+      {
+        accessorKey: "netTotal",
+        header: "Net Total",
+        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "owner",
+        header: "Owner",
+        cell: ({ row }) => row.original.createdBy?.name ?? "-",
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            {renderPrimaryAction(row.original)}
+            <Button size="sm" variant="outline" onClick={() => setRunDetailsId(row.original.id)}>
+              <FileText className="size-4" />
+              Details
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [renderPrimaryAction],
+  )
+
+  const archivedRunColumns = useMemo<ColumnDef<PayrollRunRecord>[]>(
+    () => [
+      {
+        id: "run",
+        header: "Run",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">
+              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">
+              <NumericCell align="left">{format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <Badge variant={row.original.status === "POSTED" ? "secondary" : "outline"}>{row.original.status}</Badge>,
+      },
+      {
+        accessorKey: "netTotal",
+        header: "Net Total",
+        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "owner",
+        header: "Owner",
+        cell: ({ row }) => row.original.createdBy?.name ?? "-",
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            {row.original.status === "APPROVED" ? (
+              <Button asChild size="sm">
+                <Link href={`/human-resources/disbursements?runId=${row.original.id}`}>
+                  Disburse
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            ) : null}
+            <Button size="sm" variant="outline" onClick={() => setRunDetailsId(row.original.id)}>
+              <FileText className="size-4" />
+              Details
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  )
+
+  const runDetailColumns = useMemo<ColumnDef<RunDetailLine>[]>(
+    () => [
+      {
+        id: "employee",
+        header: "Employee",
+        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.employee.name}</div>
+            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          </div>
+        ),
+      },
+      {
+        id: "base",
+        header: "Base",
+        accessorFn: (row) => row.baseAmount,
+        cell: ({ row }) => <NumericCell>{row.original.baseAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "variable",
+        header: "Variable",
+        accessorFn: (row) => row.variableAmount,
+        cell: ({ row }) => <NumericCell>{row.original.variableAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "allowances",
+        header: "Allowances",
+        accessorFn: (row) => row.allowancesTotal,
+        cell: ({ row }) => <NumericCell>{row.original.allowancesTotal.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "deductions",
+        header: "Deductions",
+        accessorFn: (row) => row.deductionsTotal,
+        cell: ({ row }) => <NumericCell>{row.original.deductionsTotal.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "net",
+        header: "Net",
+        accessorFn: (row) => row.netAmount,
+        cell: ({ row }) => <NumericCell>{row.original.netAmount.toFixed(2)}</NumericCell>,
+      },
+    ],
+    [],
+  )
 
   return (
     <HrShell
@@ -267,95 +604,222 @@ export default function GoldPayrollPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Payroll Modes</CardTitle>
-          <CardDescription>Keep salary payroll and gold payout payroll separated by design.</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Payroll Modes
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Keep salary payroll and gold payout payroll separated by design.
+          </p>
+        </header>
+        <div className="section-shell">
           <PayrollModeSwitch activeMode="gold" />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Step 1 - Choose Period</CardTitle>
-              <CardDescription>Select one period to unlock run actions.</CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => setManualPeriodOpen(true)}>
-                <Plus className="size-4" />
-                Manual Period
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setSettingsOpen(true)}>
-                <Wrench className="size-4" />
-                Settings
-              </Button>
-              <Button type="button" size="sm" onClick={() => seedPeriodsMutation.mutate()} disabled={seedPeriodsMutation.isPending}>
-                Seed Periods
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {periodsLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : periods.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No gold payout periods available.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Window</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {periods.map((period) => (
-                    <TableRow key={period.id}>
-                      <TableCell className="font-medium">{period.periodKey}</TableCell>
-                      <TableCell>
-                        {format(new Date(period.startDate), "MMM d")} - {format(new Date(period.endDate), "MMM d, yyyy")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={period.status === "APPROVED" ? "secondary" : "outline"}>{period.status}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={period.isAutoGenerated ? "secondary" : "outline"}>
-                          {period.isAutoGenerated ? "Auto" : "Manual"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant={period.id === activePeriodId ? "default" : "outline"} onClick={() => setSelectedPeriodId(period.id)}>
-                          {period.id === activePeriodId ? "Selected" : "Select"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <VerticalDataViews
+        items={[
+          { id: "periods", label: "Periods", count: periods.length },
+          { id: "pending", label: "Pending Runs", count: pendingRuns.length },
+          { id: "archived", label: "Archived Runs", count: archivedRuns.length },
+        ]}
+        value={activeView}
+        onValueChange={(value) => setActiveView(value as "periods" | "pending" | "archived")}
+        railLabel="Payroll Views"
+      >
+        {activeView === "periods" ? (
+          <section className="space-y-3">
+            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                  Gold Payout Periods
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Expand a period row to review runs, then generate a run when the period is open.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setManualPeriodOpen(true)}>
+                  <Plus className="size-4" />
+                  Manual Period
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setSettingsOpen(true)}>
+                  <Wrench className="size-4" />
+                  Settings
+                </Button>
+                <Button type="button" size="sm" onClick={() => seedPeriodsMutation.mutate()} disabled={seedPeriodsMutation.isPending}>
+                  Seed Periods
+                </Button>
+              </div>
+            </header>
+            {periodsLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : periods.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No gold payout periods available.</div>
+            ) : (
+              <DataTable
+                data={periods}
+                columns={periodColumns}
+                queryState={periodsQuery}
+                onQueryStateChange={(next) => setPeriodsQuery((prev) => ({ ...prev, ...next }))}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search periods"
+                tableClassName="text-sm"
+                expansion={{
+                  enabled: true,
+                  mode: "single",
+                  getRowId: (period) => period.id,
+                  expandedRowIds: expandedPeriodIds,
+                  onExpandedRowIdsChange: setExpandedPeriodIds,
+                  onToggle: ({ row, isExpanded }) => {
+                    if (isExpanded) {
+                      setSelectedPeriodId(row.id)
+                    }
+                  },
+                  loadingRowIds: expandedRunsLoadingIds,
+                  errorByRowId: expandedRunsErrorByPeriodId,
+                  renderExpandedContent: ({ row, rowId, isLoading, error }) => {
+                    if (error) {
+                      return (
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                          <p className="text-destructive">{error}</p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              queryClient.invalidateQueries({
+                                queryKey: ["payroll-runs", "gold", row.id],
+                              })
+                            }
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      )
+                    }
+                    if (isLoading) {
+                      return <div className="px-4 py-3 text-sm text-muted-foreground">Loading runs...</div>
+                    }
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Step 2 - Generate Draft Run</CardTitle>
-          <CardDescription>Generate one draft run for the selected period using current gold rate.</CardDescription>
-        </CardHeader>
-        <CardContent>
+                    const runsForPeriod = expandedRunsByPeriodId[rowId] ?? []
+                    if (runsForPeriod.length === 0) {
+                      return (
+                        <div className="px-4 py-3 text-sm text-muted-foreground">
+                          No runs generated for period {row.periodKey}.
+                        </div>
+                      )
+                    }
+
+                    const pendingRows = runsForPeriod.filter(
+                      (run) => run.status === "DRAFT" || run.status === "SUBMITTED" || run.status === "REJECTED",
+                    )
+                    const archivedRows = runsForPeriod.filter(
+                      (run) => run.status === "APPROVED" || run.status === "POSTED",
+                    )
+
+                    return (
+                      <div className="space-y-4 px-4 py-3">
+                        {renderRunGroup(
+                          "Pending Runs",
+                          pendingRows,
+                          "No pending runs for this period.",
+                        )}
+                        {renderRunGroup(
+                          "Archived Runs",
+                          archivedRows,
+                          "No archived runs for this period.",
+                          { statusVariant: (run) => (run.status === "POSTED" ? "secondary" : "outline") },
+                        )}
+                      </div>
+                    )
+                  },
+                }}
+              />
+            )}
+          </section>
+        ) : null}
+
+        {activeView === "pending" ? (
+          <section className="space-y-3">
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Pending Runs
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Draft and submitted runs waiting for completion.
+              </p>
+            </header>
+            {!activePeriod ? (
+              <div className="section-shell text-sm text-muted-foreground">Select a period to view runs.</div>
+            ) : runsLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : pendingRuns.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No pending runs for this period.</div>
+            ) : (
+              <DataTable
+                data={pendingRuns}
+                columns={pendingRunColumns}
+                queryState={runsQuery}
+                onQueryStateChange={(next) => setRunsQuery((prev) => ({ ...prev, ...next }))}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search pending runs"
+                tableClassName="text-sm"
+              />
+            )}
+          </section>
+        ) : null}
+
+        {activeView === "archived" ? (
+          <section className="space-y-3">
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Archived Runs
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Approved and posted runs retained for disbursement and audit history.
+              </p>
+            </header>
+            {!activePeriod ? (
+              <div className="section-shell text-sm text-muted-foreground">Select a period to view archived runs.</div>
+            ) : runsLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : archivedRuns.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No archived runs for this period yet.</div>
+            ) : (
+              <DataTable
+                data={archivedRuns}
+                columns={archivedRunColumns}
+                queryState={archivedRunsQuery}
+                onQueryStateChange={(next) => setArchivedRunsQuery((prev) => ({ ...prev, ...next }))}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search archived runs"
+                tableClassName="text-sm"
+              />
+            )}
+          </section>
+        ) : null}
+      </VerticalDataViews>
+
+      <Dialog open={generateRunOpen} onOpenChange={setGenerateRunOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Generate Gold Payout Run</DialogTitle>
+            <DialogDescription>
+              {activePeriod
+                ? `Create a draft run for period ${activePeriod.periodKey} using the current gold rate.`
+                : "Select a period before generating a run."}
+            </DialogDescription>
+          </DialogHeader>
           {!activePeriod ? (
-            <div className="text-sm text-muted-foreground">Select a period in Step 1 to unlock this step.</div>
+            <div className="text-sm text-muted-foreground">No active period selected.</div>
           ) : (
             <form
-              className="grid gap-3 md:grid-cols-[1fr,140px,auto]"
+              className="grid gap-4"
               onSubmit={(event) => {
                 event.preventDefault()
                 const rate = Number(goldRatePerUnit)
@@ -363,76 +827,52 @@ export default function GoldPayrollPage() {
                   toast({ title: "Enter a valid gold rate", variant: "destructive" })
                   return
                 }
-                generateRunMutation.mutate(activePeriodId)
+                generateRunMutation.mutate(activePeriodId, {
+                  onSuccess: () => {
+                    setGenerateRunOpen(false)
+                    setActiveView("pending")
+                  },
+                })
               }}
             >
-              <div>
-                <label htmlFor="gold-rate" className="mb-2 block text-sm font-semibold">Gold Rate per Unit</label>
-                <Input id="gold-rate" type="number" min="0" step="0.0001" value={goldRatePerUnit} onChange={(event) => setGoldRatePerUnit(event.target.value)} />
+              <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
+                <div className="text-xs text-muted-foreground">Period</div>
+                <div className="font-semibold">{activePeriod.periodKey}</div>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(activePeriod.startDate), "yyyy-MM-dd")} to {format(new Date(activePeriod.endDate), "yyyy-MM-dd")}
+                </div>
               </div>
-              <div>
-                <label htmlFor="gold-unit" className="mb-2 block text-sm font-semibold">Unit</label>
-                <Input id="gold-unit" value={goldRateUnit} onChange={(event) => setGoldRateUnit(event.target.value)} />
+              <div className="grid gap-3 md:grid-cols-[1fr,140px]">
+                <div>
+                  <label htmlFor="gold-rate" className="mb-2 block text-sm font-semibold">Gold Rate per Unit</label>
+                  <Input id="gold-rate" type="number" min="0" step="0.0001" value={goldRatePerUnit} onChange={(event) => setGoldRatePerUnit(event.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="gold-unit" className="mb-2 block text-sm font-semibold">Unit</label>
+                  <Select value={goldRateUnit} onValueChange={setGoldRateUnit}>
+                    <SelectTrigger id="gold-unit">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="g">g</SelectItem>
+                      <SelectItem value="kg">kg</SelectItem>
+                      <SelectItem value="oz">oz</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex items-end">
-                <Button type="submit" disabled={generateRunMutation.isPending}>Generate Run</Button>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setGenerateRunOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={generateRunMutation.isPending || !canGenerateForPeriod(activePeriod)}>
+                  Generate Run
+                </Button>
               </div>
             </form>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Step 3 - Submit and Approve</CardTitle>
-          <CardDescription>Take the next action only after reviewing the generated run.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!activePeriod ? (
-            <div className="text-sm text-muted-foreground">Select a period to unlock approvals.</div>
-          ) : runsLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : runs.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No runs for this period yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Run</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Net Total</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell>
-                        <div className="font-medium">Run #{run.runNumber}</div>
-                        <div className="text-xs text-muted-foreground">{format(new Date(run.createdAt), "yyyy-MM-dd HH:mm")}</div>
-                      </TableCell>
-                      <TableCell><Badge variant={run.status === "APPROVED" ? "secondary" : "outline"}>{run.status}</Badge></TableCell>
-                      <TableCell>{run.netTotal.toFixed(2)}</TableCell>
-                      <TableCell>{run.createdBy?.name ?? "-"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {renderPrimaryAction(run)}
-                          <Button size="sm" variant="outline" onClick={() => setRunDetailsId(run.id)}>
-                            <FileText className="size-4" />
-                            Details
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent className="w-full sm:max-w-lg p-6">
@@ -554,39 +994,20 @@ export default function GoldPayrollPage() {
           ) : (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
-                <div className="rounded-md border p-2"><div className="text-xs text-muted-foreground">Run</div><div className="font-semibold">#{runDetails.runNumber}</div></div>
-                <div className="rounded-md border p-2"><div className="text-xs text-muted-foreground">Status</div><div className="font-semibold">{runDetails.status}</div></div>
-                <div className="rounded-md border p-2"><div className="text-xs text-muted-foreground">Net Total</div><div className="font-semibold">{runDetails.netTotal.toFixed(2)}</div></div>
-                <div className="rounded-md border p-2"><div className="text-xs text-muted-foreground">Rate</div><div className="font-semibold">{runDetails.goldRatePerUnit ? `${runDetails.goldRatePerUnit.toFixed(4)} / ${runDetails.goldRateUnit}` : "-"}</div></div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Run</div><div className="font-semibold font-mono">#{runDetails.runNumber}</div></div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Status</div><div className="font-semibold">{runDetails.status}</div></div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Net Total</div><div className="font-semibold font-mono">{runDetails.netTotal.toFixed(2)}</div></div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Rate</div><div className="font-semibold font-mono">{runDetails.goldRatePerUnit ? `${runDetails.goldRatePerUnit.toFixed(4)} / ${runDetails.goldRateUnit}` : "-"}</div></div>
               </div>
-              <div className="max-h-[45dvh] overflow-auto rounded-md border">
-                <Table>
-                  <TableHeader className="bg-muted sticky top-0">
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Base</TableHead>
-                      <TableHead>Variable</TableHead>
-                      <TableHead>Allowances</TableHead>
-                      <TableHead>Deductions</TableHead>
-                      <TableHead>Net</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {runDetails.lineItems.map((line) => (
-                      <TableRow key={line.id}>
-                        <TableCell>
-                          <div className="font-medium">{line.employee.name}</div>
-                          <div className="text-xs text-muted-foreground">{line.employee.employeeId}</div>
-                        </TableCell>
-                        <TableCell>{line.baseAmount.toFixed(2)}</TableCell>
-                        <TableCell>{line.variableAmount.toFixed(2)}</TableCell>
-                        <TableCell>{line.allowancesTotal.toFixed(2)}</TableCell>
-                        <TableCell>{line.deductionsTotal.toFixed(2)}</TableCell>
-                        <TableCell>{line.netAmount.toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
+                <DataTable
+                  data={runDetails.lineItems}
+                  columns={runDetailColumns}
+                  features={{ globalFilter: false, pagination: false, sorting: true }}
+                  maxBodyHeight="45dvh"
+                  tableContainerClassName="overflow-auto"
+                  tableClassName="text-sm"
+                />
               </div>
             </div>
           )}

@@ -52,6 +52,7 @@ export type TableProps = React.ComponentProps<"table"> & {
   controlsPosition?: ControlsPosition;
   controlsClassName?: string;
   hideControlsWhenSinglePage?: boolean;
+  edgeToEdge?: boolean;
 };
 
 const defaultPageSizeOptions = [10, 25, 50, 100] as const;
@@ -72,7 +73,6 @@ function TablePaginationControls({
   pageCount,
   pageSize,
   mode,
-  setMode,
   setPage,
   setPageSize,
   pageSizeOptions,
@@ -83,7 +83,6 @@ function TablePaginationControls({
   pageCount: number;
   pageSize: number;
   mode: TableMode;
-  setMode: (mode: TableMode) => void;
   setPage: (page: number) => void;
   setPageSize: (pageSize: number) => void;
   pageSizeOptions: readonly number[];
@@ -92,37 +91,12 @@ function TablePaginationControls({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
+        "section-shell flex flex-col gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
         className,
       )}
     >
-      <div className="inline-flex w-fit items-center rounded-md border border-border bg-card p-1">
-        <Button
-          type="button"
-          size="sm"
-          variant={mode === "paginated" ? "default" : "ghost"}
-          onClick={() => {
-            setMode("paginated");
-            setPage(1);
-          }}
-        >
-          Paginated
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={mode === "all" ? "default" : "ghost"}
-          onClick={() => {
-            setMode("all");
-            setPage(1);
-          }}
-        >
-          All
-        </Button>
-      </div>
-
       {mode === "paginated" ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
@@ -165,7 +139,9 @@ function TablePaginationControls({
           </Button>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">Showing all {rowCount.toLocaleString()} rows</p>
+        <p className="ml-auto text-xs text-muted-foreground">
+          Showing all {rowCount.toLocaleString()} rows
+        </p>
       )}
     </div>
   );
@@ -193,6 +169,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       controlsPosition = "top",
       controlsClassName,
       hideControlsWhenSinglePage = false,
+      edgeToEdge = true,
       ...props
     },
     ref,
@@ -333,7 +310,6 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
               pageCount={pageCount}
               pageSize={pageSize}
               mode={mode}
-              setMode={setMode}
               setPage={setPage}
               setPageSize={setPageSize}
               pageSizeOptions={pageSizeOptions}
@@ -341,12 +317,14 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
             />
           ) : null}
 
-          <table
-            ref={ref}
-            data-slot="table"
-            className={cn("w-full caption-bottom text-sm", className)}
-            {...props}
-          />
+          <div className={cn("table-rail", edgeToEdge && "table-edge-to-edge")}>
+            <table
+              ref={ref}
+              data-slot="table"
+              className={cn("w-full caption-bottom text-sm", className)}
+              {...props}
+            />
+          </div>
 
           {shouldRenderBottomControls ? (
             <TablePaginationControls
@@ -355,7 +333,6 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
               pageCount={pageCount}
               pageSize={pageSize}
               mode={mode}
-              setMode={setMode}
               setPage={setPage}
               setPageSize={setPageSize}
               pageSizeOptions={pageSizeOptions}
@@ -382,9 +359,9 @@ const TableHeader = React.forwardRef<
       ref={ref}
       data-slot="table-header"
       className={cn(
-        "[&_tr]:border-b",
+        "[&_tr]:border-b [&_tr]:border-border/45",
         stickyHeader &&
-          "sticky z-20 [&_tr]:bg-muted/95 supports-[backdrop-filter]:backdrop-blur",
+          "sticky z-20 [&_tr]:bg-[var(--surface-subtle)]/95 supports-[backdrop-filter]:backdrop-blur",
         className,
       )}
       style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
@@ -450,7 +427,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.ComponentProps<"tr"
       ref={ref}
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        "hover:bg-muted/35 data-[state=selected]:bg-muted/70 border-b border-border/45 transition-colors",
         className,
       )}
       {...props}
@@ -465,7 +442,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-head"
       className={cn(
-        "text-foreground h-10 px-3 text-left align-middle font-semibold [&:has([role=checkbox])]:pr-0",
+        "text-foreground h-11 px-[var(--table-gutter-x)] text-left align-middle font-semibold [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -479,7 +456,10 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
     <td
       ref={ref}
       data-slot="table-cell"
-      className={cn("p-3 align-middle [&:has([role=checkbox])]:pr-0", className)}
+      className={cn(
+        "min-h-[var(--table-row-min-h)] px-[var(--table-gutter-x)] py-2.5 align-middle [&:has([role=checkbox])]:pr-0",
+        className,
+      )}
       {...props}
     />
   ),

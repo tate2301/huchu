@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useSearchParams } from "next/navigation";
@@ -10,14 +11,16 @@ import { HrShell } from "@/components/human-resources/hr-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import {
   fetchDisciplinaryActions,
   fetchEmployees,
@@ -155,9 +158,21 @@ export default function HrIncidentsPage() {
   const incidentIdFromQuery = searchParams.get("incidentId");
   const disciplinaryIdFromQuery = searchParams.get("disciplinaryId");
 
-  const [incidentSearch, setIncidentSearch] = useState("");
+  const [incidentQuery, setIncidentQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
+  const [actionsQuery, setActionsQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
   const [incidentStatusFilter, setIncidentStatusFilter] = useState("ALL");
   const [actionStatusFilter, setActionStatusFilter] = useState("ALL");
+  const [activeView, setActiveView] = useState<"incidents" | "actions">("incidents");
 
   const [incidentEditorOpen, setIncidentEditorOpen] = useState(false);
   const [incidentForm, setIncidentForm] = useState<IncidentForm>(emptyIncidentForm);
@@ -190,10 +205,10 @@ export default function HrIncidentsPage() {
   });
 
   const { data: incidentsData, isLoading: incidentsLoading, error: incidentsError } = useQuery({
-    queryKey: ["hr-incidents", incidentSearch, incidentStatusFilter],
+    queryKey: ["hr-incidents", incidentQuery.search, incidentStatusFilter],
     queryFn: () =>
       fetchHrIncidents({
-        search: incidentSearch || undefined,
+        search: incidentQuery.search?.trim() || undefined,
         status:
           incidentStatusFilter === "ALL"
             ? undefined
@@ -261,6 +276,200 @@ export default function HrIncidentsPage() {
   const canApproveOrReject = (item: DisciplinaryActionRecord) =>
     canRunApprovals &&
     (canSelfApprove || !item.submittedById || item.submittedById !== currentUser.id);
+
+  const incidentColumns: ColumnDef<HrIncidentRecord>[] = [
+    {
+      id: "incident",
+      header: "Incident",
+      accessorFn: (row) => `${row.title} ${row.category}`,
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.title}</div>
+          <div className="text-xs text-muted-foreground">{row.original.category}</div>
+        </div>
+      ),
+    },
+    {
+      id: "employee",
+      header: "Employee",
+      accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+      cell: ({ row }) => (
+        <div>
+          <div>{row.original.employee.name}</div>
+          <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+        </div>
+      ),
+    },
+    {
+      id: "severity",
+      header: "Severity",
+      accessorKey: "severity",
+      cell: ({ row }) => (
+        <Badge variant={incidentSeverityVariant(row.original.severity)}>{row.original.severity}</Badge>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorKey: "status",
+      cell: ({ row }) => (
+        <Badge variant={incidentStatusVariant(row.original.status)}>{row.original.status}</Badge>
+      ),
+    },
+    {
+      id: "date",
+      header: "Date",
+      accessorFn: (row) => row.incidentDate,
+      cell: ({ row }) => <NumericCell>{format(new Date(row.original.incidentDate), "yyyy-MM-dd")}</NumericCell>,
+    },
+    {
+      id: "actionsCount",
+      header: "Actions",
+      accessorFn: (row) => row._count?.actions ?? 0,
+      cell: ({ row }) => <NumericCell>{row.original._count?.actions ?? 0}</NumericCell>,
+    },
+    {
+      id: "quickActions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => setIncidentDetailsId(row.original.id)}>
+            <FileText className="size-4" />
+            Details
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openEditIncident(row.original)}
+            disabled={!canRunApprovals}
+          >
+            Edit
+          </Button>
+          <Button size="sm" onClick={() => openCreateAction(row.original)} disabled={!canRunApprovals}>
+            New Action
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const actionColumns: ColumnDef<DisciplinaryActionRecord>[] = [
+    {
+      id: "action",
+      header: "Action",
+      accessorFn: (row) => `${row.actionType} ${row.summary}`,
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.actionType}</div>
+          <div className="text-xs text-muted-foreground">{row.original.summary}</div>
+        </div>
+      ),
+    },
+    {
+      id: "employee",
+      header: "Employee",
+      accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+      cell: ({ row }) => (
+        <div>
+          {row.original.employee.name}
+          <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorKey: "status",
+      cell: ({ row }) => <Badge variant={actionStatusVariant(row.original.status)}>{row.original.status}</Badge>,
+    },
+    {
+      id: "penalty",
+      header: "Penalty",
+      accessorFn: (row) => row.penaltyAmount,
+      cell: ({ row }) => (
+        <div>
+          <NumericCell>
+            {row.original.penaltyCurrency} {row.original.penaltyAmount.toFixed(2)}
+          </NumericCell>
+          <div className="text-xs text-muted-foreground">{row.original.penaltyStatus}</div>
+        </div>
+      ),
+    },
+    {
+      id: "workflow",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionDetailsId(row.original.id)}>
+            <FileText className="size-4" />
+            Details
+          </Button>
+          {(row.original.status === "DRAFT" || row.original.status === "REJECTED") && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openEditAction(row.original)}
+                disabled={!canRunApprovals}
+              >
+                Edit
+              </Button>
+              <Button size="sm" onClick={() => submitActionMutation.mutate(row.original.id)} disabled={!canRunApprovals}>
+                Submit
+              </Button>
+            </>
+          )}
+          {row.original.status === "SUBMITTED" && (
+            <>
+              <Button
+                size="sm"
+                onClick={() => approveActionMutation.mutate(row.original.id)}
+                disabled={!canApproveOrReject(row.original)}
+                title={
+                  !canApproveOrReject(row.original)
+                    ? "Cannot approve your own submission unless you are superadmin."
+                    : undefined
+                }
+              >
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setRejectActionId(row.original.id)}
+                disabled={!canApproveOrReject(row.original)}
+                title={
+                  !canApproveOrReject(row.original)
+                    ? "Cannot reject your own submission unless you are superadmin."
+                    : undefined
+                }
+              >
+                Reject
+              </Button>
+            </>
+          )}
+          {row.original.status === "APPROVED" && (
+            <Button size="sm" onClick={() => setApplyActionId(row.original.id)} disabled={!canRunApprovals}>
+              Apply
+            </Button>
+          )}
+          {(row.original.status === "DRAFT" || row.original.status === "REJECTED") && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setDeleteActionId(row.original.id)}
+              disabled={!canRunApprovals}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   const selectedRejectAction = rejectActionId ? actionLookup.get(rejectActionId) ?? null : null;
   const selectedApplyAction = applyActionId ? actionLookup.get(applyActionId) ?? null : null;
@@ -653,247 +862,117 @@ export default function HrIncidentsPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Incidents</CardTitle>
-          <CardDescription>Log, review, and investigate workforce incidents.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-semibold">Search</label>
-              <Input
-                value={incidentSearch}
-                onChange={(event) => setIncidentSearch(event.target.value)}
-                placeholder="Search title or notes"
+      <VerticalDataViews
+        items={[
+          { id: "incidents", label: "Incidents", count: incidents.length },
+          { id: "actions", label: "Disciplinary Actions", count: actions.length },
+        ]}
+        value={activeView}
+        onValueChange={(value) => setActiveView(value as "incidents" | "actions")}
+        railLabel="Workforce Views"
+      >
+        {activeView === "incidents" ? (
+          <>
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">Incidents</h2>
+              <p className="text-sm text-muted-foreground">
+                Log, review, and investigate workforce incidents.
+              </p>
+            </header>
+
+            {incidentsLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : incidents.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">No incidents found.</div>
+            ) : (
+              <DataTable
+                data={incidents}
+                columns={incidentColumns}
+                queryState={incidentQuery}
+                onQueryStateChange={(next) => setIncidentQuery((prev) => ({ ...prev, ...next }))}
+                searchPlaceholder="Search title or notes"
+                searchSubmitLabel="Search"
+                toolbar={
+                  <Select
+                    value={incidentStatusFilter}
+                    onValueChange={(value) => {
+                      setIncidentStatusFilter(value);
+                      setIncidentQuery((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[220px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All statuses</SelectItem>
+                      {incidentStatusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                }
+                tableClassName="text-sm"
+                pagination={{ enabled: true }}
               />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Status</label>
-              <Select value={incidentStatusFilter} onValueChange={setIncidentStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  {incidentStatusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            )}
+          </>
+        ) : null}
 
-          {incidentsLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : incidents.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No incidents found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Incident</TableHead>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                    <TableHead className="text-right">Quick Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {incidents.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-muted-foreground">{item.category}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div>{item.employee.name}</div>
-                        <div className="text-xs text-muted-foreground">{item.employee.employeeId}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={incidentSeverityVariant(item.severity)}>{item.severity}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={incidentStatusVariant(item.status)}>{item.status}</Badge>
-                      </TableCell>
-                      <TableCell>{format(new Date(item.incidentDate), "yyyy-MM-dd")}</TableCell>
-                      <TableCell>{item._count?.actions ?? 0}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setIncidentDetailsId(item.id)}>
-                            <FileText className="size-4" />
-                            Details
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openEditIncident(item)}
-                            disabled={!canRunApprovals}
-                          >
-                            Edit
-                          </Button>
-                          <Button size="sm" onClick={() => openCreateAction(item)} disabled={!canRunApprovals}>
-                            New Action
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {activeView === "actions" ? (
+          <>
+            <header className="section-shell space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Disciplinary Workflow
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Submit, approve, reject, and apply disciplinary actions.
+              </p>
+            </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Disciplinary Workflow</CardTitle>
-          <CardDescription>Submit, approve, reject, and apply disciplinary actions.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Status</label>
-              <Select value={actionStatusFilter} onValueChange={setActionStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  {actionStatusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {actionsLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : actions.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No disciplinary actions found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Penalty</TableHead>
-                    <TableHead className="text-right">Workflow</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {actions.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{item.actionType}</div>
-                        <div className="text-xs text-muted-foreground">{item.summary}</div>
-                      </TableCell>
-                      <TableCell>
-                        {item.employee.name}
-                        <div className="text-xs text-muted-foreground">{item.employee.employeeId}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={actionStatusVariant(item.status)}>{item.status}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {item.penaltyCurrency} {item.penaltyAmount.toFixed(2)}
-                        <div className="text-xs text-muted-foreground">{item.penaltyStatus}</div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setActionDetailsId(item.id)}>
-                            <FileText className="size-4" />
-                            Details
-                          </Button>
-                          {(item.status === "DRAFT" || item.status === "REJECTED") && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openEditAction(item)}
-                                disabled={!canRunApprovals}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => submitActionMutation.mutate(item.id)}
-                                disabled={!canRunApprovals}
-                              >
-                                Submit
-                              </Button>
-                            </>
-                          )}
-                          {item.status === "SUBMITTED" && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => approveActionMutation.mutate(item.id)}
-                                disabled={!canApproveOrReject(item)}
-                                title={
-                                  !canApproveOrReject(item)
-                                    ? "Cannot approve your own submission unless you are superadmin."
-                                    : undefined
-                                }
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setRejectActionId(item.id)}
-                                disabled={!canApproveOrReject(item)}
-                                title={
-                                  !canApproveOrReject(item)
-                                    ? "Cannot reject your own submission unless you are superadmin."
-                                    : undefined
-                                }
-                              >
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                          {item.status === "APPROVED" && (
-                            <Button
-                              size="sm"
-                              onClick={() => setApplyActionId(item.id)}
-                              disabled={!canRunApprovals}
-                            >
-                              Apply
-                            </Button>
-                          )}
-                          {(item.status === "DRAFT" || item.status === "REJECTED") && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => setDeleteActionId(item.id)}
-                              disabled={!canRunApprovals}
-                            >
-                              <Trash2 className="size-4" />
-                              Delete
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {actionsLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : actions.length === 0 ? (
+              <div className="section-shell text-sm text-muted-foreground">
+                No disciplinary actions found.
+              </div>
+            ) : (
+              <DataTable
+                data={actions}
+                columns={actionColumns}
+                queryState={actionsQuery}
+                onQueryStateChange={(next) => setActionsQuery((prev) => ({ ...prev, ...next }))}
+                searchPlaceholder="Search action summary or employee"
+                searchSubmitLabel="Search"
+                toolbar={
+                  <Select
+                    value={actionStatusFilter}
+                    onValueChange={(value) => {
+                      setActionStatusFilter(value);
+                      setActionsQuery((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[220px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All statuses</SelectItem>
+                      {actionStatusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                }
+                tableClassName="text-sm"
+                pagination={{ enabled: true }}
+              />
+            )}
+          </>
+        ) : null}
+      </VerticalDataViews>
 
       <Dialog open={incidentEditorOpen} onOpenChange={setIncidentEditorOpen}>
         <DialogContent className="max-w-3xl">
@@ -1202,42 +1281,42 @@ export default function HrIncidentsPage() {
           ) : incidentDetails ? (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Status</div>
                   <Badge variant={incidentStatusVariant(incidentDetails.status)}>
                     {incidentDetails.status}
                   </Badge>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Severity</div>
                   <Badge variant={incidentSeverityVariant(incidentDetails.severity)}>
                     {incidentDetails.severity}
                   </Badge>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Employee</div>
                   <div className="font-medium">{incidentDetails.employee.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {incidentDetails.employee.employeeId}
                   </div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Incident Date</div>
                   <div>{format(new Date(incidentDetails.incidentDate), "yyyy-MM-dd")}</div>
                 </div>
               </div>
-              <div className="rounded-md border p-3">
+              <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="font-medium">{incidentDetails.title}</div>
                 <div className="text-sm text-muted-foreground">{incidentDetails.description}</div>
               </div>
 
-              <div className="rounded-md border p-3">
+              <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="text-xs text-muted-foreground">Investigation Notes</div>
                 <div className="text-sm">{incidentDetails.investigationNotes || "-"}</div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Site</div>
                   <div>
                     {incidentDetails.site
@@ -1245,11 +1324,11 @@ export default function HrIncidentsPage() {
                       : "-"}
                   </div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Reported By</div>
                   <div>{incidentDetails.reportedBy?.name ?? "-"}</div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Resolved By</div>
                   <div>{incidentDetails.resolvedBy?.name ?? "-"}</div>
                 </div>
@@ -1297,44 +1376,44 @@ export default function HrIncidentsPage() {
           ) : actionDetails ? (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Status</div>
                   <Badge variant={actionStatusVariant(actionDetails.status)}>
                     {actionDetails.status}
                   </Badge>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Type</div>
                   <div>{actionDetails.actionType}</div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Penalty</div>
                   <div>
                     {actionDetails.penaltyCurrency} {actionDetails.penaltyAmount.toFixed(2)}
                   </div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Penalty Status</div>
                   <div>{actionDetails.penaltyStatus}</div>
                 </div>
               </div>
-              <div className="rounded-md border p-3">
+              <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="font-medium">{actionDetails.summary}</div>
                 <div className="text-sm text-muted-foreground">{actionDetails.notes || "-"}</div>
               </div>
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Employee</div>
                   <div>{actionDetails.employee.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {actionDetails.employee.employeeId}
                   </div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Linked Incident</div>
                   <div>{actionDetails.incident?.title ?? "-"}</div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Effective Date</div>
                   <div>
                     {actionDetails.effectiveDate
@@ -1357,7 +1436,7 @@ export default function HrIncidentsPage() {
             <DialogDescription>Provide a rejection note for audit history and rework.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-md border p-3 text-sm">
+            <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Action</div>
               <div className="font-medium">{selectedRejectAction?.summary ?? "-"}</div>
             </div>
@@ -1399,7 +1478,7 @@ export default function HrIncidentsPage() {
             <DialogDescription>Record application details and penalty settlement state.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-md border p-3 text-sm">
+            <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Action</div>
               <div className="font-medium">{selectedApplyAction?.summary ?? "-"}</div>
             </div>
@@ -1471,7 +1550,7 @@ export default function HrIncidentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-md border p-3 text-sm">
+            <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Action</div>
               <div className="font-medium">{selectedDeleteAction?.summary ?? "-"}</div>
             </div>
@@ -1504,7 +1583,7 @@ export default function HrIncidentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-md border p-3 text-sm">
+            <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Incident</div>
               <div className="font-medium">{selectedDeleteIncident?.title ?? "-"}</div>
             </div>
@@ -1534,3 +1613,4 @@ export default function HrIncidentsPage() {
     </HrShell>
   );
 }
+

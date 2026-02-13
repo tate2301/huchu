@@ -4,19 +4,14 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { ArrowRight, FileText, Plus } from "@/lib/icons";
 import { HrShell } from "@/components/human-resources/hr-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -33,21 +28,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WorkflowStep } from "@/components/ui/workflow-step";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { useToast } from "@/components/ui/use-toast";
 import {
+  type DisbursementBatchRecord,
   fetchDisbursementBatches,
   fetchPayrollRuns,
   type PayrollRunRecord,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 type BatchForm = {
   payrollRunId: string;
@@ -97,6 +87,8 @@ type BatchDetails = {
     };
   }>;
 };
+
+type BatchDetailItem = BatchDetails["items"][number];
 
 const emptyBatchForm: BatchForm = {
   payrollRunId: "",
@@ -158,6 +150,18 @@ export default function DisbursementsPage() {
   const [detailsBatchId, setDetailsBatchId] = useState<string | null>(
     batchIdFromQuery,
   );
+  const [availableRunsQuery, setAvailableRunsQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  });
+  const [batchesQuery, setBatchesQuery] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 10,
+    search: "",
+  });
 
   const {
     data: runsData,
@@ -351,6 +355,264 @@ export default function DisbursementsPage() {
     },
   });
 
+  const availableRunColumns = useMemo<ColumnDef<PayrollRunRecord>[]>(
+    () => [
+      {
+        id: "run",
+        header: "Run",
+        cell: ({ row }) => (
+          <div className="font-medium">
+            <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+          </div>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        cell: ({ row }) => (
+          <Badge variant="outline">
+            {row.original.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "period.periodKey",
+        header: "Period",
+        cell: ({ row }) => row.original.period.periodKey,
+      },
+      {
+        id: "approvedRate",
+        header: "Approved Rate",
+        cell: ({ row }) =>
+          row.original.domain === "GOLD_PAYOUT" && row.original.goldRatePerUnit
+            ? (
+              <NumericCell>
+                {row.original.goldRatePerUnit.toFixed(4)} / {row.original.goldRateUnit}
+              </NumericCell>
+            )
+            : "-",
+      },
+      {
+        accessorKey: "netTotal",
+        header: "Net Total",
+        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "action",
+        header: "",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button
+              size="sm"
+              onClick={() => {
+                setBatchForm((prev) => hydrateFormFromRun(row.original, prev));
+                setIsCreateOpen(true);
+              }}
+            >
+              Create Batch
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const batchColumns = useMemo<ColumnDef<DisbursementBatchRecord>[]>(
+    () => [
+      {
+        id: "batch",
+        header: "Batch",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.code}</div>
+            <div className="text-xs text-muted-foreground">{row.original.method}</div>
+          </div>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        cell: ({ row }) => (
+          <Badge variant="outline">
+            {row.original.payrollRun.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
+          </Badge>
+        ),
+      },
+      {
+        id: "run",
+        header: "Run",
+        cell: ({ row }) => (
+          <div>
+            <div>
+              <NumericCell align="left">Run #{row.original.payrollRun.runNumber}</NumericCell>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.payrollRun.period?.periodKey ?? "-"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "rate",
+        header: "Applied Rate",
+        cell: ({ row }) => {
+          const parsedRate = parseAppliedRate(row.original.notes);
+          const isGold = row.original.payrollRun.domain === "GOLD_PAYOUT";
+          if (!isGold) return "-";
+          if (parsedRate) return <NumericCell>{parsedRate.rate.toFixed(4)} / {parsedRate.unit}</NumericCell>;
+          if (row.original.payrollRun.goldRatePerUnit) {
+            return (
+              <NumericCell>
+                {row.original.payrollRun.goldRatePerUnit.toFixed(4)} / {row.original.payrollRun.goldRateUnit}
+              </NumericCell>
+            );
+          }
+          return "-";
+        },
+      },
+      {
+        accessorKey: "totalAmount",
+        header: "Amount",
+        cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Created",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const status = row.original.status;
+          return (
+            <div className="flex justify-end gap-2">
+              {(status === "DRAFT" || status === "REJECTED") ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={submitBatchMutation.isPending}
+                  onClick={() => submitBatchMutation.mutate(row.original.id)}
+                >
+                  Submit
+                </Button>
+              ) : null}
+              {status === "SUBMITTED" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={approveBatchMutation.isPending}
+                  onClick={() => approveBatchMutation.mutate(row.original.id)}
+                >
+                  Approve
+                </Button>
+              ) : null}
+              {status === "APPROVED" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={markPaidMutation.isPending}
+                  onClick={() => markPaidMutation.mutate(row.original.id)}
+                >
+                  Mark Paid
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDetailsBatchId(row.original.id)}
+              >
+                Details
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [
+      approveBatchMutation,
+      markPaidMutation,
+      submitBatchMutation,
+    ],
+  );
+
+  const batchDetailColumns = useMemo<ColumnDef<BatchDetailItem>[]>(
+    () => [
+      {
+        id: "employee",
+        header: "Employee",
+        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.employee.name}</div>
+            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          </div>
+        ),
+      },
+      {
+        id: "amount",
+        header: "Amount",
+        accessorFn: (row) => row.amount,
+        cell: ({ row }) => (
+          <NumericCell>
+            {row.original.lineItem.currency} {row.original.amount.toFixed(2)}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "paid",
+        header: "Paid",
+        accessorFn: (row) => row.paidAmount ?? 0,
+        cell: ({ row }) => (
+          <NumericCell>
+            {row.original.lineItem.currency} {(row.original.paidAmount ?? 0).toFixed(2)}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "paidAt",
+        header: "Paid At",
+        accessorFn: (row) => row.paidAt ?? "",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "receipt",
+        header: "Receipt",
+        accessorFn: (row) => row.receiptReference ?? "",
+        cell: ({ row }) => row.original.receiptReference ?? "-",
+      },
+    ],
+    [],
+  );
+
   return (
     <HrShell
       activeTab="disbursements"
@@ -383,222 +645,67 @@ export default function DisbursementsPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Step 1 - Pick Approved Pay Run</CardTitle>
-              <CardDescription>
-                Salary and gold payout runs are disbursed from one workflow.
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              onClick={() => setIsCreateOpen(true)}
-              disabled={availableRuns.length === 0}
-            >
+      {(runsLoading || availableRuns.length > 0) ? (
+        <WorkflowStep
+          title="Approved Runs Ready for Disbursement"
+          description={
+            runsLoading
+              ? "Loading approved salary and gold payout runs."
+              : "Salary and gold payout runs are disbursed from one workflow."
+          }
+          badge={runsLoading ? "..." : availableRuns.length}
+          actions={
+            <Button type="button" onClick={() => setIsCreateOpen(true)} disabled={runsLoading}>
               <Plus className="size-4" />
               New Disbursement Batch
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+          }
+        >
           {runsLoading ? (
             <Skeleton className="h-20 w-full" />
-          ) : availableRuns.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No approved payroll runs available for new disbursement batches.
-            </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Run</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Approved Rate</TableHead>
-                    <TableHead>Net Total</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {availableRuns.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell className="font-medium">
-                        Run #{run.runNumber}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {run.domain === "GOLD_PAYOUT"
-                            ? "Gold Payout"
-                            : "Salary Payroll"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{run.period.periodKey}</TableCell>
-                      <TableCell>
-                        {run.domain === "GOLD_PAYOUT" && run.goldRatePerUnit
-                          ? `${run.goldRatePerUnit.toFixed(4)} / ${run.goldRateUnit}`
-                          : "-"}
-                      </TableCell>
-                      <TableCell>{run.netTotal.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setBatchForm((prev) =>
-                              hydrateFormFromRun(run, prev),
-                            );
-                            setIsCreateOpen(true);
-                          }}
-                        >
-                          Create Batch
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              data={availableRuns}
+              columns={availableRunColumns}
+              queryState={availableRunsQuery}
+              onQueryStateChange={(next) =>
+                setAvailableRunsQuery((prev) => ({ ...prev, ...next }))
+              }
+              features={{ sorting: true, globalFilter: true, pagination: true }}
+              pagination={{ enabled: true, server: false }}
+              searchPlaceholder="Search approved runs"
+              tableClassName="text-sm"
+            />
           )}
-        </CardContent>
-      </Card>
+        </WorkflowStep>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Step 2 - Submit, Approve, and Mark Paid</CardTitle>
-          <CardDescription>
-            Once a disbursement batch is approved, the underlying payroll run is
-            archived.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {batchesLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : batches.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No disbursement batches yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Batch</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Run</TableHead>
-                    <TableHead>Applied Rate</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {batches.map((batch) => {
-                    const parsedRate = parseAppliedRate(batch.notes);
-                    const isGold = batch.payrollRun.domain === "GOLD_PAYOUT";
-                    return (
-                      <TableRow key={batch.id} className="border-b">
-                        <TableCell>
-                          <div className="font-semibold">{batch.code}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {batch.method}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {isGold ? "Gold Payout" : "Salary Payroll"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div>Run #{batch.payrollRun.runNumber}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {batch.payrollRun.period?.periodKey ?? "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {isGold
-                            ? parsedRate
-                              ? `${parsedRate.rate.toFixed(4)} / ${parsedRate.unit}`
-                              : batch.payrollRun.goldRatePerUnit
-                                ? `${batch.payrollRun.goldRatePerUnit.toFixed(4)} / ${batch.payrollRun.goldRateUnit}`
-                                : "-"
-                            : "-"}
-                        </TableCell>
-                        <TableCell>{batch.totalAmount.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              batch.status === "PAID" ? "secondary" : "outline"
-                            }
-                          >
-                            {batch.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {format(
-                            new Date(batch.createdAt),
-                            "yyyy-MM-dd HH:mm",
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                batch.status !== "DRAFT" ||
-                                submitBatchMutation.isPending
-                              }
-                              onClick={() =>
-                                submitBatchMutation.mutate(batch.id)
-                              }
-                            >
-                              Submit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                batch.status !== "SUBMITTED" ||
-                                approveBatchMutation.isPending
-                              }
-                              onClick={() =>
-                                approveBatchMutation.mutate(batch.id)
-                              }
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                !["APPROVED", "PAID"].includes(batch.status) ||
-                                markPaidMutation.isPending
-                              }
-                              onClick={() => markPaidMutation.mutate(batch.id)}
-                            >
-                              Mark Paid
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setDetailsBatchId(batch.id)}
-                            >
-                              Details
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <WorkflowStep
+        title="Disbursement Batch Workflow"
+        description="Once a disbursement batch is approved, the underlying payroll run is archived."
+        badge={batchesLoading ? "..." : batches.length}
+      >
+        {batchesLoading ? (
+          <Skeleton className="h-20 w-full" />
+        ) : batches.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No disbursement batches yet.
+          </div>
+        ) : (
+          <DataTable
+            data={batches}
+            columns={batchColumns}
+            queryState={batchesQuery}
+            onQueryStateChange={(next) =>
+              setBatchesQuery((prev) => ({ ...prev, ...next }))
+            }
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search disbursement batches"
+            tableClassName="text-sm"
+          />
+        )}
+      </WorkflowStep>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-xl">
@@ -784,7 +891,7 @@ export default function DisbursementsPage() {
             </div>
 
             {selectedRun ? (
-              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+              <div className="rounded-md border-0 bg-muted/40 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
                 <div className="font-medium">Preview</div>
                 <div className="text-muted-foreground">
                   {selectedRun.domain === "GOLD_PAYOUT"
@@ -843,80 +950,40 @@ export default function DisbursementsPage() {
           ) : (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Batch</div>
                   <div className="font-semibold">{batchDetails.code}</div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Run</div>
                   <div className="font-semibold">
-                    #{batchDetails.payrollRun.runNumber} (
+                    <NumericCell align="left">#{batchDetails.payrollRun.runNumber}</NumericCell> (
                     {batchDetails.payrollRun.period.periodKey})
                   </div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">
                     Total Amount
                   </div>
                   <div className="font-semibold">
-                    {batchDetails.totalAmount.toFixed(2)}
+                    <NumericCell>{batchDetails.totalAmount.toFixed(2)}</NumericCell>
                   </div>
                 </div>
-                <div className="rounded-md border p-2">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Items</div>
-                  <div className="font-semibold">{batchDetails.itemCount}</div>
+                  <div className="font-semibold"><NumericCell>{batchDetails.itemCount}</NumericCell></div>
                 </div>
               </div>
 
-              <div className="max-h-[45dvh] overflow-auto rounded-md border">
-                <Table>
-                  <TableHeader className="bg-muted sticky top-0">
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Paid At</TableHead>
-                      <TableHead>Receipt</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {batchDetails.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="font-medium">
-                            {item.employee.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.employee.employeeId}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {item.lineItem.currency} {item.amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          {item.lineItem.currency}{" "}
-                          {(item.paidAmount ?? 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              item.status === "PAID" ? "secondary" : "outline"
-                            }
-                          >
-                            {item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {item.paidAt
-                            ? format(new Date(item.paidAt), "yyyy-MM-dd HH:mm")
-                            : "-"}
-                        </TableCell>
-                        <TableCell>{item.receiptReference ?? "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
+                <DataTable
+                  data={batchDetails.items}
+                  columns={batchDetailColumns}
+                  features={{ globalFilter: false, pagination: false, sorting: true }}
+                  maxBodyHeight="45dvh"
+                  tableClassName="text-sm"
+                  tableContainerClassName="overflow-auto"
+                />
               </div>
             </div>
           )}

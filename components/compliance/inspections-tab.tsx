@@ -1,21 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInspections, fetchSites, fetchUsers, type InspectionRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type InspectionForm = {
   id?: string;
@@ -55,7 +56,12 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
 
   const [siteFilter, setSiteFilter] = useState("all");
   const [overdueFilter, setOverdueFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<InspectionForm>(emptyForm);
 
@@ -71,12 +77,12 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
   const users = usersData?.data ?? [];
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["compliance", "inspections", siteFilter, overdueFilter, search],
+    queryKey: ["compliance", "inspections", siteFilter, overdueFilter, queryState.search],
     queryFn: () =>
       fetchInspections({
         siteId: siteFilter === "all" ? undefined : siteFilter,
         overdue: overdueFilter === "overdue" ? true : undefined,
-        search: search || undefined,
+        search: queryState.search || undefined,
         limit: 500,
       }),
   });
@@ -166,19 +172,124 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
     setDialogOpen(true);
   };
 
+  const columns = useMemo<ColumnDef<InspectionRecord>[]>(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        accessorFn: (row) => row.inspectionDate,
+        cell: ({ row }) => (
+          <div>
+            <NumericCell align="left">{toDateInput(row.original.inspectionDate)}</NumericCell>
+            {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorFn: (row) => row.site.name,
+        cell: ({ row }) => row.original.site.name,
+      },
+      {
+        id: "inspector",
+        header: "Inspector",
+        accessorFn: (row) => `${row.inspectorName} ${row.inspectorOrg}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.inspectorName}</div>
+            <div className="text-xs text-muted-foreground">{row.original.inspectorOrg}</div>
+          </div>
+        ),
+      },
+      {
+        id: "actionsDue",
+        header: "Actions Due",
+        accessorFn: (row) => row.actionsDue ?? "",
+        cell: ({ row }) => (
+          <NumericCell align="left">{toDateInput(row.original.actionsDue)}</NumericCell>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => {
+          const overdue =
+            Boolean(row.actionsDue) &&
+            !row.completedAt &&
+            toDateInput(row.actionsDue) < TODAY_ISO;
+          return overdue ? "OVERDUE" : row.completedAt ? "COMPLETED" : "OPEN";
+        },
+        cell: ({ row }) => {
+          const overdue =
+            Boolean(row.original.actionsDue) &&
+            !row.original.completedAt &&
+            toDateInput(row.original.actionsDue) < TODAY_ISO;
+          return (
+            <Badge variant={overdue ? "destructive" : row.original.completedAt ? "secondary" : "outline"}>
+              {overdue ? "OVERDUE" : row.original.completedAt ? "COMPLETED" : "OPEN"}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setForm({
+                  id: row.original.id,
+                  siteId: row.original.siteId,
+                  inspectionDate: toDateInput(row.original.inspectionDate),
+                  inspectorName: row.original.inspectorName,
+                  inspectorOrg: row.original.inspectorOrg,
+                  findings: row.original.findings,
+                  actions: row.original.actions ?? "",
+                  actionsDue: toDateInput(row.original.actionsDue),
+                  completedById: row.original.completedById ?? "",
+                  completedAt: toDateInput(row.original.completedAt),
+                  documentUrl: row.original.documentUrl ?? "",
+                });
+                setDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (!window.confirm("Delete this inspection?")) return;
+                deleteMutation.mutate(row.original.id);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [createdId, deleteMutation],
+  );
+
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Inspections</CardTitle>
-              <CardDescription>Track findings and closure actions</CardDescription>
-            </div>
-            <Button onClick={openCreate}>New Inspection</Button>
+      <section className="space-y-4">
+        <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">
+              Inspections
+            </h2>
+            <p className="text-sm text-muted-foreground">Track findings and closure actions</p>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          <Button onClick={openCreate}>New Inspection</Button>
+        </header>
           {pageError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load inspections</AlertTitle>
@@ -186,135 +297,65 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
             </Alert>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Site</label>
-              {sitesLoading ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={siteFilter} onValueChange={setSiteFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All sites" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sites</SelectItem>
-                    {sites?.map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Scope</label>
-              <Select value={overdueFilter} onValueChange={setOverdueFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All inspections</SelectItem>
-                  <SelectItem value="overdue">Overdue only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Search</label>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Inspector, organization, findings"
-              />
-            </div>
-          </div>
-
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : inspections.length === 0 ? (
             <div className="text-sm text-muted-foreground">No inspections found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Inspector</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Actions Due</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {inspections.map((inspection) => {
-                    const overdue =
-                      Boolean(inspection.actionsDue) &&
-                      !inspection.completedAt &&
-                      toDateInput(inspection.actionsDue) < TODAY_ISO;
-                    return (
-                      <TableRow
-                        key={inspection.id}
-                        className={`border-b ${createdId === inspection.id ? "bg-[var(--status-success-bg)]" : ""}`}
-                      >
-                        <TableCell className="p-3">{toDateInput(inspection.inspectionDate)}</TableCell>
-                        <TableCell className="p-3">{inspection.site.name}</TableCell>
-                        <TableCell className="p-3">
-                          <div className="font-semibold">{inspection.inspectorName}</div>
-                          <div className="text-xs text-muted-foreground">{inspection.inspectorOrg}</div>
-                        </TableCell>
-                        <TableCell className="p-3">{toDateInput(inspection.actionsDue)}</TableCell>
-                        <TableCell className="p-3">
-                          <Badge variant={overdue ? "destructive" : inspection.completedAt ? "secondary" : "outline"}>
-                            {overdue ? "OVERDUE" : inspection.completedAt ? "COMPLETED" : "OPEN"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="p-3 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setForm({
-                                  id: inspection.id,
-                                  siteId: inspection.siteId,
-                                  inspectionDate: toDateInput(inspection.inspectionDate),
-                                  inspectorName: inspection.inspectorName,
-                                  inspectorOrg: inspection.inspectorOrg,
-                                  findings: inspection.findings,
-                                  actions: inspection.actions ?? "",
-                                  actionsDue: toDateInput(inspection.actionsDue),
-                                  completedById: inspection.completedById ?? "",
-                                  completedAt: toDateInput(inspection.completedAt),
-                                  documentUrl: inspection.documentUrl ?? "",
-                                });
-                                setDialogOpen(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              disabled={deleteMutation.isPending}
-                              onClick={() => {
-                                if (!window.confirm("Delete this inspection?")) return;
-                                deleteMutation.mutate(inspection.id);
-                              }}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              data={inspections}
+              columns={columns}
+              queryState={queryState}
+              onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+              searchPlaceholder="Inspector, organization, findings"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              pagination={{ enabled: true }}
+              toolbar={
+                <>
+                  {sitesLoading ? (
+                    <Skeleton className="h-8 w-[180px]" />
+                  ) : (
+                    <Select
+                      value={siteFilter}
+                      onValueChange={(value) => {
+                        setSiteFilter(value);
+                        setQueryState((prev) => ({ ...prev, page: 1 }));
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[180px]">
+                        <SelectValue placeholder="All sites" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All sites</SelectItem>
+                        {sites?.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select
+                    value={overdueFilter}
+                    onValueChange={(value) => {
+                      setOverdueFilter(value);
+                      setQueryState((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[160px]">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All inspections</SelectItem>
+                      <SelectItem value="overdue">Overdue only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              }
+            />
           )}
-        </CardContent>
-      </Card>
+      </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-full sm:max-w-lg">

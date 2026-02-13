@@ -281,6 +281,17 @@ export interface AddonSetResult {
   auditEventId: string;
 }
 
+export interface BundleCatalogSummary {
+  code: string;
+  name: string;
+  description: string | null;
+  monthlyPrice: number;
+  additionalSiteMonthlyPrice: number;
+  isActive: boolean;
+  featureKeys: string[];
+  source: "SYSTEM" | "CUSTOM";
+}
+
 export interface ClientTemplateSummary {
   code: string;
   label: string;
@@ -658,6 +669,24 @@ export interface SetAddonInput {
   reason?: string;
 }
 
+export interface UpsertBundleCatalogInput {
+  code: string;
+  name: string;
+  description?: string;
+  monthlyPrice?: number;
+  additionalSiteMonthlyPrice?: number;
+  isActive?: boolean;
+  actor: string;
+  reason?: string;
+}
+
+export interface SetBundleFeaturesInput {
+  bundleCode: string;
+  featureKeys: string[];
+  actor: string;
+  reason?: string;
+}
+
 export interface ApplySubscriptionTemplateInput {
   companyId: string;
   templateCode: string;
@@ -839,6 +868,9 @@ export interface SubscriptionService {
   assignTier(input: AssignSubscriptionTierInput): Promise<MutationResult<TierAssignResult>>;
   listTemplates(): Promise<ClientTemplateSummary[]>;
   applyTemplate(input: ApplySubscriptionTemplateInput): Promise<MutationResult<ApplySubscriptionTemplateResult>>;
+  listBundleCatalog(): Promise<BundleCatalogSummary[]>;
+  upsertBundleCatalog(input: UpsertBundleCatalogInput): Promise<MutationResult<BundleCatalogSummary>>;
+  setBundleFeatures(input: SetBundleFeaturesInput): Promise<MutationResult<BundleCatalogSummary>>;
   listAddons(input: ListAddonsInput): Promise<AddonBundleSummary[]>;
   setAddon(input: SetAddonInput): Promise<MutationResult<AddonSetResult>>;
   recomputePricing(companyId: string): Promise<MutationResult<SubscriptionPricingSummary>>;

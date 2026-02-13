@@ -5,18 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-transparent text-sm font-semibold transition-[background-color,color,border-color,box-shadow,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[var(--motion-scale-press)]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border-0 text-sm font-semibold transition-[background-color,color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 [&_.material-symbols-rounded]:pointer-events-none [&_.material-symbols-rounded]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[var(--elevation-1)] hover:bg-[var(--action-primary-hover)] hover:shadow-[var(--elevation-2)]",
+          "bg-primary text-primary-foreground shadow-[var(--edge-outline-sharp)] hover:bg-[var(--action-primary-hover)] hover:shadow-[var(--edge-outline-sharp-hover)]",
         destructive:
-          "bg-destructive text-[var(--action-destructive-fg)] shadow-[var(--elevation-1)] hover:bg-destructive/90 hover:shadow-[var(--elevation-2)]",
+          "bg-destructive text-[var(--action-destructive-fg)] shadow-[var(--edge-outline-sharp)] hover:bg-destructive/90 hover:shadow-[var(--edge-outline-sharp-hover)]",
         outline:
-          "border-[var(--action-outline-border)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--action-outline-shadow)] hover:border-[var(--action-outline-border-hover)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--action-outline-shadow-hover)]",
+          "bg-[var(--action-outline-bg)] text-foreground shadow-[var(--action-outline-shadow)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--action-outline-shadow-hover)]",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-[var(--elevation-0)] hover:bg-[var(--action-secondary-hover)]",
+          "bg-secondary text-secondary-foreground shadow-[var(--edge-outline-sharp)] hover:bg-[var(--action-secondary-hover)] hover:shadow-[var(--edge-outline-sharp-hover)]",
         ghost: "text-foreground hover:bg-muted/80",
         link: "text-primary underline-offset-4 hover:underline",
       },

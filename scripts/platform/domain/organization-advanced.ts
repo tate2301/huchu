@@ -477,6 +477,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
             name: bundleDefinition.name,
             description: bundleDefinition.description,
             monthlyPrice: bundleDefinition.monthlyPrice,
+            additionalSiteMonthlyPrice: bundleDefinition.additionalSiteMonthlyPrice,
             isActive: true,
           },
           create: {
@@ -484,6 +485,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
             name: bundleDefinition.name,
             description: bundleDefinition.description,
             monthlyPrice: bundleDefinition.monthlyPrice,
+            additionalSiteMonthlyPrice: bundleDefinition.additionalSiteMonthlyPrice,
             isActive: true,
           },
           select: { id: true, code: true },

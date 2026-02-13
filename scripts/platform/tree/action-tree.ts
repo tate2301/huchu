@@ -178,6 +178,18 @@ export const ACTION_TREE: ActionDomain[] = [
         description: "Sync feature catalog, bundles, and tiers.",
         operations: [
           {
+            id: "subscription.bundle.upsert",
+            label: "Create or Edit Bundle",
+            description: "Create custom bundles or update bundle name, price, and active state.",
+            moduleId: "subscriptions",
+          },
+          {
+            id: "subscription.bundle.set-features",
+            label: "Configure Bundle Features",
+            description: "Pick which features are included in each bundle.",
+            moduleId: "subscriptions",
+          },
+          {
             id: "subscription.sync-catalog",
             label: "Sync Catalog",
             description: "Sync feature keys, bundles, and tier defaults from code catalog.",

@@ -33,7 +33,7 @@ export default function MaintenanceEquipmentReportPage() {
   const pageError = sitesError || error;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Equipment Service" description="Equipment register and service status" />
 
       {pageError ? (

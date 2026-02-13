@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import type { ColumnDef } from "@tanstack/react-table"
 import { useQuery } from "@tanstack/react-query"
 import { differenceInCalendarDays, format } from "date-fns"
 import { ArrowRight, FileText } from "@/lib/icons"
@@ -9,7 +10,7 @@ import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -17,12 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
+import { NumericCell } from "@/components/ui/numeric-cell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchEmployeePayments, type EmployeePayment } from "@/lib/api"
 import { getApiErrorMessage } from "@/lib/api-client"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type StatusFilter = "ALL" | "DUE" | "PARTIAL"
 type RowView = EmployeePayment & {
@@ -42,6 +44,12 @@ export default function OutstandingSalariesPage() {
   const [dueStart, setDueStart] = useState("")
   const [dueEnd, setDueEnd] = useState("")
   const [detailsId, setDetailsId] = useState<string | null>(null)
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["employee-payments", "salary-outstanding-detail"],
@@ -132,6 +140,109 @@ export default function OutstandingSalariesPage() {
     [filteredRows, detailsId],
   )
 
+  const columns = useMemo<ColumnDef<RowView>[]>(
+    () => [
+      {
+        id: "employee",
+        header: "Employee",
+        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.employee.name}</div>
+            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          </div>
+        ),
+      },
+      {
+        id: "period",
+        header: "Period",
+        accessorFn: (row) => `${row.periodStart} ${row.periodEnd}`,
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
+            {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "dueDate",
+        header: "Due Date",
+        accessorFn: (row) => row.dueDate,
+        cell: ({ row }) => (
+          <div>
+            <NumericCell align="left">{format(new Date(row.original.dueDate), "yyyy-MM-dd")}</NumericCell>
+            {row.original.isOverdue ? (
+              <div className="text-xs text-red-600">{row.original.overdueDays}d overdue</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "PARTIAL" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "amount",
+        header: "Amount",
+        accessorFn: (row) => row.amount,
+        cell: ({ row }) => <NumericCell>{toCurrency(row.original.amount, row.original.unit)}</NumericCell>,
+      },
+      {
+        id: "paid",
+        header: "Paid",
+        accessorFn: (row) => row.paidAmount ?? 0,
+        cell: ({ row }) => (
+          <NumericCell>{toCurrency(row.original.paidAmount ?? 0, row.original.unit)}</NumericCell>
+        ),
+      },
+      {
+        id: "outstanding",
+        header: "Outstanding",
+        accessorFn: (row) => row.outstandingAmount,
+        cell: ({ row }) => (
+          <NumericCell className="font-semibold">
+            {toCurrency(row.original.outstandingAmount, row.original.unit)}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "source",
+        header: "Source",
+        accessorFn: (row) =>
+          row.disbursementBatch
+            ? `Batch ${row.disbursementBatch.code}`
+            : row.payrollRun
+              ? `Run #${row.payrollRun.runNumber}`
+              : "Manual",
+        cell: ({ row }) =>
+          row.original.disbursementBatch
+            ? `Batch ${row.original.disbursementBatch.code}`
+            : row.original.payrollRun
+              ? `Run #${row.original.payrollRun.runNumber}`
+              : "Manual",
+      },
+      {
+        id: "action",
+        header: "",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button size="sm" variant="outline" onClick={() => setDetailsId(row.original.id)}>
+              <FileText className="size-4" />
+              Details
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  )
+
   return (
     <HrShell
       activeTab="salary-outstanding"
@@ -152,52 +263,6 @@ export default function OutstandingSalariesPage() {
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Focus the list by employee, status, and due-date window.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-4">
-          <div>
-            <label className="mb-2 block text-sm font-semibold">Employee</label>
-            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All employees</SelectItem>
-                {employeeOptions.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id}>
-                    {employee.name} ({employee.employeeId})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold">Status</label>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Due + Partial</SelectItem>
-                <SelectItem value="DUE">Due only</SelectItem>
-                <SelectItem value="PARTIAL">Partial only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label htmlFor="due-start" className="mb-2 block text-sm font-semibold">Due Date From</label>
-            <Input id="due-start" type="date" value={dueStart} onChange={(event) => setDueStart(event.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="due-end" className="mb-2 block text-sm font-semibold">Due Date To</label>
-            <Input id="due-end" type="date" value={dueEnd} onChange={(event) => setDueEnd(event.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Card>
@@ -238,76 +303,73 @@ export default function OutstandingSalariesPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Outstanding Salary Lines</CardTitle>
-          <CardDescription>Each row is an unpaid or partially paid salary obligation.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : filteredRows.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No outstanding salary items for current filters.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Paid</TableHead>
-                    <TableHead>Outstanding</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <div className="font-medium">{row.employee.name}</div>
-                        <div className="text-xs text-muted-foreground">{row.employee.employeeId}</div>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(row.periodStart), "yyyy-MM-dd")} to{" "}
-                        {format(new Date(row.periodEnd), "yyyy-MM-dd")}
-                      </TableCell>
-                      <TableCell>
-                        <div>{format(new Date(row.dueDate), "yyyy-MM-dd")}</div>
-                        {row.isOverdue ? (
-                          <div className="text-xs text-red-600">{row.overdueDays}d overdue</div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={row.status === "PARTIAL" ? "secondary" : "outline"}>{row.status}</Badge>
-                      </TableCell>
-                      <TableCell>{toCurrency(row.amount, row.unit)}</TableCell>
-                      <TableCell>{toCurrency(row.paidAmount ?? 0, row.unit)}</TableCell>
-                      <TableCell className="font-semibold">{toCurrency(row.outstandingAmount, row.unit)}</TableCell>
-                      <TableCell>
-                        {row.disbursementBatch
-                          ? `Batch ${row.disbursementBatch.code}`
-                          : row.payrollRun
-                            ? `Run #${row.payrollRun.runNumber}`
-                            : "Manual"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => setDetailsId(row.id)}>
-                          <FileText className="size-4" />
-                          Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Outstanding Salary Lines
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Each row is an unpaid or partially paid salary obligation.
+          </p>
+        </header>
+        {isLoading ? (
+          <Skeleton className="h-20 w-full" />
+        ) : filteredRows.length === 0 ? (
+          <div className="section-shell text-sm text-muted-foreground">
+            No outstanding salary items for current filters.
+          </div>
+        ) : (
+          <DataTable
+            data={filteredRows}
+            columns={columns}
+            queryState={queryState}
+            onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search employee, period, or source"
+            tableClassName="text-sm"
+            toolbar={
+              <>
+                <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+                  <SelectTrigger size="sm" className="h-8 w-[220px]">
+                    <SelectValue placeholder="Employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All employees</SelectItem>
+                    {employeeOptions.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id}>
+                        {employee.name} ({employee.employeeId})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                  <SelectTrigger size="sm" className="h-8 w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Due + Partial</SelectItem>
+                    <SelectItem value="DUE">Due only</SelectItem>
+                    <SelectItem value="PARTIAL">Partial only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={dueStart}
+                  onChange={(event) => setDueStart(event.target.value)}
+                  className="h-8 w-[170px]"
+                />
+                <Input
+                  type="date"
+                  value={dueEnd}
+                  onChange={(event) => setDueEnd(event.target.value)}
+                  className="h-8 w-[170px]"
+                />
+              </>
+            }
+          />
+        )}
+      </section>
 
       <Dialog open={Boolean(detailsId)} onOpenChange={(open) => !open && setDetailsId(null)}>
         <DialogContent className="max-w-2xl">
@@ -331,29 +393,29 @@ export default function OutstandingSalariesPage() {
               <div className="grid gap-3 md:grid-cols-3">
                 <div>
                   <div className="text-muted-foreground">Amount</div>
-                  <div className="font-medium">{toCurrency(selected.amount, selected.unit)}</div>
+                  <div className="font-medium font-mono">{toCurrency(selected.amount, selected.unit)}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Paid</div>
-                  <div className="font-medium">{toCurrency(selected.paidAmount ?? 0, selected.unit)}</div>
+                  <div className="font-medium font-mono">{toCurrency(selected.paidAmount ?? 0, selected.unit)}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Outstanding</div>
-                  <div className="font-medium">{toCurrency(selected.outstandingAmount, selected.unit)}</div>
+                  <div className="font-medium font-mono">{toCurrency(selected.outstandingAmount, selected.unit)}</div>
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div>
                   <div className="text-muted-foreground">Period Start</div>
-                  <div>{format(new Date(selected.periodStart), "yyyy-MM-dd")}</div>
+                  <div className="font-mono">{format(new Date(selected.periodStart), "yyyy-MM-dd")}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Period End</div>
-                  <div>{format(new Date(selected.periodEnd), "yyyy-MM-dd")}</div>
+                  <div className="font-mono">{format(new Date(selected.periodEnd), "yyyy-MM-dd")}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Due Date</div>
-                  <div>{format(new Date(selected.dueDate), "yyyy-MM-dd")}</div>
+                  <div className="font-mono">{format(new Date(selected.dueDate), "yyyy-MM-dd")}</div>
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">

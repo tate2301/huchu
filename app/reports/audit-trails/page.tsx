@@ -1,19 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
 import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchGoldCorrections, fetchSites, fetchStockMovements, fetchWorkOrders } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type AuditRow = {
   id: string;
@@ -30,6 +31,12 @@ export default function AuditTrailsReportPage() {
   const [moduleFilter, setModuleFilter] = useState("all");
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
@@ -100,9 +107,38 @@ export default function AuditTrailsReportPage() {
 
   const isLoading = correctionsLoading || movementsLoading || workOrdersLoading;
   const pageError = sitesError || correctionsError || movementsError || workOrdersError;
+  const columns = useMemo<ColumnDef<AuditRow>[]>(
+    () => [
+      {
+        id: "at",
+        header: "Time",
+        accessorFn: (row) => row.at,
+        cell: ({ row }) => (
+          <NumericCell align="left">{format(new Date(row.original.at), "MMM d, yyyy HH:mm")}</NumericCell>
+        ),
+      },
+      {
+        id: "module",
+        header: "Module",
+        accessorFn: (row) => row.module,
+        cell: ({ row }) => (
+          <Badge
+            variant={row.original.module === "GOLD" ? "secondary" : row.original.module === "STORES" ? "outline" : "default"}
+          >
+            {row.original.module}
+          </Badge>
+        ),
+      },
+      { id: "action", header: "Action", accessorFn: (row) => row.action, cell: ({ row }) => row.original.action },
+      { id: "actor", header: "Actor", accessorFn: (row) => row.actor, cell: ({ row }) => row.original.actor },
+      { id: "site", header: "Site", accessorFn: (row) => row.site, cell: ({ row }) => row.original.site },
+      { id: "details", header: "Details", accessorFn: (row) => row.details, cell: ({ row }) => row.original.details },
+    ],
+    [],
+  );
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Audit Trails" description="Operational audit events across modules" />
 
       {pageError ? (
@@ -112,101 +148,90 @@ export default function AuditTrailsReportPage() {
         </Alert>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter by site, module, and date range</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-5">
-          <div className="md:col-span-2">
-            <label className="mb-2 block text-sm font-semibold">Site</label>
-            {sitesLoading ? (
-              <Skeleton className="h-9 w-full" />
-            ) : (
-              <Select value={siteId} onValueChange={setSiteId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All sites</SelectItem>
-                  {sites?.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold">Module</label>
-            <Select value={moduleFilter} onValueChange={setModuleFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All modules" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All modules</SelectItem>
-                <SelectItem value="GOLD">Gold</SelectItem>
-                <SelectItem value="STORES">Stores</SelectItem>
-                <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold">Start Date</label>
-            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold">End Date</label>
-            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Records</CardTitle>
-          <CardDescription>{filteredRows.length} audit events</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : filteredRows.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No audit events for the selected filters.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Time</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Module</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Action</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Actor</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Details</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRows.map((row) => (
-                    <TableRow key={row.id} className="border-b">
-                      <TableCell className="p-3">{format(new Date(row.at), "MMM d, yyyy HH:mm")}</TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={row.module === "GOLD" ? "secondary" : row.module === "STORES" ? "outline" : "default"}>
-                          {row.module}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3">{row.action}</TableCell>
-                      <TableCell className="p-3">{row.actor}</TableCell>
-                      <TableCell className="p-3">{row.site}</TableCell>
-                      <TableCell className="p-3">{row.details}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">Records</h2>
+          <p className="text-sm text-muted-foreground">{filteredRows.length} audit events</p>
+        </header>
+        {isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : filteredRows.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No audit events for the selected filters.</div>
+        ) : (
+          <DataTable
+            data={filteredRows}
+            columns={columns}
+            queryState={queryState}
+            onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+            searchPlaceholder="Search action, actor, site, details"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            toolbar={
+              <>
+                {sitesLoading ? (
+                  <Skeleton className="h-8 w-[180px]" />
+                ) : (
+                  <Select
+                    value={siteId}
+                    onValueChange={(value) => {
+                      setSiteId(value);
+                      setQueryState((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[180px]">
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All sites</SelectItem>
+                      {sites?.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Select
+                  value={moduleFilter}
+                  onValueChange={(value) => {
+                    setModuleFilter(value);
+                    setQueryState((prev) => ({ ...prev, page: 1 }));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[150px]">
+                    <SelectValue placeholder="All modules" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All modules</SelectItem>
+                    <SelectItem value="GOLD">Gold</SelectItem>
+                    <SelectItem value="STORES">Stores</SelectItem>
+                    <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => {
+                    setStartDate(event.target.value);
+                    setQueryState((prev) => ({ ...prev, page: 1 }));
+                  }}
+                  className="h-8 w-[155px]"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => {
+                    setEndDate(event.target.value);
+                    setQueryState((prev) => ({ ...prev, page: 1 }));
+                  }}
+                  className="h-8 w-[155px]"
+                />
+              </>
+            }
+          />
+        )}
+      </section>
     </div>
   );
 }

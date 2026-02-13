@@ -27,6 +27,16 @@
 - Prefer clear, domain-oriented names (e.g., `dispatch`, `receipt`, `reconciliation`).
 - Run `pnpm lint` before submitting changes; there is no formatter configured, so avoid reformat-only diffs.
 
+## UX Playbook (Required)
+- Follow `docs/ux/platform-ux-playbook.md` for all UX/UI changes.
+- Treat playbook rules as default system behavior unless a task explicitly overrides them.
+- Key non-negotiables:
+  - One table per active view; use vertical tabs for multi-table contexts.
+  - Keep DataTable controls in one row (search + submit, filters, pagination).
+  - Use full-bleed primary tables and progressive disclosure patterns.
+  - Use expandable parent rows for parent-child workflows when applicable.
+  - Apply typographic hierarchy and `font-mono` for numeric/time values.
+
 ## Testing Guidelines
 - There is no automated test runner configured yet (`package.json` has no `test` script).
 - For now, validate changes with `pnpm lint` and a manual smoke test of affected screens.

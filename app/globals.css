@@ -10,7 +10,34 @@
         "wght" 500,
         "GRAD" 0,
         "opsz" 24;
-    font-size: 24px;
+    font-size: 1em;
+    line-height: 1;
+    vertical-align: -0.11em;
+}
+
+.material-symbols-rounded.h-3.w-3,
+.material-symbols-rounded.size-3 {
+    font-size: var(--icon-size-xs);
+}
+
+.material-symbols-rounded.h-4.w-4,
+.material-symbols-rounded.size-4 {
+    font-size: var(--icon-size-sm);
+}
+
+.material-symbols-rounded.h-5.w-5,
+.material-symbols-rounded.size-5 {
+    font-size: var(--icon-size-md);
+}
+
+.material-symbols-rounded.h-6.w-6,
+.material-symbols-rounded.size-6 {
+    font-size: var(--icon-size-lg);
+}
+
+.material-symbols-rounded.h-8.w-8,
+.material-symbols-rounded.size-8 {
+    font-size: var(--icon-size-xl);
 }
 
 @font-face {
@@ -146,33 +173,38 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 :root {
     --radius: 0.75rem;
     --radius-pill: 9999px;
+    --icon-size-xs: 0.75rem;
+    --icon-size-sm: 0.9375rem;
+    --icon-size-md: 1.125rem;
+    --icon-size-lg: 1.25rem;
+    --icon-size-xl: 1.5rem;
     --content-gutter-x: clamp(0.75rem, 1.8vw, 1.25rem);
     --section-gutter-x: 0.75rem;
     --table-gutter-x: 0.75rem;
     --table-row-min-h: 2.625rem;
-    --surface-canvas: #f7f9fc;
+    --surface-canvas: #fbfefd;
     --surface-base: #ffffff;
     --surface-raised: #ffffff;
-    --surface-muted: #edf2fa;
-    --surface-subtle: #f8faff;
+    --surface-muted: #ebf7f5;
+    --surface-subtle: #f3fbfa;
     --surface-overlay: rgb(255 255 255 / 88%);
     --text-strong: #101828;
     --text-body: #1d2939;
     --text-muted: #667085;
     --text-inverse: #ffffff;
     --text-danger: #b42318;
-    --action-primary-bg: #3d6bff;
+    --action-primary-bg: #0f8f86;
     --action-primary-fg: #ffffff;
-    --action-primary-hover: #2f58da;
-    --action-secondary-bg: #eaf0ff;
-    --action-secondary-fg: #1a2f66;
-    --action-secondary-hover: #dde7ff;
-    --action-outline-bg: #f8fbff;
+    --action-primary-hover: #0d7a73;
+    --action-secondary-bg: #dcf4f1;
+    --action-secondary-fg: #0f5f59;
+    --action-secondary-hover: #cfece8;
+    --action-outline-bg: #f7fcfb;
     --action-outline-hover-bg: #ffffff;
     --edge-neutral-rest: rgb(16 24 40 / 0.14);
     --edge-neutral-hover: rgb(16 24 40 / 0.22);
     --edge-neutral-pressed: rgb(16 24 40 / 0.3);
-    --edge-neutral-focus: rgb(92 124 255 / 0.42);
+    --edge-neutral-focus: rgb(15 143 134 / 0.42);
     --edge-outline-sharp:
         inset 0 0 0 1px var(--edge-neutral-rest);
     --edge-outline-sharp-hover:
@@ -201,8 +233,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --status-info-bg: #ebf3ff;
     --status-info-border: #6da7ff;
     --status-info-text: #1849a9;
-    --focus-ring: #5c7cff;
-    --focus-ring-offset: #f3f6fb;
+    --focus-ring: #12958c;
+    --focus-ring-offset: #f6fcfb;
     --type-display-size: 2rem;
     --type-display-line: 2.5rem;
     --type-display-weight: 700;
@@ -264,23 +296,26 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --accent: var(--surface-muted);
     --accent-foreground: var(--text-strong);
     --destructive: var(--action-destructive-bg);
-    --border: #d6dfeb;
-    --input: #d6dfeb;
+    --border: #d0e3df;
+    --input: #d0e3df;
     --ring: var(--focus-ring);
     /* Data visualization palette mapped for contrast on light surfaces */
-    --chart-1: #4e7dff;
-    --chart-2: #14b8a6;
+    --chart-1: #228f84;
+    --chart-2: #11b8a8;
     --chart-3: #f59e0b;
     --chart-4: #ef5da8;
     --chart-5: #8b5cf6;
-    --sidebar: #f8faff;
+    --sidebar: #effaf8;
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: #eaf0ff;
+    --sidebar-accent: #daf3ef;
     --sidebar-accent-foreground: var(--text-body);
-    --sidebar-border: #d6dfeb;
+    --sidebar-border: #cbe6e1;
     --sidebar-ring: var(--focus-ring);
+    --app-canvas-wash:
+        radial-gradient(1000px 700px at -10% -10%, rgb(17 184 168 / 0.08), transparent 62%),
+        radial-gradient(900px 650px at 110% 0%, rgb(15 143 134 / 0.07), transparent 58%);
 }
 
 .dark {
@@ -295,9 +330,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --text-muted: #93a4bf;
     --text-inverse: #0e1420;
     --text-danger: #fecaca;
-    --action-primary-bg: #81a4ff;
-    --action-primary-fg: #0b1528;
-    --action-primary-hover: #99b6ff;
+    --action-primary-bg: #67d8cd;
+    --action-primary-fg: #0a1918;
+    --action-primary-hover: #7be0d6;
     --action-secondary-bg: #22314a;
     --action-secondary-fg: #dbe7ff;
     --action-secondary-hover: #2a3b58;
@@ -335,7 +370,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --status-info-bg: #112f52;
     --status-info-border: #73b2ff;
     --status-info-text: #b8d8ff;
-    --focus-ring: #9bb7ff;
+    --focus-ring: #67d8cd;
     --focus-ring-offset: #0e1420;
     --elevation-1:
         inset 0 0 0 1px rgb(148 163 184 / 0.16);
@@ -371,14 +406,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --chart-3: #f8c978;
     --chart-4: #ff8ec7;
     --chart-5: #b9a2ff;
-    --sidebar: #121a29;
+    --sidebar: #101d21;
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: #22314a;
+    --sidebar-accent: #1a2b30;
     --sidebar-accent-foreground: var(--text-body);
-    --sidebar-border: #2b3950;
+    --sidebar-border: #2a4248;
     --sidebar-ring: var(--focus-ring);
+    --app-canvas-wash: none;
 }
 
 @layer base {
@@ -387,6 +423,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     }
     body {
         @apply bg-background text-foreground;
+        background-image: var(--app-canvas-wash);
+        background-attachment: fixed;
         font-size: var(--type-body-size);
         line-height: var(--type-body-line);
         font-weight: var(--type-body-weight);

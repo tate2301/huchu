@@ -1,18 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchGoldCorrections, fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GoldChainReportPage() {
   const [siteId, setSiteId] = useState("all");
@@ -73,7 +75,7 @@ export default function GoldChainReportPage() {
   const isLoading = poursLoading || dispatchesLoading || receiptsLoading || correctionsLoading;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Gold Chain" description="Pour to dispatch to receipt traceability" />
 
       {pageError ? (

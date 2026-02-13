@@ -37,7 +37,7 @@ export default function CompliancePage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Compliance" description="Permits, inspections, incidents, and training records" />
       <RecordSavedBanner entityLabel="compliance record" />
 

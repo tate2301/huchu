@@ -1,21 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchTrainingRecords, fetchUsers, type TrainingRecordSummary } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type TrainingForm = {
   id?: string;
@@ -48,7 +49,12 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
   const queryClient = useQueryClient();
 
   const [expiringFilter, setExpiringFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<TrainingForm>(emptyForm);
 
@@ -59,11 +65,11 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
   const users = usersData?.data ?? [];
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["compliance", "training", expiringFilter, search],
+    queryKey: ["compliance", "training", expiringFilter, queryState.search],
     queryFn: () =>
       fetchTrainingRecords({
         expiringDays: expiringFilter === "expiring" ? 30 : undefined,
-        search: search || undefined,
+        search: queryState.search || undefined,
         limit: 500,
       }),
   });
@@ -150,19 +156,108 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
     setDialogOpen(true);
   };
 
+  const columns = useMemo<ColumnDef<TrainingRecordSummary>[]>(
+    () => [
+      {
+        id: "user",
+        header: "User",
+        accessorFn: (row) => row.user.name,
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.user.name}</div>
+            {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        id: "trainingType",
+        header: "Training",
+        accessorFn: (row) => row.trainingType,
+        cell: ({ row }) => row.original.trainingType,
+      },
+      {
+        id: "trainingDate",
+        header: "Date",
+        accessorFn: (row) => row.trainingDate,
+        cell: ({ row }) => <NumericCell align="left">{toDateInput(row.original.trainingDate)}</NumericCell>,
+      },
+      {
+        id: "expiryDate",
+        header: "Expiry",
+        accessorFn: (row) => row.expiryDate ?? "",
+        cell: ({ row }) => {
+          const expired =
+            Boolean(row.original.expiryDate) &&
+            toDateInput(row.original.expiryDate) < TODAY_ISO;
+          return (
+            <div className="flex items-center gap-2">
+              <NumericCell align="left">{toDateInput(row.original.expiryDate)}</NumericCell>
+              {row.original.expiryDate ? (
+                <Badge variant={expired ? "destructive" : "outline"}>
+                  {expired ? "Expired" : "Active"}
+                </Badge>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setForm({
+                  id: row.original.id,
+                  userId: row.original.userId,
+                  trainingType: row.original.trainingType,
+                  trainingDate: toDateInput(row.original.trainingDate),
+                  expiryDate: toDateInput(row.original.expiryDate),
+                  certificateUrl: row.original.certificateUrl ?? "",
+                  trainedBy: row.original.trainedBy ?? "",
+                  notes: row.original.notes ?? "",
+                });
+                setDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (!window.confirm("Delete this training record?")) return;
+                deleteMutation.mutate(row.original.id);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [createdId, deleteMutation],
+  );
+
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Training Records</CardTitle>
-              <CardDescription>Track certification expiry and refresher schedules</CardDescription>
-            </div>
-            <Button onClick={openCreate}>New Training</Button>
+      <section className="space-y-4">
+        <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">
+              Training Records
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Track certification expiry and refresher schedules
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          <Button onClick={openCreate}>New Training</Button>
+        </header>
           {pageError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load training records</AlertTitle>
@@ -170,111 +265,40 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
             </Alert>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Scope</label>
-              <Select value={expiringFilter} onValueChange={setExpiringFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All records" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All records</SelectItem>
-                  <SelectItem value="expiring">Expiring in 30 days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-semibold">Search</label>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Training type, trained by, user"
-              />
-            </div>
-          </div>
-
           {isLoading || usersLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : records.length === 0 ? (
             <div className="text-sm text-muted-foreground">No training records found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">User</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Training</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Expiry</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {records.map((record) => {
-                    const expired =
-                      Boolean(record.expiryDate) &&
-                      toDateInput(record.expiryDate) < TODAY_ISO;
-                    return (
-                      <TableRow
-                        key={record.id}
-                        className={`border-b ${createdId === record.id ? "bg-[var(--status-success-bg)]" : ""}`}
-                      >
-                        <TableCell className="p-3">{record.user.name}</TableCell>
-                        <TableCell className="p-3">{record.trainingType}</TableCell>
-                        <TableCell className="p-3">{toDateInput(record.trainingDate)}</TableCell>
-                        <TableCell className="p-3">
-                          <div className="flex items-center gap-2">
-                            <span>{toDateInput(record.expiryDate)}</span>
-                            {record.expiryDate ? (
-                              <Badge variant={expired ? "destructive" : "outline"}>
-                                {expired ? "Expired" : "Active"}
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="p-3 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setForm({
-                                  id: record.id,
-                                  userId: record.userId,
-                                  trainingType: record.trainingType,
-                                  trainingDate: toDateInput(record.trainingDate),
-                                  expiryDate: toDateInput(record.expiryDate),
-                                  certificateUrl: record.certificateUrl ?? "",
-                                  trainedBy: record.trainedBy ?? "",
-                                  notes: record.notes ?? "",
-                                });
-                                setDialogOpen(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              disabled={deleteMutation.isPending}
-                              onClick={() => {
-                                if (!window.confirm("Delete this training record?")) return;
-                                deleteMutation.mutate(record.id);
-                              }}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              data={records}
+              columns={columns}
+              queryState={queryState}
+              onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+              searchPlaceholder="Training type, trained by, user"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              pagination={{ enabled: true }}
+              toolbar={
+                <Select
+                  value={expiringFilter}
+                  onValueChange={(value) => {
+                    setExpiringFilter(value);
+                    setQueryState((prev) => ({ ...prev, page: 1 }));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[190px]">
+                    <SelectValue placeholder="All records" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All records</SelectItem>
+                    <SelectItem value="expiring">Expiring in 30 days</SelectItem>
+                  </SelectContent>
+                </Select>
+              }
+            />
           )}
-        </CardContent>
-      </Card>
+      </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-full sm:max-w-lg">

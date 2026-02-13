@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { Pencil, Plus, Trash2 } from "@/lib/icons"
@@ -9,7 +10,7 @@ import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,6 @@ import {
   type EmployeeSummary,
 } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 const employeePositions = [
   { value: "MANAGER", label: "Manager" },
@@ -105,16 +105,21 @@ export default function HumanResourcesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [passportUploading, setPassportUploading] = useState(false)
   const [employeeIdPendingDelete, setEmployeeIdPendingDelete] = useState<string | null>(null)
-  const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
     "active",
   )
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  })
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["employees", search, statusFilter],
+    queryKey: ["employees", queryState.search, statusFilter],
     queryFn: () =>
       fetchEmployees({
-        search,
+        search: queryState.search,
         active: statusFilter === "all" ? undefined : statusFilter === "active",
         limit: 500,
       }),
@@ -347,7 +352,7 @@ export default function HumanResourcesPage() {
     }
   }
 
-  const handleEdit = (employee: EmployeeSummary) => {
+  const handleEdit = useCallback((employee: EmployeeSummary) => {
     setEditingId(employee.id)
     setFormData({
       name: employee.name,
@@ -368,11 +373,11 @@ export default function HumanResourcesPage() {
       isActive: employee.isActive,
     })
     setFormOpen(true)
-  }
+  }, [])
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     setEmployeeIdPendingDelete(id)
-  }
+  }, [])
 
   const confirmDelete = () => {
     if (!employeeIdPendingDelete) return
@@ -400,6 +405,139 @@ export default function HumanResourcesPage() {
       resetForm()
     }
   }
+
+  const employeeColumns = useMemo<ColumnDef<EmployeeSummary>[]>(
+    () => [
+      {
+        id: "employee",
+        header: "Employee",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <img
+              src={row.original.passportPhotoUrl}
+              alt={row.original.name}
+              className="h-10 w-10 rounded border object-cover"
+            />
+            <div>
+              <div className="font-semibold">{row.original.name}</div>
+              <div className="text-xs text-muted-foreground">ID: {row.original.employeeId}</div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "phone",
+        header: "Contact",
+      },
+      {
+        id: "position",
+        header: "Position",
+        cell: ({ row }) =>
+          employeePositions.find((position) => position.value === row.original.position)?.label ??
+          row.original.position,
+      },
+      {
+        id: "org",
+        header: "Org",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">
+              {row.original.department
+                ? `${row.original.department.code} - ${row.original.department.name}`
+                : "-"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.grade
+                ? `${row.original.grade.code} - ${row.original.grade.name}`
+                : "No grade"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "employment",
+        header: "Employment",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">
+              {employmentTypes.find((type) => type.value === row.original.employmentType)?.label ??
+                row.original.employmentType}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Hire: {row.original.hireDate ? String(row.original.hireDate).slice(0, 10) : "-"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Currency: {row.original.defaultCurrency ?? "USD"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "nextOfKin",
+        header: "Next of Kin",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.nextOfKinName}</div>
+            <div className="text-xs text-muted-foreground">{row.original.nextOfKinPhone}</div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "villageOfOrigin",
+        header: "Village",
+      },
+      {
+        id: "goldOwed",
+        header: "Gold Owed",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.goldOwed.toFixed(3)} g</div>
+            <div className="text-xs text-muted-foreground">Outstanding gold</div>
+          </div>
+        ),
+      },
+      {
+        id: "salaryOwed",
+        header: "Salary Owed",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">${row.original.salaryOwed.toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground">Outstanding salary</div>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+            {row.original.isActive ? "Active" : "Inactive"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(row.original)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={() => handleDelete(row.original.id)}
+              disabled={deleteEmployeeMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [deleteEmployeeMutation.isPending, handleDelete, handleEdit],
+  )
 
   return (
     <HrShell
@@ -683,164 +821,41 @@ export default function HumanResourcesPage() {
         </SheetContent>
       </Sheet>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Employee Directory</CardTitle>
-          <CardDescription>Search, update, or deactivate employees</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-[2fr,1fr] mb-4">
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, ID, or phone"
-            />
-            <Select
-              value={statusFilter}
-              onValueChange={(value) =>
-                setStatusFilter(value as "all" | "active" | "inactive")
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="overflow-x-auto">
-            <Table className="w-full">
-              <TableHeader className="bg-muted">
-                <TableRow>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Employee</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Contact</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Position</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Org</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Employment</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Next of Kin</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Village</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Gold Owed</TableHead>
-                  <TableHead className="text-left p-3 text-sm font-semibold">Salary Owed</TableHead>
-                  <TableHead className="text-center p-3 text-sm font-semibold">Status</TableHead>
-                  <TableHead className="text-right p-3 text-sm font-semibold">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="p-3">
-                      <Skeleton className="h-10 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ) : employees.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="p-3 text-sm text-muted-foreground">
-                      No employees found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  employees.map((employee) => (
-                    <TableRow key={employee.id} className="border-b hover:bg-muted/60">
-                      <TableCell className="p-3 text-sm">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={employee.passportPhotoUrl}
-                            alt={employee.name}
-                            className="h-10 w-10 rounded border object-cover"
-                          />
-                          <div>
-                            <div className="font-semibold">{employee.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              ID: {employee.employeeId}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">{employee.phone}</TableCell>
-                      <TableCell className="p-3 text-sm">
-                        {employeePositions.find((position) => position.value === employee.position)
-                          ?.label ?? employee.position}
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <div className="font-semibold">
-                          {employee.department
-                            ? `${employee.department.code} - ${employee.department.name}`
-                            : "-"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {employee.grade
-                            ? `${employee.grade.code} - ${employee.grade.name}`
-                            : "No grade"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <div className="font-semibold">
-                          {employmentTypes.find((type) => type.value === employee.employmentType)
-                            ?.label ?? employee.employmentType}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Hire:{" "}
-                          {employee.hireDate
-                            ? String(employee.hireDate).slice(0, 10)
-                            : "-"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Currency: {employee.defaultCurrency ?? "USD"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <div className="font-semibold">{employee.nextOfKinName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {employee.nextOfKinPhone}
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">{employee.villageOfOrigin}</TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <div className="font-semibold">{employee.goldOwed.toFixed(3)} g</div>
-                        <div className="text-xs text-muted-foreground">Outstanding gold</div>
-                      </TableCell>
-                      <TableCell className="p-3 text-sm">
-                        <div className="font-semibold">${employee.salaryOwed.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground">Outstanding salary</div>
-                      </TableCell>
-                      <TableCell className="p-3 text-center">
-                        <Badge variant={employee.isActive ? "secondary" : "destructive"}>
-                          {employee.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(employee)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(employee.id)}
-                            disabled={deleteEmployeeMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      {isLoading ? (
+        <Skeleton className="h-10 w-full" />
+      ) : (
+        <DataTable
+          data={employees}
+          columns={employeeColumns}
+          queryState={queryState}
+          onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+          features={{ sorting: false, globalFilter: true, pagination: true }}
+          pagination={{ enabled: true, server: false }}
+          searchPlaceholder="Search by name, ID, or phone"
+          tableClassName="text-sm"
+          noResultsText="No employees found."
+          toolbar={
+            <>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value as "all" | "active" | "inactive")
+                  setQueryState((prev) => ({ ...prev, page: 1 }))
+                }}
+              >
+                <SelectTrigger className="h-8 w-[180px]">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Employees</SelectItem>
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="inactive">Inactive Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          }
+        />
+      )}
 
       <Dialog
         open={Boolean(employeeIdPendingDelete)}

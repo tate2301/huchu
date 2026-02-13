@@ -21,7 +21,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Popup
         ref={ref}
         className={cn(
-          "relative grid w-full max-w-lg max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto overscroll-contain rounded-xl border border-border/90 bg-popover p-6 shadow-[var(--elevation-3)]",
+          "relative grid w-full max-w-lg max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto overscroll-contain rounded-xl border-0 bg-popover p-6 shadow-[var(--surface-frame-shadow-hover)]",
           className
         )}
         {...props}

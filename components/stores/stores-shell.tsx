@@ -58,13 +58,17 @@ export function StoresShell({
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
-      <PageHeading title={title} description={description} />
+      <PageHeading
+        title={title}
+        description={description}
+        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+      />
 
       <nav
         aria-label="Stores navigation"
-        className="flex w-full flex-wrap justify-start gap-2 border-b bg-transparent p-0"
+        className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
       >
         {storesTabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -74,11 +78,9 @@ export function StoresShell({
               href={buildHref(tab.href)}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                              "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors border-b border-transparent",
+                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                isActive
-                  ? "border-primary text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <tab.icon className="h-4 w-4" />

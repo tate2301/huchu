@@ -370,8 +370,8 @@ export async function POST(
     if (!period || period.companyId !== session.user.companyId) {
       return errorResponse("Payroll period not found", 404)
     }
-    if (period.status === "CLOSED") {
-      return errorResponse("Closed payroll period cannot be regenerated", 400)
+    if (period.status === "APPROVED" || period.status === "CLOSED") {
+      return errorResponse("Approved or closed payroll periods cannot be regenerated", 400)
     }
 
     if (period.domain === "GOLD_PAYOUT" && !validated.goldRatePerUnit) {

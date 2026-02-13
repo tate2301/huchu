@@ -4,11 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
+  Building2,
   ChevronDown,
   ChevronRight,
   Coins,
   Dashboard,
   FileCheck,
+  HelpCircle,
   Home,
   LogOut,
   ManageAccounts,
@@ -24,6 +26,7 @@ import { useSession } from "next-auth/react";
 import { getNavSectionsForRole, type NavSection } from "@/lib/navigation";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { cn } from "@/lib/utils";
+import { useGuidedMode } from "@/hooks/use-guided-mode";
 import {
   Sidebar,
   SidebarContent,
@@ -93,6 +96,7 @@ export function AppSidebar() {
     [session],
   );
   const { state, isMobile, setOpen } = useSidebar();
+  const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
   const isCollapsed = state === "collapsed";
   const sections = React.useMemo(() => {
     const roleSections = getNavSectionsForRole(role);
@@ -114,7 +118,7 @@ export function AppSidebar() {
     [sections],
   );
   const orderedSections = React.useMemo(() => {
-    const order = ["gold", "stores", "maintenance", "hr", "cctv", "management", "reporting"];
+    const order = ["hr", "gold", "stores", "maintenance", "management", "reporting", "cctv"];
     const rank = new Map(order.map((id, index) => [id, index]));
     return contentSections
       .slice()
@@ -133,6 +137,26 @@ export function AppSidebar() {
     () => (overviewSection?.items ?? []).filter((item) => item.href !== "/"),
     [overviewSection],
   );
+  const companySlug = (session?.user as { companySlug?: string } | undefined)?.companySlug;
+  const companyId = (session?.user as { companyId?: string } | undefined)?.companyId;
+  const companyLabel = React.useMemo(() => {
+    if (companySlug && companySlug.trim().length > 0) {
+      return companySlug
+        .split("-")
+        .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+        .join(" ");
+    }
+    return "Current Organization";
+  }, [companySlug]);
+  const companyMeta = React.useMemo(() => {
+    if (companySlug && companySlug.trim().length > 0) {
+      return `${companySlug}.workspace`;
+    }
+    if (companyId) {
+      return `ID ${companyId.slice(0, 8)}`;
+    }
+    return "Tenant context";
+  }, [companyId, companySlug]);
   const activeSectionId = React.useMemo(
     () =>
       orderedSections.find((section) =>
@@ -167,7 +191,7 @@ export function AppSidebar() {
     );
 
     return (
-      <SidebarGroup key={section.id}>
+      <SidebarGroup key={section.id} className="space-y-1">
         <SidebarGroupLabel className="p-0">
           <SidebarMenu>
             <SidebarMenuItem>
@@ -176,14 +200,19 @@ export function AppSidebar() {
                 onClick={() => toggleSection(section.id)}
                 isActive={hasActiveChild}
                 tooltip={section.title}
-                className="h-9 font-medium"
+                className="h-10"
               >
-                <SectionIcon className="h-4 w-4" />
-                <span>{section.title}</span>
+                <SectionIcon
+                  className={cn(
+                    "h-4 w-4",
+                    hasActiveChild ? "text-primary" : "text-muted-foreground",
+                  )}
+                />
+                <span className="font-semibold">{section.title}</span>
                 {!isCollapsed ? (
                   <ChevronRight
                     className={cn(
-                      "ml-auto h-4 w-4 transition-transform",
+                      "ml-auto h-4 w-4 text-muted-foreground transition-transform",
                       isOpen ? "rotate-90" : "",
                     )}
                   />
@@ -193,8 +222,8 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroupLabel>
         {!isCollapsed && isOpen ? (
-          <SidebarGroupContent>
-            <SidebarMenu className="pl-5">
+          <SidebarGroupContent className="pl-4 pr-1">
+            <SidebarMenu className="pl-2">
               {section.items.map((item) => {
                 const isActive = hasActiveHref(item.href, pathname, view);
                 return (
@@ -204,7 +233,7 @@ export function AppSidebar() {
                       size="sm"
                       isActive={isActive}
                       tooltip={item.label}
-                      className="h-8"
+                      className="h-8 text-[13px]"
                     >
                       <Link href={item.href}>
                         <item.icon className="h-4 w-4" />
@@ -223,39 +252,103 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="inset" className="sticky top-0">
-      <SidebarHeader className="border-b border-border/70 pb-3">
-        <SidebarMenu>
+      <SidebarHeader className="pb-2">
+        <SidebarMenu className="space-y-2">
           <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              asChild
-              tooltip="Go to home"
-              className="h-12 rounded-lg border border-border/70 bg-card/60"
-            >
-              <Link href="/">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Home className="h-4 w-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Huchu Operations</span>
-                  <span className="truncate text-sm text-muted-foreground">
-                    Mine control
-                  </span>
-                </div>
-                {!isCollapsed ? (
-                  <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
-                ) : null}
-              </Link>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip="Organization"
+                  className="h-[3.15rem] rounded-lg bg-sidebar-accent/75 shadow-[var(--surface-frame-shadow)]"
+                >
+                  <div className="bg-primary/15 text-primary flex aspect-square size-8 items-center justify-center rounded-lg shadow-[var(--surface-frame-shadow)]">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">{companyLabel}</span>
+                    <span className="truncate text-xs text-muted-foreground">{companyMeta}</span>
+                  </div>
+                  {!isCollapsed ? (
+                    <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
+                  ) : null}
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                side={isCollapsed ? "right" : isMobile ? "bottom" : "bottom"}
+                className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
+              >
+                <DropdownMenuLabel>Organization</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  {companyMeta}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/">
+                    <Home className="h-4 w-4" />
+                    Workspace Home
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/help">
+                    <FileCheck className="h-4 w-4" />
+                    Platform Playbook
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                  <Building2 className="h-4 w-4" />
+                  Switch Organization (Soon)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
-        {quickActionsSection ? (
-          <SidebarGroup className="mb-1">
+        <SidebarGroup className="mb-0.5">
+          {!isCollapsed ? (
+            <SidebarGroupLabel className="px-2 pb-1 text-xs uppercase">
+              Workspace
+            </SidebarGroupLabel>
+          ) : null}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/"}
+                  tooltip="Home"
+                  className="h-9 font-semibold"
+                >
+                  <Link href="/">
+                    <Home className="h-4 w-4" />
+                    <span className="font-semibold">Home</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {orderedSections.length > 0 ? (
+          <SidebarGroup className="mb-0.5">
             {!isCollapsed ? (
-              <SidebarGroupLabel className="px-2 pb-1 text-sm">
+              <SidebarGroupLabel className="px-2 pb-1 text-xs uppercase">
+                Platform
+              </SidebarGroupLabel>
+            ) : null}
+            <SidebarGroupContent className="mt-0">
+              {orderedSections.map((section) => renderSection(section))}
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {quickActionsSection ? (
+          <SidebarGroup className="mb-0.5">
+            {!isCollapsed ? (
+              <SidebarGroupLabel className="px-2 pb-1 text-xs uppercase">
                 Create
               </SidebarGroupLabel>
             ) : null}
@@ -266,7 +359,7 @@ export function AppSidebar() {
                     <DropdownMenuTrigger asChild>
                       <SidebarMenuButton
                         variant="default"
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                        className="h-9 bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
                         tooltip="Daily Shortcuts"
                       >
                         <Plus className="h-4 w-4" />
@@ -281,7 +374,7 @@ export function AppSidebar() {
                       side={
                         isCollapsed ? "right" : isMobile ? "bottom" : "bottom"
                       }
-                      className="w-64"
+                      className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
                     >
                       <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
                       <DropdownMenuSeparator />
@@ -316,40 +409,40 @@ export function AppSidebar() {
           </SidebarGroup>
         ) : null}
 
-        {orderedSections.length > 0 ? (
-          <SidebarGroup>
-            {!isCollapsed ? (
-              <SidebarGroupLabel className="px-2 pb-1 text-sm">
-                Platform
-              </SidebarGroupLabel>
-            ) : null}
-            <SidebarGroupContent className="mt-0">
-              {orderedSections.map((section) => renderSection(section))}
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-
         {secondaryItems.length > 0 ? (
           <SidebarGroup className="mt-auto">
             {!isCollapsed ? (
-              <SidebarGroupLabel className="px-2 text-sm font-medium text-muted-foreground">
+              <SidebarGroupLabel className="px-2 text-xs uppercase">
                 Support
               </SidebarGroupLabel>
             ) : null}
             <SidebarGroupContent>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={guidedModeEnabled}
+                    tooltip={guidedModeEnabled ? "Guided tips are on" : "Guided tips are off"}
+                    className="h-8 text-[12px]"
+                    onClick={() => setGuidedMode(!guidedModeEnabled)}
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                    <span>Guided Tips</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 {secondaryItems.map((item) => {
                   const isActive = hasActiveHref(item.href, pathname, view);
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
-                        asChild
-                        size="sm"
-                        isActive={isActive}
-                        tooltip={item.label}
-                      >
-                        <Link href={item.href}>
-                          <item.icon className="h-4 w-4" />
+                      asChild
+                      size="sm"
+                      isActive={isActive}
+                      tooltip={item.label}
+                      className="h-8 text-[12px]"
+                    >
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
                           <span>{item.label}</span>
                         </Link>
                       </SidebarMenuButton>
@@ -362,53 +455,58 @@ export function AppSidebar() {
         ) : null}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border/70 pt-3">
+      <SidebarFooter className="pt-2">
         {session ? (
-          <div className="space-y-2 rounded-lg border border-border/70 bg-card/60 p-2">
-            {!isCollapsed ? (
-              <div className="flex items-center gap-2 px-1 py-1">
-                <div className="bg-sidebar-accent text-sidebar-accent-foreground flex size-8 items-center justify-center rounded-lg text-sm font-semibold">
-                  {getInitials(session.user?.name)}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {session.user?.name ?? "User"}
-                  </p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {(session.user as { role?: string })?.role ?? "User"}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Go to home">
-                  <Link href="/">
-                    <Home className="h-4 w-4" />
-                    <span>Home</span>
-                  </Link>
+          <div className="space-y-1.5 rounded-lg bg-sidebar-accent/55 p-1.5 shadow-[var(--surface-frame-shadow)]">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  tooltip="Account"
+                  className="h-10 rounded-lg bg-sidebar-accent/65 shadow-[var(--surface-frame-shadow)]"
+                >
+                  <div className="bg-primary/15 text-primary flex size-8 items-center justify-center rounded-md text-xs font-semibold shadow-[var(--surface-frame-shadow)]">
+                    {getInitials(session.user?.name)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-foreground">
+                      {session.user?.name ?? "User"}
+                    </p>
+                    <p className="truncate text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                      {(session.user as { role?: string })?.role ?? "User"}
+                    </p>
+                  </div>
+                  {!isCollapsed ? (
+                    <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
+                  ) : null}
                 </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Sign out">
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                side={isCollapsed ? "right" : isMobile ? "bottom" : "top"}
+                className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
+              >
+                <DropdownMenuLabel>Account</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  {(session.user as { role?: string })?.role ?? "User"}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/help">
+                    <HelpCircle className="h-4 w-4" />
+                    Quick Tips
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/api/auth/signout">
                     <LogOut className="h-4 w-4" />
-                    <span>Sign Out</span>
+                    Sign Out
                   </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : (
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Go to home">
-                <Link href="/">
-                  <Home className="h-4 w-4" />
-                  <span>Home</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Login">
                 <Link href="/login">

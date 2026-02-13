@@ -1,20 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchPermits, fetchSites, type PermitRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type PermitForm = {
   id?: string;
@@ -55,7 +56,12 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
 
   const [siteFilter, setSiteFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<PermitForm>(emptyForm);
 
@@ -65,12 +71,12 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["compliance", "permits", siteFilter, statusFilter, search],
+    queryKey: ["compliance", "permits", siteFilter, statusFilter, queryState.search],
     queryFn: () =>
       fetchPermits({
         siteId: siteFilter === "all" ? undefined : siteFilter,
         status: statusFilter === "all" ? undefined : statusFilter,
-        search: search || undefined,
+        search: queryState.search || undefined,
         limit: 500,
       }),
   });
@@ -158,19 +164,100 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
     setDialogOpen(true);
   };
 
+  const columns = useMemo<ColumnDef<PermitRecord>[]>(
+    () => [
+      {
+        id: "permit",
+        header: "Permit",
+        accessorFn: (row) => `${row.permitType} ${row.permitNumber}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.permitType}</div>
+            <div className="text-xs text-muted-foreground">{row.original.permitNumber}</div>
+            {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorFn: (row) => row.site.name,
+        cell: ({ row }) => row.original.site.name,
+      },
+      {
+        id: "issueDate",
+        header: "Issue",
+        accessorFn: (row) => row.issueDate,
+        cell: ({ row }) => <NumericCell align="left">{toDateInput(row.original.issueDate)}</NumericCell>,
+      },
+      {
+        id: "expiryDate",
+        header: "Expiry",
+        accessorFn: (row) => row.expiryDate,
+        cell: ({ row }) => <NumericCell align="left">{toDateInput(row.original.expiryDate)}</NumericCell>,
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => row.status,
+        cell: ({ row }) => (
+          <Badge variant={badgeVariant(row.original.status)}>{row.original.status}</Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setForm({
+                  id: row.original.id,
+                  permitType: row.original.permitType,
+                  permitNumber: row.original.permitNumber,
+                  siteId: row.original.siteId,
+                  issueDate: toDateInput(row.original.issueDate),
+                  expiryDate: toDateInput(row.original.expiryDate),
+                  responsiblePerson: row.original.responsiblePerson,
+                  documentUrl: row.original.documentUrl ?? "",
+                  status: row.original.status,
+                });
+                setDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (!window.confirm("Delete this permit?")) return;
+                deleteMutation.mutate(row.original.id);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [createdId, deleteMutation],
+  );
+
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Permits</CardTitle>
-              <CardDescription>Track permit numbers and expiry deadlines</CardDescription>
-            </div>
-            <Button onClick={openCreate}>New Permit</Button>
+      <section className="space-y-4">
+        <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">Permits</h2>
+            <p className="text-sm text-muted-foreground">Track permit numbers and expiry deadlines</p>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          <Button onClick={openCreate}>New Permit</Button>
+        </header>
           {pageError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load permits</AlertTitle>
@@ -178,127 +265,67 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
             </Alert>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Site</label>
-              {sitesLoading ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={siteFilter} onValueChange={setSiteFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All sites" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sites</SelectItem>
-                    {sites?.map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                  <SelectItem value="EXPIRING_SOON">EXPIRING_SOON</SelectItem>
-                  <SelectItem value="EXPIRED">EXPIRED</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Search</label>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Type, number, responsible person"
-              />
-            </div>
-          </div>
-
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : permits.length === 0 ? (
             <div className="text-sm text-muted-foreground">No permits found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Permit</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Issue</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Expiry</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {permits.map((permit) => (
-                    <TableRow
-                      key={permit.id}
-                      className={`border-b ${createdId === permit.id ? "bg-[var(--status-success-bg)]" : ""}`}
+            <DataTable
+              data={permits}
+              columns={columns}
+              queryState={queryState}
+              onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+              searchPlaceholder="Type, number, responsible person"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              pagination={{ enabled: true }}
+              toolbar={
+                <>
+                  {sitesLoading ? (
+                    <Skeleton className="h-8 w-[180px]" />
+                  ) : (
+                    <Select
+                      value={siteFilter}
+                      onValueChange={(value) => {
+                        setSiteFilter(value);
+                        setQueryState((prev) => ({ ...prev, page: 1 }));
+                      }}
                     >
-                      <TableCell className="p-3">
-                        <div className="font-semibold">{permit.permitType}</div>
-                        <div className="text-xs text-muted-foreground">{permit.permitNumber}</div>
-                      </TableCell>
-                      <TableCell className="p-3">{permit.site.name}</TableCell>
-                      <TableCell className="p-3">{toDateInput(permit.issueDate)}</TableCell>
-                      <TableCell className="p-3">{toDateInput(permit.expiryDate)}</TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={badgeVariant(permit.status)}>{permit.status}</Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setForm({
-                                id: permit.id,
-                                permitType: permit.permitType,
-                                permitNumber: permit.permitNumber,
-                                siteId: permit.siteId,
-                                issueDate: toDateInput(permit.issueDate),
-                                expiryDate: toDateInput(permit.expiryDate),
-                                responsiblePerson: permit.responsiblePerson,
-                                documentUrl: permit.documentUrl ?? "",
-                                status: permit.status,
-                              });
-                              setDialogOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={deleteMutation.isPending}
-                            onClick={() => {
-                              if (!window.confirm("Delete this permit?")) return;
-                              deleteMutation.mutate(permit.id);
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      <SelectTrigger className="h-8 w-[180px]">
+                        <SelectValue placeholder="All sites" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All sites</SelectItem>
+                        {sites?.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                      setStatusFilter(value);
+                      setQueryState((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[170px]">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                      <SelectItem value="EXPIRING_SOON">EXPIRING_SOON</SelectItem>
+                      <SelectItem value="EXPIRED">EXPIRED</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              }
+            />
           )}
-        </CardContent>
-      </Card>
+      </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-full sm:max-w-lg">

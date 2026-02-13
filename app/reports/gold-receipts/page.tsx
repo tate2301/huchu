@@ -31,7 +31,7 @@ export default function GoldReceiptsReportPage() {
   const pageError = sitesError || error;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading title="Gold Receipts" description="Buyer receipt confirmations and settlement details" />
 
       {pageError ? (

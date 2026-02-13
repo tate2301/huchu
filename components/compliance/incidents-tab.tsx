@@ -1,21 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchIncidents, fetchSites, type IncidentRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type IncidentForm = {
   id?: string;
@@ -60,7 +61,12 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
   const [siteFilter, setSiteFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<IncidentForm>(emptyForm);
 
@@ -70,13 +76,13 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["compliance", "incidents", siteFilter, statusFilter, severityFilter, search],
+    queryKey: ["compliance", "incidents", siteFilter, statusFilter, severityFilter, queryState.search],
     queryFn: () =>
       fetchIncidents({
         siteId: siteFilter === "all" ? undefined : siteFilter,
         status: statusFilter === "all" ? undefined : statusFilter,
         severity: severityFilter === "all" ? undefined : severityFilter,
-        search: search || undefined,
+        search: queryState.search || undefined,
         limit: 500,
       }),
   });
@@ -169,19 +175,113 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
     setDialogOpen(true);
   };
 
+  const columns = useMemo<ColumnDef<IncidentRecord>[]>(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        accessorFn: (row) => row.incidentDate,
+        cell: ({ row }) => (
+          <div>
+            <NumericCell align="left">{toDateInput(row.original.incidentDate)}</NumericCell>
+            {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorFn: (row) => row.site.name,
+        cell: ({ row }) => row.original.site.name,
+      },
+      {
+        id: "type",
+        header: "Type",
+        accessorFn: (row) => row.incidentType,
+        cell: ({ row }) => row.original.incidentType,
+      },
+      {
+        id: "severity",
+        header: "Severity",
+        accessorFn: (row) => row.severity,
+        cell: ({ row }) => (
+          <Badge variant={badgeVariant(row.original.severity)}>{row.original.severity}</Badge>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => row.status,
+        cell: ({ row }) => (
+          <Badge variant={badgeVariant(row.original.status)}>{row.original.status}</Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                let photoUrls = "";
+                if (row.original.photoUrls) {
+                  try {
+                    const parsed = JSON.parse(row.original.photoUrls) as string[];
+                    photoUrls = Array.isArray(parsed) ? parsed.join(", ") : "";
+                  } catch {
+                    photoUrls = "";
+                  }
+                }
+                setForm({
+                  id: row.original.id,
+                  siteId: row.original.siteId,
+                  incidentDate: toDateInput(row.original.incidentDate),
+                  incidentType: row.original.incidentType,
+                  severity: row.original.severity,
+                  description: row.original.description,
+                  actionsTaken: row.original.actionsTaken ?? "",
+                  reportedBy: row.original.reportedBy,
+                  photoUrls,
+                  status: row.original.status,
+                });
+                setDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (!window.confirm("Delete this incident?")) return;
+                deleteMutation.mutate(row.original.id);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [createdId, deleteMutation],
+  );
+
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Incidents</CardTitle>
-              <CardDescription>Track incident severity, status, and responses</CardDescription>
-            </div>
-            <Button onClick={openCreate}>New Incident</Button>
+      <section className="space-y-4">
+        <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">Incidents</h2>
+            <p className="text-sm text-muted-foreground">
+              Track incident severity, status, and responses
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          <Button onClick={openCreate}>New Incident</Button>
+        </header>
           {pageError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load incidents</AlertTitle>
@@ -189,151 +289,85 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
             </Alert>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Site</label>
-              {sitesLoading ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={siteFilter} onValueChange={setSiteFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All sites" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sites</SelectItem>
-                    {sites?.map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All status</SelectItem>
-                  <SelectItem value="OPEN">OPEN</SelectItem>
-                  <SelectItem value="INVESTIGATING">INVESTIGATING</SelectItem>
-                  <SelectItem value="CLOSED">CLOSED</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Severity</label>
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All severity</SelectItem>
-                  <SelectItem value="LOW">LOW</SelectItem>
-                  <SelectItem value="MEDIUM">MEDIUM</SelectItem>
-                  <SelectItem value="HIGH">HIGH</SelectItem>
-                  <SelectItem value="CRITICAL">CRITICAL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Search</label>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Description, actions, reporter"
-              />
-            </div>
-          </div>
-
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : incidents.length === 0 ? (
             <div className="text-sm text-muted-foreground">No incidents found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Type</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Severity</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                    <TableHead className="p-3 text-right font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {incidents.map((incident) => (
-                    <TableRow
-                      key={incident.id}
-                      className={`border-b ${createdId === incident.id ? "bg-[var(--status-success-bg)]" : ""}`}
+            <DataTable
+              data={incidents}
+              columns={columns}
+              queryState={queryState}
+              onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+              searchPlaceholder="Description, actions, reporter"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              pagination={{ enabled: true }}
+              toolbar={
+                <>
+                  {sitesLoading ? (
+                    <Skeleton className="h-8 w-[180px]" />
+                  ) : (
+                    <Select
+                      value={siteFilter}
+                      onValueChange={(value) => {
+                        setSiteFilter(value);
+                        setQueryState((prev) => ({ ...prev, page: 1 }));
+                      }}
                     >
-                      <TableCell className="p-3">{toDateInput(incident.incidentDate)}</TableCell>
-                      <TableCell className="p-3">{incident.site.name}</TableCell>
-                      <TableCell className="p-3">{incident.incidentType}</TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={badgeVariant(incident.severity)}>{incident.severity}</Badge>
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={badgeVariant(incident.status)}>{incident.status}</Badge>
-                      </TableCell>
-                      <TableCell className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              let photoUrls = "";
-                              if (incident.photoUrls) {
-                                try {
-                                  const parsed = JSON.parse(incident.photoUrls) as string[];
-                                  photoUrls = Array.isArray(parsed) ? parsed.join(", ") : "";
-                                } catch {
-                                  photoUrls = "";
-                                }
-                              }
-                              setForm({
-                                id: incident.id,
-                                siteId: incident.siteId,
-                                incidentDate: toDateInput(incident.incidentDate),
-                                incidentType: incident.incidentType,
-                                severity: incident.severity,
-                                description: incident.description,
-                                actionsTaken: incident.actionsTaken ?? "",
-                                reportedBy: incident.reportedBy,
-                                photoUrls,
-                                status: incident.status,
-                              });
-                              setDialogOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={deleteMutation.isPending}
-                            onClick={() => {
-                              if (!window.confirm("Delete this incident?")) return;
-                              deleteMutation.mutate(incident.id);
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      <SelectTrigger className="h-8 w-[180px]">
+                        <SelectValue placeholder="All sites" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All sites</SelectItem>
+                        {sites?.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                      setStatusFilter(value);
+                      setQueryState((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[150px]">
+                      <SelectValue placeholder="All status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All status</SelectItem>
+                      <SelectItem value="OPEN">OPEN</SelectItem>
+                      <SelectItem value="INVESTIGATING">INVESTIGATING</SelectItem>
+                      <SelectItem value="CLOSED">CLOSED</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={severityFilter}
+                    onValueChange={(value) => {
+                      setSeverityFilter(value);
+                      setQueryState((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[150px]">
+                      <SelectValue placeholder="All severity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All severity</SelectItem>
+                      <SelectItem value="LOW">LOW</SelectItem>
+                      <SelectItem value="MEDIUM">MEDIUM</SelectItem>
+                      <SelectItem value="HIGH">HIGH</SelectItem>
+                      <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              }
+            />
           )}
-        </CardContent>
-      </Card>
+      </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-full sm:max-w-lg">

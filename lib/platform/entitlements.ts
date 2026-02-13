@@ -63,17 +63,39 @@ function money(value: unknown): number {
   return Math.max(0, parsed);
 }
 
+function resolveBundleAdditionalSiteMonthlyPrice(bundleCode: string, value: unknown): number {
+  const normalized = money(value);
+  if (normalized > 0) return normalized;
+  return money(getBundleDefinition(bundleCode)?.additionalSiteMonthlyPrice ?? 0);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
 
-function getBundleFeatureSet(bundleCodes: string[]): Set<string> {
+async function getBundleFeatureSet(bundleCodes: string[]): Promise<Set<string>> {
+  const normalizedCodes = [...new Set(bundleCodes.map((code) => code.trim().toUpperCase()).filter(Boolean))];
+  if (normalizedCodes.length === 0) return new Set<string>();
+
+  const rows = await prisma.featureBundle.findMany({
+    where: { code: { in: normalizedCodes } },
+    select: { code: true, items: { select: { feature: { select: { key: true } } } } },
+  });
+
   const set = new Set<string>();
-  for (const code of bundleCodes) {
-    const bundle = FEATURE_BUNDLES.find((row) => row.code === code);
-    if (!bundle) continue;
-    for (const key of bundle.features) set.add(normalizeFeatureKey(key));
+  for (const row of rows) {
+    for (const item of row.items) {
+      set.add(normalizeFeatureKey(item.feature.key));
+    }
   }
+
+  // Fallback to in-code catalog if bundle rows are not yet synced.
+  for (const code of normalizedCodes) {
+    if (rows.some((row) => row.code === code)) continue;
+    const fallback = FEATURE_BUNDLES.find((bundle) => bundle.code === code);
+    for (const key of fallback?.features ?? []) set.add(normalizeFeatureKey(key));
+  }
+
   return set;
 }
 
@@ -116,6 +138,7 @@ export async function syncEntitlementCatalog(): Promise<{
           name: bundle.name,
           description: bundle.description,
           monthlyPrice: bundle.monthlyPrice,
+          additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
           isActive: true,
         },
         create: {
@@ -123,6 +146,7 @@ export async function syncEntitlementCatalog(): Promise<{
           name: bundle.name,
           description: bundle.description,
           monthlyPrice: bundle.monthlyPrice,
+          additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
           isActive: true,
         },
         select: { id: true },
@@ -232,7 +256,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
       subscriptionEntitled.add(normalized);
       map[normalized] = true;
     }
-    const includedByTierBundles = getBundleFeatureSet(tier.includedBundles);
+    const includedByTierBundles = await getBundleFeatureSet(tier.includedBundles);
     for (const key of includedByTierBundles) {
       subscriptionEntitled.add(key);
       map[normalizeFeatureKey(key)] = true;
@@ -240,7 +264,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
   }
 
   const addonCodes = addons.map((row) => row.bundle.code);
-  const addonFeatures = getBundleFeatureSet(addonCodes);
+  const addonFeatures = await getBundleFeatureSet(addonCodes);
   for (const key of addonFeatures) {
     subscriptionEntitled.add(key);
     map[normalizeFeatureKey(key)] = true;
@@ -328,9 +352,11 @@ export async function computeCompanyPricing(companyId: string): Promise<CompanyP
   let addonBaseAmount = 0;
   let addonSiteAmount = 0;
   for (const addon of enabledAddons) {
-    const bundleDef = getBundleDefinition(addon.bundle.code);
     const base = money(addon.bundle.monthlyPrice);
-    const perSite = money(bundleDef?.additionalSiteMonthlyPrice ?? 0);
+    const perSite = resolveBundleAdditionalSiteMonthlyPrice(
+      addon.bundle.code,
+      addon.bundle.additionalSiteMonthlyPrice,
+    );
     const siteCharge = perSite * siteCount;
     addonBaseAmount += base;
     addonSiteAmount += siteCharge;
@@ -352,15 +378,12 @@ export async function computeCompanyPricing(companyId: string): Promise<CompanyP
   const addonAmount = addonBaseAmount + addonSiteAmount;
 
   const includedByTier = new Set<string>((tier?.includedFeatures ?? []).map(normalizeFeatureKey));
-  const includedByTierBundle = getBundleFeatureSet(tier?.includedBundles ?? []);
+  const includedByTierBundle = await getBundleFeatureSet(tier?.includedBundles ?? []);
   for (const key of includedByTierBundle) includedByTier.add(key);
 
-  for (const addon of enabledAddons) {
-    const bundleDef = FEATURE_BUNDLES.find((row) => row.code === addon.bundle.code);
-    if (!bundleDef) continue;
-    for (const key of bundleDef.features) {
-      includedByTier.add(normalizeFeatureKey(key));
-    }
+  const enabledAddonFeatureSet = await getBundleFeatureSet(enabledAddons.map((addon) => addon.bundle.code));
+  for (const key of enabledAddonFeatureSet) {
+    includedByTier.add(key);
   }
 
   const manualBillableFlags = await prisma.companyFeatureFlag.findMany({

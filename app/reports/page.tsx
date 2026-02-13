@@ -89,7 +89,7 @@ const reportCards = [
 
 export default function ReportsDashboardPage() {
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <PageHeading
         title="Reports"
         description="Use this dashboard to open independent report pages across the platform."

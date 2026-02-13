@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type DataListShellProps = {
@@ -41,18 +40,16 @@ export function DataListShell({
   contentClassName,
 }: DataListShellProps) {
   return (
-    <Card className={className}>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            {description ? <CardDescription>{description}</CardDescription> : null}
-          </div>
-          {actions ? <div>{actions}</div> : null}
+    <section className={cn("space-y-4", className)}>
+      <header className="section-shell flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">{title}</h2>
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
-      </CardHeader>
-      <CardContent className={cn("space-y-4", contentClassName)}>
-        {filters ? <div>{filters}</div> : null}
+        {actions ? <div>{actions}</div> : null}
+      </header>
+      <div className={cn("space-y-4", contentClassName)}>
+        {filters ? <div className="section-shell">{filters}</div> : null}
         {isError ? (
           <StatusState
             variant="error"
@@ -78,7 +75,7 @@ export function DataListShell({
         ) : (
           children
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
