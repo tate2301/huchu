@@ -441,10 +441,10 @@ export default function SalaryPayrollPage() {
               >
                 <div className="min-w-0">
                   <div className="font-medium">
-                    <NumericCell align="left">Run #{run.runNumber}</NumericCell>
+                    <NumericCell>Run #{run.runNumber}</NumericCell>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    <NumericCell align="left">
+                    <NumericCell>
                       {format(new Date(run.createdAt), "yyyy-MM-dd HH:mm")}
                     </NumericCell>
                   </div>
@@ -487,7 +487,7 @@ export default function SalaryPayrollPage() {
         header: "Period",
         cell: ({ row }) => (
           <div className="font-medium">
-            <NumericCell align="left">{row.original.periodKey}</NumericCell>
+            <NumericCell>{row.original.periodKey}</NumericCell>
           </div>
         ),
       },
@@ -495,7 +495,7 @@ export default function SalaryPayrollPage() {
         id: "window",
         header: "Window",
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {format(new Date(row.original.startDate), "MMM d")} - {format(
               new Date(row.original.endDate),
               "MMM d, yyyy",
@@ -551,10 +551,10 @@ export default function SalaryPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+              <NumericCell>Run #{row.original.runNumber}</NumericCell>
             </div>
             <div className="text-xs text-muted-foreground">
-              <NumericCell align="left">
+              <NumericCell>
                 {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
               </NumericCell>
             </div>
@@ -609,10 +609,10 @@ export default function SalaryPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+              <NumericCell>Run #{row.original.runNumber}</NumericCell>
             </div>
             <div className="text-xs text-muted-foreground">
-              <NumericCell align="left">
+              <NumericCell>
                 {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
               </NumericCell>
             </div>
@@ -1265,7 +1265,7 @@ export default function SalaryPayrollPage() {
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Run</div>
-                  <div className="font-semibold"><NumericCell align="left">#{runDetails.runNumber}</NumericCell></div>
+                  <div className="font-semibold"><NumericCell>#{runDetails.runNumber}</NumericCell></div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Status</div>

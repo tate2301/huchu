@@ -82,7 +82,7 @@ export default function AttendanceHistoryPage() {
         accessorFn: (row) => row.date,
         cell: ({ row }) => (
           <div>
-            <NumericCell align="left">{format(new Date(row.original.date), "MMM d, yyyy")}</NumericCell>
+            <NumericCell>{format(new Date(row.original.date), "MMM d, yyyy")}</NumericCell>
             {createdId &&
             batchDate &&
             batchShift &&

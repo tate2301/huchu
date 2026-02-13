@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     if (siteId) {
       where.goldDispatch = {
-        ...where.goldDispatch,
+        ...(where.goldDispatch as Record<string, unknown>),
         goldPour: { siteId },
       }
     }

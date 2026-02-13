@@ -158,7 +158,7 @@ export default function OutstandingSalariesPage() {
         header: "Period",
         accessorFn: (row) => `${row.periodStart} ${row.periodEnd}`,
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
             {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
           </NumericCell>
@@ -170,7 +170,7 @@ export default function OutstandingSalariesPage() {
         accessorFn: (row) => row.dueDate,
         cell: ({ row }) => (
           <div>
-            <NumericCell align="left">{format(new Date(row.original.dueDate), "yyyy-MM-dd")}</NumericCell>
+            <NumericCell>{format(new Date(row.original.dueDate), "yyyy-MM-dd")}</NumericCell>
             {row.original.isOverdue ? (
               <div className="text-xs text-red-600">{row.original.overdueDays}d overdue</div>
             ) : null}

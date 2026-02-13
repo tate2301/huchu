@@ -47,9 +47,9 @@ export async function GET(request: NextRequest) {
     };
 
     if (itemId) where.itemId = itemId;
-    if (siteId) where.item = { ...where.item, siteId };
+    if (siteId) where.item = { ...(where.item as Record<string, unknown>), siteId };
     if (movementType) where.movementType = movementType;
-    if (category) where.item = { ...where.item, category };
+    if (category) where.item = { ...(where.item as Record<string, unknown>), category };
 
     const [movements, total] = await Promise.all([
       prisma.stockMovement.findMany({

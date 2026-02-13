@@ -142,14 +142,14 @@ export default function HrSalariesPage() {
         id: "period",
         header: "Period",
         accessorKey: "periodKey",
-        cell: ({ row }) => <NumericCell align="left">{row.original.periodKey}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{row.original.periodKey}</NumericCell>,
       },
       {
         id: "window",
         header: "Window",
         accessorFn: (row) => `${row.startDate} ${row.endDate}`,
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {format(new Date(row.original.startDate), "yyyy-MM-dd")} to{" "}
             {format(new Date(row.original.endDate), "yyyy-MM-dd")}
           </NumericCell>
@@ -160,7 +160,7 @@ export default function HrSalariesPage() {
         header: "Due Date",
         accessorKey: "dueDate",
         cell: ({ row }) => (
-          <NumericCell align="left">{format(new Date(row.original.dueDate), "yyyy-MM-dd")}</NumericCell>
+          <NumericCell>{format(new Date(row.original.dueDate), "yyyy-MM-dd")}</NumericCell>
         ),
       },
       {
@@ -193,7 +193,7 @@ export default function HrSalariesPage() {
         id: "run",
         header: "Run",
         accessorFn: (row) => row.runNumber,
-        cell: ({ row }) => <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>,
+        cell: ({ row }) => <NumericCell>Run #{row.original.runNumber}</NumericCell>,
       },
       {
         id: "period",
@@ -243,7 +243,7 @@ export default function HrSalariesPage() {
         id: "run",
         header: "Run",
         accessorFn: (row) => row.payrollRun.runNumber,
-        cell: ({ row }) => <NumericCell align="left">Run #{row.original.payrollRun.runNumber}</NumericCell>,
+        cell: ({ row }) => <NumericCell>Run #{row.original.payrollRun.runNumber}</NumericCell>,
       },
       {
         id: "period",
@@ -262,7 +262,7 @@ export default function HrSalariesPage() {
         header: "Paid At",
         accessorFn: (row) => row.paidAt ?? "",
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
           </NumericCell>
         ),
@@ -306,7 +306,7 @@ export default function HrSalariesPage() {
         header: "Period",
         accessorFn: (row) => `${row.periodStart} ${row.periodEnd}`,
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
             {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
           </NumericCell>
@@ -317,7 +317,7 @@ export default function HrSalariesPage() {
         header: "Run",
         accessorFn: (row) => row.payrollRun?.runNumber ?? 0,
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {row.original.payrollRun ? `#${row.original.payrollRun.runNumber}` : "-"}
           </NumericCell>
         ),
@@ -347,7 +347,7 @@ export default function HrSalariesPage() {
         header: "Paid At",
         accessorFn: (row) => row.paidAt ?? "",
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
           </NumericCell>
         ),

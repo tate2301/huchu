@@ -1,3 +1,7 @@
+/* Google Fonts with fallbacks */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
 @import "material-symbols";
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -65,9 +69,9 @@
 }
 
 @theme inline {
-    --font-sans: var(--font-sans);
+    --font-sans: "Inter", var(--font-family);
     --font-mono:
-        var(--font-ibm-plex-mono),
+        "IBM Plex Mono",
         ui-monospace,
         SFMono-Regular,
         Menlo,

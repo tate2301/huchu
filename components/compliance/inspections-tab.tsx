@@ -180,7 +180,7 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
         accessorFn: (row) => row.inspectionDate,
         cell: ({ row }) => (
           <div>
-            <NumericCell align="left">{toDateInput(row.original.inspectionDate)}</NumericCell>
+            <NumericCell>{toDateInput(row.original.inspectionDate)}</NumericCell>
             {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
           </div>
         ),
@@ -207,7 +207,7 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
         header: "Actions Due",
         accessorFn: (row) => row.actionsDue ?? "",
         cell: ({ row }) => (
-          <NumericCell align="left">{toDateInput(row.original.actionsDue)}</NumericCell>
+          <NumericCell>{toDateInput(row.original.actionsDue)}</NumericCell>
         ),
       },
       {

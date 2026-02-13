@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
     };
 
     if (siteId) where.siteId = siteId;
-    if (startDate) where.date = { ...where.date, gte: new Date(startDate) };
-    if (endDate) where.date = { ...where.date, lte: new Date(endDate) };
+    if (startDate) where.date = { ...(where.date as Record<string, unknown> || {}), gte: new Date(startDate) };
+    if (endDate) where.date = { ...(where.date as Record<string, unknown> || {}), lte: new Date(endDate) };
 
     const [reports, total] = await Promise.all([
       prisma.plantReport.findMany({

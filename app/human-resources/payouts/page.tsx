@@ -366,7 +366,7 @@ export default function HrPayoutsPage() {
         id: "expectedDue",
         header: "Expected Due",
         accessorFn: (row) => format(row.expectedDueDate, "yyyy-MM-dd"),
-        cell: ({ row }) => <NumericCell align="left">{format(row.original.expectedDueDate, "MMM d, yyyy")}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{format(row.original.expectedDueDate, "MMM d, yyyy")}</NumericCell>,
       },
       {
         id: "payoutStatus",
@@ -479,7 +479,7 @@ export default function HrPayoutsPage() {
         const isOverdue = isBefore(row.original.dueDate, new Date()) && row.original.status !== "PAID";
         return (
           <div>
-            <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
+            <NumericCell>{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
             {isOverdue ? <div className="text-[10px] text-red-600">Past due</div> : null}
           </div>
         );
@@ -508,7 +508,7 @@ export default function HrPayoutsPage() {
       header: "Paid Date",
       accessorFn: (row) => (row.paidAt ? format(row.paidAt, "yyyy-MM-dd") : ""),
       cell: ({ row }) => (
-        <NumericCell align="left">{row.original.paidAt ? format(row.original.paidAt, "MMM d, yyyy") : "-"}</NumericCell>
+        <NumericCell>{row.original.paidAt ? format(row.original.paidAt, "MMM d, yyyy") : "-"}</NumericCell>
       ),
     },
     {

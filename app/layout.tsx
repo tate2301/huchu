@@ -1,21 +1,13 @@
 import "material-symbols";
 
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
-
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  variable: "--font-ibm-plex-mono",
-  weight: ["400", "500", "600", "700"],
-});
+// Google Fonts are loaded via CSS in globals.css as a fallback for build environments
+// where next/font/google cannot fetch fonts during build time
+const fontVariables = "";
 
 export const metadata: Metadata = {
   title: "Huchu - Mine Operations System",
@@ -36,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${ibmPlexMono.variable} font-sans subpixel-antialiased`}>
+      <body className="font-sans subpixel-antialiased">
         <div className="app-root">
           <AppProviders>
             <AppShell>{children}</AppShell>

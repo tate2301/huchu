@@ -354,10 +354,10 @@ export default function GoldPayrollPage() {
               >
                 <div className="min-w-0">
                   <div className="font-medium">
-                    <NumericCell align="left">Run #{run.runNumber}</NumericCell>
+                    <NumericCell>Run #{run.runNumber}</NumericCell>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    <NumericCell align="left">{format(new Date(run.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
+                    <NumericCell>{format(new Date(run.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
                   </div>
                 </div>
                 <div>
@@ -390,7 +390,7 @@ export default function GoldPayrollPage() {
         header: "Period",
         cell: ({ row }) => (
           <div className="font-medium">
-            <NumericCell align="left">{row.original.periodKey}</NumericCell>
+            <NumericCell>{row.original.periodKey}</NumericCell>
           </div>
         ),
       },
@@ -398,7 +398,7 @@ export default function GoldPayrollPage() {
         id: "window",
         header: "Window",
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {format(new Date(row.original.startDate), "MMM d")} - {format(new Date(row.original.endDate), "MMM d, yyyy")}
           </NumericCell>
         ),
@@ -449,10 +449,10 @@ export default function GoldPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+              <NumericCell>Run #{row.original.runNumber}</NumericCell>
             </div>
             <div className="text-xs text-muted-foreground font-mono">
-              <NumericCell align="left">{format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
+              <NumericCell>{format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
             </div>
           </div>
         ),
@@ -497,10 +497,10 @@ export default function GoldPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+              <NumericCell>Run #{row.original.runNumber}</NumericCell>
             </div>
             <div className="text-xs text-muted-foreground font-mono">
-              <NumericCell align="left">{format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
+              <NumericCell>{format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}</NumericCell>
             </div>
           </div>
         ),

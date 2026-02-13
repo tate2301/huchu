@@ -179,7 +179,7 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
         id: "trainingDate",
         header: "Date",
         accessorFn: (row) => row.trainingDate,
-        cell: ({ row }) => <NumericCell align="left">{toDateInput(row.original.trainingDate)}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{toDateInput(row.original.trainingDate)}</NumericCell>,
       },
       {
         id: "expiryDate",
@@ -191,7 +191,7 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
             toDateInput(row.original.expiryDate) < TODAY_ISO;
           return (
             <div className="flex items-center gap-2">
-              <NumericCell align="left">{toDateInput(row.original.expiryDate)}</NumericCell>
+              <NumericCell>{toDateInput(row.original.expiryDate)}</NumericCell>
               {row.original.expiryDate ? (
                 <Badge variant={expired ? "destructive" : "outline"}>
                   {expired ? "Expired" : "Active"}

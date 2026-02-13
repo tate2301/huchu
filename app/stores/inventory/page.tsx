@@ -358,7 +358,7 @@ export default function StoresInventoryPage() {
       siteId: string;
       isActive: boolean;
     }) =>
-      fetchJson("/api/stock-locations", {
+      fetchJson<{ id: string; siteId: string } | null>("/api/stock-locations", {
         method: "POST",
         body: JSON.stringify(payload),
       }),

@@ -54,7 +54,7 @@ export default function ComplianceIncidentsReportPage() {
         id: "date",
         header: "Date",
         accessorFn: (row) => row.incidentDate,
-        cell: ({ row }) => <NumericCell align="left">{format(new Date(row.original.incidentDate), "MMM d, yyyy")}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{format(new Date(row.original.incidentDate), "MMM d, yyyy")}</NumericCell>,
       },
       { id: "site", header: "Site", accessorFn: (row) => row.site.name, cell: ({ row }) => row.original.site.name },
       { id: "type", header: "Type", accessorFn: (row) => row.incidentType, cell: ({ row }) => row.original.incidentType },

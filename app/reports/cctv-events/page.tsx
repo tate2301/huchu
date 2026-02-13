@@ -46,7 +46,7 @@ export default function CCTVEventsReportPage() {
         header: "Event Time",
         accessorFn: (row) => row.eventTime,
         cell: ({ row }) => (
-          <NumericCell align="left">{format(new Date(row.original.eventTime), "MMM d, yyyy HH:mm")}</NumericCell>
+          <NumericCell>{format(new Date(row.original.eventTime), "MMM d, yyyy HH:mm")}</NumericCell>
         ),
       },
       { id: "type", header: "Type", accessorFn: (row) => row.eventType, cell: ({ row }) => row.original.eventType },

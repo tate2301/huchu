@@ -114,7 +114,7 @@ export default function AuditTrailsReportPage() {
         header: "Time",
         accessorFn: (row) => row.at,
         cell: ({ row }) => (
-          <NumericCell align="left">{format(new Date(row.original.at), "MMM d, yyyy HH:mm")}</NumericCell>
+          <NumericCell>{format(new Date(row.original.at), "MMM d, yyyy HH:mm")}</NumericCell>
         ),
       },
       {

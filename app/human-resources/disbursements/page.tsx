@@ -362,7 +362,7 @@ export default function DisbursementsPage() {
         header: "Run",
         cell: ({ row }) => (
           <div className="font-medium">
-            <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+            <NumericCell>Run #{row.original.runNumber}</NumericCell>
           </div>
         ),
       },
@@ -445,7 +445,7 @@ export default function DisbursementsPage() {
         cell: ({ row }) => (
           <div>
             <div>
-              <NumericCell align="left">Run #{row.original.payrollRun.runNumber}</NumericCell>
+              <NumericCell>Run #{row.original.payrollRun.runNumber}</NumericCell>
             </div>
             <div className="text-xs text-muted-foreground">
               {row.original.payrollRun.period?.periodKey ?? "-"}
@@ -489,7 +489,7 @@ export default function DisbursementsPage() {
         accessorKey: "createdAt",
         header: "Created",
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
           </NumericCell>
         ),
@@ -598,7 +598,7 @@ export default function DisbursementsPage() {
         header: "Paid At",
         accessorFn: (row) => row.paidAt ?? "",
         cell: ({ row }) => (
-          <NumericCell align="left">
+          <NumericCell>
             {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
           </NumericCell>
         ),
@@ -957,7 +957,7 @@ export default function DisbursementsPage() {
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Run</div>
                   <div className="font-semibold">
-                    <NumericCell align="left">#{batchDetails.payrollRun.runNumber}</NumericCell> (
+                    <NumericCell>#{batchDetails.payrollRun.runNumber}</NumericCell> (
                     {batchDetails.payrollRun.period.periodKey})
                   </div>
                 </div>

@@ -1,7 +1,6 @@
 import { prisma } from "../prisma";
 import { appendAuditEvent } from "./audit-ledger";
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "../../../lib/platform/feature-catalog";
-import { getBundleFeatureKeysByCodes } from "./bundle-catalog-service";
 import type {
   AddonBundleSummary,
   AddonSetResult,
@@ -12,6 +11,18 @@ import type {
   TierAssignResult,
   TierPlanSummary,
 } from "../types";
+
+// Helper function to get feature keys for bundle codes
+async function getBundleFeatureKeysByCodes(bundleCodes: string[]): Promise<string[]> {
+  const features: string[] = [];
+  for (const code of bundleCodes) {
+    const bundle = getBundleDefinition(code);
+    if (bundle?.features) {
+      features.push(...bundle.features);
+    }
+  }
+  return features;
+}
 
 function formatDate(value: Date | null | undefined): string | null {
   if (!value) return null;

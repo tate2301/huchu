@@ -75,7 +75,7 @@ export function DispatchForm({
             : "No previous dispatch"
         }`,
         meta: `${pour.grossWeight} g`,
-        badgeVariant: pour.dispatchCount > 0 ? "destructive" : "secondary",
+        badgeVariant: (pour.dispatchCount > 0 ? "destructive" : "secondary") as "default" | "secondary" | "destructive" | "outline",
       })),
     [availablePours],
   );

@@ -98,8 +98,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         const typedUser = user as { id: string; role?: string; companyId?: string };
         extendedToken.id = typedUser.id;
-        extendedToken.role = typedUser.role;
-        extendedToken.companyId = typedUser.companyId;
+        extendedToken.role = typedUser.role ?? undefined;
+        extendedToken.companyId = typedUser.companyId ?? undefined;
       }
 
       if (extendedToken.companyId) {

@@ -183,7 +183,7 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
         accessorFn: (row) => row.incidentDate,
         cell: ({ row }) => (
           <div>
-            <NumericCell align="left">{toDateInput(row.original.incidentDate)}</NumericCell>
+            <NumericCell>{toDateInput(row.original.incidentDate)}</NumericCell>
             {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
           </div>
         ),

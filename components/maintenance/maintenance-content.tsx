@@ -437,7 +437,7 @@ export function MaintenanceContent({
 
   const createEquipmentMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson("/api/equipment", {
+      fetchJson<{ id: string }>("/api/equipment", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -520,7 +520,7 @@ export function MaintenanceContent({
       location?: string;
       measurementUnit?: string;
     }) =>
-      fetchJson("/api/sites", {
+      fetchJson<{ id: string }>("/api/sites", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -549,7 +549,7 @@ export function MaintenanceContent({
 
   const createTechnicianMutation = useMutation({
     mutationFn: async (payload: typeof technicianForm) =>
-      fetchJson("/api/employees", {
+      fetchJson<{ id: string }>("/api/employees", {
         method: "POST",
         body: JSON.stringify({
           ...payload,

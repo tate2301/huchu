@@ -143,13 +143,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         resolvedById:
           validated.status === "CLOSED"
             ? session.user.id
-            : validated.status && validated.status !== "CLOSED"
+            : validated.status
               ? null
               : undefined,
         resolvedAt:
           validated.status === "CLOSED"
             ? new Date()
-            : validated.status && validated.status !== "CLOSED"
+            : validated.status
               ? null
               : undefined,
       },

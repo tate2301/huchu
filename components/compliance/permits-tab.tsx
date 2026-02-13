@@ -188,13 +188,13 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
         id: "issueDate",
         header: "Issue",
         accessorFn: (row) => row.issueDate,
-        cell: ({ row }) => <NumericCell align="left">{toDateInput(row.original.issueDate)}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{toDateInput(row.original.issueDate)}</NumericCell>,
       },
       {
         id: "expiryDate",
         header: "Expiry",
         accessorFn: (row) => row.expiryDate,
-        cell: ({ row }) => <NumericCell align="left">{toDateInput(row.original.expiryDate)}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{toDateInput(row.original.expiryDate)}</NumericCell>,
       },
       {
         id: "status",

@@ -15,7 +15,7 @@ const updateInspectionSchema = z.object({
   documentUrl: z.string().url().max(2048).nullable().optional(),
 });
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
 async function getInspectionForCompany(id: string, companyId: string) {
   const inspection = await prisma.inspection.findUnique({
@@ -35,7 +35,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const inspection = await getInspectionForCompany(params.id, session.user.companyId);
+    const { id } = await params;
+    const inspection = await getInspectionForCompany(id, session.user.companyId);
     if (!inspection) return errorResponse("Inspection not found", 404);
     return successResponse(inspection);
   } catch (error) {
@@ -50,7 +51,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const existing = await getInspectionForCompany(params.id, session.user.companyId);
+    const { id } = await params;
+    const existing = await getInspectionForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Inspection not found", 404);
 
     const body = await request.json();
@@ -70,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const inspection = await prisma.inspection.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         inspectionDate: validated.inspectionDate ? new Date(validated.inspectionDate) : undefined,
         inspectorName: validated.inspectorName,
@@ -116,10 +118,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const existing = await getInspectionForCompany(params.id, session.user.companyId);
+    const { id } = await params;
+    const existing = await getInspectionForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Inspection not found", 404);
 
-    await prisma.inspection.delete({ where: { id: params.id } });
+    await prisma.inspection.delete({ where: { id } });
     return successResponse({ success: true });
   } catch (error) {
     console.error("[API] DELETE /api/compliance/inspections/[id] error:", error);
