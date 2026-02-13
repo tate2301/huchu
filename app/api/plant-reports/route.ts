@@ -39,8 +39,14 @@ export async function GET(request: NextRequest) {
     };
 
     if (siteId) where.siteId = siteId;
-    if (startDate) where.date = { ...where.date, gte: new Date(startDate) };
-    if (endDate) where.date = { ...where.date, lte: new Date(endDate) };
+    if (startDate) {
+      const dateWhere = (where.date as Record<string, Date> | undefined) ?? {};
+      where.date = { ...dateWhere, gte: new Date(startDate) };
+    }
+    if (endDate) {
+      const dateWhere = (where.date as Record<string, Date> | undefined) ?? {};
+      where.date = { ...dateWhere, lte: new Date(endDate) };
+    }
 
     const [reports, total] = await Promise.all([
       prisma.plantReport.findMany({

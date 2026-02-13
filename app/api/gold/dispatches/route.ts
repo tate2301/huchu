@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
       goldPour: { site: { companyId: session.user.companyId } },
     }
 
-    if (siteId) where.goldPour = { ...where.goldPour, siteId }
+    if (siteId) {
+      const goldPourWhere = (where.goldPour as Record<string, unknown> | undefined) ?? {}
+      where.goldPour = { ...goldPourWhere, siteId }
+    }
     if (goldPourId) where.goldPourId = goldPourId
 
     const [dispatches, total] = await Promise.all([

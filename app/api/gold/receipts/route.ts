@@ -66,8 +66,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (siteId) {
+      const goldDispatchWhere = (where.goldDispatch as Record<string, unknown> | undefined) ?? {}
       where.goldDispatch = {
-        ...where.goldDispatch,
+        ...goldDispatchWhere,
         goldPour: { siteId },
       }
     }

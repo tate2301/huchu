@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
 
     if (equipmentId) where.equipmentId = equipmentId;
     if (siteId) {
-      where.equipment = { ...where.equipment, siteId };
+      const equipmentWhere =
+        (where.equipment as Record<string, unknown> | undefined) ?? {};
+      where.equipment = { ...equipmentWhere, siteId };
     }
     if (status) where.status = status;
     const [workOrders, total] = await Promise.all([

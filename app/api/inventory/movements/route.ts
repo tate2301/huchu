@@ -47,9 +47,15 @@ export async function GET(request: NextRequest) {
     };
 
     if (itemId) where.itemId = itemId;
-    if (siteId) where.item = { ...where.item, siteId };
+    if (siteId) {
+      const itemWhere = (where.item as Record<string, unknown> | undefined) ?? {};
+      where.item = { ...itemWhere, siteId };
+    }
     if (movementType) where.movementType = movementType;
-    if (category) where.item = { ...where.item, category };
+    if (category) {
+      const itemWhere = (where.item as Record<string, unknown> | undefined) ?? {};
+      where.item = { ...itemWhere, category };
+    }
 
     const [movements, total] = await Promise.all([
       prisma.stockMovement.findMany({

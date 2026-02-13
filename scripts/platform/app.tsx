@@ -640,7 +640,6 @@ export function PlatformApp({
                     <Text dimColor>
                       Path: {selectedDomain.label}
                       {treeLevel === "operation" ? ` / ${selectedTask?.label ?? "none"}` : ""}
-                      {workspaceMode === "operation" ? ` / ${selectedOperation?.label ?? "none"}` : ""}
                     </Text>
                     <Text dimColor>
                       Flow: Enter drills down. Esc moves one level up. Enter on action opens wizard.
