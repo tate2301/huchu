@@ -13,7 +13,7 @@ const updateTrainingSchema = z.object({
   notes: z.string().max(5000).nullable().optional(),
 });
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
 async function getTrainingForCompany(id: string, companyId: string) {
   const record = await prisma.trainingRecord.findUnique({
@@ -31,8 +31,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const record = await getTrainingForCompany(params.id, session.user.companyId);
+    const record = await getTrainingForCompany(id, session.user.companyId);
     if (!record) return errorResponse("Training record not found", 404);
     return successResponse(record);
   } catch (error) {
@@ -46,8 +47,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getTrainingForCompany(params.id, session.user.companyId);
+    const existing = await getTrainingForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Training record not found", 404);
 
     const body = await request.json();
@@ -67,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const record = await prisma.trainingRecord.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         userId: validated.userId,
         trainingType: validated.trainingType,
@@ -103,11 +105,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { id } = await params;
 
-    const existing = await getTrainingForCompany(params.id, session.user.companyId);
+    const existing = await getTrainingForCompany(id, session.user.companyId);
     if (!existing) return errorResponse("Training record not found", 404);
 
-    await prisma.trainingRecord.delete({ where: { id: params.id } });
+    await prisma.trainingRecord.delete({ where: { id } });
     return successResponse({ success: true });
   } catch (error) {
     console.error("[API] DELETE /api/compliance/training-records/[id] error:", error);

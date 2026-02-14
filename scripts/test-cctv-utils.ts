@@ -14,13 +14,7 @@ import {
   parseStreamToken,
   getRecommendedStreamType,
 } from '../lib/cctv-utils'
-
-// Import enum values directly
-const StreamType = {
-  MAIN: "main" as const,
-  SUB: "sub" as const,
-  THIRD: "third" as const,
-}
+import { StreamType } from '../lib/cctv-types'
 
 console.log('='.repeat(60))
 console.log('CCTV Utility Functions Test')
