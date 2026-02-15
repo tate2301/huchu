@@ -96,6 +96,7 @@ export async function getTrialBalance(input: {
       code: account?.code ?? "",
       name: account?.name ?? "Unknown",
       type: account?.type ?? "ASSET",
+      category: account?.category ?? null,
       debit,
       credit,
       balance: debit - credit,
@@ -155,6 +156,43 @@ export async function getFinancialStatements(input: {
         liabilities: liabilityTotal,
         equity: equityTotal,
       },
+    },
+  };
+}
+
+export async function getCashFlowReport(input: {
+  companyId: string;
+  periodId?: string | null;
+  startDate?: Date | null;
+  endDate?: Date | null;
+}) {
+  const trialBalance = await getTrialBalance(input);
+  const cashKeywords = ["cash", "bank"];
+
+  const isCashAccount = (name: string, category?: string | null) => {
+    const haystack = `${name} ${category ?? ""}`.toLowerCase();
+    return cashKeywords.some((keyword) => haystack.includes(keyword));
+  };
+
+  const operating = trialBalance.rows.filter((row) => ["INCOME", "EXPENSE"].includes(row.type));
+  const investing = trialBalance.rows.filter(
+    (row) => row.type === "ASSET" && !isCashAccount(row.name, row.category),
+  );
+  const financing = trialBalance.rows.filter((row) => ["LIABILITY", "EQUITY"].includes(row.type));
+
+  const operatingTotal = operating.reduce((sum, row) => sum + (row.credit - row.debit), 0);
+  const investingTotal = investing.reduce((sum, row) => sum + row.balance, 0);
+  const financingTotal = financing.reduce((sum, row) => sum + (row.credit - row.debit), 0);
+
+  return {
+    operating,
+    investing,
+    financing,
+    totals: {
+      operating: operatingTotal,
+      investing: investingTotal,
+      financing: financingTotal,
+      netCash: operatingTotal + investingTotal + financingTotal,
     },
   };
 }

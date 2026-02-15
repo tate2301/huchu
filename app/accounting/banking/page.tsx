@@ -29,8 +29,10 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import {
   type BankAccountRecord,
+  type BankReconciliationRecord,
   type BankTransactionRecord,
   fetchBankAccounts,
+  fetchBankReconciliations,
   fetchBankTransactions,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -41,9 +43,10 @@ const today = format(new Date(), "yyyy-MM-dd");
 export default function BankingPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeView, setActiveView] = useState<"accounts" | "transactions">("accounts");
+  const [activeView, setActiveView] = useState<"accounts" | "transactions" | "reconciliations">("accounts");
   const [accountFormOpen, setAccountFormOpen] = useState(false);
   const [transactionFormOpen, setTransactionFormOpen] = useState(false);
+  const [reconciliationFormOpen, setReconciliationFormOpen] = useState(false);
   const [accountFilter, setAccountFilter] = useState("");
 
   const [accountForm, setAccountForm] = useState({
@@ -63,6 +66,12 @@ export default function BankingPage() {
     amount: "",
     direction: "DEBIT",
   });
+  const [reconciliationForm, setReconciliationForm] = useState({
+    bankAccountId: "",
+    startDate: today,
+    endDate: today,
+    statementBalance: "",
+  });
   const { data: accountsData, error: accountsError } = useQuery({
     queryKey: ["accounting", "banking", "accounts"],
     queryFn: () => fetchBankAccounts({ limit: 200 }),
@@ -73,8 +82,14 @@ export default function BankingPage() {
     queryFn: () => fetchBankTransactions({ limit: 200 }),
   });
 
+  const { data: reconciliationsData, error: reconciliationsError } = useQuery({
+    queryKey: ["accounting", "banking", "reconciliations"],
+    queryFn: () => fetchBankReconciliations({ limit: 200 }),
+  });
+
   const accounts = useMemo(() => accountsData?.data ?? [], [accountsData]);
   const transactions = useMemo(() => transactionsData?.data ?? [], [transactionsData]);
+  const reconciliations = useMemo(() => reconciliationsData?.data ?? [], [reconciliationsData]);
 
   const filteredTransactions = useMemo(() => {
     if (!accountFilter) return transactions;
@@ -156,6 +171,59 @@ export default function BankingPage() {
         header: "Amount",
         cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
       },
+      {
+        id: "reconciled",
+        header: "Reconciled",
+        cell: ({ row }) => (
+          <Badge variant={row.original.reconciledAt ? "secondary" : "outline"}>
+            {row.original.reconciledAt ? "Yes" : "No"}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const reconciliationColumns = useMemo<ColumnDef<BankReconciliationRecord>[]>(
+    () => [
+      {
+        id: "account",
+        header: "Account",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.bankAccount?.name ?? "-"}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.bankAccount?.currency ?? "USD"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "period",
+        header: "Period",
+        cell: ({ row }) => (
+          <div className="text-sm">
+            <div className="font-mono">{format(new Date(row.original.startDate), "yyyy-MM-dd")}</div>
+            <div className="text-xs text-muted-foreground">
+              {format(new Date(row.original.endDate), "yyyy-MM-dd")}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "statement",
+        header: "Statement Balance",
+        cell: ({ row }) => <NumericCell>{row.original.statementBalance.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "OPEN" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
     ],
     [],
   );
@@ -223,6 +291,36 @@ export default function BankingPage() {
     },
   });
 
+  const createReconciliationMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/accounting/banking/reconciliations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Reconciliation created",
+        description: "Bank reconciliation saved successfully.",
+        variant: "success",
+      });
+      setReconciliationFormOpen(false);
+      setReconciliationForm({
+        bankAccountId: "",
+        startDate: today,
+        endDate: today,
+        statementBalance: "",
+      });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "banking", "reconciliations"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to create reconciliation",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   const submitAccount = (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -266,6 +364,26 @@ export default function BankingPage() {
       direction: transactionForm.direction,
     });
   };
+
+  const submitReconciliation = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!reconciliationForm.bankAccountId || !reconciliationForm.statementBalance) {
+      toast({
+        title: "Missing details",
+        description: "Bank account and statement balance are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createReconciliationMutation.mutate({
+      bankAccountId: reconciliationForm.bankAccountId,
+      startDate: reconciliationForm.startDate,
+      endDate: reconciliationForm.endDate,
+      statementBalance: Number(reconciliationForm.statementBalance),
+    });
+  };
   return (
     <AccountingShell
       activeTab="banking"
@@ -281,14 +399,18 @@ export default function BankingPage() {
             <Plus className="mr-2 size-4" />
             New Transaction
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setReconciliationFormOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            New Reconciliation
+          </Button>
         </div>
       }
     >
-      {(accountsError || transactionsError) ? (
+      {(accountsError || transactionsError || reconciliationsError) ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load banking data</AlertTitle>
           <AlertDescription>
-            {getApiErrorMessage(accountsError || transactionsError)}
+            {getApiErrorMessage(accountsError || transactionsError || reconciliationsError)}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -297,9 +419,12 @@ export default function BankingPage() {
         items={[
           { id: "accounts", label: "Bank Accounts", count: accounts.length },
           { id: "transactions", label: "Transactions", count: transactions.length },
+          { id: "reconciliations", label: "Reconciliations", count: reconciliations.length },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "accounts" | "transactions")}
+        onValueChange={(value) =>
+          setActiveView(value as "accounts" | "transactions" | "reconciliations")
+        }
         railLabel="Banking Views"
       >
         <div className={activeView === "accounts" ? "space-y-3" : "hidden"}>
@@ -336,6 +461,17 @@ export default function BankingPage() {
               </Select>
             }
             emptyState={"No transactions found."}
+          />
+        </div>
+
+        <div className={activeView === "reconciliations" ? "space-y-3" : "hidden"}>
+          <DataTable
+            data={reconciliations}
+            columns={reconciliationColumns}
+            searchPlaceholder="Search reconciliations"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={"No reconciliations found."}
           />
         </div>
       </VerticalDataViews>
@@ -506,6 +642,85 @@ export default function BankingPage() {
                 Save Transaction
               </Button>
               <Button type="button" variant="outline" onClick={() => setTransactionFormOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+      <Sheet open={reconciliationFormOpen} onOpenChange={setReconciliationFormOpen}>
+        <SheetContent className="w-full sm:max-w-lg p-6">
+          <SheetHeader>
+            <SheetTitle>New Bank Reconciliation</SheetTitle>
+            <SheetDescription>Start a reconciliation period for a bank account.</SheetDescription>
+          </SheetHeader>
+          <form onSubmit={submitReconciliation} className="mt-6 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-2">Bank Account *</label>
+              <Select
+                value={reconciliationForm.bankAccountId}
+                onValueChange={(value) =>
+                  setReconciliationForm((prev) => ({ ...prev, bankAccountId: value }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Start Date *</label>
+                <Input
+                  type="date"
+                  value={reconciliationForm.startDate}
+                  onChange={(event) =>
+                    setReconciliationForm((prev) => ({ ...prev, startDate: event.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">End Date *</label>
+                <Input
+                  type="date"
+                  value={reconciliationForm.endDate}
+                  onChange={(event) =>
+                    setReconciliationForm((prev) => ({ ...prev, endDate: event.target.value }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Statement Balance *</label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={reconciliationForm.statementBalance}
+                onChange={(event) =>
+                  setReconciliationForm((prev) => ({
+                    ...prev,
+                    statementBalance: event.target.value,
+                  }))
+                }
+                className="text-right font-mono"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="flex-1" disabled={createReconciliationMutation.isPending}>
+                Save Reconciliation
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setReconciliationFormOpen(false)}>
                 Cancel
               </Button>
             </div>

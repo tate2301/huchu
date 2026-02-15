@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 
 const paymentSchema = z.object({
   billId: z.string().uuid().optional(),
@@ -105,20 +106,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (payment.billId) {
-      const paidTotal = await prisma.purchasePayment.aggregate({
-        where: { billId: payment.billId },
-        _sum: { amount: true },
-      });
-      const bill = await prisma.purchaseBill.findUnique({
-        where: { id: payment.billId },
-        select: { total: true },
-      });
-      if (bill && (paidTotal._sum.amount ?? 0) >= bill.total) {
-        await prisma.purchaseBill.update({
-          where: { id: payment.billId },
-          data: { status: "PAID" },
-        });
-      }
+      await recalcPurchaseBillBalance(payment.billId);
     }
 
     try {

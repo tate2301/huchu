@@ -21,9 +21,11 @@ import {
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import {
   type AccountingPeriodRecord,
+  type CashFlowReport,
   type FinancialStatementsReport,
   type TrialBalanceRow,
   fetchAccountingPeriods,
+  fetchCashFlowReport,
   fetchFinancialStatements,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -31,7 +33,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 type StatementRow = TrialBalanceRow & { group: string; value: number };
 
 export default function FinancialStatementsPage() {
-  const [activeView, setActiveView] = useState<"profit" | "balance">("profit");
+  const [activeView, setActiveView] = useState<"profit" | "balance" | "cash-flow">("profit");
   const [periodId, setPeriodId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -55,8 +57,19 @@ export default function FinancialStatementsPage() {
       }),
   });
 
+  const { data: cashFlowReport } = useQuery({
+    queryKey: ["accounting", "cash-flow", periodId, startDate, endDate],
+    queryFn: () =>
+      fetchCashFlowReport({
+        periodId: periodId || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      }),
+  });
+
   const periods = periodsData?.data ?? [];
   const financials: FinancialStatementsReport | undefined = report;
+  const cashFlow: CashFlowReport | undefined = cashFlowReport;
 
   const profitRows = useMemo<StatementRow[]>(() => {
     if (!financials) return [];
@@ -93,6 +106,26 @@ export default function FinancialStatementsPage() {
     return [...assets, ...liabilities, ...equity];
   }, [financials]);
 
+  const cashFlowRows = useMemo<StatementRow[]>(() => {
+    if (!cashFlow) return [];
+    const operating = cashFlow.operating.map((row) => ({
+      ...row,
+      group: "Operating",
+      value: row.credit - row.debit,
+    }));
+    const investing = cashFlow.investing.map((row) => ({
+      ...row,
+      group: "Investing",
+      value: row.balance,
+    }));
+    const financing = cashFlow.financing.map((row) => ({
+      ...row,
+      group: "Financing",
+      value: row.credit - row.debit,
+    }));
+    return [...operating, ...investing, ...financing];
+  }, [cashFlow]);
+
   const columns = useMemo<ColumnDef<StatementRow>[]>(
     () => [
       {
@@ -123,6 +156,7 @@ export default function FinancialStatementsPage() {
 
   const totals = financials?.profitAndLoss.totals ?? { income: 0, expenses: 0, netIncome: 0 };
   const balanceTotals = financials?.balanceSheet.totals ?? { assets: 0, liabilities: 0, equity: 0 };
+  const cashTotals = cashFlow?.totals ?? { operating: 0, investing: 0, financing: 0, netCash: 0 };
 
   const handlePeriodChange = (value: string) => {
     setPeriodId(value);
@@ -198,92 +232,110 @@ export default function FinancialStatementsPage() {
         items={[
           { id: "profit", label: "Profit & Loss", count: profitRows.length },
           { id: "balance", label: "Balance Sheet", count: balanceRows.length },
+          { id: "cash-flow", label: "Cash Flow", count: cashFlowRows.length },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "profit" | "balance")}
+        onValueChange={(value) => setActiveView(value as "profit" | "balance" | "cash-flow")}
         railLabel="Statement Views"
       >
-        <div className={activeView === "profit" ? "space-y-3" : "hidden"}>
-          <DataTable
-            data={profitRows}
-            columns={columns}
-            searchPlaceholder="Search accounts"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            toolbar={
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={periodId} onValueChange={handlePeriodChange}>
-                  <SelectTrigger size="sm" className="h-8 w-[220px]">
-                    <SelectValue placeholder="Filter by period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All Periods</SelectItem>
-                    {periods.map((period: AccountingPeriodRecord) => (
-                      <SelectItem key={period.id} value={period.id}>
-                        {format(new Date(period.startDate), "yyyy-MM-dd")} to {" "}
-                        {format(new Date(period.endDate), "yyyy-MM-dd")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => handleStartDateChange(event.target.value)}
-                  className="h-8"
-                />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => handleEndDateChange(event.target.value)}
-                  className="h-8"
-                />
-              </div>
-            }
-            emptyState={isLoading ? "Loading profit & loss..." : "No profit & loss data."}
-          />
-        </div>
+        {(() => {
+          const toolbar = (
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={periodId} onValueChange={handlePeriodChange}>
+                <SelectTrigger size="sm" className="h-8 w-[220px]">
+                  <SelectValue placeholder="Filter by period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Periods</SelectItem>
+                  {periods.map((period: AccountingPeriodRecord) => (
+                    <SelectItem key={period.id} value={period.id}>
+                      {format(new Date(period.startDate), "yyyy-MM-dd")} to{" "}
+                      {format(new Date(period.endDate), "yyyy-MM-dd")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(event) => handleStartDateChange(event.target.value)}
+                className="h-8"
+              />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(event) => handleEndDateChange(event.target.value)}
+                className="h-8"
+              />
+            </div>
+          );
 
-        <div className={activeView === "balance" ? "space-y-3" : "hidden"}>
-          <DataTable
-            data={balanceRows}
-            columns={columns}
-            searchPlaceholder="Search accounts"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            toolbar={
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={periodId} onValueChange={handlePeriodChange}>
-                  <SelectTrigger size="sm" className="h-8 w-[220px]">
-                    <SelectValue placeholder="Filter by period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All Periods</SelectItem>
-                    {periods.map((period: AccountingPeriodRecord) => (
-                      <SelectItem key={period.id} value={period.id}>
-                        {format(new Date(period.startDate), "yyyy-MM-dd")} to {" "}
-                        {format(new Date(period.endDate), "yyyy-MM-dd")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => handleStartDateChange(event.target.value)}
-                  className="h-8"
-                />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => handleEndDateChange(event.target.value)}
-                  className="h-8"
+          return (
+            <>
+              <div className={activeView === "profit" ? "space-y-3" : "hidden"}>
+                <DataTable
+                  data={profitRows}
+                  columns={columns}
+                  searchPlaceholder="Search accounts"
+                  searchSubmitLabel="Search"
+                  pagination={{ enabled: true }}
+                  toolbar={toolbar}
+                  emptyState={isLoading ? "Loading profit & loss..." : "No profit & loss data."}
                 />
               </div>
-            }
-            emptyState={isLoading ? "Loading balance sheet..." : "No balance sheet data."}
-          />
-        </div>
+
+              <div className={activeView === "balance" ? "space-y-3" : "hidden"}>
+                <DataTable
+                  data={balanceRows}
+                  columns={columns}
+                  searchPlaceholder="Search accounts"
+                  searchSubmitLabel="Search"
+                  pagination={{ enabled: true }}
+                  toolbar={toolbar}
+                  emptyState={isLoading ? "Loading balance sheet..." : "No balance sheet data."}
+                />
+              </div>
+
+              <div className={activeView === "cash-flow" ? "space-y-3" : "hidden"}>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Operating Cash</CardDescription>
+                      <CardTitle className="font-mono">{cashTotals.operating.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Investing Cash</CardDescription>
+                      <CardTitle className="font-mono">{cashTotals.investing.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Financing Cash</CardDescription>
+                      <CardTitle className="font-mono">{cashTotals.financing.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Net Cash</CardDescription>
+                      <CardTitle className="font-mono">{cashTotals.netCash.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                </div>
+                <DataTable
+                  data={cashFlowRows}
+                  columns={columns}
+                  searchPlaceholder="Search accounts"
+                  searchSubmitLabel="Search"
+                  pagination={{ enabled: true }}
+                  toolbar={toolbar}
+                  emptyState={isLoading ? "Loading cash flow..." : "No cash flow data."}
+                />
+              </div>
+            </>
+          );
+        })()}
       </VerticalDataViews>
     </AccountingShell>
   );

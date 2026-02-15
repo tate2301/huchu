@@ -41,11 +41,13 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "3000", name: "Owner's Equity", type: "EQUITY", category: "Equity", systemManaged: true },
   { code: "4000", name: "Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4100", name: "Gold Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
+  { code: "4200", name: "Other Income", type: "INCOME", category: "Other Income", systemManaged: true },
   { code: "5000", name: "Cost of Goods Sold", type: "EXPENSE", category: "COGS", systemManaged: true },
   { code: "5100", name: "Consumables Expense", type: "EXPENSE", category: "Operations", systemManaged: true },
   { code: "5200", name: "Wages Expense", type: "EXPENSE", category: "Payroll", systemManaged: true },
   { code: "5300", name: "Maintenance Expense", type: "EXPENSE", category: "Maintenance", systemManaged: true },
   { code: "5400", name: "Inventory Adjustments", type: "EXPENSE", category: "Inventory", systemManaged: true },
+  { code: "5600", name: "Bad Debt Expense", type: "EXPENSE", category: "Receivables", systemManaged: true },
 ];
 
 export const DEFAULT_TAX_CODES: DefaultTaxCode[] = [
@@ -122,6 +124,23 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    name: "Sales Credit Note",
+    sourceType: "SALES_CREDIT_NOTE",
+    lines: [
+      { accountCode: "4000", direction: "DEBIT", basis: "NET", allocationPercent: 100 },
+      { accountCode: "2200", direction: "DEBIT", basis: "TAX", allocationPercent: 100 },
+      { accountCode: "1100", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Sales Write-off",
+    sourceType: "SALES_WRITE_OFF",
+    lines: [
+      { accountCode: "5600", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1100", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
     name: "Purchase Bill",
     sourceType: "PURCHASE_BILL",
     lines: [
@@ -136,6 +155,23 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
       { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Purchase Debit Note",
+    sourceType: "PURCHASE_DEBIT_NOTE",
+    lines: [
+      { accountCode: "5000", direction: "CREDIT", basis: "NET", allocationPercent: 100 },
+      { accountCode: "2210", direction: "CREDIT", basis: "TAX", allocationPercent: 100 },
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Purchase Write-off",
+    sourceType: "PURCHASE_WRITE_OFF",
+    lines: [
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "4200", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
     ],
   },
   {

@@ -79,7 +79,16 @@ export async function GET(request: NextRequest) {
       prisma.purchaseBill.count({ where }),
     ]);
 
-    return successResponse(paginationResponse(bills, total, page, limit));
+    const enriched = bills.map((bill) => ({
+      ...bill,
+      balance:
+        bill.total -
+        (bill.amountPaid ?? 0) -
+        (bill.debitNoteTotal ?? 0) -
+        (bill.writeOffTotal ?? 0),
+    }));
+
+    return successResponse(paginationResponse(enriched, total, page, limit));
   } catch (error) {
     console.error("[API] GET /api/accounting/purchases/bills error:", error);
     return errorResponse("Failed to fetch purchase bills");

@@ -143,7 +143,6 @@ export async function issueFiscalReceipt(companyId: string, invoiceId: string, a
   await prisma.salesInvoice.update({
     where: { id: invoiceId },
     data: {
-      fiscalReceiptId: receipt.id,
       fiscalStatus: "PENDING",
     },
   });

@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
+import {
+  validateSession,
+  successResponse,
+  errorResponse,
+  getPaginationParams,
+  paginationResponse,
+} from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
-import { hasFeature } from "@/lib/platform/features";
+import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 
-const invoiceSchema = z.object({
-  customerId: z.string().uuid(),
-  invoiceDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  dueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+const debitNoteSchema = z.object({
+  billId: z.string().uuid(),
+  noteDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   currency: z.string().min(1).max(10).optional(),
-  notes: z.string().max(1000).optional(),
+  reason: z.string().max(500).optional(),
   issueNow: z.boolean().optional(),
   lines: z
     .array(
@@ -30,24 +34,24 @@ function formatTwoDigits(value: number) {
   return String(value).padStart(2, "0");
 }
 
-function buildInvoiceNumberCandidate() {
+function buildDebitNoteNumberCandidate() {
   const now = new Date();
   const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
   const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
   const randomPart = Math.floor(100 + Math.random() * 900);
-  return `INV-${datePart}-${timePart}-${randomPart}`;
+  return `DN-${datePart}-${timePart}-${randomPart}`;
 }
 
-async function generateUniqueInvoiceNumber() {
+async function generateUniqueDebitNoteNumber() {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildInvoiceNumberCandidate();
-    const existing = await prisma.salesInvoice.findFirst({
-      where: { invoiceNumber: candidate },
+    const candidate = buildDebitNoteNumberCandidate();
+    const existing = await prisma.debitNote.findFirst({
+      where: { noteNumber: candidate },
       select: { id: true },
     });
     if (!existing) return candidate;
   }
-  return `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  return `DN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -57,44 +61,32 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
 
     const { searchParams } = new URL(request.url);
+    const billId = searchParams.get("billId");
     const status = searchParams.get("status");
-    const customerId = searchParams.get("customerId");
     const { page, limit, skip } = getPaginationParams(request);
 
-    const where: Record<string, unknown> = {
-      companyId: session.user.companyId,
-    };
+    const where: Record<string, unknown> = { companyId: session.user.companyId };
+    if (billId) where.billId = billId;
     if (status) where.status = status;
-    if (customerId) where.customerId = customerId;
 
-    const [invoices, total] = await Promise.all([
-      prisma.salesInvoice.findMany({
+    const [notes, total] = await Promise.all([
+      prisma.debitNote.findMany({
         where,
         include: {
-          customer: true,
+          bill: { select: { billNumber: true, vendor: { select: { name: true } } } },
           lines: true,
-          fiscalReceipt: true,
         },
-        orderBy: [{ invoiceDate: "desc" }],
+        orderBy: [{ noteDate: "desc" }],
         skip,
         take: limit,
       }),
-      prisma.salesInvoice.count({ where }),
+      prisma.debitNote.count({ where }),
     ]);
 
-    const enriched = invoices.map((invoice) => ({
-      ...invoice,
-      balance:
-        invoice.total -
-        (invoice.amountPaid ?? 0) -
-        (invoice.creditTotal ?? 0) -
-        (invoice.writeOffTotal ?? 0),
-    }));
-
-    return successResponse(paginationResponse(enriched, total, page, limit));
+    return successResponse(paginationResponse(notes, total, page, limit));
   } catch (error) {
-    console.error("[API] GET /api/accounting/sales/invoices error:", error);
-    return errorResponse("Failed to fetch sales invoices");
+    console.error("[API] GET /api/accounting/purchases/debit-notes error:", error);
+    return errorResponse("Failed to fetch debit notes");
   }
 }
 
@@ -105,17 +97,20 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
 
     const body = await request.json();
-    const validated = invoiceSchema.parse(body);
+    const validated = debitNoteSchema.parse(body);
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: validated.customerId },
-      select: { companyId: true },
+    const bill = await prisma.purchaseBill.findUnique({
+      where: { id: validated.billId },
+      select: { companyId: true, status: true, currency: true },
     });
-    if (!customer || customer.companyId !== session.user.companyId) {
-      return errorResponse("Invalid customer", 400);
+    if (!bill || bill.companyId !== session.user.companyId) {
+      return errorResponse("Invalid purchase bill", 400);
+    }
+    if (bill.status === "DRAFT" || bill.status === "VOIDED") {
+      return errorResponse("Bill must be received before creating a debit note", 400);
     }
 
-    const invoiceNumber = await generateUniqueInvoiceNumber();
+    const noteNumber = await generateUniqueDebitNoteNumber();
 
     const taxCodeIds = validated.lines
       .map((line) => line.taxCodeId)
@@ -150,66 +145,57 @@ export async function POST(request: NextRequest) {
     const taxTotal = computedLines.reduce((sum, line) => sum + line.taxAmount, 0);
     const total = computedLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
-    const invoiceDate = new Date(validated.invoiceDate);
+    const noteDate = new Date(validated.noteDate);
 
-    const invoice = await prisma.salesInvoice.create({
+    const debitNote = await prisma.debitNote.create({
       data: {
         companyId: session.user.companyId,
-        customerId: validated.customerId,
-        invoiceNumber,
-        invoiceDate,
-        dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
+        billId: validated.billId,
+        noteNumber,
+        noteDate,
         status: validated.issueNow ? "ISSUED" : "DRAFT",
-        currency: validated.currency ?? "USD",
+        currency: validated.currency ?? bill.currency ?? "USD",
         subTotal,
         taxTotal,
         total,
-        notes: validated.notes,
+        reason: validated.reason,
         createdById: session.user.id,
         issuedById: validated.issueNow ? session.user.id : undefined,
         issuedAt: validated.issueNow ? new Date() : undefined,
         lines: { create: computedLines },
       },
       include: {
-        customer: true,
+        bill: { select: { billNumber: true, vendor: { select: { name: true } } } },
         lines: true,
       },
     });
 
-    if (invoice.status === "ISSUED") {
+    if (debitNote.status === "ISSUED") {
+      await recalcPurchaseBillBalance(debitNote.billId);
       try {
         await createJournalEntryFromSource({
           companyId: session.user.companyId,
-          sourceType: "SALES_INVOICE",
-          sourceId: invoice.id,
-          entryDate: invoice.invoiceDate,
-          description: `Sales invoice ${invoice.invoiceNumber}`,
+          sourceType: "PURCHASE_DEBIT_NOTE",
+          sourceId: debitNote.id,
+          entryDate: debitNote.noteDate,
+          description: `Debit note ${debitNote.noteNumber}`,
           createdById: session.user.id,
-          amount: invoice.total,
-          netAmount: invoice.subTotal,
-          taxAmount: invoice.taxTotal,
-          grossAmount: invoice.total,
+          amount: debitNote.total,
+          netAmount: debitNote.subTotal,
+          taxAmount: debitNote.taxTotal,
+          grossAmount: debitNote.total,
         });
       } catch (error) {
-        console.error("[Accounting] Sales invoice auto-post failed:", error);
-      }
-
-      const fiscalEnabled = await hasFeature(session.user.companyId, "accounting.zimra.fiscalisation");
-      if (fiscalEnabled) {
-        try {
-          await issueFiscalReceipt(session.user.companyId, invoice.id, session.user.id);
-        } catch (error) {
-          console.error("[Accounting] Fiscalisation issue failed:", error);
-        }
+        console.error("[Accounting] Purchase debit note auto-post failed:", error);
       }
     }
 
-    return successResponse(invoice, 201);
+    return successResponse(debitNote, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
-    console.error("[API] POST /api/accounting/sales/invoices error:", error);
-    return errorResponse("Failed to create sales invoice");
+    console.error("[API] POST /api/accounting/purchases/debit-notes error:", error);
+    return errorResponse("Failed to create debit note");
   }
 }

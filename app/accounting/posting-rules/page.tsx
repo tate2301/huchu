@@ -44,8 +44,12 @@ const sourceTypeOptions = [
   { value: "GOLD_DISPATCH", label: "Gold Dispatch" },
   { value: "SALES_INVOICE", label: "Sales Invoice" },
   { value: "SALES_RECEIPT", label: "Sales Receipt" },
+  { value: "SALES_CREDIT_NOTE", label: "Sales Credit Note" },
+  { value: "SALES_WRITE_OFF", label: "Sales Write-off" },
   { value: "PURCHASE_BILL", label: "Purchase Bill" },
   { value: "PURCHASE_PAYMENT", label: "Purchase Payment" },
+  { value: "PURCHASE_DEBIT_NOTE", label: "Purchase Debit Note" },
+  { value: "PURCHASE_WRITE_OFF", label: "Purchase Write-off" },
   { value: "BANK_TRANSACTION", label: "Bank Transaction" },
   { value: "MAINTENANCE_COMPLETION", label: "Maintenance Completion" },
 ] as const;

@@ -1596,6 +1596,10 @@ export type SalesInvoiceRecord = {
   subTotal: number;
   taxTotal: number;
   total: number;
+  amountPaid: number;
+  creditTotal: number;
+  writeOffTotal: number;
+  balance?: number;
   fiscalStatus?: string | null;
   notes?: string | null;
   customer: { id: string; name: string };
@@ -1617,6 +1621,44 @@ export type SalesReceiptRecord = {
     invoiceNumber: string;
     customer?: { name: string } | null;
   } | null;
+};
+
+export type CreditNoteLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type CreditNoteRecord = {
+  id: string;
+  companyId: string;
+  invoiceId: string;
+  noteNumber: string;
+  noteDate: string;
+  status: "DRAFT" | "ISSUED" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  reason?: string | null;
+  invoice?: { invoiceNumber?: string | null; customer?: { name?: string | null } | null } | null;
+  lines?: CreditNoteLineRecord[];
+};
+
+export type SalesWriteOffRecord = {
+  id: string;
+  companyId: string;
+  invoiceId: string;
+  amount: number;
+  reason?: string | null;
+  status: "POSTED" | "VOIDED";
+  createdAt: string;
+  invoice?: { invoiceNumber?: string | null; customer?: { name?: string | null } | null } | null;
 };
 
 export type PurchaseBillLineRecord = {
@@ -1642,6 +1684,10 @@ export type PurchaseBillRecord = {
   subTotal: number;
   taxTotal: number;
   total: number;
+  amountPaid: number;
+  debitNoteTotal: number;
+  writeOffTotal: number;
+  balance?: number;
   notes?: string | null;
   vendor: { id: string; name: string };
   lines: PurchaseBillLineRecord[];
@@ -1661,6 +1707,44 @@ export type PurchasePaymentRecord = {
     billNumber: string;
     vendor?: { name: string } | null;
   } | null;
+};
+
+export type DebitNoteLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type DebitNoteRecord = {
+  id: string;
+  companyId: string;
+  billId: string;
+  noteNumber: string;
+  noteDate: string;
+  status: "DRAFT" | "ISSUED" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  reason?: string | null;
+  bill?: { billNumber?: string | null; vendor?: { name?: string | null } | null } | null;
+  lines?: DebitNoteLineRecord[];
+};
+
+export type PurchaseWriteOffRecord = {
+  id: string;
+  companyId: string;
+  billId: string;
+  amount: number;
+  reason?: string | null;
+  status: "POSTED" | "VOIDED";
+  createdAt: string;
+  bill?: { billNumber?: string | null; vendor?: { name?: string | null } | null } | null;
 };
 
 export type BankAccountRecord = {
@@ -1687,7 +1771,21 @@ export type BankTransactionRecord = {
   direction: "DEBIT" | "CREDIT";
   sourceType: string;
   sourceId?: string | null;
+  reconciliationId?: string | null;
+  reconciledAt?: string | null;
   bankAccount?: { name: string; currency: string } | null;
+};
+
+export type BankReconciliationRecord = {
+  id: string;
+  companyId: string;
+  bankAccountId: string;
+  startDate: string;
+  endDate: string;
+  statementBalance: number;
+  status: "OPEN" | "CLOSED" | "VOIDED";
+  createdAt: string;
+  bankAccount?: { id: string; name: string; currency: string } | null;
 };
 
 export type FixedAssetRecord = {
@@ -1784,6 +1882,7 @@ export type TrialBalanceRow = {
   code: string;
   name: string;
   type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  category?: string | null;
   debit: number;
   credit: number;
   balance: number;
@@ -1807,6 +1906,62 @@ export type FinancialStatementsReport = {
     equity: TrialBalanceRow[];
     totals: { assets: number; liabilities: number; equity: number };
   };
+};
+
+export type CashFlowReport = {
+  operating: TrialBalanceRow[];
+  investing: TrialBalanceRow[];
+  financing: TrialBalanceRow[];
+  totals: {
+    operating: number;
+    investing: number;
+    financing: number;
+    netCash: number;
+  };
+};
+
+export type AgingRow = {
+  id: string;
+  name: string;
+  current: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  days90Plus: number;
+  total: number;
+};
+
+export type StatementLineRecord = {
+  date: string;
+  type: string;
+  reference: string;
+  description?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export type StatementReport = {
+  openingBalance: number;
+  closingBalance: number;
+  lines: StatementLineRecord[];
+};
+
+export type VatSummaryRow = {
+  taxCodeId: string;
+  code: string;
+  name: string;
+  rate: number;
+  outputTax: number;
+  inputTax: number;
+  netTax: number;
+};
+
+export type VatSummaryReport = {
+  startDate: string | null;
+  endDate: string | null;
+  rows: VatSummaryRow[];
+  totals: { outputTax: number; inputTax: number; netTax: number };
 };
 
 export async function fetchAccountingSummary() {
@@ -1882,6 +2037,20 @@ export async function fetchSalesReceipts(
   return fetchJson<Pagination<SalesReceiptRecord>>(`/api/accounting/sales/receipts${query}`);
 }
 
+export async function fetchCreditNotes(
+  params: { invoiceId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CreditNoteRecord>>(`/api/accounting/sales/credit-notes${query}`);
+}
+
+export async function fetchSalesWriteOffs(
+  params: { invoiceId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SalesWriteOffRecord>>(`/api/accounting/sales/write-offs${query}`);
+}
+
 export async function fetchPurchaseBills(
   params: { status?: string; vendorId?: string; page?: number; limit?: number } = {},
 ) {
@@ -1894,6 +2063,20 @@ export async function fetchPurchasePayments(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<PurchasePaymentRecord>>(`/api/accounting/purchases/payments${query}`);
+}
+
+export async function fetchDebitNotes(
+  params: { billId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<DebitNoteRecord>>(`/api/accounting/purchases/debit-notes${query}`);
+}
+
+export async function fetchPurchaseWriteOffs(
+  params: { billId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PurchaseWriteOffRecord>>(`/api/accounting/purchases/write-offs${query}`);
 }
 
 export async function fetchBankAccounts(
@@ -1909,6 +2092,15 @@ export async function fetchBankTransactions(
   const query = buildQuery(params);
   return fetchJson<Pagination<BankTransactionRecord>>(
     `/api/accounting/banking/transactions${query}`,
+  );
+}
+
+export async function fetchBankReconciliations(
+  params: { bankAccountId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BankReconciliationRecord>>(
+    `/api/accounting/banking/reconciliations${query}`,
   );
 }
 
@@ -1971,6 +2163,52 @@ export async function fetchFinancialStatements(params: {
 }) {
   const query = buildQuery(params);
   return fetchJson<FinancialStatementsReport>(`/api/accounting/reports/financials${query}`);
+}
+
+export async function fetchCashFlowReport(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<CashFlowReport>(`/api/accounting/reports/cash-flow${query}`);
+}
+
+export async function fetchArAging(params: { asOf?: string } = {}) {
+  const query = buildQuery(params);
+  return fetchJson<{ asOf: string; rows: AgingRow[] }>(`/api/accounting/reports/ar-aging${query}`);
+}
+
+export async function fetchApAging(params: { asOf?: string } = {}) {
+  const query = buildQuery(params);
+  return fetchJson<{ asOf: string; rows: AgingRow[] }>(`/api/accounting/reports/ap-aging${query}`);
+}
+
+export async function fetchCustomerStatement(params: {
+  customerId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<StatementReport>(`/api/accounting/reports/customer-statement${query}`);
+}
+
+export async function fetchVendorStatement(params: {
+  vendorId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<StatementReport>(`/api/accounting/reports/vendor-statement${query}`);
+}
+
+export async function fetchVatSummary(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<VatSummaryReport>(`/api/accounting/reports/vat-summary${query}`);
 }
 
 // ============================================

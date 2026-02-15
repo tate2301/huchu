@@ -8,6 +8,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -29,15 +30,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import {
+  type AgingRow,
   type BankAccountRecord,
+  type DebitNoteRecord,
   type PurchaseBillRecord,
   type PurchasePaymentRecord,
+  type PurchaseWriteOffRecord,
+  type StatementLineRecord,
   type TaxCodeRecord,
   type VendorRecord,
+  fetchApAging,
   fetchBankAccounts,
+  fetchDebitNotes,
   fetchPurchaseBills,
   fetchPurchasePayments,
+  fetchPurchaseWriteOffs,
   fetchTaxCodes,
+  fetchVendorStatement,
   fetchVendors,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -56,11 +65,19 @@ type BillLineForm = {
 export default function AccountingPurchasesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeView, setActiveView] = useState<"vendors" | "bills" | "payments">("vendors");
+  const [activeView, setActiveView] = useState<
+    "vendors" | "bills" | "payments" | "debit-notes" | "write-offs" | "aging" | "statements"
+  >("vendors");
   const [vendorFormOpen, setVendorFormOpen] = useState(false);
   const [billFormOpen, setBillFormOpen] = useState(false);
   const [paymentFormOpen, setPaymentFormOpen] = useState(false);
+  const [debitNoteFormOpen, setDebitNoteFormOpen] = useState(false);
+  const [writeOffFormOpen, setWriteOffFormOpen] = useState(false);
   const [billStatusFilter, setBillStatusFilter] = useState("all");
+  const [agingAsOf, setAgingAsOf] = useState(today);
+  const [statementVendorId, setStatementVendorId] = useState("");
+  const [statementStartDate, setStatementStartDate] = useState("");
+  const [statementEndDate, setStatementEndDate] = useState("");
 
   const [vendorForm, setVendorForm] = useState({
     name: "",
@@ -94,6 +111,21 @@ export default function AccountingPurchasesPage() {
     reference: "",
     bankAccountId: "",
   });
+  const [debitNoteForm, setDebitNoteForm] = useState({
+    billId: "",
+    noteDate: today,
+    currency: "USD",
+    reason: "",
+    issueNow: "ISSUED",
+  });
+  const [debitNoteLines, setDebitNoteLines] = useState<BillLineForm[]>([
+    { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" },
+  ]);
+  const [writeOffForm, setWriteOffForm] = useState({
+    billId: "",
+    amount: "",
+    reason: "",
+  });
   const { data: vendorsData, error: vendorsError } = useQuery({
     queryKey: ["accounting", "purchases", "vendors"],
     queryFn: () => fetchVendors({ limit: 200 }),
@@ -109,6 +141,36 @@ export default function AccountingPurchasesPage() {
     queryFn: () => fetchPurchasePayments({ limit: 200 }),
   });
 
+  const { data: debitNotesData, error: debitNotesError } = useQuery({
+    queryKey: ["accounting", "purchases", "debit-notes"],
+    queryFn: () => fetchDebitNotes({ limit: 200 }),
+  });
+
+  const { data: writeOffsData, error: writeOffsError } = useQuery({
+    queryKey: ["accounting", "purchases", "write-offs"],
+    queryFn: () => fetchPurchaseWriteOffs({ limit: 200 }),
+  });
+
+  const { data: agingReport, isLoading: agingLoading, error: agingError } = useQuery({
+    queryKey: ["accounting", "purchases", "aging", agingAsOf],
+    queryFn: () => fetchApAging({ asOf: agingAsOf || undefined }),
+  });
+
+  const {
+    data: statementReport,
+    isLoading: statementLoading,
+    error: statementError,
+  } = useQuery({
+    queryKey: ["accounting", "purchases", "statement", statementVendorId, statementStartDate, statementEndDate],
+    queryFn: () =>
+      fetchVendorStatement({
+        vendorId: statementVendorId,
+        startDate: statementStartDate || undefined,
+        endDate: statementEndDate || undefined,
+      }),
+    enabled: Boolean(statementVendorId),
+  });
+
   const { data: taxCodes } = useQuery({
     queryKey: ["accounting", "tax"],
     queryFn: fetchTaxCodes,
@@ -122,6 +184,10 @@ export default function AccountingPurchasesPage() {
   const vendors = vendorsData?.data ?? [];
   const bills = useMemo(() => billsData?.data ?? [], [billsData]);
   const payments = paymentsData?.data ?? [];
+  const debitNotes = debitNotesData?.data ?? [];
+  const writeOffs = writeOffsData?.data ?? [];
+  const agingRows = agingReport?.rows ?? [];
+  const statementLines = statementReport?.lines ?? [];
   const bankAccounts = bankAccountsData?.data ?? [];
   const taxOptions = taxCodes ?? [];
 
@@ -203,6 +269,19 @@ export default function AccountingPurchasesPage() {
       ),
     },
     {
+      id: "balance",
+      header: "Balance",
+      cell: ({ row }) => {
+        const balance =
+          row.original.balance ??
+          row.original.total -
+            (row.original.amountPaid ?? 0) -
+            (row.original.debitNoteTotal ?? 0) -
+            (row.original.writeOffTotal ?? 0);
+        return <NumericCell>{balance.toFixed(2)} {row.original.currency}</NumericCell>;
+      },
+    },
+    {
       id: "actions",
       header: "",
       cell: ({ row }) => (
@@ -249,6 +328,172 @@ export default function AccountingPurchasesPage() {
         id: "method",
         header: "Method",
         accessorKey: "method",
+      },
+    ],
+    [],
+  );
+
+  const debitNoteColumns = useMemo<ColumnDef<DebitNoteRecord>[]>(
+    () => [
+      {
+        id: "note",
+        header: "Debit Note",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono">{row.original.noteNumber}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.bill?.billNumber ?? "Bill"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.noteDate), "yyyy-MM-dd")}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "ISSUED" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "total",
+        header: "Total",
+        cell: ({ row }) => (
+          <NumericCell>
+            {row.original.total.toFixed(2)} {row.original.currency}
+          </NumericCell>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const writeOffColumns = useMemo<ColumnDef<PurchaseWriteOffRecord>[]>(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.createdAt), "yyyy-MM-dd")}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "bill",
+        header: "Bill",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono">{row.original.bill?.billNumber ?? "-"}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.bill?.vendor?.name ?? ""}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "amount",
+        header: "Amount",
+        cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "POSTED" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const agingColumns = useMemo<ColumnDef<AgingRow>[]>(
+    () => [
+      {
+        id: "name",
+        header: "Vendor",
+        accessorKey: "name",
+      },
+      {
+        id: "current",
+        header: "Current",
+        cell: ({ row }) => <NumericCell>{row.original.current.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "days30",
+        header: "1-30",
+        cell: ({ row }) => <NumericCell>{row.original.days30.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "days60",
+        header: "31-60",
+        cell: ({ row }) => <NumericCell>{row.original.days60.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "days90",
+        header: "61-90",
+        cell: ({ row }) => <NumericCell>{row.original.days90.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "days90Plus",
+        header: "90+",
+        cell: ({ row }) => <NumericCell>{row.original.days90Plus.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "total",
+        header: "Total",
+        cell: ({ row }) => <NumericCell>{row.original.total.toFixed(2)}</NumericCell>,
+      },
+    ],
+    [],
+  );
+
+  const statementColumns = useMemo<ColumnDef<StatementLineRecord>[]>(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">{format(new Date(row.original.date), "yyyy-MM-dd")}</NumericCell>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        accessorKey: "type",
+      },
+      {
+        id: "reference",
+        header: "Reference",
+        accessorKey: "reference",
+        cell: ({ row }) => <span className="font-mono">{row.original.reference}</span>,
+      },
+      {
+        id: "debit",
+        header: "Debit",
+        cell: ({ row }) => <NumericCell>{row.original.debit.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "credit",
+        header: "Credit",
+        cell: ({ row }) => <NumericCell>{row.original.credit.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "balance",
+        header: "Balance",
+        cell: ({ row }) => <NumericCell>{row.original.balance.toFixed(2)}</NumericCell>,
       },
     ],
     [],
@@ -376,6 +621,65 @@ export default function AccountingPurchasesPage() {
     },
   });
 
+  const createDebitNoteMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/accounting/purchases/debit-notes", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Debit note created",
+        description: "Debit note saved successfully.",
+        variant: "success",
+      });
+      setDebitNoteFormOpen(false);
+      setDebitNoteForm({
+        billId: "",
+        noteDate: today,
+        currency: "USD",
+        reason: "",
+        issueNow: "ISSUED",
+      });
+      setDebitNoteLines([{ description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" }]);
+      queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "debit-notes"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "bills"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to create debit note",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createWriteOffMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/accounting/purchases/write-offs", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Write-off recorded",
+        description: "Purchase write-off saved successfully.",
+        variant: "success",
+      });
+      setWriteOffFormOpen(false);
+      setWriteOffForm({ billId: "", amount: "", reason: "" });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "write-offs"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "bills"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to record write-off",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   const billTotals = useMemo(() => {
     const subtotal = billLines.reduce(
       (sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0),
@@ -404,6 +708,36 @@ export default function AccountingPurchasesPage() {
   const removeBillLine = (index: number) => {
     if (billLines.length <= 1) return;
     setBillLines((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const debitNoteTotals = useMemo(() => {
+    const subtotal = debitNoteLines.reduce(
+      (sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0),
+      0,
+    );
+    const taxTotal = debitNoteLines.reduce((sum, line) => {
+      const rate = Number(line.taxRate) || 0;
+      return sum + ((Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * rate) / 100;
+    }, 0);
+    return { subtotal, taxTotal, total: subtotal + taxTotal };
+  }, [debitNoteLines]);
+
+  const updateDebitNoteLine = (index: number, field: keyof BillLineForm, value: string) => {
+    setDebitNoteLines((prev) =>
+      prev.map((line, idx) => (idx === index ? { ...line, [field]: value } : line)),
+    );
+  };
+
+  const addDebitNoteLine = () => {
+    setDebitNoteLines((prev) => [
+      ...prev,
+      { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" },
+    ]);
+  };
+
+  const removeDebitNoteLine = (index: number) => {
+    if (debitNoteLines.length <= 1) return;
+    setDebitNoteLines((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const submitVendor = (event: React.FormEvent) => {
@@ -492,6 +826,66 @@ export default function AccountingPurchasesPage() {
       bankAccountId: paymentForm.bankAccountId || undefined,
     });
   };
+
+  const submitDebitNote = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!debitNoteForm.billId) {
+      toast({
+        title: "Missing bill",
+        description: "Select a bill before saving the debit note.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const preparedLines = debitNoteLines
+      .map((line) => ({
+        description: line.description.trim(),
+        quantity: Number(line.quantity) || 0,
+        unitPrice: Number(line.unitPrice) || 0,
+        taxCodeId: line.taxCodeId || undefined,
+        taxRate: line.taxRate ? Number(line.taxRate) : undefined,
+      }))
+      .filter((line) => line.description && line.quantity > 0);
+
+    if (preparedLines.length === 0) {
+      toast({
+        title: "Missing line items",
+        description: "Add at least one valid line item.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createDebitNoteMutation.mutate({
+      billId: debitNoteForm.billId,
+      noteDate: debitNoteForm.noteDate,
+      currency: debitNoteForm.currency || "USD",
+      reason: debitNoteForm.reason.trim() || undefined,
+      issueNow: debitNoteForm.issueNow === "ISSUED",
+      lines: preparedLines,
+    });
+  };
+
+  const submitWriteOff = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!writeOffForm.billId || !writeOffForm.amount) {
+      toast({
+        title: "Missing details",
+        description: "Select a bill and enter an amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createWriteOffMutation.mutate({
+      billId: writeOffForm.billId,
+      amount: Number(writeOffForm.amount),
+      reason: writeOffForm.reason.trim() || undefined,
+    });
+  };
   return (
     <AccountingShell
       activeTab="purchases"
@@ -511,14 +905,30 @@ export default function AccountingPurchasesPage() {
             <Plus className="mr-2 size-4" />
             New Payment
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setDebitNoteFormOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            New Debit Note
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWriteOffFormOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            Write Off
+          </Button>
         </div>
       }
     >
-      {(vendorsError || billsError || paymentsError) ? (
+      {(vendorsError || billsError || paymentsError || debitNotesError || writeOffsError || agingError || statementError) ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load purchase data</AlertTitle>
           <AlertDescription>
-            {getApiErrorMessage(vendorsError || billsError || paymentsError)}
+            {getApiErrorMessage(
+              vendorsError ||
+                billsError ||
+                paymentsError ||
+                debitNotesError ||
+                writeOffsError ||
+                agingError ||
+                statementError,
+            )}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -528,9 +938,24 @@ export default function AccountingPurchasesPage() {
           { id: "vendors", label: "Vendors", count: vendors.length },
           { id: "bills", label: "Bills", count: bills.length },
           { id: "payments", label: "Payments", count: payments.length },
+          { id: "debit-notes", label: "Debit Notes", count: debitNotes.length },
+          { id: "write-offs", label: "Write-offs", count: writeOffs.length },
+          { id: "aging", label: "AP Aging", count: agingRows.length },
+          { id: "statements", label: "Statements", count: statementLines.length },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "vendors" | "bills" | "payments")}
+        onValueChange={(value) =>
+          setActiveView(
+            value as
+              | "vendors"
+              | "bills"
+              | "payments"
+              | "debit-notes"
+              | "write-offs"
+              | "aging"
+              | "statements",
+          )
+        }
         railLabel="Purchase Views"
       >
         <div className={activeView === "vendors" ? "space-y-3" : "hidden"}>
@@ -577,6 +1002,113 @@ export default function AccountingPurchasesPage() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={"No payments found."}
+          />
+        </div>
+
+        <div className={activeView === "debit-notes" ? "space-y-3" : "hidden"}>
+          <DataTable
+            data={debitNotes}
+            columns={debitNoteColumns}
+            searchPlaceholder="Search debit notes"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={"No debit notes found."}
+          />
+        </div>
+
+        <div className={activeView === "write-offs" ? "space-y-3" : "hidden"}>
+          <DataTable
+            data={writeOffs}
+            columns={writeOffColumns}
+            searchPlaceholder="Search write-offs"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={"No write-offs found."}
+          />
+        </div>
+
+        <div className={activeView === "aging" ? "space-y-3" : "hidden"}>
+          <DataTable
+            data={agingRows}
+            columns={agingColumns}
+            searchPlaceholder="Search vendors"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            toolbar={
+              <Input
+                type="date"
+                value={agingAsOf}
+                onChange={(event) => setAgingAsOf(event.target.value)}
+                className="h-8"
+              />
+            }
+            emptyState={agingLoading ? "Loading aging..." : "No aging data found."}
+          />
+        </div>
+
+        <div className={activeView === "statements" ? "space-y-3" : "hidden"}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardDescription>Opening Balance</CardDescription>
+                <CardTitle className="font-mono">
+                  {(statementReport?.openingBalance ?? 0).toFixed(2)}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardDescription>Closing Balance</CardDescription>
+                <CardTitle className="font-mono">
+                  {(statementReport?.closingBalance ?? 0).toFixed(2)}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </div>
+          <DataTable
+            data={statementLines}
+            columns={statementColumns}
+            searchPlaceholder="Search statement lines"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            toolbar={
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={statementVendorId}
+                  onValueChange={(value) => setStatementVendorId(value)}
+                >
+                  <SelectTrigger size="sm" className="h-8 w-[240px]">
+                    <SelectValue placeholder="Select vendor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor: VendorRecord) => (
+                      <SelectItem key={vendor.id} value={vendor.id}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={statementStartDate}
+                  onChange={(event) => setStatementStartDate(event.target.value)}
+                  className="h-8"
+                />
+                <Input
+                  type="date"
+                  value={statementEndDate}
+                  onChange={(event) => setStatementEndDate(event.target.value)}
+                  className="h-8"
+                />
+              </div>
+            }
+            emptyState={
+              statementVendorId
+                ? statementLoading
+                  ? "Loading statement..."
+                  : "No statement lines found."
+                : "Select a vendor to view statements."
+            }
           />
         </div>
       </VerticalDataViews>
@@ -960,6 +1492,270 @@ export default function AccountingPurchasesPage() {
                 Save Payment
               </Button>
               <Button type="button" variant="outline" onClick={() => setPaymentFormOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+      <Sheet open={debitNoteFormOpen} onOpenChange={setDebitNoteFormOpen}>
+        <SheetContent className="w-full sm:max-w-5xl p-6 overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>New Debit Note</SheetTitle>
+            <SheetDescription>Issue a debit note against a purchase bill.</SheetDescription>
+          </SheetHeader>
+          <form onSubmit={submitDebitNote} className="mt-6 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-1">
+                <label className="block text-sm font-semibold mb-2">Bill *</label>
+                <Select
+                  value={debitNoteForm.billId}
+                  onValueChange={(value) =>
+                    setDebitNoteForm((prev) => ({ ...prev, billId: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select bill" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bills.map((bill: PurchaseBillRecord) => (
+                      <SelectItem key={bill.id} value={bill.id}>
+                        {bill.billNumber} - {bill.vendor?.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Note Date *</label>
+                <Input
+                  type="date"
+                  value={debitNoteForm.noteDate}
+                  onChange={(event) =>
+                    setDebitNoteForm((prev) => ({ ...prev, noteDate: event.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Currency</label>
+                <Input
+                  value={debitNoteForm.currency}
+                  onChange={(event) =>
+                    setDebitNoteForm((prev) => ({ ...prev, currency: event.target.value }))
+                  }
+                  placeholder="USD"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Issue Status</label>
+                <Select
+                  value={debitNoteForm.issueNow}
+                  onValueChange={(value) =>
+                    setDebitNoteForm((prev) => ({ ...prev, issueNow: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DRAFT">Draft</SelectItem>
+                    <SelectItem value="ISSUED">Issue Now</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Reason</label>
+              <Input
+                value={debitNoteForm.reason}
+                onChange={(event) =>
+                  setDebitNoteForm((prev) => ({ ...prev, reason: event.target.value }))
+                }
+                placeholder="Reason for debit"
+              />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Debit Note Lines</h3>
+                <Button type="button" size="sm" variant="outline" onClick={addDebitNoteLine}>
+                  Add Line
+                </Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="w-[120px] text-right">Qty</TableHead>
+                    <TableHead className="w-[140px] text-right">Unit Price</TableHead>
+                    <TableHead className="w-[180px]">Tax Code</TableHead>
+                    <TableHead className="w-[120px] text-right">Tax %</TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {debitNoteLines.map((line, index) => (
+                    <TableRow key={`debit-line-${index}`}>
+                      <TableCell>
+                        <Input
+                          value={line.description}
+                          onChange={(event) =>
+                            updateDebitNoteLine(index, "description", event.target.value)
+                          }
+                          placeholder="Service or product"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.quantity}
+                          onChange={(event) =>
+                            updateDebitNoteLine(index, "quantity", event.target.value)
+                          }
+                          className="text-right font-mono"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.unitPrice}
+                          onChange={(event) =>
+                            updateDebitNoteLine(index, "unitPrice", event.target.value)
+                          }
+                          className="text-right font-mono"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={line.taxCodeId}
+                          onValueChange={(value) => updateDebitNoteLine(index, "taxCodeId", value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Optional" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">No tax</SelectItem>
+                            {taxOptions.map((tax: TaxCodeRecord) => (
+                              <SelectItem key={tax.id} value={tax.id}>
+                                {tax.code} ({tax.rate}%)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.taxRate}
+                          onChange={(event) =>
+                            updateDebitNoteLine(index, "taxRate", event.target.value)
+                          }
+                          className="text-right font-mono"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {debitNoteLines.length > 1 ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeDebitNoteLine(index)}
+                          >
+                            Remove
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="flex justify-end gap-6 text-sm">
+                <span className="text-muted-foreground">
+                  Subtotal: <span className="font-mono">{debitNoteTotals.subtotal.toFixed(2)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  Tax: <span className="font-mono">{debitNoteTotals.taxTotal.toFixed(2)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  Total: <span className="font-mono">{debitNoteTotals.total.toFixed(2)}</span>
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="flex-1" disabled={createDebitNoteMutation.isPending}>
+                Save Debit Note
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setDebitNoteFormOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+      <Sheet open={writeOffFormOpen} onOpenChange={setWriteOffFormOpen}>
+        <SheetContent className="w-full sm:max-w-lg p-6">
+          <SheetHeader>
+            <SheetTitle>New Write-off</SheetTitle>
+            <SheetDescription>Record a write-off against an outstanding bill.</SheetDescription>
+          </SheetHeader>
+          <form onSubmit={submitWriteOff} className="mt-6 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-2">Bill *</label>
+              <Select
+                value={writeOffForm.billId}
+                onValueChange={(value) => setWriteOffForm((prev) => ({ ...prev, billId: value }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select bill" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bills.map((bill: PurchaseBillRecord) => (
+                    <SelectItem key={bill.id} value={bill.id}>
+                      {bill.billNumber} - {bill.vendor?.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Amount *</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={writeOffForm.amount}
+                  onChange={(event) =>
+                    setWriteOffForm((prev) => ({ ...prev, amount: event.target.value }))
+                  }
+                  className="text-right font-mono"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Reason</label>
+                <Input
+                  value={writeOffForm.reason}
+                  onChange={(event) =>
+                    setWriteOffForm((prev) => ({ ...prev, reason: event.target.value }))
+                  }
+                  placeholder="Adjustment"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="flex-1" disabled={createWriteOffMutation.isPending}>
+                Save Write-off
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setWriteOffFormOpen(false)}>
                 Cancel
               </Button>
             </div>

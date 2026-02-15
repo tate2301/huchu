@@ -92,37 +92,37 @@ export default function AccountingOverviewPage() {
             <Card>
               <CardHeader>
                 <CardDescription>Accounts in Chart</CardDescription>
-                <CardTitle>{summary?.accounts ?? 0}</CardTitle>
+                <CardTitle className="font-mono">{summary?.accounts ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Open Accounting Periods</CardDescription>
-                <CardTitle>{summary?.openPeriods ?? 0}</CardTitle>
+                <CardTitle className="font-mono">{summary?.openPeriods ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Posted Journals</CardDescription>
-                <CardTitle>{summary?.postedJournals ?? 0}</CardTitle>
+                <CardTitle className="font-mono">{summary?.postedJournals ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Draft Journals</CardDescription>
-                <CardTitle>{summary?.draftJournals ?? 0}</CardTitle>
+                <CardTitle className="font-mono">{summary?.draftJournals ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Open Sales Invoices</CardDescription>
-                <CardTitle>{summary?.openInvoices ?? 0}</CardTitle>
+                <CardTitle className="font-mono">{summary?.openInvoices ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Open Purchase Bills</CardDescription>
-                <CardTitle>{summary?.openBills ?? 0}</CardTitle>
+                <CardTitle className="font-mono">{summary?.openBills ?? 0}</CardTitle>
               </CardHeader>
             </Card>
           </>

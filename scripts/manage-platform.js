@@ -15,9 +15,27 @@ if (!connectionString) {
   console.warn("DATABASE_URL not set. Prisma will use PG* env vars.");
 }
 
-const pool = connectionString ? new Pool({ connectionString }) : new Pool();
+function parseNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const poolConfig = {
+  max: parseNumber(process.env.PG_POOL_MAX, 10),
+  idleTimeoutMillis: parseNumber(process.env.PG_POOL_IDLE_MS, 10000),
+  connectionTimeoutMillis: parseNumber(process.env.PG_POOL_CONN_MS, 5000),
+};
+const pool = connectionString
+  ? new Pool({ connectionString, ...poolConfig })
+  : new Pool(poolConfig);
 const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter,
+  transactionOptions: {
+    maxWait: parseNumber(process.env.PRISMA_TX_MAX_WAIT_MS, 10000),
+    timeout: parseNumber(process.env.PRISMA_TX_TIMEOUT_MS, 60000),
+  },
+});
 
 const rawArgs = process.argv.slice(2);
 const actorArg = getArgFrom(rawArgs, "--actor");

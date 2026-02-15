@@ -78,6 +78,7 @@ export default function FiscalisationPage() {
   const formState = useMemo(() => ({ ...baseFormState, ...draft }), [baseFormState, draft]);
 
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
+  const hasActiveProvider = Boolean(configData?.provider?.isActive);
 
   const columns = useMemo<ColumnDef<FiscalReceiptRecord>[]>(
     () => [
@@ -396,29 +397,31 @@ export default function FiscalisationPage() {
             </div>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Issue Fiscal Receipt</CardTitle>
-              <CardDescription>
-                Submit an invoice ID to trigger fiscal receipt issuance.
-              </CardDescription>
-            </CardHeader>
-            <div className="px-6 pb-6">
-              <form onSubmit={handleIssueReceipt} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Invoice ID</label>
-                  <Input
-                    value={invoiceId}
-                    onChange={(event) => setInvoiceId(event.target.value)}
-                    placeholder="Invoice UUID"
-                  />
-                </div>
-                <Button type="submit" disabled={issueMutation.isPending}>
-                  Issue Receipt
-                </Button>
-              </form>
-            </div>
-          </Card>
+          {hasActiveProvider ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Issue Fiscal Receipt</CardTitle>
+                <CardDescription>
+                  Submit an invoice ID to trigger fiscal receipt issuance.
+                </CardDescription>
+              </CardHeader>
+              <div className="px-6 pb-6">
+                <form onSubmit={handleIssueReceipt} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Invoice ID</label>
+                    <Input
+                      value={invoiceId}
+                      onChange={(event) => setInvoiceId(event.target.value)}
+                      placeholder="Invoice UUID"
+                    />
+                  </div>
+                  <Button type="submit" disabled={issueMutation.isPending}>
+                    Issue Receipt
+                  </Button>
+                </form>
+              </div>
+            </Card>
+          ) : null}
         </div>
 
         <div className={activeView === "receipts" ? "space-y-3" : "hidden"}>
