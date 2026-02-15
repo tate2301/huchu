@@ -3,6 +3,7 @@ import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
 import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
+import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
 
 function evaluateFeature(featureKey: string, enabledFeatures: string[] | undefined): FeatureGateDecision {
@@ -43,6 +44,18 @@ function evaluateFeature(featureKey: string, enabledFeatures: string[] | undefin
     normalizedEnabledSource.map((entry) => normalizeFeatureKey(entry)),
   );
   if (normalizedEnabled.has(normalized)) {
+    const dependencies = getFeatureDependencies(normalized);
+    if (dependencies.length > 0) {
+      const missing = dependencies.filter((dep) => !normalizedEnabled.has(dep));
+      if (missing.length > 0) {
+        return {
+          allowed: false,
+          code: "FEATURE_DEPENDENCY_MISSING",
+          message: `Feature ${normalized} requires ${missing.join(", ")}`,
+          featureKey: normalized,
+        };
+      }
+    }
     return {
       allowed: true,
       featureKey: normalized,

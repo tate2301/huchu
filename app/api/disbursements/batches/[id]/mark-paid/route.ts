@@ -3,6 +3,7 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { AUTO_PAYOUT_NOTE_PREFIX } from "@/lib/gold-payouts"
 import { prisma } from "@/lib/prisma"
+import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import {
   createApprovalAction,
   derivePaidStatus,
@@ -279,6 +280,25 @@ export async function POST(
 
       return savedBatch
     })
+
+    try {
+      if (updatedBatch.status === "PAID") {
+        await createJournalEntryFromSource({
+          companyId: session.user.companyId,
+          sourceType: "PAYROLL_DISBURSEMENT",
+          sourceId: updatedBatch.id,
+          entryDate: updatedBatch.paidAt ?? new Date(),
+          description: `Payroll disbursement batch ${updatedBatch.code} paid`,
+          createdById: session.user.id,
+          amount: updatedBatch.totalAmount,
+          netAmount: updatedBatch.totalAmount,
+          taxAmount: 0,
+          grossAmount: updatedBatch.totalAmount,
+        })
+      }
+    } catch (error) {
+      console.error("[Accounting] Disbursement auto-post failed:", error)
+    }
 
     return successResponse(updatedBatch)
   } catch (error) {

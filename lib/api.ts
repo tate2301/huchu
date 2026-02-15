@@ -472,6 +472,8 @@ export type WorkOrder = {
   downtimeEnd?: string | null;
   workDone?: string | null;
   partsUsed?: string | null;
+  partsCost?: number | null;
+  laborCost?: number | null;
   createdAt: string;
   technician?: { id: string; name: string; employeeId: string } | null;
   equipment: {
@@ -1446,6 +1448,529 @@ export async function fetchTrainingRecords(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<TrainingRecordSummary>>(`/api/compliance/training-records${query}`);
+}
+
+// ============================================
+// Accounting API Functions
+// ============================================
+
+export type AccountingSummary = {
+  accounts: number;
+  openPeriods: number;
+  postedJournals: number;
+  draftJournals: number;
+  openInvoices: number;
+  openBills: number;
+};
+
+export type ChartOfAccountRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  category?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  systemManaged?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountingPeriodRecord = {
+  id: string;
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  status: "OPEN" | "CLOSED";
+  closedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type JournalLineRecord = {
+  id: string;
+  accountId: string;
+  debit: number;
+  credit: number;
+  memo?: string | null;
+  costCenterId?: string | null;
+  account?: { code: string; name: string } | null;
+};
+
+export type JournalEntryRecord = {
+  id: string;
+  companyId: string;
+  entryNumber: number;
+  entryDate: string;
+  description: string;
+  status: "DRAFT" | "POSTED";
+  periodId?: string | null;
+  period?: { id: string; startDate: string; endDate: string } | null;
+  lines?: JournalLineRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PostingRuleLineRecord = {
+  id: string;
+  accountId: string;
+  direction: "DEBIT" | "CREDIT";
+  basis: "AMOUNT" | "NET" | "TAX" | "GROSS" | "DEDUCTIONS" | "ALLOWANCES";
+  allocationType?: "PERCENT" | "FIXED";
+  allocationValue?: number;
+  account?: { code: string; name: string } | null;
+};
+
+export type PostingRuleRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  sourceType: string;
+  isActive: boolean;
+  lines: PostingRuleLineRecord[];
+};
+
+export type TaxCodeRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  rate: number;
+  type: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CustomerRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  vatNumber?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type VendorRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  vatNumber?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type SalesInvoiceLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type SalesInvoiceRecord = {
+  id: string;
+  companyId: string;
+  customerId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: "DRAFT" | "ISSUED" | "PAID" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  fiscalStatus?: string | null;
+  notes?: string | null;
+  customer: { id: string; name: string };
+  lines: SalesInvoiceLineRecord[];
+  fiscalReceipt?: { id: string; status: string; fiscalNumber?: string | null } | null;
+};
+
+export type SalesReceiptRecord = {
+  id: string;
+  companyId: string;
+  invoiceId?: string | null;
+  receiptNumber: string;
+  receivedAt: string;
+  amount: number;
+  method: string;
+  reference?: string | null;
+  bankAccountId?: string | null;
+  invoice?: {
+    invoiceNumber: string;
+    customer?: { name: string } | null;
+  } | null;
+};
+
+export type PurchaseBillLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type PurchaseBillRecord = {
+  id: string;
+  companyId: string;
+  vendorId: string;
+  billNumber: string;
+  billDate: string;
+  dueDate?: string | null;
+  status: "DRAFT" | "RECEIVED" | "PAID" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  notes?: string | null;
+  vendor: { id: string; name: string };
+  lines: PurchaseBillLineRecord[];
+};
+
+export type PurchasePaymentRecord = {
+  id: string;
+  companyId: string;
+  billId?: string | null;
+  paymentNumber: string;
+  paidAt: string;
+  amount: number;
+  method: string;
+  reference?: string | null;
+  bankAccountId?: string | null;
+  bill?: {
+    billNumber: string;
+    vendor?: { name: string } | null;
+  } | null;
+};
+
+export type BankAccountRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  currency: string;
+  openingBalance: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BankTransactionRecord = {
+  id: string;
+  companyId: string;
+  bankAccountId: string;
+  txnDate: string;
+  description: string;
+  reference?: string | null;
+  amount: number;
+  direction: "DEBIT" | "CREDIT";
+  sourceType: string;
+  sourceId?: string | null;
+  bankAccount?: { name: string; currency: string } | null;
+};
+
+export type FixedAssetRecord = {
+  id: string;
+  companyId: string;
+  assetCode: string;
+  name: string;
+  category?: string | null;
+  acquisitionDate: string;
+  cost: number;
+  salvageValue: number;
+  usefulLifeMonths: number;
+  depreciationMethod: string;
+  isActive: boolean;
+};
+
+export type BudgetRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: "DRAFT" | "ACTIVE" | "CLOSED";
+  totalAmount: number;
+  notes?: string | null;
+};
+
+export type CostCenterRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+};
+
+export type CurrencyRateRecord = {
+  id: string;
+  companyId: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rate: number;
+  effectiveDate: string;
+};
+
+export type FiscalReceiptRecord = {
+  id: string;
+  companyId: string;
+  invoiceId?: string | null;
+  receiptNumber?: string | null;
+  fiscalNumber?: string | null;
+  status: "PENDING" | "SUCCESS" | "FAILED" | "VOIDED";
+  issuedAt?: string | null;
+  qrCodeData?: string | null;
+  signature?: string | null;
+  providerKey?: string | null;
+  rawResponseJson?: string | null;
+  lastError?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  invoice?: { invoiceNumber?: string | null } | null;
+};
+
+export type AccountingSettingsRecord = {
+  companyId: string;
+  legalName?: string | null;
+  tradingName?: string | null;
+  vatNumber?: string | null;
+  taxNumber?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+};
+
+export type FiscalisationProviderRecord = {
+  id: string;
+  companyId: string;
+  providerKey: string;
+  apiBaseUrl?: string | null;
+  username?: string | null;
+  password?: string | null;
+  apiToken?: string | null;
+  deviceId?: string | null;
+  metadataJson?: string | null;
+  isActive: boolean;
+};
+
+export type FiscalisationConfigResponse = {
+  provider: FiscalisationProviderRecord | null;
+  settings: AccountingSettingsRecord | null;
+};
+
+export type TrialBalanceRow = {
+  accountId: string;
+  code: string;
+  name: string;
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export type TrialBalanceReport = {
+  rows: TrialBalanceRow[];
+  totals: { debit: number; credit: number };
+};
+
+export type FinancialStatementsReport = {
+  trialBalance: TrialBalanceReport;
+  profitAndLoss: {
+    income: TrialBalanceRow[];
+    expenses: TrialBalanceRow[];
+    totals: { income: number; expenses: number; netIncome: number };
+  };
+  balanceSheet: {
+    assets: TrialBalanceRow[];
+    liabilities: TrialBalanceRow[];
+    equity: TrialBalanceRow[];
+    totals: { assets: number; liabilities: number; equity: number };
+  };
+};
+
+export async function fetchAccountingSummary() {
+  return fetchJson<AccountingSummary>("/api/accounting/summary");
+}
+
+export async function fetchChartOfAccounts(
+  params: {
+    search?: string;
+    type?: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+    active?: boolean;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<ChartOfAccountRecord>>(`/api/accounting/coa${query}`);
+}
+
+export async function fetchJournalEntries(
+  params: {
+    status?: "DRAFT" | "POSTED";
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<JournalEntryRecord>>(`/api/accounting/journals${query}`);
+}
+
+export async function fetchAccountingPeriods(
+  params: { status?: "OPEN" | "CLOSED"; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<AccountingPeriodRecord>>(`/api/accounting/periods${query}`);
+}
+
+export async function fetchPostingRules() {
+  return fetchJson<PostingRuleRecord[]>("/api/accounting/posting-rules");
+}
+
+export async function fetchTaxCodes() {
+  return fetchJson<TaxCodeRecord[]>("/api/accounting/tax");
+}
+
+export async function fetchCustomers(
+  params: { search?: string; active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CustomerRecord>>(`/api/accounting/sales/customers${query}`);
+}
+
+export async function fetchVendors(
+  params: { search?: string; active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<VendorRecord>>(`/api/accounting/purchases/vendors${query}`);
+}
+
+export async function fetchSalesInvoices(
+  params: { status?: string; customerId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SalesInvoiceRecord>>(`/api/accounting/sales/invoices${query}`);
+}
+
+export async function fetchSalesReceipts(
+  params: { invoiceId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SalesReceiptRecord>>(`/api/accounting/sales/receipts${query}`);
+}
+
+export async function fetchPurchaseBills(
+  params: { status?: string; vendorId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PurchaseBillRecord>>(`/api/accounting/purchases/bills${query}`);
+}
+
+export async function fetchPurchasePayments(
+  params: { billId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PurchasePaymentRecord>>(`/api/accounting/purchases/payments${query}`);
+}
+
+export async function fetchBankAccounts(
+  params: { active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BankAccountRecord>>(`/api/accounting/banking/accounts${query}`);
+}
+
+export async function fetchBankTransactions(
+  params: { bankAccountId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BankTransactionRecord>>(
+    `/api/accounting/banking/transactions${query}`,
+  );
+}
+
+export async function fetchAssets(
+  params: { active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<FixedAssetRecord>>(`/api/accounting/assets${query}`);
+}
+
+export async function fetchBudgets(
+  params: { status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BudgetRecord>>(`/api/accounting/budgets${query}`);
+}
+
+export async function fetchCostCenters(
+  params: { active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CostCenterRecord>>(`/api/accounting/cost-centers${query}`);
+}
+
+export async function fetchCurrencyRates(
+  params: { baseCurrency?: string; quoteCurrency?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CurrencyRateRecord>>(`/api/accounting/currency${query}`);
+}
+
+export async function fetchFiscalReceipts(
+  params: { status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<FiscalReceiptRecord>>(
+    `/api/accounting/fiscalisation/receipts${query}`,
+  );
+}
+
+export async function fetchFiscalisationConfig() {
+  return fetchJson<FiscalisationConfigResponse>(
+    "/api/accounting/fiscalisation/config",
+  );
+}
+
+export async function fetchTrialBalance(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<TrialBalanceReport>(`/api/accounting/reports/trial-balance${query}`);
+}
+
+export async function fetchFinancialStatements(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<FinancialStatementsReport>(`/api/accounting/reports/financials${query}`);
 }
 
 // ============================================

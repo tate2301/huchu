@@ -11,6 +11,8 @@ const workOrderSchema = z.object({
   downtimeEnd: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)).optional(),
   workDone: z.string().max(2000).optional(),
   partsUsed: z.array(z.string().max(200)).optional(),
+  partsCost: z.number().min(0).optional(),
+  laborCost: z.number().min(0).optional(),
   technicianId: z.string().uuid().optional(),
   status: z.enum(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
 });
@@ -111,6 +113,8 @@ export async function POST(request: NextRequest) {
         downtimeEnd: validated.downtimeEnd ? new Date(validated.downtimeEnd) : undefined,
         workDone: validated.workDone,
         partsUsed: validated.partsUsed ? JSON.stringify(validated.partsUsed) : undefined,
+        partsCost: validated.partsCost,
+        laborCost: validated.laborCost,
         technicianId: validated.technicianId,
         status: validated.status ?? 'OPEN',
       },

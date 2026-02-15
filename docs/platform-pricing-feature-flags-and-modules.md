@@ -59,6 +59,9 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 | `ADDON_COMPLIANCE_PRO` | Compliance Pro | 200 | 25 |
 | `ADDON_MAINTENANCE_PRO` | Maintenance Pro | 180 | 20 |
 | `ADDON_ANALYTICS_PRO` | Analytics Pro | 160 | 15 |
+| `ADDON_ACCOUNTING_CORE` | Accounting Core | 250 | 30 |
+| `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 350 | 40 |
+| `ADDON_ZIMRA_FISCAL` | ZIMRA Tax & Fiscalisation | 120 | 15 |
 
 ### Bundle Feature Mapping
 
@@ -121,11 +124,37 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `reports.fuel-ledger`
 - `core.notifications.push`
 
+`ADDON_ACCOUNTING_CORE`
+
+- `accounting.core`
+- `accounting.chart-of-accounts`
+- `accounting.journals`
+- `accounting.periods`
+- `accounting.posting-rules`
+- `accounting.trial-balance`
+- `accounting.financial-statements`
+
+`ADDON_ACCOUNTING_ADVANCED`
+
+- `accounting.ar`
+- `accounting.ap`
+- `accounting.banking`
+- `accounting.fixed-assets`
+- `accounting.budgets`
+- `accounting.cost-centers`
+- `accounting.multi-currency`
+
+`ADDON_ZIMRA_FISCAL`
+
+- `accounting.tax`
+- `accounting.zimra.fiscalisation`
+
 ### Bundle Behavior in TUI
 
 - Enabling an add-on now auto-enables feature flags for every feature in that bundle.
 - Disabling an add-on now auto-disables only bundle features that are no longer entitled by tier/other enabled bundles.
 - This keeps bundle provisioning aligned with effective feature access.
+- Bundle dependencies are enforced in `lib/platform/feature-catalog.ts` (`BUNDLE_DEPENDENCIES`). Accounting add-ons require `ADDON_ACCOUNTING_CORE`.
 
 ## Client Template Bundles
 

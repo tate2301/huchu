@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
+import { createJournalEntryFromSource } from '@/lib/accounting/posting';
 import { z } from 'zod';
 
 const stockMovementSchema = z.object({
@@ -164,6 +165,33 @@ export async function POST(request: NextRequest) {
         data: itemUpdateData,
       }),
     ]);
+
+    const resolvedUnitCost = validated.unitCost ?? item.unitCost ?? 0;
+    const movementAmount = Math.abs(quantity) * resolvedUnitCost;
+
+    if (movementAmount > 0) {
+      try {
+        await createJournalEntryFromSource({
+          companyId: session.user.companyId,
+          sourceType:
+            validated.movementType === 'RECEIPT'
+              ? 'STOCK_RECEIPT'
+              : validated.movementType === 'ISSUE'
+                ? 'STOCK_ISSUE'
+                : 'STOCK_ADJUSTMENT',
+          sourceId: movement.id,
+          entryDate: movementDate ?? new Date(),
+          description: `Stock ${validated.movementType.toLowerCase()} - ${item.name}`,
+          createdById: session.user.id,
+          amount: movementAmount,
+          netAmount: movementAmount,
+          taxAmount: 0,
+          grossAmount: movementAmount,
+        });
+      } catch (error) {
+        console.error('[Accounting] Stock movement auto-post failed:', error);
+      }
+    }
 
     return successResponse({ movement, updatedStock: newStock }, 201);
   } catch (error) {

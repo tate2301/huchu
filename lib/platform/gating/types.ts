@@ -12,7 +12,7 @@ export interface FeatureCapabilityEntry {
 
 export interface FeatureGateDecision {
   allowed: boolean;
-  code?: "FEATURE_DISABLED" | "UNKNOWN_FEATURE" | "UNAUTHORIZED";
+  code?: "FEATURE_DISABLED" | "UNKNOWN_FEATURE" | "UNAUTHORIZED" | "FEATURE_DEPENDENCY_MISSING";
   message?: string;
   featureKey?: string;
   path?: string;

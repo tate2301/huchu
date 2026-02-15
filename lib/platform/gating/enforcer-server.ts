@@ -2,6 +2,7 @@ import { hasFeature } from "@/lib/platform/features";
 import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability-registry";
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
+import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
 import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
@@ -44,6 +45,21 @@ export async function canAccessRouteForCompany(
 
   const enabled = await hasFeature(companyId, normalized);
   if (enabled) {
+    const dependencies = getFeatureDependencies(normalized);
+    if (dependencies.length > 0) {
+      for (const dependency of dependencies) {
+        const dependencyEnabled = await hasFeature(companyId, dependency);
+        if (!dependencyEnabled) {
+          return {
+            allowed: false,
+            code: "FEATURE_DEPENDENCY_MISSING",
+            message: `Feature ${normalized} requires ${dependency}`,
+            featureKey: normalized,
+            path: pathname,
+          };
+        }
+      }
+    }
     return { allowed: true, featureKey: normalized, path: pathname };
   }
 
@@ -109,6 +125,21 @@ export async function canAccessCapabilityForCompany(
 
   const enabled = await hasFeature(companyId, normalized);
   if (enabled) {
+    const dependencies = getFeatureDependencies(normalized);
+    if (dependencies.length > 0) {
+      for (const dependency of dependencies) {
+        const dependencyEnabled = await hasFeature(companyId, dependency);
+        if (!dependencyEnabled) {
+          return {
+            allowed: false,
+            code: "FEATURE_DEPENDENCY_MISSING",
+            message: `Feature ${normalized} requires ${dependency}`,
+            featureKey: normalized,
+            capabilityId,
+          };
+        }
+      }
+    }
     return { allowed: true, featureKey: normalized, capabilityId };
   }
 

@@ -59,6 +59,27 @@ model Company {
   contractEnforcementEvents ContractEnforcementEvent[]
   auditLedgerEvents     PlatformAuditEvent[]
   subscriptionAddons    CompanySubscriptionAddon[]
+  accountingSettings   AccountingSettings?
+  chartOfAccounts      ChartOfAccount[]
+  accountingPeriods    AccountingPeriod[]
+  journalEntries       JournalEntry[]
+  postingRules         PostingRule[]
+  taxCodes             TaxCode[]
+  customers            Customer[]
+  vendors              Vendor[]
+  salesInvoices        SalesInvoice[]
+  salesReceipts        SalesReceipt[]
+  purchaseBills        PurchaseBill[]
+  purchasePayments     PurchasePayment[]
+  bankAccounts         BankAccount[]
+  bankTransactions     BankTransaction[]
+  fixedAssets          FixedAsset[]
+  budgets              Budget[]
+  budgetLines          BudgetLine[]
+  costCenters          CostCenter[]
+  currencyRates        CurrencyRate[]
+  fiscalProviderConfigs FiscalisationProviderConfig[]
+  fiscalReceipts       FiscalReceipt[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -561,6 +582,16 @@ model User {
   createdAdjustmentEntries      AdjustmentEntry[]           @relation("AdjustmentCreatedBy")
   submittedAdjustmentEntries    AdjustmentEntry[]           @relation("AdjustmentSubmittedBy")
   approvedAdjustmentEntries     AdjustmentEntry[]           @relation("AdjustmentApprovedBy")
+  createdJournalEntries         JournalEntry[]              @relation("JournalEntryCreatedBy")
+  postedJournalEntries          JournalEntry[]              @relation("JournalEntryPostedBy")
+  reversedJournalEntries        JournalEntry[]              @relation("JournalEntryReversedBy")
+  voidedJournalEntries          JournalEntry[]              @relation("JournalEntryVoidedBy")
+  createdSalesInvoices          SalesInvoice[]              @relation("SalesInvoiceCreatedBy")
+  issuedSalesInvoices           SalesInvoice[]              @relation("SalesInvoiceIssuedBy")
+  createdSalesReceipts          SalesReceipt[]              @relation("SalesReceiptCreatedBy")
+  createdPurchaseBills          PurchaseBill[]              @relation("PurchaseBillCreatedBy")
+  issuedPurchaseBills           PurchaseBill[]              @relation("PurchaseBillIssuedBy")
+  createdPurchasePayments       PurchasePayment[]           @relation("PurchasePaymentCreatedBy")
   notificationRecipients        NotificationRecipient[]
   notificationPreference        UserNotificationPreference?
   webPushSubscriptions          WebPushSubscription[]
@@ -1751,6 +1782,8 @@ model WorkOrder {
   downtimeEnd   DateTime?
   workDone      String?
   partsUsed     String? // JSON array
+  partsCost     Float?  @default(0)
+  laborCost     Float?  @default(0)
   technicianId  String?
   status        WorkOrderStatus @default(OPEN)
 
@@ -1762,6 +1795,615 @@ model WorkOrder {
 
   @@index([equipmentId])
   @@index([status])
+}
+
+// ============================================
+// PHASE 6: ACCOUNTING
+// ============================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+  VOIDED
+}
+
+enum PostingDirection {
+  DEBIT
+  CREDIT
+}
+
+enum PostingBasis {
+  AMOUNT
+  NET
+  TAX
+  GROSS
+  DEDUCTIONS
+  ALLOWANCES
+}
+
+enum AllocationType {
+  PERCENT
+  FIXED
+}
+
+enum AccountingSourceType {
+  MANUAL
+  STOCK_RECEIPT
+  STOCK_ISSUE
+  STOCK_ADJUSTMENT
+  PAYROLL_RUN
+  PAYROLL_DISBURSEMENT
+  GOLD_RECEIPT
+  GOLD_DISPATCH
+  SALES_INVOICE
+  SALES_RECEIPT
+  PURCHASE_BILL
+  PURCHASE_PAYMENT
+  BANK_TRANSACTION
+  MAINTENANCE_COMPLETION
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOIDED
+}
+
+enum BillStatus {
+  DRAFT
+  RECEIVED
+  PAID
+  VOIDED
+}
+
+enum FiscalReceiptStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  VOIDED
+}
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+model AccountingSettings {
+  id                   String   @id @default(uuid())
+  companyId            String   @unique
+  baseCurrency         String   @default("USD")
+  fiscalYearStartMonth Int      @default(1)
+  legalName            String?
+  tradingName          String?
+  vatNumber            String?
+  taxNumber            String?
+  address              String?
+  phone                String?
+  email                String?
+  defaultTaxCodeId     String?
+  defaultBankAccountId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  defaultTaxCode    TaxCode?      @relation(fields: [defaultTaxCodeId], references: [id])
+  defaultBankAccount BankAccount? @relation(fields: [defaultBankAccountId], references: [id])
+}
+
+model ChartOfAccount {
+  id            String     @id @default(uuid())
+  companyId     String
+  code          String
+  name          String
+  type          AccountType
+  category      String?
+  description   String?
+  isActive      Boolean    @default(true)
+  systemManaged Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalLines   JournalLine[]
+  postingLines   PostingRuleLine[]
+  budgetLines    BudgetLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+}
+
+model AccountingPeriod {
+  id         String                @id @default(uuid())
+  companyId  String
+  startDate  DateTime
+  endDate    DateTime
+  status     AccountingPeriodStatus @default(OPEN)
+  closedAt   DateTime?
+  closedById String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  closedBy User?          @relation(fields: [closedById], references: [id])
+  journals JournalEntry[]
+
+  @@index([companyId, startDate, endDate])
+}
+
+model JournalEntry {
+  id          String              @id @default(uuid())
+  companyId   String
+  entryNumber Int
+  entryDate   DateTime
+  description String
+  status      JournalStatus       @default(DRAFT)
+  periodId    String?
+  sourceType  AccountingSourceType @default(MANUAL)
+  sourceId    String?
+  createdById String
+  postedById  String?
+  postedAt    DateTime?
+  reversedById String?
+  reversedAt  DateTime?
+  voidedById  String?
+  voidedAt    DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period     AccountingPeriod? @relation(fields: [periodId], references: [id])
+  createdBy  User             @relation("JournalEntryCreatedBy", fields: [createdById], references: [id])
+  postedBy   User?            @relation("JournalEntryPostedBy", fields: [postedById], references: [id])
+  reversedBy User?            @relation("JournalEntryReversedBy", fields: [reversedById], references: [id])
+  voidedBy   User?            @relation("JournalEntryVoidedBy", fields: [voidedById], references: [id])
+  lines      JournalLine[]
+
+  @@unique([companyId, entryNumber])
+  @@unique([companyId, sourceType, sourceId])
+  @@index([companyId, entryDate])
+}
+
+model JournalLine {
+  id           String   @id @default(uuid())
+  entryId      String
+  accountId    String
+  debit        Float    @default(0)
+  credit       Float    @default(0)
+  memo         String?
+  costCenterId String?
+  createdAt    DateTime @default(now())
+
+  entry      JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account    ChartOfAccount @relation(fields: [accountId], references: [id])
+  costCenter CostCenter?   @relation(fields: [costCenterId], references: [id])
+
+  @@index([entryId])
+  @@index([accountId])
+}
+
+model PostingRule {
+  id          String              @id @default(uuid())
+  companyId   String
+  name        String
+  sourceType  AccountingSourceType
+  description String?
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   PostingRuleLine[]
+
+  @@unique([companyId, sourceType])
+}
+
+model PostingRuleLine {
+  id              String          @id @default(uuid())
+  ruleId          String
+  accountId       String
+  direction       PostingDirection
+  basis           PostingBasis     @default(AMOUNT)
+  allocationType  AllocationType   @default(PERCENT)
+  allocationValue Float           @default(100)
+  taxCodeId       String?
+  createdAt       DateTime         @default(now())
+
+  rule    PostingRule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  account ChartOfAccount @relation(fields: [accountId], references: [id])
+  taxCode TaxCode?      @relation(fields: [taxCodeId], references: [id])
+
+  @@index([ruleId])
+}
+
+model TaxCode {
+  id          String   @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  rate        Float    @default(0)
+  type        String   @default("VAT") // VAT, WITHHOLDING, OTHER
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceLines SalesInvoiceLine[]
+  billLines PurchaseBillLine[]
+  postingLines PostingRuleLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  taxNumber   String?
+  vatNumber   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices SalesInvoice[]
+
+  @@index([companyId, isActive])
+}
+
+model Vendor {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  taxNumber   String?
+  vatNumber   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bills   PurchaseBill[]
+
+  @@index([companyId, isActive])
+}
+
+model SalesInvoice {
+  id             String         @id @default(uuid())
+  companyId      String
+  customerId     String
+  invoiceNumber  String
+  invoiceDate    DateTime
+  dueDate        DateTime?
+  status         InvoiceStatus  @default(DRAFT)
+  currency       String         @default("USD")
+  subTotal       Float          @default(0)
+  taxTotal       Float          @default(0)
+  total          Float          @default(0)
+  notes          String?
+  fiscalReceiptId String?
+  fiscalStatus   FiscalReceiptStatus? @default(PENDING)
+  createdById    String?
+  issuedById     String?
+  issuedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  lines         SalesInvoiceLine[]
+  receipts      SalesReceipt[]
+  fiscalReceipt FiscalReceipt? @relation(fields: [fiscalReceiptId], references: [id])
+  createdBy     User?          @relation("SalesInvoiceCreatedBy", fields: [createdById], references: [id])
+  issuedBy      User?          @relation("SalesInvoiceIssuedBy", fields: [issuedById], references: [id])
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status])
+}
+
+model SalesInvoiceLine {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxCode TaxCode?     @relation(fields: [taxCodeId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model SalesReceipt {
+  id            String   @id @default(uuid())
+  companyId     String
+  invoiceId     String?
+  receiptNumber String
+  receivedAt    DateTime
+  amount        Float
+  method        String
+  reference     String?
+  bankAccountId String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice     SalesInvoice?  @relation(fields: [invoiceId], references: [id])
+  bankAccount BankAccount?   @relation(fields: [bankAccountId], references: [id])
+  createdBy   User?          @relation("SalesReceiptCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([companyId, receiptNumber])
+}
+
+model PurchaseBill {
+  id            String     @id @default(uuid())
+  companyId     String
+  vendorId      String
+  billNumber    String
+  billDate      DateTime
+  dueDate       DateTime?
+  status        BillStatus @default(DRAFT)
+  currency      String     @default("USD")
+  subTotal      Float      @default(0)
+  taxTotal      Float      @default(0)
+  total         Float      @default(0)
+  notes         String?
+  createdById   String?
+  issuedById    String?
+  issuedAt      DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vendor   Vendor          @relation(fields: [vendorId], references: [id])
+  lines    PurchaseBillLine[]
+  payments PurchasePayment[]
+  createdBy User?          @relation("PurchaseBillCreatedBy", fields: [createdById], references: [id])
+  issuedBy  User?          @relation("PurchaseBillIssuedBy", fields: [issuedById], references: [id])
+
+  @@unique([companyId, billNumber])
+  @@index([companyId, status])
+}
+
+model PurchaseBillLine {
+  id          String   @id @default(uuid())
+  billId      String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  bill    PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  taxCode TaxCode?     @relation(fields: [taxCodeId], references: [id])
+
+  @@index([billId])
+}
+
+model PurchasePayment {
+  id            String   @id @default(uuid())
+  companyId     String
+  billId        String?
+  paymentNumber String
+  paidAt        DateTime
+  amount        Float
+  method        String
+  reference     String?
+  bankAccountId String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill        PurchaseBill?  @relation(fields: [billId], references: [id])
+  bankAccount BankAccount?   @relation(fields: [bankAccountId], references: [id])
+  createdBy   User?          @relation("PurchasePaymentCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([companyId, paymentNumber])
+}
+
+model BankAccount {
+  id             String   @id @default(uuid())
+  companyId      String
+  name           String
+  bankName       String?
+  accountNumber  String?
+  currency       String   @default("USD")
+  openingBalance Float    @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions   BankTransaction[]
+  salesReceipts  SalesReceipt[]
+  purchasePayments PurchasePayment[]
+
+  @@index([companyId, isActive])
+}
+
+model BankTransaction {
+  id           String   @id @default(uuid())
+  companyId    String
+  bankAccountId String
+  txnDate      DateTime
+  description  String
+  reference    String?
+  amount       Float
+  direction    PostingDirection
+  sourceType   AccountingSourceType?
+  sourceId     String?
+  createdAt    DateTime @default(now())
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+
+  @@index([companyId, txnDate])
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+}
+
+model FixedAsset {
+  id              String   @id @default(uuid())
+  companyId       String
+  assetCode       String
+  name            String
+  category        String?
+  acquisitionDate DateTime
+  cost            Float
+  salvageValue    Float    @default(0)
+  usefulLifeMonths Int     @default(36)
+  depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, assetCode])
+  @@index([companyId, isActive])
+}
+
+model Budget {
+  id          String       @id @default(uuid())
+  companyId   String
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  status      BudgetStatus @default(DRAFT)
+  totalAmount Float        @default(0)
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   BudgetLine[]
+
+  @@index([companyId, status])
+}
+
+model BudgetLine {
+  id           String   @id @default(uuid())
+  companyId    String
+  budgetId     String
+  accountId    String
+  costCenterId String?
+  amount       Float
+  createdAt    DateTime @default(now())
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  budget     Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  account    ChartOfAccount @relation(fields: [accountId], references: [id])
+  costCenter CostCenter?    @relation(fields: [costCenterId], references: [id])
+
+  @@index([companyId])
+  @@index([budgetId])
+}
+
+model CostCenter {
+  id         String   @id @default(uuid())
+  companyId  String
+  code       String
+  name       String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalLines JournalLine[]
+  budgetLines  BudgetLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model CurrencyRate {
+  id            String   @id @default(uuid())
+  companyId     String
+  baseCurrency  String
+  quoteCurrency String
+  rate          Float
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, effectiveDate])
+}
+
+model FiscalisationProviderConfig {
+  id          String   @id @default(uuid())
+  companyId   String
+  providerKey String
+  apiBaseUrl  String?
+  username    String?
+  password    String?
+  apiToken    String?
+  deviceId    String?
+  metadataJson String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, providerKey])
+  @@index([companyId, isActive])
+}
+
+model FiscalReceipt {
+  id            String   @id @default(uuid())
+  companyId     String
+  invoiceId     String?
+  receiptNumber String?
+  fiscalNumber  String?
+  status        FiscalReceiptStatus @default(PENDING)
+  issuedAt      DateTime?
+  qrCodeData    String?
+  signature     String?
+  providerKey   String?
+  rawResponseJson String?
+  lastError     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice SalesInvoice? @relation(fields: [invoiceId], references: [id])
+
+  @@unique([invoiceId])
+  @@index([companyId, status])
 }
 
 // ============================================

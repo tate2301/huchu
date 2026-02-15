@@ -6,6 +6,7 @@ export type FeatureDomain =
   | "stores"
   | "gold"
   | "hr"
+  | "accounting"
   | "maintenance"
   | "compliance"
   | "cctv"
@@ -84,6 +85,23 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
   f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 6 }),
   f({ key: "hr.gold-payouts", name: "HR Gold Payouts", description: "Gold payouts from HR perspective.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
+
+  f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.journals", name: "Journals", description: "Journal entries and posting workflows.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.periods", name: "Accounting Periods", description: "Accounting periods and period locks.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.posting-rules", name: "Posting Rules", description: "Automated posting rules and mappings.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.trial-balance", name: "Trial Balance", description: "Trial balance reporting.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.financial-statements", name: "Financial Statements", description: "Profit & Loss, Balance Sheet, and Cash Flow.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.ar", name: "Accounts Receivable", description: "Sales customers, invoices, and receipts.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.ap", name: "Accounts Payable", description: "Vendors, bills, and payments.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.banking", name: "Banking", description: "Bank accounts and transactions.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.fixed-assets", name: "Fixed Assets", description: "Asset register and depreciation schedule.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.budgets", name: "Budgets", description: "Budgeting and allocation planning.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.cost-centers", name: "Cost Centers", description: "Cost center setup and allocation.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.multi-currency", name: "Multi-currency", description: "Currency rates and multi-currency support.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.tax", name: "Tax", description: "Tax codes and VAT configuration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.zimra.fiscalisation", name: "ZIMRA Fiscalisation", description: "ZIMRA FDMS fiscalisation integration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "maintenance.dashboard", name: "Maintenance Dashboard", description: "Maintenance dashboard.", domain: "maintenance", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "maintenance.equipment", name: "Equipment Register", description: "Equipment lifecycle and maintenance meta.", domain: "maintenance", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
@@ -197,7 +215,52 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     additionalSiteMonthlyPrice: 15,
     features: ["stores.fuel-ledger", "reports.downtime-analytics", "reports.audit-trails", "reports.fuel-ledger", "core.notifications.push"],
   },
+  {
+    code: "ADDON_ACCOUNTING_CORE",
+    name: "Accounting Core",
+    description: "Core accounting setup, journals, and financial statements.",
+    monthlyPrice: 250,
+    additionalSiteMonthlyPrice: 30,
+    features: [
+      "accounting.core",
+      "accounting.chart-of-accounts",
+      "accounting.journals",
+      "accounting.periods",
+      "accounting.posting-rules",
+      "accounting.trial-balance",
+      "accounting.financial-statements",
+    ],
+  },
+  {
+    code: "ADDON_ACCOUNTING_ADVANCED",
+    name: "Accounting Advanced",
+    description: "AR/AP, banking, assets, budgets, and multi-currency.",
+    monthlyPrice: 350,
+    additionalSiteMonthlyPrice: 40,
+    features: [
+      "accounting.ar",
+      "accounting.ap",
+      "accounting.banking",
+      "accounting.fixed-assets",
+      "accounting.budgets",
+      "accounting.cost-centers",
+      "accounting.multi-currency",
+    ],
+  },
+  {
+    code: "ADDON_ZIMRA_FISCAL",
+    name: "ZIMRA Tax & Fiscalisation",
+    description: "VAT setup and ZIMRA FDMS fiscalisation connector.",
+    monthlyPrice: 120,
+    additionalSiteMonthlyPrice: 15,
+    features: ["accounting.tax", "accounting.zimra.fiscalisation"],
+  },
 ];
+
+export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
+  ADDON_ACCOUNTING_ADVANCED: ["ADDON_ACCOUNTING_CORE"],
+  ADDON_ZIMRA_FISCAL: ["ADDON_ACCOUNTING_CORE"],
+};
 
 export const TIERS: TierDefinition[] = [
   {
