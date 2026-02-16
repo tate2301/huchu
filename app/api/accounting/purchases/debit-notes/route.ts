@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
+import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 
 const debitNoteSchema = z.object({
   billId: z.string().uuid(),
@@ -118,10 +119,18 @@ export async function POST(request: NextRequest) {
 
     const taxCodes = taxCodeIds.length
       ? await prisma.taxCode.findMany({
-          where: { id: { in: taxCodeIds }, companyId: session.user.companyId },
-          select: { id: true, rate: true },
-        })
+        where: { id: { in: taxCodeIds }, companyId: session.user.companyId },
+        select: { id: true, rate: true, effectiveFrom: true, effectiveTo: true },
+      })
       : [];
+
+    const noteDate = new Date(validated.noteDate);
+    const taxCodesOutOfWindow = findTaxCodesOutsideEffectiveWindow(taxCodes, noteDate);
+    if (taxCodesOutOfWindow.length > 0) {
+      return errorResponse("One or more tax codes are not effective on the debit note date", 400, {
+        taxCodeIds: taxCodesOutOfWindow,
+      });
+    }
 
     const taxById = new Map(taxCodes.map((tax) => [tax.id, tax.rate]));
 
@@ -144,8 +153,6 @@ export async function POST(request: NextRequest) {
     const subTotal = computedLines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
     const taxTotal = computedLines.reduce((sum, line) => sum + line.taxAmount, 0);
     const total = computedLines.reduce((sum, line) => sum + line.lineTotal, 0);
-
-    const noteDate = new Date(validated.noteDate);
 
     const debitNote = await prisma.debitNote.create({
       data: {

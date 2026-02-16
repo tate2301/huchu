@@ -86,6 +86,7 @@ model Company {
   currencyRates        CurrencyRate[]
   fiscalProviderConfigs FiscalisationProviderConfig[]
   fiscalReceipts       FiscalReceipt[]
+  accountingIntegrationEvents AccountingIntegrationEvent[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -592,6 +593,7 @@ model User {
   postedJournalEntries          JournalEntry[]              @relation("JournalEntryPostedBy")
   reversedJournalEntries        JournalEntry[]              @relation("JournalEntryReversedBy")
   voidedJournalEntries          JournalEntry[]              @relation("JournalEntryVoidedBy")
+  periodOverrideJournalEntries  JournalEntry[]              @relation("JournalEntryPeriodOverrideBy")
   closedAccountingPeriods       AccountingPeriod[]          @relation("AccountingPeriodClosedBy")
   createdSalesInvoices          SalesInvoice[]              @relation("SalesInvoiceCreatedBy")
   issuedSalesInvoices           SalesInvoice[]              @relation("SalesInvoiceIssuedBy")
@@ -1701,6 +1703,7 @@ model StockLocation {
 
   site  Site            @relation(fields: [siteId], references: [id])
   items InventoryItem[]
+  incomingMovements StockMovement[] @relation("StockMovementDestination")
 
   @@index([siteId])
 }
@@ -1739,6 +1742,7 @@ enum MovementType {
 model StockMovement {
   id           String       @id @default(uuid())
   itemId       String
+  toLocationId String?
   movementType MovementType
   quantity     Float
   unit         String
@@ -1752,9 +1756,11 @@ model StockMovement {
   createdAt DateTime @default(now())
 
   item     InventoryItem @relation(fields: [itemId], references: [id])
+  toLocation StockLocation? @relation("StockMovementDestination", fields: [toLocationId], references: [id])
   issuedBy User?         @relation(fields: [issuedById], references: [id])
 
   @@index([itemId])
+  @@index([toLocationId])
   @@index([createdAt])
 }
 
@@ -1830,6 +1836,12 @@ enum AccountingPeriodStatus {
   CLOSED
 }
 
+enum AccountingPeriodLockPolicy {
+  STRICT
+  MANAGER_OVERRIDE
+  SOFT_WARN
+}
+
 enum JournalStatus {
   DRAFT
   POSTED
@@ -1861,6 +1873,7 @@ enum AccountingSourceType {
   STOCK_RECEIPT
   STOCK_ISSUE
   STOCK_ADJUSTMENT
+  STOCK_TRANSFER
   PAYROLL_RUN
   PAYROLL_DISBURSEMENT
   GOLD_RECEIPT
@@ -1926,6 +1939,7 @@ model AccountingSettings {
   companyId            String   @unique
   baseCurrency         String   @default("USD")
   fiscalYearStartMonth Int      @default(1)
+  periodLockPolicy     AccountingPeriodLockPolicy @default(MANAGER_OVERRIDE)
   legalName            String?
   tradingName          String?
   vatNumber            String?
@@ -2000,6 +2014,10 @@ model JournalEntry {
   reversedAt  DateTime?
   voidedById  String?
   voidedAt    DateTime?
+  periodOverrideReason String?
+  periodOverrideById String?
+  periodOverrideAt DateTime?
+  reversalOfEntryId String? @unique
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
@@ -2009,11 +2027,54 @@ model JournalEntry {
   postedBy   User?            @relation("JournalEntryPostedBy", fields: [postedById], references: [id])
   reversedBy User?            @relation("JournalEntryReversedBy", fields: [reversedById], references: [id])
   voidedBy   User?            @relation("JournalEntryVoidedBy", fields: [voidedById], references: [id])
+  periodOverrideBy User?      @relation("JournalEntryPeriodOverrideBy", fields: [periodOverrideById], references: [id])
+  reversalOfEntry JournalEntry? @relation("JournalEntryReversal", fields: [reversalOfEntryId], references: [id])
+  reversalEntry JournalEntry? @relation("JournalEntryReversal")
   lines      JournalLine[]
 
   @@unique([companyId, entryNumber])
   @@unique([companyId, sourceType, sourceId])
   @@index([companyId, entryDate])
+}
+
+enum AccountingIntegrationStatus {
+  PENDING
+  POSTED
+  FAILED
+  IGNORED
+}
+
+model AccountingIntegrationEvent {
+  id               String                     @id @default(uuid())
+  companyId        String
+  sourceDomain     String
+  sourceAction     String
+  sourceType       AccountingSourceType?
+  sourceId         String?
+  eventKey         String                     @unique
+  entryDate        DateTime?
+  description      String?
+  amount           Float?
+  netAmount        Float?
+  taxAmount        Float?
+  grossAmount      Float?
+  deductionsAmount Float?
+  allowancesAmount Float?
+  currency         String?
+  payloadJson      String?
+  status           AccountingIntegrationStatus @default(PENDING)
+  attemptCount     Int                        @default(0)
+  nextRetryAt      DateTime?
+  lastError        String?
+  journalEntryId   String?
+  createdById      String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, nextRetryAt])
+  @@index([companyId, sourceType, sourceId])
 }
 
 model JournalLine {
@@ -2075,6 +2136,8 @@ model TaxCode {
   name        String
   rate        Float    @default(0)
   type        String   @default("VAT") // VAT, WITHHOLDING, OTHER
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2089,6 +2152,7 @@ model TaxCode {
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
+  @@index([companyId, code, effectiveFrom, effectiveTo])
 }
 
 model Customer {

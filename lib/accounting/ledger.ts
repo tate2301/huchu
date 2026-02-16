@@ -33,8 +33,19 @@ export async function findOpenPeriodForDate(companyId: string, date: Date): Prom
   });
 }
 
+export async function findPeriodForDate(companyId: string, date: Date): Promise<AccountingPeriod | null> {
+  return prisma.accountingPeriod.findFirst({
+    where: {
+      companyId,
+      startDate: { lte: date },
+      endDate: { gte: date },
+    },
+    orderBy: [{ startDate: "asc" }],
+  });
+}
+
 export async function ensurePeriodForDate(companyId: string, date: Date): Promise<AccountingPeriod> {
-  const existing = await findOpenPeriodForDate(companyId, date);
+  const existing = await findPeriodForDate(companyId, date);
   if (existing) return existing;
 
   const periodStart = new Date(date.getFullYear(), date.getMonth(), 1);

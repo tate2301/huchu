@@ -8,6 +8,8 @@ const taxSchema = z.object({
   name: z.string().min(1).max(200),
   rate: z.number().min(0).max(100),
   type: z.string().max(50).optional(),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveTo: z.string().datetime().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest) {
         name: validated.name,
         rate: validated.rate,
         type: validated.type ?? "VAT",
+        effectiveFrom: validated.effectiveFrom ? new Date(validated.effectiveFrom) : undefined,
+        effectiveTo: validated.effectiveTo ? new Date(validated.effectiveTo) : undefined,
         isActive: validated.isActive ?? true,
       },
     });

@@ -7,6 +7,8 @@ const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   rate: z.number().min(0).max(100).optional(),
   type: z.string().max(50).optional(),
+  effectiveFrom: z.string().datetime().nullable().optional(),
+  effectiveTo: z.string().datetime().nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -33,7 +35,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const updated = await prisma.taxCode.update({
       where: { id },
-      data: validated,
+      data: {
+        ...validated,
+        effectiveFrom:
+          validated.effectiveFrom !== undefined
+            ? validated.effectiveFrom
+              ? new Date(validated.effectiveFrom)
+              : null
+            : undefined,
+        effectiveTo:
+          validated.effectiveTo !== undefined
+            ? validated.effectiveTo
+              ? new Date(validated.effectiveTo)
+              : null
+            : undefined,
+      },
     });
 
     return successResponse(updated);

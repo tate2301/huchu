@@ -1,11 +1,15 @@
 import type { AccountingSourceType, PostingBasis, PostingRuleLine } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hasFeature } from "@/lib/platform/features";
-import { ensurePeriodForDate, getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
+import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
+import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
+import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 
 const BALANCE_TOLERANCE = 0.01;
+const BASE_RETRY_DELAY_MINUTES = 5;
+const MAX_RETRY_DELAY_MINUTES = 24 * 60;
 
-type PostingContext = {
+export type PostingContext = {
   companyId: string;
   sourceType: AccountingSourceType;
   sourceId?: string | null;
@@ -19,6 +23,16 @@ type PostingContext = {
   deductionsAmount?: number;
   allowancesAmount?: number;
   currency?: string;
+  actorRole?: string | null;
+  periodOverrideReason?: string | null;
+  invertDirection?: boolean;
+};
+
+type PostingResult = {
+  entryId?: string;
+  skipped?: boolean;
+  error?: string;
+  code?: string;
 };
 
 function resolveBasisAmount(basis: PostingBasis, context: PostingContext): number {
@@ -51,84 +65,203 @@ function totalsBalanced(totalDebit: number, totalCredit: number) {
   return Math.abs(totalDebit - totalCredit) <= BALANCE_TOLERANCE;
 }
 
-export async function createJournalEntryFromSource(context: PostingContext): Promise<{ entryId?: string; skipped?: boolean; error?: string }> {
-  const accountingEnabled = await hasFeature(context.companyId, "accounting.core");
-  const postingEnabled = await hasFeature(context.companyId, "accounting.posting-rules");
-  if (!accountingEnabled || !postingEnabled) {
-    return { skipped: true };
-  }
+function nextRetryDate(attemptCount: number) {
+  const backoffMultiplier = 2 ** Math.max(attemptCount - 1, 0);
+  const delayMinutes = Math.min(BASE_RETRY_DELAY_MINUTES * backoffMultiplier, MAX_RETRY_DELAY_MINUTES);
+  return new Date(Date.now() + delayMinutes * 60 * 1000);
+}
 
-  if (context.sourceId) {
-    const existing = await prisma.journalEntry.findFirst({
+function truncateErrorMessage(message: string) {
+  return message.length > 1000 ? message.slice(0, 1000) : message;
+}
+
+async function createOrRefreshIntegrationEvent(context: PostingContext) {
+  const eventKey = buildAccountingEventKey({
+    companyId: context.companyId,
+    sourceDomain: "accounting",
+    sourceAction: "auto-post",
+    sourceType: context.sourceType,
+    sourceId: context.sourceId,
+    fallback: `${context.entryDate.toISOString()}:${context.description}`,
+  });
+
+  return prisma.accountingIntegrationEvent.upsert({
+    where: { eventKey },
+    update: {
+      sourceType: context.sourceType,
+      sourceId: context.sourceId ?? null,
+      entryDate: context.entryDate,
+      description: context.description,
+      amount: context.amount,
+      netAmount: context.netAmount ?? null,
+      taxAmount: context.taxAmount ?? null,
+      grossAmount: context.grossAmount ?? null,
+      deductionsAmount: context.deductionsAmount ?? null,
+      allowancesAmount: context.allowancesAmount ?? null,
+      currency: context.currency ?? null,
+      createdById: context.createdById,
+      payloadJson: JSON.stringify(context),
+      status: "PENDING",
+      lastError: null,
+    },
+    create: {
+      eventKey,
+      companyId: context.companyId,
+      sourceDomain: "accounting",
+      sourceAction: "auto-post",
+      sourceType: context.sourceType,
+      sourceId: context.sourceId ?? null,
+      entryDate: context.entryDate,
+      description: context.description,
+      amount: context.amount,
+      netAmount: context.netAmount ?? null,
+      taxAmount: context.taxAmount ?? null,
+      grossAmount: context.grossAmount ?? null,
+      deductionsAmount: context.deductionsAmount ?? null,
+      allowancesAmount: context.allowancesAmount ?? null,
+      currency: context.currency ?? null,
+      createdById: context.createdById,
+      payloadJson: JSON.stringify(context),
+      status: "PENDING",
+    },
+    select: { id: true, attemptCount: true },
+  });
+}
+
+async function markIntegrationEventPosted(eventId: string, entryId: string) {
+  await prisma.accountingIntegrationEvent.update({
+    where: { id: eventId },
+    data: {
+      status: "POSTED",
+      journalEntryId: entryId,
+      nextRetryAt: null,
+      lastError: null,
+    },
+  });
+}
+
+async function markIntegrationEventFailure(eventId: string, attemptCount: number, error: string) {
+  await prisma.accountingIntegrationEvent.update({
+    where: { id: eventId },
+    data: {
+      status: "FAILED",
+      attemptCount: { increment: 1 },
+      lastError: truncateErrorMessage(error),
+      nextRetryAt: nextRetryDate(attemptCount + 1),
+    },
+  });
+}
+
+export async function createJournalEntryFromSource(context: PostingContext): Promise<PostingResult> {
+  const integrationEvent = await createOrRefreshIntegrationEvent(context);
+
+  try {
+    await ensureAccountingDefaults(context.companyId);
+
+    if (context.sourceId) {
+      const existing = await prisma.journalEntry.findFirst({
+        where: {
+          companyId: context.companyId,
+          sourceType: context.sourceType,
+          sourceId: context.sourceId,
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        await markIntegrationEventPosted(integrationEvent.id, existing.id);
+        return { entryId: existing.id, skipped: true };
+      }
+    }
+
+    const rule = await prisma.postingRule.findFirst({
       where: {
         companyId: context.companyId,
         sourceType: context.sourceType,
-        sourceId: context.sourceId,
+        isActive: true,
+      },
+      include: { lines: true },
+    });
+
+    if (!rule || rule.lines.length === 0) {
+      const error = `Posting rule missing for source type ${context.sourceType}`;
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
+      return { error, code: "POSTING_RULE_MISSING" };
+    }
+
+    const lines = rule.lines.map((line) => {
+      const amount = resolveLineAmount(line, context);
+      const direction = context.invertDirection
+        ? line.direction === "DEBIT"
+          ? "CREDIT"
+          : "DEBIT"
+        : line.direction;
+      return {
+        accountId: line.accountId,
+        debit: direction === "DEBIT" ? amount : 0,
+        credit: direction === "CREDIT" ? amount : 0,
+        memo: context.description,
+      };
+    });
+
+    const totals = lines.reduce(
+      (acc, line) => ({
+        debit: acc.debit + toMoney(line.debit),
+        credit: acc.credit + toMoney(line.credit),
+      }),
+      { debit: 0, credit: 0 },
+    );
+
+    if (!totalsBalanced(totals.debit, totals.credit)) {
+      const error = `Unbalanced entry (debit ${totals.debit.toFixed(2)} vs credit ${totals.credit.toFixed(2)})`;
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
+      return { error, code: "UNBALANCED_POSTING" };
+    }
+
+    const postingPeriod = await resolvePostingPeriod({
+      companyId: context.companyId,
+      entryDate: context.entryDate,
+      actorRole: context.actorRole,
+      overrideReason: context.periodOverrideReason,
+    });
+    if (!postingPeriod.allowed) {
+      const error = postingPeriod.message ?? "Posting period is locked";
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
+      return {
+        error,
+        code: postingPeriod.code ?? "PERIOD_LOCKED",
+      };
+    }
+
+    const entryNumber = await getNextEntryNumber(context.companyId);
+
+    const entry = await prisma.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber,
+        entryDate: context.entryDate,
+        description: context.description,
+        status: "POSTED",
+        periodId: postingPeriod.period.id,
+        sourceType: context.sourceType,
+        sourceId: context.sourceId ?? undefined,
+        createdById: context.createdById,
+        postedById: context.createdById,
+        postedAt: new Date(),
+        periodOverrideReason: postingPeriod.requiresOverride ? postingPeriod.overrideReason : undefined,
+        periodOverrideById: postingPeriod.requiresOverride ? context.createdById : undefined,
+        periodOverrideAt: postingPeriod.requiresOverride ? new Date() : undefined,
+        lines: {
+          create: lines,
+        },
       },
       select: { id: true },
     });
-    if (existing) return { entryId: existing.id, skipped: true };
+
+    await markIntegrationEventPosted(integrationEvent.id, entry.id);
+    return { entryId: entry.id };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown posting failure";
+    await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, errorMessage);
+    return { error: errorMessage, code: "POSTING_EXCEPTION" };
   }
-
-  const rule = await prisma.postingRule.findFirst({
-    where: {
-      companyId: context.companyId,
-      sourceType: context.sourceType,
-      isActive: true,
-    },
-    include: { lines: true },
-  });
-
-  if (!rule || rule.lines.length === 0) {
-    return { skipped: true };
-  }
-
-  const lines = rule.lines.map((line) => {
-    const amount = resolveLineAmount(line, context);
-    return {
-      accountId: line.accountId,
-      debit: line.direction === "DEBIT" ? amount : 0,
-      credit: line.direction === "CREDIT" ? amount : 0,
-      memo: context.description,
-    };
-  });
-
-  const totals = lines.reduce(
-    (acc, line) => ({
-      debit: acc.debit + toMoney(line.debit),
-      credit: acc.credit + toMoney(line.credit),
-    }),
-    { debit: 0, credit: 0 },
-  );
-
-  if (!totalsBalanced(totals.debit, totals.credit)) {
-    return {
-      error: `Unbalanced entry (debit ${totals.debit.toFixed(2)} vs credit ${totals.credit.toFixed(2)})`,
-    };
-  }
-
-  const period = await ensurePeriodForDate(context.companyId, context.entryDate);
-  const entryNumber = await getNextEntryNumber(context.companyId);
-
-  const entry = await prisma.journalEntry.create({
-    data: {
-      companyId: context.companyId,
-      entryNumber,
-      entryDate: context.entryDate,
-      description: context.description,
-      status: "POSTED",
-      periodId: period.id,
-      sourceType: context.sourceType,
-      sourceId: context.sourceId ?? undefined,
-      createdById: context.createdById,
-      postedById: context.createdById,
-      postedAt: new Date(),
-      lines: {
-        create: lines,
-      },
-    },
-    select: { id: true },
-  });
-
-  return { entryId: entry.id };
 }

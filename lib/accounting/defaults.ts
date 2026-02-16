@@ -14,6 +14,8 @@ export type DefaultTaxCode = {
   name: string;
   rate: number;
   type?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
 };
 
 export type DefaultPostingRule = {
@@ -30,8 +32,10 @@ export type DefaultPostingRule = {
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1000", name: "Cash on Hand", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1010", name: "Bank", type: "ASSET", category: "Cash", systemManaged: true },
+  { code: "1020", name: "Bank Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1100", name: "Accounts Receivable", type: "ASSET", category: "Receivables", systemManaged: true },
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
+  { code: "1300", name: "Gold In Transit", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2100", name: "Payroll Liabilities", type: "LIABILITY", category: "Payroll", systemManaged: true },
   { code: "2110", name: "Payroll Deductions", type: "LIABILITY", category: "Payroll", systemManaged: true },
@@ -51,7 +55,20 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
 ];
 
 export const DEFAULT_TAX_CODES: DefaultTaxCode[] = [
-  { code: "VAT15", name: "VAT Standard Rate", rate: 15, type: "VAT" },
+  {
+    code: "VAT15",
+    name: "VAT Standard Rate (Legacy)",
+    rate: 15,
+    type: "VAT",
+    effectiveTo: "2025-12-31T23:59:59.999Z",
+  },
+  {
+    code: "VAT15_5",
+    name: "VAT Standard Rate",
+    rate: 15.5,
+    type: "VAT",
+    effectiveFrom: "2026-01-01T00:00:00.000Z",
+  },
   { code: "VAT0", name: "VAT Zero Rated", rate: 0, type: "VAT" },
   { code: "EXEMPT", name: "VAT Exempt", rate: 0, type: "VAT" },
 ];
@@ -82,6 +99,14 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    name: "Stock Transfer",
+    sourceType: "STOCK_TRANSFER",
+    lines: [
+      { accountCode: "1200", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1200", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
     name: "Payroll Run",
     sourceType: "PAYROLL_RUN",
     lines: [
@@ -104,6 +129,14 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountCode: "1010", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
       { accountCode: "4100", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Gold Dispatch",
+    sourceType: "GOLD_DISPATCH",
+    lines: [
+      { accountCode: "1300", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1200", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
     ],
   },
   {
@@ -180,6 +213,14 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountCode: "5300", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
       { accountCode: "1200", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Bank Transaction",
+    sourceType: "BANK_TRANSACTION",
+    lines: [
+      { accountCode: "1020", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
     ],
   },
 ];

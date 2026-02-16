@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { AccountingSourceType } from "@prisma/client";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
@@ -11,26 +12,7 @@ const transactionSchema = z.object({
   reference: z.string().max(200).optional(),
   amount: z.number().min(0.01),
   direction: z.enum(["DEBIT", "CREDIT"]),
-  sourceType: z.enum([
-    "MANUAL",
-    "STOCK_RECEIPT",
-    "STOCK_ISSUE",
-    "STOCK_ADJUSTMENT",
-    "PAYROLL_RUN",
-    "PAYROLL_DISBURSEMENT",
-    "GOLD_RECEIPT",
-    "GOLD_DISPATCH",
-    "SALES_INVOICE",
-    "SALES_RECEIPT",
-    "SALES_CREDIT_NOTE",
-    "SALES_WRITE_OFF",
-    "PURCHASE_BILL",
-    "PURCHASE_PAYMENT",
-    "PURCHASE_DEBIT_NOTE",
-    "PURCHASE_WRITE_OFF",
-    "BANK_TRANSACTION",
-    "MAINTENANCE_COMPLETION",
-  ]).optional(),
+  sourceType: z.nativeEnum(AccountingSourceType).optional(),
   sourceId: z.string().optional(),
 });
 
@@ -73,6 +55,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = transactionSchema.parse(body);
+    if (validated.sourceType && validated.sourceType !== "BANK_TRANSACTION") {
+      return errorResponse("Bank transactions can only be posted as BANK_TRANSACTION source type", 400);
+    }
 
     const account = await prisma.bankAccount.findUnique({
       where: { id: validated.bankAccountId },
@@ -100,15 +85,17 @@ export async function POST(request: NextRequest) {
     try {
       await createJournalEntryFromSource({
         companyId: session.user.companyId,
-        sourceType: "BANK_TRANSACTION",
+        sourceType: transaction.sourceType ?? "BANK_TRANSACTION",
         sourceId: transaction.id,
         entryDate: transaction.txnDate,
-        description: `Bank transaction ${transaction.description}`,
+        description: `Bank transaction ${transaction.direction.toLowerCase()} ${transaction.description}`,
         createdById: session.user.id,
         amount: transaction.amount,
         netAmount: transaction.amount,
         taxAmount: 0,
         grossAmount: transaction.amount,
+        actorRole: session.user.role,
+        invertDirection: transaction.direction === "CREDIT",
       });
     } catch (error) {
       console.error("[Accounting] Bank transaction auto-post failed:", error);
