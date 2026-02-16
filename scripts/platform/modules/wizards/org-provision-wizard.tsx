@@ -101,10 +101,15 @@ export function OrgProvisionWizard({
         setErrorMessage(result.message);
         return;
       }
+      const warnings = result.warnings ?? result.resource.warnings ?? [];
       setSuccessMessage(
         `Provisioned ${result.resource.organization.slug} | Admin ${result.resource.admin.email} | Subdomain ${result.resource.subdomainReservation.subdomain}`,
       );
-      setStatusMessage("Provision flow completed.");
+      setStatusMessage(
+        warnings.length > 0
+          ? `Provision flow completed with warnings: ${warnings.join(" | ")}`
+          : "Provision flow completed.",
+      );
       setConfirmDraft("");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Provision failed.");

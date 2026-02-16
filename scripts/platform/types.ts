@@ -193,6 +193,7 @@ export interface ProvisionBundleResult {
   subdomainReservation: SubdomainReservationRecord;
   auditEventIds: string[];
   actionPreview: string;
+  warnings?: string[];
 }
 
 export interface SearchIndexEntry {

@@ -120,6 +120,7 @@ export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
       });
     }
 
+    const bundleCodeToId = new Map<string, string>();
     for (const bundle of FEATURE_BUNDLES) {
       const savedBundle = await tx.featureBundle.upsert({
         where: { code: bundle.code },
@@ -138,29 +139,32 @@ export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
           additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
           isActive: true,
         },
-        select: { id: true },
+        select: { id: true, code: true },
       });
+      bundleCodeToId.set(savedBundle.code, savedBundle.id);
+    }
 
-      for (const featureKey of bundle.features) {
-        const feature = await tx.platformFeature.findUnique({
-          where: { key: featureKey },
-          select: { id: true },
-        });
-        if (!feature) continue;
-        await tx.featureBundleItem.upsert({
-          where: {
-            bundleId_featureId: {
-              bundleId: savedBundle.id,
-              featureId: feature.id,
-            },
-          },
-          update: {},
-          create: {
-            bundleId: savedBundle.id,
-            featureId: feature.id,
-          },
-        });
-      }
+    const featureRows = await tx.platformFeature.findMany({
+      where: { key: { in: FEATURE_CATALOG.map((feature) => feature.key) } },
+      select: { id: true, key: true },
+    });
+    const featureByKey = new Map(featureRows.map((feature) => [feature.key, feature]));
+
+    for (const bundle of FEATURE_BUNDLES) {
+      const bundleId = bundleCodeToId.get(bundle.code);
+      if (!bundleId) continue;
+      const itemRows = bundle.features
+        .map((featureKey) => featureByKey.get(featureKey))
+        .filter((feature): feature is { id: string; key: string } => Boolean(feature))
+        .map((feature) => ({
+          bundleId,
+          featureId: feature.id,
+        }));
+      if (itemRows.length === 0) continue;
+      await tx.featureBundleItem.createMany({
+        data: itemRows,
+        skipDuplicates: true,
+      });
     }
 
     for (const tier of TIERS) {

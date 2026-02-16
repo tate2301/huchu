@@ -106,6 +106,7 @@ import {
   type OrganizationStatus,
   type OrganizationStatusResult,
   type PlatformServices,
+  type ProvisionBundleResult,
   type ProvisionOrganizationInput,
   type ResetAdminPasswordInput,
   type SetAdminStatusInput,
@@ -159,6 +160,14 @@ function toErrorCode(error: unknown): string {
   if (message.includes("already exists") || message.includes("duplicate") || message.includes("unique")) return "CONFLICT";
   if (message.includes("invalid") || message.includes("empty") || message.includes("required")) return "VALIDATION_ERROR";
   if (message.includes("permission") || message.includes("role")) return "PERMISSION_DENIED";
+  if (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("expired transaction") ||
+    message.includes("a query cannot be executed on an expired transaction")
+  ) {
+    return "TIMEOUT";
+  }
   return "OPERATION_FAILED";
 }
 
@@ -172,6 +181,19 @@ async function toMutation<T>(task: () => Promise<T>): Promise<MutationResult<T>>
       message: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+async function toProvisionBundleMutation(
+  task: () => Promise<ProvisionBundleResult>,
+): Promise<MutationResult<ProvisionBundleResult>> {
+  const result = await toMutation(task);
+  if (!result.ok) return result;
+  const warnings = result.resource.warnings;
+  if (!warnings || warnings.length === 0) return result;
+  return {
+    ...result,
+    warnings,
+  };
 }
 
 async function appendAuditEvent(event: {
@@ -1042,7 +1064,7 @@ export function createPlatformServices(): PlatformServices {
       detail: getOrganization,
       provision: (input) => toMutation(() => provisionOrganization(input)),
       previewProvisionBundle: (input) => toMutation(() => previewProvisionBundle(input)),
-      provisionBundle: (input) => toMutation(() => provisionBundle(input)),
+      provisionBundle: (input) => toProvisionBundleMutation(() => provisionBundle(input)),
       suggestSubdomains,
       reserveSubdomain: (input) => toMutation(() => reserveOrgSubdomain(input)),
       getSubdomainReservation: getOrgSubdomainReservation,
