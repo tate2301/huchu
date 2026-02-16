@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { AddonBundleSummary, PlatformServices, SubscriptionSummary } from "../../types";
+import type { AddonBundleSummary, PlatformServices } from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
+import { loadSubscriptionTargets, type SubscriptionTargetSummary } from "./subscription-targets";
 import { WizardFrame } from "./wizard-frame";
 
 interface SubscriptionAddonsWizardProps {
@@ -17,7 +18,7 @@ interface SubscriptionAddonsWizardProps {
 
 type ActionChoice = "ENABLE" | "DISABLE";
 
-function companyLabel(subscription: SubscriptionSummary | null): string {
+function companyLabel(subscription: SubscriptionTargetSummary | null): string {
   if (!subscription) return "<none>";
   return subscription.companySlug || subscription.companyName || subscription.companyId;
 }
@@ -31,7 +32,7 @@ export function SubscriptionAddonsWizard({
   onBackToTree,
 }: SubscriptionAddonsWizardProps) {
   const [step, setStep] = useState(0);
-  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionTargetSummary[]>([]);
   const [addons, setAddons] = useState<AddonBundleSummary[]>([]);
   const [subscriptionIndex, setSubscriptionIndex] = useState(0);
   const [addonIndex, setAddonIndex] = useState(0);
@@ -50,10 +51,7 @@ export function SubscriptionAddonsWizard({
       setLoading(true);
       setErrorMessage(null);
       try {
-        const rows = await services.subscription.list({
-          companyId: focusCompanyId || undefined,
-          limit: 100,
-        });
+        const rows = await loadSubscriptionTargets(services, focusCompanyId);
         if (!ignore) {
           setSubscriptions(rows);
           setSubscriptionIndex(0);
@@ -70,7 +68,7 @@ export function SubscriptionAddonsWizard({
     return () => {
       ignore = true;
     };
-  }, [focusCompanyId, services.subscription]);
+  }, [focusCompanyId, services, services.org, services.subscription]);
 
   const selectedSubscription = subscriptions[subscriptionIndex] ?? null;
 
@@ -219,8 +217,8 @@ export function SubscriptionAddonsWizard({
             <SelectorList
               items={subscriptions}
               selectedIndex={subscriptionIndex}
-              emptyMessage="No subscriptions available."
-              render={(item) => `${item.companySlug || item.companyId} | ${item.status} | plan ${item.planCode || "none"}`}
+              emptyMessage="No companies available."
+              render={(item) => `${item.companySlug || item.companyId} | ${item.status || "NO_SUBSCRIPTION"} | plan ${item.planCode || "none"}`}
             />
           ) : null}
           {step === 1 ? (

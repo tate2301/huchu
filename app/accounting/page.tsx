@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
+import { canViewAccountingHref } from "@/lib/accounting/visibility";
 import { fetchAccountingSummary } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ArrowRight, RefreshCcw } from "@/lib/icons";
@@ -15,6 +18,11 @@ import { ArrowRight, RefreshCcw } from "@/lib/icons";
 export default function AccountingOverviewPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
 
   const {
     data: summary,
@@ -47,32 +55,45 @@ export default function AccountingOverviewPage() {
     },
   });
 
+  const primaryActions = useMemo(
+    () =>
+      [
+        { href: "/accounting/journals", label: "New Journal Entry", variant: "default" as const },
+        { href: "/accounting/sales", label: "New Sales Invoice", variant: "outline" as const },
+        { href: "/accounting/purchases", label: "New Purchase Bill", variant: "outline" as const },
+      ].filter((action) => canViewAccountingHref(action.href, enabledFeatures)),
+    [enabledFeatures],
+  );
+
+  const quickLinks = useMemo(
+    () =>
+      [
+        { href: "/accounting/chart-of-accounts", label: "Chart of Accounts" },
+        { href: "/accounting/posting-rules", label: "Posting Rules" },
+        { href: "/accounting/trial-balance", label: "Trial Balance" },
+        { href: "/accounting/financial-statements", label: "Financial Statements" },
+      ].filter((link) => canViewAccountingHref(link.href, enabledFeatures)),
+    [enabledFeatures],
+  );
+
   return (
     <AccountingShell
       activeTab="overview"
       title="Accounting Overview"
       description="Core accounting health, journal activity, and AR/AP status."
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/accounting/journals">
-              New Journal Entry
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/sales">
-              New Sales Invoice
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/purchases">
-              New Purchase Bill
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </div>
+        primaryActions.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {primaryActions.map((action) => (
+              <Button key={action.href} asChild size="sm" variant={action.variant}>
+                <Link href={action.href}>
+                  {action.label}
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            ))}
+          </div>
+        ) : undefined
       }
     >
       {error ? (
@@ -125,6 +146,22 @@ export default function AccountingOverviewPage() {
                 <CardTitle className="font-mono">{summary?.openBills ?? 0}</CardTitle>
               </CardHeader>
             </Card>
+            <Card>
+              <CardHeader>
+                <CardDescription>Pending Integration Events</CardDescription>
+                <CardTitle className="font-mono">
+                  {summary?.pendingIntegrationEvents ?? 0}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardDescription>Failed Integration Events</CardDescription>
+                <CardTitle className="font-mono">
+                  {summary?.failedIntegrationEvents ?? 0}
+                </CardTitle>
+              </CardHeader>
+            </Card>
           </>
         )}
       </div>
@@ -149,42 +186,26 @@ export default function AccountingOverviewPage() {
             </Button>
           </div>
         </Card>
-        <Card>
+        {quickLinks.length > 0 ? (
+          <Card>
           <CardHeader className="space-y-2">
             <CardTitle>Quick Links</CardTitle>
             <CardDescription>Jump into your core accounting workflows.</CardDescription>
           </CardHeader>
           <div className="px-6 pb-6 space-y-2 text-sm">
-            <Link
-              className="flex items-center justify-between text-primary hover:underline"
-              href="/accounting/chart-of-accounts"
-            >
-              Chart of Accounts
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              className="flex items-center justify-between text-primary hover:underline"
-              href="/accounting/posting-rules"
-            >
-              Posting Rules
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              className="flex items-center justify-between text-primary hover:underline"
-              href="/accounting/trial-balance"
-            >
-              Trial Balance
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              className="flex items-center justify-between text-primary hover:underline"
-              href="/accounting/financial-statements"
-            >
-              Financial Statements
-              <ArrowRight className="size-4" />
-            </Link>
+            {quickLinks.map((link) => (
+              <Link
+                key={link.href}
+                className="flex items-center justify-between text-primary hover:underline"
+                href={link.href}
+              >
+                {link.label}
+                <ArrowRight className="size-4" />
+              </Link>
+            ))}
           </div>
-        </Card>
+          </Card>
+        ) : null}
       </div>
     </AccountingShell>
   );

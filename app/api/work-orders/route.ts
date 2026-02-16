@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { emitWorkOrderStatusNotification } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
@@ -143,6 +144,26 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "maintenance",
+        sourceAction: "work-order-created",
+        sourceId: workOrder.id,
+        entryDate: workOrder.createdAt,
+        description: `Work order ${workOrder.id} created`,
+        amount: (workOrder.partsCost ?? 0) + (workOrder.laborCost ?? 0),
+        payload: {
+          status: workOrder.status,
+          equipmentId: workOrder.equipmentId,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      });
+    } catch (error) {
+      console.error("[Accounting] Work order capture failed:", error);
+    }
 
     return successResponse(workOrder, 201);
   } catch (error) {

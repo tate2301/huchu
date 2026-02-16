@@ -15,17 +15,11 @@ interface UserCreateWizardProps {
   onBackToTree?: () => void;
 }
 
-type Step = 0 | 1 | 2;
-type UserField = "email" | "name" | "password" | "role";
+type Step = 0 | 1 | 2 | 3;
+type UserField = "email" | "name" | "password";
 
-const USER_FIELDS: UserField[] = ["email", "name", "password", "role"];
-const ROLE_CYCLE: UserManagementRole[] = ["MANAGER", "CLERK"];
-
-function toggleRole(currentRole: UserManagementRole, direction: 1 | -1): UserManagementRole {
-  const currentIndex = ROLE_CYCLE.indexOf(currentRole);
-  const nextIndex = (currentIndex + direction + ROLE_CYCLE.length) % ROLE_CYCLE.length;
-  return ROLE_CYCLE[nextIndex] ?? ROLE_CYCLE[0];
-}
+const USER_FIELDS: UserField[] = ["email", "name", "password"];
+const ROLE_OPTIONS: UserManagementRole[] = ["MANAGER", "CLERK"];
 
 export function UserCreateWizard({
   actor,
@@ -39,6 +33,7 @@ export function UserCreateWizard({
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [companyIndex, setCompanyIndex] = useState(0);
   const [fieldIndex, setFieldIndex] = useState(0);
+  const [roleIndex, setRoleIndex] = useState(1);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,7 +42,6 @@ export function UserCreateWizard({
     email: "",
     name: "",
     password: "",
-    role: "CLERK" as UserManagementRole,
   });
 
   useInputLock(setInputLocked, true);
@@ -78,6 +72,7 @@ export function UserCreateWizard({
   }, [focusCompanyId, services.org]);
 
   const selectedCompany = organizations[companyIndex] ?? null;
+  const selectedRole = ROLE_OPTIONS[roleIndex] ?? ROLE_OPTIONS[1];
 
   async function runCreate() {
     if (!selectedCompany) return;
@@ -94,7 +89,7 @@ export function UserCreateWizard({
         email: draft.email.trim(),
         name: draft.name.trim(),
         password: draft.password,
-        role: draft.role,
+        role: selectedRole,
         actor,
       });
       if (!result.ok) {
@@ -107,8 +102,8 @@ export function UserCreateWizard({
         email: "",
         name: "",
         password: "",
-        role: "CLERK",
       });
+      setRoleIndex(1);
       setStep(1);
       setFieldIndex(0);
     } catch (error) {
@@ -159,15 +154,6 @@ export function UserCreateWizard({
         return;
       }
 
-      const field = USER_FIELDS[fieldIndex];
-      if (field === "role") {
-        if (key.return || key.leftArrow || key.rightArrow || input === " ") {
-          const direction: 1 | -1 = key.leftArrow ? -1 : 1;
-          setDraft((current) => ({ ...current, role: toggleRole(current.role, direction) }));
-          return;
-        }
-      }
-
       if (key.return) {
         if (!draft.email.includes("@")) {
           setErrorMessage("Email is invalid.");
@@ -185,13 +171,27 @@ export function UserCreateWizard({
         return;
       }
 
-      if (field !== "role") {
-        setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
+      const field = USER_FIELDS[fieldIndex];
+      setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
+      return;
+    }
+
+    if (step === 2) {
+      if (key.upArrow) {
+        setRoleIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setRoleIndex((current) => Math.min(Math.max(0, ROLE_OPTIONS.length - 1), current + 1));
+        return;
+      }
+      if (key.return) {
+        setStep(3);
       }
       return;
     }
 
-    if (step === 2 && key.return) {
+    if (step === 3 && key.return) {
       void runCreate();
     }
   });
@@ -201,13 +201,13 @@ export function UserCreateWizard({
       title="Create User Wizard"
       description="Create MANAGER or CLERK users with company-scoped context."
       step={step}
-      steps={["Select Company", "User Details", "Review & Confirm"]}
+      steps={["Select Company", "User Details", "Select Role", "Review & Confirm"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
       hints={[
         "Keys: Up/Down select, Enter next/submit, Esc back.",
-        loading ? "Working..." : "Role field uses Enter/Left/Right/Space to toggle.",
+        loading ? "Working..." : "Esc on first step returns to tree.",
       ]}
       body={
         <>
@@ -225,15 +225,25 @@ export function UserCreateWizard({
               <Text color={fieldIndex === 0 ? "cyan" : undefined}>email: {draft.email || "<required>"}</Text>
               <Text color={fieldIndex === 1 ? "cyan" : undefined}>name: {draft.name || "<required>"}</Text>
               <Text color={fieldIndex === 2 ? "cyan" : undefined}>password: {draft.password ? "***" : "<required>"}</Text>
-              <Text color={fieldIndex === 3 ? "cyan" : undefined}>role: {draft.role}</Text>
             </>
           ) : null}
           {step === 2 ? (
             <>
               <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
+              <SelectorList
+                items={ROLE_OPTIONS}
+                selectedIndex={roleIndex}
+                emptyMessage="No roles available."
+                render={(item) => item}
+              />
+            </>
+          ) : null}
+          {step === 3 ? (
+            <>
+              <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
               <Text>email: {draft.email || "<none>"}</Text>
               <Text>name: {draft.name || "<none>"}</Text>
-              <Text>role: {draft.role}</Text>
+              <Text>role: {selectedRole}</Text>
               <Text color="yellow">Press Enter to confirm.</Text>
             </>
           ) : null}

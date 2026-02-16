@@ -7,6 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
 import {
   createApprovalAction,
@@ -276,6 +277,26 @@ export async function POST(request: NextRequest) {
 
       return created
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "disbursements",
+        sourceAction: "batch-created",
+        sourceId: batch.id,
+        description: `Disbursement batch ${batch.code} created`,
+        amount: batch.totalAmount,
+        payload: {
+          payrollRunId: batch.payrollRun.id,
+          domain: batch.payrollRun.domain,
+          itemCount: batch.items.length,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Disbursement batch capture failed:", error)
+    }
 
     return successResponse(batch, 201)
   } catch (error) {

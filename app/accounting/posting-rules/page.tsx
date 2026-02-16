@@ -38,6 +38,7 @@ const sourceTypeOptions = [
   { value: "STOCK_RECEIPT", label: "Stock Receipt" },
   { value: "STOCK_ISSUE", label: "Stock Issue" },
   { value: "STOCK_ADJUSTMENT", label: "Stock Adjustment" },
+  { value: "STOCK_TRANSFER", label: "Stock Transfer" },
   { value: "PAYROLL_RUN", label: "Payroll Run" },
   { value: "PAYROLL_DISBURSEMENT", label: "Payroll Disbursement" },
   { value: "GOLD_RECEIPT", label: "Gold Receipt" },
@@ -56,6 +57,7 @@ const sourceTypeOptions = [
 
 const basisOptions = ["AMOUNT", "NET", "TAX", "GROSS", "DEDUCTIONS", "ALLOWANCES"] as const;
 const allocationTypes = ["PERCENT", "FIXED"] as const;
+type SourceTypeOptionValue = (typeof sourceTypeOptions)[number]["value"];
 
 const defaultLine = () => ({
   accountId: "",
@@ -72,7 +74,11 @@ export default function PostingRulesPage() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<PostingRuleRecord | null>(null);
-  const [formState, setFormState] = useState({
+  const [formState, setFormState] = useState<{
+    name: string;
+    sourceType: SourceTypeOptionValue;
+    isActive: boolean;
+  }>({
     name: "",
     sourceType: sourceTypeOptions[0].value,
     isActive: true,
@@ -187,7 +193,7 @@ export default function PostingRulesPage() {
     setEditingRule(rule);
     setFormState({
       name: rule.name,
-      sourceType: rule.sourceType,
+      sourceType: rule.sourceType as SourceTypeOptionValue,
       isActive: rule.isActive,
     });
     setLines(
@@ -311,7 +317,10 @@ export default function PostingRulesPage() {
                 <Select
                   value={formState.sourceType}
                   onValueChange={(value) =>
-                    setFormState((prev) => ({ ...prev, sourceType: value }))
+                    setFormState((prev) => ({
+                      ...prev,
+                      sourceType: value as SourceTypeOptionValue,
+                    }))
                   }
                 >
                   <SelectTrigger className="w-full">

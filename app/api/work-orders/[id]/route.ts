@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { emitWorkOrderStatusNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
@@ -181,6 +182,29 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         } catch (error) {
           console.error("[Accounting] Maintenance auto-post failed:", error);
         }
+      }
+    }
+
+    if (validated.status && validated.status !== existing.status) {
+      try {
+        await captureAccountingEvent({
+          companyId: session.user.companyId,
+          sourceDomain: "maintenance",
+          sourceAction: "work-order-status-changed",
+          sourceId: updated.id,
+          entryDate: updated.updatedAt,
+          description: `Work order ${updated.id} status changed to ${updated.status}`,
+          amount: (updated.partsCost ?? 0) + (updated.laborCost ?? 0),
+          payload: {
+            fromStatus: existing.status,
+            toStatus: updated.status,
+            equipmentId: updated.equipmentId,
+          },
+          createdById: session.user.id,
+          status: "IGNORED",
+        });
+      } catch (error) {
+        console.error("[Accounting] Work order status capture failed:", error);
       }
     }
 

@@ -15,16 +15,9 @@ interface UserRoleWizardProps {
   onBackToTree?: () => void;
 }
 
-type Step = 0 | 1 | 2;
-type Field = "role" | "reason";
+type Step = 0 | 1 | 2 | 3;
 
-const ROLE_CYCLE: UserManagementRole[] = ["MANAGER", "CLERK"];
-
-function toggleRole(currentRole: UserManagementRole, direction: 1 | -1): UserManagementRole {
-  const currentIndex = ROLE_CYCLE.indexOf(currentRole);
-  const nextIndex = (currentIndex + direction + ROLE_CYCLE.length) % ROLE_CYCLE.length;
-  return ROLE_CYCLE[nextIndex] ?? ROLE_CYCLE[0];
-}
+const ROLE_OPTIONS: UserManagementRole[] = ["MANAGER", "CLERK"];
 
 function getSuggestedRole(user: UserSummary | null): UserManagementRole {
   if (!user || user.role === "CLERK") return "MANAGER";
@@ -52,16 +45,13 @@ export function UserRoleWizard({
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [fieldIndex, setFieldIndex] = useState(0);
+  const [roleIndex, setRoleIndex] = useState(0);
+  const [reason, setReason] = useState("");
   const [confirmDraft, setConfirmDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState({
-    role: "MANAGER" as UserManagementRole,
-    reason: "",
-  });
 
   useInputLock(setInputLocked, true);
 
@@ -86,12 +76,11 @@ export function UserRoleWizard({
 
   const visibleUsers = useMemo(() => filterUsers(users, searchQuery), [users, searchQuery]);
   const selected = visibleUsers[selectedIndex] ?? null;
-  const fields: Field[] = ["role", "reason"];
-  const currentField = fields[fieldIndex];
+  const selectedRole = ROLE_OPTIONS[roleIndex] ?? ROLE_OPTIONS[0];
   const requiresTypedConfirmation = false;
   const confirmPhrase = useMemo(
-    () => `CONFIRM ROLE ${selected?.email || "user"} ${draft.role}`,
-    [draft.role, selected?.email],
+    () => `CONFIRM ROLE ${selected?.email || "user"} ${selectedRole}`,
+    [selectedRole, selected?.email],
   );
 
   useEffect(() => {
@@ -104,8 +93,8 @@ export function UserRoleWizard({
       setErrorMessage("Read-only mode is enabled.");
       return;
     }
-    if (selected.role === draft.role) {
-      setErrorMessage(`User ${selected.email} is already ${draft.role}.`);
+    if (selected.role === selectedRole) {
+      setErrorMessage(`User ${selected.email} is already ${selectedRole}.`);
       return;
     }
     setLoading(true);
@@ -114,9 +103,9 @@ export function UserRoleWizard({
     try {
       const result = await services.user.changeRole({
         userId: selected.id,
-        role: draft.role,
+        role: selectedRole,
         actor,
-        reason: draft.reason || undefined,
+        reason: reason || undefined,
       });
       if (!result.ok) {
         setErrorMessage(result.message);
@@ -125,9 +114,10 @@ export function UserRoleWizard({
       setSuccessMessage(`Role changed for ${selected.email}: ${result.resource.beforeRole} -> ${result.resource.afterRole}`);
       setStatusMessage("User role update completed.");
       setConfirmDraft("");
-      setDraft((current) => ({ ...current, reason: "" }));
-      setStep(1);
-      setFieldIndex(0);
+      setReason("");
+      setStep(0);
+      setSearchQuery("");
+      setSelectedIndex(0);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Role change failed.");
     } finally {
@@ -161,8 +151,9 @@ export function UserRoleWizard({
           setErrorMessage("No user selected.");
           return;
         }
-        setDraft({ role: getSuggestedRole(selected), reason: "" });
-        setFieldIndex(0);
+        const suggested = getSuggestedRole(selected);
+        const nextIndex = ROLE_OPTIONS.indexOf(suggested);
+        setRoleIndex(nextIndex >= 0 ? nextIndex : 0);
         setStep(1);
         return;
       }
@@ -172,29 +163,29 @@ export function UserRoleWizard({
 
     if (step === 1) {
       if (key.upArrow) {
-        setFieldIndex((current) => Math.max(0, current - 1));
+        setRoleIndex((current) => Math.max(0, current - 1));
         return;
       }
       if (key.downArrow) {
-        setFieldIndex((current) => Math.min(fields.length - 1, current + 1));
-        return;
-      }
-      if (currentField === "role" && (key.return || key.leftArrow || key.rightArrow || input === " ")) {
-        const direction: 1 | -1 = key.leftArrow ? -1 : 1;
-        setDraft((current) => ({ ...current, role: toggleRole(current.role, direction) }));
+        setRoleIndex((current) => Math.min(Math.max(0, ROLE_OPTIONS.length - 1), current + 1));
         return;
       }
       if (key.return) {
         setStep(2);
-        return;
-      }
-      if (currentField === "reason") {
-        setDraft((current) => ({ ...current, reason: applyTextInput(current.reason, input, key) }));
       }
       return;
     }
 
     if (step === 2) {
+      if (key.return) {
+        setStep(3);
+        return;
+      }
+      setReason((current) => applyTextInput(current, input, key));
+      return;
+    }
+
+    if (step === 3) {
       if (key.return) {
         if (requiresTypedConfirmation && confirmDraft.trim() !== confirmPhrase) {
           setErrorMessage(`Type exact phrase: ${confirmPhrase}`);
@@ -214,7 +205,7 @@ export function UserRoleWizard({
       title="Change User Role Wizard"
       description="Switch MANAGER and CLERK roles with review before apply."
       step={step}
-      steps={["Select User", "Role & Reason", "Review & Confirm"]}
+      steps={["Select User", "Select Role", "Reason", "Review & Confirm"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -238,16 +229,27 @@ export function UserRoleWizard({
           {step === 1 ? (
             <>
               <Text>user: {selected?.email || "<none>"}</Text>
-              <Text color={fieldIndex === 0 ? "cyan" : undefined}>new role: {draft.role}</Text>
-              <Text color={fieldIndex === 1 ? "cyan" : undefined}>reason: {draft.reason || "<optional>"}</Text>
+              <SelectorList
+                items={ROLE_OPTIONS}
+                selectedIndex={roleIndex}
+                emptyMessage="No roles available."
+                render={(item) => item}
+              />
             </>
           ) : null}
           {step === 2 ? (
             <>
               <Text>user: {selected?.email || "<none>"}</Text>
+              <Text>new role: {selectedRole}</Text>
+              <Text>reason: {reason || "<optional>"}</Text>
+            </>
+          ) : null}
+          {step === 3 ? (
+            <>
+              <Text>user: {selected?.email || "<none>"}</Text>
               <Text>current role: {selected?.role || "<none>"}</Text>
-              <Text>new role: {draft.role}</Text>
-              <Text>reason: {draft.reason || "<none>"}</Text>
+              <Text>new role: {selectedRole}</Text>
+              <Text>reason: {reason || "<none>"}</Text>
               {requiresTypedConfirmation ? (
                 <>
                   <Text color="yellow">Type: {confirmPhrase}</Text>

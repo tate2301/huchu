@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { ClientTemplateSummary, PlatformServices, SubscriptionSummary } from "../../types";
+import type { ClientTemplateSummary, PlatformServices } from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
+import { loadSubscriptionTargets, type SubscriptionTargetSummary } from "./subscription-targets";
 import { WizardFrame } from "./wizard-frame";
 
 interface SubscriptionTemplateWizardProps {
@@ -17,7 +18,7 @@ interface SubscriptionTemplateWizardProps {
 
 type ApplyMode = "ADDITIVE" | "REPLACE";
 
-function companyLabel(subscription: SubscriptionSummary | null): string {
+function companyLabel(subscription: SubscriptionTargetSummary | null): string {
   if (!subscription) return "<none>";
   return subscription.companySlug || subscription.companyName || subscription.companyId;
 }
@@ -31,7 +32,7 @@ export function SubscriptionTemplateWizard({
   onBackToTree,
 }: SubscriptionTemplateWizardProps) {
   const [step, setStep] = useState(0);
-  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionTargetSummary[]>([]);
   const [templates, setTemplates] = useState<ClientTemplateSummary[]>([]);
   const [subscriptionIndex, setSubscriptionIndex] = useState(0);
   const [templateIndex, setTemplateIndex] = useState(0);
@@ -51,7 +52,7 @@ export function SubscriptionTemplateWizard({
       setErrorMessage(null);
       try {
         const [subscriptionRows, templateRows] = await Promise.all([
-          services.subscription.list({ companyId: focusCompanyId || undefined, limit: 100 }),
+          loadSubscriptionTargets(services, focusCompanyId),
           services.subscription.listTemplates(),
         ]);
         if (!ignore) {
@@ -72,7 +73,7 @@ export function SubscriptionTemplateWizard({
     return () => {
       ignore = true;
     };
-  }, [focusCompanyId, services.subscription]);
+  }, [focusCompanyId, services, services.org, services.subscription]);
 
   const selectedSubscription = subscriptions[subscriptionIndex] ?? null;
   const selectedTemplate = templates[templateIndex] ?? null;
@@ -174,8 +175,8 @@ export function SubscriptionTemplateWizard({
             <SelectorList
               items={subscriptions}
               selectedIndex={subscriptionIndex}
-              emptyMessage="No subscriptions available."
-              render={(item) => `${item.companySlug || item.companyId} | ${item.status} | plan ${item.planCode || "none"}`}
+              emptyMessage="No companies available."
+              render={(item) => `${item.companySlug || item.companyId} | ${item.status || "NO_SUBSCRIPTION"} | plan ${item.planCode || "none"}`}
             />
           ) : null}
           {step === 1 ? (

@@ -1461,6 +1461,8 @@ export type AccountingSummary = {
   draftJournals: number;
   openInvoices: number;
   openBills: number;
+  pendingIntegrationEvents?: number;
+  failedIntegrationEvents?: number;
 };
 
 export type ChartOfAccountRecord = {

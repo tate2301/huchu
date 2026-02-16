@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { OrganizationListItem, PlatformServices } from "../../types";
+import { ADMIN_ROLES, type OrganizationListItem, type PlatformServices } from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
@@ -15,10 +15,10 @@ interface AdminCreateWizardProps {
   onBackToTree?: () => void;
 }
 
-type Step = 0 | 1 | 2;
-type AdminField = "email" | "name" | "password" | "role";
+type Step = 0 | 1 | 2 | 3;
+type AdminField = "email" | "name" | "password";
 
-const ADMIN_FIELDS: AdminField[] = ["email", "name", "password", "role"];
+const ADMIN_FIELDS: AdminField[] = ["email", "name", "password"];
 
 export function AdminCreateWizard({
   actor,
@@ -32,6 +32,7 @@ export function AdminCreateWizard({
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [companyIndex, setCompanyIndex] = useState(0);
   const [fieldIndex, setFieldIndex] = useState(0);
+  const [roleIndex, setRoleIndex] = useState(0);
   const [confirmDraft, setConfirmDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -41,7 +42,6 @@ export function AdminCreateWizard({
     email: "",
     name: "",
     password: "",
-    role: "SUPERADMIN",
   });
 
   useInputLock(setInputLocked, true);
@@ -69,6 +69,7 @@ export function AdminCreateWizard({
   }, [focusCompanyId, services.org]);
 
   const selectedCompany = organizations[companyIndex] ?? null;
+  const selectedRole = ADMIN_ROLES[roleIndex] ?? ADMIN_ROLES[0];
   const requiresTypedConfirmation = false;
   const confirmPhrase = useMemo(() => `CONFIRM CREATE ${draft.email || "admin"}`, [draft.email]);
 
@@ -87,7 +88,7 @@ export function AdminCreateWizard({
         email: draft.email.trim(),
         name: draft.name.trim(),
         password: draft.password,
-        role: draft.role || "SUPERADMIN",
+        role: selectedRole,
         actor,
       });
       if (!result.ok) {
@@ -166,6 +167,22 @@ export function AdminCreateWizard({
     }
 
     if (step === 2) {
+      if (key.upArrow) {
+        setRoleIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setRoleIndex((current) => Math.min(Math.max(0, ADMIN_ROLES.length - 1), current + 1));
+        return;
+      }
+      if (key.return) {
+        setStep(3);
+        return;
+      }
+      return;
+    }
+
+    if (step === 3) {
       if (key.return) {
         if (requiresTypedConfirmation && confirmDraft.trim() !== confirmPhrase) {
           setErrorMessage(`Type exact phrase: ${confirmPhrase}`);
@@ -185,7 +202,7 @@ export function AdminCreateWizard({
       title="Create Admin Wizard"
       description="Guided flow to create admin without manual IDs."
       step={step}
-      steps={["Select Company", "Admin Details", "Review & Confirm"]}
+      steps={["Select Company", "Admin Details", "Select Role", "Review & Confirm"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
@@ -206,15 +223,25 @@ export function AdminCreateWizard({
               <Text color={fieldIndex === 0 ? "cyan" : undefined}>email: {draft.email || "<required>"}</Text>
               <Text color={fieldIndex === 1 ? "cyan" : undefined}>name: {draft.name || "<required>"}</Text>
               <Text color={fieldIndex === 2 ? "cyan" : undefined}>password: {draft.password ? "***" : "<required>"}</Text>
-              <Text color={fieldIndex === 3 ? "cyan" : undefined}>role: {draft.role || "SUPERADMIN"}</Text>
             </>
           ) : null}
           {step === 2 ? (
             <>
               <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
+              <SelectorList
+                items={[...ADMIN_ROLES]}
+                selectedIndex={roleIndex}
+                emptyMessage="No roles available."
+                render={(item) => item}
+              />
+            </>
+          ) : null}
+          {step === 3 ? (
+            <>
+              <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
               <Text>email: {draft.email || "<none>"}</Text>
               <Text>name: {draft.name || "<none>"}</Text>
-              <Text>role: {draft.role || "SUPERADMIN"}</Text>
+              <Text>role: {selectedRole || "SUPERADMIN"}</Text>
               {requiresTypedConfirmation ? (
                 <>
                   <Text color="yellow">Type: {confirmPhrase}</Text>

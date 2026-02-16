@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import {
   canTransitionStandardWorkflow,
   createApprovalAction,
@@ -98,6 +99,24 @@ export async function POST(
 
       return allocation
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "gold",
+        sourceAction: "shift-allocation-rejected",
+        sourceId: updated.id,
+        description: `Gold shift allocation ${updated.id} rejected`,
+        payload: {
+          workflowStatus: updated.workflowStatus,
+          note,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Gold shift allocation rejection capture failed:", error)
+    }
 
     return successResponse(updated)
   } catch (error) {

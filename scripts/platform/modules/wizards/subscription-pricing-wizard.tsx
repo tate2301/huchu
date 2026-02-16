@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { PlatformServices, SubscriptionHealthSummary, SubscriptionPricingSummary, SubscriptionSummary } from "../../types";
+import type { PlatformServices, SubscriptionHealthSummary, SubscriptionPricingSummary } from "../../types";
 import { useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
+import { loadSubscriptionTargets, type SubscriptionTargetSummary } from "./subscription-targets";
 import { WizardFrame } from "./wizard-frame";
 
 interface SubscriptionPricingWizardProps {
@@ -14,7 +15,7 @@ interface SubscriptionPricingWizardProps {
   onBackToTree?: () => void;
 }
 
-function companyLabel(subscription: SubscriptionSummary | null): string {
+function companyLabel(subscription: SubscriptionTargetSummary | null): string {
   if (!subscription) return "<none>";
   return subscription.companySlug || subscription.companyName || subscription.companyId;
 }
@@ -27,7 +28,7 @@ export function SubscriptionPricingWizard({
   onBackToTree,
 }: SubscriptionPricingWizardProps) {
   const [step, setStep] = useState(0);
-  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionTargetSummary[]>([]);
   const [subscriptionIndex, setSubscriptionIndex] = useState(0);
   const [health, setHealth] = useState<SubscriptionHealthSummary | null>(null);
   const [summary, setSummary] = useState<SubscriptionPricingSummary | null>(null);
@@ -44,10 +45,7 @@ export function SubscriptionPricingWizard({
       setLoading(true);
       setErrorMessage(null);
       try {
-        const rows = await services.subscription.list({
-          companyId: focusCompanyId || undefined,
-          limit: 100,
-        });
+        const rows = await loadSubscriptionTargets(services, focusCompanyId);
         if (!ignore) {
           setSubscriptions(rows);
           setSubscriptionIndex(0);
@@ -65,7 +63,7 @@ export function SubscriptionPricingWizard({
     return () => {
       ignore = true;
     };
-  }, [focusCompanyId, services.subscription]);
+  }, [focusCompanyId, services, services.org, services.subscription]);
 
   const selectedSubscription = subscriptions[subscriptionIndex] ?? null;
 
@@ -161,8 +159,8 @@ export function SubscriptionPricingWizard({
             <SelectorList
               items={subscriptions}
               selectedIndex={subscriptionIndex}
-              emptyMessage="No subscriptions available."
-              render={(item) => `${item.companySlug || item.companyId} | ${item.status} | plan ${item.planCode || "none"}`}
+              emptyMessage="No companies available."
+              render={(item) => `${item.companySlug || item.companyId} | ${item.status || "NO_SUBSCRIPTION"} | plan ${item.planCode || "none"}`}
             />
           ) : null}
           {step === 1 ? (

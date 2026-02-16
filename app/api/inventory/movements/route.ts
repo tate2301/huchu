@@ -7,6 +7,7 @@ import { z } from 'zod';
 const stockMovementSchema = z.object({
   itemId: z.string().uuid(),
   movementType: z.enum(['RECEIPT', 'ISSUE', 'ADJUSTMENT', 'TRANSFER']),
+  toLocationId: z.string().uuid().optional(),
   quantity: z.number(),
   unit: z.string().min(1).max(20),
   issuedTo: z.string().max(200).optional(),
@@ -24,6 +25,9 @@ const stockMovementSchema = z.object({
 }).refine(
   (data) => data.movementType === 'ADJUSTMENT' || data.quantity > 0,
   { message: 'Quantity must be positive for this movement type', path: ['quantity'] }
+).refine(
+  (data) => data.movementType !== 'TRANSFER' || Boolean(data.toLocationId),
+  { message: 'toLocationId is required for transfers', path: ['toLocationId'] }
 );
 
 export async function GET(request: NextRequest) {
@@ -71,6 +75,7 @@ export async function GET(request: NextRequest) {
               location: { select: { name: true } },
             },
           },
+          toLocation: { select: { name: true } },
           issuedBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -110,6 +115,19 @@ export async function POST(request: NextRequest) {
       return errorResponse('Unit does not match inventory item unit', 400);
     }
 
+    if (validated.movementType === 'TRANSFER') {
+      const destination = await prisma.stockLocation.findUnique({
+        where: { id: validated.toLocationId },
+        select: { siteId: true, isActive: true },
+      });
+      if (!destination || destination.siteId !== item.siteId || !destination.isActive) {
+        return errorResponse('Invalid transfer destination location', 400);
+      }
+      if (validated.toLocationId === item.locationId) {
+        return errorResponse('Transfer destination must differ from source location', 400);
+      }
+    }
+
     // Validate stock availability for issue
     if (validated.movementType === 'ISSUE' && item.currentStock < Math.abs(validated.quantity)) {
       return errorResponse('Insufficient stock', 400);
@@ -126,7 +144,8 @@ export async function POST(request: NextRequest) {
     } else if (validated.movementType === 'ISSUE') {
       newStock -= quantity;
     } else if (validated.movementType === 'TRANSFER') {
-      newStock -= quantity;
+      // Transfers reclassify stock location and should not change total on-hand quantity.
+      newStock = item.currentStock;
     } else if (validated.movementType === 'ADJUSTMENT') {
       newStock += quantity;
     }
@@ -148,6 +167,7 @@ export async function POST(request: NextRequest) {
       prisma.stockMovement.create({
         data: {
           itemId: validated.itemId,
+          toLocationId: validated.toLocationId,
           movementType: validated.movementType,
           quantity: validated.movementType === 'ADJUSTMENT' ? validated.quantity : Math.abs(validated.quantity),
           unit: validated.unit,
@@ -171,14 +191,17 @@ export async function POST(request: NextRequest) {
 
     if (movementAmount > 0) {
       try {
+        const sourceType =
+          validated.movementType === 'RECEIPT'
+            ? 'STOCK_RECEIPT'
+            : validated.movementType === 'ISSUE'
+              ? 'STOCK_ISSUE'
+              : validated.movementType === 'TRANSFER'
+                ? 'STOCK_TRANSFER'
+                : 'STOCK_ADJUSTMENT';
         await createJournalEntryFromSource({
           companyId: session.user.companyId,
-          sourceType:
-            validated.movementType === 'RECEIPT'
-              ? 'STOCK_RECEIPT'
-              : validated.movementType === 'ISSUE'
-                ? 'STOCK_ISSUE'
-                : 'STOCK_ADJUSTMENT',
+          sourceType,
           sourceId: movement.id,
           entryDate: movementDate ?? new Date(),
           description: `Stock ${validated.movementType.toLowerCase()} - ${item.name}`,

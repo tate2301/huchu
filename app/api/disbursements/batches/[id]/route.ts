@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/hr-payroll"
 
@@ -165,6 +166,26 @@ export async function PATCH(
         },
       })
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "disbursements",
+        sourceAction: "batch-updated",
+        sourceId: updated.id,
+        description: `Disbursement batch ${updated.code} updated`,
+        amount: updated.totalAmount,
+        payload: {
+          itemCount: updated.itemCount,
+          method: updated.method,
+          updatedItems: validated.items?.map((item) => item.id) ?? [],
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Disbursement batch update capture failed:", error)
+    }
 
     return successResponse(updated)
   } catch (error) {

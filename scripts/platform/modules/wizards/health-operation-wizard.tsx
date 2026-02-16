@@ -18,6 +18,10 @@ interface HealthOperationWizardProps {
   onBackToTree?: () => void;
 }
 
+const CUSTOM_METRIC_KEY = "__CUSTOM_METRIC_KEY__";
+const METRIC_KEY_OPTIONS = ["uptime", "latency", "error-rate", CUSTOM_METRIC_KEY] as const;
+const STATUS_OPTIONS = ["OK", "WARN", "CRITICAL"] as const;
+
 export function HealthOperationWizard({
   actor,
   services,
@@ -38,16 +42,14 @@ export function HealthOperationWizard({
   const [companyIndex, setCompanyIndex] = useState(0);
   const [incidents, setIncidents] = useState<HealthIncidentRecord[]>([]);
   const [incidentIndex, setIncidentIndex] = useState(0);
+
+  const [metricKeyIndex, setMetricKeyIndex] = useState(0);
+  const [customMetricKey, setCustomMetricKey] = useState("");
+  const [metricValue, setMetricValue] = useState("99.9");
+  const [statusIndex, setStatusIndex] = useState(0);
+
   const [reason, setReason] = useState("");
   const [confirmDraft, setConfirmDraft] = useState("");
-
-  const [metricDraft, setMetricDraft] = useState({
-    metricKey: "uptime",
-    value: "99.9",
-    status: "OK",
-  });
-  const [metricFieldIndex, setMetricFieldIndex] = useState(0);
-  const metricFields = ["metricKey", "value", "status"] as const;
 
   useInputLock(setInputLocked, true);
 
@@ -83,6 +85,10 @@ export function HealthOperationWizard({
 
   const selectedCompany = organizations[companyIndex] ?? null;
   const selectedIncident = incidents[incidentIndex] ?? null;
+  const selectedMetricKeyOption = METRIC_KEY_OPTIONS[metricKeyIndex] ?? METRIC_KEY_OPTIONS[0];
+  const selectedStatus = STATUS_OPTIONS[statusIndex] ?? STATUS_OPTIONS[0];
+  const metricKey = selectedMetricKeyOption === CUSTOM_METRIC_KEY ? customMetricKey.trim() : selectedMetricKeyOption;
+
   const requiresTypedConfirmation = false;
   const confirmPhrase = useMemo(() => {
     if (isRecord) {
@@ -105,16 +111,20 @@ export function HealthOperationWizard({
           setErrorMessage("No company selected.");
           return;
         }
-        const value = Number(metricDraft.value);
+        if (!metricKey) {
+          setErrorMessage("Metric key is required.");
+          return;
+        }
+        const value = Number(metricValue);
         if (!Number.isFinite(value)) {
           setErrorMessage("Metric value must be numeric.");
           return;
         }
         const result = await services.health.recordMetric({
           companyId: selectedCompany.id,
-          metricKey: metricDraft.metricKey,
+          metricKey,
           value,
-          status: metricDraft.status,
+          status: selectedStatus,
         });
         if (!result.ok) {
           setErrorMessage(result.message);
@@ -152,34 +162,88 @@ export function HealthOperationWizard({
         onBackToTree?.();
         return;
       }
+      if (isRecord && step === 3 && selectedMetricKeyOption !== CUSTOM_METRIC_KEY) {
+        setStep(1);
+        return;
+      }
       setStep((current) => Math.max(0, current - 1));
       return;
     }
 
-    if (step === 0) {
-      if (isRecord) {
+    if (isRecord) {
+      if (step === 0) {
         if (key.upArrow) setCompanyIndex((current) => Math.max(0, current - 1));
         if (key.downArrow) setCompanyIndex((current) => Math.min(Math.max(0, organizations.length - 1), current + 1));
-      } else {
-        if (key.upArrow) setIncidentIndex((current) => Math.max(0, current - 1));
-        if (key.downArrow) setIncidentIndex((current) => Math.min(Math.max(0, incidents.length - 1), current + 1));
+        if (key.return) setStep(1);
+        return;
       }
+
+      if (step === 1) {
+        if (key.upArrow) setMetricKeyIndex((current) => Math.max(0, current - 1));
+        if (key.downArrow) setMetricKeyIndex((current) => Math.min(Math.max(0, METRIC_KEY_OPTIONS.length - 1), current + 1));
+        if (key.return) {
+          if (selectedMetricKeyOption === CUSTOM_METRIC_KEY) {
+            setStep(2);
+            return;
+          }
+          setStep(3);
+        }
+        return;
+      }
+
+      if (step === 2) {
+        if (key.return) {
+          if (!customMetricKey.trim()) {
+            setErrorMessage("Custom metric key is required.");
+            return;
+          }
+          setStep(3);
+          return;
+        }
+        setCustomMetricKey((current) => applyTextInput(current, input, key));
+        return;
+      }
+
+      if (step === 3) {
+        if (key.return) {
+          setStep(4);
+          return;
+        }
+        setMetricValue((current) => applyTextInput(current, input, key));
+        return;
+      }
+
+      if (step === 4) {
+        if (key.upArrow) setStatusIndex((current) => Math.max(0, current - 1));
+        if (key.downArrow) setStatusIndex((current) => Math.min(Math.max(0, STATUS_OPTIONS.length - 1), current + 1));
+        if (key.return) setStep(5);
+        return;
+      }
+
+      if (step === 5) {
+        if (key.return) {
+          if (requiresTypedConfirmation && confirmDraft.trim() !== confirmPhrase) {
+            setErrorMessage(`Type exact phrase: ${confirmPhrase}`);
+            return;
+          }
+          void runOperation();
+          return;
+        }
+        if (requiresTypedConfirmation) {
+          setConfirmDraft((current) => applyTextInput(current, input, key));
+        }
+      }
+      return;
+    }
+
+    if (step === 0) {
+      if (key.upArrow) setIncidentIndex((current) => Math.max(0, current - 1));
+      if (key.downArrow) setIncidentIndex((current) => Math.min(Math.max(0, incidents.length - 1), current + 1));
       if (key.return) setStep(1);
       return;
     }
 
     if (step === 1) {
-      if (isRecord) {
-        if (key.upArrow) setMetricFieldIndex((current) => Math.max(0, current - 1));
-        if (key.downArrow) setMetricFieldIndex((current) => Math.min(metricFields.length - 1, current + 1));
-        if (key.return) {
-          setStep(2);
-          return;
-        }
-        const field = metricFields[metricFieldIndex];
-        setMetricDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
-        return;
-      }
       if (key.return) {
         setStep(2);
         return;
@@ -203,22 +267,24 @@ export function HealthOperationWizard({
     }
   });
 
+  const recordSteps = ["Select Company", "Select Metric Key", "Custom Metric Key", "Metric Value", "Select Status", "Review & Confirm"];
+
   return (
     <WizardFrame
       title={isRecord ? "Record Health Metric Wizard" : "Remediate Incident Wizard"}
       description="Guided health operation."
       step={step}
-      steps={isRecord ? ["Select Company", "Metric Details", "Review & Confirm"] : ["Select Incident", "Reason", "Review & Confirm"]}
+      steps={isRecord ? recordSteps : ["Select Incident", "Reason", "Review & Confirm"]}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
       successMessage={successMessage}
       hints={[
         "Keys: Up/Down select, Enter next/submit, Esc back.",
-        loading ? "Working..." : "Esc on first step returns to tree.",
+        loading ? "Working..." : "Enumerables are selected from lists.",
       ]}
       body={
         <>
-          {step === 0 && isRecord ? (
+          {isRecord && step === 0 ? (
             <SelectorList
               items={organizations}
               selectedIndex={companyIndex}
@@ -226,7 +292,57 @@ export function HealthOperationWizard({
               render={(item) => `${item.name} (${item.slug})`}
             />
           ) : null}
-          {step === 0 && !isRecord ? (
+          {isRecord && step === 1 ? (
+            <>
+              <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
+              <SelectorList
+                items={[...METRIC_KEY_OPTIONS]}
+                selectedIndex={metricKeyIndex}
+                emptyMessage="No metric keys."
+                render={(item) => (item === CUSTOM_METRIC_KEY ? "Custom metric key..." : item)}
+              />
+            </>
+          ) : null}
+          {isRecord && step === 2 ? (
+            <>
+              <Text>metric key mode: custom</Text>
+              <Text>custom metric key: {customMetricKey || "<required>"}</Text>
+            </>
+          ) : null}
+          {isRecord && step === 3 ? (
+            <>
+              <Text>metric key: {metricKey || "<none>"}</Text>
+              <Text>metric value: {metricValue || "<required>"}</Text>
+            </>
+          ) : null}
+          {isRecord && step === 4 ? (
+            <>
+              <Text>metric key: {metricKey || "<none>"}</Text>
+              <SelectorList
+                items={[...STATUS_OPTIONS]}
+                selectedIndex={statusIndex}
+                emptyMessage="No status options."
+                render={(item) => item}
+              />
+            </>
+          ) : null}
+          {isRecord && step === 5 ? (
+            <>
+              <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
+              <Text>metric: {metricKey}={metricValue}</Text>
+              <Text>status: {selectedStatus}</Text>
+              {requiresTypedConfirmation ? (
+                <>
+                  <Text color="yellow">Type: {confirmPhrase}</Text>
+                  <Text>Input: {confirmDraft || "<waiting>"}</Text>
+                </>
+              ) : (
+                <Text color="yellow">Press Enter to confirm.</Text>
+              )}
+            </>
+          ) : null}
+
+          {!isRecord && step === 0 ? (
             <SelectorList
               items={incidents}
               selectedIndex={incidentIndex}
@@ -234,36 +350,16 @@ export function HealthOperationWizard({
               render={(item) => `${item.id} | ${item.status} | ${item.metricKey} | ${item.message}`}
             />
           ) : null}
-
-          {step === 1 && isRecord ? (
-            <>
-              <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
-              <Text color={metricFieldIndex === 0 ? "cyan" : undefined}>metricKey: {metricDraft.metricKey || "<required>"}</Text>
-              <Text color={metricFieldIndex === 1 ? "cyan" : undefined}>value: {metricDraft.value || "<required>"}</Text>
-              <Text color={metricFieldIndex === 2 ? "cyan" : undefined}>status: {metricDraft.status || "OK"}</Text>
-            </>
-          ) : null}
-          {step === 1 && !isRecord ? (
+          {!isRecord && step === 1 ? (
             <>
               <Text>incident: {selectedIncident?.id || "<none>"}</Text>
               <Text>reason: {reason || "<optional>"}</Text>
             </>
           ) : null}
-
-          {step === 2 ? (
+          {!isRecord && step === 2 ? (
             <>
-              {isRecord ? (
-                <>
-                  <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
-                  <Text>metric: {metricDraft.metricKey}={metricDraft.value}</Text>
-                  <Text>status: {metricDraft.status}</Text>
-                </>
-              ) : (
-                <>
-                  <Text>incident: {selectedIncident?.id || "<none>"}</Text>
-                  <Text>reason: {reason || "<none>"}</Text>
-                </>
-              )}
+              <Text>incident: {selectedIncident?.id || "<none>"}</Text>
+              <Text>reason: {reason || "<none>"}</Text>
               {requiresTypedConfirmation ? (
                 <>
                   <Text color="yellow">Type: {confirmPhrase}</Text>

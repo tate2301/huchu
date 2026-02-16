@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
       draftJournals,
       openInvoices,
       openBills,
+      pendingIntegrationEvents,
+      failedIntegrationEvents,
     ] = await Promise.all([
       prisma.chartOfAccount.count({ where: { companyId } }),
       prisma.accountingPeriod.count({ where: { companyId, status: "OPEN" } }),
@@ -24,6 +26,18 @@ export async function GET(request: NextRequest) {
       prisma.journalEntry.count({ where: { companyId, status: "DRAFT" } }),
       prisma.salesInvoice.count({ where: { companyId, status: { in: ["DRAFT", "ISSUED"] } } }),
       prisma.purchaseBill.count({ where: { companyId, status: { in: ["DRAFT", "RECEIVED"] } } }),
+      prisma.accountingIntegrationEvent.count({
+        where: {
+          companyId,
+          status: "PENDING",
+        },
+      }),
+      prisma.accountingIntegrationEvent.count({
+        where: {
+          companyId,
+          status: "FAILED",
+        },
+      }),
     ]);
 
     return successResponse({
@@ -33,6 +47,8 @@ export async function GET(request: NextRequest) {
       draftJournals,
       openInvoices,
       openBills,
+      pendingIntegrationEvents,
+      failedIntegrationEvents,
     });
   } catch (error) {
     console.error("[API] GET /api/accounting/summary error:", error);

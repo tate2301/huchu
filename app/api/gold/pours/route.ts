@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -158,6 +159,27 @@ export async function POST(request: NextRequest) {
         witness2: { select: { name: true } },
       },
     });
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "gold",
+        sourceAction: "pour-created",
+        sourceId: pour.id,
+        entryDate: pour.pourDate,
+        description: `Gold pour ${pour.pourBarId} created`,
+        amount: pour.grossWeight,
+        payload: {
+          siteId: pour.siteId,
+          storageLocation: pour.storageLocation,
+          estimatedPurity: pour.estimatedPurity,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      });
+    } catch (error) {
+      console.error("[Accounting] Gold pour capture failed:", error);
+    }
 
     return successResponse(
       {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
@@ -306,6 +307,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         },
       },
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "employee-payments",
+        sourceAction: "payment-updated",
+        sourceId: updated.id,
+        description: `${updated.type} employee payment updated`,
+        amount: updated.amount,
+        payload: {
+          employeeId: updated.employee.id,
+          status: updated.status,
+          paidAmount: updated.paidAmount,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Employee payment update capture failed:", error)
+    }
 
     return successResponse(updated)
   } catch (error) {

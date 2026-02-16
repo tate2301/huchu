@@ -92,7 +92,9 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const enabledFeatures = React.useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
     [session],
   );
   const { state, isMobile, setOpen } = useSidebar();
@@ -118,27 +120,35 @@ export function AppSidebar() {
     [sections],
   );
   const orderedSections = React.useMemo(() => {
-    const order = ["hr", "gold", "stores", "maintenance", "management", "reporting", "cctv"];
+    const order = [
+      "hr",
+      "gold",
+      "stores",
+      "maintenance",
+      "management",
+      "reporting",
+      "cctv",
+    ];
     const rank = new Map(order.map((id, index) => [id, index]));
-    return contentSections
-      .slice()
-      .sort((a, b) => {
-        const aRank = rank.get(a.id);
-        const bRank = rank.get(b.id);
-        if (aRank === undefined && bRank === undefined) {
-          return a.title.localeCompare(b.title);
-        }
-        if (aRank === undefined) return 1;
-        if (bRank === undefined) return -1;
-        return aRank - bRank;
-      });
+    return contentSections.slice().sort((a, b) => {
+      const aRank = rank.get(a.id);
+      const bRank = rank.get(b.id);
+      if (aRank === undefined && bRank === undefined) {
+        return a.title.localeCompare(b.title);
+      }
+      if (aRank === undefined) return 1;
+      if (bRank === undefined) return -1;
+      return aRank - bRank;
+    });
   }, [contentSections]);
   const secondaryItems = React.useMemo(
     () => (overviewSection?.items ?? []).filter((item) => item.href !== "/"),
     [overviewSection],
   );
-  const companySlug = (session?.user as { companySlug?: string } | undefined)?.companySlug;
-  const companyId = (session?.user as { companyId?: string } | undefined)?.companyId;
+  const companySlug = (session?.user as { companySlug?: string } | undefined)
+    ?.companySlug;
+  const companyId = (session?.user as { companyId?: string } | undefined)
+    ?.companyId;
   const companyLabel = React.useMemo(() => {
     if (companySlug && companySlug.trim().length > 0) {
       return companySlug
@@ -181,9 +191,7 @@ export function AppSidebar() {
     setOpenSectionId((prev) => (prev === id ? null : id));
   };
 
-  const renderSection = (
-    section: (typeof orderedSections)[number],
-  ) => {
+  const renderSection = (section: (typeof orderedSections)[number]) => {
     const SectionIcon = getSectionIcon(section);
     const isOpen = openSectionId === section.id;
     const hasActiveChild = section.items.some((item) =>
@@ -266,8 +274,12 @@ export function AppSidebar() {
                     <Building2 className="h-4 w-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{companyLabel}</span>
-                    <span className="truncate text-xs text-muted-foreground">{companyMeta}</span>
+                    <span className="truncate font-semibold">
+                      {companyLabel}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {companyMeta}
+                    </span>
                   </div>
                   {!isCollapsed ? (
                     <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
@@ -279,11 +291,6 @@ export function AppSidebar() {
                 side={isCollapsed ? "right" : isMobile ? "bottom" : "bottom"}
                 className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
               >
-                <DropdownMenuLabel>Organization</DropdownMenuLabel>
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  {companyMeta}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/">
                     <Home className="h-4 w-4" />
@@ -303,16 +310,69 @@ export function AppSidebar() {
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
+          {quickActionsSection ? (
+            <SidebarGroup className="mb-0.5">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <SidebarMenuButton
+                          variant="default"
+                          className="h-9 bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                          tooltip="Daily Shortcuts"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span className="font-medium">Quick Actions</span>
+                          {!isCollapsed ? (
+                            <ChevronDown className="ml-auto h-4 w-4" />
+                          ) : null}
+                        </SidebarMenuButton>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        side={
+                          isCollapsed ? "right" : isMobile ? "bottom" : "bottom"
+                        }
+                        className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
+                      >
+                        <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {quickActionsSection.items.map((item) => {
+                          const isActive = hasActiveHref(
+                            item.href,
+                            pathname,
+                            view,
+                          );
+                          return (
+                            <DropdownMenuItem key={item.href} asChild>
+                              <Link
+                                href={item.href}
+                                className={cn(
+                                  "flex w-full items-center gap-2",
+                                  isActive
+                                    ? "bg-accent text-accent-foreground"
+                                    : "",
+                                )}
+                              >
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.label}</span>
+                              </Link>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ) : null}
         </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup className="mb-0.5">
-          {!isCollapsed ? (
-            <SidebarGroupLabel className="px-2 pb-1 text-xs uppercase">
-              Workspace
-            </SidebarGroupLabel>
-          ) : null}
+        <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -334,77 +394,8 @@ export function AppSidebar() {
 
         {orderedSections.length > 0 ? (
           <SidebarGroup className="mb-0.5">
-            {!isCollapsed ? (
-              <SidebarGroupLabel className="px-2 pb-1 text-xs uppercase">
-                Platform
-              </SidebarGroupLabel>
-            ) : null}
             <SidebarGroupContent className="mt-0">
               {orderedSections.map((section) => renderSection(section))}
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-
-        {quickActionsSection ? (
-          <SidebarGroup className="mb-0.5">
-            {!isCollapsed ? (
-              <SidebarGroupLabel className="px-2 pb-1 text-xs uppercase">
-                Create
-              </SidebarGroupLabel>
-            ) : null}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuButton
-                        variant="default"
-                        className="h-9 bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
-                        tooltip="Daily Shortcuts"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span className="font-medium">Quick Actions</span>
-                        {!isCollapsed ? (
-                          <ChevronDown className="ml-auto h-4 w-4" />
-                        ) : null}
-                      </SidebarMenuButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="start"
-                      side={
-                        isCollapsed ? "right" : isMobile ? "bottom" : "bottom"
-                      }
-                      className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
-                    >
-                      <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {quickActionsSection.items.map((item) => {
-                        const isActive = hasActiveHref(
-                          item.href,
-                          pathname,
-                          view,
-                        );
-                        return (
-                          <DropdownMenuItem key={item.href} asChild>
-                            <Link
-                              href={item.href}
-                              className={cn(
-                                "flex w-full items-center gap-2",
-                                isActive
-                                  ? "bg-accent text-accent-foreground"
-                                  : "",
-                              )}
-                            >
-                              <item.icon className="h-4 w-4" />
-                              <span>{item.label}</span>
-                            </Link>
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </SidebarMenuItem>
-              </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         ) : null}
@@ -422,7 +413,11 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     type="button"
                     isActive={guidedModeEnabled}
-                    tooltip={guidedModeEnabled ? "Guided tips are on" : "Guided tips are off"}
+                    tooltip={
+                      guidedModeEnabled
+                        ? "Guided tips are on"
+                        : "Guided tips are off"
+                    }
                     className="h-8 text-[12px]"
                     onClick={() => setGuidedMode(!guidedModeEnabled)}
                   >
@@ -435,14 +430,14 @@ export function AppSidebar() {
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
-                      asChild
-                      size="sm"
-                      isActive={isActive}
-                      tooltip={item.label}
-                      className="h-8 text-[12px]"
-                    >
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
+                        asChild
+                        size="sm"
+                        isActive={isActive}
+                        tooltip={item.label}
+                        className="h-8 text-[12px]"
+                      >
+                        <Link href={item.href}>
+                          <item.icon className="h-4 w-4" />
                           <span>{item.label}</span>
                         </Link>
                       </SidebarMenuButton>
