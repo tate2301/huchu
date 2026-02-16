@@ -45,6 +45,7 @@ Defined in `lib/platform/feature-catalog.ts` (`TIERS`).
 Notes:
 
 - `ENTERPRISE` includes `ADDON_ANALYTICS_PRO` by default.
+- User management is add-on-only. No tier includes `ADDON_USER_MANAGEMENT_PRO` or `admin.user-management.*` by default.
 - Tier assignment and health enforcement are handled in platform services and TUI wizards.
 
 ## Add-on Bundles
@@ -58,6 +59,7 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 | `ADDON_GOLD_ADVANCED` | Gold Advanced Controls | 220 | 25 |
 | `ADDON_COMPLIANCE_PRO` | Compliance Pro | 200 | 25 |
 | `ADDON_MAINTENANCE_PRO` | Maintenance Pro | 180 | 20 |
+| `ADDON_USER_MANAGEMENT_PRO` | User Management Pro | 180 | 20 |
 | `ADDON_ANALYTICS_PRO` | Analytics Pro | 160 | 15 |
 | `ADDON_ACCOUNTING_CORE` | Accounting Core | 250 | 30 |
 | `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 350 | 40 |
@@ -116,6 +118,15 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `reports.maintenance-work-orders`
 - `reports.maintenance-equipment`
 
+`ADDON_USER_MANAGEMENT_PRO`
+
+- `admin.user-management.core`
+- `admin.user-management.create`
+- `admin.user-management.status`
+- `admin.user-management.password-reset`
+- `admin.user-management.role-change`
+- `admin.user-management.directory`
+
 `ADDON_ANALYTICS_PRO`
 
 - `stores.fuel-ledger`
@@ -154,6 +165,7 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - Enabling an add-on now auto-enables feature flags for every feature in that bundle.
 - Disabling an add-on now auto-disables only bundle features that are no longer entitled by tier/other enabled bundles.
 - This keeps bundle provisioning aligned with effective feature access.
+- Add-on-only features should use `defaultEnabled: false` so they remain disabled until enabled by entitled tier/add-on access.
 - Bundle dependencies are enforced in `lib/platform/feature-catalog.ts` (`BUNDLE_DEPENDENCIES`). Accounting add-ons require `ADDON_ACCOUNTING_CORE`.
 
 ## Client Template Bundles
@@ -269,7 +281,7 @@ Auth/session token enrichment with enabled features:
 ### How to Gate a New Route
 
 1. Add feature key metadata to `FEATURE_CATALOG` in `lib/platform/feature-catalog.ts`.
-2. Add page/API prefix mapping in `PAGE_FEATURE_PREFIX` or `API_FEATURE_PREFIX` in `lib/platform/feature-catalog.ts`.
+2. Add page/API prefix mapping in `PAGE_FEATURE_ROUTES` or `API_FEATURE_ROUTES` in `lib/platform/gating/route-registry.ts`.
 3. Include it in tier/bundle defaults if needed.
 4. Run TUI `Sync Catalog` action to materialize catalog to DB.
 5. For API handlers using `validateSession`, gating is automatic via path resolution.

@@ -90,7 +90,11 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/notifications/push-subscriptions", featureKey: "core.notifications.push" },
   { scope: "api", prefix: "/api/notifications", featureKey: "core.notifications.center" },
 
-  { scope: "api", prefix: "/api/users", featureKey: "admin.users" },
+  { scope: "api", prefix: "/api/users/create", featureKey: "admin.user-management.create" },
+  { scope: "api", prefix: "/api/users/status", featureKey: "admin.user-management.status" },
+  { scope: "api", prefix: "/api/users/password-reset", featureKey: "admin.user-management.password-reset" },
+  { scope: "api", prefix: "/api/users/role-change", featureKey: "admin.user-management.role-change" },
+  { scope: "api", prefix: "/api/users", featureKey: "admin.user-management.directory" },
   { scope: "api", prefix: "/api/sites", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/sections", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/payroll/config", featureKey: "admin.payroll-config" },
