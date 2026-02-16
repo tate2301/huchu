@@ -100,7 +100,7 @@ export const ACTION_TREE: ActionDomain[] = [
       {
         id: "admin-lifecycle",
         label: "Admin Lifecycle",
-        description: "Create and manage admin accounts.",
+        description: "Create and manage SUPERADMIN lifecycle accounts.",
         operations: [
           {
             id: "admin.create",
@@ -125,6 +125,49 @@ export const ACTION_TREE: ActionDomain[] = [
             label: "Reset Admin Password",
             description: "Reset password for an admin account.",
             moduleId: "admins",
+          },
+        ],
+      },
+      {
+        id: "user-lifecycle",
+        label: "User Lifecycle",
+        description: "Manage MANAGER and CLERK user lifecycle operations.",
+        operations: [
+          {
+            id: "user.list-search",
+            label: "List/Search Users",
+            description: "List and search manager/clerk users by company scope.",
+            moduleId: "user-management",
+          },
+          {
+            id: "user.create",
+            label: "Create User",
+            description: "Create a MANAGER or CLERK account.",
+            moduleId: "user-management",
+          },
+          {
+            id: "user.activate",
+            label: "Activate User",
+            description: "Set user account to active.",
+            moduleId: "user-management",
+          },
+          {
+            id: "user.deactivate",
+            label: "Deactivate User",
+            description: "Set user account to inactive.",
+            moduleId: "user-management",
+          },
+          {
+            id: "user.reset-password",
+            label: "Reset User Password",
+            description: "Reset password for a manager/clerk account.",
+            moduleId: "user-management",
+          },
+          {
+            id: "user.change-role",
+            label: "Change User Role",
+            description: "Switch role between MANAGER and CLERK.",
+            moduleId: "user-management",
           },
         ],
       },

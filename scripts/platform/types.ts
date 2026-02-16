@@ -2,6 +2,9 @@ export const ORGANIZATION_STATUSES = ["PROVISIONING", "ACTIVE", "SUSPENDED", "DI
 export const SUBSCRIPTION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "CANCELED", "EXPIRED"] as const;
 export const ADMIN_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
 export const ADMIN_ROLES = ["SUPERADMIN", "MANAGER"] as const;
+export const USER_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
+export const USER_ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const;
+export const USER_MANAGEMENT_ROLES = ["MANAGER", "CLERK"] as const;
 export const SUBDOMAIN_RESERVATION_STATUSES = ["RESERVED", "ACTIVE", "RELEASED"] as const;
 export const SUPPORT_ACCESS_STATUSES = ["REQUESTED", "APPROVED", "ACTIVE", "EXPIRED", "REVOKED", "DENIED"] as const;
 export const SUPPORT_ACCESS_SCOPES = ["READ_ONLY", "READ_WRITE"] as const;
@@ -16,6 +19,9 @@ export type OrganizationStatus = (typeof ORGANIZATION_STATUSES)[number];
 export type SubscriptionStatusValue = (typeof SUBSCRIPTION_STATUSES)[number];
 export type AdminAccountStatus = (typeof ADMIN_ACCOUNT_STATUSES)[number];
 export type AdminRole = (typeof ADMIN_ROLES)[number];
+export type UserAccountStatus = (typeof USER_ACCOUNT_STATUSES)[number];
+export type UserRole = (typeof USER_ROLES)[number];
+export type UserManagementRole = (typeof USER_MANAGEMENT_ROLES)[number];
 export type SubdomainReservationStatus = (typeof SUBDOMAIN_RESERVATION_STATUSES)[number];
 export type SupportAccessStatus = (typeof SUPPORT_ACCESS_STATUSES)[number];
 export type SupportAccessScope = (typeof SUPPORT_ACCESS_SCOPES)[number];
@@ -432,6 +438,65 @@ export interface AdminResetPasswordResult {
   auditEventId: string;
 }
 
+export interface UserSummary {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  companyId: string;
+  companyName: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface UserCreateResult {
+  id: string;
+  companyId: string;
+  companyName: string;
+  email: string;
+  name: string;
+  role: UserManagementRole;
+  isActive: boolean;
+  createdAt: string | null;
+  auditEventId: string;
+}
+
+export interface UserStatusResult {
+  userId: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  companyId: string;
+  companyName: string;
+  updatedAt: string | null;
+  auditEventId: string;
+}
+
+export interface UserResetPasswordResult {
+  userId: string;
+  email: string;
+  role: UserRole;
+  companyId: string;
+  companyName: string;
+  updatedAt: string | null;
+  auditEventId: string;
+}
+
+export interface UserRoleChangeResult {
+  userId: string;
+  email: string;
+  name: string;
+  beforeRole: UserRole;
+  afterRole: UserManagementRole;
+  isActive: boolean;
+  companyId: string;
+  companyName: string;
+  updatedAt: string | null;
+  auditEventId: string;
+}
+
 export interface AuditEventRecord {
   id: string;
   timestamp: string | null;
@@ -738,6 +803,44 @@ export interface ResetAdminPasswordInput {
   reason?: string;
 }
 
+export interface ListUsersInput {
+  companyId?: string;
+  status?: UserAccountStatus | string;
+  role?: UserRole | string;
+  search?: string;
+  limit?: number;
+  skip?: number;
+}
+
+export interface CreateUserInput {
+  companyId: string;
+  email: string;
+  name: string;
+  password: string;
+  role: UserManagementRole | string;
+  actor: string;
+}
+
+export interface SetUserStatusInput {
+  userId: string;
+  actor: string;
+  reason?: string;
+}
+
+export interface ResetUserPasswordInput {
+  userId: string;
+  newPassword: string;
+  actor: string;
+  reason?: string;
+}
+
+export interface ChangeUserRoleInput {
+  userId: string;
+  role: UserManagementRole | string;
+  actor: string;
+  reason?: string;
+}
+
 export interface ListAuditEventsInput {
   limit?: number;
   actor?: string;
@@ -891,6 +994,15 @@ export interface AdminService {
   resetPassword(input: ResetAdminPasswordInput): Promise<MutationResult<AdminResetPasswordResult>>;
 }
 
+export interface UserManagementService {
+  list(input?: ListUsersInput): Promise<UserSummary[]>;
+  create(input: CreateUserInput): Promise<MutationResult<UserCreateResult>>;
+  activate(input: SetUserStatusInput): Promise<MutationResult<UserStatusResult>>;
+  deactivate(input: SetUserStatusInput): Promise<MutationResult<UserStatusResult>>;
+  resetPassword(input: ResetUserPasswordInput): Promise<MutationResult<UserResetPasswordResult>>;
+  changeRole(input: ChangeUserRoleInput): Promise<MutationResult<UserRoleChangeResult>>;
+}
+
 export interface AuditService {
   list(input?: ListAuditEventsInput): Promise<AuditEventRecord[]>;
   addNote(input: AddAuditNoteInput): Promise<MutationResult<AuditEventRecord>>;
@@ -935,6 +1047,7 @@ export interface PlatformServices {
   subscription: SubscriptionService;
   feature: FeatureService;
   admin: AdminService;
+  user: UserManagementService;
   audit: AuditService;
   support: SupportService;
   runbook: RunbookService;

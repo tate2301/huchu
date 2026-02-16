@@ -26,6 +26,7 @@ const DEFAULT_MODULES: PlatformModuleDefinition[] = [
   { id: "subscriptions", label: "Subscriptions", description: "Billing plan and status management." },
   { id: "features", label: "Features", description: "Platform feature flag operations." },
   { id: "admins", label: "Admins", description: "Admin lifecycle and role controls." },
+  { id: "user-management", label: "User Management", description: "Manager and clerk lifecycle operations." },
   { id: "support", label: "Support", description: "Support requests and operator sessions." },
   { id: "contracts", label: "Contracts", description: "Warning and suspension enforcement." },
   { id: "health", label: "Health", description: "SLO snapshots and remediation incidents." },

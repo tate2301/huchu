@@ -59,6 +59,13 @@ import {
   setBundleFeatures,
   upsertBundleCatalog,
 } from "./domain/bundle-catalog-service";
+import {
+  changeUserRole,
+  createUser,
+  listUsers,
+  resetUserPassword,
+  setUserStatus,
+} from "./domain/user-management-service";
 import { searchGlobal } from "./domain/search-service";
 import { getTierDefinition } from "../../lib/platform/feature-catalog";
 import {
@@ -932,6 +939,16 @@ async function setAdminStatus(input: SetAdminStatusInput & { isActive: boolean }
   });
   if (!before) throw new Error(`Admin user not found for id: ${input.userId}`);
   if (!ADMIN_ROLES.includes(before.role as AdminRole)) throw new Error(`User ${before.email} has role ${before.role}, not admin role.`);
+  if (!input.isActive && before.role === "SUPERADMIN" && before.isActive) {
+    const activeSuperadminCount = await prisma.user.count({
+      where: { companyId: before.companyId, role: "SUPERADMIN", isActive: true },
+    });
+    if (activeSuperadminCount <= 1) {
+      throw new Error(
+        `Guardrail: cannot deactivate ${before.email} because this would leave company ${before.companyId} without an active SUPERADMIN.`,
+      );
+    }
+  }
 
   const updated = await prisma.user.update({
     where: { id: input.userId },
@@ -1062,6 +1079,14 @@ export function createPlatformServices(): PlatformServices {
       activate: (input) => toMutation(() => setAdminStatus({ ...input, isActive: true })),
       deactivate: (input) => toMutation(() => setAdminStatus({ ...input, isActive: false })),
       resetPassword: (input) => toMutation(() => resetAdminPassword(input)),
+    },
+    user: {
+      list: listUsers,
+      create: (input) => toMutation(() => createUser(input)),
+      activate: (input) => toMutation(() => setUserStatus({ ...input, isActive: true })),
+      deactivate: (input) => toMutation(() => setUserStatus({ ...input, isActive: false })),
+      resetPassword: (input) => toMutation(() => resetUserPassword(input)),
+      changeRole: (input) => toMutation(() => changeUserRole(input)),
     },
     audit: {
       list: listAuditEvents,
