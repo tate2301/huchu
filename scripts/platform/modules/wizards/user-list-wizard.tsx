@@ -78,9 +78,10 @@ export function UserListWizard({ services, focusCompanyId, setInputLocked, onBac
     if (focusCompanyId) {
       return companies.map((company) => ({ id: company.id, name: company.name, slug: company.slug }));
     }
-    return [{ id: null, name: "All Companies", slug: "*" }].concat(
-      companies.map((company) => ({ id: company.id, name: company.name, slug: company.slug })),
-    );
+    return [
+      { id: null, name: "All Companies", slug: "*" },
+      ...companies.map((company) => ({ id: company.id, name: company.name, slug: company.slug })),
+    ];
   }, [companies, focusCompanyId]);
 
   const selectedCompany = companyOptions[companyIndex] ?? null;
