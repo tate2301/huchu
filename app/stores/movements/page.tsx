@@ -320,7 +320,7 @@ export default function StoresMovementsPage() {
         open={!!selectedMovementId}
         onOpenChange={(open) => !open && setSelectedMovementId(null)}
       >
-        <DialogContent className="w-full sm:max-w-lg">
+        <DialogContent size="md" className="w-full">
           <DialogHeader>
             <DialogTitle>Movement Details</DialogTitle>
             <DialogDescription>

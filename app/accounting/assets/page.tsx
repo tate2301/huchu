@@ -188,7 +188,7 @@ export default function AssetsPage() {
       />
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Asset</SheetTitle>
             <SheetDescription>Add an asset to the fixed asset register.</SheetDescription>

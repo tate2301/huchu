@@ -174,8 +174,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
     if (isMobile) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>
-          <SheetContent
-            side="left"
+          <SheetContent side="left"
             className="w-[--sidebar-width] p-0"
             style={
               { "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties

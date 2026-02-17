@@ -4,6 +4,7 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "@/lib/icons"
+import { SHEET_SIZE_CLASSNAMES, type SheetTabletBehavior, type ResponsiveSurfaceSize } from "@/lib/ui/responsive-surface"
 
 import { cn } from "@/lib/utils"
 
@@ -28,38 +29,60 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 max-h-[100dvh] overflow-y-auto overscroll-contain border-0 bg-popover shadow-[var(--surface-frame-shadow-hover)] transition ease-[var(--motion-ease-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+  "fixed z-50 max-h-[100dvh] overflow-y-auto overscroll-contain border-0 bg-popover shadow-[var(--surface-frame-shadow-hover)] transition ease-[var(--motion-ease-standard)] focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+        top: "inset-x-0 top-0 max-h-[92dvh] data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
-          "inset-x-0 bottom-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "inset-x-0 bottom-0 max-h-[92dvh] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         left:
-          "inset-y-0 left-0 h-full w-3/4 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+          "inset-y-0 left-0 h-dvh w-[var(--sheet-size-mobile)] sm:w-[var(--sheet-size-sm)] md:w-[var(--sheet-size-md)] lg:w-[var(--sheet-size-lg)] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
         right:
-          "inset-y-0 right-0 h-full w-3/4 data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+          "inset-y-0 right-0 h-dvh w-[var(--sheet-size-mobile)] sm:w-[var(--sheet-size-sm)] md:w-[var(--sheet-size-md)] lg:w-[var(--sheet-size-lg)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+      },
+      size: SHEET_SIZE_CLASSNAMES,
+      tabletBehavior: {
+        adaptive: "md:max-lg:rounded-2xl md:max-lg:shadow-[var(--elevation-4)]",
+        side: "md:max-lg:rounded-2xl md:max-lg:shadow-[var(--elevation-4)]",
+        bottom:
+          "md:max-lg:!inset-x-2 md:max-lg:!top-auto md:max-lg:!bottom-2 md:max-lg:!h-auto md:max-lg:!w-auto md:max-lg:!max-h-[86dvh] md:max-lg:rounded-2xl md:max-lg:data-[state=closed]:slide-out-to-bottom md:max-lg:data-[state=open]:slide-in-from-bottom",
+        fullscreen: "md:max-lg:!inset-0 md:max-lg:!h-dvh md:max-lg:!w-screen md:max-lg:!max-h-dvh md:max-lg:!rounded-none",
+      },
+      inset: {
+        true: "p-5 sm:p-6",
+        false: "p-0",
       },
     },
     defaultVariants: {
       side: "right",
+      size: "md",
+      tabletBehavior: "adaptive",
+      inset: false,
     },
   }
 )
 
+type SheetContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> &
+  VariantProps<typeof sheetVariants> & {
+    size?: ResponsiveSurfaceSize
+    tabletBehavior?: SheetTabletBehavior
+    inset?: boolean
+  }
+
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & VariantProps<typeof sheetVariants>
->(({ side = "right", className, children, ...props }, ref) => (
+  SheetContentProps
+>(({ side = "right", size = "md", tabletBehavior = "adaptive", inset = false, className, children, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
-      className={cn(sheetVariants({ side }), className)}
+      className={cn(sheetVariants({ side, size, tabletBehavior, inset }), className)}
       {...props}
     >
       {children}
-      <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 focus:ring-offset-background disabled:pointer-events-none">
+      <SheetClose className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 focus:ring-offset-background disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetClose>

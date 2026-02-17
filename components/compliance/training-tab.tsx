@@ -301,7 +301,7 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="w-full sm:max-w-lg">
+        <DialogContent size="md" className="w-full">
           <DialogHeader>
             <DialogTitle>{form.id ? "Edit Training" : "New Training"}</DialogTitle>
             <DialogDescription>Capture training details and certificate expiry.</DialogDescription>

@@ -328,7 +328,7 @@ export default function DowntimeCodesManagementPage() {
           }
         }}
       >
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>{editing ? "Edit Downtime Code" : "New Downtime Code"}</SheetTitle>
             <SheetDescription>

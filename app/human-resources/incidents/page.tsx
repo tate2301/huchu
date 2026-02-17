@@ -975,7 +975,7 @@ export default function HrIncidentsPage() {
       </VerticalDataViews>
 
       <Dialog open={incidentEditorOpen} onOpenChange={setIncidentEditorOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editingIncidentId ? "Edit Incident" : "Log Incident"}</DialogTitle>
             <DialogDescription>Capture key details with clear labels and structured fields.</DialogDescription>
@@ -1140,7 +1140,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={actionEditorOpen} onOpenChange={setActionEditorOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editingActionId ? "Edit Disciplinary Action" : "Create Disciplinary Action"}</DialogTitle>
             <DialogDescription>Create draft actions and progress them through approvals.</DialogDescription>
@@ -1266,7 +1266,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={Boolean(incidentDetailsId)} onOpenChange={(open) => !open && setIncidentDetailsId(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>Incident Details</DialogTitle>
             <DialogDescription>Review details and trigger immediate workflow actions.</DialogDescription>
@@ -1361,7 +1361,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={Boolean(actionDetailsId)} onOpenChange={(open) => !open && setActionDetailsId(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Disciplinary Action Details</DialogTitle>
             <DialogDescription>Inspect workflow state, then continue actioning.</DialogDescription>
@@ -1430,7 +1430,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={Boolean(rejectActionId)} onOpenChange={(open) => !open && setRejectActionId(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Reject Disciplinary Action</DialogTitle>
             <DialogDescription>Provide a rejection note for audit history and rework.</DialogDescription>
@@ -1472,7 +1472,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={Boolean(applyActionId)} onOpenChange={(open) => !open && setApplyActionId(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Apply Disciplinary Action</DialogTitle>
             <DialogDescription>Record application details and penalty settlement state.</DialogDescription>
@@ -1542,7 +1542,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={Boolean(deleteActionId)} onOpenChange={(open) => !open && setDeleteActionId(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Delete Disciplinary Action</DialogTitle>
             <DialogDescription>
@@ -1575,7 +1575,7 @@ export default function HrIncidentsPage() {
       </Dialog>
 
       <Dialog open={Boolean(deleteIncidentId)} onOpenChange={(open) => !open && setDeleteIncidentId(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Delete Incident</DialogTitle>
             <DialogDescription>

@@ -709,7 +709,7 @@ export default function StoresInventoryPage() {
             open={inventoryFormOpen}
             onOpenChange={handleInventoryOpenChange}
           >
-            <SheetContent className="w-full sm:max-w-lg p-6">
+            <SheetContent size="md" className="w-full p-6">
               <SheetHeader>
                 <SheetTitle>
                   {editingItemId ? "Edit Item" : "Add Inventory Item"}
@@ -1111,7 +1111,7 @@ export default function StoresInventoryPage() {
             open={locationFormOpen}
             onOpenChange={handleLocationOpenChange}
           >
-            <SheetContent className="w-full sm:max-w-lg p-6">
+            <SheetContent size="md" className="w-full p-6">
               <SheetHeader>
                 <SheetTitle>
                   {editingLocationId ? "Edit Location" : "Add Location"}

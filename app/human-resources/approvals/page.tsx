@@ -227,7 +227,7 @@ export default function ApprovalsPage() {
       </PageSection>
 
       <Sheet open={Boolean(selectedRecord)} onOpenChange={(open) => !open && setSelectedRecord(null)}>
-        <SheetContent className="w-full sm:max-w-xl p-6">
+        <SheetContent size="lg" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Approval Event Details</SheetTitle>
             <SheetDescription>Context for this workflow transition.</SheetDescription>

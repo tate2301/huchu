@@ -806,7 +806,7 @@ export default function GoldPayrollPage() {
       </VerticalDataViews>
 
       <Dialog open={generateRunOpen} onOpenChange={setGenerateRunOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Generate Gold Payout Run</DialogTitle>
             <DialogDescription>
@@ -875,7 +875,7 @@ export default function GoldPayrollPage() {
       </Dialog>
 
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Gold Payroll Settings</SheetTitle>
             <SheetDescription>Configure recurring periods and settlement behavior.</SheetDescription>
@@ -931,7 +931,7 @@ export default function GoldPayrollPage() {
       </Sheet>
 
       <Sheet open={manualPeriodOpen} onOpenChange={setManualPeriodOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Create Manual Gold Period</SheetTitle>
             <SheetDescription>Use manual periods for contractor or one-off exceptions.</SheetDescription>
@@ -977,7 +977,7 @@ export default function GoldPayrollPage() {
       </Sheet>
 
       <Dialog open={Boolean(runDetailsId)} onOpenChange={(open) => { if (!open) setRunDetailsId(null) }}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>Run Details</DialogTitle>
             <DialogDescription>Detailed employee line amounts for this run.</DialogDescription>

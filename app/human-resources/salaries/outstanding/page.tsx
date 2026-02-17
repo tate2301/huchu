@@ -372,7 +372,7 @@ export default function OutstandingSalariesPage() {
       </section>
 
       <Dialog open={Boolean(detailsId)} onOpenChange={(open) => !open && setDetailsId(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Outstanding Salary Details</DialogTitle>
             <DialogDescription>Audit the source chain and outstanding balance for this line.</DialogDescription>

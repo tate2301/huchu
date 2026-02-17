@@ -278,7 +278,7 @@ export default function SitesManagementPage() {
           }
         }}
       >
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>{editing ? "Edit Site" : "New Site"}</SheetTitle>
             <SheetDescription>

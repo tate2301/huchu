@@ -320,7 +320,7 @@ export default function TaxSetupPage() {
       </VerticalDataViews>
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Tax Code</SheetTitle>
             <SheetDescription>Add VAT and tax rates for invoicing.</SheetDescription>

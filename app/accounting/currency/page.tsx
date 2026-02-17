@@ -145,7 +145,7 @@ export default function CurrencyRatesPage() {
       />
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Currency Rate</SheetTitle>
             <SheetDescription>Add a new base/quote exchange rate.</SheetDescription>

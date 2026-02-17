@@ -210,7 +210,7 @@ export function ShiftAllocationModal({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-3xl p-0">
+      <DialogContent size="xl" className="p-0">
         <div className="border-b border-border px-6 py-4">
           <DialogHeader className="space-y-2">
             <DialogTitle>Record Shift Output</DialogTitle>

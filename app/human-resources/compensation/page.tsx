@@ -769,7 +769,7 @@ export default function CompensationPage() {
       )}
 
       <Sheet open={templateOpen} onOpenChange={setTemplateOpen}>
-        <SheetContent className="w-full sm:max-w-2xl p-6">
+        <SheetContent size="lg" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Compensation Template</SheetTitle>
             <SheetDescription>
@@ -944,7 +944,7 @@ export default function CompensationPage() {
       </Sheet>
 
       <Sheet open={profileOpen} onOpenChange={setProfileOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Compensation Profile</SheetTitle>
             <SheetDescription>Define the base salary profile for an employee.</SheetDescription>
@@ -1059,7 +1059,7 @@ export default function CompensationPage() {
       </Sheet>
 
       <Sheet open={ruleOpen} onOpenChange={setRuleOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Compensation Rule</SheetTitle>
             <SheetDescription>Configure allowance or deduction logic.</SheetDescription>
@@ -1332,7 +1332,7 @@ export default function CompensationPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Reject Item</DialogTitle>
             <DialogDescription>

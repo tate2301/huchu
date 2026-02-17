@@ -951,7 +951,7 @@ export default function SalaryPayrollPage() {
       </VerticalDataViews>
 
       <Dialog open={generateRunOpen} onOpenChange={setGenerateRunOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Generate Salary Run</DialogTitle>
             <DialogDescription>
@@ -1011,7 +1011,7 @@ export default function SalaryPayrollPage() {
       </Dialog>
 
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Salary Payroll Settings</SheetTitle>
             <SheetDescription>
@@ -1109,7 +1109,7 @@ export default function SalaryPayrollPage() {
       </Sheet>
 
       <Sheet open={manualPeriodOpen} onOpenChange={setManualPeriodOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Create Manual Salary Period</SheetTitle>
             <SheetDescription>
@@ -1240,7 +1240,7 @@ export default function SalaryPayrollPage() {
           if (!open) setRunDetailsId(null);
         }}
       >
-        <DialogContent className="max-w-9xl">
+        <DialogContent size="full">
           <DialogHeader>
             <DialogTitle>Run Details</DialogTitle>
             <DialogDescription>

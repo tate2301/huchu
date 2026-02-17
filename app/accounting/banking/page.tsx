@@ -476,7 +476,7 @@ export default function BankingPage() {
         </div>
       </VerticalDataViews>
       <Sheet open={accountFormOpen} onOpenChange={setAccountFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Bank Account</SheetTitle>
             <SheetDescription>Track balances and reconciliation for each bank account.</SheetDescription>
@@ -546,7 +546,7 @@ export default function BankingPage() {
         </SheetContent>
       </Sheet>
       <Sheet open={transactionFormOpen} onOpenChange={setTransactionFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Bank Transaction</SheetTitle>
             <SheetDescription>Capture deposits, withdrawals, and adjustments.</SheetDescription>
@@ -649,7 +649,7 @@ export default function BankingPage() {
         </SheetContent>
       </Sheet>
       <Sheet open={reconciliationFormOpen} onOpenChange={setReconciliationFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Bank Reconciliation</SheetTitle>
             <SheetDescription>Start a reconciliation period for a bank account.</SheetDescription>

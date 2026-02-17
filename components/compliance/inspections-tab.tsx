@@ -358,7 +358,7 @@ export function InspectionsTab({ createdId }: { createdId: string | null }) {
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="w-full sm:max-w-lg">
+        <DialogContent size="md" className="w-full">
           <DialogHeader>
             <DialogTitle>{form.id ? "Edit Inspection" : "New Inspection"}</DialogTitle>
             <DialogDescription>Capture findings, actions, and closure details.</DialogDescription>
