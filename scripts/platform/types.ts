@@ -5,6 +5,7 @@ export const ADMIN_ROLES = ["SUPERADMIN", "MANAGER"] as const;
 export const USER_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
 export const USER_ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const;
 export const USER_MANAGEMENT_ROLES = ["MANAGER", "CLERK"] as const;
+export const SITE_MEASUREMENT_UNITS = ["tonnes", "trips", "wheelbarrows"] as const;
 export const SUBDOMAIN_RESERVATION_STATUSES = ["RESERVED", "ACTIVE", "RELEASED"] as const;
 export const SUPPORT_ACCESS_STATUSES = ["REQUESTED", "APPROVED", "ACTIVE", "EXPIRED", "REVOKED", "DENIED"] as const;
 export const SUPPORT_ACCESS_SCOPES = ["READ_ONLY", "READ_WRITE"] as const;
@@ -22,6 +23,7 @@ export type AdminRole = (typeof ADMIN_ROLES)[number];
 export type UserAccountStatus = (typeof USER_ACCOUNT_STATUSES)[number];
 export type UserRole = (typeof USER_ROLES)[number];
 export type UserManagementRole = (typeof USER_MANAGEMENT_ROLES)[number];
+export type SiteMeasurementUnit = (typeof SITE_MEASUREMENT_UNITS)[number];
 export type SubdomainReservationStatus = (typeof SUBDOMAIN_RESERVATION_STATUSES)[number];
 export type SupportAccessStatus = (typeof SUPPORT_ACCESS_STATUSES)[number];
 export type SupportAccessScope = (typeof SUPPORT_ACCESS_SCOPES)[number];
@@ -216,6 +218,50 @@ export interface OrganizationStatusResult {
   afterStatus: OrganizationStatus;
   usersChanged: number;
   sitesChanged: number;
+  auditEventId: string;
+}
+
+export interface SiteSummary {
+  id: string;
+  companyId: string;
+  companyName: string | null;
+  companySlug: string | null;
+  name: string;
+  code: string;
+  location: string | null;
+  measurementUnit: SiteMeasurementUnit;
+  isActive: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface SiteDetail extends SiteSummary {
+  sectionCount: number;
+  activeSectionCount: number;
+  employeeCount: number;
+  equipmentCount: number;
+  inventoryItemCount: number;
+}
+
+export interface SiteCreateResult {
+  site: SiteSummary;
+  auditEventId: string;
+}
+
+export interface SiteUpdateResult {
+  site: SiteSummary;
+  changedFields: string[];
+  auditEventId: string;
+}
+
+export interface SiteStatusResult {
+  siteId: string;
+  siteName: string;
+  siteCode: string;
+  companyId: string;
+  companyName: string | null;
+  beforeActive: boolean;
+  afterActive: boolean;
   auditEventId: string;
 }
 
@@ -702,6 +748,40 @@ export interface MutateOrganizationStatusInput {
   reason?: string;
 }
 
+export interface ListSitesInput {
+  companyId?: string;
+  status?: UserAccountStatus | "ALL" | string;
+  search?: string;
+  limit?: number;
+  skip?: number;
+}
+
+export interface CreateSiteInput {
+  companyId: string;
+  name: string;
+  code: string;
+  location?: string;
+  measurementUnit?: SiteMeasurementUnit | string;
+  actor: string;
+  reason?: string;
+}
+
+export interface UpdateSiteInput {
+  siteId: string;
+  actor: string;
+  name?: string;
+  code?: string;
+  location?: string | null;
+  measurementUnit?: SiteMeasurementUnit | string;
+  reason?: string;
+}
+
+export interface SetSiteStatusInput {
+  siteId: string;
+  actor: string;
+  reason?: string;
+}
+
 export interface ListSubscriptionsInput {
   companyId?: string;
   status?: SubscriptionStatusValue | string;
@@ -965,6 +1045,15 @@ export interface OrganizationService {
   disable(input: MutateOrganizationStatusInput): Promise<MutationResult<OrganizationStatusResult>>;
 }
 
+export interface SiteService {
+  list(input?: ListSitesInput): Promise<SiteSummary[]>;
+  detail(siteId: string): Promise<SiteDetail>;
+  create(input: CreateSiteInput): Promise<MutationResult<SiteCreateResult>>;
+  update(input: UpdateSiteInput): Promise<MutationResult<SiteUpdateResult>>;
+  activate(input: SetSiteStatusInput): Promise<MutationResult<SiteStatusResult>>;
+  deactivate(input: SetSiteStatusInput): Promise<MutationResult<SiteStatusResult>>;
+}
+
 export interface SubscriptionService {
   list(input?: ListSubscriptionsInput): Promise<SubscriptionSummary[]>;
   setStatus(input: SetSubscriptionStatusInput): Promise<MutationResult<SubscriptionStatusResult>>;
@@ -1045,6 +1134,7 @@ export interface ContractService {
 
 export interface PlatformServices {
   org: OrganizationService;
+  site: SiteService;
   subscription: SubscriptionService;
   feature: FeatureService;
   admin: AdminService;

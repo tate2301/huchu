@@ -113,8 +113,8 @@ async function main() {
 
   const companyId = await resolveCompanyId(companyIdArg);
 
-  const existingSite = await prisma.site.findUnique({
-    where: { code },
+  const existingSite = await prisma.site.findFirst({
+    where: { companyId, code },
     select: { id: true, name: true },
   });
 
