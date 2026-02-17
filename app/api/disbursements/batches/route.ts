@@ -279,11 +279,14 @@ export async function POST(request: NextRequest) {
     })
 
     try {
+      const isGoldRun = batch.payrollRun.domain === "GOLD_PAYOUT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "disbursements",
         sourceAction: "batch-created",
+        sourceType: "PAYROLL_DISBURSEMENT",
         sourceId: batch.id,
+        entryDate: batch.createdAt,
         description: `Disbursement batch ${batch.code} created`,
         amount: batch.totalAmount,
         payload: {
@@ -292,7 +295,7 @@ export async function POST(request: NextRequest) {
           itemCount: batch.items.length,
         },
         createdById: session.user.id,
-        status: "IGNORED",
+        status: isGoldRun ? "IGNORED" : "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Disbursement batch capture failed:", error)

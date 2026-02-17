@@ -174,11 +174,14 @@ export async function PATCH(
     })
 
     try {
+      const isGoldDomain = updated.domain === "GOLD_PAYOUT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "payroll",
         sourceAction: "run-updated",
+        sourceType: "PAYROLL_RUN",
         sourceId: updated.id,
+        entryDate: updated.updatedAt,
         description: `Payroll run ${updated.runNumber} updated`,
         amount: updated.netTotal,
         grossAmount: updated.grossTotal,
@@ -189,7 +192,7 @@ export async function PATCH(
           lineItems: validated.lineItems?.map((line) => line.id) ?? [],
         },
         createdById: session.user.id,
-        status: "IGNORED",
+        status: isGoldDomain ? "IGNORED" : "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Payroll run update capture failed:", error)

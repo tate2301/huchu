@@ -109,6 +109,15 @@ export async function retryPendingAccountingEvents(input: {
   let skipped = 0;
 
   for (const event of events) {
+    let payload: Record<string, unknown> | null = null;
+    if (event.payloadJson) {
+      try {
+        payload = JSON.parse(event.payloadJson) as Record<string, unknown>;
+      } catch {
+        payload = null;
+      }
+    }
+
     let createdById = event.createdById ?? null;
     if (!createdById) {
       const fallbackUser = await prisma.user.findFirst({
@@ -140,6 +149,7 @@ export async function retryPendingAccountingEvents(input: {
       deductionsAmount: event.deductionsAmount ?? undefined,
       allowancesAmount: event.allowancesAmount ?? undefined,
       currency: event.currency ?? undefined,
+      invertDirection: payload?.invertDirection === true,
       actorRole: input.actorRole ?? undefined,
       periodOverrideReason: input.periodOverrideReason ?? undefined,
     });

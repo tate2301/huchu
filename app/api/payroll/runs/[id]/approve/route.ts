@@ -93,20 +93,22 @@ export async function POST(
     })
 
     try {
-      await createJournalEntryFromSource({
-        companyId: session.user.companyId,
-        sourceType: "PAYROLL_RUN",
-        sourceId: updated.id,
-        entryDate: updated.approvedAt ?? new Date(),
-        description: `Payroll run #${updated.runNumber} approved`,
-        createdById: session.user.id,
-        amount: updated.netTotal,
-        netAmount: updated.netTotal,
-        taxAmount: 0,
-        grossAmount: updated.grossTotal,
-        deductionsAmount: updated.deductionsTotal,
-        allowancesAmount: updated.allowancesTotal,
-      })
+      if (updated.domain !== "GOLD_PAYOUT") {
+        await createJournalEntryFromSource({
+          companyId: session.user.companyId,
+          sourceType: "PAYROLL_RUN",
+          sourceId: updated.id,
+          entryDate: updated.approvedAt ?? new Date(),
+          description: `Payroll run #${updated.runNumber} approved`,
+          createdById: session.user.id,
+          amount: updated.netTotal,
+          netAmount: updated.netTotal,
+          taxAmount: 0,
+          grossAmount: updated.grossTotal,
+          deductionsAmount: updated.deductionsTotal,
+          allowancesAmount: updated.allowancesTotal,
+        })
+      }
     } catch (error) {
       console.error("[Accounting] Payroll auto-post failed:", error)
     }

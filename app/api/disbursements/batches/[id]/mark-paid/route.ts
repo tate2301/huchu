@@ -282,7 +282,7 @@ export async function POST(
     })
 
     try {
-      if (updatedBatch.status === "PAID") {
+      if (updatedBatch.status === "PAID" && updatedBatch.payrollRun.domain !== "GOLD_PAYOUT") {
         await createJournalEntryFromSource({
           companyId: session.user.companyId,
           sourceType: "PAYROLL_DISBURSEMENT",

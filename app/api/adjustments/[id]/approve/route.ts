@@ -35,8 +35,13 @@ export async function POST(
         disbursementBatchId: true,
         lineItemId: true,
         disbursementItemId: true,
-        payrollRun: { select: { status: true } },
-        disbursementBatch: { select: { status: true } },
+        payrollRun: { select: { status: true, domain: true } },
+        disbursementBatch: {
+          select: {
+            status: true,
+            payrollRun: { select: { domain: true } },
+          },
+        },
       },
     })
 
@@ -123,20 +128,33 @@ export async function POST(
     })
 
     try {
+      const sourceType =
+        updated.targetType === "DISBURSEMENT_BATCH" || updated.targetType === "DISBURSEMENT_ITEM"
+          ? "PAYROLL_DISBURSEMENT"
+          : "PAYROLL_RUN"
+      const isGoldDomain =
+        (sourceType === "PAYROLL_RUN" && existing.payrollRun?.domain === "GOLD_PAYOUT") ||
+        (sourceType === "PAYROLL_DISBURSEMENT" &&
+          existing.disbursementBatch?.payrollRun?.domain === "GOLD_PAYOUT")
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "payroll",
         sourceAction: "adjustment-approved",
+        sourceType,
         sourceId: updated.id,
+        entryDate: updated.approvedAt,
         description: `Adjustment ${updated.id} approved`,
-        amount: updated.amountDelta,
+        amount: Math.abs(updated.amountDelta),
+        netAmount: Math.abs(updated.amountDelta),
+        grossAmount: Math.abs(updated.amountDelta),
         payload: {
           targetType: updated.targetType,
           payrollRunId: updated.payrollRunId,
           disbursementBatchId: updated.disbursementBatchId,
+          invertDirection: updated.amountDelta < 0,
         },
         createdById: session.user.id,
-        status: "IGNORED",
+        status: isGoldDomain ? "IGNORED" : "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Adjustment approval capture failed:", error)
