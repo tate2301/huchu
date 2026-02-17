@@ -2,9 +2,12 @@ import "material-symbols";
 
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";
+import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
 
 export const metadata: Metadata = {
   title: "Huchu - Mine Operations System",
@@ -18,20 +21,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestHeaders = await headers();
+  const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
+  const branding = await getEffectiveBrandingForHost(hostHeader);
+  const brandingVars = getBrandingCssVariables(branding);
+
   return (
     <html lang="en">
       <body
         className="font-sans subpixel-antialiased"
         style={
           {
-            "--font-sans": '"SS Huchu", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
             "--font-ibm-plex-mono":
               'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            ...brandingVars,
           } as React.CSSProperties
         }
       >

@@ -3,6 +3,7 @@ import type { FeatureRouteEntry } from "@/lib/platform/gating/types";
 export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/login", featureKey: "core.auth.login" },
   { scope: "page", prefix: "/help", featureKey: "core.help.quick-tips" },
+  { scope: "page", prefix: "/settings/branding", featureKey: "core.branding.manage" },
 
   { scope: "page", prefix: "/cctv/live", featureKey: "cctv.live" },
   { scope: "page", prefix: "/cctv/cameras", featureKey: "cctv.cameras" },
@@ -101,6 +102,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
 export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/notifications/push-subscriptions", featureKey: "core.notifications.push" },
   { scope: "api", prefix: "/api/notifications", featureKey: "core.notifications.center" },
+  { scope: "api", prefix: "/api/settings/branding/domain/verify", featureKey: "core.branding.custom-domain" },
+  { scope: "api", prefix: "/api/settings/branding/domain", featureKey: "core.branding.custom-domain" },
+  { scope: "api", prefix: "/api/settings/branding", featureKey: "core.branding.manage" },
 
   { scope: "api", prefix: "/api/users/create", featureKey: "admin.user-management.create" },
   { scope: "api", prefix: "/api/users/status", featureKey: "admin.user-management.status" },

@@ -10,6 +10,7 @@ declare module "next-auth" {
       tenantStatus?: string;
       enabledFeatures?: string[];
       subscriptionHealth?: string;
+      allowedHosts?: string[];
     } & DefaultSession["user"];
   }
 
@@ -21,6 +22,7 @@ declare module "next-auth" {
     tenantStatus?: string;
     enabledFeatures?: string[];
     subscriptionHealth?: string;
+    allowedHosts?: string[];
   }
 }
 
@@ -33,5 +35,6 @@ declare module "next-auth/jwt" {
     tenantStatus?: string;
     enabledFeatures?: string[];
     subscriptionHealth?: string;
+    allowedHosts?: string[];
   }
 }

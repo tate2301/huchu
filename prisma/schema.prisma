@@ -50,6 +50,8 @@ model Company {
   featureFlags        CompanyFeatureFlag[]
   provisioningEvents  ProvisioningEvent[]
   subdomainReservations SubdomainReservation[]
+  branding            CompanyBranding?
+  domains             CompanyDomain[]
   supportAccessRequests SupportAccessRequest[]
   supportSessions       SupportSession[]
   runbookDefinitions    RunbookDefinition[]
@@ -262,6 +264,18 @@ enum SubdomainReservationStatus {
   RELEASED
 }
 
+enum CompanyDomainStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  ACTIVE
+  FAILED
+  DISABLED
+}
+
+enum CompanyDomainVerificationType {
+  TXT
+}
+
 model SubdomainReservation {
   id            String                     @id @default(uuid())
   companyId     String
@@ -279,6 +293,39 @@ model SubdomainReservation {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, status])
+}
+
+model CompanyBranding {
+  companyId     String   @id
+  displayName   String?
+  primaryColor  String?
+  secondaryColor String?
+  accentColor   String?
+  fontFamilyKey String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model CompanyDomain {
+  id               String                        @id @default(uuid())
+  companyId        String
+  hostname         String                        @unique
+  status           CompanyDomainStatus           @default(PENDING_VERIFICATION)
+  verificationType CompanyDomainVerificationType @default(TXT)
+  verificationHost String
+  verificationValue String
+  lastCheckedAt    DateTime?
+  verifiedAt       DateTime?
+  activatedAt      DateTime?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([status])
 }
 
 enum SupportAccessStatus {
