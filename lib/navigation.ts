@@ -303,6 +303,12 @@ export const navSections: NavSection[] = [
         label: "Users",
         roles: ["SUPERADMIN", "MANAGER"],
       },
+      {
+        href: "/management/master-data",
+        icon: TableRows,
+        label: "Master Data",
+        roles: ["SUPERADMIN", "MANAGER"],
+      },
     ],
   },
 ]

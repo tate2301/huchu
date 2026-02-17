@@ -66,6 +66,12 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
 
   { scope: "page", prefix: "/compliance", featureKey: "compliance.overview" },
+  { scope: "page", prefix: "/management/master-data/hr/departments", featureKey: "hr.employees" },
+  { scope: "page", prefix: "/management/master-data/hr/job-grades", featureKey: "hr.employees" },
+  { scope: "page", prefix: "/management/master-data/operations/sites", featureKey: "admin.sites-sections" },
+  { scope: "page", prefix: "/management/master-data/operations/sections", featureKey: "admin.sites-sections" },
+  { scope: "page", prefix: "/management/master-data/operations/downtime-codes", featureKey: "maintenance.breakdowns" },
+  { scope: "page", prefix: "/management/master-data", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/users", featureKey: "admin.user-management.directory" },
   { scope: "page", prefix: "/user-management/create", featureKey: "admin.user-management.create" },
   { scope: "page", prefix: "/user-management/status", featureKey: "admin.user-management.status" },
@@ -124,6 +130,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/approvals/history", featureKey: "hr.approvals-history" },
   { scope: "api", prefix: "/api/hr/incidents", featureKey: "hr.incidents" },
   { scope: "api", prefix: "/api/hr/disciplinary-actions", featureKey: "hr.disciplinary-actions" },
+  { scope: "api", prefix: "/api/departments", featureKey: "hr.employees" },
+  { scope: "api", prefix: "/api/job-grades", featureKey: "hr.employees" },
   { scope: "api", prefix: "/api/employees", featureKey: "hr.employees" },
 
   { scope: "api", prefix: "/api/gold/dispatches", featureKey: "gold.dispatches" },

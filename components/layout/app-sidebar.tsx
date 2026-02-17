@@ -160,7 +160,7 @@ export function AppSidebar() {
   }, [companySlug]);
   const companyMeta = React.useMemo(() => {
     if (companySlug && companySlug.trim().length > 0) {
-      return `${companySlug}.workspace`;
+      return `${companySlug}.apps.pagka.dev`;
     }
     if (companyId) {
       return `ID ${companyId.slice(0, 8)}`;

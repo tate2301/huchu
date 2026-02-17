@@ -346,7 +346,12 @@ export default function PlantReportPage() {
         <Card>
           <CardHeader>
             <CardTitle>Downtime</CardTitle>
-            <CardDescription>Record any downtime events</CardDescription>
+            <CardDescription>
+              Record any downtime events.{" "}
+              <Link href="/management/master-data/operations/downtime-codes" className="text-primary hover:underline">
+                Manage codes
+              </Link>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {totalDowntime > 0 && (

@@ -464,6 +464,7 @@ export type SectionSummary = {
   name: string;
   siteId: string;
   isActive: boolean;
+  _count?: { shiftReports: number };
   site?: { name: string; code: string };
 };
 
@@ -473,6 +474,8 @@ export type DowntimeCode = {
   description: string;
   siteId?: string | null;
   sortOrder: number;
+  isActive?: boolean;
+  site?: { id: string; name: string; code: string } | null;
 };
 
 export type Equipment = {
@@ -1007,6 +1010,51 @@ export async function fetchSites() {
   return response.sites;
 }
 
+export async function fetchSitesList(
+  params: {
+    active?: boolean | "all";
+    search?: string;
+  } = {},
+) {
+  const query = buildQuery(params);
+  const response = await fetchJson<{ sites: Site[] }>(`/api/sites${query}`);
+  return response.sites;
+}
+
+export async function createSite(input: {
+  name: string;
+  code: string;
+  location?: string;
+  measurementUnit?: "tonnes" | "trips" | "wheelbarrows";
+}) {
+  return fetchJson<Site>("/api/sites", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateSite(
+  id: string,
+  input: {
+    name?: string;
+    code?: string;
+    location?: string | null;
+    measurementUnit?: "tonnes" | "trips" | "wheelbarrows";
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<Site>(`/api/sites/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSite(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/sites/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchExecutiveDashboardOverview(params: {
   siteId?: string;
   range: ExecutiveRange;
@@ -1085,6 +1133,37 @@ export async function fetchDepartments(
   return fetchJson<Pagination<DepartmentRecord>>(`/api/departments${query}`);
 }
 
+export async function createDepartment(input: {
+  code: string;
+  name: string;
+  isActive?: boolean;
+}) {
+  return fetchJson<DepartmentRecord>("/api/departments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDepartment(
+  id: string,
+  input: {
+    code?: string;
+    name?: string;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<DepartmentRecord>(`/api/departments/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDepartment(id: string) {
+  return fetchJson<{ success: boolean; deleted?: boolean }>(`/api/departments/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchJobGrades(
   params: {
     active?: boolean;
@@ -1095,6 +1174,39 @@ export async function fetchJobGrades(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<JobGradeRecord>>(`/api/job-grades${query}`);
+}
+
+export async function createJobGrade(input: {
+  code: string;
+  name: string;
+  rank?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<JobGradeRecord>("/api/job-grades", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateJobGrade(
+  id: string,
+  input: {
+    code?: string;
+    name?: string;
+    rank?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<JobGradeRecord>(`/api/job-grades/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteJobGrade(id: string) {
+  return fetchJson<{ success: boolean; deleted?: boolean }>(`/api/job-grades/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchCompensationProfiles(
@@ -1335,14 +1447,80 @@ export async function fetchSections(
   return fetchJson<Pagination<SectionSummary>>(`/api/sections${query}`);
 }
 
+export async function createSection(input: {
+  name: string;
+  siteId: string;
+  isActive?: boolean;
+}) {
+  return fetchJson<SectionSummary>("/api/sections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateSection(
+  id: string,
+  input: {
+    name?: string;
+    siteId?: string;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<SectionSummary>(`/api/sections/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSection(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/sections/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchDowntimeCodes(
-  params: { siteId?: string; active?: boolean } = {},
+  params: { siteId?: string; active?: boolean | "all"; search?: string } = {},
 ) {
   const query = buildQuery(params);
   const response = await fetchJson<{ codes: DowntimeCode[] }>(
     `/api/downtime-codes${query}`,
   );
   return response.codes;
+}
+
+export async function createDowntimeCode(input: {
+  code: string;
+  description: string;
+  siteId: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<DowntimeCode>("/api/downtime-codes", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDowntimeCode(
+  id: string,
+  input: {
+    code?: string;
+    description?: string;
+    siteId?: string | null;
+    sortOrder?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<DowntimeCode>(`/api/downtime-codes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDowntimeCode(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/downtime-codes/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchDowntimeAnalytics(params: {
