@@ -80,13 +80,8 @@ pnpm install
 # Copy the example file
 cp .env.example .env
 
-# Edit .env and add your PostgreSQL connection string
-# DATABASE_URL="postgresql://user:password@localhost:5432/huchu_mines"
-# NEXTAUTH_SECRET="<generate-with-openssl-rand-base64-32>"
-# NEXTAUTH_URL="http://localhost:3000"
-# PLATFORM_ROOT_DOMAIN="app.your-domain.com"   # production strict tenant host enforcement
-# PLATFORM_ROOT_HOSTS="app.your-domain.com,localhost:3000"
-# BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
+# Fill in .env values for local development
+# Keep PLATFORM_ROOT_DOMAIN empty locally unless you explicitly want strict host enforcement
 ```
 
 4. Initialize the database:
@@ -257,32 +252,39 @@ pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "re
 
 ## 📖 Deployment
 
-### Production Checklist
-1. Set up PostgreSQL database
-2. Configure environment variables
-3. Run database migrations
-4. Build the application: `pnpm build`
-5. Start the server: `pnpm start`
-6. Configure reverse proxy (nginx/Apache)
-7. Set up SSL certificates
-8. Configure backups
+### Production Checklist (Vercel + Multitenancy)
+1. Set up your production PostgreSQL database.
+2. Configure Vercel project domains:
+   - `apps.pagka.dev`
+   - `*.apps.pagka.dev`
+3. Configure DNS records for both root and wildcard to point to Vercel.
+4. Set production environment variables in Vercel (see below).
+5. Deploy and verify tenant login on subdomains.
 
-### Vercel Tenant Subdomains
-1. Add `app.your-domain.com` in Vercel.
-2. Add wildcard `*.app.your-domain.com` in Vercel.
-3. Configure wildcard DNS to Vercel.
-4. Set `PLATFORM_ROOT_DOMAIN=app.your-domain.com` in production.
-5. Users sign in on their organization host (for example `acme.app.your-domain.com/login`).
-
-### Environment Variables
+### Production Environment Variables (Vercel)
 ```
 DATABASE_URL="postgresql://user:password@localhost:5432/huchu"
 NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="https://app.your-domain.com"
-PLATFORM_ROOT_DOMAIN="app.your-domain.com"
-PLATFORM_ROOT_HOSTS="app.your-domain.com"
+NEXTAUTH_URL="https://apps.pagka.dev"
+PLATFORM_ROOT_DOMAIN="apps.pagka.dev"
+PLATFORM_ROOT_HOSTS="apps.pagka.dev"
 BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
 ```
+
+### Multitenancy Notes
+1. Production tenant login URLs use:
+   - `https://<tenant-slug>.apps.pagka.dev/login`
+2. In strict production mode (`PLATFORM_ROOT_DOMAIN` set), users must log in on their tenant subdomain.
+3. Recommended preview behavior:
+   - leave `PLATFORM_ROOT_DOMAIN` unset in Preview environments to avoid strict host enforcement during QA.
+
+### Post-Deploy Verification
+1. Tenant login works:
+   - `https://acme.apps.pagka.dev/login`
+2. Cross-tenant login is blocked:
+   - ACME user cannot log in on `https://other-tenant.apps.pagka.dev/login`
+3. Root login is blocked in strict mode:
+   - `https://apps.pagka.dev/login`
 
 ## 🎓 Training & Rollout
 
