@@ -275,9 +275,10 @@ export default function HumanResourcesPage() {
 
   const uploadPassportPhoto = async (file: File) => {
     const formDataPayload = new FormData()
+    formDataPayload.append("context", "employee-passport")
     formDataPayload.append("file", file)
 
-    const response = await fetch("/api/uploads/passport-photo", {
+    const response = await fetch("/api/uploads", {
       method: "POST",
       credentials: "include",
       body: formDataPayload,

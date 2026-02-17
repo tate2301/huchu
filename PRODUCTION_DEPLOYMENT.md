@@ -26,6 +26,11 @@ NEXTAUTH_SECRET="<generate-with: openssl rand -base64 32>"
 NEXTAUTH_URL="https://your-domain.com"
 ```
 
+### Blob Storage
+```
+BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
+```
+
 ## Database Setup
 
 1. Install Prisma CLI (if not installed):

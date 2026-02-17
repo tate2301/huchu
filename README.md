@@ -84,6 +84,7 @@ cp .env.example .env
 # DATABASE_URL="postgresql://user:password@localhost:5432/huchu_mines"
 # NEXTAUTH_SECRET="<generate-with-openssl-rand-base64-32>"
 # NEXTAUTH_URL="http://localhost:3000"
+# BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
 ```
 
 4. Initialize the database:
@@ -269,6 +270,7 @@ pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "re
 DATABASE_URL="postgresql://user:password@localhost:5432/huchu"
 NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="https://yourdomain.com"
+BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
 ```
 
 ## 🎓 Training & Rollout
