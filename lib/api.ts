@@ -1609,7 +1609,9 @@ export type ReserveIdEntity =
   | "FIXED_ASSET"
   | "INVENTORY_ITEM"
   | "STOCK_LOCATION"
-  | "STOCK_MOVEMENT";
+  | "STOCK_MOVEMENT"
+  | "GOLD_POUR"
+  | "GOLD_RECEIPT";
 
 export async function reserveEntityId(
   entity: ReserveIdEntity,

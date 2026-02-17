@@ -23,6 +23,7 @@ import { goldRoutes } from "@/app/gold/routes";
 import { Send, Shield } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 export function ReceiptForm({
   cancelHref,
@@ -58,6 +59,14 @@ export function ReceiptForm({
     { value: "CRYPTO", label: "Cryptocurrency" },
     { value: "CHECK", label: "Check" },
   ]);
+  const {
+    reservedId: reservedReceiptNumber,
+    isReserving: reservingReceiptNumber,
+    error: reserveReceiptNumberError,
+  } = useReservedId({
+    entity: "GOLD_RECEIPT",
+    enabled: true,
+  });
 
   const handleSelectChange =
     (field: keyof typeof formData) => (value: string) => {
@@ -77,6 +86,7 @@ export function ReceiptForm({
 
   const createReceiptMutation = useMutation({
     mutationFn: async (payload: {
+      receiptNumber: string;
       goldDispatchId: string;
       receiptDate: string;
       assayResult?: number;
@@ -121,6 +131,7 @@ export function ReceiptForm({
     ? Number(formData.assayResult)
     : undefined;
   const canSubmit =
+    !!reservedReceiptNumber &&
     !!formData.goldDispatchId &&
     !!formData.receiptDate &&
     !!formData.assayResult &&
@@ -138,7 +149,18 @@ export function ReceiptForm({
       });
       return;
     }
+    if (!reservedReceiptNumber) {
+      toast({
+        title: "Unable to reserve receipt number",
+        description:
+          reserveReceiptNumberError ??
+          "Please wait for receipt number reservation to complete.",
+        variant: "destructive",
+      });
+      return;
+    }
     createReceiptMutation.mutate({
+      receiptNumber: reservedReceiptNumber,
       goldDispatchId: formData.goldDispatchId,
       receiptDate: formData.receiptDate,
       assayResult: assayResultValue,
@@ -173,7 +195,12 @@ export function ReceiptForm({
           >
             Back to Sales
           </Button>
-          <Button type="submit" size="lg" disabled={!canSubmit || createReceiptMutation.isPending} className="flex-1 sm:flex-none">
+          <Button
+            type="submit"
+            size="lg"
+            disabled={!canSubmit || createReceiptMutation.isPending || reservingReceiptNumber}
+            className="flex-1 sm:flex-none"
+          >
             <Send className="mr-2 h-5 w-5" />
             {createReceiptMutation.isPending ? "Recording..." : "Save Sale"}
           </Button>
@@ -212,9 +239,16 @@ export function ReceiptForm({
             <div>
               <label className="block text-sm font-semibold mb-2">Receipt Number</label>
               <Input
-                value="Generated automatically when saved"
+                value={reservedReceiptNumber}
                 readOnly
                 aria-readonly="true"
+                placeholder={reservingReceiptNumber ? "Reserving..." : "Auto-generated"}
+              />
+              <FieldHelp
+                hint={
+                  reserveReceiptNumberError ??
+                  "Receipt number is auto-generated and cannot be edited."
+                }
               />
             </div>
 

@@ -18,6 +18,8 @@ const reserveSchema = z.object({
     "INVENTORY_ITEM",
     "STOCK_LOCATION",
     "STOCK_MOVEMENT",
+    "GOLD_POUR",
+    "GOLD_RECEIPT",
   ]),
   siteId: z.string().uuid().optional(),
 });
@@ -66,4 +68,3 @@ export async function POST(request: NextRequest) {
     return errorResponse("Failed to reserve ID");
   }
 }
-

@@ -9,8 +9,10 @@ import {
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const buyerReceiptSchema = z.object({
+  receiptNumber: z.string().min(1).max(50).optional(),
   goldDispatchId: z.string().uuid(),
   receiptDate: z
     .string()
@@ -23,31 +25,6 @@ const buyerReceiptSchema = z.object({
   paymentReference: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
 })
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0")
-}
-
-function buildReceiptNumberCandidate() {
-  const now = new Date()
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}${formatTwoDigits(now.getSeconds())}`
-  const randomPart = Math.floor(100 + Math.random() * 900)
-  return `RCP-${datePart}-${timePart}-${randomPart}`
-}
-
-async function generateUniqueReceiptNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildReceiptNumberCandidate()
-    const existing = await prisma.buyerReceipt.findFirst({
-      where: { receiptNumber: candidate },
-      select: { id: true },
-    })
-    if (!existing) return candidate
-  }
-
-  return `RCP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -151,7 +128,27 @@ export async function POST(request: NextRequest) {
       return errorResponse("Receipt already exists for this dispatch", 409)
     }
 
-    const receiptNumber = await generateUniqueReceiptNumber()
+    const receiptNumber = validated.receiptNumber
+      ? normalizeProvidedId(validated.receiptNumber, "GOLD_RECEIPT")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "GOLD_RECEIPT",
+        })
+
+    const duplicateReceiptNumber = await prisma.buyerReceipt.findFirst({
+      where: {
+        receiptNumber,
+        goldDispatch: {
+          goldPour: {
+            site: { companyId: session.user.companyId },
+          },
+        },
+      },
+      select: { id: true },
+    })
+    if (duplicateReceiptNumber) {
+      return errorResponse("Receipt number already exists", 409)
+    }
 
     const receipt = await prisma.buyerReceipt.create({
       data: {

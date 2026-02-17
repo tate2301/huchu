@@ -12,7 +12,9 @@ export type ReservableIdEntity =
   | "FIXED_ASSET"
   | "INVENTORY_ITEM"
   | "STOCK_LOCATION"
-  | "STOCK_MOVEMENT";
+  | "STOCK_MOVEMENT"
+  | "GOLD_POUR"
+  | "GOLD_RECEIPT";
 
 type EntityConfig = {
   prefix: string;
@@ -35,6 +37,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   INVENTORY_ITEM: { prefix: "INV", requiresSiteId: true },
   STOCK_LOCATION: { prefix: "LOC", requiresSiteId: true },
   STOCK_MOVEMENT: { prefix: "MOV", requiresSiteId: false },
+  GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
+  GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
 };
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -169,6 +173,20 @@ async function findEntityMaxExistingCode(
         select: { referenceId: true },
       });
       return extractMaxFromCodes(records.map((record) => record.referenceId), prefix);
+    }
+    case "GOLD_POUR": {
+      const records = await db.goldPour.findMany({
+        where: { site: { companyId } },
+        select: { pourBarId: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.pourBarId), prefix);
+    }
+    case "GOLD_RECEIPT": {
+      const records = await db.buyerReceipt.findMany({
+        where: { goldDispatch: { goldPour: { site: { companyId } } } },
+        select: { receiptNumber: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.receiptNumber), prefix);
     }
     default:
       return 0;
