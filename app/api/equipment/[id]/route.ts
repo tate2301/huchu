@@ -72,6 +72,10 @@ export async function PATCH(
     const body = await request.json()
     const validated = equipmentUpdateSchema.parse(body)
 
+    if (validated.equipmentCode !== undefined) {
+      return errorResponse("Equipment code is immutable and cannot be changed", 400)
+    }
+
     const existing = await prisma.equipment.findUnique({
       where: { id },
       include: { site: { select: { companyId: true, isActive: true } } },
@@ -86,7 +90,7 @@ export async function PATCH(
     }
 
     const targetSiteId = validated.siteId ?? existing.siteId
-    const targetCode = validated.equipmentCode ?? existing.equipmentCode
+    const targetCode = existing.equipmentCode
 
     if (validated.siteId) {
       const site = await prisma.site.findUnique({
@@ -103,7 +107,7 @@ export async function PATCH(
       }
     }
 
-    if (validated.siteId || validated.equipmentCode) {
+    if (validated.siteId) {
       const duplicate = await prisma.equipment.findFirst({
         where: {
           id: { not: id },
@@ -121,7 +125,6 @@ export async function PATCH(
     const equipment = await prisma.equipment.update({
       where: { id },
       data: {
-        equipmentCode: validated.equipmentCode,
         name: validated.name,
         category: validated.category,
         siteId: validated.siteId,

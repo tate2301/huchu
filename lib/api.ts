@@ -533,6 +533,7 @@ export type InventoryItem = {
 
 export type StockLocation = {
   id: string;
+  code: string;
   name: string;
   siteId: string;
   isActive: boolean;
@@ -541,6 +542,7 @@ export type StockLocation = {
 
 export type StockMovement = {
   id: string;
+  referenceId: string;
   movementType: string;
   quantity: number;
   unit: string;
@@ -1025,7 +1027,7 @@ export async function fetchSitesList(
 
 export async function createSite(input: {
   name: string;
-  code: string;
+  code?: string;
   location?: string;
   measurementUnit?: "tonnes" | "trips" | "wheelbarrows";
 }) {
@@ -1136,7 +1138,7 @@ export async function fetchDepartments(
 }
 
 export async function createDepartment(input: {
-  code: string;
+  code?: string;
   name: string;
   isActive?: boolean;
 }) {
@@ -1179,7 +1181,7 @@ export async function fetchJobGrades(
 }
 
 export async function createJobGrade(input: {
-  code: string;
+  code?: string;
   name: string;
   rank?: number;
   isActive?: boolean;
@@ -1491,7 +1493,7 @@ export async function fetchDowntimeCodes(
 }
 
 export async function createDowntimeCode(input: {
-  code: string;
+  code?: string;
   description: string;
   siteId: string;
   sortOrder?: number;
@@ -1593,6 +1595,36 @@ export async function fetchStockLocations(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<StockLocation>>(`/api/stock-locations${query}`);
+}
+
+export type ReserveIdEntity =
+  | "SITE"
+  | "DEPARTMENT"
+  | "JOB_GRADE"
+  | "DOWNTIME_CODE"
+  | "EQUIPMENT"
+  | "CHART_OF_ACCOUNT"
+  | "COST_CENTER"
+  | "TAX_CODE"
+  | "FIXED_ASSET"
+  | "INVENTORY_ITEM"
+  | "STOCK_LOCATION"
+  | "STOCK_MOVEMENT";
+
+export async function reserveEntityId(
+  entity: ReserveIdEntity,
+  options: { siteId?: string } = {},
+) {
+  return fetchJson<{ entity: ReserveIdEntity; code: string; prefix: string }>(
+    "/api/ids/reserve",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        entity,
+        siteId: options.siteId,
+      }),
+    },
+  );
 }
 
 export async function fetchAttendance(

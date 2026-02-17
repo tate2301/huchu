@@ -26,6 +26,7 @@ import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { Plus } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type NotesPayload = {
   supplier?: string;
@@ -49,6 +50,14 @@ export default function StoresReceivePage() {
     notes: "",
   });
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const {
+    reservedId: movementReferenceId,
+    isReserving: reservingMovementReferenceId,
+    error: reserveMovementReferenceError,
+  } = useReservedId({
+    entity: "STOCK_MOVEMENT",
+    enabled: true,
+  });
 
   const {
     data: sites,
@@ -161,6 +170,12 @@ export default function StoresReceivePage() {
     if (!receivedBy) {
       errors.push("Select the employee who received this stock.");
     }
+    if (!movementReferenceId) {
+      errors.push(
+        reserveMovementReferenceError ??
+          "Please wait for movement reference reservation to complete.",
+      );
+    }
 
     if (!form.supplier.trim()) {
       errors.push("Provide the supplier name.");
@@ -194,6 +209,7 @@ export default function StoresReceivePage() {
       : undefined;
 
     receiveMutation.mutate({
+      referenceId: movementReferenceId,
       itemId: selectedItem.id,
       movementType: "RECEIPT",
       quantity,
@@ -233,7 +249,11 @@ export default function StoresReceivePage() {
             <Button
               className="bg-green-600 hover:bg-green-700"
               type="submit"
-              disabled={receiveMutation.isPending}
+              disabled={
+                receiveMutation.isPending ||
+                reservingMovementReferenceId ||
+                !movementReferenceId
+              }
             >
               <Plus className="mr-2 h-4 w-4" />
               {receiveMutation.isPending ? "Saving Receipt..." : "Submit Receipt"}
@@ -244,7 +264,7 @@ export default function StoresReceivePage() {
           </>
         }
       >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="mb-2 block text-field-label">Date *</label>
                 <Input
@@ -276,7 +296,18 @@ export default function StoresReceivePage() {
                       ))}
                     </SelectContent>
                   </Select>
-                )}
+                  )}
+              </div>
+              <div>
+                <label className="mb-2 block text-field-label">
+                  Movement Reference *
+                </label>
+                <Input
+                  value={movementReferenceId}
+                  readOnly
+                  placeholder={reservingMovementReferenceId ? "Reserving..." : "Auto-generated"}
+                  required
+                />
               </div>
             </div>
 

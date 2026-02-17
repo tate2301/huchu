@@ -20,12 +20,21 @@ import { useToast } from "@/components/ui/use-toast";
 import { type CostCenterRecord, fetchCostCenters } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 export default function CostCentersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState({ code: "", name: "", isActive: true });
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "COST_CENTER",
+    enabled: formOpen,
+  });
 
   const { data: costCentersData, isLoading, error } = useQuery({
     queryKey: ["accounting", "cost-centers"],
@@ -87,17 +96,26 @@ export default function CostCentersPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!formState.code.trim() || !formState.name.trim()) {
+    if (!formState.name.trim()) {
       toast({
         title: "Missing details",
-        description: "Code and name are required.",
+        description: "Name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!reservedId.trim()) {
+      toast({
+        title: "Unable to reserve cost center code",
+        description: reserveError ?? "Please wait for code reservation to complete.",
         variant: "destructive",
       });
       return;
     }
 
     createMutation.mutate({
-      code: formState.code.trim(),
+      code: reservedId.trim(),
       name: formState.name.trim(),
       isActive: formState.isActive,
     });
@@ -141,11 +159,14 @@ export default function CostCentersPage() {
             <div>
               <label className="block text-sm font-semibold mb-2">Code *</label>
               <Input
-                value={formState.code}
-                onChange={(event) => setFormState((prev) => ({ ...prev, code: event.target.value }))}
-                placeholder="CC-01"
+                value={reservedId}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-semibold mb-2">Name *</label>
@@ -157,7 +178,11 @@ export default function CostCentersPage() {
               />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={createMutation.isPending || isReserving || !reservedId}
+              >
                 Save Cost Center
               </Button>
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>

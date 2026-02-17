@@ -89,9 +89,25 @@ model Company {
   fiscalProviderConfigs FiscalisationProviderConfig[]
   fiscalReceipts       FiscalReceipt[]
   accountingIntegrationEvents AccountingIntegrationEvent[]
+  idSequences          IdSequence[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
+}
+
+model IdSequence {
+  id        String   @id @default(uuid())
+  companyId String
+  entityKey String
+  scopeKey  String   @default("GLOBAL")
+  lastNumber Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, entityKey, scopeKey])
+  @@index([companyId])
 }
 
 enum TenantStatus {
@@ -1747,6 +1763,7 @@ model GoldShiftWorkerShare {
 
 model StockLocation {
   id        String   @id @default(uuid())
+  code      String
   name      String
   siteId    String
   isActive  Boolean  @default(true)
@@ -1757,6 +1774,7 @@ model StockLocation {
   incomingMovements StockMovement[] @relation("StockMovementDestination")
 
   @@index([siteId])
+  @@unique([siteId, code])
 }
 
 model InventoryItem {
@@ -1792,6 +1810,7 @@ enum MovementType {
 
 model StockMovement {
   id           String       @id @default(uuid())
+  referenceId  String       @unique
   itemId       String
   toLocationId String?
   movementType MovementType

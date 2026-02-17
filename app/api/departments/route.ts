@@ -9,9 +9,10 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/hr-payroll"
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const departmentSchema = z.object({
-  code: z.string().trim().min(1).max(40),
+  code: z.string().trim().min(1).max(40).optional(),
   name: z.string().trim().min(1).max(200),
   isActive: z.boolean().optional(),
 })
@@ -71,11 +72,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validated = departmentSchema.parse(body)
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "DEPARTMENT")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "DEPARTMENT",
+        })
 
     const department = await prisma.department.create({
       data: {
         companyId: session.user.companyId,
-        code: validated.code.toUpperCase(),
+        code,
         name: validated.name,
         isActive: validated.isActive ?? true,
       },

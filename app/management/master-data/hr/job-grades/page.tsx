@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type GradeFormState = {
   code: string;
@@ -47,6 +48,15 @@ export default function JobGradesManagementPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<JobGradeRecord | null>(null);
   const [formState, setFormState] = useState<GradeFormState>(emptyForm);
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "JOB_GRADE",
+    enabled: formOpen && !editing,
+  });
+  const resolvedCode = editing ? formState.code : reservedId;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["management", "master-data", "job-grades"],
@@ -191,10 +201,18 @@ export default function JobGradesManagementPage() {
 
   const handleSave = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!formState.code.trim() || !formState.name.trim()) {
+    if (!formState.name.trim()) {
       toast({
         title: "Missing details",
-        description: "Code and name are required.",
+        description: "Name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!editing && !resolvedCode.trim()) {
+      toast({
+        title: "Unable to reserve grade code",
+        description: reserveError ?? "Please wait for the code reservation to complete.",
         variant: "destructive",
       });
       return;
@@ -214,7 +232,6 @@ export default function JobGradesManagementPage() {
       updateMutation.mutate({
         id: editing.id,
         input: {
-          code: formState.code.trim(),
           name: formState.name.trim(),
           rank,
           isActive: formState.isActive,
@@ -224,7 +241,7 @@ export default function JobGradesManagementPage() {
     }
 
     createMutation.mutate({
-      code: formState.code.trim(),
+      code: resolvedCode.trim(),
       name: formState.name.trim(),
       rank,
       isActive: formState.isActive,
@@ -289,11 +306,16 @@ export default function JobGradesManagementPage() {
             <div>
               <label className="mb-2 block text-sm font-semibold">Code *</label>
               <Input
-                value={formState.code}
-                onChange={(event) => setFormState((prev) => ({ ...prev, code: event.target.value }))}
-                placeholder="G1"
+                value={resolvedCode}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {editing
+                  ? "Job grade code is immutable."
+                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold">Name *</label>
@@ -323,7 +345,7 @@ export default function JobGradesManagementPage() {
               >
                 {formState.isActive ? "Active" : "Inactive"}
               </Button>
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending}>
+              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending || (!editing && (isReserving || !resolvedCode))}>
                 {editing ? "Save Changes" : "Create Job Grade"}
               </Button>
             </div>

@@ -47,6 +47,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { Download, Plus, QrCode } from "@/lib/icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 function buildInventoryQrPayload(item: InventoryItem) {
   return JSON.stringify({
@@ -101,6 +102,7 @@ export default function StoresInventoryPage() {
   );
   const [qrPreviewItem, setQrPreviewItem] = useState<InventoryItem | null>(null);
   const [locationForm, setLocationForm] = useState({
+    code: "",
     name: "",
     siteId: "",
     isActive: true,
@@ -115,6 +117,38 @@ export default function StoresInventoryPage() {
     queryFn: fetchSites,
   });
   const activeSiteId = selectedSiteId || sites?.[0]?.id || "";
+  const inventoryCodeSiteId = inventoryForm.siteId || activeSiteId;
+  const {
+    reservedId: reservedInventoryCode,
+    isReserving: reservingInventoryCode,
+    error: reserveInventoryCodeError,
+  } = useReservedId({
+    entity: "INVENTORY_ITEM",
+    enabled:
+      inventoryFormOpen &&
+      !editingItemId &&
+      Boolean(inventoryCodeSiteId),
+    siteId: inventoryCodeSiteId || undefined,
+  });
+  const locationCodeSiteId = locationForm.siteId || activeSiteId;
+  const {
+    reservedId: reservedLocationCode,
+    isReserving: reservingLocationCode,
+    error: reserveLocationCodeError,
+  } = useReservedId({
+    entity: "STOCK_LOCATION",
+    enabled:
+      locationFormOpen &&
+      !editingLocationId &&
+      Boolean(locationCodeSiteId),
+    siteId: locationCodeSiteId || undefined,
+  });
+  const resolvedInventoryCode = editingItemId
+    ? inventoryForm.itemCode
+    : reservedInventoryCode;
+  const resolvedLocationCode = editingLocationId
+    ? locationForm.code
+    : reservedLocationCode;
 
   const {
     data: inventoryData,
@@ -199,6 +233,7 @@ export default function StoresInventoryPage() {
 
   const resetLocationForm = (overrides: Partial<typeof locationForm> = {}) => {
     setLocationForm({
+      code: "",
       name: "",
       siteId: activeSiteId,
       isActive: true,
@@ -256,6 +291,7 @@ export default function StoresInventoryPage() {
   const openEditLocation = (location: (typeof stockLocationsAll)[number]) => {
     setEditingLocationId(location.id);
     resetLocationForm({
+      code: location.code ?? "",
       name: location.name ?? "",
       siteId: location.siteId ?? activeSiteId,
       isActive: location.isActive ?? true,
@@ -276,6 +312,7 @@ export default function StoresInventoryPage() {
           ...prev,
           siteId: value,
           locationId: "",
+          ...(editingItemId ? {} : { itemCode: "" }),
         }));
         return;
       }
@@ -313,7 +350,11 @@ export default function StoresInventoryPage() {
   };
 
   const handleLocationSiteChange = (value: string) => {
-    setLocationForm((prev) => ({ ...prev, siteId: value }));
+    setLocationForm((prev) => ({
+      ...prev,
+      siteId: value,
+      ...(editingLocationId ? {} : { code: "" }),
+    }));
   };
 
   const handleLocationStatusChange = (value: string) => {
@@ -396,6 +437,7 @@ export default function StoresInventoryPage() {
 
   const createLocationMutation = useMutation({
     mutationFn: async (payload: {
+      code: string;
       name: string;
       siteId: string;
       isActive: boolean;
@@ -493,6 +535,16 @@ export default function StoresInventoryPage() {
       });
       return;
     }
+    if (!editingItemId && !resolvedInventoryCode.trim()) {
+      toast({
+        title: "Unable to reserve item code",
+        description:
+          reserveInventoryCodeError ??
+          "Please wait for the item code reservation to complete.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const payload = {
       name: inventoryForm.name,
@@ -509,7 +561,10 @@ export default function StoresInventoryPage() {
     if (editingItemId) {
       updateInventoryMutation.mutate({ id: editingItemId, data: payload });
     } else {
-      createInventoryMutation.mutate(payload);
+      createInventoryMutation.mutate({
+        ...payload,
+        itemCode: resolvedInventoryCode.trim(),
+      });
     }
   };
 
@@ -654,6 +709,16 @@ export default function StoresInventoryPage() {
       });
       return;
     }
+    if (!editingLocationId && !resolvedLocationCode.trim()) {
+      toast({
+        title: "Unable to reserve location code",
+        description:
+          reserveLocationCodeError ??
+          "Please wait for the location code reservation to complete.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (editingLocationId) {
       updateLocationMutation.mutate({
@@ -665,6 +730,7 @@ export default function StoresInventoryPage() {
       });
     } else {
       createLocationMutation.mutate({
+        code: resolvedLocationCode.trim(),
         name: locationForm.name,
         siteId: locationForm.siteId,
         isActive: locationForm.isActive,
@@ -956,23 +1022,29 @@ export default function StoresInventoryPage() {
                 className="mt-6 space-y-4"
               >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {editingItemId ? (
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Item Code
-                      </label>
-                      <Input value={inventoryForm.itemCode} disabled />
-                    </div>
-                  ) : (
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-semibold mb-2">
-                        Item Code
-                      </label>
-                      <p className="text-sm text-muted-foreground">
-                        Item codes are generated automatically after saving.
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">
+                      Item Code *
+                    </label>
+                    <Input
+                      value={resolvedInventoryCode}
+                      readOnly
+                      placeholder={
+                        editingItemId
+                          ? "Item code"
+                          : reservingInventoryCode
+                            ? "Reserving..."
+                            : "Auto-generated"
+                      }
+                      required
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {editingItemId
+                        ? "Item code is immutable."
+                        : reserveInventoryCodeError ??
+                          "Code is auto-generated and cannot be edited."}
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2">
                       Name *
@@ -1142,7 +1214,9 @@ export default function StoresInventoryPage() {
                     className="flex-1"
                     disabled={
                       createInventoryMutation.isPending ||
-                      updateInventoryMutation.isPending
+                      updateInventoryMutation.isPending ||
+                      (!editingItemId &&
+                        (reservingInventoryCode || !resolvedInventoryCode))
                     }
                   >
                     {editingItemId ? "Save Changes" : "Save Item"}
@@ -1356,6 +1430,30 @@ export default function StoresInventoryPage() {
               <form onSubmit={handleLocationSubmit} className="mt-6 space-y-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
+                    Location Code *
+                  </label>
+                  <Input
+                    value={resolvedLocationCode}
+                    readOnly
+                    placeholder={
+                      editingLocationId
+                        ? "Location code"
+                        : reservingLocationCode
+                          ? "Reserving..."
+                          : "Auto-generated"
+                    }
+                    required
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {editingLocationId
+                      ? "Location code is immutable."
+                      : reserveLocationCodeError ??
+                        "Code is auto-generated and cannot be edited."}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
                     Location Name *
                   </label>
                   <Input
@@ -1413,7 +1511,9 @@ export default function StoresInventoryPage() {
                     className="flex-1"
                     disabled={
                       createLocationMutation.isPending ||
-                      updateLocationMutation.isPending
+                      updateLocationMutation.isPending ||
+                      (!editingLocationId &&
+                        (reservingLocationCode || !resolvedLocationCode))
                     }
                   >
                     {editingLocationId ? "Save Changes" : "Save Location"}

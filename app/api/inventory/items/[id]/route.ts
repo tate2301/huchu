@@ -3,6 +3,7 @@ import { validateSession, successResponse, errorResponse } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
+import { reserveIdentifier } from "@/lib/id-generator"
 
 const inventoryItemUpdateSchema = z
   .object({
@@ -134,6 +135,13 @@ export async function PATCH(
       validated.currentStock === undefined
         ? 0
         : validated.currentStock - existing.currentStock
+    const adjustmentReferenceId =
+      stockDelta !== 0
+        ? await reserveIdentifier(prisma, {
+            companyId: session.user.companyId,
+            entity: "STOCK_MOVEMENT",
+          })
+        : null
 
     const { item, adjustmentMovement } = await prisma.$transaction(async (tx) => {
       const updatedItem = await tx.inventoryItem.update({
@@ -159,6 +167,7 @@ export async function PATCH(
       if (stockDelta !== 0) {
         movement = await tx.stockMovement.create({
           data: {
+            referenceId: adjustmentReferenceId!,
             itemId: updatedItem.id,
             movementType: "ADJUSTMENT",
             quantity: stockDelta,

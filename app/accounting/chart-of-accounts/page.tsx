@@ -27,6 +27,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { type ChartOfAccountRecord, fetchChartOfAccounts } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 const accountTypes = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
 
@@ -45,6 +46,15 @@ export default function ChartOfAccountsPage() {
     description: "",
     isActive: true,
   });
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "CHART_OF_ACCOUNT",
+    enabled: formOpen && !editingAccount,
+  });
+  const resolvedCode = editingAccount ? formState.code : reservedId;
 
   const {
     data: accountsData,
@@ -236,10 +246,19 @@ export default function ChartOfAccountsPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!formState.code.trim() || !formState.name.trim()) {
+    if (!formState.name.trim()) {
       toast({
         title: "Missing details",
-        description: "Account code and name are required.",
+        description: "Account name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editingAccount && !resolvedCode.trim()) {
+      toast({
+        title: "Unable to reserve account code",
+        description: reserveError ?? "Please wait for code reservation to complete.",
         variant: "destructive",
       });
       return;
@@ -256,16 +275,15 @@ export default function ChartOfAccountsPage() {
     const description = formState.description.trim();
     if (description) payload.description = description;
 
-    if (!editingAccount || !editingAccount.systemManaged) {
-      payload.code = formState.code.trim();
-    }
-
     if (editingAccount) {
       updateMutation.mutate({ id: editingAccount.id, data: payload });
       return;
     }
 
-    createMutation.mutate(payload);
+    createMutation.mutate({
+      ...payload,
+      code: resolvedCode.trim(),
+    });
   };
 
   return (
@@ -335,19 +353,16 @@ export default function ChartOfAccountsPage() {
             <div>
               <label className="block text-sm font-semibold mb-2">Account Code *</label>
               <Input
-                value={formState.code}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, code: event.target.value }))
-                }
-                placeholder="1000"
-                disabled={Boolean(editingAccount?.systemManaged)}
+                value={resolvedCode}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
-              {editingAccount?.systemManaged ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  System-managed codes cannot be changed.
-                </p>
-              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {editingAccount
+                  ? "Account code is immutable."
+                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-semibold mb-2">Account Name *</label>
@@ -423,7 +438,11 @@ export default function ChartOfAccountsPage() {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  (!editingAccount && (isReserving || !resolvedCode))
+                }
               >
                 {editingAccount ? "Save Changes" : "Create Account"}
               </Button>

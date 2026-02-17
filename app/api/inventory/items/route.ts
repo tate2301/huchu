@@ -3,8 +3,10 @@ import { validateSession, successResponse, errorResponse, getPaginationParams, p
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
 
 const inventoryItemSchema = z.object({
+  itemCode: z.string().min(1).max(50).optional(),
   name: z.string().min(1).max(200),
   category: z.enum(['FUEL', 'SPARES', 'CONSUMABLES', 'PPE', 'REAGENTS', 'OTHER']),
   siteId: z.string().uuid(),
@@ -24,40 +26,6 @@ const inventoryItemSchema = z.object({
     path: ['minStock'],
   }
 );
-
-const CATEGORY_CODE_PREFIX: Record<string, string> = {
-  FUEL: 'FUEL',
-  SPARES: 'SPARE',
-  CONSUMABLES: 'CONS',
-  PPE: 'PPE',
-  REAGENTS: 'REAG',
-  OTHER: 'OTHER',
-};
-
-async function generateItemCode(siteId: string, category: string) {
-  const prefix = CATEGORY_CODE_PREFIX[category] ?? 'ITEM';
-  const latest = await prisma.inventoryItem.findFirst({
-    where: {
-      siteId,
-      itemCode: { startsWith: `${prefix}-` },
-    },
-    orderBy: { createdAt: 'desc' },
-    select: { itemCode: true },
-  });
-
-  let nextNumber = 1;
-  if (latest?.itemCode) {
-    const match = latest.itemCode.match(/-(\d+)$/);
-    if (match) {
-      const parsed = Number.parseInt(match[1], 10);
-      if (Number.isFinite(parsed)) {
-        nextNumber = parsed + 1;
-      }
-    }
-  }
-
-  return `${prefix}-${String(nextNumber).padStart(3, '0')}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -148,8 +116,17 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid stock location for site', 400);
     }
 
+    const providedCode = validated.itemCode
+      ? normalizeProvidedId(validated.itemCode, "INVENTORY_ITEM")
+      : null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const itemCode = await generateItemCode(validated.siteId, validated.category);
+      const itemCode =
+        providedCode ??
+        (await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "INVENTORY_ITEM",
+          siteId: validated.siteId,
+        }));
       try {
         const item = await prisma.inventoryItem.create({
           data: {
@@ -176,6 +153,9 @@ export async function POST(request: NextRequest) {
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         ) {
+          if (providedCode) {
+            return errorResponse('Item code already exists for this site', 409);
+          }
           continue;
         }
         throw error;

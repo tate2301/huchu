@@ -66,6 +66,10 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateSiteSchema.parse(body);
 
+    if (validated.code !== undefined) {
+      return errorResponse("Site code is immutable and cannot be changed", 400);
+    }
+
     const existing = await prisma.site.findUnique({
       where: { id },
       select: { companyId: true },
@@ -74,26 +78,10 @@ export async function PATCH(
       return errorResponse("Site not found", 404);
     }
 
-    const code = validated.code?.trim().toUpperCase();
-    if (code) {
-      const duplicate = await prisma.site.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          code,
-          id: { not: id },
-        },
-        select: { id: true },
-      });
-      if (duplicate) {
-        return errorResponse("Site code already exists", 409);
-      }
-    }
-
     const updated = await prisma.site.update({
       where: { id },
       data: {
         name: validated.name?.trim(),
-        code,
         location:
           validated.location === undefined
             ? undefined

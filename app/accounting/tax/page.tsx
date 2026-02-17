@@ -38,6 +38,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 export default function TaxSetupPage() {
   const { toast } = useToast();
@@ -54,6 +55,14 @@ export default function TaxSetupPage() {
   const [summaryPeriodId, setSummaryPeriodId] = useState("");
   const [summaryStartDate, setSummaryStartDate] = useState("");
   const [summaryEndDate, setSummaryEndDate] = useState("");
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "TAX_CODE",
+    enabled: formOpen,
+  });
 
   const { data: taxCodes, isLoading, error } = useQuery({
     queryKey: ["accounting", "tax"],
@@ -183,17 +192,26 @@ export default function TaxSetupPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!formState.code.trim() || !formState.name.trim() || !formState.rate) {
+    if (!formState.name.trim() || !formState.rate) {
       toast({
         title: "Missing details",
-        description: "Code, name, and rate are required.",
+        description: "Name and rate are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!reservedId.trim()) {
+      toast({
+        title: "Unable to reserve tax code",
+        description: reserveError ?? "Please wait for code reservation to complete.",
         variant: "destructive",
       });
       return;
     }
 
     createMutation.mutate({
-      code: formState.code.trim(),
+      code: reservedId.trim(),
       name: formState.name.trim(),
       rate: Number(formState.rate),
       type: formState.type,
@@ -329,11 +347,14 @@ export default function TaxSetupPage() {
             <div>
               <label className="block text-sm font-semibold mb-2">Code *</label>
               <Input
-                value={formState.code}
-                onChange={(event) => setFormState((prev) => ({ ...prev, code: event.target.value }))}
-                placeholder="VAT"
+                value={reservedId}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-semibold mb-2">Name *</label>
@@ -367,7 +388,11 @@ export default function TaxSetupPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={createMutation.isPending || isReserving || !reservedId}
+              >
                 Save Tax Code
               </Button>
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>

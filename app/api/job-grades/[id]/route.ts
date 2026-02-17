@@ -56,6 +56,10 @@ export async function PATCH(
     const body = await request.json()
     const validated = updateGradeSchema.parse(body)
 
+    if (validated.code !== undefined) {
+      return errorResponse("Job grade code is immutable and cannot be changed", 400)
+    }
+
     const existing = await prisma.jobGrade.findUnique({
       where: { id },
       select: { companyId: true },
@@ -68,7 +72,6 @@ export async function PATCH(
     const updated = await prisma.jobGrade.update({
       where: { id },
       data: {
-        code: validated.code?.toUpperCase(),
         name: validated.name,
         rank: validated.rank,
         isActive: validated.isActive,

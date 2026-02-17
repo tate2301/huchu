@@ -60,6 +60,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { EmployeePosition } from "@prisma/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 export const maintenanceViews = [
   "dashboard",
@@ -188,6 +189,26 @@ export function MaintenanceContent({
     sites?.find((site) => site.id === activeSiteId)?.name ??
     sites?.[0]?.name ??
     "All sites";
+  const {
+    reservedId: reservedSiteCode,
+    isReserving: reservingSiteCode,
+    error: reserveSiteCodeError,
+  } = useReservedId({
+    entity: "SITE",
+    enabled: siteFormOpen,
+  });
+  const {
+    reservedId: reservedEquipmentCode,
+    isReserving: reservingEquipmentCode,
+    error: reserveEquipmentCodeError,
+  } = useReservedId({
+    entity: "EQUIPMENT",
+    enabled:
+      equipmentFormOpen &&
+      !editingEquipmentId &&
+      Boolean(equipmentForm.siteId),
+    siteId: equipmentForm.siteId || undefined,
+  });
 
   const {
     data: equipmentData,
@@ -350,7 +371,11 @@ export function MaintenanceContent({
 
   const handleEquipmentSelect =
     (field: "category" | "siteId") => (value: string) => {
-      setEquipmentForm((prev) => ({ ...prev, [field]: value }));
+      setEquipmentForm((prev) => ({
+        ...prev,
+        [field]: value,
+        ...(field === "siteId" && !editingEquipmentId ? { equipmentCode: "" } : {}),
+      }));
     };
 
   const handleEquipmentSiteSelect = (value: string) => {
@@ -516,7 +541,7 @@ export function MaintenanceContent({
   const createSiteMutation = useMutation({
     mutationFn: async (payload: {
       name: string;
-      code: string;
+      code?: string;
       location?: string;
       measurementUnit?: string;
     }) =>
@@ -581,23 +606,32 @@ export function MaintenanceContent({
 
   const handleEquipmentSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    const resolvedEquipmentCode = editingEquipmentId
+      ? equipmentForm.equipmentCode
+      : reservedEquipmentCode;
 
-    if (
-      !equipmentForm.equipmentCode ||
-      !equipmentForm.name ||
-      !equipmentForm.siteId
-    ) {
+    if (!equipmentForm.name.trim() || !equipmentForm.siteId) {
       toast({
         title: "Missing details",
-        description: "Code, name, and site are required.",
+        description: "Name and site are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editingEquipmentId && !resolvedEquipmentCode.trim()) {
+      toast({
+        title: "Unable to reserve equipment code",
+        description:
+          reserveEquipmentCodeError ??
+          "Please wait for the equipment code reservation to complete.",
         variant: "destructive",
       });
       return;
     }
 
     const payload = {
-      equipmentCode: equipmentForm.equipmentCode,
-      name: equipmentForm.name,
+      name: equipmentForm.name.trim(),
       category: equipmentForm.category,
       siteId: equipmentForm.siteId,
       qrCode: equipmentForm.qrCode.trim() || undefined,
@@ -611,7 +645,10 @@ export function MaintenanceContent({
     if (editingEquipmentId) {
       updateEquipmentMutation.mutate({ id: editingEquipmentId, data: payload });
     } else {
-      createEquipmentMutation.mutate(payload);
+      createEquipmentMutation.mutate({
+        ...payload,
+        equipmentCode: resolvedEquipmentCode.trim(),
+      });
     }
   };
 
@@ -832,10 +869,21 @@ export function MaintenanceContent({
   const handleSiteSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!siteForm.name.trim() || !siteForm.code.trim()) {
+    if (!siteForm.name.trim()) {
       toast({
         title: "Missing details",
-        description: "Site name and code are required.",
+        description: "Site name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!reservedSiteCode.trim()) {
+      toast({
+        title: "Unable to reserve site code",
+        description:
+          reserveSiteCodeError ??
+          "Please wait for the site code reservation to complete.",
         variant: "destructive",
       });
       return;
@@ -843,7 +891,7 @@ export function MaintenanceContent({
 
     createSiteMutation.mutate({
       name: siteForm.name.trim(),
-      code: siteForm.code.trim().toUpperCase(),
+      code: reservedSiteCode.trim(),
       location: siteForm.location.trim() || undefined,
       measurementUnit: siteForm.measurementUnit,
     });
@@ -1378,11 +1426,25 @@ export function MaintenanceContent({
                           Equipment Code *
                         </label>
                         <Input
-                          value={equipmentForm.equipmentCode}
-                          onChange={handleEquipmentChange("equipmentCode")}
-                          placeholder="EQ-001"
+                          value={
+                            editingEquipmentId
+                              ? equipmentForm.equipmentCode
+                              : reservedEquipmentCode
+                          }
+                          readOnly
+                          placeholder={
+                            reservingEquipmentCode
+                              ? "Reserving..."
+                              : "Auto-generated"
+                          }
                           required
                         />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {editingEquipmentId
+                            ? "Equipment code is immutable."
+                            : reserveEquipmentCodeError ??
+                              "Code is auto-generated and cannot be edited."}
+                        </p>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-2">
@@ -1542,7 +1604,10 @@ export function MaintenanceContent({
                         className="flex-1"
                         disabled={
                           createEquipmentMutation.isPending ||
-                          updateEquipmentMutation.isPending
+                          updateEquipmentMutation.isPending ||
+                          (!editingEquipmentId &&
+                            (reservingEquipmentCode ||
+                              !reservedEquipmentCode))
                         }
                       >
                         {editingEquipmentId ? "Save Changes" : "Save Equipment"}
@@ -2357,11 +2422,14 @@ export function MaintenanceContent({
                   Site Code *
                 </label>
                 <Input
-                  value={siteForm.code}
-                  onChange={handleSiteFormChange("code")}
-                  placeholder="SITE-01"
+                  value={reservedSiteCode}
+                  readOnly
+                  placeholder={reservingSiteCode ? "Reserving..." : "Auto-generated"}
                   required
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {reserveSiteCodeError ?? "Code is auto-generated and cannot be edited."}
+                </p>
               </div>
             </div>
 
@@ -2401,7 +2469,11 @@ export function MaintenanceContent({
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={createSiteMutation.isPending}
+                disabled={
+                  createSiteMutation.isPending ||
+                  reservingSiteCode ||
+                  !reservedSiteCode
+                }
               >
                 {createSiteMutation.isPending ? "Saving..." : "Save Site"}
               </Button>

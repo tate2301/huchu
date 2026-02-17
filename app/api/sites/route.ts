@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, hasRole } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
 
 const siteSchema = z.object({
   name: z.string().min(1).max(200),
-  code: z.string().min(1).max(20),
+  code: z.string().min(1).max(20).optional(),
   location: z.string().max(200).optional(),
   measurementUnit: z.enum(['tonnes', 'trips', 'wheelbarrows']).optional(),
 });
@@ -76,12 +77,18 @@ export async function POST(request: NextRequest) {
     const validated = siteSchema.parse(body);
 
     const name = validated.name.trim();
-    const code = validated.code.trim().toUpperCase();
+    const requestedCode = validated.code?.trim();
+    const code = requestedCode
+      ? normalizeProvidedId(requestedCode, "SITE")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "SITE",
+        });
     const location = validated.location?.trim() || null;
     const measurementUnit = validated.measurementUnit ?? 'tonnes';
 
-    if (!name || !code) {
-      return errorResponse('Site name and code are required', 400);
+    if (!name) {
+      return errorResponse('Site name is required', 400);
     }
 
     const existing = await prisma.site.findFirst({

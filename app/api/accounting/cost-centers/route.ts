@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 
 const costCenterSchema = z.object({
-  code: z.string().min(1).max(20),
+  code: z.string().min(1).max(20).optional(),
   name: z.string().min(1).max(200),
   isActive: z.boolean().optional(),
 });
@@ -47,9 +48,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = costCenterSchema.parse(body);
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "COST_CENTER")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "COST_CENTER",
+        });
 
     const existing = await prisma.costCenter.findFirst({
-      where: { companyId: session.user.companyId, code: validated.code },
+      where: { companyId: session.user.companyId, code },
       select: { id: true },
     });
     if (existing) {
@@ -59,7 +66,7 @@ export async function POST(request: NextRequest) {
     const costCenter = await prisma.costCenter.create({
       data: {
         companyId: session.user.companyId,
-        code: validated.code,
+        code,
         name: validated.name,
         isActive: validated.isActive ?? true,
       },

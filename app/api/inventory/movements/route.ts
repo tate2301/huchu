@@ -3,8 +3,10 @@ import { validateSession, successResponse, errorResponse, getPaginationParams, p
 import { prisma } from '@/lib/prisma';
 import { createJournalEntryFromSource } from '@/lib/accounting/posting';
 import { z } from 'zod';
+import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
 
 const stockMovementSchema = z.object({
+  referenceId: z.string().min(1).max(50).optional(),
   itemId: z.string().uuid(),
   movementType: z.enum(['RECEIPT', 'ISSUE', 'ADJUSTMENT', 'TRANSFER']),
   toLocationId: z.string().uuid().optional(),
@@ -100,6 +102,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = stockMovementSchema.parse(body);
+    const referenceId = validated.referenceId
+      ? normalizeProvidedId(validated.referenceId, "STOCK_MOVEMENT")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "STOCK_MOVEMENT",
+        });
 
     // Get item and verify access
     const item = await prisma.inventoryItem.findUnique({
@@ -166,6 +174,7 @@ export async function POST(request: NextRequest) {
     const [movement] = await prisma.$transaction([
       prisma.stockMovement.create({
         data: {
+          referenceId,
           itemId: validated.itemId,
           toLocationId: validated.toLocationId,
           movementType: validated.movementType,

@@ -80,6 +80,10 @@ export async function PATCH(
     const body = await request.json()
     const validated = updateDowntimeCodeSchema.parse(body)
 
+    if (validated.code !== undefined) {
+      return errorResponse("Downtime code is immutable and cannot be changed", 400)
+    }
+
     const existing = await prisma.downtimeCode.findUnique({
       where: { id },
       select: codeSelect,
@@ -112,7 +116,6 @@ export async function PATCH(
     const updated = await prisma.downtimeCode.update({
       where: { id },
       data: {
-        code: validated.code?.toUpperCase(),
         description: validated.description,
         siteId: validated.siteId,
         sortOrder: validated.sortOrder,
