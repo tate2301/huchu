@@ -84,6 +84,8 @@ cp .env.example .env
 # DATABASE_URL="postgresql://user:password@localhost:5432/huchu_mines"
 # NEXTAUTH_SECRET="<generate-with-openssl-rand-base64-32>"
 # NEXTAUTH_URL="http://localhost:3000"
+# PLATFORM_ROOT_DOMAIN="app.your-domain.com"   # production strict tenant host enforcement
+# PLATFORM_ROOT_HOSTS="app.your-domain.com,localhost:3000"
 # BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
 ```
 
@@ -265,11 +267,20 @@ pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "re
 7. Set up SSL certificates
 8. Configure backups
 
+### Vercel Tenant Subdomains
+1. Add `app.your-domain.com` in Vercel.
+2. Add wildcard `*.app.your-domain.com` in Vercel.
+3. Configure wildcard DNS to Vercel.
+4. Set `PLATFORM_ROOT_DOMAIN=app.your-domain.com` in production.
+5. Users sign in on their organization host (for example `acme.app.your-domain.com/login`).
+
 ### Environment Variables
 ```
 DATABASE_URL="postgresql://user:password@localhost:5432/huchu"
 NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="https://yourdomain.com"
+NEXTAUTH_URL="https://app.your-domain.com"
+PLATFORM_ROOT_DOMAIN="app.your-domain.com"
+PLATFORM_ROOT_HOSTS="app.your-domain.com"
 BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
 ```
 
