@@ -27,6 +27,7 @@ const DEFAULT_MODULES: PlatformModuleDefinition[] = [
   { id: "features", label: "Features", description: "Platform feature flag operations." },
   { id: "admins", label: "Admins", description: "Admin lifecycle and role controls." },
   { id: "user-management", label: "User Management", description: "Manager and clerk lifecycle operations." },
+  { id: "sites", label: "Sites", description: "Site metadata and activation lifecycle operations." },
   { id: "support", label: "Support", description: "Support requests and operator sessions." },
   { id: "contracts", label: "Contracts", description: "Warning and suspension enforcement." },
   { id: "health", label: "Health", description: "SLO snapshots and remediation incidents." },

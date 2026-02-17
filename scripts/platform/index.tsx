@@ -13,6 +13,7 @@ import { FeaturesModule } from "./modules/features";
 import { OrganizationsModule } from "./modules/organizations";
 import { SubscriptionsModule } from "./modules/subscriptions";
 import { UserManagementModule } from "./modules/user-management";
+import { SitesModule } from "./modules/sites";
 import { SupportModule } from "./modules/support";
 import { RunbooksModule } from "./modules/runbooks";
 import { HealthModule } from "./modules/health";
@@ -42,6 +43,7 @@ function readPositionalActor() {
     "subdomain",
     "action",
     "support",
+    "site",
     "runbook",
     "health",
     "remediation",
@@ -150,6 +152,17 @@ export function runPlatformInkShell(overrides: Partial<PlatformAppProps> = {}) {
     ),
     "user-management": (props: ModuleRenderProps) => (
       <UserManagementModule
+        actor={resolvedActor}
+        services={services}
+        focusCompanyId={props.focusCompanyId}
+        readOnly={props.readOnly}
+        operationId={props.operationId}
+        setInputLocked={props.setInputLocked}
+        onBackToTree={props.onBackToTree}
+      />
+    ),
+    sites: (props: ModuleRenderProps) => (
+      <SitesModule
         actor={resolvedActor}
         services={services}
         focusCompanyId={props.focusCompanyId}

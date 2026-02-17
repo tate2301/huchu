@@ -129,6 +129,43 @@ export const ACTION_TREE: ActionDomain[] = [
         ],
       },
       {
+        id: "site-lifecycle",
+        label: "Site Lifecycle",
+        description: "Manage site metadata and active status for each company.",
+        operations: [
+          {
+            id: "site.list-search",
+            label: "List/Search Sites",
+            description: "List and search sites by company scope and status.",
+            moduleId: "sites",
+          },
+          {
+            id: "site.create",
+            label: "Create Site",
+            description: "Create a site with code, location, and measurement unit.",
+            moduleId: "sites",
+          },
+          {
+            id: "site.edit",
+            label: "Edit Site",
+            description: "Update site code, name, location, and measurement unit.",
+            moduleId: "sites",
+          },
+          {
+            id: "site.activate",
+            label: "Activate Site",
+            description: "Set site status to active.",
+            moduleId: "sites",
+          },
+          {
+            id: "site.deactivate",
+            label: "Deactivate Site",
+            description: "Set site status to inactive.",
+            moduleId: "sites",
+          },
+        ],
+      },
+      {
         id: "user-lifecycle",
         label: "User Lifecycle",
         description: "Manage MANAGER and CLERK user lifecycle operations.",

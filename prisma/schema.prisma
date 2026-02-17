@@ -483,7 +483,7 @@ model PlatformAuditEvent {
 model Site {
   id        String  @id @default(uuid())
   name      String
-  code      String  @unique
+  code      String
   location  String?
   companyId String
   isActive  Boolean @default(true)
@@ -513,6 +513,7 @@ model Site {
   cameras              Camera[]
   streamSessions       StreamSession[]
 
+  @@unique([companyId, code])
   @@index([companyId])
 }
 

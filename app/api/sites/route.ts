@@ -58,8 +58,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('Site name and code are required', 400);
     }
 
-    const existing = await prisma.site.findUnique({
-      where: { code },
+    const existing = await prisma.site.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        code,
+      },
       select: { id: true },
     });
 
