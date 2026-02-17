@@ -28,6 +28,32 @@ export type UserSummary = {
   email: string;
   role: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ManagedUserRole = "MANAGER" | "CLERK";
+
+export type CreateManagedUserInput = {
+  name: string;
+  email: string;
+  password: string;
+  role: ManagedUserRole;
+};
+
+export type SetManagedUserStatusInput = {
+  userId: string;
+  isActive: boolean;
+};
+
+export type ResetManagedUserPasswordInput = {
+  userId: string;
+  newPassword: string;
+};
+
+export type ChangeManagedUserRoleInput = {
+  userId: string;
+  role: ManagedUserRole;
 };
 
 export type EmployeeSummary = {
@@ -863,6 +889,105 @@ export type DowntimeAnalytics = {
   }>;
 };
 
+export type ExecutiveRange = "7d" | "30d" | "90d";
+
+export type ExecutiveKpiTone = "neutral" | "positive" | "warning" | "critical";
+
+export type ExecutiveKpiCard = {
+  id: string;
+  label: string;
+  value: number;
+  unit?: string;
+  valueLabel?: string;
+  delta?: number;
+  deltaLabel?: string;
+  tone?: ExecutiveKpiTone;
+  module:
+    | "gold"
+    | "finance"
+    | "workforce"
+    | "operations"
+    | "maintenance"
+    | "compliance"
+    | "security"
+    | "reports"
+    | "general";
+};
+
+export type ExecutiveTrendPoint = {
+  date: string;
+  value: number;
+  comparison?: number;
+};
+
+export type ExecutiveCashTrendPoint = {
+  date: string;
+  inflow: number;
+  outflow: number;
+  net: number;
+};
+
+export type ExecutiveBreakdownPoint = {
+  label: string;
+  value: number;
+};
+
+export type ExecutiveCharts = {
+  goldTrend: ExecutiveTrendPoint[];
+  cashTrend: ExecutiveCashTrendPoint[];
+  throughputTrend: ExecutiveTrendPoint[];
+  riskBreakdown: ExecutiveBreakdownPoint[];
+};
+
+export type ExecutiveHighlight = {
+  id: string;
+  title: string;
+  description: string;
+  value?: number;
+  valueLabel?: string;
+  unit?: string;
+  tone?: ExecutiveKpiTone;
+};
+
+export type ExecutiveQuickLink = {
+  href: string;
+  label: string;
+  module:
+    | "gold"
+    | "finance"
+    | "workforce"
+    | "operations"
+    | "maintenance"
+    | "compliance"
+    | "security"
+    | "reports"
+    | "general";
+  priority: number;
+  badgeCount?: number;
+  badgeLabel?: string;
+  isPrimary?: boolean;
+  primaryOrder?: number;
+};
+
+export type ExecutiveDashboardResponse = {
+  generatedAt: string;
+  range: ExecutiveRange;
+  siteId: string;
+  fullView: boolean;
+  window: {
+    startDate: string;
+    endDate: string;
+    previousStartDate: string;
+    previousEndDate: string;
+    days: number;
+  };
+  sites: Site[];
+  kpis: ExecutiveKpiCard[];
+  charts: ExecutiveCharts;
+  highlights: ExecutiveHighlight[];
+  quickLinks: ExecutiveQuickLink[];
+};
+
 function buildQuery(
   params: Record<string, string | number | boolean | null | undefined>,
 ) {
@@ -880,6 +1005,17 @@ export async function fetchSites() {
   return response.sites;
 }
 
+export async function fetchExecutiveDashboardOverview(params: {
+  siteId?: string;
+  range: ExecutiveRange;
+}) {
+  const query = buildQuery({
+    siteId: params.siteId,
+    range: params.range,
+  });
+  return fetchJson<ExecutiveDashboardResponse>(`/api/dashboard/executive-overview${query}`);
+}
+
 export async function fetchUsers(
   params: {
     role?: string;
@@ -891,6 +1027,34 @@ export async function fetchUsers(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<UserSummary>>(`/api/users${query}`);
+}
+
+export async function createManagedUser(input: CreateManagedUserInput) {
+  return fetchJson<UserSummary>("/api/users/create", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function setManagedUserStatus(input: SetManagedUserStatusInput) {
+  return fetchJson<UserSummary>("/api/users/status", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function resetManagedUserPassword(input: ResetManagedUserPasswordInput) {
+  return fetchJson<UserSummary>("/api/users/password-reset", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function changeManagedUserRole(input: ChangeManagedUserRoleInput) {
+  return fetchJson<UserSummary>("/api/users/role-change", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function fetchEmployees(
