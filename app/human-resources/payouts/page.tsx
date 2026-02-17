@@ -614,7 +614,7 @@ export default function HrPayoutsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Reject Allocation</DialogTitle>
             <DialogDescription>
@@ -659,7 +659,7 @@ export default function HrPayoutsPage() {
           if (!open) setSelectedGroup(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] max-w-6xl">
+        <DialogContent size="full" className="max-h-[90dvh]">
           <DialogHeader>
             <DialogTitle>
               Shift Members

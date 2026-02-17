@@ -323,7 +323,7 @@ export default function JournalsPage() {
       />
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-3xl p-6 overflow-y-auto">
+        <SheetContent size="xl" className="w-full p-6 overflow-y-auto">
           <SheetHeader>
             <SheetTitle>New Journal Entry</SheetTitle>
             <SheetDescription>

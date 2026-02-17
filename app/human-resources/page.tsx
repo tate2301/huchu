@@ -562,7 +562,7 @@ export default function HumanResourcesPage() {
       )}
 
       <Sheet open={formOpen} onOpenChange={handleFormOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>{editingId ? "Edit Employee" : "Add Employee"}</SheetTitle>
             <SheetDescription>Employee IDs are generated automatically.</SheetDescription>
@@ -881,7 +881,7 @@ export default function HumanResourcesPage() {
           if (!open) setEmployeeIdPendingDelete(null)
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Delete Employee</DialogTitle>
             <DialogDescription>

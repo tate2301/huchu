@@ -336,7 +336,7 @@ export function AuditTrail({
       </Button>
 
       <Dialog open={!!correctionTarget} onOpenChange={(open) => !open && setCorrectionTarget(null)}>
-        <DialogContent className="w-full sm:max-w-lg">
+        <DialogContent size="md" className="w-full">
           <DialogHeader>
             <DialogTitle>Log Correction</DialogTitle>
             <DialogDescription>

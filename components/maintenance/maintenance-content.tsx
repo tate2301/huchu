@@ -1359,7 +1359,7 @@ export function MaintenanceContent({
                 open={equipmentFormOpen}
                 onOpenChange={handleEquipmentOpenChange}
               >
-                <DialogContent className="w-full sm:max-w-lg p-6">
+                <DialogContent size="md" className="w-full p-6">
                   <DialogHeader>
                     <DialogTitle>
                       {editingEquipmentId ? "Edit Equipment" : "Add Equipment"}
@@ -2150,7 +2150,7 @@ export function MaintenanceContent({
       </div>
 
       <Dialog open={breakdownFormOpen} onOpenChange={handleBreakdownOpenChange}>
-        <DialogContent className="w-full sm:max-w-lg p-6">
+        <DialogContent size="md" className="w-full p-6">
           <DialogHeader>
             <DialogTitle>Log Breakdown</DialogTitle>
             <DialogDescription>
@@ -2332,7 +2332,7 @@ export function MaintenanceContent({
       </Dialog>
 
       <Dialog open={siteFormOpen} onOpenChange={handleSiteOpenChange}>
-        <DialogContent className="w-full sm:max-w-lg p-6">
+        <DialogContent size="md" className="w-full p-6">
           <DialogHeader>
             <DialogTitle>Add Site</DialogTitle>
             <DialogDescription>
@@ -2421,7 +2421,7 @@ export function MaintenanceContent({
         open={technicianFormOpen}
         onOpenChange={handleTechnicianOpenChange}
       >
-        <DialogContent className="w-full sm:max-w-lg p-6">
+        <DialogContent size="md" className="w-full p-6">
           <DialogHeader>
             <DialogTitle>Add Technician</DialogTitle>
             <DialogDescription>

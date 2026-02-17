@@ -328,7 +328,7 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="w-full sm:max-w-lg">
+        <DialogContent size="md" className="w-full">
           <DialogHeader>
             <DialogTitle>{form.id ? "Edit Permit" : "New Permit"}</DialogTitle>
             <DialogDescription>Capture permit details and expiry dates.</DialogDescription>

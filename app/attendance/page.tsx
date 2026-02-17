@@ -342,7 +342,7 @@ export default function AttendancePage() {
               Add Employee
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full p-6 sm:max-w-lg">
+          <SheetContent size="md" className="w-full p-6">
             <SheetHeader>
               <SheetTitle>Add Employee</SheetTitle>
               <SheetDescription>Capture a new crew member for attendance.</SheetDescription>

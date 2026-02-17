@@ -1120,7 +1120,7 @@ export default function AccountingSalesPage() {
         </div>
       </VerticalDataViews>
       <Sheet open={customerFormOpen} onOpenChange={setCustomerFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Customer</SheetTitle>
             <SheetDescription>Capture customer details for invoicing.</SheetDescription>
@@ -1213,7 +1213,7 @@ export default function AccountingSalesPage() {
         </SheetContent>
       </Sheet>
       <Sheet open={invoiceFormOpen} onOpenChange={setInvoiceFormOpen}>
-        <SheetContent className="w-full sm:max-w-5xl p-6 overflow-y-auto">
+        <SheetContent size="full" className="w-full p-6 overflow-y-auto">
           <SheetHeader>
             <SheetTitle>New Sales Invoice</SheetTitle>
             <SheetDescription>Create a customer invoice and optionally issue it now.</SheetDescription>
@@ -1416,7 +1416,7 @@ export default function AccountingSalesPage() {
         </SheetContent>
       </Sheet>
       <Sheet open={receiptFormOpen} onOpenChange={setReceiptFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Receipt</SheetTitle>
             <SheetDescription>Record customer payments against issued invoices.</SheetDescription>
@@ -1518,7 +1518,7 @@ export default function AccountingSalesPage() {
         </SheetContent>
       </Sheet>
       <Sheet open={creditNoteFormOpen} onOpenChange={setCreditNoteFormOpen}>
-        <SheetContent className="w-full sm:max-w-5xl p-6 overflow-y-auto">
+        <SheetContent size="full" className="w-full p-6 overflow-y-auto">
           <SheetHeader>
             <SheetTitle>New Credit Note</SheetTitle>
             <SheetDescription>Issue a credit note against a customer invoice.</SheetDescription>
@@ -1720,7 +1720,7 @@ export default function AccountingSalesPage() {
         </SheetContent>
       </Sheet>
       <Sheet open={writeOffFormOpen} onOpenChange={setWriteOffFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>New Write-off</SheetTitle>
             <SheetDescription>Record a write-off against an outstanding invoice.</SheetDescription>

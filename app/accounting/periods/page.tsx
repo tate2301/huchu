@@ -195,7 +195,7 @@ export default function AccountingPeriodsPage() {
       />
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Open Accounting Period</SheetTitle>
             <SheetDescription>

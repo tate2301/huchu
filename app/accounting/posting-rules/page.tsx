@@ -291,7 +291,7 @@ export default function PostingRulesPage() {
       />
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-4xl p-6 overflow-y-auto">
+        <SheetContent size="xl" className="w-full p-6 overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editingRule ? "Edit Posting Rule" : "New Posting Rule"}</SheetTitle>
             <SheetDescription>

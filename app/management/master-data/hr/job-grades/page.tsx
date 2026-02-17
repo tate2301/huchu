@@ -276,7 +276,7 @@ export default function JobGradesManagementPage() {
           }
         }}
       >
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>{editing ? "Edit Job Grade" : "New Job Grade"}</SheetTitle>
             <SheetDescription>

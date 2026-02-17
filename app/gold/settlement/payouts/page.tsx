@@ -451,7 +451,7 @@ export default function GoldSettlementPayoutsPage() {
           if (!open) setSelectedShift(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] max-w-9xl">
+        <DialogContent size="full" className="max-h-[90dvh]">
           <DialogHeader>
             <DialogTitle>
               Shift Members

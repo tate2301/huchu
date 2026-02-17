@@ -370,7 +370,7 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="w-full sm:max-w-lg">
+        <DialogContent size="md" className="w-full">
           <DialogHeader>
             <DialogTitle>{form.id ? "Edit Incident" : "New Incident"}</DialogTitle>
             <DialogDescription>Capture incident context and corrective actions.</DialogDescription>

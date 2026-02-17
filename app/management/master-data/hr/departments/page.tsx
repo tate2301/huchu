@@ -256,7 +256,7 @@ export default function DepartmentsManagementPage() {
           }
         }}
       >
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>{editing ? "Edit Department" : "New Department"}</SheetTitle>
             <SheetDescription>

@@ -708,7 +708,7 @@ export default function DisbursementsPage() {
       </WorkflowStep>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Create Disbursement Batch</DialogTitle>
             <DialogDescription>
@@ -926,7 +926,7 @@ export default function DisbursementsPage() {
         open={Boolean(detailsBatchId)}
         onOpenChange={(open) => !open && setDetailsBatchId(null)}
       >
-        <DialogContent className="max-w-9xl">
+        <DialogContent size="full">
           <DialogHeader>
             <DialogTitle>Disbursement Batch Details</DialogTitle>
             <DialogDescription>

@@ -539,7 +539,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Create User</DialogTitle>
             <DialogDescription>Create a manager or clerk account.</DialogDescription>
@@ -629,7 +629,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           if (!open) setStatusTarget(null);
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Set User Status</DialogTitle>
             <DialogDescription>
@@ -724,7 +724,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           if (!open) setPasswordTarget(null);
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
@@ -816,7 +816,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           if (!open) setRoleTarget(null);
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Change User Role</DialogTitle>
             <DialogDescription>

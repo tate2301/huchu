@@ -324,7 +324,7 @@ export default function ChartOfAccountsPage() {
       />
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full sm:max-w-lg p-6">
+        <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>{editingAccount ? "Edit Account" : "Add Account"}</SheetTitle>
             <SheetDescription>
