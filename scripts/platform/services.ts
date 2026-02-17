@@ -581,13 +581,18 @@ async function getSite(siteId: string): Promise<SiteDetail> {
   });
   if (!site) throw new Error(`Site not found for id: ${siteId}`);
 
-  const [sectionCount, activeSectionCount, employeeCount, equipmentCount, inventoryItemCount] = await Promise.all([
+  const [sectionCount, activeSectionCount, siteEmployees, equipmentCount, inventoryItemCount] = await Promise.all([
     prisma.section.count({ where: { siteId } }),
     prisma.section.count({ where: { siteId, isActive: true } }),
-    prisma.employee.count({ where: { siteId } }),
+    prisma.attendance.findMany({
+      where: { siteId },
+      select: { employeeId: true },
+      distinct: ["employeeId"],
+    }),
     prisma.equipment.count({ where: { siteId } }),
     prisma.inventoryItem.count({ where: { siteId } }),
   ]);
+  const employeeCount = siteEmployees.length;
 
   const summary = mapSite(site);
   return {

@@ -955,6 +955,7 @@ export type ExecutiveQuickLink = {
   label: string;
   module:
     | "gold"
+    | "stores"
     | "finance"
     | "workforce"
     | "operations"

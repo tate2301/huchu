@@ -7,7 +7,13 @@ const handler = NextAuth(authOptions);
 
 export { handler as GET };
 
-export async function POST(request: NextRequest) {
+type NextAuthRouteContext = {
+  params: Promise<{
+    nextauth: string[];
+  }>;
+};
+
+export async function POST(request: NextRequest, context: NextAuthRouteContext) {
   const isCredentialsCallback = request.nextUrl.pathname.endsWith("/callback/credentials");
 
   if (isCredentialsCallback) {
@@ -26,5 +32,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return handler(request);
+  const params = await context.params;
+  return handler(request, { params });
 }
