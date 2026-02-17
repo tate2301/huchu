@@ -335,10 +335,12 @@ export async function POST(request: NextRequest) {
     })
 
     try {
+      const shouldQueueForAccounting = payment.type === "SALARY"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "employee-payments",
         sourceAction: "payment-created",
+        sourceType: shouldQueueForAccounting ? "PAYROLL_DISBURSEMENT" : undefined,
         sourceId: payment.id,
         entryDate: payment.createdAt,
         description: `${payment.type} employee payment recorded`,
@@ -351,7 +353,7 @@ export async function POST(request: NextRequest) {
           disbursementBatchId: payment.disbursementBatch?.id ?? null,
         },
         createdById: session.user.id,
-        status: "IGNORED",
+        status: shouldQueueForAccounting ? "PENDING" : "IGNORED",
       })
     } catch (error) {
       console.error("[Accounting] Employee payment capture failed:", error)

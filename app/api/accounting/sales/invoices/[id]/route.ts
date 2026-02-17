@@ -71,6 +71,41 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    if (
+      validated.status === "VOIDED" &&
+      existing.status !== "VOIDED" &&
+      (existing.status === "ISSUED" || existing.status === "PAID")
+    ) {
+      try {
+        const postedEntry = await prisma.journalEntry.findFirst({
+          where: {
+            companyId: session.user.companyId,
+            sourceType: "SALES_INVOICE",
+            sourceId: updated.id,
+            status: "POSTED",
+          },
+          select: { id: true },
+        });
+        if (postedEntry) {
+          await createJournalEntryFromSource({
+            companyId: session.user.companyId,
+            sourceType: "SALES_INVOICE",
+            sourceId: `void:${updated.id}`,
+            entryDate: new Date(),
+            description: `Void sales invoice ${updated.invoiceNumber}`,
+            createdById: session.user.id,
+            amount: updated.total,
+            netAmount: updated.subTotal,
+            taxAmount: updated.taxTotal,
+            grossAmount: updated.total,
+            invertDirection: true,
+          });
+        }
+      } catch (error) {
+        console.error("[Accounting] Sales invoice void reversal failed:", error);
+      }
+    }
+
     return successResponse(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {

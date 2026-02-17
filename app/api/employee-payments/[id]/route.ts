@@ -309,11 +309,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     })
 
     try {
+      const shouldQueueForAccounting = updated.type === "SALARY"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "employee-payments",
         sourceAction: "payment-updated",
+        sourceType: shouldQueueForAccounting ? "PAYROLL_DISBURSEMENT" : undefined,
         sourceId: updated.id,
+        entryDate: updated.updatedAt,
         description: `${updated.type} employee payment updated`,
         amount: updated.amount,
         payload: {
@@ -322,7 +325,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           paidAmount: updated.paidAmount,
         },
         createdById: session.user.id,
-        status: "IGNORED",
+        status: shouldQueueForAccounting ? "PENDING" : "IGNORED",
       })
     } catch (error) {
       console.error("[Accounting] Employee payment update capture failed:", error)
