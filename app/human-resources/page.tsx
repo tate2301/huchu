@@ -65,6 +65,8 @@ type EmployeeForm = {
   nextOfKinName: string
   nextOfKinPhone: string
   passportPhotoUrl: string
+  nationalIdNumber: string
+  nationalIdDocumentUrl: string
   villageOfOrigin: string
   position: EmployeePosition
   departmentId: string
@@ -84,6 +86,8 @@ const emptyEmployee: EmployeeForm = {
   nextOfKinName: "",
   nextOfKinPhone: "",
   passportPhotoUrl: "",
+  nationalIdNumber: "",
+  nationalIdDocumentUrl: "",
   villageOfOrigin: "",
   position: "MINERS",
   departmentId: "",
@@ -105,6 +109,7 @@ export default function HumanResourcesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [passportUploading, setPassportUploading] = useState(false)
+  const [nationalIdUploading, setNationalIdUploading] = useState(false)
   const [employeeIdPendingDelete, setEmployeeIdPendingDelete] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
     "active",
@@ -151,7 +156,7 @@ export default function HumanResourcesPage() {
 
   const toEmployeePayload = (
     payload: EmployeeForm,
-    options?: { includeTemplate?: boolean },
+    options?: { includeTemplate?: boolean; includeNullNationalIdFields?: boolean },
   ) => ({
     ...payload,
     departmentId: payload.departmentId || undefined,
@@ -163,6 +168,18 @@ export default function HumanResourcesPage() {
     hireDate: payload.hireDate || undefined,
     terminationDate: payload.terminationDate || undefined,
     defaultCurrency: payload.defaultCurrency || "USD",
+    nationalIdNumber:
+      payload.nationalIdNumber.trim() === ""
+        ? options?.includeNullNationalIdFields
+          ? null
+          : undefined
+        : payload.nationalIdNumber.trim(),
+    nationalIdDocumentUrl:
+      payload.nationalIdDocumentUrl.trim() === ""
+        ? options?.includeNullNationalIdFields
+          ? null
+          : undefined
+        : payload.nationalIdDocumentUrl.trim(),
   })
 
   const createEmployeeMutation = useMutation({
@@ -195,7 +212,9 @@ export default function HumanResourcesPage() {
     mutationFn: async ({ id, payload }: { id: string; payload: EmployeeForm }) =>
       fetchJson(`/api/employees/${id}`, {
         method: "PATCH",
-        body: JSON.stringify(toEmployeePayload(payload)),
+        body: JSON.stringify(
+          toEmployeePayload(payload, { includeNullNationalIdFields: true }),
+        ),
       }),
     onSuccess: () => {
       toast({
@@ -274,9 +293,12 @@ export default function HumanResourcesPage() {
     }))
   }
 
-  const uploadPassportPhoto = async (file: File) => {
+  const uploadEmployeeFile = async (
+    file: File,
+    context: "employee-passport" | "employee-national-id",
+  ) => {
     const formDataPayload = new FormData()
-    formDataPayload.append("context", "employee-passport")
+    formDataPayload.append("context", context)
     formDataPayload.append("file", file)
 
     const response = await fetch("/api/uploads", {
@@ -307,7 +329,7 @@ export default function HumanResourcesPage() {
 
     setPassportUploading(true)
     try {
-      const url = await uploadPassportPhoto(file)
+      const url = await uploadEmployeeFile(file, "employee-passport")
       setFormData((prev) => ({ ...prev, passportPhotoUrl: url }))
       toast({
         title: "Photo uploaded",
@@ -327,12 +349,42 @@ export default function HumanResourcesPage() {
     }
   }
 
+  const handleNationalIdDocumentChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setNationalIdUploading(true)
+    try {
+      const url = await uploadEmployeeFile(file, "employee-national-id")
+      setFormData((prev) => ({ ...prev, nationalIdDocumentUrl: url }))
+      toast({
+        title: "ID copy uploaded",
+        description: "National ID copy saved successfully.",
+        variant: "success",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed"
+      toast({
+        title: "Unable to upload ID copy",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setNationalIdUploading(false)
+      event.target.value = ""
+    }
+  }
+
+  const isPdfDocumentUrl = (url: string) => /\.pdf($|\?)/i.test(url)
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    if (passportUploading) {
+    if (passportUploading || nationalIdUploading) {
       toast({
         title: "Upload in progress",
-        description: "Wait for the passport photo to finish uploading.",
+        description: "Wait for uploads to finish before saving.",
         variant: "destructive",
       })
       return
@@ -362,6 +414,8 @@ export default function HumanResourcesPage() {
       nextOfKinName: employee.nextOfKinName,
       nextOfKinPhone: employee.nextOfKinPhone,
       passportPhotoUrl: employee.passportPhotoUrl,
+      nationalIdNumber: employee.nationalIdNumber ?? "",
+      nationalIdDocumentUrl: employee.nationalIdDocumentUrl ?? "",
       villageOfOrigin: employee.villageOfOrigin,
       position: employee.position as EmployeePosition,
       departmentId: employee.departmentId ?? "",
@@ -390,6 +444,7 @@ export default function HumanResourcesPage() {
     setEditingId(null)
     setFormData(emptyEmployee)
     setPassportUploading(false)
+    setNationalIdUploading(false)
   }
 
   const openNewEmployee = () => {
@@ -430,6 +485,11 @@ export default function HumanResourcesPage() {
       {
         accessorKey: "phone",
         header: "Contact",
+      },
+      {
+        id: "nationalIdNumber",
+        header: "National ID",
+        cell: ({ row }) => row.original.nationalIdNumber || "-",
       },
       {
         id: "position",
@@ -586,6 +646,17 @@ export default function HumanResourcesPage() {
                   onChange={handleChange("phone")}
                   placeholder="07xx xxx xxx"
                   required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">National ID Number</label>
+                <Input
+                  value={formData.nationalIdNumber}
+                  onChange={handleChange("nationalIdNumber")}
+                  placeholder="Optional"
                 />
               </div>
             </div>
@@ -815,12 +886,57 @@ export default function HumanResourcesPage() {
               ) : null}
             </div>
 
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold">National ID Copy (Optional)</label>
+              <Input
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                onChange={handleNationalIdDocumentChange}
+                disabled={nationalIdUploading}
+              />
+              <p className="text-xs text-muted-foreground">JPG, PNG, WebP, or PDF up to 5MB.</p>
+              {nationalIdUploading ? (
+                <p className="text-xs text-muted-foreground">Uploading ID copy...</p>
+              ) : null}
+              {formData.nationalIdDocumentUrl ? (
+                <div className="space-y-2">
+                  {isPdfDocumentUrl(formData.nationalIdDocumentUrl) ? (
+                    <a
+                      href={formData.nationalIdDocumentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-primary underline"
+                    >
+                      View uploaded ID document
+                    </a>
+                  ) : (
+                    <img
+                      src={formData.nationalIdDocumentUrl}
+                      alt="National ID preview"
+                      className="h-20 w-20 rounded border object-cover"
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, nationalIdDocumentUrl: "" }))
+                    }
+                  >
+                    Remove ID copy
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 type="submit"
                 className="flex-1"
                 disabled={
                   passportUploading ||
+                  nationalIdUploading ||
                   createEmployeeMutation.isPending ||
                   updateEmployeeMutation.isPending
                 }

@@ -676,6 +676,8 @@ model Employee {
   nextOfKinName    String
   nextOfKinPhone   String
   passportPhotoUrl String
+  nationalIdNumber String?
+  nationalIdDocumentUrl String?
   villageOfOrigin  String
   position         EmployeePosition @default(MINERS)
   departmentId     String?
@@ -713,6 +715,7 @@ model Employee {
   disciplinaryActions       DisciplinaryAction[]
 
   @@unique([companyId, employeeId])
+  @@unique([companyId, nationalIdNumber])
   @@index([companyId])
   @@index([departmentId])
   @@index([gradeId])

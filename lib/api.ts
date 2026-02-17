@@ -64,6 +64,8 @@ export type EmployeeSummary = {
   nextOfKinName: string;
   nextOfKinPhone: string;
   passportPhotoUrl: string;
+  nationalIdNumber?: string | null;
+  nationalIdDocumentUrl?: string | null;
   villageOfOrigin: string;
   position: string;
   departmentId?: string | null;
