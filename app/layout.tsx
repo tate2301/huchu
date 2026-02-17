@@ -3,11 +3,40 @@ import "material-symbols";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { Inter, Lato, Poppins, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+  variable: "--font-brand-inter",
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+  variable: "--font-brand-poppins",
+});
+
+const sourceSans3 = Source_Sans_3({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+  variable: "--font-brand-source-sans-3",
+});
+
+const lato = Lato({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
+  variable: "--font-brand-lato",
+});
 
 export const metadata: Metadata = {
   title: "Huchu - Mine Operations System",
@@ -32,7 +61,10 @@ export default async function RootLayout({
   const brandingVars = getBrandingCssVariables(branding);
 
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${inter.variable} ${poppins.variable} ${sourceSans3.variable} ${lato.variable}`}
+    >
       <body
         className="font-sans subpixel-antialiased"
         style={
