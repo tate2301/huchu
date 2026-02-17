@@ -1,7 +1,12 @@
 import { withAuth } from "next-auth/middleware";
 import type { NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import { getHostHeaderFromRequestHeaders, getPlatformHostContext, isTenantStatusActive } from "@/lib/platform/tenant";
+import {
+  getHostHeaderFromRequestHeaders,
+  getPlatformHostContext,
+  isAllowedHost,
+  isTenantStatusActive,
+} from "@/lib/platform/tenant";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
@@ -12,6 +17,7 @@ type PlatformToken = {
   companySlug?: string;
   tenantStatus?: string;
   enabledFeatures?: string[];
+  allowedHosts?: string[];
 };
 
 function redirectToAccessBlocked(request: NextRequestWithAuth) {
@@ -76,7 +82,7 @@ export default withAuth(
       if (!hostContext.strictTenantEnforcement) {
         return NextResponse.next();
       }
-      if (hostContext.isTenantHost && hostContext.tenantSlug) {
+      if (!hostContext.isCentralHost) {
         return NextResponse.next();
       }
       if (hostContext.isCentralHost && normalizedCompanySlug) {
@@ -98,6 +104,11 @@ export default withAuth(
       if (!isTenantStatusActive(token.tenantStatus)) {
         return denyAccess(request, "Tenant is inactive");
       }
+      if (tenantHostEnforcementEnabled && hostContext.strictTenantEnforcement) {
+        if (!isAllowedHost(hostHeader, token.allowedHosts)) {
+          return denyAccess(request, "Tenant host mismatch");
+        }
+      }
       const apiFeatureDecision = canAccessRouteWithToken(pathname, token.enabledFeatures);
       if (!apiFeatureDecision.allowed) {
         return denyFeature(request, apiFeatureDecision);
@@ -109,7 +120,7 @@ export default withAuth(
       return redirectToTenantHost(request, normalizedCompanySlug);
     }
 
-    if (!tenantHostEnforcementEnabled || !hostContext.strictTenantEnforcement || !hostContext.isTenantHost || !hostContext.tenantSlug) {
+    if (!tenantHostEnforcementEnabled || !hostContext.strictTenantEnforcement) {
       const pageFeatureDecision = canAccessRouteWithToken(pathname, token?.enabledFeatures);
       if (!pageFeatureDecision.allowed) {
         return denyFeature(request, pageFeatureDecision);
@@ -121,7 +132,7 @@ export default withAuth(
       return denyAccess(request, "Missing tenant context");
     }
 
-    if (!normalizedCompanySlug || normalizedCompanySlug !== hostContext.tenantSlug) {
+    if (!isAllowedHost(hostHeader, token.allowedHosts)) {
       return denyAccess(request, "Tenant host mismatch");
     }
 

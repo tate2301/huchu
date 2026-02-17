@@ -55,6 +55,8 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "core.notifications.center", name: "Notification Center", description: "In-app notification center.", domain: "core", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "core.notifications.push", name: "Push Notifications", description: "Web push notifications and subscriptions.", domain: "core", defaultEnabled: true, isBillable: true, monthlyPrice: 5 }),
   f({ key: "core.multitenancy.tenant-host-enforcement", name: "Tenant Host Enforcement", description: "Tenant host-based access enforcement.", domain: "core", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "core.branding.manage", name: "Branding Management", description: "Brand identity controls for tenant workspace.", domain: "core", defaultEnabled: false, isBillable: true, monthlyPrice: 18 }),
+  f({ key: "core.branding.custom-domain", name: "Custom Domain", description: "Custom domain configuration and verification.", domain: "core", defaultEnabled: false, isBillable: true, monthlyPrice: 12 }),
 
   f({ key: "ops.shift-report.submit", name: "Shift Reports", description: "Submit and manage shift reports.", domain: "operations", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "ops.attendance.mark", name: "Attendance", description: "Attendance capture and attendance APIs.", domain: "operations", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
@@ -152,6 +154,17 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
 ];
 
 export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
+  {
+    code: "ADDON_CUSTOM_BRANDING",
+    name: "Custom Branding",
+    description: "Tenant brand identity, fonts, and custom domain support.",
+    monthlyPrice: 120,
+    additionalSiteMonthlyPrice: 0,
+    features: [
+      "core.branding.manage",
+      "core.branding.custom-domain",
+    ],
+  },
   {
     code: "ADDON_CCTV_SUITE",
     name: "CCTV Suite",

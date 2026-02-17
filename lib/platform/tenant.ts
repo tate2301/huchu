@@ -254,6 +254,13 @@ type TenantRow = {
   tenantStatus: string | null;
 };
 
+type TenantDomainRow = {
+  id: string;
+  name: string | null;
+  slug: string;
+  tenantStatus: string | null;
+};
+
 export async function resolveTenantBySlug(slug: string): Promise<TenantContext | null> {
   const tenantSlug = slug.trim().toLowerCase();
 
@@ -311,14 +318,88 @@ export async function resolveTenantBySlug(slug: string): Promise<TenantContext |
   }
 }
 
-export async function resolveTenantFromHost(hostHeader: NullableString): Promise<TenantContext | null> {
-  const hostContext = getPlatformHostContext(hostHeader);
-
-  if (!hostContext.tenantSlug) {
+async function resolveTenantByCustomDomain(hostname: string): Promise<TenantContext | null> {
+  const normalizedHostname = normalizeHostValue(hostname);
+  if (!normalizedHostname) {
     return null;
   }
 
-  return resolveTenantBySlug(hostContext.tenantSlug);
+  const companyDomainTableExists = await tableExists("CompanyDomain");
+  if (!companyDomainTableExists) {
+    return null;
+  }
+
+  const hasHostnameColumn = await tableColumnExists("CompanyDomain", "hostname");
+  if (!hasHostnameColumn) {
+    return null;
+  }
+
+  const prisma = await getPrismaClient();
+  const hasTenantStatusColumn = await tableColumnExists("Company", "tenantStatus");
+
+  try {
+    const rows = hasTenantStatusColumn
+      ? await prisma.$queryRawUnsafe<TenantDomainRow[]>(
+          `
+            SELECT c.id, c.name, c.slug, c."tenantStatus"
+            FROM "CompanyDomain" cd
+            INNER JOIN "Company" c ON c.id = cd."companyId"
+            WHERE lower(cd.hostname) = lower($1)
+              AND cd.status IN ('VERIFIED', 'ACTIVE')
+            ORDER BY CASE cd.status
+              WHEN 'ACTIVE' THEN 0
+              WHEN 'VERIFIED' THEN 1
+              ELSE 2
+            END ASC, cd."updatedAt" DESC
+            LIMIT 1
+          `,
+          normalizedHostname,
+        )
+      : await prisma.$queryRawUnsafe<TenantDomainRow[]>(
+          `
+            SELECT c.id, c.name, c.slug, NULL::text AS "tenantStatus"
+            FROM "CompanyDomain" cd
+            INNER JOIN "Company" c ON c.id = cd."companyId"
+            WHERE lower(cd.hostname) = lower($1)
+              AND cd.status IN ('VERIFIED', 'ACTIVE')
+            ORDER BY CASE cd.status
+              WHEN 'ACTIVE' THEN 0
+              WHEN 'VERIFIED' THEN 1
+              ELSE 2
+            END ASC, cd."updatedAt" DESC
+            LIMIT 1
+          `,
+          normalizedHostname,
+        );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      companyId: row.id,
+      companyName: row.name,
+      companySlug: row.slug.toLowerCase(),
+      tenantStatus: row.tenantStatus ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveTenantFromHost(hostHeader: NullableString): Promise<TenantContext | null> {
+  const hostContext = getPlatformHostContext(hostHeader);
+
+  if (hostContext.tenantSlug) {
+    return resolveTenantBySlug(hostContext.tenantSlug);
+  }
+
+  if (!hostContext.hostname) {
+    return null;
+  }
+
+  return resolveTenantByCustomDomain(hostContext.hostname);
 }
 
 type CompanyClaimsRow = {
@@ -379,6 +460,94 @@ export async function getTenantClaimsForCompany(companyId: string): Promise<Tena
   } catch {
     return {};
   }
+}
+
+type CompanyDomainClaimRow = {
+  hostname: string | null;
+};
+
+function getRootDomain(): string | null {
+  const rootDomain = normalizeHostValue(process.env.PLATFORM_ROOT_DOMAIN);
+  return rootDomain || null;
+}
+
+export function getCanonicalHost(hostHeader: NullableString): string | null {
+  const host = normalizeHostHeaderValue(hostHeader);
+  if (!host) {
+    return null;
+  }
+  return stripPort(host);
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  const out = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeHostValue(value);
+    if (!normalized) continue;
+    out.add(normalized);
+  }
+  return Array.from(out.values());
+}
+
+export async function getAllowedHostsForCompany(companyId: string): Promise<string[]> {
+  const normalizedCompanyId = companyId.trim();
+  if (!normalizedCompanyId) {
+    return [];
+  }
+
+  const claims = await getTenantClaimsForCompany(normalizedCompanyId);
+  const rootDomain = getRootDomain();
+  const subdomainHost =
+    rootDomain && claims.companySlug
+      ? `${claims.companySlug.trim().toLowerCase()}.${rootDomain}`
+      : null;
+
+  const companyDomainTableExists = await tableExists("CompanyDomain");
+  if (!companyDomainTableExists) {
+    return uniqueNonEmpty([subdomainHost]);
+  }
+
+  const hasHostnameColumn = await tableColumnExists("CompanyDomain", "hostname");
+  const hasStatusColumn = await tableColumnExists("CompanyDomain", "status");
+  if (!hasHostnameColumn || !hasStatusColumn) {
+    return uniqueNonEmpty([subdomainHost]);
+  }
+
+  try {
+    const prisma = await getPrismaClient();
+    const domains = await prisma.$queryRawUnsafe<CompanyDomainClaimRow[]>(
+      `
+        SELECT hostname
+        FROM "CompanyDomain"
+        WHERE "companyId" = $1
+          AND status IN ('VERIFIED', 'ACTIVE')
+      `,
+      normalizedCompanyId,
+    );
+    const domainHosts = domains.map((row) => row.hostname ?? null);
+    return uniqueNonEmpty([subdomainHost, ...domainHosts]);
+  } catch {
+    return uniqueNonEmpty([subdomainHost]);
+  }
+}
+
+export function isAllowedHost(hostHeader: NullableString, allowedHosts: string[] | undefined): boolean {
+  const currentHost = getCanonicalHost(hostHeader);
+  if (!currentHost) {
+    return false;
+  }
+
+  const normalizedAllowedHosts = new Set(
+    (allowedHosts ?? [])
+      .map((host) => normalizeHostValue(host))
+      .filter(Boolean),
+  );
+
+  if (normalizedAllowedHosts.size === 0) {
+    return false;
+  }
+
+  return normalizedAllowedHosts.has(currentHost);
 }
 
 export function isTenantStatusActive(status: NullableString): boolean {

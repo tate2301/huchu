@@ -6,11 +6,12 @@ import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { hasFeature } from "@/lib/platform/features";
 import {
+  getAllowedHostsForCompany,
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,
   getTenantClaimsForCompany,
   isTenantStatusActive,
-  resolveTenantBySlug,
+  resolveTenantFromHost,
 } from "@/lib/platform/tenant";
 import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
@@ -24,6 +25,7 @@ type PlatformJWT = JWT & {
   tenantStatus?: string;
   enabledFeatures?: string[];
   subscriptionHealth?: string;
+  allowedHosts?: string[];
 };
 
 function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
@@ -58,11 +60,11 @@ export const authOptions: NextAuthOptions = {
 
         let scopedCompanyId: string | undefined;
         if (hostContext.strictTenantEnforcement) {
-          if (!hostContext.isTenantHost || !hostContext.tenantSlug) {
+          if (hostContext.isCentralHost) {
             throw new Error("TENANT_HOST_REQUIRED");
           }
 
-          const tenant = await resolveTenantBySlug(hostContext.tenantSlug);
+          const tenant = await resolveTenantFromHost(hostHeader);
           if (!tenant) {
             throw new Error("TENANT_NOT_FOUND");
           }
@@ -146,9 +148,10 @@ export const authOptions: NextAuthOptions = {
 
       if (extendedToken.companyId) {
         const tenantClaims = await getTenantClaimsForCompany(extendedToken.companyId);
-        const [subscriptionHealth, enabledFeatures] = await Promise.all([
+        const [subscriptionHealth, enabledFeatures, allowedHosts] = await Promise.all([
           getSubscriptionHealth(extendedToken.companyId),
           getEnabledFeatureKeys(extendedToken.companyId),
+          getAllowedHostsForCompany(extendedToken.companyId),
         ]);
         const subscriptionActive = !subscriptionHealth.shouldBlock;
 
@@ -156,6 +159,7 @@ export const authOptions: NextAuthOptions = {
         extendedToken.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
         extendedToken.subscriptionHealth = subscriptionHealth.state;
         extendedToken.enabledFeatures = enabledFeatures;
+        extendedToken.allowedHosts = allowedHosts;
       }
 
       return extendedToken;
@@ -172,6 +176,7 @@ export const authOptions: NextAuthOptions = {
           tenantStatus: typedToken.tenantStatus,
           enabledFeatures: typedToken.enabledFeatures,
           subscriptionHealth: typedToken.subscriptionHealth,
+          allowedHosts: typedToken.allowedHosts,
         } as typeof session.user & {
           id?: string;
           role?: string;
@@ -180,6 +185,7 @@ export const authOptions: NextAuthOptions = {
           tenantStatus?: string;
           enabledFeatures?: string[];
           subscriptionHealth?: string;
+          allowedHosts?: string[];
         };
       }
       return session;
