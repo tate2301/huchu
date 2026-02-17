@@ -904,6 +904,7 @@ export type ExecutiveKpiCard = {
   tone?: ExecutiveKpiTone;
   module:
     | "gold"
+    | "stores"
     | "finance"
     | "workforce"
     | "operations"

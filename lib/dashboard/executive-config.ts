@@ -9,6 +9,7 @@ export const EXECUTIVE_MAX_QUICK_LINKS = 12;
 
 export type ExecutiveQuickLinkModule =
   | "gold"
+  | "stores"
   | "finance"
   | "workforce"
   | "operations"
@@ -90,6 +91,7 @@ export function getExecutiveDashboardRangeDays(range: ExecutiveDashboardRange): 
 
 export function getQuickLinkModule(href: string): ExecutiveQuickLinkModule {
   if (href.startsWith("/gold")) return "gold";
+  if (href.startsWith("/stores")) return "stores";
   if (href.startsWith("/accounting")) return "finance";
   if (href.startsWith("/human-resources")) return "workforce";
   if (href.startsWith("/maintenance")) return "maintenance";

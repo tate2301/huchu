@@ -3,7 +3,6 @@
 import type { ExecutiveKpiCard } from "@/lib/api";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowDownward, ArrowUpward, Minus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -39,79 +38,73 @@ export function ExecutiveKpiGrid({
   errorMessage,
 }: ExecutiveKpiGridProps) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle>Executive Metrics</CardTitle>
-        <CardDescription>High-level observability across finance, gold, workforce, and risk.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={`kpi-skeleton-${index}`} className="rounded-lg border p-4">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="mt-3 h-8 w-28" />
-                <Skeleton className="mt-3 h-5 w-20" />
-              </div>
-            ))}
-          </div>
-        ) : null}
+    <>
+      {isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={`kpi-skeleton-${index}`} className="rounded-lg border p-4">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="mt-3 h-8 w-28" />
+              <Skeleton className="mt-3 h-5 w-20" />
+            </div>
+          ))}
+        </div>
+      ) : null}
 
-        {!isLoading && isError ? (
-          <StatusState
-            variant="error"
-            title="Unable to load executive metrics"
-            description={errorMessage || "Dashboard metrics are currently unavailable."}
-          />
-        ) : null}
+      {!isLoading && isError ? (
+        <StatusState
+          variant="error"
+          title="Unable to load executive metrics"
+          description={errorMessage || "Dashboard metrics are currently unavailable."}
+        />
+      ) : null}
 
-        {!isLoading && !isError && (!items || items.length === 0) ? (
-          <StatusState
-            variant="empty"
-            title="No executive metrics available"
-            description="This account may not have access to executive-level metrics for the selected modules."
-          />
-        ) : null}
+      {!isLoading && !isError && (!items || items.length === 0) ? (
+        <StatusState
+          variant="empty"
+          title="No executive metrics available"
+          description="This account may not have access to executive-level metrics for the selected modules."
+        />
+      ) : null}
 
-        {!isLoading && !isError && items && items.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {items.map((item) => {
-              const delta = typeof item.delta === "number" ? item.delta : 0;
-              const trendPositive = delta > 0;
-              const trendNegative = delta < 0;
-              const deltaLabel = formatDelta(item);
+      {!isLoading && !isError && items && items.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => {
+            const delta = typeof item.delta === "number" ? item.delta : 0;
+            const trendPositive = delta > 0;
+            const trendNegative = delta < 0;
+            const deltaLabel = formatDelta(item);
 
-              return (
-                <div key={item.id} className="rounded-lg border bg-card p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <Badge variant="outline" className="text-[10px] uppercase">
-                      {item.module}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
-                    {formatKpiValue(item)}
-                  </p>
-                  {deltaLabel ? (
-                    <Badge
-                      variant={trendNegative ? "destructive" : "secondary"}
-                      className={cn(
-                        "mt-3 inline-flex gap-1 font-mono tabular-nums",
-                        trendPositive && "bg-emerald-100 text-emerald-700",
-                      )}
-                    >
-                      {trendPositive ? <ArrowUpward className="h-3.5 w-3.5" /> : null}
-                      {trendNegative ? <ArrowDownward className="h-3.5 w-3.5" /> : null}
-                      {!trendPositive && !trendNegative ? <Minus className="h-3.5 w-3.5" /> : null}
-                      {deltaLabel}
-                    </Badge>
-                  ) : null}
+            return (
+              <div key={item.id} className="rounded-lg border bg-card p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">{item.label}</p>
+                  <Badge variant="outline" className="text-[10px] uppercase">
+                    {item.module}
+                  </Badge>
                 </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+                  {formatKpiValue(item)}
+                </p>
+                {deltaLabel ? (
+                  <Badge
+                    variant={trendNegative ? "destructive" : "secondary"}
+                    className={cn(
+                      "mt-3 inline-flex gap-1 font-mono tabular-nums",
+                      trendPositive && "bg-emerald-100 text-emerald-700",
+                    )}
+                  >
+                    {trendPositive ? <ArrowUpward className="h-3.5 w-3.5" /> : null}
+                    {trendNegative ? <ArrowDownward className="h-3.5 w-3.5" /> : null}
+                    {!trendPositive && !trendNegative ? <Minus className="h-3.5 w-3.5" /> : null}
+                    {deltaLabel}
+                  </Badge>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
   );
 }

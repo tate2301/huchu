@@ -5,7 +5,6 @@ import { useMemo } from "react";
 
 import type { ExecutiveQuickLink } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowDownward,
   ArrowRight,
@@ -18,6 +17,7 @@ import {
   ManageAccounts,
   NoteAdd,
   Package,
+  PackageCheck,
   ReceiptLong,
   ShieldCheck,
   UserCheck,
@@ -33,11 +33,14 @@ type ExecutiveQuickLinksProps = {
   title?: string;
   description?: string;
   emptyMessage?: string;
+  showPrimary?: boolean;
+  showSecondary?: boolean;
 };
 
 const MODULE_ORDER: ExecutiveQuickLink["module"][] = [
   "operations",
   "gold",
+  "stores",
   "workforce",
   "finance",
   "maintenance",
@@ -50,6 +53,7 @@ const MODULE_ORDER: ExecutiveQuickLink["module"][] = [
 type IconKey =
   | "operations"
   | "gold"
+  | "stores"
   | "workforce"
   | "finance"
   | "maintenance"
@@ -68,6 +72,7 @@ type IconKey =
 const MODULE_META: Record<ExecutiveQuickLink["module"], { label: string; icon: IconKey }> = {
   operations: { label: "Operations", icon: "operations" },
   gold: { label: "Gold", icon: "gold" },
+  stores: { label: "Stores", icon: "stores" },
   workforce: { label: "Workforce", icon: "workforce" },
   finance: { label: "Finance", icon: "finance" },
   maintenance: { label: "Maintenance", icon: "maintenance" },
@@ -90,6 +95,7 @@ const LINK_ICON_BY_HREF_PREFIX: Array<{ prefix: string; icon: IconKey }> = [
   { prefix: "/gold/settlement/receipts", icon: "gold-receipt" },
   { prefix: "/gold/transit/dispatches", icon: "gold-dispatch" },
   { prefix: "/gold", icon: "gold" },
+  { prefix: "/stores", icon: "stores" },
   { prefix: "/human-resources", icon: "workforce" },
   { prefix: "/accounting", icon: "finance" },
   { prefix: "/maintenance", icon: "maintenance" },
@@ -127,6 +133,8 @@ function renderIcon(icon: IconKey, className: string) {
       return <BarChart3 className={className} />;
     case "gold":
       return <Coins className={className} />;
+    case "stores":
+      return <PackageCheck className={className} />;
     case "workforce":
       return <ManageAccounts className={className} />;
     case "finance":
@@ -193,17 +201,13 @@ function QuickActionTile({ link }: { link: ExecutiveQuickLink }) {
 
 function QuickLinkListItem({ link }: { link: ExecutiveQuickLink }) {
   const badgeText = getBadgeText(link);
-  const icon = getLinkIcon(link);
 
   return (
     <li>
       <Link
         href={link.href}
-        className="group flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+        className="group flex items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 text-sm transition-colors hover:border-border/70 hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
       >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
-          {renderIcon(icon, "h-3.5 w-3.5")}
-        </div>
         <span className="min-w-0 flex-1 truncate">{link.label}</span>
         {badgeText ? (
           <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">
@@ -221,6 +225,8 @@ export function ExecutiveQuickLinks({
   title = "Quick Links",
   description = "Primary quick actions first, then high-impact module workflows.",
   emptyMessage = "No quick links available.",
+  showPrimary = true,
+  showSecondary = true,
 }: ExecutiveQuickLinksProps) {
   const sortedLinks = useMemo(() => {
     return [...links].sort((a, b) => {
@@ -259,16 +265,18 @@ export function ExecutiveQuickLinks({
     })).filter((group) => group.links.length > 0);
   }, [secondaryLinks]);
 
+  const hasPrimary = showPrimary && primaryQuickActions.length > 0;
+  const hasSecondary = showSecondary && groupedSecondaryLinks.length > 0;
+  const showEmpty = !hasPrimary && !hasSecondary;
+
   return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader>
-        <div className="space-y-1">
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {primaryQuickActions.length > 0 ? (
+    <section className={cn("space-y-3", className)}>
+      <div className="space-y-1">
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div>
+        {hasPrimary ? (
           <div className="mb-5 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Primary Quick Actions
@@ -281,19 +289,18 @@ export function ExecutiveQuickLinks({
           </div>
         ) : null}
 
-        {groupedSecondaryLinks.length === 0 && primaryQuickActions.length === 0 ? (
+        {showEmpty ? (
           <p className="text-sm text-muted-foreground">{emptyMessage}</p>
         ) : (
-          groupedSecondaryLinks.length > 0 ? (
+          hasSecondary ? (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Quick Links
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {groupedSecondaryLinks.map((group) => (
-                  <div key={group.module} className="rounded-md border border-border/60 bg-background/60 p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      {renderIcon(group.icon, "h-4 w-4 text-muted-foreground")}
+                  <div key={group.module} className="rounded-md border border-border/60 bg-background/60 p-2.5">
+                    <div className="mb-1.5 flex items-center gap-2">
                       <p className="text-sm font-semibold">{group.label}</p>
                     </div>
                     <ul className="space-y-1">
@@ -307,8 +314,8 @@ export function ExecutiveQuickLinks({
             </div>
           ) : null
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 

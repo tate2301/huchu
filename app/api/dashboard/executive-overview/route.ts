@@ -11,7 +11,6 @@ import {
 } from "@/lib/dashboard/executive-aggregations";
 import {
   EXECUTIVE_FULL_VIEW_ROLES,
-  EXECUTIVE_MAX_QUICK_LINKS,
   getQuickLinkBasePriority,
   getQuickLinkModule,
   parseExecutiveDashboardRange,
@@ -322,8 +321,7 @@ export async function GET(request: NextRequest) {
         }
         if (b.priority !== a.priority) return b.priority - a.priority;
         return a.label.localeCompare(b.label);
-      })
-      .slice(0, fullView ? EXECUTIVE_MAX_QUICK_LINKS : 8);
+      });
 
     return successResponse({
       generatedAt: aggregations.generatedAt,

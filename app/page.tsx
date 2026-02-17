@@ -11,7 +11,6 @@ import {
 import { getApiErrorMessage } from "@/lib/api-client";
 import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCcw } from "@/lib/icons";
@@ -61,21 +60,31 @@ export default function HomePage() {
   const updatedAt = useMemo(() => formatUpdatedAt(overview), [overview]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeading
         title="Executive Dashboard"
         description="High-level observability across cash, gold, workforce, risk, and operational performance."
       />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Apply one filter set across metrics, charts, and quick links.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor={siteFilterId} className="text-sm font-medium">
+      <ExecutiveQuickLinks
+        links={overview?.quickLinks ?? []}
+        title="Quick Actions"
+        description="Primary daily actions that keep operations moving."
+        showSecondary={false}
+      />
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold tracking-tight">Executive Observability</h2>
+            <p className="text-sm text-muted-foreground">
+              Metrics and trends across finance, gold, workforce, and operational risk.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[28rem]">
+            <div className="space-y-1">
+              <label htmlFor={siteFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Site
               </label>
               {isLoading && !overview ? (
@@ -97,8 +106,8 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor={rangeFilterId} className="text-sm font-medium">
+            <div className="space-y-1">
+              <label htmlFor={rangeFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Range
               </label>
               <Select value={selectedRange} onValueChange={(value) => setSelectedRange(value as ExecutiveRange)}>
@@ -115,51 +124,56 @@ export default function HomePage() {
               </Select>
             </div>
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <RefreshCcw className="h-3.5 w-3.5" />
-              Refresh every <span className="font-mono tabular-nums">60s</span>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <RefreshCcw className="h-3.5 w-3.5" />
+            Refresh every <span className="font-mono tabular-nums">60s</span>
+          </span>
+          {updatedAt ? (
+            <span>
+              Last update: <span className="font-mono tabular-nums">{updatedAt}</span>
             </span>
-            {updatedAt ? (
-              <span>
-                Last update: <span className="font-mono tabular-nums">{updatedAt}</span>
-              </span>
-            ) : null}
-          </div>
-
-          {error && !hasOverviewData ? (
-            <Alert variant="destructive">
-              <AlertTitle>Unable to load executive dashboard</AlertTitle>
-              <AlertDescription>{overviewErrorMessage}</AlertDescription>
-            </Alert>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
 
-      <ExecutiveQuickLinks links={overview?.quickLinks ?? []} />
+        {error && !hasOverviewData ? (
+          <Alert variant="destructive">
+            <AlertTitle>Unable to load executive dashboard</AlertTitle>
+            <AlertDescription>{overviewErrorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      <ExecutiveKpiGrid
-        items={overview?.kpis}
-        isLoading={isLoading}
-        isError={Boolean(error) && !hasOverviewData}
-        errorMessage={overviewErrorMessage}
+        <ExecutiveKpiGrid
+          items={overview?.kpis}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+
+        <div className="grid gap-6 xl:grid-cols-[1.8fr_1fr]">
+          <ExecutiveCharts
+            data={overview?.charts}
+            isLoading={isLoading}
+            isError={Boolean(error) && !hasOverviewData}
+            errorMessage={overviewErrorMessage}
+          />
+          <ExecutiveHighlights
+            items={overview?.highlights}
+            isLoading={isLoading}
+            isError={Boolean(error) && !hasOverviewData}
+            errorMessage={overviewErrorMessage}
+          />
+        </div>
+      </section>
+
+      <ExecutiveQuickLinks
+        links={overview?.quickLinks ?? []}
+        title="Quick Links"
+        description="Browse feature-gated module links in a compact list."
+        showPrimary={false}
       />
-
-      <div className="grid gap-4 xl:grid-cols-[1.8fr_1fr]">
-        <ExecutiveCharts
-          data={overview?.charts}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
-        />
-        <ExecutiveHighlights
-          items={overview?.highlights}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
-        />
-      </div>
     </div>
   );
 }
