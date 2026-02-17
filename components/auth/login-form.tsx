@@ -37,7 +37,7 @@ function getAuthErrorMessage(rawError: string) {
 
 export function LoginForm({
   companyLabel,
-  productLabel = "Mine Operations System",
+  productLabel,
 }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -78,7 +78,9 @@ export function LoginForm({
             <Shield className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-semibold">{companyLabel}</h1>
-          <p className="text-sm text-muted-foreground">{productLabel}</p>
+          {productLabel ? (
+            <p className="text-sm text-muted-foreground">{productLabel}</p>
+          ) : null}
         </div>
 
         <Card>

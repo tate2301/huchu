@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { Button } from "@/components/ui/button";
 import { fetchEmployees, fetchSites } from "@/lib/api";
 import { PourForm } from "@/app/gold/components/pour-form";
-import { goldRoutes, mapLegacyGoldViewToRoute } from "@/app/gold/routes";
+import { goldRoutes } from "@/app/gold/routes";
 
 export default function GoldIntakePourCreatePage() {
-  const router = useRouter();
-
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ["employees", "gold-intake"],
     queryFn: () => fetchEmployees({ active: true, limit: 500 }),
@@ -45,7 +42,7 @@ export default function GoldIntakePourCreatePage() {
         nextStep="Fill required fields and submit."
       />
       <PourForm
-        setViewMode={(view) => router.push(mapLegacyGoldViewToRoute(view))}
+        cancelHref={goldRoutes.intake.pours}
         employees={employees}
         employeesLoading={employeesLoading}
         sites={sites}

@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { Button } from "@/components/ui/button";
 import { fetchEmployees, fetchGoldDispatches, fetchGoldPours } from "@/lib/api";
 import { DispatchForm } from "@/app/gold/components/dispatch-form";
-import { goldRoutes, mapLegacyGoldViewToRoute } from "@/app/gold/routes";
+import { goldRoutes } from "@/app/gold/routes";
 
 export default function GoldTransitDispatchCreatePage() {
-  const router = useRouter();
-
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ["employees", "gold-transit"],
     queryFn: () => fetchEmployees({ active: true, limit: 500 }),
@@ -71,7 +68,8 @@ export default function GoldTransitDispatchCreatePage() {
         nextStep="Select a batch, fill dispatch details, and save."
       />
       <DispatchForm
-        setViewMode={(view) => router.push(mapLegacyGoldViewToRoute(view))}
+        cancelHref={goldRoutes.transit.dispatches}
+        newBatchHref={goldRoutes.intake.newPour}
         employees={employees}
         employeesLoading={employeesLoading}
         availablePours={availablePours}

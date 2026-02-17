@@ -23,15 +23,13 @@ import { Send, Shield } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 
 export function PourForm({
-  setViewMode,
+  cancelHref,
   employees,
   employeesLoading,
   sites,
   sitesLoading,
 }: {
-  setViewMode: (
-    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
-  ) => void;
+  cancelHref?: string;
   employees: Array<{ id: string; name: string; employeeId: string }>;
   employeesLoading: boolean;
   sites: Array<{
@@ -173,10 +171,10 @@ export function PourForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setViewMode("menu")}
+            onClick={() => router.push(cancelHref ?? goldRoutes.intake.pours)}
             className="flex-1 sm:flex-none"
           >
-            Back to Menu
+            Back to Batches
           </Button>
           <Button
             type="submit"

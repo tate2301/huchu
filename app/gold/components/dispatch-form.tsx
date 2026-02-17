@@ -24,14 +24,14 @@ import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import { Send, Shield } from "@/lib/icons";
 
 export function DispatchForm({
-  setViewMode,
+  cancelHref,
+  newBatchHref,
   employees,
   employeesLoading,
   availablePours,
 }: {
-  setViewMode: (
-    mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit",
-  ) => void;
+  cancelHref?: string;
+  newBatchHref?: string;
   employees: Array<{ id: string; name: string; employeeId: string }>;
   employeesLoading: boolean;
   availablePours: Array<{
@@ -179,10 +179,10 @@ export function DispatchForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setViewMode("menu")}
+            onClick={() => router.push(cancelHref ?? goldRoutes.transit.dispatches)}
             className="flex-1 sm:flex-none"
           >
-            Back to Menu
+            Back to Dispatches
           </Button>
           <Button
             type="submit"
@@ -235,7 +235,7 @@ export function DispatchForm({
             }
             searchPlaceholder="Search batches..."
             onValueChange={handleSelectChange("goldPourId")}
-            onAddOption={() => setViewMode("pour")}
+            onAddOption={() => router.push(newBatchHref ?? goldRoutes.intake.newPour)}
             addLabel="Record new batch"
           />
           <p className="text-xs text-muted-foreground">

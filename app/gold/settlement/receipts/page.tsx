@@ -1,44 +1,75 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { DataListShell } from "@/components/shared/data-list-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchGoldReceipts } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type GoldReceiptRow = Awaited<ReturnType<typeof fetchGoldReceipts>>["data"][number];
 
 export default function GoldSettlementReceiptsPage() {
-  const searchParams = useSearchParams();
-  const createdId = searchParams.get("createdId");
-  const [query, setQuery] = useState("");
-
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["gold-receipts", "settlement-lane"],
     queryFn: () => fetchGoldReceipts({ limit: 300 }),
   });
 
-  const receipts = useMemo(() => data?.data ?? [], [data]);
+  const rows = useMemo(
+    () =>
+      (data?.data ?? [])
+        .slice()
+        .sort((a, b) => b.receiptDate.localeCompare(a.receiptDate)),
+    [data],
+  );
 
-  const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    if (!term) return receipts;
-    return receipts.filter((receipt) => {
-      return (
-        receipt.receiptNumber.toLowerCase().includes(term) ||
-        receipt.goldDispatch.goldPour.pourBarId.toLowerCase().includes(term) ||
-        receipt.paymentMethod.toLowerCase().includes(term)
-      );
-    });
-  }, [query, receipts]);
+  const columns = useMemo<ColumnDef<GoldReceiptRow>[]>(
+    () => [
+      {
+        id: "receiptDate",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.receiptDate).toLocaleString()}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "receiptNumber",
+        header: "Sale No.",
+        cell: ({ row }) => (
+          <span className="font-mono font-semibold">{row.original.receiptNumber}</span>
+        ),
+      },
+      {
+        id: "batch",
+        header: "Batch",
+        cell: ({ row }) => row.original.goldDispatch.goldPour.pourBarId,
+      },
+      {
+        id: "paymentMethod",
+        header: "Method",
+        accessorKey: "paymentMethod",
+      },
+      {
+        id: "paidAmount",
+        header: "Paid Amount",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.paidAmount.toFixed(3)} g</NumericCell>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <GoldShell
@@ -63,62 +94,30 @@ export default function GoldSettlementReceiptsPage() {
       />
       <RecordSavedBanner entityLabel="gold sale record" />
 
-      <DataListShell
-        title="Sales History"
-        description="Recorded buyer sale entries"
-        hasData={filtered.length > 0}
-        isLoading={isLoading}
-        isError={Boolean(error)}
-        errorMessage={error ? getApiErrorMessage(error) : undefined}
-        onRetry={() => void refetch()}
-        emptyTitle="No sales recorded"
-        emptyDescription="Record a sale to finish a dispatch."
-        emptyAction={
-          <Button asChild size="sm">
-            <Link href={goldRoutes.settlement.newReceipt}>Record Sale</Link>
-          </Button>
-        }
-        filters={
-          <div className="max-w-sm">
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by sale number, batch, method"
-              aria-label="Search sales"
-            />
-          </div>
-        }
-      >
-        <div className="overflow-x-auto">
-          <Table className="w-full text-sm">
-            <TableHeader className="bg-muted">
-              <TableRow>
-                <TableHead className="p-3 text-left font-semibold">Date</TableHead>
-                <TableHead className="p-3 text-left font-semibold">Sale No.</TableHead>
-                <TableHead className="p-3 text-left font-semibold">Batch</TableHead>
-                <TableHead className="p-3 text-left font-semibold">Method</TableHead>
-                <TableHead className="p-3 text-right font-semibold">Paid Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((receipt) => (
-                <TableRow
-                  key={receipt.id}
-                  className={`border-b ${createdId === receipt.id ? "bg-[var(--status-success-bg)]" : ""}`}
-                >
-                  <TableCell className="p-3">{new Date(receipt.receiptDate).toLocaleString()}</TableCell>
-                  <TableCell className="p-3 font-medium">{receipt.receiptNumber}</TableCell>
-                  <TableCell className="p-3">{receipt.goldDispatch.goldPour.pourBarId}</TableCell>
-                  <TableCell className="p-3">{receipt.paymentMethod}</TableCell>
-                  <TableCell className="p-3 text-right">{receipt.paidAmount.toFixed(3)} g</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </DataListShell>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load sales</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Sales History
+          </h2>
+          <p className="text-sm text-muted-foreground">Recorded buyer sale entries</p>
+        </header>
+        <DataTable
+          data={rows}
+          columns={columns}
+          searchPlaceholder="Search by sale number, batch, or method"
+          searchSubmitLabel="Search"
+          tableClassName="text-sm"
+          pagination={{ enabled: true }}
+          emptyState={isLoading ? "Loading sales..." : "No sales recorded."}
+        />
+      </section>
     </GoldShell>
   );
 }
-
-

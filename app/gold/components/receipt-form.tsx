@@ -25,10 +25,12 @@ import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 
 export function ReceiptForm({
-  setViewMode,
+  cancelHref,
+  dispatchCreateHref,
   availableDispatches,
 }: {
-  setViewMode: (mode: "menu" | "pour" | "dispatch" | "receipt" | "reconciliation" | "audit") => void;
+  cancelHref?: string;
+  dispatchCreateHref?: string;
   availableDispatches: Array<{
     id: string;
     dispatchDate: string;
@@ -163,8 +165,13 @@ export function ReceiptForm({
       errorTitle="Unable to record sale"
       actions={
         <>
-          <Button type="button" variant="outline" onClick={() => setViewMode("menu")} className="flex-1 sm:flex-none">
-            Back to Menu
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(cancelHref ?? goldRoutes.settlement.receipts)}
+            className="flex-1 sm:flex-none"
+          >
+            Back to Sales
           </Button>
           <Button type="submit" size="lg" disabled={!canSubmit || createReceiptMutation.isPending} className="flex-1 sm:flex-none">
             <Send className="mr-2 h-5 w-5" />
@@ -222,7 +229,9 @@ export function ReceiptForm({
               }
               searchPlaceholder="Search dispatches..."
               onValueChange={handleSelectChange("goldDispatchId")}
-              onAddOption={() => setViewMode("dispatch")}
+              onAddOption={() =>
+                router.push(dispatchCreateHref ?? goldRoutes.transit.newDispatch)
+              }
               addLabel="Record dispatch"
             />
           </div>

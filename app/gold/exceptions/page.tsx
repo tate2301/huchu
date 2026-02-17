@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Download } from "@/lib/icons";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { DataListShell } from "@/components/shared/data-list-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { exportElementToPdf } from "@/lib/pdf";
 import {
   fetchGoldCorrections,
@@ -22,10 +25,45 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type MissingDispatchRow = {
+  id: string;
+  batchId: string;
+  site: string;
+  pourDate: string;
+  grossWeight: number;
+};
+
+type MissingSaleRow = {
+  id: string;
+  batchId: string;
+  courier: string;
+  destination: string;
+  dispatchDate: string;
+};
+
+type CorrectionRow = {
+  id: string;
+  createdAt: string;
+  entityType: string;
+  reference: string;
+  reason: string;
+  createdBy: string;
+};
 
 export default function GoldExceptionsPage() {
+  const searchParams = useSearchParams();
+  const initialView = searchParams.get("view");
   const exceptionPdfRef = useRef<HTMLDivElement>(null);
+  const [activeView, setActiveView] = useState<
+    "missing-dispatch" | "missing-sale" | "corrections"
+  >(
+    initialView === "missing-dispatch" ||
+      initialView === "missing-sale" ||
+      initialView === "corrections"
+      ? initialView
+      : "missing-dispatch",
+  );
 
   const { data: poursData } = useQuery({
     queryKey: ["gold-pours", "exceptions"],
@@ -39,7 +77,6 @@ export default function GoldExceptionsPage() {
     data: receiptsData,
     isLoading: receiptsLoading,
     error: receiptsError,
-    refetch,
   } = useQuery({
     queryKey: ["gold-receipts", "exceptions"],
     queryFn: () => fetchGoldReceipts({ limit: 300 }),
@@ -70,17 +107,133 @@ export default function GoldExceptionsPage() {
     return map;
   }, [receipts]);
 
-  const unresolvedPours = useMemo(
-    () => pours.filter((pour) => !dispatchByPourId.has(pour.id)),
+  const missingDispatchRows = useMemo<MissingDispatchRow[]>(
+    () =>
+      pours
+        .filter((pour) => !dispatchByPourId.has(pour.id))
+        .map((pour) => ({
+          id: pour.id,
+          batchId: pour.pourBarId,
+          site: pour.site.name,
+          pourDate: pour.pourDate,
+          grossWeight: pour.grossWeight,
+        })),
     [dispatchByPourId, pours],
   );
-  const unresolvedDispatches = useMemo(
-    () => dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id)),
+
+  const missingSaleRows = useMemo<MissingSaleRow[]>(
+    () =>
+      dispatches
+        .filter((dispatch) => !receiptByDispatchId.has(dispatch.id))
+        .map((dispatch) => ({
+          id: dispatch.id,
+          batchId: dispatch.goldPour.pourBarId,
+          courier: dispatch.courier,
+          destination: dispatch.destination,
+          dispatchDate: dispatch.dispatchDate,
+        })),
     [dispatches, receiptByDispatchId],
   );
 
+  const correctionRows = useMemo<CorrectionRow[]>(
+    () =>
+      corrections.map((correction) => ({
+        id: correction.id,
+        createdAt: correction.createdAt,
+        entityType: correction.entityType,
+        reference: correction.pour.pourBarId,
+        reason: correction.reason,
+        createdBy: correction.createdBy.name,
+      })),
+    [corrections],
+  );
+
   const exportDisabled =
-    unresolvedPours.length === 0 && unresolvedDispatches.length === 0 && corrections.length === 0;
+    missingDispatchRows.length === 0 &&
+    missingSaleRows.length === 0 &&
+    correctionRows.length === 0;
+
+  const missingDispatchColumns = useMemo<ColumnDef<MissingDispatchRow>[]>(
+    () => [
+      {
+        id: "pourDate",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.pourDate).toLocaleString()}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "batchId",
+        header: "Batch ID",
+        cell: ({ row }) => (
+          <span className="font-mono font-semibold">{row.original.batchId}</span>
+        ),
+      },
+      { id: "site", header: "Site", accessorKey: "site" },
+      {
+        id: "grossWeight",
+        header: "Gross Weight",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const missingSaleColumns = useMemo<ColumnDef<MissingSaleRow>[]>(
+    () => [
+      {
+        id: "dispatchDate",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.dispatchDate).toLocaleString()}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "batchId",
+        header: "Batch",
+        cell: ({ row }) => (
+          <span className="font-mono font-semibold">{row.original.batchId}</span>
+        ),
+      },
+      { id: "courier", header: "Courier", accessorKey: "courier" },
+      { id: "destination", header: "Destination", accessorKey: "destination" },
+      {
+        id: "status",
+        header: "Status",
+        cell: () => <Badge variant="secondary">Awaiting sale</Badge>,
+      },
+    ],
+    [],
+  );
+
+  const correctionColumns = useMemo<ColumnDef<CorrectionRow>[]>(
+    () => [
+      {
+        id: "createdAt",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.createdAt).toLocaleString()}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "entityType",
+        header: "Type",
+        cell: ({ row }) => <Badge variant="outline">{row.original.entityType}</Badge>,
+      },
+      { id: "reference", header: "Reference", accessorKey: "reference" },
+      { id: "reason", header: "Reason", accessorKey: "reason" },
+      { id: "createdBy", header: "By", accessorKey: "createdBy" },
+    ],
+    [],
+  );
 
   return (
     <GoldShell
@@ -89,6 +242,21 @@ export default function GoldExceptionsPage() {
       description="Fix missing records and review corrections"
       actions={
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!exceptionPdfRef.current) return;
+              exportElementToPdf(
+                exceptionPdfRef.current,
+                `gold-exceptions-${new Date().toISOString().slice(0, 10)}.pdf`,
+              );
+            }}
+            disabled={exportDisabled}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export Issues Snapshot
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href={goldRoutes.transit.dispatches}>View Dispatches</Link>
           </Button>
@@ -101,95 +269,102 @@ export default function GoldExceptionsPage() {
       <PageIntro
         title="Issues"
         purpose="Find records that are missing the next step."
-        nextStep="Finish missing records first, then review correction notes."
+        nextStep="Fix missing records first, then review correction notes."
       />
 
-      {unresolvedDispatches.length > 0 ? (
+      {(correctionsError || receiptsError) ? (
         <Alert variant="destructive">
-          <AlertTitle>Dispatches Still Waiting</AlertTitle>
+          <AlertTitle>Unable to load issues</AlertTitle>
           <AlertDescription>
-            {unresolvedDispatches.length} dispatch
-            {unresolvedDispatches.length === 1 ? " is" : "es are"} waiting for a sale record.
+            {getApiErrorMessage(correctionsError || receiptsError)}
           </AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Batches Missing Dispatch</CardTitle>
-            <CardDescription>Batches without a dispatch record.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{unresolvedPours.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Dispatches Missing Sale</CardTitle>
-            <CardDescription>Dispatches without buyer sale record.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{unresolvedDispatches.length}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <DataListShell
-        title="Correction Log"
-        description="Recorded correction notes"
-        hasData={corrections.length > 0}
-        isLoading={correctionsLoading || receiptsLoading}
-        isError={Boolean(correctionsError || receiptsError)}
-        errorMessage={getApiErrorMessage(correctionsError || receiptsError)}
-        onRetry={() => {
-          void refetch();
-        }}
-        emptyTitle="No correction notes"
-        emptyDescription="Correction notes will appear here after they are saved."
+      <VerticalDataViews
+        items={[
+          {
+            id: "missing-dispatch",
+            label: "Missing Dispatch",
+            count: missingDispatchRows.length,
+          },
+          {
+            id: "missing-sale",
+            label: "Missing Sale",
+            count: missingSaleRows.length,
+          },
+          {
+            id: "corrections",
+            label: "Corrections",
+            count: correctionRows.length,
+          },
+        ]}
+        value={activeView}
+        onValueChange={(value) =>
+          setActiveView(value as "missing-dispatch" | "missing-sale" | "corrections")
+        }
+        railLabel="Issue Views"
       >
-        <div className="overflow-x-auto">
-          <Table className="w-full text-sm">
-            <TableHeader className="bg-muted">
-              <TableRow>
-                <TableHead className="p-3 text-left font-semibold">Date</TableHead>
-                <TableHead className="p-3 text-left font-semibold">Type</TableHead>
-                <TableHead className="p-3 text-left font-semibold">Reference</TableHead>
-                <TableHead className="p-3 text-left font-semibold">Reason</TableHead>
-                <TableHead className="p-3 text-left font-semibold">By</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {corrections.map((correction) => (
-                <TableRow key={correction.id} className="border-b">
-                  <TableCell className="p-3">{new Date(correction.createdAt).toLocaleString()}</TableCell>
-                  <TableCell className="p-3">
-                    <Badge variant="outline">{correction.entityType}</Badge>
-                  </TableCell>
-                  <TableCell className="p-3">{correction.pour.pourBarId}</TableCell>
-                  <TableCell className="p-3">{correction.reason}</TableCell>
-                  <TableCell className="p-3">{correction.createdBy.name}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className={activeView === "missing-dispatch" ? "space-y-3" : "hidden"}>
+          <header className="section-shell space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">
+              Batches Missing Dispatch
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Batches without a recorded dispatch.
+            </p>
+          </header>
+          <DataTable
+            data={missingDispatchRows}
+            columns={missingDispatchColumns}
+            searchPlaceholder="Search by batch ID or site"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            emptyState="No batches missing dispatch."
+          />
         </div>
-      </DataListShell>
 
-      <Button
-        variant="outline"
-        onClick={() => {
-          if (!exceptionPdfRef.current) return;
-          exportElementToPdf(
-            exceptionPdfRef.current,
-            `gold-exceptions-${new Date().toISOString().slice(0, 10)}.pdf`,
-          );
-        }}
-        disabled={exportDisabled}
-      >
-        <Download className="mr-2 h-4 w-4" />
-        Export Issues Snapshot
-      </Button>
+        <div className={activeView === "missing-sale" ? "space-y-3" : "hidden"}>
+          <header className="section-shell space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">
+              Dispatches Missing Sale
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Dispatches without buyer sale records.
+            </p>
+          </header>
+          <DataTable
+            data={missingSaleRows}
+            columns={missingSaleColumns}
+            searchPlaceholder="Search by batch, courier, or destination"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            emptyState={receiptsLoading ? "Loading missing-sale records..." : "No dispatches missing sales."}
+          />
+        </div>
+
+        <div className={activeView === "corrections" ? "space-y-3" : "hidden"}>
+          <header className="section-shell space-y-1">
+            <h2 className="text-section-title text-foreground font-bold tracking-tight">
+              Correction Log
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Append-only correction notes for audit traceability.
+            </p>
+          </header>
+          <DataTable
+            data={correctionRows}
+            columns={correctionColumns}
+            searchPlaceholder="Search by type, reference, or reason"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            emptyState={correctionsLoading ? "Loading corrections..." : "No correction notes."}
+          />
+        </div>
+      </VerticalDataViews>
 
       <div className="absolute left-[-9999px] top-0">
         <div ref={exceptionPdfRef}>
@@ -197,12 +372,9 @@ export default function GoldExceptionsPage() {
             title="Gold Issues Snapshot"
             subtitle="Missing records and correction notes"
             meta={[
-              { label: "Batches missing dispatch", value: String(unresolvedPours.length) },
-              {
-                label: "Dispatches missing sale",
-                value: String(unresolvedDispatches.length),
-              },
-              { label: "Corrections", value: String(corrections.length) },
+              { label: "Batches missing dispatch", value: String(missingDispatchRows.length) },
+              { label: "Dispatches missing sale", value: String(missingSaleRows.length) },
+              { label: "Corrections", value: String(correctionRows.length) },
             ]}
           >
             <table className="w-full text-xs">
@@ -214,25 +386,29 @@ export default function GoldExceptionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {unresolvedPours.map((pour) => (
-                  <tr key={`u-p-${pour.id}`} className="border-b border-gray-100">
+                {missingDispatchRows.map((row) => (
+                  <tr key={`u-p-${row.id}`} className="border-b border-gray-100">
                     <td className="py-2">Missing Dispatch</td>
-                    <td className="py-2">{pour.pourBarId}</td>
-                    <td className="py-2">{pour.site.name} | {new Date(pour.pourDate).toLocaleDateString()}</td>
+                    <td className="py-2">{row.batchId}</td>
+                    <td className="py-2">
+                      {row.site} | {new Date(row.pourDate).toLocaleDateString()}
+                    </td>
                   </tr>
                 ))}
-                {unresolvedDispatches.map((dispatch) => (
-                  <tr key={`u-d-${dispatch.id}`} className="border-b border-gray-100">
+                {missingSaleRows.map((row) => (
+                  <tr key={`u-d-${row.id}`} className="border-b border-gray-100">
                     <td className="py-2">Missing Sale</td>
-                    <td className="py-2">{dispatch.goldPour.pourBarId}</td>
-                    <td className="py-2">{dispatch.courier} | {new Date(dispatch.dispatchDate).toLocaleDateString()}</td>
+                    <td className="py-2">{row.batchId}</td>
+                    <td className="py-2">
+                      {row.courier} | {new Date(row.dispatchDate).toLocaleDateString()}
+                    </td>
                   </tr>
                 ))}
-                {corrections.map((correction) => (
-                  <tr key={`c-${correction.id}`} className="border-b border-gray-100">
-                    <td className="py-2">Correction ({correction.entityType})</td>
-                    <td className="py-2">{correction.pour.pourBarId}</td>
-                    <td className="py-2">{correction.reason}</td>
+                {correctionRows.map((row) => (
+                  <tr key={`c-${row.id}`} className="border-b border-gray-100">
+                    <td className="py-2">Correction ({row.entityType})</td>
+                    <td className="py-2">{row.reference}</td>
+                    <td className="py-2">{row.reason}</td>
                   </tr>
                 ))}
               </tbody>
@@ -243,5 +419,3 @@ export default function GoldExceptionsPage() {
     </GoldShell>
   );
 }
-
-
