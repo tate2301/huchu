@@ -7,6 +7,7 @@ import {
   paginationResponse,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
+import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 
 const buyerReceiptSchema = z.object({
@@ -180,6 +181,23 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    try {
+      await createJournalEntryFromSource({
+        companyId: session.user.companyId,
+        sourceType: "GOLD_RECEIPT",
+        sourceId: receipt.id,
+        entryDate: receipt.receiptDate,
+        description: `Gold receipt ${receipt.receiptNumber}`,
+        createdById: session.user.id,
+        amount: receipt.paidAmount,
+        netAmount: receipt.paidAmount,
+        taxAmount: 0,
+        grossAmount: receipt.paidAmount,
+      })
+    } catch (error) {
+      console.error("[Accounting] Gold receipt auto-post failed:", error)
+    }
 
     return successResponse(
       {

@@ -253,6 +253,186 @@ function getFeatureCatalogDefinition(featureKey: string) {
   return FEATURE_CATALOG.find((feature) => feature.key.toLowerCase() === normalized) ?? null;
 }
 
+function parseNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const PROVISION_TX_MAX_WAIT_MS = parseNumber(process.env.PRISMA_PROVISION_TX_MAX_WAIT_MS, 20000);
+const PROVISION_TX_TIMEOUT_MS = parseNumber(process.env.PRISMA_PROVISION_TX_TIMEOUT_MS, 180000);
+const PROVISION_TX_RETRIES = Math.max(0, parseNumber(process.env.PRISMA_PROVISION_TX_RETRIES, 2));
+
+type FeatureRow = { id: string; key: string };
+type BundleRow = { id: string; code: string };
+type BundleDefinition = (typeof FEATURE_BUNDLES)[number];
+
+interface PreparedProvisioningCatalog {
+  bundleRows: BundleRow[];
+  featureRowsForCompany: FeatureRow[];
+}
+
+function uniquePreserveOrder(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function toCanonicalFeatureKey(featureKey: string): string {
+  const normalized = featureKey.trim().toLowerCase();
+  if (!normalized) return normalized;
+  return getFeatureCatalogDefinition(normalized)?.key ?? normalized;
+}
+
+function getBundleDefinitions(bundleCodes: string[]): BundleDefinition[] {
+  const seen = new Set<string>();
+  const definitions: BundleDefinition[] = [];
+  for (const code of bundleCodes) {
+    if (seen.has(code)) continue;
+    seen.add(code);
+    const definition = FEATURE_BUNDLES.find((bundle) => bundle.code === code);
+    if (!definition) continue;
+    definitions.push(definition);
+  }
+  return definitions;
+}
+
+async function prepareProvisioningCatalog(input: {
+  bundleCodesToEnable: string[];
+  featuresToEnable: string[];
+}): Promise<PreparedProvisioningCatalog> {
+  const bundleDefinitions = getBundleDefinitions(input.bundleCodesToEnable);
+  const allFeatureKeys = uniquePreserveOrder(
+    [
+      ...input.featuresToEnable,
+      ...bundleDefinitions.flatMap((bundle) => bundle.features),
+    ]
+      .map((featureKey) => toCanonicalFeatureKey(featureKey))
+      .filter(Boolean),
+  );
+
+  if (allFeatureKeys.length > 0) {
+    await prisma.platformFeature.createMany({
+      data: allFeatureKeys.map((key) => {
+        const catalog = getFeatureCatalogDefinition(key);
+        return {
+          key: catalog?.key ?? key,
+          name: catalog?.name ?? key,
+          description: catalog?.description ?? `Feature flag for ${key}`,
+          domain: catalog?.domain ?? null,
+          defaultEnabled: catalog?.defaultEnabled ?? false,
+          isBillable: catalog?.isBillable ?? false,
+          monthlyPrice: catalog?.monthlyPrice ?? null,
+          isActive: true,
+        };
+      }),
+      skipDuplicates: true,
+    });
+
+    await prisma.platformFeature.updateMany({
+      where: { key: { in: allFeatureKeys } },
+      data: { isActive: true },
+    });
+  }
+
+  const featureRows = allFeatureKeys.length
+    ? await prisma.platformFeature.findMany({
+      where: { key: { in: allFeatureKeys } },
+      select: { id: true, key: true },
+    })
+    : [];
+  const featureByKey = new Map(featureRows.map((feature) => [feature.key, feature]));
+
+  const bundleRows: BundleRow[] = [];
+  for (const bundleDefinition of bundleDefinitions) {
+    const bundle = await prisma.featureBundle.upsert({
+      where: { code: bundleDefinition.code },
+      update: {
+        name: bundleDefinition.name,
+        description: bundleDefinition.description,
+        monthlyPrice: bundleDefinition.monthlyPrice,
+        additionalSiteMonthlyPrice: bundleDefinition.additionalSiteMonthlyPrice,
+        isActive: true,
+      },
+      create: {
+        code: bundleDefinition.code,
+        name: bundleDefinition.name,
+        description: bundleDefinition.description,
+        monthlyPrice: bundleDefinition.monthlyPrice,
+        additionalSiteMonthlyPrice: bundleDefinition.additionalSiteMonthlyPrice,
+        isActive: true,
+      },
+      select: { id: true, code: true },
+    });
+    bundleRows.push(bundle);
+  }
+
+  const bundleByCode = new Map(bundleRows.map((bundle) => [bundle.code, bundle]));
+  for (const bundleDefinition of bundleDefinitions) {
+    const bundle = bundleByCode.get(bundleDefinition.code);
+    if (!bundle) continue;
+    const bundleFeatureItems = uniquePreserveOrder(
+      bundleDefinition.features.map((featureKey) => toCanonicalFeatureKey(featureKey)).filter(Boolean),
+    )
+      .map((featureKey) => featureByKey.get(featureKey))
+      .filter((feature): feature is FeatureRow => Boolean(feature))
+      .map((feature) => ({ bundleId: bundle.id, featureId: feature.id }));
+    if (bundleFeatureItems.length === 0) continue;
+    await prisma.featureBundleItem.createMany({
+      data: bundleFeatureItems,
+      skipDuplicates: true,
+    });
+  }
+
+  const featureRowsForCompany = uniquePreserveOrder(
+    input.featuresToEnable.map((featureKey) => toCanonicalFeatureKey(featureKey)).filter(Boolean),
+  )
+    .map((featureKey) => featureByKey.get(featureKey))
+    .filter((feature): feature is FeatureRow => Boolean(feature));
+
+  return { bundleRows, featureRowsForCompany };
+}
+
+function isTransientProvisioningTransactionError(error: unknown): boolean {
+  if (isUniqueConstraint(error)) return false;
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2028" || error.code === "P2034" || error.code === "P1008") {
+      return true;
+    }
+  }
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+  return (
+    message.includes("expired transaction") ||
+    message.includes("transaction api error") ||
+    message.includes("timed out") ||
+    message.includes("timeout")
+  );
+}
+
+async function waitMs(delayMs: number) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function withProvisioningRetry<T>(task: () => Promise<T>): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await task();
+    } catch (error) {
+      if (!isTransientProvisioningTransactionError(error) || attempt >= PROVISION_TX_RETRIES) {
+        throw error;
+      }
+      const backoffMs = Math.min(1500, 250 * (2 ** attempt));
+      attempt += 1;
+      await waitMs(backoffMs);
+    }
+  }
+}
+
 export async function suggestSubdomains(seed: string, limit = 6): Promise<SubdomainSuggestion[]> {
   const candidates = buildSuggestions(seed, limit);
   const checks = await Promise.all(
@@ -391,10 +571,16 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
   const existingEmail = await prisma.user.findUnique({ where: { email: preview.adminEmail }, select: { id: true } });
   if (existingEmail) throw new Error(`User email already exists: ${preview.adminEmail}`);
 
-  const plan = await ensurePlan(preview.tierCode);
-  const passwordHash = await bcrypt.hash(input.adminPassword, 12);
-  const featuresToEnable = preview.featuresToEnable;
-  const bundleCodesToEnable = preview.bundleCodes;
+  const featuresToEnable = uniquePreserveOrder(preview.featuresToEnable.map((featureKey) => toCanonicalFeatureKey(featureKey)).filter(Boolean));
+  const bundleCodesToEnable = uniquePreserveOrder(preview.bundleCodes);
+  const [plan, passwordHash, preparedCatalog] = await Promise.all([
+    ensurePlan(preview.tierCode),
+    bcrypt.hash(input.adminPassword, 12),
+    prepareProvisioningCatalog({
+      bundleCodesToEnable,
+      featuresToEnable,
+    }),
+  ]);
 
   let tx: {
     company: { id: string; name: string; slug: string; tenantStatus: string; isProvisioned: boolean };
@@ -405,135 +591,91 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     reservation: Awaited<ReturnType<typeof prisma.subdomainReservation.create>>;
   };
   try {
-    tx = await prisma.$transaction(async (trx) => {
-      const company = await trx.company.create({
-        data: {
-          name: preview.organizationName,
-          slug: preview.organizationSlug,
-          tenantStatus: "ACTIVE",
-          isProvisioned: true,
-        },
-        select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true },
-      });
-
-      const admin = await trx.user.create({
-        data: {
-          companyId: company.id,
-          email: preview.adminEmail,
-          name: preview.adminName,
-          password: passwordHash,
-          role: "SUPERADMIN",
-          isActive: true,
-        },
-        select: { id: true, email: true, name: true, role: true },
-      });
-
-      const subscription = await trx.companySubscription.create({
-        data: {
-          companyId: company.id,
-          planId: plan.id,
-          status: "ACTIVE",
-          startedAt: new Date(),
-          currentPeriodStart: new Date(),
-        },
-        select: { id: true, status: true },
-      });
-
-      async function upsertFeature(featureKey: string) {
-        const catalog = getFeatureCatalogDefinition(featureKey);
-        const key = catalog?.key ?? featureKey.trim().toLowerCase();
-        return trx.platformFeature.upsert({
-          where: { key },
-          update: {
-            name: catalog?.name ?? key,
-            description: catalog?.description ?? `Feature flag for ${key}`,
-            domain: catalog?.domain ?? null,
-            defaultEnabled: catalog?.defaultEnabled ?? false,
-            isBillable: catalog?.isBillable ?? false,
-            monthlyPrice: catalog?.monthlyPrice ?? null,
-            isActive: true,
-          },
-          create: {
-            key,
-            name: catalog?.name ?? key,
-            description: catalog?.description ?? `Feature flag for ${key}`,
-            domain: catalog?.domain ?? null,
-            defaultEnabled: catalog?.defaultEnabled ?? false,
-            isBillable: catalog?.isBillable ?? false,
-            monthlyPrice: catalog?.monthlyPrice ?? null,
-            isActive: true,
-          },
-          select: { id: true, key: true },
-        });
-      }
-
-      const appliedBundles: string[] = [];
-      for (const bundleCode of bundleCodesToEnable) {
-        const bundleDefinition = FEATURE_BUNDLES.find((bundle) => bundle.code === bundleCode);
-        if (!bundleDefinition) continue;
-        const bundle = await trx.featureBundle.upsert({
-          where: { code: bundleDefinition.code },
-          update: {
-            name: bundleDefinition.name,
-            description: bundleDefinition.description,
-            monthlyPrice: bundleDefinition.monthlyPrice,
-            additionalSiteMonthlyPrice: bundleDefinition.additionalSiteMonthlyPrice,
-            isActive: true,
-          },
-          create: {
-            code: bundleDefinition.code,
-            name: bundleDefinition.name,
-            description: bundleDefinition.description,
-            monthlyPrice: bundleDefinition.monthlyPrice,
-            additionalSiteMonthlyPrice: bundleDefinition.additionalSiteMonthlyPrice,
-            isActive: true,
-          },
-          select: { id: true, code: true },
-        });
-        await trx.companySubscriptionAddon.upsert({
-          where: { companyId_bundleId: { companyId: company.id, bundleId: bundle.id } },
-          update: {
-            isEnabled: true,
-            reason: `Provision template ${preview.featureTemplate}`,
-          },
-          create: {
-            companyId: company.id,
-            bundleId: bundle.id,
-            isEnabled: true,
-            reason: `Provision template ${preview.featureTemplate}`,
-          },
-        });
-        for (const bundleFeatureKey of bundleDefinition.features) {
-          const feature = await upsertFeature(bundleFeatureKey);
-          await trx.featureBundleItem.upsert({
-            where: { bundleId_featureId: { bundleId: bundle.id, featureId: feature.id } },
-            update: {},
-            create: { bundleId: bundle.id, featureId: feature.id },
+    tx = await withProvisioningRetry(() =>
+      prisma.$transaction(
+        async (trx) => {
+          const company = await trx.company.create({
+            data: {
+              name: preview.organizationName,
+              slug: preview.organizationSlug,
+              tenantStatus: "ACTIVE",
+              isProvisioned: true,
+            },
+            select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true },
           });
-        }
-        appliedBundles.push(bundle.code);
-      }
 
-      const appliedFeatures: string[] = [];
-      for (const featureKey of featuresToEnable) {
-        const feature = await upsertFeature(featureKey);
-        await trx.companyFeatureFlag.upsert({
-          where: { companyId_featureId: { companyId: company.id, featureId: feature.id } },
-          update: { isEnabled: true, reason: `Provision template ${preview.featureTemplate}` },
-          create: {
-            companyId: company.id,
-            featureId: feature.id,
-            isEnabled: true,
-            reason: `Provision template ${preview.featureTemplate}`,
-          },
-        });
-        appliedFeatures.push(feature.key);
-      }
+          const admin = await trx.user.create({
+            data: {
+              companyId: company.id,
+              email: preview.adminEmail,
+              name: preview.adminName,
+              password: passwordHash,
+              role: "SUPERADMIN",
+              isActive: true,
+            },
+            select: { id: true, email: true, name: true, role: true },
+          });
 
-      const reservation = await reserveSubdomainRecord(trx, company.id, preview.subdomainCandidate);
+          const subscription = await trx.companySubscription.create({
+            data: {
+              companyId: company.id,
+              planId: plan.id,
+              status: "ACTIVE",
+              startedAt: new Date(),
+              currentPeriodStart: new Date(),
+            },
+            select: { id: true, status: true },
+          });
 
-      return { company, admin, subscription, appliedBundles, appliedFeatures, reservation };
-    });
+          const currentBundles = preparedCatalog.bundleRows.length > 0
+            ? await trx.featureBundle.findMany({
+              where: { code: { in: preparedCatalog.bundleRows.map((bundle) => bundle.code) } },
+              select: { id: true, code: true },
+            })
+            : [];
+          const currentFeatures = preparedCatalog.featureRowsForCompany.length > 0
+            ? await trx.platformFeature.findMany({
+              where: { key: { in: preparedCatalog.featureRowsForCompany.map((feature) => feature.key) } },
+              select: { id: true, key: true },
+            })
+            : [];
+
+          if (currentBundles.length > 0) {
+            await trx.companySubscriptionAddon.createMany({
+              data: currentBundles.map((bundle) => ({
+                companyId: company.id,
+                bundleId: bundle.id,
+                isEnabled: true,
+                reason: `Provision template ${preview.featureTemplate}`,
+              })),
+              skipDuplicates: true,
+            });
+          }
+
+          if (currentFeatures.length > 0) {
+            await trx.companyFeatureFlag.createMany({
+              data: currentFeatures.map((feature) => ({
+                companyId: company.id,
+                featureId: feature.id,
+                isEnabled: true,
+                reason: `Provision template ${preview.featureTemplate}`,
+              })),
+              skipDuplicates: true,
+            });
+          }
+
+          const reservation = await reserveSubdomainRecord(trx, company.id, preview.subdomainCandidate);
+          const appliedBundles = currentBundles.map((bundle) => bundle.code);
+          const appliedFeatures = currentFeatures.map((feature) => feature.key);
+
+          return { company, admin, subscription, appliedBundles, appliedFeatures, reservation };
+        },
+        {
+          maxWait: PROVISION_TX_MAX_WAIT_MS,
+          timeout: PROVISION_TX_TIMEOUT_MS,
+        },
+      ),
+    );
   } catch (error) {
     if (isUniqueConstraint(error, "subdomain")) {
       await throwFriendlySubdomainConflict(preview.subdomainCandidate);
@@ -544,9 +686,15 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     if (isUniqueConstraint(error, "email")) {
       throw new Error(`Admin email "${preview.adminEmail}" is already in use.`);
     }
+    if (isTransientProvisioningTransactionError(error)) {
+      throw new Error(
+        "Provisioning timed out while applying organization setup. Please retry. If this keeps happening, increase PRISMA_PROVISION_TX_TIMEOUT_MS.",
+      );
+    }
     throw error;
   }
 
+  const warnings: string[] = [...preview.warnings];
   const events = [
     { action: "PROVISION_ORG_CREATED", entityType: "organization", entityId: tx.company.id, reason: `Created ${tx.company.slug}` },
     { action: "PROVISION_ADMIN_CREATED", entityType: "admin", entityId: tx.admin.id, reason: `Created ${tx.admin.email}` },
@@ -557,25 +705,37 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
   ];
   const auditIds: string[] = [];
   for (const event of events) {
-    const audit = await appendAuditEvent({
-      actor: input.actor,
-      action: event.action,
-      entityType: event.entityType,
-      entityId: event.entityId,
-      companyId: tx.company.id,
-      reason: event.reason,
-    });
-    auditIds.push(audit.id);
+    try {
+      const audit = await appendAuditEvent({
+        actor: input.actor,
+        action: event.action,
+        entityType: event.entityType,
+        entityId: event.entityId,
+        companyId: tx.company.id,
+        reason: event.reason,
+      });
+      auditIds.push(audit.id);
+    } catch (error) {
+      warnings.push(
+        `Audit write skipped (${event.action}): ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
   }
-  const consolidated = await appendAuditEvent({
-    actor: input.actor,
-    action: "PROVISION_BUNDLE_COMPLETED",
-    entityType: "provision",
-    entityId: tx.company.id,
-    companyId: tx.company.id,
-    reason: input.reason ?? "Provision bundle completed",
-  });
-  auditIds.unshift(consolidated.id);
+  try {
+    const consolidated = await appendAuditEvent({
+      actor: input.actor,
+      action: "PROVISION_BUNDLE_COMPLETED",
+      entityType: "provision",
+      entityId: tx.company.id,
+      companyId: tx.company.id,
+      reason: input.reason ?? "Provision bundle completed",
+    });
+    auditIds.unshift(consolidated.id);
+  } catch (error) {
+    warnings.push(
+      `Audit write skipped (PROVISION_BUNDLE_COMPLETED): ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+  }
 
   return {
     organization: {
@@ -602,5 +762,6 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     subdomainReservation: mapReservation(tx.reservation),
     auditEventIds: auditIds,
     actionPreview: actionPreview(preview),
+    warnings: warnings.length > 0 ? warnings : undefined,
   };
 }

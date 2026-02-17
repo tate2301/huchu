@@ -6,6 +6,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import {
   AUTO_BATCH_NOTE_PREFIX,
   AUTO_PAYOUT_NOTE_PREFIX,
@@ -314,6 +315,30 @@ export async function POST(request: NextRequest) {
         payoutRecordsCreated: allocation.workerShares.length,
       }
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "gold",
+        sourceAction: "shift-allocation-created",
+        sourceId: result.allocation.id,
+        entryDate: result.allocation.date,
+        description: `Gold shift allocation ${result.allocation.id} created`,
+        amount: result.allocation.netWeight,
+        payload: {
+          siteId: result.allocation.siteId,
+          shift: result.allocation.shift,
+          workerShareWeight: result.allocation.workerShareWeight,
+          companyShareWeight: result.allocation.companyShareWeight,
+          payoutRecordsCreated: result.payoutRecordsCreated,
+          createdBatchId: result.createdBatchId,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Gold shift allocation capture failed:", error)
+    }
 
     return successResponse(
       {

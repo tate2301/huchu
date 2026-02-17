@@ -5,6 +5,7 @@ import type { PlatformServices } from "../../types";
 import { TIERS } from "../../../../lib/platform/feature-catalog";
 import { CLIENT_BUNDLE_TEMPLATES } from "../../../../lib/platform/client-templates";
 import { applyTextInput, useInputLock } from "../input-utils";
+import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
 
 interface OrgProvisionWizardProps {
@@ -15,10 +16,9 @@ interface OrgProvisionWizardProps {
   onBackToTree?: () => void;
 }
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 type OrgField = "name" | "slug";
 type AdminField = "adminEmail" | "adminName" | "adminPassword";
-type ConfigField = "tierCode" | "featureTemplate" | "subdomain";
 
 function slugify(value: string) {
   return String(value || "")
@@ -29,19 +29,11 @@ function slugify(value: string) {
     .replace(/-{2,}/g, "-");
 }
 
-const STEPS = ["Organization", "Admin", "Configuration", "Review"];
+const STEPS = ["Organization", "Admin", "Select Tier", "Select Template", "Subdomain", "Review"];
 const ORG_FIELDS: OrgField[] = ["name", "slug"];
 const ADMIN_FIELDS: AdminField[] = ["adminEmail", "adminName", "adminPassword"];
-const CONFIG_FIELDS: ConfigField[] = ["tierCode", "featureTemplate", "subdomain"];
 const TIER_OPTIONS = ["CUSTOM", ...TIERS.map((tier) => tier.code)];
 const TEMPLATE_OPTIONS = CLIENT_BUNDLE_TEMPLATES.map((template) => template.code);
-
-function cycleOption(options: string[], current: string, direction: 1 | -1): string {
-  if (options.length === 0) return current;
-  const currentIndex = Math.max(0, options.indexOf(String(current || "").trim().toUpperCase()));
-  const nextIndex = (currentIndex + direction + options.length) % options.length;
-  return options[nextIndex];
-}
 
 export function OrgProvisionWizard({
   actor,
@@ -53,7 +45,8 @@ export function OrgProvisionWizard({
   const [step, setStep] = useState<Step>(0);
   const [orgField, setOrgField] = useState(0);
   const [adminField, setAdminField] = useState(0);
-  const [configField, setConfigField] = useState(0);
+  const [tierIndex, setTierIndex] = useState(0);
+  const [templateIndex, setTemplateIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -66,18 +59,19 @@ export function OrgProvisionWizard({
     adminEmail: "",
     adminName: "",
     adminPassword: "",
-    tierCode: "CUSTOM",
-    featureTemplate: TEMPLATE_OPTIONS[0] || "TEMPLATE_CORE_STARTER",
     subdomain: "",
   });
 
   useInputLock(setInputLocked, true);
 
+  const selectedTier = TIER_OPTIONS[tierIndex] ?? TIER_OPTIONS[0];
+  const selectedTemplateCode = TEMPLATE_OPTIONS[templateIndex] ?? TEMPLATE_OPTIONS[0] ?? "TEMPLATE_CORE_STARTER";
+
   const resolvedSlug = useMemo(() => slugify(draft.slug || draft.name), [draft.name, draft.slug]);
   const resolvedSubdomain = useMemo(() => slugify(draft.subdomain || resolvedSlug), [draft.subdomain, resolvedSlug]);
   const selectedTemplate = useMemo(
-    () => CLIENT_BUNDLE_TEMPLATES.find((template) => template.code === draft.featureTemplate),
-    [draft.featureTemplate],
+    () => CLIENT_BUNDLE_TEMPLATES.find((template) => template.code === selectedTemplateCode),
+    [selectedTemplateCode],
   );
   const requiresTypedConfirmation = false;
   const confirmationPhrase = `PROVISION ${resolvedSlug || "org"}`;
@@ -97,8 +91,8 @@ export function OrgProvisionWizard({
         adminEmail: draft.adminEmail,
         adminName: draft.adminName,
         adminPassword: draft.adminPassword,
-        tierCode: draft.tierCode || undefined,
-        featureTemplate: draft.featureTemplate || undefined,
+        tierCode: selectedTier || undefined,
+        featureTemplate: selectedTemplateCode || undefined,
         subdomain: draft.subdomain || undefined,
         actor,
         reason: "Provisioned from guided TUI wizard",
@@ -107,10 +101,15 @@ export function OrgProvisionWizard({
         setErrorMessage(result.message);
         return;
       }
+      const warnings = result.warnings ?? result.resource.warnings ?? [];
       setSuccessMessage(
         `Provisioned ${result.resource.organization.slug} | Admin ${result.resource.admin.email} | Subdomain ${result.resource.subdomainReservation.subdomain}`,
       );
-      setStatusMessage("Provision flow completed.");
+      setStatusMessage(
+        warnings.length > 0
+          ? `Provision flow completed with warnings: ${warnings.join(" | ")}`
+          : "Provision flow completed.",
+      );
       setConfirmDraft("");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Provision failed.");
@@ -187,40 +186,44 @@ export function OrgProvisionWizard({
 
     if (step === 2) {
       if (key.upArrow) {
-        setConfigField((current) => Math.max(0, current - 1));
+        setTierIndex((current) => Math.max(0, current - 1));
         return;
       }
       if (key.downArrow) {
-        setConfigField((current) => Math.min(CONFIG_FIELDS.length - 1, current + 1));
+        setTierIndex((current) => Math.min(Math.max(0, TIER_OPTIONS.length - 1), current + 1));
         return;
       }
       if (key.return) {
         setStep(3);
-        setErrorMessage(null);
-        return;
-      }
-      const field = CONFIG_FIELDS[configField];
-      if (field === "tierCode" && (key.leftArrow || key.rightArrow)) {
-        setDraft((current) => ({
-          ...current,
-          tierCode: cycleOption(TIER_OPTIONS, current.tierCode, key.rightArrow ? 1 : -1),
-        }));
-        return;
-      }
-      if (field === "featureTemplate" && (key.leftArrow || key.rightArrow)) {
-        setDraft((current) => ({
-          ...current,
-          featureTemplate: cycleOption(TEMPLATE_OPTIONS, current.featureTemplate, key.rightArrow ? 1 : -1),
-        }));
-        return;
-      }
-      if (field === "subdomain") {
-        setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
       }
       return;
     }
 
     if (step === 3) {
+      if (key.upArrow) {
+        setTemplateIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setTemplateIndex((current) => Math.min(Math.max(0, TEMPLATE_OPTIONS.length - 1), current + 1));
+        return;
+      }
+      if (key.return) {
+        setStep(4);
+      }
+      return;
+    }
+
+    if (step === 4) {
+      if (key.return) {
+        setStep(5);
+        return;
+      }
+      setDraft((current) => ({ ...current, subdomain: applyTextInput(current.subdomain, input, key) }));
+      return;
+    }
+
+    if (step === 5) {
       if (key.return) {
         if (requiresTypedConfirmation && confirmDraft.trim() !== confirmationPhrase) {
           setErrorMessage(`Type exact phrase: ${confirmationPhrase}`);
@@ -245,7 +248,7 @@ export function OrgProvisionWizard({
       errorMessage={errorMessage}
       successMessage={successMessage}
       hints={[
-        "Keys: Up/Down select field, Enter next/submit, Esc back.",
+        "Keys: Up/Down select field/item, Enter next/submit, Esc back.",
         loading ? "Working..." : "Esc on first step returns to operation tree.",
       ]}
       body={
@@ -268,23 +271,44 @@ export function OrgProvisionWizard({
           ) : null}
           {step === 2 ? (
             <>
-              <Text color={configField === 0 ? "cyan" : undefined}>tierCode: {draft.tierCode || "CUSTOM"}</Text>
-              <Text color={configField === 1 ? "cyan" : undefined}>
-                featureTemplate: {draft.featureTemplate || "TEMPLATE_CORE_STARTER"}
-              </Text>
-              <Text color={configField === 2 ? "cyan" : undefined}>subdomain: {draft.subdomain || "<auto>"}</Text>
-              <Text dimColor>Resolved subdomain: {resolvedSubdomain || "<none>"}</Text>
-              <Text dimColor>Template label: {selectedTemplate?.label || "Unknown template"}</Text>
-              <Text dimColor>Use Left/Right to cycle tier/template options.</Text>
+              <Text>Select tier code:</Text>
+              <SelectorList
+                items={TIER_OPTIONS}
+                selectedIndex={tierIndex}
+                emptyMessage="No tiers available."
+                render={(item) => item}
+              />
             </>
           ) : null}
           {step === 3 ? (
             <>
+              <Text>tierCode: {selectedTier}</Text>
+              <Text>Select feature template:</Text>
+              <SelectorList
+                items={TEMPLATE_OPTIONS}
+                selectedIndex={templateIndex}
+                emptyMessage="No templates available."
+                render={(item) => {
+                  const template = CLIENT_BUNDLE_TEMPLATES.find((entry) => entry.code === item);
+                  return `${item} | ${template?.label || "Unknown template"}`;
+                }}
+              />
+            </>
+          ) : null}
+          {step === 4 ? (
+            <>
+              <Text>tierCode: {selectedTier}</Text>
+              <Text>featureTemplate: {selectedTemplateCode} ({selectedTemplate?.label || "Unknown template"})</Text>
+              <Text>subdomain: {draft.subdomain || "<auto>"}</Text>
+              <Text dimColor>Resolved subdomain: {resolvedSubdomain || "<none>"}</Text>
+            </>
+          ) : null}
+          {step === 5 ? (
+            <>
               <Text>org: {draft.name || "<none>"} ({resolvedSlug || "<none>"})</Text>
               <Text>admin: {draft.adminEmail || "<none>"} ({draft.adminName || "<none>"})</Text>
               <Text>
-                tier/template: {draft.tierCode || "CUSTOM"} / {draft.featureTemplate || "TEMPLATE_CORE_STARTER"}{" "}
-                ({selectedTemplate?.label || "Unknown template"})
+                tier/template: {selectedTier} / {selectedTemplateCode} ({selectedTemplate?.label || "Unknown template"})
               </Text>
               <Text>subdomain: {resolvedSubdomain || "<none>"}</Text>
               <Text>actor: {actor}</Text>

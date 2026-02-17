@@ -47,7 +47,9 @@ export function VerticalDataViews({
             >
               <span className="truncate text-left">{item.label}</span>
               {typeof item.count === "number" ? (
-                <Badge variant="outline">{item.count}</Badge>
+                <Badge variant="outline" className="font-mono">
+                  {item.count}
+                </Badge>
               ) : null}
             </Button>
           ))}

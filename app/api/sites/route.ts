@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, hasRole } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -17,10 +17,32 @@ export async function GET(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
+    const { searchParams } = new URL(request.url);
+    const active = searchParams.get("active");
+    const search = searchParams.get("search")?.trim();
+
+    const where: Record<string, unknown> = {
+      companyId: session.user.companyId,
+    };
+
+    // Keep backward compatibility: default to active-only unless explicitly requested.
+    if (active === null || active === "true") {
+      where.isActive = true;
+    } else if (active !== "all") {
+      where.isActive = active === "true";
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { code: { contains: search, mode: "insensitive" } },
+        { location: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
     const sites = await prisma.site.findMany({
       where: {
-        companyId: session.user.companyId,
-        isActive: true,
+        ...where,
       },
       select: {
         id: true,
@@ -46,6 +68,10 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
+    if (!hasRole(session, ["SUPERADMIN", "MANAGER"])) {
+      return errorResponse("Insufficient permissions to create sites", 403);
+    }
+
     const body = await request.json();
     const validated = siteSchema.parse(body);
 
@@ -58,8 +84,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('Site name and code are required', 400);
     }
 
-    const existing = await prisma.site.findUnique({
-      where: { code },
+    const existing = await prisma.site.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        code,
+      },
       select: { id: true },
     });
 

@@ -6,6 +6,7 @@ export type FeatureDomain =
   | "stores"
   | "gold"
   | "hr"
+  | "accounting"
   | "maintenance"
   | "compliance"
   | "cctv"
@@ -85,6 +86,23 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 6 }),
   f({ key: "hr.gold-payouts", name: "HR Gold Payouts", description: "Gold payouts from HR perspective.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
 
+  f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.journals", name: "Journals", description: "Journal entries and posting workflows.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.periods", name: "Accounting Periods", description: "Accounting periods and period locks.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.posting-rules", name: "Posting Rules", description: "Automated posting rules and mappings.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.trial-balance", name: "Trial Balance", description: "Trial balance reporting.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.financial-statements", name: "Financial Statements", description: "Profit & Loss, Balance Sheet, and Cash Flow.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.ar", name: "Accounts Receivable", description: "Sales customers, invoices, and receipts.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.ap", name: "Accounts Payable", description: "Vendors, bills, and payments.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.banking", name: "Banking", description: "Bank accounts and transactions.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.fixed-assets", name: "Fixed Assets", description: "Asset register and depreciation schedule.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.budgets", name: "Budgets", description: "Budgeting and allocation planning.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.cost-centers", name: "Cost Centers", description: "Cost center setup and allocation.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.multi-currency", name: "Multi-currency", description: "Currency rates and multi-currency support.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.tax", name: "Tax", description: "Tax codes and VAT configuration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.zimra.fiscalisation", name: "ZIMRA Fiscalisation", description: "ZIMRA FDMS fiscalisation integration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+
   f({ key: "maintenance.dashboard", name: "Maintenance Dashboard", description: "Maintenance dashboard.", domain: "maintenance", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "maintenance.equipment", name: "Equipment Register", description: "Equipment lifecycle and maintenance meta.", domain: "maintenance", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
   f({ key: "maintenance.work-orders", name: "Work Orders", description: "Work order operations and workflows.", domain: "maintenance", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
@@ -121,7 +139,12 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "reports.compliance-incidents", name: "Compliance Incidents Reports", description: "Compliance incident reports.", domain: "reports", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
   f({ key: "reports.cctv-events", name: "CCTV Event Reports", description: "CCTV event reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 10 }),
 
-  f({ key: "admin.users", name: "User Administration", description: "User and role administration.", domain: "admin", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.core", name: "User Management Core", description: "User management module access.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.create", name: "User Creation", description: "Manager/clerk user creation lifecycle actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.status", name: "User Status", description: "Activate/deactivate manager and clerk accounts.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.password-reset", name: "User Password Reset", description: "Manager/clerk password reset actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.role-change", name: "User Role Change", description: "Manager/clerk role change actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.directory", name: "User Directory", description: "User and role directory listing and search.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "admin.sites-sections", name: "Sites and Sections", description: "Site/section administration.", domain: "admin", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "admin.payroll-config", name: "Payroll Configuration", description: "Payroll configuration endpoints.", domain: "admin", defaultEnabled: true, isBillable: true, monthlyPrice: 6 }),
   f({ key: "admin.feature-flags-console", name: "Feature Flags Console", description: "Platform feature flag operations.", domain: "admin", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
@@ -190,6 +213,21 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     features: ["maintenance.equipment", "maintenance.work-orders", "maintenance.breakdowns", "maintenance.schedule", "reports.maintenance-work-orders", "reports.maintenance-equipment"],
   },
   {
+    code: "ADDON_USER_MANAGEMENT_PRO",
+    name: "User Management Pro",
+    description: "Advanced manager/clerk lifecycle management controls.",
+    monthlyPrice: 180,
+    additionalSiteMonthlyPrice: 20,
+    features: [
+      "admin.user-management.core",
+      "admin.user-management.create",
+      "admin.user-management.status",
+      "admin.user-management.password-reset",
+      "admin.user-management.role-change",
+      "admin.user-management.directory",
+    ],
+  },
+  {
     code: "ADDON_ANALYTICS_PRO",
     name: "Analytics Pro",
     description: "Advanced reports and analytical surfaces.",
@@ -197,7 +235,52 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     additionalSiteMonthlyPrice: 15,
     features: ["stores.fuel-ledger", "reports.downtime-analytics", "reports.audit-trails", "reports.fuel-ledger", "core.notifications.push"],
   },
+  {
+    code: "ADDON_ACCOUNTING_CORE",
+    name: "Accounting Core",
+    description: "Core accounting setup, journals, and financial statements.",
+    monthlyPrice: 250,
+    additionalSiteMonthlyPrice: 30,
+    features: [
+      "accounting.core",
+      "accounting.chart-of-accounts",
+      "accounting.journals",
+      "accounting.periods",
+      "accounting.posting-rules",
+      "accounting.trial-balance",
+      "accounting.financial-statements",
+    ],
+  },
+  {
+    code: "ADDON_ACCOUNTING_ADVANCED",
+    name: "Accounting Advanced",
+    description: "AR/AP, banking, assets, budgets, and multi-currency.",
+    monthlyPrice: 350,
+    additionalSiteMonthlyPrice: 40,
+    features: [
+      "accounting.ar",
+      "accounting.ap",
+      "accounting.banking",
+      "accounting.fixed-assets",
+      "accounting.budgets",
+      "accounting.cost-centers",
+      "accounting.multi-currency",
+    ],
+  },
+  {
+    code: "ADDON_ZIMRA_FISCAL",
+    name: "ZIMRA Tax & Fiscalisation",
+    description: "VAT setup and ZIMRA FDMS fiscalisation connector.",
+    monthlyPrice: 120,
+    additionalSiteMonthlyPrice: 15,
+    features: ["accounting.tax", "accounting.zimra.fiscalisation"],
+  },
 ];
+
+export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
+  ADDON_ACCOUNTING_ADVANCED: ["ADDON_ACCOUNTING_CORE"],
+  ADDON_ZIMRA_FISCAL: ["ADDON_ACCOUNTING_CORE"],
+};
 
 export const TIERS: TierDefinition[] = [
   {
@@ -229,7 +312,6 @@ export const TIERS: TierDefinition[] = [
       "reports.attendance",
       "reports.plant",
       "reports.stores-movements",
-      "admin.users",
       "admin.sites-sections",
     ],
     includedBundles: [],

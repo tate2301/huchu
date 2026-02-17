@@ -15,7 +15,11 @@ const routeLabels: Record<string, string> = {
   attendance: "Attendance",
   cctv: "CCTV",
   dashboard: "Production Dashboard",
+  "user-management": "User Management",
+  management: "Management",
+  users: "Users",
   gold: "Gold Control",
+  accounting: "Accounting",
   maintenance: "Maintenance",
   "human-resources": "Human Resources",
   "plant-report": "Plant Report",
@@ -23,6 +27,8 @@ const routeLabels: Record<string, string> = {
   shift: "Shift",
   "shift-report": "Shift Report",
   stores: "Stock & Fuel",
+  "password-reset": "Password Reset",
+  "role-change": "Role Change",
 };
 
 const viewLabels: Record<string, Record<string, string>> = {
@@ -67,6 +73,23 @@ const viewLabels: Record<string, Record<string, string>> = {
     payroll: "Payroll",
     disbursements: "Disbursements",
     approvals: "Approvals",
+  },
+  accounting: {
+    "chart-of-accounts": "Chart of Accounts",
+    journals: "Journal Entries",
+    periods: "Accounting Periods",
+    "posting-rules": "Posting Rules",
+    "trial-balance": "Trial Balance",
+    "financial-statements": "Financial Statements",
+    sales: "Sales (AR)",
+    purchases: "Purchases (AP)",
+    banking: "Banking",
+    assets: "Fixed Assets",
+    budgets: "Budgets",
+    "cost-centers": "Cost Centers",
+    currency: "Currency Rates",
+    tax: "Tax Setup",
+    fiscalisation: "ZIMRA Fiscalisation",
   },
 };
 

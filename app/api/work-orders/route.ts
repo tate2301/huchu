@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { emitWorkOrderStatusNotification } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
@@ -11,6 +12,8 @@ const workOrderSchema = z.object({
   downtimeEnd: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)).optional(),
   workDone: z.string().max(2000).optional(),
   partsUsed: z.array(z.string().max(200)).optional(),
+  partsCost: z.number().min(0).optional(),
+  laborCost: z.number().min(0).optional(),
   technicianId: z.string().uuid().optional(),
   status: z.enum(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
 });
@@ -111,6 +114,8 @@ export async function POST(request: NextRequest) {
         downtimeEnd: validated.downtimeEnd ? new Date(validated.downtimeEnd) : undefined,
         workDone: validated.workDone,
         partsUsed: validated.partsUsed ? JSON.stringify(validated.partsUsed) : undefined,
+        partsCost: validated.partsCost,
+        laborCost: validated.laborCost,
         technicianId: validated.technicianId,
         status: validated.status ?? 'OPEN',
       },
@@ -139,6 +144,26 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "maintenance",
+        sourceAction: "work-order-created",
+        sourceId: workOrder.id,
+        entryDate: workOrder.createdAt,
+        description: `Work order ${workOrder.id} created`,
+        amount: (workOrder.partsCost ?? 0) + (workOrder.laborCost ?? 0),
+        payload: {
+          status: workOrder.status,
+          equipmentId: workOrder.equipmentId,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      });
+    } catch (error) {
+      console.error("[Accounting] Work order capture failed:", error);
+    }
 
     return successResponse(workOrder, 201);
   } catch (error) {

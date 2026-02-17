@@ -5,6 +5,8 @@ export type PlatformModuleId =
   | 'subscriptions'
   | 'features'
   | 'admins'
+  | 'user-management'
+  | 'sites'
   | 'support'
   | 'runbooks'
   | 'health'

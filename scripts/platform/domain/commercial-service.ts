@@ -1,6 +1,6 @@
 import { prisma } from "../prisma";
 import { appendAuditEvent } from "./audit-ledger";
-import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "../../../lib/platform/feature-catalog";
+import { BUNDLE_DEPENDENCIES, FEATURE_BUNDLES, FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "../../../lib/platform/feature-catalog";
 import { getBundleFeatureKeysByCodes } from "./bundle-catalog-service";
 import type {
   AddonBundleSummary,
@@ -43,6 +43,56 @@ async function getBundleFeatureKeys(bundleId: string, bundleCode: string): Promi
   return [...new Set((getBundleDefinition(bundleCode)?.features ?? []).map((key) => key.trim().toLowerCase()).filter(Boolean))];
 }
 
+async function enableBundleFeatureFlags(input: {
+  companyId: string;
+  bundleId: string;
+  bundleCode: string;
+  reason?: string;
+}) {
+  const bundleFeatureKeys = await getBundleFeatureKeys(input.bundleId, input.bundleCode);
+  if (bundleFeatureKeys.length === 0) return;
+  for (const featureKey of bundleFeatureKeys) {
+    const normalizedKey = featureKey.trim().toLowerCase();
+    const catalog = FEATURE_CATALOG.find((feature) => feature.key.toLowerCase() === normalizedKey);
+    const feature = await prisma.platformFeature.upsert({
+      where: { key: catalog?.key ?? normalizedKey },
+      update: {
+        name: catalog?.name ?? normalizedKey,
+        description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
+        domain: catalog?.domain ?? null,
+        defaultEnabled: catalog?.defaultEnabled ?? false,
+        isBillable: catalog?.isBillable ?? false,
+        monthlyPrice: catalog?.monthlyPrice ?? null,
+        isActive: true,
+      },
+      create: {
+        key: catalog?.key ?? normalizedKey,
+        name: catalog?.name ?? normalizedKey,
+        description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
+        domain: catalog?.domain ?? null,
+        defaultEnabled: catalog?.defaultEnabled ?? false,
+        isBillable: catalog?.isBillable ?? false,
+        monthlyPrice: catalog?.monthlyPrice ?? null,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    await prisma.companyFeatureFlag.upsert({
+      where: { companyId_featureId: { companyId: input.companyId, featureId: feature.id } },
+      update: {
+        isEnabled: true,
+        reason: input.reason ?? `Enabled via add-on ${input.bundleCode}`,
+      },
+      create: {
+        companyId: input.companyId,
+        featureId: feature.id,
+        isEnabled: true,
+        reason: input.reason ?? `Enabled via add-on ${input.bundleCode}`,
+      },
+    });
+  }
+}
+
 export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
   await prisma.$transaction(async (tx) => {
     for (const feature of FEATURE_CATALOG) {
@@ -70,6 +120,7 @@ export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
       });
     }
 
+    const bundleCodeToId = new Map<string, string>();
     for (const bundle of FEATURE_BUNDLES) {
       const savedBundle = await tx.featureBundle.upsert({
         where: { code: bundle.code },
@@ -88,29 +139,32 @@ export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
           additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
           isActive: true,
         },
-        select: { id: true },
+        select: { id: true, code: true },
       });
+      bundleCodeToId.set(savedBundle.code, savedBundle.id);
+    }
 
-      for (const featureKey of bundle.features) {
-        const feature = await tx.platformFeature.findUnique({
-          where: { key: featureKey },
-          select: { id: true },
-        });
-        if (!feature) continue;
-        await tx.featureBundleItem.upsert({
-          where: {
-            bundleId_featureId: {
-              bundleId: savedBundle.id,
-              featureId: feature.id,
-            },
-          },
-          update: {},
-          create: {
-            bundleId: savedBundle.id,
-            featureId: feature.id,
-          },
-        });
-      }
+    const featureRows = await tx.platformFeature.findMany({
+      where: { key: { in: FEATURE_CATALOG.map((feature) => feature.key) } },
+      select: { id: true, key: true },
+    });
+    const featureByKey = new Map(featureRows.map((feature) => [feature.key, feature]));
+
+    for (const bundle of FEATURE_BUNDLES) {
+      const bundleId = bundleCodeToId.get(bundle.code);
+      if (!bundleId) continue;
+      const itemRows = bundle.features
+        .map((featureKey) => featureByKey.get(featureKey))
+        .filter((feature): feature is { id: string; key: string } => Boolean(feature))
+        .map((feature) => ({
+          bundleId,
+          featureId: feature.id,
+        }));
+      if (itemRows.length === 0) continue;
+      await tx.featureBundleItem.createMany({
+        data: itemRows,
+        skipDuplicates: true,
+      });
     }
 
     for (const tier of TIERS) {
@@ -287,6 +341,44 @@ export async function setAddOnBundle(input: {
   });
   if (!bundle) throw new Error(`Add-on bundle not found: ${input.bundleCode}`);
 
+  if (input.enabled) {
+    const requiredBundles = BUNDLE_DEPENDENCIES[bundle.code] ?? [];
+    for (const requiredCode of requiredBundles) {
+      if (requiredCode === bundle.code) continue;
+      const requiredBundle = await prisma.featureBundle.findUnique({
+        where: { code: requiredCode },
+        select: { id: true, code: true },
+      });
+      if (!requiredBundle) continue;
+
+      await prisma.companySubscriptionAddon.upsert({
+        where: {
+          companyId_bundleId: {
+            companyId: input.companyId,
+            bundleId: requiredBundle.id,
+          },
+        },
+        update: {
+          isEnabled: true,
+          reason: input.reason ?? `Required by ${bundle.code}`,
+        },
+        create: {
+          companyId: input.companyId,
+          bundleId: requiredBundle.id,
+          isEnabled: true,
+          reason: input.reason ?? `Required by ${bundle.code}`,
+        },
+      });
+
+      await enableBundleFeatureFlags({
+        companyId: input.companyId,
+        bundleId: requiredBundle.id,
+        bundleCode: requiredBundle.code,
+        reason: input.reason ?? `Required by ${bundle.code}`,
+      });
+    }
+  }
+
   const before = await prisma.companySubscriptionAddon.findUnique({
     where: {
       companyId_bundleId: {
@@ -319,46 +411,12 @@ export async function setAddOnBundle(input: {
   const bundleFeatureKeys = await getBundleFeatureKeys(bundle.id, bundle.code);
   if (bundleFeatureKeys.length > 0) {
     if (input.enabled) {
-      for (const featureKey of bundleFeatureKeys) {
-        const normalizedKey = featureKey.trim().toLowerCase();
-        const catalog = FEATURE_CATALOG.find((feature) => feature.key.toLowerCase() === normalizedKey);
-        const feature = await prisma.platformFeature.upsert({
-          where: { key: catalog?.key ?? normalizedKey },
-          update: {
-            name: catalog?.name ?? normalizedKey,
-            description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
-            domain: catalog?.domain ?? null,
-            defaultEnabled: catalog?.defaultEnabled ?? false,
-            isBillable: catalog?.isBillable ?? false,
-            monthlyPrice: catalog?.monthlyPrice ?? null,
-            isActive: true,
-          },
-          create: {
-            key: catalog?.key ?? normalizedKey,
-            name: catalog?.name ?? normalizedKey,
-            description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
-            domain: catalog?.domain ?? null,
-            defaultEnabled: catalog?.defaultEnabled ?? false,
-            isBillable: catalog?.isBillable ?? false,
-            monthlyPrice: catalog?.monthlyPrice ?? null,
-            isActive: true,
-          },
-          select: { id: true },
-        });
-        await prisma.companyFeatureFlag.upsert({
-          where: { companyId_featureId: { companyId: input.companyId, featureId: feature.id } },
-          update: {
-            isEnabled: true,
-            reason: input.reason ?? `Enabled via add-on ${bundle.code}`,
-          },
-          create: {
-            companyId: input.companyId,
-            featureId: feature.id,
-            isEnabled: true,
-            reason: input.reason ?? `Enabled via add-on ${bundle.code}`,
-          },
-        });
-      }
+      await enableBundleFeatureFlags({
+        companyId: input.companyId,
+        bundleId: bundle.id,
+        bundleCode: bundle.code,
+        reason: input.reason,
+      });
     } else {
       const [subscription, enabledAddons] = await Promise.all([
         prisma.companySubscription.findFirst({

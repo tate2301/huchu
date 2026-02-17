@@ -1,4 +1,6 @@
 type NullableString = string | null | undefined;
+type HeaderRecordValue = string | string[] | undefined | null;
+type RequestHeadersLike = Headers | Record<string, HeaderRecordValue>;
 
 const TENANT_SLUG_PATTERN = /^[a-z0-9-]+$/;
 const ACTIVE_TENANT_STATUS = "ACTIVE";
@@ -45,6 +47,15 @@ function normalizeHostValue(value: NullableString): string {
     .replace(/\.$/, "");
 }
 
+function normalizeHostHeaderValue(value: NullableString): string {
+  if (!value) {
+    return "";
+  }
+
+  const firstValue = value.split(",")[0]?.trim() ?? "";
+  return normalizeHostValue(firstValue);
+}
+
 function stripPort(host: string): string {
   const index = host.indexOf(":");
   return index === -1 ? host : host.slice(0, index);
@@ -86,7 +97,7 @@ function getTenantSlugForHost(hostname: string | null, rootDomain: string | null
 }
 
 export function getPlatformHostContext(hostHeader: NullableString): PlatformHostContext {
-  const host = normalizeHostValue(hostHeader);
+  const host = normalizeHostHeaderValue(hostHeader);
   const hostname = host ? stripPort(host) : null;
 
   const rootDomain = normalizeHostValue(process.env.PLATFORM_ROOT_DOMAIN);
@@ -122,6 +133,47 @@ export function getPlatformHostContext(hostHeader: NullableString): PlatformHost
     hasHostConfig,
     strictTenantEnforcement,
   };
+}
+
+function readHeaderValue(headers: RequestHeadersLike | null | undefined, key: string): string | null {
+  if (!headers) {
+    return null;
+  }
+
+  if (headers instanceof Headers) {
+    const value = headers.get(key);
+    return value?.trim() || null;
+  }
+
+  const direct = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
+  if (Array.isArray(direct)) {
+    return direct[0]?.trim() || null;
+  }
+  if (typeof direct === "string") {
+    return direct.trim() || null;
+  }
+
+  const matchedKey = Object.keys(headers).find((headerKey) => headerKey.toLowerCase() === key.toLowerCase());
+  if (!matchedKey) {
+    return null;
+  }
+  const value = headers[matchedKey];
+  if (Array.isArray(value)) {
+    return value[0]?.trim() || null;
+  }
+  if (typeof value === "string") {
+    return value.trim() || null;
+  }
+  return null;
+}
+
+export function getHostHeaderFromRequestHeaders(headers: RequestHeadersLike | null | undefined): string | null {
+  const forwardedHost = readHeaderValue(headers, "x-forwarded-host");
+  const host = readHeaderValue(headers, "host");
+  const resolvedHost = forwardedHost || host;
+
+  const normalizedHost = normalizeHostHeaderValue(resolvedHost);
+  return normalizedHost || null;
 }
 
 type ExistsRow = {

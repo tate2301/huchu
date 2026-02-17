@@ -191,7 +191,9 @@ Visit http://localhost:3000 and log in with your credentials.
 ```env
 DATABASE_URL="postgresql://user:password@production-host:5432/huchu_mines?schema=public"
 NEXTAUTH_SECRET="<long-random-string>"
-NEXTAUTH_URL="https://your-production-domain.com"
+NEXTAUTH_URL="https://app.your-production-domain.com"
+PLATFORM_ROOT_DOMAIN="app.your-production-domain.com"
+PLATFORM_ROOT_HOSTS="app.your-production-domain.com"
 ```
 
 ### Security Checklist

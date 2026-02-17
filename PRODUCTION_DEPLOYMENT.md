@@ -23,8 +23,29 @@ DATABASE_URL="postgresql://username:password@host:port/database?schema=public"
 ### Authentication
 ```
 NEXTAUTH_SECRET="<generate-with: openssl rand -base64 32>"
-NEXTAUTH_URL="https://your-domain.com"
+NEXTAUTH_URL="https://app.your-domain.com"
+PLATFORM_ROOT_DOMAIN="app.your-domain.com"
+PLATFORM_ROOT_HOSTS="app.your-domain.com"
 ```
+
+`PLATFORM_ROOT_DOMAIN` enables strict tenant host enforcement. In production, users must sign in on `tenant-slug.app.your-domain.com`.
+
+### Blob Storage
+```
+BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
+```
+
+## Vercel Subdomain Setup
+
+1. Add your central app domain in Vercel (example: `app.your-domain.com`).
+2. Add a wildcard domain in Vercel (example: `*.app.your-domain.com`).
+3. Configure DNS for the wildcard record to point to Vercel.
+4. Confirm TLS certificates are issued for both central and wildcard domains.
+5. Set production env vars:
+   - `NEXTAUTH_URL=https://app.your-domain.com`
+   - `PLATFORM_ROOT_DOMAIN=app.your-domain.com`
+   - `PLATFORM_ROOT_HOSTS=app.your-domain.com`
+6. For preview deployments, leave `PLATFORM_ROOT_DOMAIN` unset to avoid strict host enforcement during QA.
 
 ## Database Setup
 
@@ -212,6 +233,8 @@ For issues:
 - [ ] Backup strategy implemented
 - [ ] Monitoring configured
 - [ ] Domain DNS configured
+- [ ] Wildcard domain configured (`*.app.your-domain.com`)
+- [ ] Tenant subdomain login verified (for example `acme.app.your-domain.com/login`)
 - [ ] Build succeeds
 - [ ] Tests pass
 - [ ] Performance tested

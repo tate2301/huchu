@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
+import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 
 const inventoryItemUpdateSchema = z
@@ -129,24 +130,74 @@ export async function PATCH(
       }
     }
 
-    const item = await prisma.inventoryItem.update({
-      where: { id },
-      data: {
-        name: validated.name,
-        category: validated.category,
-        siteId: validated.siteId,
-        locationId: validated.locationId,
-        unit: validated.unit,
-        currentStock: validated.currentStock,
-        minStock: validated.minStock,
-        maxStock: validated.maxStock,
-        unitCost: validated.unitCost,
-      },
-      include: {
-        site: { select: { name: true, code: true } },
-        location: { select: { name: true } },
-      },
+    const stockDelta =
+      validated.currentStock === undefined
+        ? 0
+        : validated.currentStock - existing.currentStock
+
+    const { item, adjustmentMovement } = await prisma.$transaction(async (tx) => {
+      const updatedItem = await tx.inventoryItem.update({
+        where: { id },
+        data: {
+          name: validated.name,
+          category: validated.category,
+          siteId: validated.siteId,
+          locationId: validated.locationId,
+          unit: validated.unit,
+          currentStock: validated.currentStock,
+          minStock: validated.minStock,
+          maxStock: validated.maxStock,
+          unitCost: validated.unitCost,
+        },
+        include: {
+          site: { select: { name: true, code: true } },
+          location: { select: { name: true } },
+        },
+      })
+
+      let movement: { id: string; createdAt: Date } | null = null
+      if (stockDelta !== 0) {
+        movement = await tx.stockMovement.create({
+          data: {
+            itemId: updatedItem.id,
+            movementType: "ADJUSTMENT",
+            quantity: stockDelta,
+            unit: updatedItem.unit,
+            issuedById: session.user.id,
+            notes: `Auto adjustment from manual stock edit (${existing.currentStock} -> ${updatedItem.currentStock})`,
+          },
+          select: {
+            id: true,
+            createdAt: true,
+          },
+        })
+      }
+
+      return { item: updatedItem, adjustmentMovement: movement }
     })
+
+    if (adjustmentMovement) {
+      const resolvedUnitCost = validated.unitCost ?? existing.unitCost ?? 0
+      const movementAmount = Math.abs(stockDelta) * resolvedUnitCost
+      if (movementAmount > 0) {
+        try {
+          await createJournalEntryFromSource({
+            companyId: session.user.companyId,
+            sourceType: "STOCK_ADJUSTMENT",
+            sourceId: adjustmentMovement.id,
+            entryDate: adjustmentMovement.createdAt,
+            description: `Manual stock correction - ${existing.name}`,
+            createdById: session.user.id,
+            amount: movementAmount,
+            netAmount: movementAmount,
+            taxAmount: 0,
+            grossAmount: movementAmount,
+          })
+        } catch (error) {
+          console.error("[Accounting] Manual stock adjustment auto-post failed:", error)
+        }
+      }
+    }
 
     return successResponse(item)
   } catch (error) {

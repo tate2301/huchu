@@ -17,9 +17,11 @@
     "manage-platform": "node scripts/manage-platform.js",
     "platform": "vite-node --script scripts/platform/index.tsx",
     "platform:audit-feature-gates": "tsx scripts/platform/audit-feature-gates.ts",
+    "platform:accounting-replay": "tsx scripts/platform/accounting-replay.ts",
+    "platform:accounting-backfill-events": "tsx scripts/platform/accounting-backfill-events.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
-    "db:push": "pnpm db:prepare:platform && prisma db push"
+    "db:push": "prisma db push"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -38,6 +40,7 @@
     "@tanstack/react-query": "^5.90.16",
     "@tanstack/react-table": "^8.21.3",
     "@types/pg": "^8.16.0",
+    "@vercel/blob": "^2.2.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

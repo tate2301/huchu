@@ -28,6 +28,32 @@ export type UserSummary = {
   email: string;
   role: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ManagedUserRole = "MANAGER" | "CLERK";
+
+export type CreateManagedUserInput = {
+  name: string;
+  email: string;
+  password: string;
+  role: ManagedUserRole;
+};
+
+export type SetManagedUserStatusInput = {
+  userId: string;
+  isActive: boolean;
+};
+
+export type ResetManagedUserPasswordInput = {
+  userId: string;
+  newPassword: string;
+};
+
+export type ChangeManagedUserRoleInput = {
+  userId: string;
+  role: ManagedUserRole;
 };
 
 export type EmployeeSummary = {
@@ -438,6 +464,7 @@ export type SectionSummary = {
   name: string;
   siteId: string;
   isActive: boolean;
+  _count?: { shiftReports: number };
   site?: { name: string; code: string };
 };
 
@@ -447,6 +474,8 @@ export type DowntimeCode = {
   description: string;
   siteId?: string | null;
   sortOrder: number;
+  isActive?: boolean;
+  site?: { id: string; name: string; code: string } | null;
 };
 
 export type Equipment = {
@@ -472,6 +501,8 @@ export type WorkOrder = {
   downtimeEnd?: string | null;
   workDone?: string | null;
   partsUsed?: string | null;
+  partsCost?: number | null;
+  laborCost?: number | null;
   createdAt: string;
   technician?: { id: string; name: string; employeeId: string } | null;
   equipment: {
@@ -861,6 +892,107 @@ export type DowntimeAnalytics = {
   }>;
 };
 
+export type ExecutiveRange = "7d" | "30d" | "90d";
+
+export type ExecutiveKpiTone = "neutral" | "positive" | "warning" | "critical";
+
+export type ExecutiveKpiCard = {
+  id: string;
+  label: string;
+  value: number;
+  unit?: string;
+  valueLabel?: string;
+  delta?: number;
+  deltaLabel?: string;
+  tone?: ExecutiveKpiTone;
+  module:
+    | "gold"
+    | "stores"
+    | "finance"
+    | "workforce"
+    | "operations"
+    | "maintenance"
+    | "compliance"
+    | "security"
+    | "reports"
+    | "general";
+};
+
+export type ExecutiveTrendPoint = {
+  date: string;
+  value: number;
+  comparison?: number;
+};
+
+export type ExecutiveCashTrendPoint = {
+  date: string;
+  inflow: number;
+  outflow: number;
+  net: number;
+};
+
+export type ExecutiveBreakdownPoint = {
+  label: string;
+  value: number;
+};
+
+export type ExecutiveCharts = {
+  goldTrend: ExecutiveTrendPoint[];
+  cashTrend: ExecutiveCashTrendPoint[];
+  throughputTrend: ExecutiveTrendPoint[];
+  riskBreakdown: ExecutiveBreakdownPoint[];
+};
+
+export type ExecutiveHighlight = {
+  id: string;
+  title: string;
+  description: string;
+  value?: number;
+  valueLabel?: string;
+  unit?: string;
+  tone?: ExecutiveKpiTone;
+};
+
+export type ExecutiveQuickLink = {
+  href: string;
+  label: string;
+  module:
+    | "gold"
+    | "stores"
+    | "finance"
+    | "workforce"
+    | "operations"
+    | "maintenance"
+    | "compliance"
+    | "security"
+    | "reports"
+    | "general";
+  priority: number;
+  badgeCount?: number;
+  badgeLabel?: string;
+  isPrimary?: boolean;
+  primaryOrder?: number;
+};
+
+export type ExecutiveDashboardResponse = {
+  generatedAt: string;
+  range: ExecutiveRange;
+  siteId: string;
+  fullView: boolean;
+  window: {
+    startDate: string;
+    endDate: string;
+    previousStartDate: string;
+    previousEndDate: string;
+    days: number;
+  };
+  sites: Site[];
+  kpis: ExecutiveKpiCard[];
+  charts: ExecutiveCharts;
+  highlights: ExecutiveHighlight[];
+  quickLinks: ExecutiveQuickLink[];
+};
+
 function buildQuery(
   params: Record<string, string | number | boolean | null | undefined>,
 ) {
@@ -878,6 +1010,62 @@ export async function fetchSites() {
   return response.sites;
 }
 
+export async function fetchSitesList(
+  params: {
+    active?: boolean | "all";
+    search?: string;
+  } = {},
+) {
+  const query = buildQuery(params);
+  const response = await fetchJson<{ sites: Site[] }>(`/api/sites${query}`);
+  return response.sites;
+}
+
+export async function createSite(input: {
+  name: string;
+  code: string;
+  location?: string;
+  measurementUnit?: "tonnes" | "trips" | "wheelbarrows";
+}) {
+  return fetchJson<Site>("/api/sites", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateSite(
+  id: string,
+  input: {
+    name?: string;
+    code?: string;
+    location?: string | null;
+    measurementUnit?: "tonnes" | "trips" | "wheelbarrows";
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<Site>(`/api/sites/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSite(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/sites/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchExecutiveDashboardOverview(params: {
+  siteId?: string;
+  range: ExecutiveRange;
+}) {
+  const query = buildQuery({
+    siteId: params.siteId,
+    range: params.range,
+  });
+  return fetchJson<ExecutiveDashboardResponse>(`/api/dashboard/executive-overview${query}`);
+}
+
 export async function fetchUsers(
   params: {
     role?: string;
@@ -889,6 +1077,34 @@ export async function fetchUsers(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<UserSummary>>(`/api/users${query}`);
+}
+
+export async function createManagedUser(input: CreateManagedUserInput) {
+  return fetchJson<UserSummary>("/api/users/create", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function setManagedUserStatus(input: SetManagedUserStatusInput) {
+  return fetchJson<UserSummary>("/api/users/status", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function resetManagedUserPassword(input: ResetManagedUserPasswordInput) {
+  return fetchJson<UserSummary>("/api/users/password-reset", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function changeManagedUserRole(input: ChangeManagedUserRoleInput) {
+  return fetchJson<UserSummary>("/api/users/role-change", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function fetchEmployees(
@@ -917,6 +1133,37 @@ export async function fetchDepartments(
   return fetchJson<Pagination<DepartmentRecord>>(`/api/departments${query}`);
 }
 
+export async function createDepartment(input: {
+  code: string;
+  name: string;
+  isActive?: boolean;
+}) {
+  return fetchJson<DepartmentRecord>("/api/departments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDepartment(
+  id: string,
+  input: {
+    code?: string;
+    name?: string;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<DepartmentRecord>(`/api/departments/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDepartment(id: string) {
+  return fetchJson<{ success: boolean; deleted?: boolean }>(`/api/departments/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchJobGrades(
   params: {
     active?: boolean;
@@ -927,6 +1174,39 @@ export async function fetchJobGrades(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<JobGradeRecord>>(`/api/job-grades${query}`);
+}
+
+export async function createJobGrade(input: {
+  code: string;
+  name: string;
+  rank?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<JobGradeRecord>("/api/job-grades", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateJobGrade(
+  id: string,
+  input: {
+    code?: string;
+    name?: string;
+    rank?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<JobGradeRecord>(`/api/job-grades/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteJobGrade(id: string) {
+  return fetchJson<{ success: boolean; deleted?: boolean }>(`/api/job-grades/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchCompensationProfiles(
@@ -1167,14 +1447,80 @@ export async function fetchSections(
   return fetchJson<Pagination<SectionSummary>>(`/api/sections${query}`);
 }
 
+export async function createSection(input: {
+  name: string;
+  siteId: string;
+  isActive?: boolean;
+}) {
+  return fetchJson<SectionSummary>("/api/sections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateSection(
+  id: string,
+  input: {
+    name?: string;
+    siteId?: string;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<SectionSummary>(`/api/sections/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSection(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/sections/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchDowntimeCodes(
-  params: { siteId?: string; active?: boolean } = {},
+  params: { siteId?: string; active?: boolean | "all"; search?: string } = {},
 ) {
   const query = buildQuery(params);
   const response = await fetchJson<{ codes: DowntimeCode[] }>(
     `/api/downtime-codes${query}`,
   );
   return response.codes;
+}
+
+export async function createDowntimeCode(input: {
+  code: string;
+  description: string;
+  siteId: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<DowntimeCode>("/api/downtime-codes", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDowntimeCode(
+  id: string,
+  input: {
+    code?: string;
+    description?: string;
+    siteId?: string | null;
+    sortOrder?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<DowntimeCode>(`/api/downtime-codes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDowntimeCode(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/downtime-codes/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchDowntimeAnalytics(params: {
@@ -1446,6 +1792,769 @@ export async function fetchTrainingRecords(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<TrainingRecordSummary>>(`/api/compliance/training-records${query}`);
+}
+
+// ============================================
+// Accounting API Functions
+// ============================================
+
+export type AccountingSummary = {
+  accounts: number;
+  openPeriods: number;
+  postedJournals: number;
+  draftJournals: number;
+  openInvoices: number;
+  openBills: number;
+  pendingIntegrationEvents?: number;
+  failedIntegrationEvents?: number;
+};
+
+export type ChartOfAccountRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  category?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  systemManaged?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountingPeriodRecord = {
+  id: string;
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  status: "OPEN" | "CLOSED";
+  closedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type JournalLineRecord = {
+  id: string;
+  accountId: string;
+  debit: number;
+  credit: number;
+  memo?: string | null;
+  costCenterId?: string | null;
+  account?: { code: string; name: string } | null;
+};
+
+export type JournalEntryRecord = {
+  id: string;
+  companyId: string;
+  entryNumber: number;
+  entryDate: string;
+  description: string;
+  status: "DRAFT" | "POSTED";
+  periodId?: string | null;
+  period?: { id: string; startDate: string; endDate: string } | null;
+  lines?: JournalLineRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PostingRuleLineRecord = {
+  id: string;
+  accountId: string;
+  direction: "DEBIT" | "CREDIT";
+  basis: "AMOUNT" | "NET" | "TAX" | "GROSS" | "DEDUCTIONS" | "ALLOWANCES";
+  allocationType?: "PERCENT" | "FIXED";
+  allocationValue?: number;
+  account?: { code: string; name: string } | null;
+};
+
+export type PostingRuleRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  sourceType: string;
+  isActive: boolean;
+  lines: PostingRuleLineRecord[];
+};
+
+export type TaxCodeRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  rate: number;
+  type: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CustomerRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  vatNumber?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type VendorRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  vatNumber?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type SalesInvoiceLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type SalesInvoiceRecord = {
+  id: string;
+  companyId: string;
+  customerId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: "DRAFT" | "ISSUED" | "PAID" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  amountPaid: number;
+  creditTotal: number;
+  writeOffTotal: number;
+  balance?: number;
+  fiscalStatus?: string | null;
+  notes?: string | null;
+  customer: { id: string; name: string };
+  lines: SalesInvoiceLineRecord[];
+  fiscalReceipt?: { id: string; status: string; fiscalNumber?: string | null } | null;
+};
+
+export type SalesReceiptRecord = {
+  id: string;
+  companyId: string;
+  invoiceId?: string | null;
+  receiptNumber: string;
+  receivedAt: string;
+  amount: number;
+  method: string;
+  reference?: string | null;
+  bankAccountId?: string | null;
+  invoice?: {
+    invoiceNumber: string;
+    customer?: { name: string } | null;
+  } | null;
+};
+
+export type CreditNoteLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type CreditNoteRecord = {
+  id: string;
+  companyId: string;
+  invoiceId: string;
+  noteNumber: string;
+  noteDate: string;
+  status: "DRAFT" | "ISSUED" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  reason?: string | null;
+  invoice?: { invoiceNumber?: string | null; customer?: { name?: string | null } | null } | null;
+  lines?: CreditNoteLineRecord[];
+};
+
+export type SalesWriteOffRecord = {
+  id: string;
+  companyId: string;
+  invoiceId: string;
+  amount: number;
+  reason?: string | null;
+  status: "POSTED" | "VOIDED";
+  createdAt: string;
+  invoice?: { invoiceNumber?: string | null; customer?: { name?: string | null } | null } | null;
+};
+
+export type PurchaseBillLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type PurchaseBillRecord = {
+  id: string;
+  companyId: string;
+  vendorId: string;
+  billNumber: string;
+  billDate: string;
+  dueDate?: string | null;
+  status: "DRAFT" | "RECEIVED" | "PAID" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  amountPaid: number;
+  debitNoteTotal: number;
+  writeOffTotal: number;
+  balance?: number;
+  notes?: string | null;
+  vendor: { id: string; name: string };
+  lines: PurchaseBillLineRecord[];
+};
+
+export type PurchasePaymentRecord = {
+  id: string;
+  companyId: string;
+  billId?: string | null;
+  paymentNumber: string;
+  paidAt: string;
+  amount: number;
+  method: string;
+  reference?: string | null;
+  bankAccountId?: string | null;
+  bill?: {
+    billNumber: string;
+    vendor?: { name: string } | null;
+  } | null;
+};
+
+export type DebitNoteLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type DebitNoteRecord = {
+  id: string;
+  companyId: string;
+  billId: string;
+  noteNumber: string;
+  noteDate: string;
+  status: "DRAFT" | "ISSUED" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  reason?: string | null;
+  bill?: { billNumber?: string | null; vendor?: { name?: string | null } | null } | null;
+  lines?: DebitNoteLineRecord[];
+};
+
+export type PurchaseWriteOffRecord = {
+  id: string;
+  companyId: string;
+  billId: string;
+  amount: number;
+  reason?: string | null;
+  status: "POSTED" | "VOIDED";
+  createdAt: string;
+  bill?: { billNumber?: string | null; vendor?: { name?: string | null } | null } | null;
+};
+
+export type BankAccountRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  currency: string;
+  openingBalance: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BankTransactionRecord = {
+  id: string;
+  companyId: string;
+  bankAccountId: string;
+  txnDate: string;
+  description: string;
+  reference?: string | null;
+  amount: number;
+  direction: "DEBIT" | "CREDIT";
+  sourceType: string;
+  sourceId?: string | null;
+  reconciliationId?: string | null;
+  reconciledAt?: string | null;
+  bankAccount?: { name: string; currency: string } | null;
+};
+
+export type BankReconciliationRecord = {
+  id: string;
+  companyId: string;
+  bankAccountId: string;
+  startDate: string;
+  endDate: string;
+  statementBalance: number;
+  status: "OPEN" | "CLOSED" | "VOIDED";
+  createdAt: string;
+  bankAccount?: { id: string; name: string; currency: string } | null;
+};
+
+export type FixedAssetRecord = {
+  id: string;
+  companyId: string;
+  assetCode: string;
+  name: string;
+  category?: string | null;
+  acquisitionDate: string;
+  cost: number;
+  salvageValue: number;
+  usefulLifeMonths: number;
+  depreciationMethod: string;
+  isActive: boolean;
+};
+
+export type BudgetRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: "DRAFT" | "ACTIVE" | "CLOSED";
+  totalAmount: number;
+  notes?: string | null;
+};
+
+export type CostCenterRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+};
+
+export type CurrencyRateRecord = {
+  id: string;
+  companyId: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rate: number;
+  effectiveDate: string;
+};
+
+export type FiscalReceiptRecord = {
+  id: string;
+  companyId: string;
+  invoiceId?: string | null;
+  receiptNumber?: string | null;
+  fiscalNumber?: string | null;
+  status: "PENDING" | "SUCCESS" | "FAILED" | "VOIDED";
+  issuedAt?: string | null;
+  qrCodeData?: string | null;
+  signature?: string | null;
+  providerKey?: string | null;
+  rawResponseJson?: string | null;
+  lastError?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  invoice?: { invoiceNumber?: string | null } | null;
+};
+
+export type AccountingSettingsRecord = {
+  companyId: string;
+  legalName?: string | null;
+  tradingName?: string | null;
+  vatNumber?: string | null;
+  taxNumber?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+};
+
+export type FiscalisationProviderRecord = {
+  id: string;
+  companyId: string;
+  providerKey: string;
+  apiBaseUrl?: string | null;
+  username?: string | null;
+  password?: string | null;
+  apiToken?: string | null;
+  deviceId?: string | null;
+  metadataJson?: string | null;
+  isActive: boolean;
+};
+
+export type FiscalisationConfigResponse = {
+  provider: FiscalisationProviderRecord | null;
+  settings: AccountingSettingsRecord | null;
+};
+
+export type TrialBalanceRow = {
+  accountId: string;
+  code: string;
+  name: string;
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  category?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export type TrialBalanceReport = {
+  rows: TrialBalanceRow[];
+  totals: { debit: number; credit: number };
+};
+
+export type FinancialStatementsReport = {
+  trialBalance: TrialBalanceReport;
+  profitAndLoss: {
+    income: TrialBalanceRow[];
+    expenses: TrialBalanceRow[];
+    totals: { income: number; expenses: number; netIncome: number };
+  };
+  balanceSheet: {
+    assets: TrialBalanceRow[];
+    liabilities: TrialBalanceRow[];
+    equity: TrialBalanceRow[];
+    totals: { assets: number; liabilities: number; equity: number };
+  };
+};
+
+export type CashFlowReport = {
+  operating: TrialBalanceRow[];
+  investing: TrialBalanceRow[];
+  financing: TrialBalanceRow[];
+  totals: {
+    operating: number;
+    investing: number;
+    financing: number;
+    netCash: number;
+  };
+};
+
+export type AgingRow = {
+  id: string;
+  name: string;
+  current: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  days90Plus: number;
+  total: number;
+};
+
+export type StatementLineRecord = {
+  date: string;
+  type: string;
+  reference: string;
+  description?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export type StatementReport = {
+  openingBalance: number;
+  closingBalance: number;
+  lines: StatementLineRecord[];
+};
+
+export type VatSummaryRow = {
+  taxCodeId: string;
+  code: string;
+  name: string;
+  rate: number;
+  outputTax: number;
+  inputTax: number;
+  netTax: number;
+};
+
+export type VatSummaryReport = {
+  startDate: string | null;
+  endDate: string | null;
+  rows: VatSummaryRow[];
+  totals: { outputTax: number; inputTax: number; netTax: number };
+};
+
+export async function fetchAccountingSummary() {
+  return fetchJson<AccountingSummary>("/api/accounting/summary");
+}
+
+export async function fetchChartOfAccounts(
+  params: {
+    search?: string;
+    type?: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+    active?: boolean;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<ChartOfAccountRecord>>(`/api/accounting/coa${query}`);
+}
+
+export async function fetchJournalEntries(
+  params: {
+    status?: "DRAFT" | "POSTED";
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<JournalEntryRecord>>(`/api/accounting/journals${query}`);
+}
+
+export async function fetchAccountingPeriods(
+  params: { status?: "OPEN" | "CLOSED"; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<AccountingPeriodRecord>>(`/api/accounting/periods${query}`);
+}
+
+export async function fetchPostingRules() {
+  return fetchJson<PostingRuleRecord[]>("/api/accounting/posting-rules");
+}
+
+export async function fetchTaxCodes() {
+  return fetchJson<TaxCodeRecord[]>("/api/accounting/tax");
+}
+
+export async function fetchCustomers(
+  params: { search?: string; active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CustomerRecord>>(`/api/accounting/sales/customers${query}`);
+}
+
+export async function fetchVendors(
+  params: { search?: string; active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<VendorRecord>>(`/api/accounting/purchases/vendors${query}`);
+}
+
+export async function fetchSalesInvoices(
+  params: { status?: string; customerId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SalesInvoiceRecord>>(`/api/accounting/sales/invoices${query}`);
+}
+
+export async function fetchSalesReceipts(
+  params: { invoiceId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SalesReceiptRecord>>(`/api/accounting/sales/receipts${query}`);
+}
+
+export async function fetchCreditNotes(
+  params: { invoiceId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CreditNoteRecord>>(`/api/accounting/sales/credit-notes${query}`);
+}
+
+export async function fetchSalesWriteOffs(
+  params: { invoiceId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SalesWriteOffRecord>>(`/api/accounting/sales/write-offs${query}`);
+}
+
+export async function fetchPurchaseBills(
+  params: { status?: string; vendorId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PurchaseBillRecord>>(`/api/accounting/purchases/bills${query}`);
+}
+
+export async function fetchPurchasePayments(
+  params: { billId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PurchasePaymentRecord>>(`/api/accounting/purchases/payments${query}`);
+}
+
+export async function fetchDebitNotes(
+  params: { billId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<DebitNoteRecord>>(`/api/accounting/purchases/debit-notes${query}`);
+}
+
+export async function fetchPurchaseWriteOffs(
+  params: { billId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PurchaseWriteOffRecord>>(`/api/accounting/purchases/write-offs${query}`);
+}
+
+export async function fetchBankAccounts(
+  params: { active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BankAccountRecord>>(`/api/accounting/banking/accounts${query}`);
+}
+
+export async function fetchBankTransactions(
+  params: { bankAccountId?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BankTransactionRecord>>(
+    `/api/accounting/banking/transactions${query}`,
+  );
+}
+
+export async function fetchBankReconciliations(
+  params: { bankAccountId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BankReconciliationRecord>>(
+    `/api/accounting/banking/reconciliations${query}`,
+  );
+}
+
+export async function fetchAssets(
+  params: { active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<FixedAssetRecord>>(`/api/accounting/assets${query}`);
+}
+
+export async function fetchBudgets(
+  params: { status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<BudgetRecord>>(`/api/accounting/budgets${query}`);
+}
+
+export async function fetchCostCenters(
+  params: { active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CostCenterRecord>>(`/api/accounting/cost-centers${query}`);
+}
+
+export async function fetchCurrencyRates(
+  params: { baseCurrency?: string; quoteCurrency?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CurrencyRateRecord>>(`/api/accounting/currency${query}`);
+}
+
+export async function fetchFiscalReceipts(
+  params: { status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<FiscalReceiptRecord>>(
+    `/api/accounting/fiscalisation/receipts${query}`,
+  );
+}
+
+export async function fetchFiscalisationConfig() {
+  return fetchJson<FiscalisationConfigResponse>(
+    "/api/accounting/fiscalisation/config",
+  );
+}
+
+export async function fetchTrialBalance(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<TrialBalanceReport>(`/api/accounting/reports/trial-balance${query}`);
+}
+
+export async function fetchFinancialStatements(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<FinancialStatementsReport>(`/api/accounting/reports/financials${query}`);
+}
+
+export async function fetchCashFlowReport(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<CashFlowReport>(`/api/accounting/reports/cash-flow${query}`);
+}
+
+export async function fetchArAging(params: { asOf?: string } = {}) {
+  const query = buildQuery(params);
+  return fetchJson<{ asOf: string; rows: AgingRow[] }>(`/api/accounting/reports/ar-aging${query}`);
+}
+
+export async function fetchApAging(params: { asOf?: string } = {}) {
+  const query = buildQuery(params);
+  return fetchJson<{ asOf: string; rows: AgingRow[] }>(`/api/accounting/reports/ap-aging${query}`);
+}
+
+export async function fetchCustomerStatement(params: {
+  customerId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<StatementReport>(`/api/accounting/reports/customer-statement${query}`);
+}
+
+export async function fetchVendorStatement(params: {
+  vendorId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<StatementReport>(`/api/accounting/reports/vendor-statement${query}`);
+}
+
+export async function fetchVatSummary(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<VatSummaryReport>(`/api/accounting/reports/vat-summary${query}`);
 }
 
 // ============================================

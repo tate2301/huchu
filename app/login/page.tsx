@@ -14,6 +14,22 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Shield, AlertCircle } from "@/lib/icons";
 
+function getAuthErrorMessage(rawError: string) {
+  switch (rawError) {
+    case "TENANT_HOST_REQUIRED":
+      return "Use your organization URL to sign in.";
+    case "TENANT_NOT_FOUND":
+      return "This organization URL is not recognized.";
+    case "TENANT_INACTIVE":
+      return "This organization is currently inactive. Contact your administrator.";
+    case "CredentialsSignin":
+    case "Invalid credentials":
+      return "Invalid email or password.";
+    default:
+      return rawError;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -34,12 +50,12 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError(getAuthErrorMessage(result.error));
       } else {
         router.push("/");
         router.refresh();
       }
-    } catch (error) {
+    } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);

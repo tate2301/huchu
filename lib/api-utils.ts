@@ -5,7 +5,12 @@ import { authOptions } from './auth';
 import { Session } from 'next-auth';
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { canAccessRouteForCompany } from "@/lib/platform/gating/enforcer-server";
-import { getTenantClaimsForCompany, isTenantStatusActive } from "@/lib/platform/tenant";
+import {
+  getHostHeaderFromRequestHeaders,
+  getPlatformHostContext,
+  getTenantClaimsForCompany,
+  isTenantStatusActive,
+} from "@/lib/platform/tenant";
 
 export interface AuthenticatedSession extends Session {
   user: {
@@ -51,6 +56,33 @@ export async function validateSession(
       },
       { status: 403 },
     );
+  }
+
+  const hostHeader = getHostHeaderFromRequestHeaders(request.headers);
+  const hostContext = getPlatformHostContext(hostHeader);
+  if (hostContext.strictTenantEnforcement) {
+    if (!hostContext.isTenantHost || !hostContext.tenantSlug) {
+      return NextResponse.json(
+        {
+          error: "Tenant host required",
+          code: "TENANT_HOST_REQUIRED",
+        },
+        { status: 403 },
+      );
+    }
+
+    const sessionCompanySlug = session.user.companySlug?.trim().toLowerCase();
+    if (!sessionCompanySlug || sessionCompanySlug !== hostContext.tenantSlug) {
+      return NextResponse.json(
+        {
+          error: "Tenant host mismatch",
+          code: "TENANT_HOST_MISMATCH",
+          expectedTenant: sessionCompanySlug ?? null,
+          receivedTenant: hostContext.tenantSlug,
+        },
+        { status: 403 },
+      );
+    }
   }
 
   const pathname = new URL(request.url).pathname;

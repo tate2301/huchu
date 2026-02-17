@@ -5,7 +5,13 @@ import type { Adapter } from "next-auth/adapters";
 import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { hasFeature } from "@/lib/platform/features";
-import { getTenantClaimsForCompany } from "@/lib/platform/tenant";
+import {
+  getHostHeaderFromRequestHeaders,
+  getPlatformHostContext,
+  getTenantClaimsForCompany,
+  isTenantStatusActive,
+  resolveTenantBySlug,
+} from "@/lib/platform/tenant";
 import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import bcrypt from "bcryptjs";
@@ -39,7 +45,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
 
@@ -47,8 +53,32 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
+        const hostHeader = getHostHeaderFromRequestHeaders(req?.headers);
+        const hostContext = getPlatformHostContext(hostHeader);
+
+        let scopedCompanyId: string | undefined;
+        if (hostContext.strictTenantEnforcement) {
+          if (!hostContext.isTenantHost || !hostContext.tenantSlug) {
+            throw new Error("TENANT_HOST_REQUIRED");
+          }
+
+          const tenant = await resolveTenantBySlug(hostContext.tenantSlug);
+          if (!tenant) {
+            throw new Error("TENANT_NOT_FOUND");
+          }
+
+          if (!isTenantStatusActive(tenant.tenantStatus)) {
+            throw new Error("TENANT_INACTIVE");
+          }
+
+          scopedCompanyId = tenant.companyId;
+        }
+
         const user = await prisma.user.findFirst({
-          where: { email: { equals: email, mode: "insensitive" } },
+          where: {
+            email: { equals: email, mode: "insensitive" },
+            ...(scopedCompanyId ? { companyId: scopedCompanyId } : {}),
+          },
           select: {
             id: true,
             email: true,
@@ -78,6 +108,18 @@ export const authOptions: NextAuthOptions = {
         const loginEnabled = await hasFeature(user.companyId, "core.auth.login");
         if (!loginEnabled) {
           throw new Error("Login is disabled for this organization");
+        }
+
+        const [tenantClaims, subscriptionHealth] = await Promise.all([
+          getTenantClaimsForCompany(user.companyId),
+          getSubscriptionHealth(user.companyId),
+        ]);
+        const effectiveTenantStatus = toTenantStatus(
+          tenantClaims.tenantStatus,
+          !subscriptionHealth.shouldBlock,
+        );
+        if (!isTenantStatusActive(effectiveTenantStatus)) {
+          throw new Error("TENANT_INACTIVE");
         }
 
         return {

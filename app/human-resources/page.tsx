@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -275,9 +276,10 @@ export default function HumanResourcesPage() {
 
   const uploadPassportPhoto = async (file: File) => {
     const formDataPayload = new FormData()
+    formDataPayload.append("context", "employee-passport")
     formDataPayload.append("file", file)
 
-    const response = await fetch("/api/uploads/passport-photo", {
+    const response = await fetch("/api/uploads", {
       method: "POST",
       credentials: "include",
       body: formDataPayload,
@@ -617,7 +619,15 @@ export default function HumanResourcesPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="block text-sm font-semibold mb-2">Department</label>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className="block text-sm font-semibold">Department</label>
+                  <Link
+                    href="/management/master-data/hr/departments"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Manage
+                  </Link>
+                </div>
                 <Select
                   value={formData.departmentId || "none"}
                   onValueChange={handleSelectDepartment}
@@ -636,7 +646,15 @@ export default function HumanResourcesPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Grade</label>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className="block text-sm font-semibold">Grade</label>
+                  <Link
+                    href="/management/master-data/hr/job-grades"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Manage
+                  </Link>
+                </div>
                 <Select value={formData.gradeId || "none"} onValueChange={handleSelectGrade}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select grade" />

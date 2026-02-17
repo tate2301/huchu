@@ -5,10 +5,10 @@ import {
   SUBSCRIPTION_STATUSES,
   type PlatformServices,
   type SubscriptionStatusValue,
-  type SubscriptionSummary,
 } from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
+import { loadSubscriptionTargets, type SubscriptionTargetSummary } from "./subscription-targets";
 import { WizardFrame } from "./wizard-frame";
 
 interface SubscriptionStatusWizardProps {
@@ -31,7 +31,7 @@ export function SubscriptionStatusWizard({
   onBackToTree,
 }: SubscriptionStatusWizardProps) {
   const [step, setStep] = useState<Step>(0);
-  const [rows, setRows] = useState<SubscriptionSummary[]>([]);
+  const [rows, setRows] = useState<SubscriptionTargetSummary[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [statusIndex, setStatusIndex] = useState(1);
   const [reason, setReason] = useState("");
@@ -47,10 +47,7 @@ export function SubscriptionStatusWizard({
     let ignore = false;
     async function loadRows() {
       try {
-        const subscriptions = await services.subscription.list({
-          companyId: focusCompanyId || undefined,
-          limit: 100,
-        });
+        const subscriptions = await loadSubscriptionTargets(services, focusCompanyId);
         if (!ignore) {
           setRows(subscriptions);
           setSelectedIndex(0);
@@ -63,7 +60,7 @@ export function SubscriptionStatusWizard({
     return () => {
       ignore = true;
     };
-  }, [focusCompanyId, services.subscription]);
+  }, [focusCompanyId, services, services.org, services.subscription]);
 
   const selected = rows[selectedIndex] ?? null;
   const statusOptions: SubscriptionStatusValue[] = [...SUBSCRIPTION_STATUSES];
@@ -199,8 +196,8 @@ export function SubscriptionStatusWizard({
             <SelectorList
               items={rows}
               selectedIndex={selectedIndex}
-              emptyMessage="No subscriptions available."
-              render={(item) => `${item.companySlug || item.companyId} | ${item.status} | plan ${item.planCode || "CUSTOM"}`}
+              emptyMessage="No companies available."
+              render={(item) => `${item.companySlug || item.companyId} | ${item.status || "NO_SUBSCRIPTION"} | plan ${item.planCode || "none"}`}
             />
           ) : null}
           {step === 1 ? (

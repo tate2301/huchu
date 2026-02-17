@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
 import {
   createApprovalAction,
@@ -120,6 +121,26 @@ export async function POST(
 
       return adjustment
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "payroll",
+        sourceAction: "adjustment-approved",
+        sourceId: updated.id,
+        description: `Adjustment ${updated.id} approved`,
+        amount: updated.amountDelta,
+        payload: {
+          targetType: updated.targetType,
+          payrollRunId: updated.payrollRunId,
+          disbursementBatchId: updated.disbursementBatchId,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Adjustment approval capture failed:", error)
+    }
 
     return successResponse(updated)
   } catch (error) {

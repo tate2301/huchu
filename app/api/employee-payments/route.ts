@@ -6,6 +6,7 @@ import {
   getPaginationParams,
   paginationResponse,
 } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
@@ -332,6 +333,29 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "employee-payments",
+        sourceAction: "payment-created",
+        sourceId: payment.id,
+        entryDate: payment.createdAt,
+        description: `${payment.type} employee payment recorded`,
+        amount: payment.amount,
+        payload: {
+          employeeId: payment.employeeId,
+          type: payment.type,
+          status: payment.status,
+          payrollRunId: payment.payrollRun?.id ?? null,
+          disbursementBatchId: payment.disbursementBatch?.id ?? null,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Employee payment capture failed:", error)
+    }
 
     return successResponse(payment, 201)
   } catch (error) {

@@ -113,6 +113,7 @@ function SelectItem({
         className,
       )}
       {...props}
+      value={props.value ? props.value : `fallback-${props.id}`}
     >
       <span
         data-slot="select-item-indicator"

@@ -8,6 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { prisma } from "@/lib/prisma";
 
 const correctionSchema = z.object({
@@ -223,6 +224,26 @@ export async function POST(request: NextRequest) {
         corrections: JSON.stringify([...existingCorrections, newEntry]),
       },
     });
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "gold",
+        sourceAction: "correction-created",
+        sourceId: newEntry.id,
+        description: `Gold correction on ${validated.entityType} ${validated.entityId}`,
+        payload: {
+          pourId: pour.id,
+          entityType: validated.entityType,
+          entityId: validated.entityId,
+          reason: validated.reason,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      });
+    } catch (error) {
+      console.error("[Accounting] Gold correction capture failed:", error);
+    }
 
     return successResponse(
       {

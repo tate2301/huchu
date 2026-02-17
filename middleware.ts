@@ -1,10 +1,11 @@
 import { withAuth } from "next-auth/middleware";
 import type { NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import { getPlatformHostContext, isTenantStatusActive } from "@/lib/platform/tenant";
+import { getHostHeaderFromRequestHeaders, getPlatformHostContext, isTenantStatusActive } from "@/lib/platform/tenant";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
+const LOGIN_PATH = "/login";
 
 type PlatformToken = {
   companyId?: string;
@@ -66,10 +67,24 @@ export default withAuth(
       return NextResponse.next();
     }
 
-    const hostContext = getPlatformHostContext(request.headers.get("host"));
-
+    const hostHeader = getHostHeaderFromRequestHeaders(request.headers);
+    const hostContext = getPlatformHostContext(hostHeader);
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
+
+    if (pathname === LOGIN_PATH) {
+      if (!hostContext.strictTenantEnforcement) {
+        return NextResponse.next();
+      }
+      if (hostContext.isTenantHost && hostContext.tenantSlug) {
+        return NextResponse.next();
+      }
+      if (hostContext.isCentralHost && normalizedCompanySlug) {
+        return redirectToTenantHost(request, normalizedCompanySlug);
+      }
+      return redirectToAccessBlocked(request);
+    }
+
     const tenantHostEnforcementDecision = canAccessCapabilityWithToken(
       "core.multitenancy.host-enforcement",
       token?.enabledFeatures,
@@ -123,7 +138,13 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        const pathname = req.nextUrl.pathname;
+        if (pathname === LOGIN_PATH || pathname === ACCESS_BLOCKED_PATH) {
+          return true;
+        }
+        return !!token;
+      },
     },
     pages: {
       signIn: "/login",
@@ -133,7 +154,7 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api|login|_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)).*)",
+    "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)).*)",
     "/api/cctv/:path*",
     "/api/gold/:path*",
     "/api/payroll/:path*",

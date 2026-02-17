@@ -59,6 +59,13 @@ import {
   setBundleFeatures,
   upsertBundleCatalog,
 } from "./domain/bundle-catalog-service";
+import {
+  changeUserRole,
+  createUser,
+  listUsers,
+  resetUserPassword,
+  setUserStatus,
+} from "./domain/user-management-service";
 import { searchGlobal } from "./domain/search-service";
 import { getTierDefinition } from "../../lib/platform/feature-catalog";
 import {
@@ -71,6 +78,7 @@ import {
   ADMIN_ACCOUNT_STATUSES,
   ADMIN_ROLES,
   ORGANIZATION_STATUSES,
+  SITE_MEASUREMENT_UNITS,
   SUBSCRIPTION_STATUSES,
   type AddAuditNoteInput,
   type BundleCatalogSummary,
@@ -99,14 +107,25 @@ import {
   type OrganizationStatus,
   type OrganizationStatusResult,
   type PlatformServices,
+  type ProvisionBundleResult,
   type ProvisionOrganizationInput,
+  type CreateSiteInput,
+  type ListSitesInput,
   type ResetAdminPasswordInput,
+  type SetSiteStatusInput,
   type SetAdminStatusInput,
   type SetFeatureInput,
   type SetBundleFeaturesInput,
   type SetSubscriptionStatusInput,
   type SetAddonInput,
+  type SiteCreateResult,
+  type SiteDetail,
+  type SiteMeasurementUnit,
+  type SiteStatusResult,
+  type SiteSummary,
+  type SiteUpdateResult,
   type UpsertBundleCatalogInput,
+  type UpdateSiteInput,
   type SubscriptionStatusResult,
   type SubscriptionPricingSummary,
   type SubscriptionHealthSummary,
@@ -146,12 +165,63 @@ function normalizeEnum<T extends string>(value: string, label: string, allowed: 
   return normalized as T;
 }
 
+function normalizeSiteCode(value: string): string {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized) {
+    throw new Error("Site code cannot be empty.");
+  }
+  if (normalized.length > 20) {
+    throw new Error("Site code cannot exceed 20 characters.");
+  }
+  return normalized;
+}
+
+function normalizeSiteName(value: string): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    throw new Error("Site name cannot be empty.");
+  }
+  if (normalized.length > 200) {
+    throw new Error("Site name cannot exceed 200 characters.");
+  }
+  return normalized;
+}
+
+function normalizeSiteLocation(value: string | null | undefined): string | null {
+  if (value === null) return null;
+  if (value === undefined) return null;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+  if (normalized.length > 200) {
+    throw new Error("Site location cannot exceed 200 characters.");
+  }
+  return normalized;
+}
+
+function normalizeSiteMeasurementUnit(value: string | undefined): SiteMeasurementUnit {
+  const normalized = String(value || "tonnes").trim().toLowerCase();
+  if (!SITE_MEASUREMENT_UNITS.includes(normalized as SiteMeasurementUnit)) {
+    throw new Error(
+      `Invalid measurement unit: ${value}. Use ${SITE_MEASUREMENT_UNITS.join(", ")}.`,
+    );
+  }
+  return normalized as SiteMeasurementUnit;
+}
+
 function toErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
   if (message.includes("not found")) return "NOT_FOUND";
   if (message.includes("already exists") || message.includes("duplicate") || message.includes("unique")) return "CONFLICT";
   if (message.includes("invalid") || message.includes("empty") || message.includes("required")) return "VALIDATION_ERROR";
   if (message.includes("permission") || message.includes("role")) return "PERMISSION_DENIED";
+  if (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("expired transaction") ||
+    message.includes("a query cannot be executed on an expired transaction")
+  ) {
+    return "TIMEOUT";
+  }
   return "OPERATION_FAILED";
 }
 
@@ -165,6 +235,19 @@ async function toMutation<T>(task: () => Promise<T>): Promise<MutationResult<T>>
       message: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+async function toProvisionBundleMutation(
+  task: () => Promise<ProvisionBundleResult>,
+): Promise<MutationResult<ProvisionBundleResult>> {
+  const result = await toMutation(task);
+  if (!result.ok) return result;
+  const warnings = result.resource.warnings;
+  if (!warnings || warnings.length === 0) return result;
+  return {
+    ...result,
+    warnings,
+  };
 }
 
 async function appendAuditEvent(event: {
@@ -403,6 +486,320 @@ async function setOrganizationStatus(args: {
     afterStatus: after.tenantStatus,
     usersChanged: usersResult.count,
     sitesChanged: sitesResult.count,
+    auditEventId: audit.id,
+  };
+}
+
+function mapSite(row: {
+  id: string;
+  companyId: string;
+  name: string;
+  code: string;
+  location: string | null;
+  measurementUnit: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  company?: { name: string; slug: string } | null;
+}): SiteSummary {
+  return {
+    id: row.id,
+    companyId: row.companyId,
+    companyName: row.company?.name ?? null,
+    companySlug: row.company?.slug ?? null,
+    name: row.name,
+    code: row.code,
+    location: row.location ?? null,
+    measurementUnit: row.measurementUnit as SiteMeasurementUnit,
+    isActive: row.isActive,
+    createdAt: formatDate(row.createdAt),
+    updatedAt: formatDate(row.updatedAt),
+  };
+}
+
+async function listSites(input?: ListSitesInput): Promise<SiteSummary[]> {
+  const where: Prisma.SiteWhereInput = {};
+  if (input?.companyId) where.companyId = input.companyId;
+
+  const status = String(input?.status || "").trim().toUpperCase();
+  if (status && status !== "ALL") {
+    if (status === "ACTIVE") {
+      where.isActive = true;
+    } else if (status === "INACTIVE") {
+      where.isActive = false;
+    } else {
+      throw new Error(`Invalid status: ${input?.status}. Use active, inactive, or all.`);
+    }
+  }
+
+  const query = input?.search?.trim();
+  if (query) {
+    where.OR = [
+      { name: { contains: query, mode: "insensitive" } },
+      { code: { contains: query, mode: "insensitive" } },
+      { location: { contains: query, mode: "insensitive" } },
+    ];
+  }
+
+  const rows = await prisma.site.findMany({
+    where,
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      code: true,
+      location: true,
+      measurementUnit: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      company: { select: { name: true, slug: true } },
+    },
+    orderBy: [{ company: { name: "asc" } }, { name: "asc" }],
+    take: input?.limit ?? 100,
+    skip: input?.skip ?? 0,
+  });
+
+  return rows.map(mapSite);
+}
+
+async function getSite(siteId: string): Promise<SiteDetail> {
+  const site = await prisma.site.findUnique({
+    where: { id: siteId },
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      code: true,
+      location: true,
+      measurementUnit: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      company: { select: { name: true, slug: true } },
+    },
+  });
+  if (!site) throw new Error(`Site not found for id: ${siteId}`);
+
+  const [sectionCount, activeSectionCount, siteEmployees, equipmentCount, inventoryItemCount] = await Promise.all([
+    prisma.section.count({ where: { siteId } }),
+    prisma.section.count({ where: { siteId, isActive: true } }),
+    prisma.attendance.findMany({
+      where: { siteId },
+      select: { employeeId: true },
+      distinct: ["employeeId"],
+    }),
+    prisma.equipment.count({ where: { siteId } }),
+    prisma.inventoryItem.count({ where: { siteId } }),
+  ]);
+  const employeeCount = siteEmployees.length;
+
+  const summary = mapSite(site);
+  return {
+    ...summary,
+    sectionCount,
+    activeSectionCount,
+    employeeCount,
+    equipmentCount,
+    inventoryItemCount,
+  };
+}
+
+async function createSite(input: CreateSiteInput): Promise<SiteCreateResult> {
+  const company = await prisma.company.findUnique({
+    where: { id: input.companyId },
+    select: { id: true, name: true, slug: true },
+  });
+  if (!company) throw new Error(`Organization not found for id: ${input.companyId}`);
+
+  const name = normalizeSiteName(input.name);
+  const code = normalizeSiteCode(input.code);
+  const location = normalizeSiteLocation(input.location);
+  const measurementUnit = normalizeSiteMeasurementUnit(input.measurementUnit);
+
+  const existing = await prisma.site.findFirst({
+    where: { companyId: input.companyId, code },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new Error(`Site code already exists for this company: ${code}`);
+  }
+
+  const site = await prisma.site.create({
+    data: {
+      companyId: input.companyId,
+      name,
+      code,
+      location,
+      measurementUnit,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      code: true,
+      location: true,
+      measurementUnit: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      company: { select: { name: true, slug: true } },
+    },
+  });
+
+  const resource = mapSite(site);
+  const audit = await appendAuditEvent({
+    actor: input.actor,
+    action: "SITE_CREATE",
+    entityType: "site",
+    entityId: resource.id,
+    companyId: resource.companyId,
+    reason: input.reason ?? `Created site ${resource.code}`,
+    after: resource,
+  });
+
+  return {
+    site: resource,
+    auditEventId: audit.id,
+  };
+}
+
+async function updateSite(input: UpdateSiteInput): Promise<SiteUpdateResult> {
+  const before = await prisma.site.findUnique({
+    where: { id: input.siteId },
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      code: true,
+      location: true,
+      measurementUnit: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      company: { select: { name: true, slug: true } },
+    },
+  });
+  if (!before) throw new Error(`Site not found for id: ${input.siteId}`);
+
+  const data: Prisma.SiteUpdateInput = {};
+  const changedFields: string[] = [];
+
+  if (input.name !== undefined) {
+    data.name = normalizeSiteName(input.name);
+    changedFields.push("name");
+  }
+
+  if (input.code !== undefined) {
+    const normalizedCode = normalizeSiteCode(input.code);
+    if (normalizedCode !== before.code) {
+      const duplicate = await prisma.site.findFirst({
+        where: {
+          companyId: before.companyId,
+          code: normalizedCode,
+          NOT: { id: before.id },
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new Error(`Site code already exists for this company: ${normalizedCode}`);
+      }
+    }
+    data.code = normalizedCode;
+    changedFields.push("code");
+  }
+
+  if (input.location !== undefined) {
+    data.location = normalizeSiteLocation(input.location);
+    changedFields.push("location");
+  }
+
+  if (input.measurementUnit !== undefined) {
+    data.measurementUnit = normalizeSiteMeasurementUnit(input.measurementUnit);
+    changedFields.push("measurementUnit");
+  }
+
+  if (changedFields.length === 0) {
+    throw new Error("No update fields provided.");
+  }
+
+  const updated = await prisma.site.update({
+    where: { id: before.id },
+    data,
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      code: true,
+      location: true,
+      measurementUnit: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      company: { select: { name: true, slug: true } },
+    },
+  });
+
+  const after = mapSite(updated);
+  const audit = await appendAuditEvent({
+    actor: input.actor,
+    action: "SITE_UPDATE",
+    entityType: "site",
+    entityId: before.id,
+    companyId: before.companyId,
+    reason: input.reason ?? `Updated site ${after.code}`,
+    before: mapSite(before),
+    after,
+    metadata: { changedFields },
+  });
+
+  return {
+    site: after,
+    changedFields,
+    auditEventId: audit.id,
+  };
+}
+
+async function setSiteStatus(input: SetSiteStatusInput & { isActive: boolean }): Promise<SiteStatusResult> {
+  const before = await prisma.site.findUnique({
+    where: { id: input.siteId },
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      code: true,
+      isActive: true,
+      company: { select: { name: true } },
+    },
+  });
+  if (!before) throw new Error(`Site not found for id: ${input.siteId}`);
+
+  const updated = await prisma.site.update({
+    where: { id: before.id },
+    data: { isActive: input.isActive },
+    select: { id: true, companyId: true, name: true, code: true, isActive: true, company: { select: { name: true } } },
+  });
+
+  const audit = await appendAuditEvent({
+    actor: input.actor,
+    action: input.isActive ? "SITE_ACTIVATE" : "SITE_DEACTIVATE",
+    entityType: "site",
+    entityId: updated.id,
+    companyId: updated.companyId,
+    reason: input.reason ?? null,
+    before: { isActive: before.isActive },
+    after: { isActive: updated.isActive },
+  });
+
+  return {
+    siteId: updated.id,
+    siteName: updated.name,
+    siteCode: updated.code,
+    companyId: updated.companyId,
+    companyName: updated.company?.name ?? null,
+    beforeActive: before.isActive,
+    afterActive: updated.isActive,
     auditEventId: audit.id,
   };
 }
@@ -932,6 +1329,16 @@ async function setAdminStatus(input: SetAdminStatusInput & { isActive: boolean }
   });
   if (!before) throw new Error(`Admin user not found for id: ${input.userId}`);
   if (!ADMIN_ROLES.includes(before.role as AdminRole)) throw new Error(`User ${before.email} has role ${before.role}, not admin role.`);
+  if (!input.isActive && before.role === "SUPERADMIN" && before.isActive) {
+    const activeSuperadminCount = await prisma.user.count({
+      where: { companyId: before.companyId, role: "SUPERADMIN", isActive: true },
+    });
+    if (activeSuperadminCount <= 1) {
+      throw new Error(
+        `Guardrail: cannot deactivate ${before.email} because this would leave company ${before.companyId} without an active SUPERADMIN.`,
+      );
+    }
+  }
 
   const updated = await prisma.user.update({
     where: { id: input.userId },
@@ -1025,13 +1432,21 @@ export function createPlatformServices(): PlatformServices {
       detail: getOrganization,
       provision: (input) => toMutation(() => provisionOrganization(input)),
       previewProvisionBundle: (input) => toMutation(() => previewProvisionBundle(input)),
-      provisionBundle: (input) => toMutation(() => provisionBundle(input)),
+      provisionBundle: (input) => toProvisionBundleMutation(() => provisionBundle(input)),
       suggestSubdomains,
       reserveSubdomain: (input) => toMutation(() => reserveOrgSubdomain(input)),
       getSubdomainReservation: getOrgSubdomainReservation,
       suspend: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "SUSPENDED" })),
       activate: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "ACTIVE" })),
       disable: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "DISABLED" })),
+    },
+    site: {
+      list: listSites,
+      detail: getSite,
+      create: (input) => toMutation(() => createSite(input)),
+      update: (input) => toMutation(() => updateSite(input)),
+      activate: (input) => toMutation(() => setSiteStatus({ ...input, isActive: true })),
+      deactivate: (input) => toMutation(() => setSiteStatus({ ...input, isActive: false })),
     },
     subscription: {
       list: listSubscriptions,
@@ -1062,6 +1477,14 @@ export function createPlatformServices(): PlatformServices {
       activate: (input) => toMutation(() => setAdminStatus({ ...input, isActive: true })),
       deactivate: (input) => toMutation(() => setAdminStatus({ ...input, isActive: false })),
       resetPassword: (input) => toMutation(() => resetAdminPassword(input)),
+    },
+    user: {
+      list: listUsers,
+      create: (input) => toMutation(() => createUser(input)),
+      activate: (input) => toMutation(() => setUserStatus({ ...input, isActive: true })),
+      deactivate: (input) => toMutation(() => setUserStatus({ ...input, isActive: false })),
+      resetPassword: (input) => toMutation(() => resetUserPassword(input)),
+      changeRole: (input) => toMutation(() => changeUserRole(input)),
     },
     audit: {
       list: listAuditEvents,

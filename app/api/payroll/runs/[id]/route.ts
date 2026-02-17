@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/hr-payroll"
 
@@ -171,6 +172,28 @@ export async function PATCH(
         },
       })
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "payroll",
+        sourceAction: "run-updated",
+        sourceId: updated.id,
+        description: `Payroll run ${updated.runNumber} updated`,
+        amount: updated.netTotal,
+        grossAmount: updated.grossTotal,
+        netAmount: updated.netTotal,
+        deductionsAmount: updated.deductionsTotal,
+        allowancesAmount: updated.allowancesTotal,
+        payload: {
+          lineItems: validated.lineItems?.map((line) => line.id) ?? [],
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Payroll run update capture failed:", error)
+    }
 
     return successResponse(updated)
   } catch (error) {

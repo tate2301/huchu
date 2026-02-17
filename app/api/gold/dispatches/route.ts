@@ -6,6 +6,7 @@ import {
   getPaginationParams,
   paginationResponse,
 } from "@/lib/api-utils"
+import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -166,6 +167,29 @@ export async function POST(request: NextRequest) {
         handedOverBy: { select: { name: true } },
       },
     })
+
+    try {
+      await captureAccountingEvent({
+        companyId: session.user.companyId,
+        sourceDomain: "gold",
+        sourceAction: "dispatch-created",
+        sourceType: "GOLD_DISPATCH",
+        sourceId: dispatchRecord.id,
+        entryDate: dispatchRecord.dispatchDate,
+        description: `Gold dispatch ${dispatchRecord.id} for batch ${dispatchRecord.goldPour.pourBarId}`,
+        amount: dispatchRecord.goldPour.grossWeight,
+        payload: {
+          goldPourId: dispatchRecord.goldPourId,
+          destination: dispatchRecord.destination,
+          courier: dispatchRecord.courier,
+          sealNumbers: dispatchRecord.sealNumbers,
+        },
+        createdById: session.user.id,
+        status: "IGNORED",
+      })
+    } catch (error) {
+      console.error("[Accounting] Gold dispatch capture failed:", error)
+    }
 
     return successResponse(
       {
