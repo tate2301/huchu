@@ -48,22 +48,26 @@ export const BRANDING_FONT_OPTIONS: BrandingFontOption[] = [
   {
     key: "inter",
     label: "Inter",
-    fontFamily: '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    fontFamily:
+      'var(--font-brand-inter), "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
   },
   {
     key: "poppins",
     label: "Poppins",
-    fontFamily: '"Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    fontFamily:
+      'var(--font-brand-poppins), "Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
   },
   {
     key: "source-sans-3",
     label: "Source Sans 3",
-    fontFamily: '"Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    fontFamily:
+      'var(--font-brand-source-sans-3), "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
   },
   {
     key: "lato",
     label: "Lato",
-    fontFamily: '"Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    fontFamily:
+      'var(--font-brand-lato), "Lato", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
   },
 ];
 
