@@ -86,36 +86,41 @@ export function GoldShell({
       <PageHeading
         title={title}
         description={description}
-        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+        className="[&_h1]:text-section-title [&_h1]:leading-8"
       />
 
-      <nav
-        aria-label="Gold sections"
-        className="grid w-full gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)] sm:grid-cols-3 lg:grid-cols-6"
-      >
-        {laneTabs.map((lane) => {
-          const isActive = lane.id === activeTab;
-          return (
-            <Link
-              key={lane.id}
-              href={lane.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                isActive
-                  ? "bg-primary/8 text-primary"
-                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-              )}
-            >
-              <lane.icon className="h-4 w-4" />
-              <span>{lane.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {children}
+      <section className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="section-shell space-y-2">
+          <h2 className="text-sm font-semibold tracking-wide text-foreground">
+            Gold Views
+          </h2>
+          <nav aria-label="Gold sections" className="space-y-2">
+            {laneTabs.map((lane) => {
+              const isActive = lane.id === activeTab;
+              return (
+                <Link
+                  key={lane.id}
+                  href={lane.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "inline-flex min-h-10 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-transparent text-foreground hover:bg-muted/50",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <lane.icon className="h-4 w-4" />
+                    {lane.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+        <div className="space-y-6">{children}</div>
+      </section>
     </div>
   );
 }

@@ -8,38 +8,57 @@ import { format } from "date-fns";
 import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fetchGoldCorrections, fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts, fetchSites } from "@/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  fetchGoldCorrections,
+  fetchGoldDispatches,
+  fetchGoldPours,
+  fetchGoldReceipts,
+  fetchSites,
+} from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+
+type GoldChainReportRow = {
+  id: string;
+  pourDate: string;
+  pourBarId: string;
+  site: string;
+  grossWeight: number;
+  dispatchDate?: string;
+  receiptDate?: string;
+  status: "Poured" | "Dispatched" | "Receipted";
+};
 
 export default function GoldChainReportPage() {
   const [siteId, setSiteId] = useState("all");
+  const activeSiteId = siteId === "all" ? undefined : siteId;
 
-  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+  const { data: sites, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
   });
 
-  const activeSiteId = siteId === "all" ? undefined : siteId;
-
-  const { data: poursData, isLoading: poursLoading, error: poursError } = useQuery({
+  const { data: poursData, error: poursError, isLoading: poursLoading } = useQuery({
     queryKey: ["gold-pours", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldPours({ siteId: activeSiteId, limit: 500 }),
   });
-  const { data: dispatchesData, isLoading: dispatchesLoading, error: dispatchesError } = useQuery({
+  const { data: dispatchesData, error: dispatchesError, isLoading: dispatchesLoading } = useQuery({
     queryKey: ["gold-dispatches", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldDispatches({ siteId: activeSiteId, limit: 500 }),
   });
-  const { data: receiptsData, isLoading: receiptsLoading, error: receiptsError } = useQuery({
+  const { data: receiptsData, error: receiptsError, isLoading: receiptsLoading } = useQuery({
     queryKey: ["gold-receipts", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldReceipts({ siteId: activeSiteId, limit: 500 }),
   });
-  const { data: correctionsData, isLoading: correctionsLoading, error: correctionsError } = useQuery({
+  const { data: correctionsData, error: correctionsError } = useQuery({
     queryKey: ["gold-corrections", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldCorrections({ siteId: activeSiteId, limit: 500 }),
   });
@@ -61,23 +80,117 @@ export default function GoldChainReportPage() {
     return map;
   }, [receipts]);
 
-  const rows = useMemo(
+  const rows = useMemo<GoldChainReportRow[]>(
     () =>
-      pours.map((pour) => {
-        const dispatch = dispatchByPour.get(pour.id);
-        const receipt = dispatch ? receiptByDispatch.get(dispatch.id) : undefined;
-        const status = receipt ? "Receipted" : dispatch ? "Dispatched" : "Poured";
-        return { pour, dispatch, receipt, status };
-      }),
+      pours
+        .map((pour) => {
+          const dispatch = dispatchByPour.get(pour.id);
+          const receipt = dispatch ? receiptByDispatch.get(dispatch.id) : undefined;
+          const status: GoldChainReportRow["status"] = receipt
+            ? "Receipted"
+            : dispatch
+              ? "Dispatched"
+              : "Poured";
+          return {
+            id: pour.id,
+            pourDate: pour.pourDate,
+            pourBarId: pour.pourBarId,
+            site: pour.site.name,
+            grossWeight: pour.grossWeight,
+            dispatchDate: dispatch?.dispatchDate,
+            receiptDate: receipt?.receiptDate,
+            status,
+          };
+        })
+        .sort((a, b) => b.pourDate.localeCompare(a.pourDate)),
     [dispatchByPour, pours, receiptByDispatch],
   );
 
-  const pageError = sitesError || poursError || dispatchesError || receiptsError || correctionsError;
-  const isLoading = poursLoading || dispatchesLoading || receiptsLoading || correctionsLoading;
+  const columns = useMemo<ColumnDef<GoldChainReportRow>[]>(
+    () => [
+      {
+        id: "pourDate",
+        header: "Pour Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.pourDate), "MMM d, yyyy")}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "pourBarId",
+        header: "Bar ID",
+        cell: ({ row }) => (
+          <span className="font-mono font-semibold">{row.original.pourBarId}</span>
+        ),
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorKey: "site",
+      },
+      {
+        id: "grossWeight",
+        header: "Weight",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>
+        ),
+      },
+      {
+        id: "dispatchDate",
+        header: "Dispatch Date",
+        cell: ({ row }) =>
+          row.original.dispatchDate ? (
+            <NumericCell align="left">
+              {format(new Date(row.original.dispatchDate), "MMM d, yyyy")}
+            </NumericCell>
+          ) : (
+            "-"
+          ),
+      },
+      {
+        id: "receiptDate",
+        header: "Receipt Date",
+        cell: ({ row }) =>
+          row.original.receiptDate ? (
+            <NumericCell align="left">
+              {format(new Date(row.original.receiptDate), "MMM d, yyyy")}
+            </NumericCell>
+          ) : (
+            "-"
+          ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.original.status === "Receipted"
+                ? "default"
+                : row.original.status === "Dispatched"
+                  ? "secondary"
+                  : "outline"
+            }
+          >
+            {row.original.status}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const pageError =
+    sitesError || poursError || dispatchesError || receiptsError || correctionsError;
+  const isLoading = poursLoading || dispatchesLoading || receiptsLoading;
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Gold Chain" description="Pour to dispatch to receipt traceability" />
+      <PageHeading
+        title="Gold Chain"
+        description="Pour to dispatch to receipt traceability"
+      />
 
       {pageError ? (
         <Alert variant="destructive">
@@ -86,106 +199,40 @@ export default function GoldChainReportPage() {
         </Alert>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter by site</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="max-w-md">
-            <label className="mb-2 block text-sm font-semibold">Site</label>
-            {sitesLoading ? (
-              <Skeleton className="h-9 w-full" />
-            ) : (
-              <Select value={siteId} onValueChange={setSiteId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All sites</SelectItem>
-                  {sites?.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Pours</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{pours.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Dispatches</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dispatches.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Receipts</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{receipts.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Corrections</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{corrections.length}</CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Records</CardTitle>
-          <CardDescription>{rows.length} chain entries</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : rows.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No gold records found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Pour Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Bar ID</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Weight</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Dispatch Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Receipt Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.pour.id} className="border-b">
-                      <TableCell className="p-3">{format(new Date(row.pour.pourDate), "MMM d, yyyy")}</TableCell>
-                      <TableCell className="p-3 font-semibold">{row.pour.pourBarId}</TableCell>
-                      <TableCell className="p-3">{row.pour.site.name}</TableCell>
-                      <TableCell className="p-3">{row.pour.grossWeight.toFixed(2)} g</TableCell>
-                      <TableCell className="p-3">
-                        {row.dispatch ? format(new Date(row.dispatch.dispatchDate), "MMM d, yyyy") : "-"}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        {row.receipt ? format(new Date(row.receipt.receiptDate), "MMM d, yyyy") : "-"}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge variant={row.status === "Receipted" ? "default" : row.status === "Dispatched" ? "secondary" : "outline"}>
-                          {row.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Chain Records
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {rows.length} chain entries, {corrections.length} corrections logged
+          </p>
+        </header>
+        <DataTable
+          data={rows}
+          columns={columns}
+          searchPlaceholder="Search by bar ID, site, or status"
+          searchSubmitLabel="Search"
+          tableClassName="text-sm"
+          pagination={{ enabled: true }}
+          toolbar={
+            <Select value={siteId} onValueChange={setSiteId}>
+              <SelectTrigger size="sm" className="h-8 w-[180px]">
+                <SelectValue placeholder="Filter by site" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sites</SelectItem>
+                {sites?.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          emptyState={isLoading ? "Loading chain records..." : "No gold records found."}
+        />
+      </section>
     </div>
   );
 }
-
-

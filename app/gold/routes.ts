@@ -20,21 +20,3 @@ export const goldRoutes = {
     home: "/reports/gold-chain",
   },
 } as const;
-
-export type GoldLegacyView =
-  | "menu"
-  | "pour"
-  | "dispatch"
-  | "receipt"
-  | "payouts"
-  | "reconciliation"
-  | "audit";
-
-export function mapLegacyGoldViewToRoute(view: GoldLegacyView): string {
-  if (view === "menu") return goldRoutes.command;
-  if (view === "pour") return goldRoutes.intake.newPour;
-  if (view === "dispatch") return goldRoutes.transit.newDispatch;
-  if (view === "receipt") return goldRoutes.settlement.newReceipt;
-  if (view === "payouts") return goldRoutes.settlement.payouts;
-  return goldRoutes.exceptions.home;
-}

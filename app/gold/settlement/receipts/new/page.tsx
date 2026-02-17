@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { Button } from "@/components/ui/button";
 import { fetchGoldDispatches, fetchGoldReceipts } from "@/lib/api";
 import { ReceiptForm } from "@/app/gold/components/receipt-form";
-import { goldRoutes, mapLegacyGoldViewToRoute } from "@/app/gold/routes";
+import { goldRoutes } from "@/app/gold/routes";
 
 export default function GoldSettlementReceiptCreatePage() {
-  const router = useRouter();
-
   const { data: dispatchesData } = useQuery({
     queryKey: ["gold-dispatches", "receipt-form"],
     queryFn: () => fetchGoldDispatches({ limit: 300 }),
@@ -56,7 +53,8 @@ export default function GoldSettlementReceiptCreatePage() {
         nextStep="Select a dispatch waiting for sale, fill details, and submit."
       />
       <ReceiptForm
-        setViewMode={(view) => router.push(mapLegacyGoldViewToRoute(view))}
+        cancelHref={goldRoutes.settlement.receipts}
+        dispatchCreateHref={goldRoutes.transit.newDispatch}
         availableDispatches={availableDispatches}
       />
     </GoldShell>

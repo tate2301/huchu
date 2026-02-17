@@ -2,22 +2,17 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { GoldShell } from "@/components/gold/gold-shell";
+import { PageIntro } from "@/components/shared/page-intro";
 import { StatusState } from "@/components/shared/status-state";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRightLeft, CheckCircle2, Gem, Wallet } from "@/lib/icons";
+import { DataTable } from "@/components/ui/data-table";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchAttendance,
@@ -27,10 +22,18 @@ import {
   fetchGoldShiftAllocations,
   fetchShiftReports,
 } from "@/lib/api";
-import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
+import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
 import type { AttendanceShiftSummary } from "@/app/gold/types";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type GoldChainRow = {
+  id: string;
+  pourBarId: string;
+  site: string;
+  date: string;
+  status: "Complete" | "Dispatched" | "Waiting for dispatch";
+};
 
 export default function GoldPage() {
   const { toast } = useToast();
@@ -85,10 +88,7 @@ export default function GoldPage() {
   });
 
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatches = useMemo(
-    () => dispatchesData?.data ?? [],
-    [dispatchesData],
-  );
+  const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
   const attendanceRecords = useMemo(
     () => attendanceData?.data ?? [],
@@ -122,14 +122,13 @@ export default function GoldPage() {
   );
 
   const commandError = poursError || dispatchesError || receiptsError;
-  const commandLoading =
-    poursLoading || dispatchesLoading || receiptsLoading;
+  const commandLoading = poursLoading || dispatchesLoading || receiptsLoading;
 
-  const recentChain = useMemo(() => {
+  const recentChain = useMemo<GoldChainRow[]>(() => {
     return pours
       .slice()
       .sort((a, b) => b.pourDate.localeCompare(a.pourDate))
-      .slice(0, 8)
+      .slice(0, 50)
       .map((pour) => {
         const dispatch = dispatchByPourId.get(pour.id);
         const receipt = dispatch
@@ -251,6 +250,50 @@ export default function GoldPage() {
     },
   });
 
+  const columns = useMemo<ColumnDef<GoldChainRow>[]>(
+    () => [
+      {
+        id: "pourBarId",
+        header: "Batch ID",
+        cell: ({ row }) => (
+          <span className="font-mono font-semibold">{row.original.pourBarId}</span>
+        ),
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorKey: "site",
+      },
+      {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.date).toLocaleString()}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.original.status === "Complete"
+                ? "default"
+                : row.original.status === "Dispatched"
+                  ? "secondary"
+                  : "outline"
+            }
+          >
+            {row.original.status}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <GoldShell
       activeTab="command"
@@ -265,95 +308,17 @@ export default function GoldPage() {
           <Button asChild size="sm" variant="outline">
             <Link href={goldRoutes.settlement.newReceipt}>Record Sale</Link>
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShiftModalOpen(true)}
-          >
+          <Button size="sm" variant="outline" onClick={() => setShiftModalOpen(true)}>
             Record Shift Output
           </Button>
         </div>
       }
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-8 md:grid-cols-4 mt-4">
-          <Button
-            asChild
-            variant="outline"
-            className="h-auto justify-start py-3"
-          >
-            <Link
-              href={goldRoutes.intake.newPour}
-              className="flex flex-col gap-4 items-start"
-            >
-              <Gem size={18} className="text-amber-700" />
-              <span className="flex flex-col items-start text-left">
-                <span>Create batch</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Start a trackable batch record for produced gold.
-                </span>
-              </span>
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="h-auto justify-start py-3"
-          >
-            <Link
-              href={goldRoutes.transit.newDispatch}
-              className="flex flex-col gap-4 items-start"
-            >
-              <ArrowRightLeft size={18} className="text-sky-700" />
-              <span className="flex flex-col items-start text-left">
-                <span>Send batch</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Record movement of a batch to the buyer.
-                </span>
-              </span>
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="h-auto justify-start py-3"
-          >
-            <Link
-              href={goldRoutes.settlement.newReceipt}
-              className="flex flex-col gap-4 items-start"
-            >
-              <CheckCircle2 size={18} className="text-emerald-700" />
-              <span className="flex flex-col items-start text-left">
-                <span>Record sale</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Save buyer test result and payment details.
-                </span>
-              </span>
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="h-auto justify-start py-3"
-          >
-            <Link
-              href="/human-resources/disbursements"
-              className="flex flex-col gap-4 items-start"
-            >
-              <Wallet size={18} className="text-rose-700" />
-              <span className="flex flex-col items-start text-left">
-                <span>Review cash disbursements</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Process approved payroll payouts in HR disbursements.
-                </span>
-              </span>
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <PageIntro
+        title="Gold Operations"
+        purpose="Track chain progress from batch creation to settlement."
+        nextStep="Use the table below to find incomplete items and move them forward."
+      />
 
       {pendingSettlementDispatches.length > 0 ? (
         <Alert variant="destructive">
@@ -366,71 +331,40 @@ export default function GoldPage() {
         </Alert>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Gold Chain</CardTitle>
-          <CardDescription>Latest batches and current status.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {commandError ? (
-            <StatusState
-              variant="error"
-              title="Unable to load data"
-              description={getApiErrorMessage(commandError)}
-            />
-          ) : commandLoading ? (
-            <StatusState variant="loading" />
-          ) : recentChain.length === 0 ? (
-            <StatusState
-              variant="empty"
-              title="No gold activity yet"
-              description="Create your first batch to start tracking gold."
-              action={
-                <Button asChild size="sm">
-                  <Link href={goldRoutes.intake.newPour}>Create Batch</Link>
-                </Button>
-              }
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="w-full text-sm">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead className="p-3 text-left font-semibold">Batch ID</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Site</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Date</TableHead>
-                    <TableHead className="p-3 text-left font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentChain.map((entry) => (
-                    <TableRow key={entry.id} className="border-b">
-                      <TableCell className="p-3 font-medium">{entry.pourBarId}</TableCell>
-                      <TableCell className="p-3">{entry.site}</TableCell>
-                      <TableCell className="p-3">
-                        {new Date(entry.date).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="p-3">
-                        <Badge
-                          variant={
-                            entry.status === "Complete"
-                              ? "default"
-                              : entry.status === "Dispatched"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {entry.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="space-y-3">
+        <header className="section-shell space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Chain Activity
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Latest batches and current chain status.
+          </p>
+        </header>
+        {commandError ? (
+          <StatusState
+            variant="error"
+            title="Unable to load chain data"
+            description={getApiErrorMessage(commandError)}
+          />
+        ) : (
+          <DataTable
+            data={recentChain}
+            columns={columns}
+            searchPlaceholder="Search by batch ID, site, or status"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            toolbar={
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">Batches: {pours.length}</Badge>
+                <Badge variant="secondary">Dispatches: {dispatches.length}</Badge>
+                <Badge variant="secondary">Sales: {receipts.length}</Badge>
+              </div>
+            }
+            emptyState={commandLoading ? "Loading chain activity..." : "No gold activity yet."}
+          />
+        )}
+      </section>
 
       <ShiftAllocationModal
         open={shiftModalOpen}
@@ -448,5 +382,3 @@ export default function GoldPage() {
     </GoldShell>
   );
 }
-
-
