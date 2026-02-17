@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
+  hasRole,
   validateSession,
   successResponse,
   errorResponse,
@@ -8,11 +9,16 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 
+const USER_ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const
+
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    if (!hasRole(session, ["SUPERADMIN", "MANAGER"])) {
+      return errorResponse("Insufficient permissions to view users", 403)
+    }
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get("role")
@@ -24,7 +30,19 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
     }
 
-    if (role) where.role = role
+    if (role) {
+      const normalizedRoles = role
+        .split(",")
+        .map((value) => value.trim().toUpperCase())
+        .filter((value): value is (typeof USER_ROLES)[number] =>
+          (USER_ROLES as readonly string[]).includes(value),
+        )
+      if (normalizedRoles.length === 1) {
+        where.role = normalizedRoles[0]
+      } else if (normalizedRoles.length > 1) {
+        where.role = { in: normalizedRoles }
+      }
+    }
     if (active !== null) where.isActive = active === "true"
     if (search) {
       where.OR = [
@@ -42,6 +60,7 @@ export async function GET(request: NextRequest) {
           email: true,
           role: true,
           isActive: true,
+          updatedAt: true,
         },
         orderBy: { name: "asc" },
         skip,

@@ -15,6 +15,9 @@ const routeLabels: Record<string, string> = {
   attendance: "Attendance",
   cctv: "CCTV",
   dashboard: "Production Dashboard",
+  "user-management": "User Management",
+  management: "Management",
+  users: "Users",
   gold: "Gold Control",
   accounting: "Accounting",
   maintenance: "Maintenance",
@@ -24,6 +27,8 @@ const routeLabels: Record<string, string> = {
   shift: "Shift",
   "shift-report": "Shift Report",
   stores: "Stock & Fuel",
+  "password-reset": "Password Reset",
+  "role-change": "Role Change",
 };
 
 const viewLabels: Record<string, Record<string, string>> = {

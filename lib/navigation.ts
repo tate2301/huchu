@@ -297,6 +297,12 @@ export const navSections: NavSection[] = [
         label: "Compliance",
         roles: ["SUPERADMIN", "MANAGER"],
       },
+      {
+        href: "/management/users",
+        icon: UserRound,
+        label: "Users",
+        roles: ["SUPERADMIN", "MANAGER"],
+      },
     ],
   },
 ]

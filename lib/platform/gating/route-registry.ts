@@ -66,6 +66,12 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
 
   { scope: "page", prefix: "/compliance", featureKey: "compliance.overview" },
+  { scope: "page", prefix: "/management/users", featureKey: "admin.user-management.directory" },
+  { scope: "page", prefix: "/user-management/create", featureKey: "admin.user-management.create" },
+  { scope: "page", prefix: "/user-management/status", featureKey: "admin.user-management.status" },
+  { scope: "page", prefix: "/user-management/password-reset", featureKey: "admin.user-management.password-reset" },
+  { scope: "page", prefix: "/user-management/role-change", featureKey: "admin.user-management.role-change" },
+  { scope: "page", prefix: "/user-management", featureKey: "admin.user-management.directory" },
   { scope: "page", prefix: "/attendance", featureKey: "ops.attendance.mark" },
   { scope: "page", prefix: "/shift-report", featureKey: "ops.shift-report.submit" },
   { scope: "page", prefix: "/plant-report", featureKey: "ops.plant-report.submit" },
