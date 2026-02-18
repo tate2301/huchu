@@ -8,7 +8,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Minus,
-  ReportProblem,
   TrendingDown,
   TrendingUp,
 } from "@/lib/icons";
