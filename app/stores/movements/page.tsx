@@ -222,7 +222,7 @@ export default function StoresMovementsPage() {
           </div>
         }
       >
-        <div className="table-rail">
+        <div className="overflow-x-auto">
           <Table className="w-full">
             <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow>

@@ -139,6 +139,8 @@ export type DataTableProps<TData, TValue> = {
   maxBodyHeight?: string;
   searchPlaceholder?: string;
   searchBehavior?: DataTableSearchBehavior;
+  searchDebounceMs?: number;
+  deferFilter?: boolean;
   searchSubmitLabel?: string;
   queryState?: DataTableQueryState;
   onQueryStateChange?: (nextState: QueryChange) => void;
@@ -179,11 +181,13 @@ export function DataTable<TData, TValue>({
   stickyHeader = true,
   stickyHeaderOffset = 0,
   tabletScrollable = true,
-  tabletStickyFirstColumn = true,
-  tabletMinTableWidth = "max-content",
+  tabletStickyFirstColumn = false,
+  tabletMinTableWidth = "100%",
   maxBodyHeight,
   searchPlaceholder = "Search records",
   searchBehavior = "submit",
+  searchDebounceMs = 300,
+  deferFilter = true,
   searchSubmitLabel = "Search",
   queryState,
   onQueryStateChange,
@@ -223,21 +227,40 @@ export function DataTable<TData, TValue>({
     [expansion?.loadingRowIds],
   );
   const expandColumnWidthClassName = expansion?.expandColumn?.widthClassName ?? "w-10";
+  const deferredGlobalFilter = React.useDeferredValue(globalFilter);
+  const effectiveGlobalFilter =
+    globalFilterEnabled && deferFilter ? deferredGlobalFilter : globalFilter;
 
   React.useEffect(() => {
     if (queryState?.search !== undefined) {
-      setGlobalFilter(queryState.search);
-      setSearchDraft(queryState.search);
+      setGlobalFilter((prev) => (prev === queryState.search ? prev : queryState.search));
+      setSearchDraft((prev) => (prev === queryState.search ? prev : queryState.search));
     }
   }, [queryState?.search]);
 
   const applySearch = React.useCallback(
     (value: string) => {
-      setGlobalFilter(value);
-      onQueryStateChange?.({ page: 1, search: value });
+      setGlobalFilter((prev) => (prev === value ? prev : value));
+      if (queryState?.search !== value) {
+        onQueryStateChange?.({ page: 1, search: value });
+      }
     },
-    [onQueryStateChange],
+    [onQueryStateChange, queryState?.search],
   );
+
+  React.useEffect(() => {
+    if (!globalFilterEnabled || searchBehavior !== "instant") return;
+    const timer = window.setTimeout(() => {
+      applySearch(searchDraft);
+    }, searchDebounceMs);
+    return () => window.clearTimeout(timer);
+  }, [
+    applySearch,
+    globalFilterEnabled,
+    searchBehavior,
+    searchDebounceMs,
+    searchDraft,
+  ]);
 
   const selectedRows = React.useMemo(() => {
     return Object.keys(rowSelectionState)
@@ -257,7 +280,7 @@ export function DataTable<TData, TValue>({
     columns,
     state: {
       sorting: sortingEnabled ? sorting : [],
-      globalFilter: globalFilterEnabled ? globalFilter : undefined,
+      globalFilter: globalFilterEnabled ? effectiveGlobalFilter : undefined,
       rowSelection: rowSelection?.enabled ? rowSelectionState : {},
       pagination: {
         pageIndex: toPageIndex(page),
@@ -281,7 +304,7 @@ export function DataTable<TData, TValue>({
           });
         }
       : undefined,
-    onGlobalFilterChange: globalFilterEnabled ? setGlobalFilter : undefined,
+    onGlobalFilterChange: undefined,
     onRowSelectionChange: rowSelection?.enabled ? setRowSelectionState : undefined,
     onPaginationChange: (updater) => {
       const next = typeof updater === "function" ? updater({ pageIndex: toPageIndex(page), pageSize }) : updater;
@@ -389,10 +412,10 @@ export function DataTable<TData, TValue>({
   return (
     <div className={cn("space-y-3", className)}>
       {showTopToolbar ? (
-        <div className="section-shell flex flex-wrap items-center gap-2 py-1 md:max-lg:flex-nowrap md:max-lg:overflow-x-auto md:max-lg:[&>*]:shrink-0">
+        <div className="section-shell flex flex-wrap items-center gap-2 py-1">
           {globalFilterEnabled ? (
             <form
-              className="flex items-center gap-2 md:max-lg:shrink-0"
+              className="flex items-center gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 applySearch(searchDraft);
@@ -401,11 +424,7 @@ export function DataTable<TData, TValue>({
               <Input
                 value={searchDraft}
                 onChange={(event) => {
-                  const value = event.target.value;
-                  setSearchDraft(value);
-                  if (searchBehavior === "instant") {
-                    applySearch(value);
-                  }
+                  setSearchDraft(event.target.value);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && searchBehavior === "submit") {
@@ -422,10 +441,10 @@ export function DataTable<TData, TValue>({
             </form>
           ) : null}
 
-          {toolbar ? <div className="flex flex-wrap items-center gap-2 md:max-lg:shrink-0">{toolbar}</div> : null}
+          {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
 
           {showToolbarPagination ? (
-            <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:max-lg:flex-nowrap md:max-lg:[&>*]:shrink-0">
+            <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Rows per page</span>
               <Select
                 value={String(pageSize)}

@@ -39,13 +39,29 @@ export default function FuelLedgerReportPage() {
 
   const fuelItems = useMemo(() => stockData?.data ?? [], [stockData]);
   const movements = useMemo(() => movementData?.data ?? [], [movementData]);
+  const movementRows = useMemo(
+    () =>
+      movements.map((row) => ({
+        id: row.id,
+        day: format(new Date(row.createdAt), "yyyy-MM-dd"),
+        createdAtLabel: format(new Date(row.createdAt), "MMM d, yyyy HH:mm"),
+        movementType: row.movementType,
+        itemName: row.item.name,
+        itemCode: row.item.itemCode,
+        siteName: row.item.site.name,
+        quantity: row.quantity,
+        unit: row.unit,
+        issuedTo: row.issuedTo ?? "-",
+      })),
+    [movements],
+  );
   const filteredMovements = useMemo(
     () =>
-      movements.filter((row) => {
-        const day = format(new Date(row.createdAt), "yyyy-MM-dd");
+      movementRows.filter((row) => {
+        const day = row.day;
         return day >= startDate && day <= endDate;
       }),
-    [movements, startDate, endDate],
+    [movementRows, startDate, endDate],
   );
 
   const totalFuelStock = fuelItems.reduce((sum, row) => sum + row.currentStock, 0);
@@ -144,7 +160,7 @@ export default function FuelLedgerReportPage() {
           ) : filteredMovements.length === 0 ? (
             <div className="text-sm text-muted-foreground">No fuel movements for the selected filters.</div>
           ) : (
-            <div className="table-rail">
+            <div className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
@@ -159,21 +175,21 @@ export default function FuelLedgerReportPage() {
                 <TableBody>
                   {filteredMovements.map((row) => (
                     <TableRow key={row.id} className="border-b">
-                      <TableCell className="p-3">{format(new Date(row.createdAt), "MMM d, yyyy HH:mm")}</TableCell>
+                      <TableCell className="p-3">{row.createdAtLabel}</TableCell>
                       <TableCell className="p-3">
                         <Badge variant={row.movementType === "ISSUE" ? "destructive" : "secondary"}>
                           {row.movementType}
                         </Badge>
                       </TableCell>
                       <TableCell className="p-3">
-                        <div className="font-semibold">{row.item.name}</div>
-                        <div className="text-xs text-muted-foreground">{row.item.itemCode}</div>
+                        <div className="font-semibold">{row.itemName}</div>
+                        <div className="text-xs text-muted-foreground">{row.itemCode}</div>
                       </TableCell>
-                      <TableCell className="p-3">{row.item.site.name}</TableCell>
+                      <TableCell className="p-3">{row.siteName}</TableCell>
                       <TableCell className="p-3 text-right">
                         {row.quantity} {row.unit}
                       </TableCell>
-                      <TableCell className="p-3">{row.issuedTo ?? "-"}</TableCell>
+                      <TableCell className="p-3">{row.issuedTo}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

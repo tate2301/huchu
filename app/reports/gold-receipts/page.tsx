@@ -28,6 +28,19 @@ export default function GoldReceiptsReportPage() {
   });
 
   const rows = useMemo(() => data?.data ?? [], [data]);
+  const displayRows = useMemo(
+    () =>
+      rows.map((row) => ({
+        id: row.id,
+        receiptDateLabel: format(new Date(row.receiptDate), "MMM d, yyyy"),
+        receiptNumber: row.receiptNumber,
+        pourBarId: row.goldDispatch.goldPour.pourBarId,
+        siteName: row.goldDispatch.goldPour.site.name,
+        paidAmountLabel: row.paidAmount.toLocaleString(),
+        paymentMethod: row.paymentMethod,
+      })),
+    [rows],
+  );
   const pageError = sitesError || error;
 
   return (
@@ -73,15 +86,15 @@ export default function GoldReceiptsReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Records</CardTitle>
-          <CardDescription>{rows.length} receipt records</CardDescription>
+          <CardDescription>{displayRows.length} receipt records</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-24 w-full" />
-          ) : rows.length === 0 ? (
+          ) : displayRows.length === 0 ? (
             <div className="text-sm text-muted-foreground">No receipt records found.</div>
           ) : (
-            <div className="table-rail">
+            <div className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
@@ -94,13 +107,13 @@ export default function GoldReceiptsReportPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {displayRows.map((row) => (
                     <TableRow key={row.id} className="border-b">
-                      <TableCell className="p-3">{format(new Date(row.receiptDate), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="p-3">{row.receiptDateLabel}</TableCell>
                       <TableCell className="p-3 font-semibold">{row.receiptNumber}</TableCell>
-                      <TableCell className="p-3">{row.goldDispatch.goldPour.pourBarId}</TableCell>
-                      <TableCell className="p-3">{row.goldDispatch.goldPour.site.name}</TableCell>
-                      <TableCell className="p-3">{row.paidAmount.toLocaleString()}</TableCell>
+                      <TableCell className="p-3">{row.pourBarId}</TableCell>
+                      <TableCell className="p-3">{row.siteName}</TableCell>
+                      <TableCell className="p-3">{row.paidAmountLabel}</TableCell>
                       <TableCell className="p-3">{row.paymentMethod}</TableCell>
                     </TableRow>
                   ))}

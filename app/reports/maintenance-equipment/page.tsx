@@ -30,6 +30,33 @@ export default function MaintenanceEquipmentReportPage() {
   });
 
   const rows = useMemo(() => data?.data ?? [], [data]);
+  const displayRows = useMemo(
+    () =>
+      rows.map((row) => {
+        const needsService =
+          row.nextServiceDue && new Date(row.nextServiceDue).getTime() < nowTimestamp;
+        return {
+          id: row.id,
+          equipmentCode: row.equipmentCode,
+          name: row.name,
+          category: row.category,
+          siteName: row.site.name,
+          lastServiceLabel: row.lastServiceDate
+            ? format(new Date(row.lastServiceDate), "yyyy-MM-dd")
+            : "-",
+          nextServiceLabel: row.nextServiceDue
+            ? format(new Date(row.nextServiceDue), "yyyy-MM-dd")
+            : "-",
+          statusVariant: !row.isActive ? "destructive" : needsService ? "secondary" : "default",
+          statusLabel: !row.isActive
+            ? "Down"
+            : needsService
+              ? "Needs Service"
+              : "Operational",
+        };
+      }),
+    [rows, nowTimestamp],
+  );
   const pageError = sitesError || error;
 
   return (
@@ -75,15 +102,15 @@ export default function MaintenanceEquipmentReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Records</CardTitle>
-          <CardDescription>{rows.length} equipment records</CardDescription>
+          <CardDescription>{displayRows.length} equipment records</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-24 w-full" />
-          ) : rows.length === 0 ? (
+          ) : displayRows.length === 0 ? (
             <div className="text-sm text-muted-foreground">No equipment records found.</div>
           ) : (
-            <div className="table-rail">
+            <div className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
@@ -97,29 +124,19 @@ export default function MaintenanceEquipmentReportPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => {
-                    const needsService =
-                      row.nextServiceDue && new Date(row.nextServiceDue).getTime() < nowTimestamp;
-                    return (
-                      <TableRow key={row.id} className="border-b">
-                        <TableCell className="p-3 font-mono">{row.equipmentCode}</TableCell>
-                        <TableCell className="p-3 font-semibold">{row.name}</TableCell>
-                        <TableCell className="p-3">{row.category}</TableCell>
-                        <TableCell className="p-3">{row.site.name}</TableCell>
-                        <TableCell className="p-3">
-                          {row.lastServiceDate ? format(new Date(row.lastServiceDate), "yyyy-MM-dd") : "-"}
-                        </TableCell>
-                        <TableCell className="p-3">
-                          {row.nextServiceDue ? format(new Date(row.nextServiceDue), "yyyy-MM-dd") : "-"}
-                        </TableCell>
-                        <TableCell className="p-3">
-                          <Badge variant={!row.isActive ? "destructive" : needsService ? "secondary" : "default"}>
-                            {!row.isActive ? "Down" : needsService ? "Needs Service" : "Operational"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {displayRows.map((row) => (
+                    <TableRow key={row.id} className="border-b">
+                      <TableCell className="p-3 font-mono">{row.equipmentCode}</TableCell>
+                      <TableCell className="p-3 font-semibold">{row.name}</TableCell>
+                      <TableCell className="p-3">{row.category}</TableCell>
+                      <TableCell className="p-3">{row.siteName}</TableCell>
+                      <TableCell className="p-3">{row.lastServiceLabel}</TableCell>
+                      <TableCell className="p-3">{row.nextServiceLabel}</TableCell>
+                      <TableCell className="p-3">
+                        <Badge variant={row.statusVariant}>{row.statusLabel}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

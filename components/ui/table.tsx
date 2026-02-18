@@ -99,7 +99,7 @@ function TablePaginationControls({
       )}
     >
       {mode === "paginated" ? (
-        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:max-lg:flex-nowrap md:max-lg:overflow-x-auto md:max-lg:[&>*]:shrink-0">
+        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
@@ -174,8 +174,8 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       hideControlsWhenSinglePage = false,
       edgeToEdge = true,
       tabletScrollable = true,
-      tabletStickyFirstColumn = true,
-      tabletMinTableWidth = "max-content",
+      tabletStickyFirstColumn = false,
+      tabletMinTableWidth = "100%",
       style: tableStyle,
       ...props
     },
