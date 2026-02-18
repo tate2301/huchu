@@ -9,6 +9,7 @@ import {
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/hr-payroll"
+import { Prisma } from "@prisma/client"
 
 const employeeSchema = z.object({
   name: z.string().min(1).max(200),
@@ -16,6 +17,8 @@ const employeeSchema = z.object({
   nextOfKinName: z.string().min(1).max(200),
   nextOfKinPhone: z.string().min(1).max(30),
   passportPhotoUrl: z.string().min(1).max(2048),
+  nationalIdNumber: z.string().trim().min(1).max(100).optional(),
+  nationalIdDocumentUrl: z.string().min(1).max(2048).optional(),
   villageOfOrigin: z.string().min(1).max(200),
   position: z.enum([
     "MANAGER",
@@ -105,6 +108,7 @@ export async function GET(request: NextRequest) {
         { name: { contains: search, mode: "insensitive" } },
         { employeeId: { contains: search, mode: "insensitive" } },
         { phone: { contains: search, mode: "insensitive" } },
+        { nationalIdNumber: { contains: search, mode: "insensitive" } },
       ]
     }
 
@@ -119,6 +123,8 @@ export async function GET(request: NextRequest) {
           nextOfKinName: true,
           nextOfKinPhone: true,
           passportPhotoUrl: true,
+          nationalIdNumber: true,
+          nationalIdDocumentUrl: true,
           villageOfOrigin: true,
           position: true,
           departmentId: true,
@@ -274,6 +280,8 @@ export async function POST(request: NextRequest) {
           nextOfKinName: validated.nextOfKinName,
           nextOfKinPhone: validated.nextOfKinPhone,
           passportPhotoUrl: validated.passportPhotoUrl,
+          nationalIdNumber: validated.nationalIdNumber,
+          nationalIdDocumentUrl: validated.nationalIdDocumentUrl,
           villageOfOrigin: validated.villageOfOrigin,
           position: validated.position,
           departmentId: validated.departmentId,
@@ -354,6 +362,21 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(",")
+        : ""
+      if (target.includes("nationalIdNumber")) {
+        return errorResponse(
+          "National ID number already exists for this company",
+          409,
+        )
+      }
+      return errorResponse("Employee data conflicts with an existing record", 409)
     }
     console.error("[API] POST /api/employees error:", error)
     return errorResponse("Failed to create employee")

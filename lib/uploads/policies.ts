@@ -6,6 +6,16 @@ export const uploadPolicies = {
     maxBytes: 5 * MB,
     folder: "employee-passports",
   },
+  "employee-national-id": {
+    allowedTypes: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ],
+    maxBytes: 5 * MB,
+    folder: "employee-national-ids",
+  },
 } as const
 
 export type UploadContext = keyof typeof uploadPolicies
