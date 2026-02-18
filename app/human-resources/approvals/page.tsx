@@ -49,6 +49,7 @@ export default function ApprovalsPage() {
       entityId,
       startDate,
       endDate,
+      queryState.search,
       queryState.page,
       queryState.pageSize,
     ],
@@ -68,6 +69,7 @@ export default function ApprovalsPage() {
         entityId: entityId || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
+        search: queryState.search?.trim() || undefined,
         page: queryState.page,
         limit: queryState.pageSize,
       }),
@@ -218,7 +220,7 @@ export default function ApprovalsPage() {
               totalPages: Math.max(1, Math.ceil(totalRows / queryState.pageSize)),
             }}
             features={{ sorting: false, globalFilter: true, pagination: true }}
-            searchPlaceholder="Search current page"
+            searchPlaceholder="Search all approval records"
             noResultsText="No approval actions found."
             tableClassName="text-sm"
             toolbar={toolbarFilters}

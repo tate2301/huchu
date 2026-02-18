@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const periodId = searchParams.get("periodId")
     const status = searchParams.get("status")
     const domain = searchParams.get("domain")
+    const search = searchParams.get("search")?.trim()
 
     const where: Record<string, unknown> = {
       companyId: session.user.companyId,
@@ -26,6 +27,25 @@ export async function GET(request: NextRequest) {
     if (periodId) where.periodId = periodId
     if (status) where.status = status
     if (domain === "PAYROLL" || domain === "GOLD_PAYOUT") where.domain = domain
+    if (search) {
+      const normalizedSearch = search.toUpperCase()
+      const runNumber = Number(search)
+      where.OR = [
+        { notes: { contains: search, mode: "insensitive" } },
+        { period: { periodKey: { contains: search, mode: "insensitive" } } },
+        ...(Number.isFinite(runNumber) ? [{ runNumber }] : []),
+        ...(normalizedSearch === "PAYROLL" || normalizedSearch === "GOLD_PAYOUT"
+          ? [{ domain: normalizedSearch }]
+          : []),
+        ...((
+          ["DRAFT", "SUBMITTED", "APPROVED", "POSTED", "REJECTED"] as const
+        ).includes(
+          normalizedSearch as "DRAFT" | "SUBMITTED" | "APPROVED" | "POSTED" | "REJECTED",
+        )
+          ? [{ status: normalizedSearch }]
+          : []),
+      ]
+    }
 
     const [records, total] = await Promise.all([
       prisma.payrollRun.findMany({

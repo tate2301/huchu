@@ -54,12 +54,20 @@ export default function PlantReportHistoryPage() {
     isLoading: plantReportsLoading,
     error: plantReportsError,
   } = useQuery({
-    queryKey: ["plant-reports", "list", activeListSiteId || "all", listStartDate, listEndDate],
+    queryKey: [
+      "plant-reports",
+      "list",
+      activeListSiteId || "all",
+      listStartDate,
+      listEndDate,
+      queryState.search,
+    ],
     queryFn: () =>
       fetchPlantReports({
         siteId: activeListSiteId || undefined,
         startDate: listStartDate,
         endDate: listEndDate,
+        search: queryState.search?.trim() || undefined,
         limit: 200,
       }),
     enabled: !!listStartDate && !!listEndDate,

@@ -58,12 +58,20 @@ export default function ShiftReportHistoryPage() {
     isLoading: shiftReportsLoading,
     error: shiftReportsError,
   } = useQuery({
-    queryKey: ["shift-reports", "list", activeListSiteId || "all", listStartDate, listEndDate],
+    queryKey: [
+      "shift-reports",
+      "list",
+      activeListSiteId || "all",
+      listStartDate,
+      listEndDate,
+      queryState.search,
+    ],
     queryFn: () =>
       fetchShiftReports({
         siteId: activeListSiteId || undefined,
         startDate: listStartDate,
         endDate: listEndDate,
+        search: queryState.search?.trim() || undefined,
         limit: 200,
       }),
     enabled: !!listStartDate && !!listEndDate,

@@ -28,12 +28,20 @@ export default function CCTVEventsReportPage() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["cctv-events", "reports", severity, startDate, endDate],
+    queryKey: [
+      "cctv-events",
+      "reports",
+      severity,
+      startDate,
+      endDate,
+      queryState.search,
+    ],
     queryFn: () =>
       fetchCCTVEvents({
         severity: severity === "all" ? undefined : severity,
         startDate,
         endDate,
+        search: queryState.search?.trim() || undefined,
         limit: 500,
       }),
   });

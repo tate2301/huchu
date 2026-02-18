@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status")
     const workflowStatus = searchParams.get("workflowStatus")
     const effectiveOn = searchParams.get("effectiveOn")
+    const search = searchParams.get("search")?.trim()
 
     const where: Record<string, unknown> = {
       employee: { companyId: session.user.companyId },
@@ -47,6 +48,20 @@ export async function GET(request: NextRequest) {
       const date = new Date(effectiveOn)
       where.effectiveFrom = { lte: date }
       where.OR = [{ effectiveTo: null }, { effectiveTo: { gte: date } }]
+    }
+    if (search) {
+      const searchOr = [
+        { notes: { contains: search, mode: "insensitive" } },
+        { employee: { name: { contains: search, mode: "insensitive" } } },
+        { employee: { employeeId: { contains: search, mode: "insensitive" } } },
+      ]
+
+      if (Array.isArray(where.OR)) {
+        where.AND = [{ OR: where.OR }, { OR: searchOr }]
+        delete where.OR
+      } else {
+        where.OR = searchOr
+      }
     }
 
     const [records, total] = await Promise.all([

@@ -179,6 +179,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status")
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
+    const search = searchParams.get("search")?.trim()
     const { page, limit, skip } = getPaginationParams(request)
 
     const where: Record<string, unknown> = {
@@ -190,6 +191,23 @@ export async function GET(request: NextRequest) {
     if (status) where.status = status
     if (startDate) where.periodStart = { gte: new Date(startDate) }
     if (endDate) where.periodEnd = { lte: new Date(endDate) }
+    if (search) {
+      const normalizedSearch = search.toUpperCase()
+      where.OR = [
+        { notes: { contains: search, mode: "insensitive" } },
+        { unit: { contains: search, mode: "insensitive" } },
+        { employee: { name: { contains: search, mode: "insensitive" } } },
+        { employee: { employeeId: { contains: search, mode: "insensitive" } } },
+        ...(normalizedSearch === "GOLD" || normalizedSearch === "SALARY"
+          ? [{ type: normalizedSearch }]
+          : []),
+        ...((
+          ["DUE", "PARTIAL", "PAID"] as const
+        ).includes(normalizedSearch as "DUE" | "PARTIAL" | "PAID")
+          ? [{ status: normalizedSearch }]
+          : []),
+      ]
+    }
 
     const [payments, total] = await Promise.all([
       prisma.employeePayment.findMany({

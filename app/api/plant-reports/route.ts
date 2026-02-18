@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const siteId = searchParams.get('siteId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const search = searchParams.get("search")?.trim();
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -46,6 +47,17 @@ export async function GET(request: NextRequest) {
     if (endDate) {
       const dateWhere = (where.date as Record<string, Date> | undefined) ?? {};
       where.date = { ...dateWhere, lte: new Date(endDate) };
+    }
+    if (search) {
+      const normalizedSearch = search.toUpperCase();
+      const statusMatches = ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED"].includes(normalizedSearch);
+      where.OR = [
+        { notes: { contains: search, mode: "insensitive" } },
+        { site: { name: { contains: search, mode: "insensitive" } } },
+        { site: { code: { contains: search, mode: "insensitive" } } },
+        { reportedBy: { name: { contains: search, mode: "insensitive" } } },
+        ...(statusMatches ? [{ status: normalizedSearch }] : []),
+      ];
     }
 
     const [reports, total] = await Promise.all([

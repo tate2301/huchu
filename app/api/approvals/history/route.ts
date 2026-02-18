@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const actedById = searchParams.get("actedById")
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
+    const search = searchParams.get("search")?.trim()
 
     const where: Record<string, unknown> = {
       companyId: session.user.companyId,
@@ -33,6 +34,15 @@ export async function GET(request: NextRequest) {
         ...(startDate ? { gte: new Date(startDate) } : {}),
         ...(endDate ? { lte: new Date(endDate) } : {}),
       }
+    }
+    if (search) {
+      where.OR = [
+        { entityId: { contains: search, mode: "insensitive" } },
+        { note: { contains: search, mode: "insensitive" } },
+        { fromStatus: { contains: search, mode: "insensitive" } },
+        { toStatus: { contains: search, mode: "insensitive" } },
+        { actedBy: { name: { contains: search, mode: "insensitive" } } },
+      ]
     }
 
     const [records, total] = await Promise.all([

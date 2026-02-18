@@ -66,12 +66,29 @@ export async function GET(request: NextRequest) {
     const { page, limit, skip } = getPaginationParams(request)
     const status = searchParams.get("status")
     const payrollRunId = searchParams.get("payrollRunId")
+    const search = searchParams.get("search")?.trim()
 
     const where: Record<string, unknown> = {
       companyId: session.user.companyId,
     }
     if (status) where.status = status
     if (payrollRunId) where.payrollRunId = payrollRunId
+    if (search) {
+      const normalizedSearch = search.toUpperCase()
+      where.OR = [
+        { code: { contains: search, mode: "insensitive" } },
+        { notes: { contains: search, mode: "insensitive" } },
+        { cashCustodian: { contains: search, mode: "insensitive" } },
+        { payrollRun: { period: { periodKey: { contains: search, mode: "insensitive" } } } },
+        ...((
+          ["DRAFT", "SUBMITTED", "APPROVED", "PAID", "REJECTED"] as const
+        ).includes(
+          normalizedSearch as "DRAFT" | "SUBMITTED" | "APPROVED" | "PAID" | "REJECTED",
+        )
+          ? [{ status: normalizedSearch }]
+          : []),
+      ]
+    }
 
     const [records, total] = await Promise.all([
       prisma.disbursementBatch.findMany({

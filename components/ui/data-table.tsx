@@ -85,6 +85,7 @@ type DataTableFeatures = {
 };
 
 type DataTableSearchBehavior = "submit" | "instant";
+type DataTableSearchScope = "client" | "server" | "auto";
 type DataTableExpansionMode = "single" | "multiple";
 
 type DataTableExpansionToggleContext<TData> = {
@@ -139,6 +140,7 @@ export type DataTableProps<TData, TValue> = {
   maxBodyHeight?: string;
   searchPlaceholder?: string;
   searchBehavior?: DataTableSearchBehavior;
+  searchScope?: DataTableSearchScope;
   searchDebounceMs?: number;
   deferFilter?: boolean;
   searchSubmitLabel?: string;
@@ -186,6 +188,7 @@ export function DataTable<TData, TValue>({
   maxBodyHeight,
   searchPlaceholder = "Search records",
   searchBehavior = "submit",
+  searchScope = "auto",
   searchDebounceMs = 300,
   deferFilter = true,
   searchSubmitLabel = "Search",
@@ -199,7 +202,10 @@ export function DataTable<TData, TValue>({
   const sortingEnabled = features?.sorting ?? true;
   const globalFilterEnabled = features?.globalFilter ?? true;
   const paginationEnabled = features?.pagination ?? pagination?.enabled ?? true;
-  const serverPagination = pagination?.server ?? Boolean(onQueryStateChange);
+  const serverPagination = pagination?.server ?? false;
+  const resolvedSearchScope: Exclude<DataTableSearchScope, "auto"> =
+    searchScope === "auto" ? (serverPagination ? "server" : "client") : searchScope;
+  const useClientGlobalFilter = globalFilterEnabled && resolvedSearchScope === "client";
 
   const [globalFilter, setGlobalFilter] = React.useState(queryState?.search ?? "");
   const [searchDraft, setSearchDraft] = React.useState(queryState?.search ?? "");
@@ -229,7 +235,29 @@ export function DataTable<TData, TValue>({
   const expandColumnWidthClassName = expansion?.expandColumn?.widthClassName ?? "w-10";
   const deferredGlobalFilter = React.useDeferredValue(globalFilter);
   const effectiveGlobalFilter =
-    globalFilterEnabled && deferFilter ? deferredGlobalFilter : globalFilter;
+    useClientGlobalFilter && deferFilter ? deferredGlobalFilter : globalFilter;
+
+  const getSearchText = React.useCallback((value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value.toLowerCase();
+    if (
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint"
+    ) {
+      return String(value).toLowerCase();
+    }
+    if (value instanceof Date) return value.toISOString().toLowerCase();
+    if (Array.isArray(value)) {
+      return value.map((item) => getSearchText(item)).join(" ");
+    }
+    if (typeof value === "object") {
+      return Object.values(value as Record<string, unknown>)
+        .map((item) => getSearchText(item))
+        .join(" ");
+    }
+    return "";
+  }, []);
 
   React.useEffect(() => {
     const nextSearch = queryState?.search;
@@ -281,7 +309,7 @@ export function DataTable<TData, TValue>({
     columns,
     state: {
       sorting: sortingEnabled ? sorting : [],
-      globalFilter: globalFilterEnabled ? effectiveGlobalFilter : undefined,
+      globalFilter: useClientGlobalFilter ? effectiveGlobalFilter : undefined,
       rowSelection: rowSelection?.enabled ? rowSelectionState : {},
       pagination: {
         pageIndex: toPageIndex(page),
@@ -306,6 +334,16 @@ export function DataTable<TData, TValue>({
         }
       : undefined,
     onGlobalFilterChange: undefined,
+    globalFilterFn: useClientGlobalFilter
+      ? (row, _columnId, filterValue) => {
+          const query =
+            typeof filterValue === "string"
+              ? filterValue.trim().toLowerCase()
+              : "";
+          if (!query) return true;
+          return getSearchText(row.original).includes(query);
+        }
+      : undefined,
     onRowSelectionChange: rowSelection?.enabled ? setRowSelectionState : undefined,
     onPaginationChange: (updater) => {
       const next = typeof updater === "function" ? updater({ pageIndex: toPageIndex(page), pageSize }) : updater;
@@ -316,7 +354,7 @@ export function DataTable<TData, TValue>({
     },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: sortingEnabled ? getSortedRowModel() : undefined,
-    getFilteredRowModel: globalFilterEnabled ? getFilteredRowModel() : undefined,
+    getFilteredRowModel: useClientGlobalFilter ? getFilteredRowModel() : undefined,
     getPaginationRowModel: paginationEnabled && !serverPagination ? getPaginationRowModel() : undefined,
   });
 

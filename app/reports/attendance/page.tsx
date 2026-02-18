@@ -58,12 +58,20 @@ export default function AttendanceHistoryPage() {
     isLoading: attendanceListLoading,
     error: attendanceListError,
   } = useQuery({
-    queryKey: ["attendance", "list", activeListSiteId ?? "all", listStartDate, listEndDate],
+    queryKey: [
+      "attendance",
+      "list",
+      activeListSiteId ?? "all",
+      listStartDate,
+      listEndDate,
+      queryState.search,
+    ],
     queryFn: () =>
       fetchAttendance({
         siteId: activeListSiteId,
         startDate: listStartDate,
         endDate: listEndDate,
+        search: queryState.search?.trim() || undefined,
         limit: 200,
       }),
     enabled: !!listStartDate && !!listEndDate,

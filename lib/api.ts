@@ -1246,6 +1246,7 @@ export async function deleteJobGrade(id: string) {
 
 export async function fetchCompensationProfiles(
   params: {
+    search?: string;
     employeeId?: string;
     status?: "ACTIVE" | "INACTIVE";
     workflowStatus?: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
@@ -1303,6 +1304,7 @@ export async function fetchCompensationTemplates(
 
 export async function fetchPayrollPeriods(
   params: {
+    search?: string;
     domain?: RunDomain;
     status?: "DRAFT" | "SUBMITTED" | "APPROVED" | "CLOSED";
     cycle?: "MONTHLY" | "FORTNIGHTLY";
@@ -1320,6 +1322,7 @@ export async function fetchPayrollPeriods(
 
 export async function fetchPayrollRuns(
   params: {
+    search?: string;
     periodId?: string;
     domain?: RunDomain;
     status?: "DRAFT" | "SUBMITTED" | "APPROVED" | "POSTED" | "REJECTED";
@@ -1333,6 +1336,7 @@ export async function fetchPayrollRuns(
 
 export async function fetchDisbursementBatches(
   params: {
+    search?: string;
     payrollRunId?: string;
     status?: "DRAFT" | "SUBMITTED" | "APPROVED" | "PAID" | "REJECTED";
     page?: number;
@@ -1371,6 +1375,7 @@ export async function updatePayrollConfig(
 
 export async function fetchApprovalHistory(
   params: {
+    search?: string;
     entityType?:
       | "PAYROLL_RUN"
       | "DISBURSEMENT_BATCH"
@@ -1457,6 +1462,7 @@ export async function removeWebPushSubscription(input: { endpoint: string }) {
 
 export async function fetchEmployeePayments(
   params: {
+    search?: string;
     type?: "GOLD" | "SALARY";
     employeeId?: string;
     status?: "DUE" | "PARTIAL" | "PAID";
@@ -1662,6 +1668,7 @@ export async function reserveEntityId(
 
 export async function fetchAttendance(
   params: {
+    search?: string;
     siteId?: string;
     employeeId?: string;
     shift?: string;
@@ -1679,6 +1686,7 @@ export async function fetchAttendance(
 
 export async function fetchShiftReports(
   params: {
+    search?: string;
     siteId?: string;
     startDate?: string;
     endDate?: string;
@@ -1695,6 +1703,7 @@ export async function fetchShiftReports(
 
 export async function fetchPlantReports(
   params: {
+    search?: string;
     siteId?: string;
     startDate?: string;
     endDate?: string;
@@ -2815,6 +2824,7 @@ export async function fetchNVRs(
 
 export async function fetchCCTVEvents(
   params: {
+    search?: string;
     siteId?: string;
     cameraId?: string;
     eventType?: string;

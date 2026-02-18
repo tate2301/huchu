@@ -35,13 +35,22 @@ export default function ComplianceIncidentsReportPage() {
 
   const activeSiteId = siteId === "all" ? undefined : siteId;
   const { data, isLoading, error } = useQuery({
-    queryKey: ["incidents", "reports", activeSiteId ?? "all", severity, startDate, endDate],
+    queryKey: [
+      "incidents",
+      "reports",
+      activeSiteId ?? "all",
+      severity,
+      startDate,
+      endDate,
+      queryState.search,
+    ],
     queryFn: () =>
       fetchIncidents({
         siteId: activeSiteId,
         severity: severity === "all" ? undefined : severity,
         startDate,
         endDate,
+        search: queryState.search?.trim() || undefined,
         limit: 500,
       }),
   });

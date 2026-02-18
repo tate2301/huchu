@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const isAcknowledged = searchParams.get("isAcknowledged")
     const startDate = searchParams.get("startDate") || undefined
     const endDate = searchParams.get("endDate") || undefined
+    const search = searchParams.get("search")?.trim()
     const { page, limit, skip } = parsePagination(searchParams, { page: 1, limit: 50 })
 
     const tenantWhere: Prisma.CCTVEventWhereInput = {
@@ -64,22 +65,38 @@ export async function GET(request: NextRequest) {
       ...(isAcknowledged !== null && isAcknowledged !== undefined
         ? { isAcknowledged: isAcknowledged === "true" }
         : {}),
-      ...(siteId
-        ? {
-            OR: [
-              {
-                camera: {
-                  siteId,
-                },
-              },
-              {
-                nvr: {
-                  siteId,
-                },
-              },
-            ],
-          }
-        : {}),
+    }
+
+    const andFilters: Prisma.CCTVEventWhereInput[] = []
+    if (siteId) {
+      andFilters.push({
+        OR: [
+          {
+            camera: {
+              siteId,
+            },
+          },
+          {
+            nvr: {
+              siteId,
+            },
+          },
+        ],
+      })
+    }
+
+    if (search) {
+      andFilters.push({
+        OR: [
+          { title: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          { camera: { name: { contains: search, mode: "insensitive" } } },
+          { camera: { area: { contains: search, mode: "insensitive" } } },
+          { camera: { site: { name: { contains: search, mode: "insensitive" } } } },
+          { camera: { site: { code: { contains: search, mode: "insensitive" } } } },
+          { nvr: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      })
     }
 
     if (startDate || endDate) {
@@ -90,6 +107,9 @@ export async function GET(request: NextRequest) {
       if (endDate) {
         filterWhere.eventTime.lte = new Date(endDate)
       }
+    }
+    if (andFilters.length > 0) {
+      filterWhere.AND = andFilters
     }
 
     const where: Prisma.CCTVEventWhereInput = {
