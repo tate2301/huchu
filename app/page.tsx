@@ -18,6 +18,9 @@ import { ExecutiveKpiGrid } from "@/components/dashboard/executive-kpi-grid";
 import { ExecutiveCharts } from "@/components/dashboard/executive-charts";
 import { ExecutiveHighlights } from "@/components/dashboard/executive-highlights";
 import { ExecutiveQuickLinks } from "@/components/dashboard/executive-quick-links";
+import { ExecutiveSummaryBar } from "@/components/dashboard/executive-summary-bar";
+import { ExecutiveCriticalStrip } from "@/components/dashboard/executive-critical-strip";
+import { ExecutiveModuleMatrix } from "@/components/dashboard/executive-module-matrix";
 
 const ALL_SITES_VALUE = "all";
 const EXECUTIVE_RANGE_OPTIONS: Array<{ value: ExecutiveRange; label: string }> = [
@@ -58,27 +61,26 @@ export default function HomePage() {
   const hasOverviewData = Boolean(overview);
   const overviewErrorMessage = error ? getApiErrorMessage(error) : undefined;
   const updatedAt = useMemo(() => formatUpdatedAt(overview), [overview]);
+  const selectedRangeLabel =
+    EXECUTIVE_RANGE_OPTIONS.find((option) => option.value === selectedRange)?.label ?? "Last 30 days";
+  const selectedSiteLabel =
+    selectedSiteId === ALL_SITES_VALUE
+      ? "All sites"
+      : overview?.sites.find((candidate) => candidate.id === selectedSiteId)?.name ?? "Selected site";
 
   return (
     <div className="space-y-8">
       <PageHeading
         title="Executive Dashboard"
-        description="High-level observability across cash, gold, workforce, risk, and operational performance."
+        description="Enterprise visibility across finance, gold, workforce, operations, and risk."
       />
 
-      <ExecutiveQuickLinks
-        links={overview?.quickLinks ?? []}
-        title="Quick Actions"
-        description="Primary daily actions that keep operations moving."
-        showSecondary={false}
-      />
-
-      <section className="space-y-4">
+      <section className="space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold tracking-tight">Executive Observability</h2>
+            <h2 className="text-section-title font-semibold tracking-tight">Executive Summary</h2>
             <p className="text-sm text-muted-foreground">
-              Metrics and trends across finance, gold, workforce, and operational risk.
+              Top-level module status, exception load, and trend exposure for the selected scope.
             </p>
           </div>
 
@@ -136,6 +138,12 @@ export default function HomePage() {
               Last update: <span className="font-mono tabular-nums">{updatedAt}</span>
             </span>
           ) : null}
+          <span>
+            Scope: <span className="font-mono tabular-nums">{selectedSiteLabel}</span>
+          </span>
+          <span>
+            Range: <span className="font-mono tabular-nums">{selectedRangeLabel}</span>
+          </span>
         </div>
 
         {error && !hasOverviewData ? (
@@ -145,6 +153,34 @@ export default function HomePage() {
           </Alert>
         ) : null}
 
+        <ExecutiveSummaryBar
+          items={overview?.executiveSummary}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+        <ExecutiveCriticalStrip
+          items={overview?.executiveSummary}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+        <ExecutiveModuleMatrix
+          items={overview?.executiveSummary}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+      </section>
+
+      <ExecutiveQuickLinks
+        links={overview?.quickLinks ?? []}
+        title="Quick Actions"
+        description="Primary operational actions ranked by priority."
+        showSecondary={false}
+      />
+
+      <section className="space-y-6">
         <ExecutiveKpiGrid
           items={overview?.kpis}
           isLoading={isLoading}
@@ -170,8 +206,8 @@ export default function HomePage() {
 
       <ExecutiveQuickLinks
         links={overview?.quickLinks ?? []}
-        title="Quick Links"
-        description="Browse feature-gated module links in a compact list."
+        title="Module Links"
+        description="Module and report entry points grouped by domain."
         showPrimary={false}
       />
     </div>

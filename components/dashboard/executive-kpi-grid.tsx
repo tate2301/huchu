@@ -38,11 +38,15 @@ export function ExecutiveKpiGrid({
   errorMessage,
 }: ExecutiveKpiGridProps) {
   return (
-    <>
+    <section className="space-y-3">
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold tracking-tight">Key Indicators</h3>
+        <p className="text-sm text-muted-foreground">Cross-functional KPI snapshot for the selected filters.</p>
+      </div>
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={`kpi-skeleton-${index}`} className="rounded-lg border p-4">
+            <div key={`kpi-skeleton-${index}`} className="rounded-md border border-border/60 p-4">
               <Skeleton className="h-3 w-24" />
               <Skeleton className="mt-3 h-8 w-28" />
               <Skeleton className="mt-3 h-5 w-20" />
@@ -54,16 +58,16 @@ export function ExecutiveKpiGrid({
       {!isLoading && isError ? (
         <StatusState
           variant="error"
-          title="Unable to load executive metrics"
-          description={errorMessage || "Dashboard metrics are currently unavailable."}
+          title="Key indicators unavailable"
+          description={errorMessage || "KPI data could not be retrieved."}
         />
       ) : null}
 
       {!isLoading && !isError && (!items || items.length === 0) ? (
         <StatusState
           variant="empty"
-          title="No executive metrics available"
-          description="This account may not have access to executive-level metrics for the selected modules."
+          title="No key indicators available"
+          description="No KPI records were returned for the current selection."
         />
       ) : null}
 
@@ -76,10 +80,10 @@ export function ExecutiveKpiGrid({
             const deltaLabel = formatDelta(item);
 
             return (
-              <div key={item.id} className="rounded-lg border bg-card p-4">
+              <div key={item.id} className="rounded-md border border-border/60 bg-card/95 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <Badge variant="outline" className="text-[10px] uppercase">
+                  <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
                     {item.module}
                   </Badge>
                 </div>
@@ -105,6 +109,6 @@ export function ExecutiveKpiGrid({
           })}
         </div>
       ) : null}
-    </>
+    </section>
   );
 }

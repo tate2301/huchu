@@ -39,9 +39,9 @@ export function ExecutiveHighlights({
   return (
     <section className="space-y-3">
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">Executive Highlights</h3>
+        <h3 className="text-lg font-semibold tracking-tight">Exception Highlights</h3>
         <p className="text-sm text-muted-foreground">
-          Top exceptions and pressure points that need stakeholder attention.
+          Highest-priority exception items and pressure points.
         </p>
       </div>
       {isLoading ? (
@@ -59,16 +59,16 @@ export function ExecutiveHighlights({
       {!isLoading && isError ? (
         <StatusState
           variant="error"
-          title="Unable to load highlights"
-          description={errorMessage || "Highlights are currently unavailable."}
+          title="Exception highlights unavailable"
+          description={errorMessage || "Highlight records could not be retrieved."}
         />
       ) : null}
 
       {!isLoading && !isError && (!items || items.length === 0) ? (
         <StatusState
           variant="empty"
-          title="No highlights in this period"
-          description="No notable risks or events were returned for this filter."
+          title="No exception highlights"
+          description="No notable exception records were returned for this selection."
         />
       ) : null}
 
@@ -79,7 +79,7 @@ export function ExecutiveHighlights({
             const tone = item.tone ?? "neutral";
 
             return (
-              <div key={item.id} className="rounded-lg border bg-card p-3">
+              <div key={item.id} className="rounded-md border border-border/60 bg-card/95 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">{item.title}</p>

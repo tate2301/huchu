@@ -60,9 +60,9 @@ export function ExecutiveCharts({
   return (
     <section className="space-y-3">
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">Executive Charts</h3>
+        <h3 className="text-lg font-semibold tracking-tight">Performance Trends</h3>
         <p className="text-sm text-muted-foreground">
-          Gold, cash, throughput, and risk visualized over the selected range.
+          Gold, cash, throughput, and risk series for the selected range.
         </p>
       </div>
       {isLoading ? (
@@ -77,16 +77,16 @@ export function ExecutiveCharts({
       {!isLoading && isError ? (
         <StatusState
           variant="error"
-          title="Unable to load charts"
-          description={errorMessage || "Chart data is currently unavailable."}
+          title="Trend charts unavailable"
+          description={errorMessage || "Chart data could not be retrieved."}
         />
       ) : null}
 
       {!isLoading && !isError && !hasAnyData ? (
         <StatusState
           variant="empty"
-          title="No chart data available"
-          description="Adjust site or period filters to load trendlines and risk distribution."
+          title="No trend data available"
+          description="No trendlines or risk distribution records were returned."
         />
       ) : null}
 
@@ -95,7 +95,7 @@ export function ExecutiveCharts({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Gold Over Time</CardTitle>
-              <CardDescription>Produced gold weight trend in grams.</CardDescription>
+              <CardDescription>Produced gold weight trend (grams).</CardDescription>
             </CardHeader>
             <CardContent>
               {goldTrend.length === 0 ? (
@@ -206,7 +206,7 @@ export function ExecutiveCharts({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Risk Composition</CardTitle>
-              <CardDescription>Open risk distribution by domain.</CardDescription>
+              <CardDescription>Open risk distribution by module domain.</CardDescription>
             </CardHeader>
             <CardContent>
               {riskBreakdown.length === 0 ? (
