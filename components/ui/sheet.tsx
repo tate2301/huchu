@@ -37,9 +37,9 @@ const sheetVariants = cva(
         bottom:
           "inset-x-0 bottom-0 max-h-[92dvh] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         left:
-          "inset-y-0 left-0 h-dvh w-[var(--sheet-size-mobile)] sm:w-[var(--sheet-size-sm)] md:w-[var(--sheet-size-md)] lg:w-[var(--sheet-size-lg)] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+          "inset-y-0 left-0 h-dvh w-[var(--sheet-size-mobile)] sm:w-[var(--sheet-size-sm)] md:w-[var(--sheet-size-md)] lg:w-[var(--sheet-size-lg)] md:max-lg:left-2 md:max-lg:h-[calc(100dvh-1rem)] md:max-lg:max-h-[calc(100dvh-1rem)] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
         right:
-          "inset-y-0 right-0 h-dvh w-[var(--sheet-size-mobile)] sm:w-[var(--sheet-size-sm)] md:w-[var(--sheet-size-md)] lg:w-[var(--sheet-size-lg)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "inset-y-0 right-0 h-dvh w-[var(--sheet-size-mobile)] sm:w-[var(--sheet-size-sm)] md:w-[var(--sheet-size-md)] lg:w-[var(--sheet-size-lg)] md:max-lg:right-2 md:max-lg:h-[calc(100dvh-1rem)] md:max-lg:max-h-[calc(100dvh-1rem)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
       },
       size: SHEET_SIZE_CLASSNAMES,
       tabletBehavior: {

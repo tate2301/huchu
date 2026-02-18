@@ -159,7 +159,7 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
             <CardDescription>{logs.length} access event(s) in this view.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="table-rail">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>

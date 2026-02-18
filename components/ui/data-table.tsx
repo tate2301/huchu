@@ -133,6 +133,9 @@ export type DataTableProps<TData, TValue> = {
   toolbar?: React.ReactNode;
   stickyHeader?: boolean;
   stickyHeaderOffset?: number;
+  tabletScrollable?: boolean;
+  tabletStickyFirstColumn?: boolean;
+  tabletMinTableWidth?: string;
   maxBodyHeight?: string;
   searchPlaceholder?: string;
   searchBehavior?: DataTableSearchBehavior;
@@ -175,6 +178,9 @@ export function DataTable<TData, TValue>({
   toolbar,
   stickyHeader = true,
   stickyHeaderOffset = 0,
+  tabletScrollable = true,
+  tabletStickyFirstColumn = true,
+  tabletMinTableWidth = "max-content",
   maxBodyHeight,
   searchPlaceholder = "Search records",
   searchBehavior = "submit",
@@ -383,10 +389,10 @@ export function DataTable<TData, TValue>({
   return (
     <div className={cn("space-y-3", className)}>
       {showTopToolbar ? (
-        <div className="section-shell flex flex-wrap items-center gap-2 py-1">
+        <div className="section-shell flex flex-wrap items-center gap-2 py-1 md:max-lg:flex-nowrap md:max-lg:overflow-x-auto md:max-lg:[&>*]:shrink-0">
           {globalFilterEnabled ? (
             <form
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 md:max-lg:shrink-0"
               onSubmit={(event) => {
                 event.preventDefault();
                 applySearch(searchDraft);
@@ -416,10 +422,10 @@ export function DataTable<TData, TValue>({
             </form>
           ) : null}
 
-          {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
+          {toolbar ? <div className="flex flex-wrap items-center gap-2 md:max-lg:shrink-0">{toolbar}</div> : null}
 
           {showToolbarPagination ? (
-            <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:max-lg:flex-nowrap md:max-lg:[&>*]:shrink-0">
               <span>Rows per page</span>
               <Select
                 value={String(pageSize)}
@@ -470,6 +476,9 @@ export function DataTable<TData, TValue>({
           enablePagination={false}
           stickyHeader={stickyHeader}
           stickyHeaderOffset={stickyHeaderOffset}
+          tabletScrollable={tabletScrollable}
+          tabletStickyFirstColumn={tabletStickyFirstColumn}
+          tabletMinTableWidth={tabletMinTableWidth}
           edgeToEdge
         >
           <TableHeader>

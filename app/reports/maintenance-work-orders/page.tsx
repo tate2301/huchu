@@ -123,7 +123,7 @@ export default function MaintenanceWorkOrdersReportPage() {
           ) : filteredRows.length === 0 ? (
             <div className="text-sm text-muted-foreground">No work orders for the selected filters.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="table-rail">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
