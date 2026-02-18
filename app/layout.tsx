@@ -1,7 +1,7 @@
 import "material-symbols";
 
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Inter, Lato, Poppins, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
@@ -42,12 +42,13 @@ export const metadata: Metadata = {
   title: "Huchu - Mine Operations System",
   description: "Digital operations management for small-scale gold mines",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
   themeColor: "#2490ef",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
 };
 
 export default async function RootLayout({
