@@ -67,7 +67,7 @@ export default function SitesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Site created",
-        description: "Site has been added successfully.",
+        description: "Site record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -89,7 +89,7 @@ export default function SitesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Site updated",
-        description: "Site changes saved.",
+        description: "Site record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -110,8 +110,8 @@ export default function SitesManagementPage() {
     mutationFn: deleteSite,
     onSuccess: () => {
       toast({
-        title: "Site archived",
-        description: "Site was archived successfully.",
+        title: "Site record archived",
+        description: "Site record archived.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "sites"] });
@@ -183,7 +183,7 @@ export default function SitesManagementPage() {
                 size="icon"
                 variant="ghost"
                 onClick={() => {
-                  if (window.confirm("Archive this site?")) {
+                  if (window.confirm("Confirm archival of this site.")) {
                     deleteMutation.mutate(row.original.id);
                   }
                 }}
@@ -200,7 +200,7 @@ export default function SitesManagementPage() {
                 }
                 disabled={updateMutation.isPending}
               >
-                Activate
+                Set Active
               </Button>
             )}
           </div>
@@ -214,16 +214,16 @@ export default function SitesManagementPage() {
     event.preventDefault();
     if (!formState.name.trim()) {
       toast({
-        title: "Missing details",
-        description: "Name is required.",
+        title: "Incomplete form",
+        description: "Site name is required.",
         variant: "destructive",
       });
       return;
     }
     if (!editing && !resolvedCode.trim()) {
       toast({
-        title: "Unable to reserve site code",
-        description: reserveError ?? "Please wait for the code reservation to complete.",
+        title: "Site code unavailable",
+        description: reserveError ?? "Code reservation is in progress.",
         variant: "destructive",
       });
       return;
@@ -254,7 +254,7 @@ export default function SitesManagementPage() {
     <MasterDataShell
       activeTab="sites"
       title="Sites"
-      description="Manage site master data used across operations, reports, and staffing."
+      description="Site reference data for operations, reporting, and staffing."
       actions={
         <Button
           size="sm"
@@ -282,7 +282,7 @@ export default function SitesManagementPage() {
         searchPlaceholder="Search sites"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
-        emptyState={isLoading ? "Loading sites..." : "No sites found."}
+        emptyState={isLoading ? "Loading site records..." : "No site records available."}
       />
 
       <Sheet
@@ -300,8 +300,8 @@ export default function SitesManagementPage() {
             <SheetTitle>{editing ? "Edit Site" : "New Site"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Update site details and status."
-                : "Create a site for reporting and operational forms."}
+                ? "Update site record details and status."
+                : "Create a site record for reporting and operational forms."}
             </SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
@@ -319,13 +319,13 @@ export default function SitesManagementPage() {
               <Input
                 value={resolvedCode}
                 readOnly
-                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
+                placeholder={isReserving ? "Reserving code..." : "Auto-generated"}
                 required
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 {editing
-                  ? "Site code is immutable."
-                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+                  ? "Site code cannot be changed."
+                  : reserveError ?? "Code is generated automatically and cannot be edited."}
               </p>
             </div>
             <div>
@@ -333,7 +333,7 @@ export default function SitesManagementPage() {
               <Input
                 value={formState.location}
                 onChange={(event) => setFormState((prev) => ({ ...prev, location: event.target.value }))}
-                placeholder="District / Coordinates"
+                placeholder="District or coordinates"
               />
             </div>
             <div>
