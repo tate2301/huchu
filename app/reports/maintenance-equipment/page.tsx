@@ -35,6 +35,11 @@ export default function MaintenanceEquipmentReportPage() {
       rows.map((row) => {
         const needsService =
           row.nextServiceDue && new Date(row.nextServiceDue).getTime() < nowTimestamp;
+        const statusVariant: React.ComponentProps<typeof Badge>["variant"] = !row.isActive
+          ? "destructive"
+          : needsService
+            ? "secondary"
+            : "default";
         return {
           id: row.id,
           equipmentCode: row.equipmentCode,
@@ -47,7 +52,7 @@ export default function MaintenanceEquipmentReportPage() {
           nextServiceLabel: row.nextServiceDue
             ? format(new Date(row.nextServiceDue), "yyyy-MM-dd")
             : "-",
-          statusVariant: !row.isActive ? "destructive" : needsService ? "secondary" : "default",
+          statusVariant,
           statusLabel: !row.isActive
             ? "Down"
             : needsService

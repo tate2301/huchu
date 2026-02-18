@@ -232,9 +232,10 @@ export function DataTable<TData, TValue>({
     globalFilterEnabled && deferFilter ? deferredGlobalFilter : globalFilter;
 
   React.useEffect(() => {
-    if (queryState?.search !== undefined) {
-      setGlobalFilter((prev) => (prev === queryState.search ? prev : queryState.search));
-      setSearchDraft((prev) => (prev === queryState.search ? prev : queryState.search));
+    const nextSearch = queryState?.search;
+    if (nextSearch !== undefined) {
+      setGlobalFilter((prev) => (prev === nextSearch ? prev : nextSearch));
+      setSearchDraft((prev) => (prev === nextSearch ? prev : nextSearch));
     }
   }, [queryState?.search]);
 
