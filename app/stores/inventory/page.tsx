@@ -76,6 +76,33 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
+function buildInventoryQrPayload(item: InventoryItem) {
+  return JSON.stringify({
+    type: "inventory-item",
+    version: 1,
+    id: item.id,
+    itemCode: item.itemCode ?? "",
+    name: item.name,
+    category: item.category,
+    siteId: item.siteId ?? "",
+    locationId: item.locationId ?? "",
+    unit: item.unit,
+  });
+}
+
+function buildInventoryQrImageUrl(payload: string) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function StoresInventoryPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
