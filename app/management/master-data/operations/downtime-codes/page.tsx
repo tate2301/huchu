@@ -26,7 +26,7 @@ import {
   type DowntimeCode,
   updateDowntimeCode,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -73,6 +73,7 @@ export default function DowntimeCodesManagementPage() {
     queryKey: ["management", "master-data", "downtime-codes"],
     queryFn: () => fetchDowntimeCodes({ active: "all" }),
   });
+  const loadErrorMessage = resolveDisplayErrorMessage([error]);
 
   const { data: sitesData } = useQuery({
     queryKey: ["management", "master-data", "sites-options", "downtime"],
@@ -324,10 +325,10 @@ export default function DowntimeCodesManagementPage() {
         </Button>
       }
     >
-      {error ? (
+      {loadErrorMessage ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load downtime codes</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+          <AlertDescription>{loadErrorMessage}</AlertDescription>
         </Alert>
       ) : null}
 

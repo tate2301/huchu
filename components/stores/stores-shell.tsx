@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
+import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { cn } from "@/lib/utils";
 import { Fuel, History, Home, Minus, Package, Plus } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
@@ -48,7 +51,16 @@ export function StoresShell({
   description = "Inventory tracking and fuel ledger",
 }: StoresShellProps) {
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const siteId = searchParams.get("siteId");
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const visibleTabs = useMemo(
+    () => filterHrefItemsByEnabledFeatures(storesTabs, enabledFeatures),
+    [enabledFeatures],
+  );
 
   const buildHref = (href: string) => {
     if (!siteId) return href;
@@ -70,7 +82,7 @@ export function StoresShell({
         aria-label="Stores navigation"
         className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
       >
-        {storesTabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <Link

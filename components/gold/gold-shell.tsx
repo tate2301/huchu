@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import {
   ArrowRightLeft,
   AlertTriangle,
@@ -15,6 +16,7 @@ import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { cn } from "@/lib/utils";
 import { goldRoutes } from "@/app/gold/routes";
+import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
 export type GoldLane =
   | "command"
@@ -80,6 +82,16 @@ export function GoldShell({
   title = "Gold Chain",
   description = "Track gold from shift output to sale and payout.",
 }: GoldShellProps) {
+  const { data: session } = useSession();
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const visibleTabs = useMemo(
+    () => filterHrefItemsByEnabledFeatures(laneTabs, enabledFeatures),
+    [enabledFeatures],
+  );
+
   return (
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
@@ -95,7 +107,7 @@ export function GoldShell({
             Gold Views
           </h2>
           <nav aria-label="Gold sections" className="space-y-2">
-            {laneTabs.map((lane) => {
+            {visibleTabs.map((lane) => {
               const isActive = lane.id === activeTab;
               return (
                 <Link

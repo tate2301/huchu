@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -16,6 +17,7 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
 export type CCTVTab =
   | "overview"
@@ -58,6 +60,16 @@ export function CCTVShell({
   title = "CCTV Surveillance",
   description = "Monitor cameras, review security events, and control live streams across sites.",
 }: CCTVShellProps) {
+  const { data: session } = useSession();
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const visibleTabs = useMemo(
+    () => filterHrefItemsByEnabledFeatures(cctvTabs, enabledFeatures),
+    [enabledFeatures],
+  );
+
   return (
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
@@ -71,7 +83,7 @@ export function CCTVShell({
         aria-label="CCTV navigation"
         className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
       >
-        {cctvTabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <Link
