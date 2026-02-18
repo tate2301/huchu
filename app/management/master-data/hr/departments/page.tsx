@@ -68,7 +68,7 @@ export default function DepartmentsManagementPage() {
     onSuccess: () => {
       toast({
         title: "Department created",
-        description: "Department has been added successfully.",
+        description: "Department record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -90,7 +90,7 @@ export default function DepartmentsManagementPage() {
     onSuccess: () => {
       toast({
         title: "Department updated",
-        description: "Department changes saved.",
+        description: "Department record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -112,7 +112,7 @@ export default function DepartmentsManagementPage() {
     onSuccess: () => {
       toast({
         title: "Department deleted",
-        description: "Department has been removed.",
+        description: "Department record deleted.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "departments"] });
@@ -176,7 +176,7 @@ export default function DepartmentsManagementPage() {
               size="icon"
               variant="ghost"
               onClick={() => {
-                if (window.confirm("Delete this department?")) {
+                if (window.confirm("Confirm deletion of this department.")) {
                   deleteMutation.mutate(row.original.id);
                 }
               }}
@@ -195,16 +195,16 @@ export default function DepartmentsManagementPage() {
     event.preventDefault();
     if (!formState.name.trim()) {
       toast({
-        title: "Missing details",
-        description: "Name is required.",
+        title: "Incomplete form",
+        description: "Department name is required.",
         variant: "destructive",
       });
       return;
     }
     if (!editing && !resolvedCode.trim()) {
       toast({
-        title: "Unable to reserve department code",
-        description: reserveError ?? "Please wait for the code reservation to complete.",
+        title: "Department code unavailable",
+        description: reserveError ?? "Code reservation is in progress.",
         variant: "destructive",
       });
       return;
@@ -232,7 +232,7 @@ export default function DepartmentsManagementPage() {
     <MasterDataShell
       activeTab="departments"
       title="Departments"
-      description="Manage department lookup values for employee and compensation workflows."
+      description="Department reference data for employee and compensation workflows."
       actions={
         <Button
           size="sm"
@@ -260,7 +260,7 @@ export default function DepartmentsManagementPage() {
         searchPlaceholder="Search departments"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
-        emptyState={isLoading ? "Loading departments..." : "No departments found."}
+        emptyState={isLoading ? "Loading department records..." : "No department records available."}
       />
 
       <Sheet
@@ -278,8 +278,8 @@ export default function DepartmentsManagementPage() {
             <SheetTitle>{editing ? "Edit Department" : "New Department"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Update department details."
-                : "Create a department for HR and compensation assignment."}
+                ? "Update department record details."
+                : "Create a department record for HR and compensation assignment."}
             </SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
@@ -288,13 +288,13 @@ export default function DepartmentsManagementPage() {
               <Input
                 value={resolvedCode}
                 readOnly
-                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
+                placeholder={isReserving ? "Reserving code..." : "Auto-generated"}
                 required
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 {editing
-                  ? "Department code is immutable."
-                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+                  ? "Department code cannot be changed."
+                  : reserveError ?? "Code is generated automatically and cannot be edited."}
               </p>
             </div>
             <div>

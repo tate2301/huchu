@@ -87,7 +87,7 @@ export default function DowntimeCodesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Downtime code created",
-        description: "Downtime code has been added successfully.",
+        description: "Downtime code record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -109,7 +109,7 @@ export default function DowntimeCodesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Downtime code updated",
-        description: "Downtime code changes saved.",
+        description: "Downtime code record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -130,8 +130,8 @@ export default function DowntimeCodesManagementPage() {
     mutationFn: deleteDowntimeCode,
     onSuccess: () => {
       toast({
-        title: "Downtime code archived",
-        description: "Downtime code was archived successfully.",
+        title: "Downtime code record archived",
+        description: "Downtime code record archived.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "downtime-codes"] });
@@ -162,7 +162,7 @@ export default function DowntimeCodesManagementPage() {
         header: "Site",
         cell: ({ row }) => {
           if (!row.original.siteId) return "Global default";
-          if (!row.original.site) return "Unknown site";
+          if (!row.original.site) return "Site unavailable";
           return `${row.original.site.code} - ${row.original.site.name}`;
         },
       },
@@ -207,7 +207,7 @@ export default function DowntimeCodesManagementPage() {
                 size="icon"
                 variant="ghost"
                 onClick={() => {
-                  if (window.confirm("Archive this downtime code?")) {
+                  if (window.confirm("Confirm archival of this downtime code.")) {
                     deleteMutation.mutate(row.original.id);
                   }
                 }}
@@ -224,7 +224,7 @@ export default function DowntimeCodesManagementPage() {
                 }
                 disabled={updateMutation.isPending}
               >
-                Activate
+                Set Active
               </Button>
             )}
           </div>
@@ -238,8 +238,8 @@ export default function DowntimeCodesManagementPage() {
     event.preventDefault();
     if (!formState.description.trim()) {
       toast({
-        title: "Missing details",
-        description: "Description is required.",
+        title: "Incomplete form",
+        description: "Downtime description is required.",
         variant: "destructive",
       });
       return;
@@ -257,16 +257,16 @@ export default function DowntimeCodesManagementPage() {
 
     if (!formState.siteId) {
       toast({
-        title: "Missing site",
-        description: "Select a site for this downtime code.",
+        title: "Site selection required",
+        description: "A site must be selected for this downtime code.",
         variant: "destructive",
       });
       return;
     }
     if (!editing && !resolvedCode.trim()) {
       toast({
-        title: "Unable to reserve downtime code",
-        description: reserveError ?? "Please select site and wait for code reservation.",
+        title: "Downtime code unavailable",
+        description: reserveError ?? "Select a site and wait for code reservation.",
         variant: "destructive",
       });
       return;
@@ -289,7 +289,7 @@ export default function DowntimeCodesManagementPage() {
 
     if (payload.siteId === null) {
       toast({
-        title: "Site required",
+        title: "Site selection required",
         description: "Global downtime code creation is restricted.",
         variant: "destructive",
       });
@@ -309,7 +309,7 @@ export default function DowntimeCodesManagementPage() {
     <MasterDataShell
       activeTab="downtime-codes"
       title="Downtime Codes"
-      description="Manage downtime code lookup values used in plant reporting."
+      description="Downtime code reference data for plant reporting."
       actions={
         <Button
           size="sm"
@@ -337,7 +337,7 @@ export default function DowntimeCodesManagementPage() {
         searchPlaceholder="Search downtime codes"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
-        emptyState={isLoading ? "Loading downtime codes..." : "No downtime codes found."}
+        emptyState={isLoading ? "Loading downtime code records..." : "No downtime code records available."}
       />
 
       <Sheet
@@ -355,8 +355,8 @@ export default function DowntimeCodesManagementPage() {
             <SheetTitle>{editing ? "Edit Downtime Code" : "New Downtime Code"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Update downtime code details and status."
-                : "Create a downtime code for a site."}
+                ? "Update downtime code record details and status."
+                : "Create a downtime code record for a site."}
             </SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
@@ -365,13 +365,13 @@ export default function DowntimeCodesManagementPage() {
               <Input
                 value={resolvedCode}
                 readOnly
-                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
+                placeholder={isReserving ? "Reserving code..." : "Auto-generated"}
                 required
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 {editing
-                  ? "Downtime code is immutable."
-                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+                  ? "Downtime code cannot be changed."
+                  : reserveError ?? "Code is generated automatically and cannot be edited."}
               </p>
             </div>
             <div>
@@ -392,7 +392,7 @@ export default function DowntimeCodesManagementPage() {
                 onValueChange={(value) => setFormState((prev) => ({ ...prev, siteId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select site" />
+                  <SelectValue placeholder="Select a site" />
                 </SelectTrigger>
                 <SelectContent>
                   {formState.siteId === GLOBAL_SENTINEL ? (
