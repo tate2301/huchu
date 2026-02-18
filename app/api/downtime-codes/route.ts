@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { hasRole, validateSession, successResponse, errorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const downtimeCodeSchema = z.object({
-  code: z.string().trim().min(1).max(40),
+  code: z.string().trim().min(1).max(40).optional(),
   description: z.string().trim().min(1).max(300),
   siteId: z.string().uuid().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
@@ -105,10 +106,17 @@ export async function POST(request: NextRequest) {
     if (!site || site.companyId !== session.user.companyId) {
       return errorResponse("Invalid site", 403)
     }
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "DOWNTIME_CODE")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "DOWNTIME_CODE",
+          siteId: validated.siteId,
+        })
 
     const created = await prisma.downtimeCode.create({
       data: {
-        code: validated.code.toUpperCase(),
+        code,
         description: validated.description,
         siteId: validated.siteId,
         sortOrder: validated.sortOrder ?? 0,

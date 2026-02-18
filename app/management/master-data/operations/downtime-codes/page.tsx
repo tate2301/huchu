@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type DowntimeCodeFormState = {
   code: string;
@@ -53,6 +54,20 @@ export default function DowntimeCodesManagementPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<DowntimeCode | null>(null);
   const [formState, setFormState] = useState<DowntimeCodeFormState>(emptyForm);
+  const downtimeSiteId =
+    !editing && formState.siteId && formState.siteId !== GLOBAL_SENTINEL
+      ? formState.siteId
+      : undefined;
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "DOWNTIME_CODE",
+    siteId: downtimeSiteId,
+    enabled: formOpen && !editing && Boolean(downtimeSiteId),
+  });
+  const resolvedCode = editing ? formState.code : reservedId;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["management", "master-data", "downtime-codes"],
@@ -221,10 +236,10 @@ export default function DowntimeCodesManagementPage() {
 
   const handleSave = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!formState.code.trim() || !formState.description.trim()) {
+    if (!formState.description.trim()) {
       toast({
         title: "Missing details",
-        description: "Code and description are required.",
+        description: "Description is required.",
         variant: "destructive",
       });
       return;
@@ -248,9 +263,16 @@ export default function DowntimeCodesManagementPage() {
       });
       return;
     }
+    if (!editing && !resolvedCode.trim()) {
+      toast({
+        title: "Unable to reserve downtime code",
+        description: reserveError ?? "Please select site and wait for code reservation.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const payload = {
-      code: formState.code.trim(),
       description: formState.description.trim(),
       siteId: formState.siteId === GLOBAL_SENTINEL ? null : formState.siteId,
       sortOrder,
@@ -275,7 +297,7 @@ export default function DowntimeCodesManagementPage() {
     }
 
     createMutation.mutate({
-      code: payload.code,
+      code: resolvedCode.trim(),
       description: payload.description,
       siteId: payload.siteId,
       sortOrder: payload.sortOrder,
@@ -341,11 +363,16 @@ export default function DowntimeCodesManagementPage() {
             <div>
               <label className="mb-2 block text-sm font-semibold">Code *</label>
               <Input
-                value={formState.code}
-                onChange={(event) => setFormState((prev) => ({ ...prev, code: event.target.value }))}
-                placeholder="MECH-001"
+                value={resolvedCode}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {editing
+                  ? "Downtime code is immutable."
+                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold">Description *</label>
@@ -398,7 +425,7 @@ export default function DowntimeCodesManagementPage() {
               >
                 {formState.isActive ? "Active" : "Inactive"}
               </Button>
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending}>
+              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending || (!editing && (isReserving || !resolvedCode))}>
                 {editing ? "Save Changes" : "Create Downtime Code"}
               </Button>
             </div>

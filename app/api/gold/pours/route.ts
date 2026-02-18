@@ -3,8 +3,10 @@ import { validateSession, successResponse, errorResponse, getPaginationParams, p
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 
 const goldPourSchema = z.object({
+  pourBarId: z.string().min(1).max(50).optional(),
   siteId: z.string().uuid(),
   pourDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   grossWeight: z.number().positive(),
@@ -14,31 +16,6 @@ const goldPourSchema = z.object({
   estimatedPurity: z.number().min(0).max(100).optional(),
   notes: z.string().max(1000).optional(),
 });
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, '0');
-}
-
-function buildPourBarIdCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}${formatTwoDigits(now.getSeconds())}`;
-  const randomPart = Math.floor(100 + Math.random() * 900);
-  return `BAR-${datePart}-${timePart}-${randomPart}`;
-}
-
-async function generateUniquePourBarId() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildPourBarIdCandidate();
-    const existing = await prisma.goldPour.findUnique({
-      where: { pourBarId: candidate },
-      select: { id: true },
-    });
-    if (!existing) return candidate;
-  }
-
-  return `BAR-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -129,7 +106,12 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid witness 2', 400);
     }
 
-    const pourBarId = await generateUniquePourBarId();
+    const pourBarId = validated.pourBarId
+      ? normalizeProvidedId(validated.pourBarId, "GOLD_POUR")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "GOLD_POUR",
+        });
 
     const existingPour = await prisma.goldPour.findUnique({
       where: { pourBarId },

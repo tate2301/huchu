@@ -55,6 +55,10 @@ export async function PATCH(
     const body = await request.json()
     const validated = updateDepartmentSchema.parse(body)
 
+    if (validated.code !== undefined) {
+      return errorResponse("Department code is immutable and cannot be changed", 400)
+    }
+
     const existing = await prisma.department.findUnique({
       where: { id },
       select: { companyId: true },
@@ -67,7 +71,6 @@ export async function PATCH(
     const updated = await prisma.department.update({
       where: { id },
       data: {
-        code: validated.code?.toUpperCase(),
         name: validated.name,
         isActive: validated.isActive,
       },

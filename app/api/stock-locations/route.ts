@@ -8,8 +8,10 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const stockLocationSchema = z.object({
+  code: z.string().min(1).max(50).optional(),
   name: z.string().min(1).max(200),
   siteId: z.string().uuid(),
   isActive: z.boolean().optional(),
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
         where,
         select: {
           id: true,
+          code: true,
           name: true,
           siteId: true,
           isActive: true,
@@ -65,6 +68,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validated = stockLocationSchema.parse(body)
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "STOCK_LOCATION")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "STOCK_LOCATION",
+          siteId: validated.siteId,
+        })
 
     const site = await prisma.site.findUnique({
       where: { id: validated.siteId },
@@ -82,23 +92,28 @@ export async function POST(request: NextRequest) {
     const existing = await prisma.stockLocation.findFirst({
       where: {
         siteId: validated.siteId,
-        name: { equals: validated.name, mode: "insensitive" },
+        OR: [
+          { name: { equals: validated.name, mode: "insensitive" } },
+          { code },
+        ],
       },
       select: { id: true },
     })
 
     if (existing) {
-      return errorResponse("Stock location already exists for this site", 409)
+      return errorResponse("Stock location name or code already exists for this site", 409)
     }
 
     const location = await prisma.stockLocation.create({
       data: {
+        code,
         name: validated.name,
         siteId: validated.siteId,
         isActive: validated.isActive ?? true,
       },
       select: {
         id: true,
+        code: true,
         name: true,
         siteId: true,
         isActive: true,

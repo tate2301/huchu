@@ -21,6 +21,7 @@ import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { goldRoutes } from "@/app/gold/routes";
 import { Send, Shield } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 export function PourForm({
   cancelHref,
@@ -53,6 +54,14 @@ export function PourForm({
     storageLocation: "",
     notes: "",
   });
+  const {
+    reservedId: reservedPourBarId,
+    isReserving: reservingPourBarId,
+    error: reservePourBarIdError,
+  } = useReservedId({
+    entity: "GOLD_POUR",
+    enabled: true,
+  });
 
   const handleSelectChange =
     (field: keyof typeof formData) => (value: string) => {
@@ -81,6 +90,7 @@ export function PourForm({
 
   const createPourMutation = useMutation({
     mutationFn: async (payload: {
+      pourBarId: string;
       siteId: string;
       pourDate: string;
       grossWeight: number;
@@ -115,6 +125,7 @@ export function PourForm({
     ? Number(formData.estimatedPurity)
     : undefined;
   const canSubmit =
+    !!reservedPourBarId &&
     !!formData.pourDate &&
     !!formData.siteId &&
     !!formData.witness1Id &&
@@ -141,7 +152,18 @@ export function PourForm({
       });
       return;
     }
+    if (!reservedPourBarId) {
+      toast({
+        title: "Unable to reserve batch ID",
+        description:
+          reservePourBarIdError ??
+          "Please wait for batch ID reservation to complete.",
+        variant: "destructive",
+      });
+      return;
+    }
     createPourMutation.mutate({
+      pourBarId: reservedPourBarId,
       siteId: formData.siteId,
       pourDate: formData.pourDate,
       grossWeight: grossWeightValue,
@@ -179,7 +201,7 @@ export function PourForm({
           <Button
             type="submit"
             size="lg"
-            disabled={!canSubmit || createPourMutation.isPending}
+            disabled={!canSubmit || createPourMutation.isPending || reservingPourBarId}
             className="flex-1 sm:flex-none"
           >
             <Send className="mr-2 h-5 w-5" />
@@ -200,9 +222,16 @@ export function PourForm({
             <div>
               <label className="block text-sm font-semibold mb-2">Batch ID</label>
               <Input
-                value="Generated automatically when saved"
+                value={reservedPourBarId}
                 readOnly
                 aria-readonly="true"
+                placeholder={reservingPourBarId ? "Reserving..." : "Auto-generated"}
+              />
+              <FieldHelp
+                hint={
+                  reservePourBarIdError ??
+                  "Batch ID is auto-generated and cannot be edited."
+                }
               />
             </div>
 

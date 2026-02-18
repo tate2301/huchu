@@ -26,6 +26,7 @@ import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { Minus } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 export default function StoresIssuePage() {
   const { toast } = useToast();
@@ -42,6 +43,14 @@ export default function StoresIssuePage() {
     notes: "",
   });
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const {
+    reservedId: movementReferenceId,
+    isReserving: reservingMovementReferenceId,
+    error: reserveMovementReferenceError,
+  } = useReservedId({
+    entity: "STOCK_MOVEMENT",
+    enabled: true,
+  });
 
   const {
     data: sites,
@@ -154,6 +163,12 @@ export default function StoresIssuePage() {
     if (!requestedBy) {
       errors.push("Select the employee who requested this issue.");
     }
+    if (!movementReferenceId) {
+      errors.push(
+        reserveMovementReferenceError ??
+          "Please wait for movement reference reservation to complete.",
+      );
+    }
 
     if (!form.issuedTo.trim()) {
       errors.push("Provide who the stock was issued to.");
@@ -179,6 +194,7 @@ export default function StoresIssuePage() {
     const clean = (value: string) => value.trim() || undefined;
 
     issueMutation.mutate({
+      referenceId: movementReferenceId,
       itemId: selectedItem.id,
       movementType: "ISSUE",
       quantity,
@@ -219,7 +235,11 @@ export default function StoresIssuePage() {
             <Button
               className="bg-orange-600 hover:bg-orange-700"
               type="submit"
-              disabled={issueMutation.isPending}
+              disabled={
+                issueMutation.isPending ||
+                reservingMovementReferenceId ||
+                !movementReferenceId
+              }
             >
               <Minus className="mr-2 h-4 w-4" />
               {issueMutation.isPending ? "Saving Issue..." : "Submit Issue"}
@@ -230,7 +250,7 @@ export default function StoresIssuePage() {
           </>
         }
       >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="mb-2 block text-field-label">Date *</label>
                 <Input
@@ -262,7 +282,18 @@ export default function StoresIssuePage() {
                       ))}
                     </SelectContent>
                   </Select>
-                )}
+                  )}
+              </div>
+              <div>
+                <label className="mb-2 block text-field-label">
+                  Movement Reference *
+                </label>
+                <Input
+                  value={movementReferenceId}
+                  readOnly
+                  placeholder={reservingMovementReferenceId ? "Reserving..." : "Auto-generated"}
+                  required
+                />
               </div>
             </div>
 

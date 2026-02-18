@@ -9,9 +9,10 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/hr-payroll"
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const gradeSchema = z.object({
-  code: z.string().trim().min(1).max(40),
+  code: z.string().trim().min(1).max(40).optional(),
   name: z.string().trim().min(1).max(200),
   rank: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
@@ -72,11 +73,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validated = gradeSchema.parse(body)
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "JOB_GRADE")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "JOB_GRADE",
+        })
 
     const grade = await prisma.jobGrade.create({
       data: {
         companyId: session.user.companyId,
-        code: validated.code.toUpperCase(),
+        code,
         name: validated.name,
         rank: validated.rank ?? 0,
         isActive: validated.isActive ?? true,

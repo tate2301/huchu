@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
 
 const equipmentSchema = z.object({
-  equipmentCode: z.string().min(1).max(50),
+  equipmentCode: z.string().min(1).max(50).optional(),
   name: z.string().min(1).max(200),
   category: z.enum(['CRUSHER', 'MILL', 'PUMP', 'GENERATOR', 'VEHICLE', 'OTHER']),
   siteId: z.string().uuid(),
@@ -59,6 +60,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = equipmentSchema.parse(body);
+    const equipmentCode = validated.equipmentCode
+      ? normalizeProvidedId(validated.equipmentCode, "EQUIPMENT")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "EQUIPMENT",
+          siteId: validated.siteId,
+        });
 
     // Verify site
     const site = await prisma.site.findUnique({
@@ -77,7 +85,7 @@ export async function POST(request: NextRequest) {
     // Check for duplicate code
     const existing = await prisma.equipment.findFirst({
       where: {
-        equipmentCode: validated.equipmentCode,
+        equipmentCode,
         siteId: validated.siteId,
       },
     });
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     const equipment = await prisma.equipment.create({
       data: {
-        equipmentCode: validated.equipmentCode,
+        equipmentCode,
         name: validated.name,
         category: validated.category,
         siteId: validated.siteId,

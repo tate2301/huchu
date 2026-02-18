@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { type FixedAssetRecord, fetchAssets } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -46,6 +47,14 @@ export default function AssetsPage() {
     usefulLifeMonths: "36",
     depreciationMethod: "STRAIGHT_LINE",
     isActive: true,
+  });
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "FIXED_ASSET",
+    enabled: formOpen,
   });
 
   const { data: assetsData, isLoading, error } = useQuery({
@@ -137,17 +146,26 @@ export default function AssetsPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!formState.assetCode.trim() || !formState.name.trim() || !formState.cost) {
+    if (!formState.name.trim() || !formState.cost) {
       toast({
         title: "Missing details",
-        description: "Asset code, name, and cost are required.",
+        description: "Asset name and cost are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!reservedId.trim()) {
+      toast({
+        title: "Unable to reserve asset code",
+        description: reserveError ?? "Please wait for code reservation to complete.",
         variant: "destructive",
       });
       return;
     }
 
     createMutation.mutate({
-      assetCode: formState.assetCode.trim(),
+      assetCode: reservedId.trim(),
       name: formState.name.trim(),
       category: formState.category.trim() || undefined,
       acquisitionDate: formState.acquisitionDate,
@@ -197,11 +215,14 @@ export default function AssetsPage() {
             <div>
               <label className="block text-sm font-semibold mb-2">Asset Code *</label>
               <Input
-                value={formState.assetCode}
-                onChange={(event) => setFormState((prev) => ({ ...prev, assetCode: event.target.value }))}
-                placeholder="AS-001"
+                value={reservedId}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-semibold mb-2">Asset Name *</label>
@@ -289,7 +310,11 @@ export default function AssetsPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={createMutation.isPending || isReserving || !reservedId}
+              >
                 Save Asset
               </Button>
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>

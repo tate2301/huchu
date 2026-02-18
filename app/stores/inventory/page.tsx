@@ -23,6 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -34,11 +41,40 @@ import {
   fetchInventoryItems,
   fetchSites,
   fetchStockLocations,
+  type InventoryItem,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
-import { Download, Plus } from "@/lib/icons";
+import { Download, Plus, QrCode } from "@/lib/icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useReservedId } from "@/hooks/use-reserved-id";
+
+function buildInventoryQrPayload(item: InventoryItem) {
+  return JSON.stringify({
+    type: "inventory-item",
+    version: 1,
+    id: item.id,
+    itemCode: item.itemCode ?? "",
+    name: item.name,
+    category: item.category,
+    siteId: item.siteId ?? "",
+    locationId: item.locationId ?? "",
+    unit: item.unit,
+  });
+}
+
+function buildInventoryQrImageUrl(payload: string) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export default function StoresInventoryPage() {
   const { toast } = useToast();
@@ -64,7 +100,9 @@ export default function StoresInventoryPage() {
   const [editingLocationId, setEditingLocationId] = useState<string | null>(
     null,
   );
+  const [qrPreviewItem, setQrPreviewItem] = useState<InventoryItem | null>(null);
   const [locationForm, setLocationForm] = useState({
+    code: "",
     name: "",
     siteId: "",
     isActive: true,
@@ -79,6 +117,38 @@ export default function StoresInventoryPage() {
     queryFn: fetchSites,
   });
   const activeSiteId = selectedSiteId || sites?.[0]?.id || "";
+  const inventoryCodeSiteId = inventoryForm.siteId || activeSiteId;
+  const {
+    reservedId: reservedInventoryCode,
+    isReserving: reservingInventoryCode,
+    error: reserveInventoryCodeError,
+  } = useReservedId({
+    entity: "INVENTORY_ITEM",
+    enabled:
+      inventoryFormOpen &&
+      !editingItemId &&
+      Boolean(inventoryCodeSiteId),
+    siteId: inventoryCodeSiteId || undefined,
+  });
+  const locationCodeSiteId = locationForm.siteId || activeSiteId;
+  const {
+    reservedId: reservedLocationCode,
+    isReserving: reservingLocationCode,
+    error: reserveLocationCodeError,
+  } = useReservedId({
+    entity: "STOCK_LOCATION",
+    enabled:
+      locationFormOpen &&
+      !editingLocationId &&
+      Boolean(locationCodeSiteId),
+    siteId: locationCodeSiteId || undefined,
+  });
+  const resolvedInventoryCode = editingItemId
+    ? inventoryForm.itemCode
+    : reservedInventoryCode;
+  const resolvedLocationCode = editingLocationId
+    ? locationForm.code
+    : reservedLocationCode;
 
   const {
     data: inventoryData,
@@ -131,6 +201,12 @@ export default function StoresInventoryPage() {
     (sum, item) => sum + (item.unitCost ?? 0) * item.currentStock,
     0,
   );
+  const qrPreviewPayload = qrPreviewItem
+    ? buildInventoryQrPayload(qrPreviewItem)
+    : "";
+  const qrPreviewImageUrl = qrPreviewPayload
+    ? buildInventoryQrImageUrl(qrPreviewPayload)
+    : "";
 
   const handleSiteChange = (value: string) => {
     setSelectedSiteId(value);
@@ -157,6 +233,7 @@ export default function StoresInventoryPage() {
 
   const resetLocationForm = (overrides: Partial<typeof locationForm> = {}) => {
     setLocationForm({
+      code: "",
       name: "",
       siteId: activeSiteId,
       isActive: true,
@@ -214,6 +291,7 @@ export default function StoresInventoryPage() {
   const openEditLocation = (location: (typeof stockLocationsAll)[number]) => {
     setEditingLocationId(location.id);
     resetLocationForm({
+      code: location.code ?? "",
       name: location.name ?? "",
       siteId: location.siteId ?? activeSiteId,
       isActive: location.isActive ?? true,
@@ -234,6 +312,7 @@ export default function StoresInventoryPage() {
           ...prev,
           siteId: value,
           locationId: "",
+          ...(editingItemId ? {} : { itemCode: "" }),
         }));
         return;
       }
@@ -271,7 +350,11 @@ export default function StoresInventoryPage() {
   };
 
   const handleLocationSiteChange = (value: string) => {
-    setLocationForm((prev) => ({ ...prev, siteId: value }));
+    setLocationForm((prev) => ({
+      ...prev,
+      siteId: value,
+      ...(editingLocationId ? {} : { code: "" }),
+    }));
   };
 
   const handleLocationStatusChange = (value: string) => {
@@ -354,6 +437,7 @@ export default function StoresInventoryPage() {
 
   const createLocationMutation = useMutation({
     mutationFn: async (payload: {
+      code: string;
       name: string;
       siteId: string;
       isActive: boolean;
@@ -451,6 +535,16 @@ export default function StoresInventoryPage() {
       });
       return;
     }
+    if (!editingItemId && !resolvedInventoryCode.trim()) {
+      toast({
+        title: "Unable to reserve item code",
+        description:
+          reserveInventoryCodeError ??
+          "Please wait for the item code reservation to complete.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const payload = {
       name: inventoryForm.name,
@@ -467,13 +561,141 @@ export default function StoresInventoryPage() {
     if (editingItemId) {
       updateInventoryMutation.mutate({ id: editingItemId, data: payload });
     } else {
-      createInventoryMutation.mutate(payload);
+      createInventoryMutation.mutate({
+        ...payload,
+        itemCode: resolvedInventoryCode.trim(),
+      });
     }
   };
 
   const handleInventoryDelete = (id: string) => {
     if (!window.confirm("Delete this inventory item?")) return;
     deleteInventoryMutation.mutate(id);
+  };
+
+  const handleQrPreviewOpenChange = (open: boolean) => {
+    if (!open) setQrPreviewItem(null);
+  };
+
+  const handleQrPrint = () => {
+    if (!qrPreviewItem) return;
+
+    const payload = buildInventoryQrPayload(qrPreviewItem);
+    const imageUrl = buildInventoryQrImageUrl(payload);
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "noopener,noreferrer,width=460,height=640",
+    );
+
+    if (!printWindow) {
+      toast({
+        title: "Unable to open print preview",
+        description: "Allow popups and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const itemCode = qrPreviewItem.itemCode ?? "-";
+    const locationName = qrPreviewItem.location?.name ?? "-";
+    const siteName = qrPreviewItem.site?.name ?? "-";
+    const escapedPayload = escapeHtml(payload);
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Inventory QR Label</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 24px;
+              color: #111827;
+            }
+            .label {
+              border: 1px solid #d1d5db;
+              border-radius: 12px;
+              padding: 16px;
+              max-width: 380px;
+              margin: 0 auto;
+            }
+            .meta {
+              margin: 0 0 12px;
+              line-height: 1.45;
+              font-size: 12px;
+            }
+            .meta strong {
+              display: inline-block;
+              min-width: 80px;
+            }
+            .qr-wrap {
+              display: flex;
+              justify-content: center;
+              margin: 12px 0;
+            }
+            .qr {
+              width: 260px;
+              height: 260px;
+              object-fit: contain;
+            }
+            .payload {
+              margin-top: 8px;
+              font-size: 10px;
+              word-break: break-all;
+              color: #4b5563;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+              .label {
+                border: none;
+                max-width: 100%;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <p class="meta"><strong>Code:</strong> ${escapeHtml(itemCode)}</p>
+            <p class="meta"><strong>Item:</strong> ${escapeHtml(qrPreviewItem.name)}</p>
+            <p class="meta"><strong>Site:</strong> ${escapeHtml(siteName)}</p>
+            <p class="meta"><strong>Location:</strong> ${escapeHtml(locationName)}</p>
+            <div class="qr-wrap">
+              <img id="qr-image" class="qr" src="${imageUrl}" alt="QR code" />
+            </div>
+            <div class="payload">${escapedPayload}</div>
+          </div>
+          <script>
+            (function () {
+              var img = document.getElementById("qr-image");
+              var printed = false;
+              function runPrint() {
+                if (printed) return;
+                printed = true;
+                window.focus();
+                window.print();
+                window.close();
+              }
+              if (!img) {
+                setTimeout(runPrint, 120);
+                return;
+              }
+              if (img.complete) {
+                setTimeout(runPrint, 120);
+                return;
+              }
+              img.addEventListener("load", function () { setTimeout(runPrint, 120); });
+              img.addEventListener("error", function () { setTimeout(runPrint, 120); });
+            })();
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const handleLocationSubmit = (event: React.FormEvent) => {
@@ -483,6 +705,16 @@ export default function StoresInventoryPage() {
       toast({
         title: "Missing details",
         description: "Location name and site are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!editingLocationId && !resolvedLocationCode.trim()) {
+      toast({
+        title: "Unable to reserve location code",
+        description:
+          reserveLocationCodeError ??
+          "Please wait for the location code reservation to complete.",
         variant: "destructive",
       });
       return;
@@ -498,6 +730,7 @@ export default function StoresInventoryPage() {
       });
     } else {
       createLocationMutation.mutate({
+        code: resolvedLocationCode.trim(),
         name: locationForm.name,
         siteId: locationForm.siteId,
         isActive: locationForm.isActive,
@@ -683,6 +916,15 @@ export default function StoresInventoryPage() {
                               type="button"
                               size="sm"
                               variant="outline"
+                              onClick={() => setQrPreviewItem(item)}
+                            >
+                              <QrCode className="h-4 w-4 mr-1" />
+                              QR
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
                               onClick={() => openEditInventoryItem(item)}
                             >
                               Edit
@@ -705,6 +947,63 @@ export default function StoresInventoryPage() {
               </TableBody>
             </Table>
           </div>
+          <Dialog
+            open={Boolean(qrPreviewItem)}
+            onOpenChange={handleQrPreviewOpenChange}
+          >
+            <DialogContent size="md" className="w-full p-6">
+              <DialogHeader>
+                <DialogTitle>QR Label Preview</DialogTitle>
+                <DialogDescription>
+                  Review the generated QR code and print a single item label.
+                </DialogDescription>
+              </DialogHeader>
+              {qrPreviewItem ? (
+                <div className="space-y-4">
+                  <div className="rounded-md border p-4 space-y-2">
+                    <p className="text-sm">
+                      <span className="font-semibold">Item:</span>{" "}
+                      {qrPreviewItem.name}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-semibold">Code:</span>{" "}
+                      {qrPreviewItem.itemCode ?? "-"}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-semibold">Site:</span>{" "}
+                      {qrPreviewItem.site?.name ?? "-"}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-semibold">Location:</span>{" "}
+                      {qrPreviewItem.location?.name ?? "-"}
+                    </p>
+                    <div className="flex justify-center py-2">
+                      <img
+                        src={qrPreviewImageUrl}
+                        alt={`QR code for ${qrPreviewItem.name}`}
+                        className="h-64 w-64 rounded border object-contain"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground break-all">
+                      {qrPreviewPayload}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button type="button" className="flex-1" onClick={handleQrPrint}>
+                      Print Label
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setQrPreviewItem(null)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
           <Sheet
             open={inventoryFormOpen}
             onOpenChange={handleInventoryOpenChange}
@@ -723,23 +1022,29 @@ export default function StoresInventoryPage() {
                 className="mt-6 space-y-4"
               >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {editingItemId ? (
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Item Code
-                      </label>
-                      <Input value={inventoryForm.itemCode} disabled />
-                    </div>
-                  ) : (
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-semibold mb-2">
-                        Item Code
-                      </label>
-                      <p className="text-sm text-muted-foreground">
-                        Item codes are generated automatically after saving.
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">
+                      Item Code *
+                    </label>
+                    <Input
+                      value={resolvedInventoryCode}
+                      readOnly
+                      placeholder={
+                        editingItemId
+                          ? "Item code"
+                          : reservingInventoryCode
+                            ? "Reserving..."
+                            : "Auto-generated"
+                      }
+                      required
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {editingItemId
+                        ? "Item code is immutable."
+                        : reserveInventoryCodeError ??
+                          "Code is auto-generated and cannot be edited."}
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2">
                       Name *
@@ -909,7 +1214,9 @@ export default function StoresInventoryPage() {
                     className="flex-1"
                     disabled={
                       createInventoryMutation.isPending ||
-                      updateInventoryMutation.isPending
+                      updateInventoryMutation.isPending ||
+                      (!editingItemId &&
+                        (reservingInventoryCode || !resolvedInventoryCode))
                     }
                   >
                     {editingItemId ? "Save Changes" : "Save Item"}
@@ -1123,6 +1430,30 @@ export default function StoresInventoryPage() {
               <form onSubmit={handleLocationSubmit} className="mt-6 space-y-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
+                    Location Code *
+                  </label>
+                  <Input
+                    value={resolvedLocationCode}
+                    readOnly
+                    placeholder={
+                      editingLocationId
+                        ? "Location code"
+                        : reservingLocationCode
+                          ? "Reserving..."
+                          : "Auto-generated"
+                    }
+                    required
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {editingLocationId
+                      ? "Location code is immutable."
+                      : reserveLocationCodeError ??
+                        "Code is auto-generated and cannot be edited."}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
                     Location Name *
                   </label>
                   <Input
@@ -1180,7 +1511,9 @@ export default function StoresInventoryPage() {
                     className="flex-1"
                     disabled={
                       createLocationMutation.isPending ||
-                      updateLocationMutation.isPending
+                      updateLocationMutation.isPending ||
+                      (!editingLocationId &&
+                        (reservingLocationCode || !resolvedLocationCode))
                     }
                   >
                     {editingLocationId ? "Save Changes" : "Save Location"}

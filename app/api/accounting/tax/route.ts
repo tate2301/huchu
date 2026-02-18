@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 
 const taxSchema = z.object({
-  code: z.string().min(1).max(20),
+  code: z.string().min(1).max(20).optional(),
   name: z.string().min(1).max(200),
   rate: z.number().min(0).max(100),
   type: z.string().max(50).optional(),
@@ -39,11 +40,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = taxSchema.parse(body);
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "TAX_CODE")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "TAX_CODE",
+        });
 
     const taxCode = await prisma.taxCode.create({
       data: {
         companyId: session.user.companyId,
-        code: validated.code,
+        code,
         name: validated.name,
         rate: validated.rate,
         type: validated.type ?? "VAT",

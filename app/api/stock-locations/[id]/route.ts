@@ -30,6 +30,7 @@ export async function GET(
       },
       select: {
         id: true,
+        code: true,
         name: true,
         siteId: true,
         isActive: true,
@@ -93,6 +94,7 @@ export async function PATCH(
       data: validated,
       select: {
         id: true,
+        code: true,
         name: true,
         siteId: true,
         isActive: true,

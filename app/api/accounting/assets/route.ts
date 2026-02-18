@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 
 const assetSchema = z.object({
-  assetCode: z.string().min(1).max(50),
+  assetCode: z.string().min(1).max(50).optional(),
   name: z.string().min(1).max(200),
   category: z.string().max(100).optional(),
   acquisitionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -53,11 +54,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = assetSchema.parse(body);
+    const assetCode = validated.assetCode
+      ? normalizeProvidedId(validated.assetCode, "FIXED_ASSET")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "FIXED_ASSET",
+        });
 
     const asset = await prisma.fixedAsset.create({
       data: {
         companyId: session.user.companyId,
-        assetCode: validated.assetCode,
+        assetCode,
         name: validated.name,
         category: validated.category,
         acquisitionDate: new Date(validated.acquisitionDate),

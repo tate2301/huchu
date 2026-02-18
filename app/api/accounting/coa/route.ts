@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 
 const accountSchema = z.object({
-  code: z.string().min(1).max(20),
+  code: z.string().min(1).max(20).optional(),
   name: z.string().min(1).max(200),
   type: z.enum(["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"]),
   category: z.string().max(100).optional(),
@@ -62,9 +63,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = accountSchema.parse(body);
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "CHART_OF_ACCOUNT")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "CHART_OF_ACCOUNT",
+        });
 
     const existing = await prisma.chartOfAccount.findFirst({
-      where: { companyId: session.user.companyId, code: validated.code },
+      where: { companyId: session.user.companyId, code },
       select: { id: true },
     });
     if (existing) {
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
     const account = await prisma.chartOfAccount.create({
       data: {
         companyId: session.user.companyId,
-        code: validated.code,
+        code,
         name: validated.name,
         type: validated.type,
         category: validated.category,

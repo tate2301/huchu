@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { Prisma } from "@prisma/client"
 
 const employeeUpdateSchema = z
   .object({
@@ -10,6 +11,8 @@ const employeeUpdateSchema = z
     nextOfKinName: z.string().min(1).max(200).optional(),
     nextOfKinPhone: z.string().min(1).max(30).optional(),
     passportPhotoUrl: z.string().min(1).max(2048).optional(),
+    nationalIdNumber: z.union([z.string().trim().min(1).max(100), z.null()]).optional(),
+    nationalIdDocumentUrl: z.union([z.string().min(1).max(2048), z.null()]).optional(),
     villageOfOrigin: z.string().min(1).max(200).optional(),
     position: z
       .enum([
@@ -67,6 +70,8 @@ export async function GET(
         nextOfKinName: true,
         nextOfKinPhone: true,
         passportPhotoUrl: true,
+        nationalIdNumber: true,
+        nationalIdDocumentUrl: true,
         villageOfOrigin: true,
         position: true,
         departmentId: true,
@@ -171,6 +176,21 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(",")
+        : ""
+      if (target.includes("nationalIdNumber")) {
+        return errorResponse(
+          "National ID number already exists for this company",
+          409,
+        )
+      }
+      return errorResponse("Employee data conflicts with an existing record", 409)
     }
     console.error("[API] PATCH /api/employees/[id] error:", error)
     return errorResponse("Failed to update employee")

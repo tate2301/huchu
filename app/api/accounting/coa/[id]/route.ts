@@ -45,16 +45,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const validated = updateSchema.parse(body);
 
+    if (validated.code !== undefined) {
+      return errorResponse("Account code is immutable and cannot be changed", 400);
+    }
+
     const account = await prisma.chartOfAccount.findUnique({
       where: { id },
       select: { companyId: true, systemManaged: true },
     });
     if (!account || account.companyId !== session.user.companyId) {
       return errorResponse("Account not found", 404);
-    }
-
-    if (account.systemManaged && validated.code) {
-      return errorResponse("System-managed account codes cannot be changed", 400);
     }
 
     const updated = await prisma.chartOfAccount.update({

@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { createSite, deleteSite, fetchSitesList, type Site, updateSite } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type SiteFormState = {
   name: string;
@@ -44,6 +45,15 @@ export default function SitesManagementPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Site | null>(null);
   const [formState, setFormState] = useState<SiteFormState>(emptyForm);
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "SITE",
+    enabled: formOpen && !editing,
+  });
+  const resolvedCode = editing ? formState.code : reservedId;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["management", "master-data", "sites"],
@@ -202,10 +212,18 @@ export default function SitesManagementPage() {
 
   const handleSave = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!formState.name.trim() || !formState.code.trim()) {
+    if (!formState.name.trim()) {
       toast({
         title: "Missing details",
-        description: "Name and code are required.",
+        description: "Name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!editing && !resolvedCode.trim()) {
+      toast({
+        title: "Unable to reserve site code",
+        description: reserveError ?? "Please wait for the code reservation to complete.",
         variant: "destructive",
       });
       return;
@@ -213,7 +231,6 @@ export default function SitesManagementPage() {
 
     const payload = {
       name: formState.name.trim(),
-      code: formState.code.trim(),
       location: formState.location.trim() || undefined,
       measurementUnit: formState.measurementUnit,
       isActive: formState.isActive,
@@ -230,7 +247,7 @@ export default function SitesManagementPage() {
       return;
     }
 
-    createMutation.mutate(payload);
+    createMutation.mutate({ ...payload, code: resolvedCode.trim() });
   };
 
   return (
@@ -300,11 +317,16 @@ export default function SitesManagementPage() {
             <div>
               <label className="mb-2 block text-sm font-semibold">Code *</label>
               <Input
-                value={formState.code}
-                onChange={(event) => setFormState((prev) => ({ ...prev, code: event.target.value }))}
-                placeholder="MINE-A"
+                value={resolvedCode}
+                readOnly
+                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {editing
+                  ? "Site code is immutable."
+                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+              </p>
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold">Location</label>
@@ -343,7 +365,7 @@ export default function SitesManagementPage() {
               >
                 {formState.isActive ? "Active" : "Inactive"}
               </Button>
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending}>
+              <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending || (!editing && (isReserving || !resolvedCode))}>
                 {editing ? "Save Changes" : "Create Site"}
               </Button>
             </div>
