@@ -30,8 +30,10 @@ export const DIALOG_TABLET_VIEWPORT_CLASSNAMES: Record<DialogTabletBehavior, str
 }
 
 export const DIALOG_TABLET_CONTENT_CLASSNAMES: Record<DialogTabletBehavior, string> = {
-  adaptive: "rounded-t-2xl sm:rounded-2xl md:max-lg:max-h-[min(90dvh,56rem)]",
-  centered: "rounded-2xl md:max-lg:max-h-[min(92dvh,58rem)]",
+  adaptive:
+    "rounded-t-2xl sm:rounded-2xl md:max-lg:w-[min(100%,calc(100vw-2rem))] md:max-lg:max-h-[min(90dvh,56rem)]",
+  centered:
+    "rounded-2xl md:max-lg:w-[min(100%,calc(100vw-2rem))] md:max-lg:max-h-[min(92dvh,58rem)]",
   fullscreen:
     "rounded-none md:max-lg:!h-[calc(100dvh-1rem)] md:max-lg:!max-h-[calc(100dvh-1rem)] md:max-lg:!w-[calc(100vw-1rem)] md:max-lg:!max-w-none lg:rounded-2xl",
 }
@@ -40,4 +42,3 @@ export const DIALOG_INSET_VIEWPORT_CLASSNAMES = {
   true: "p-0 sm:p-6 md:max-lg:p-4",
   false: "p-0",
 } as const
-

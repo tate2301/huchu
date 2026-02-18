@@ -204,7 +204,7 @@ export default function StoresFuelPage() {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="table-rail">
             <Table className="w-full" aria-label="Fuel ledger table">
               <TableHeader className="bg-muted">
                 <TableRow>

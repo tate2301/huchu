@@ -227,7 +227,7 @@ export function PlaybackView({ sites, cameras }: PlaybackViewProps) {
                 description="Expand the time range or verify that the camera was recording."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="table-rail">
                 <Table className="w-full text-sm">
                   <TableHeader className="bg-muted">
                     <TableRow>

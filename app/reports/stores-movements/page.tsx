@@ -211,7 +211,7 @@ export default function StoresMovementsReportPage() {
               No movement records found for the current filters.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="table-rail">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>

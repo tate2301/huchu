@@ -823,7 +823,7 @@ export default function StoresInventoryPage() {
             </Select>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="table-rail">
             <Table className="w-full">
               <TableHeader className="bg-muted">
                 <TableRow>
@@ -1345,7 +1345,7 @@ export default function StoresInventoryPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="table-rail">
             <Table className="w-full">
               <TableHeader className="bg-muted">
                 <TableRow>

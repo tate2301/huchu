@@ -53,6 +53,9 @@ export type TableProps = React.ComponentProps<"table"> & {
   controlsClassName?: string;
   hideControlsWhenSinglePage?: boolean;
   edgeToEdge?: boolean;
+  tabletScrollable?: boolean;
+  tabletStickyFirstColumn?: boolean;
+  tabletMinTableWidth?: string;
 };
 
 const defaultPageSizeOptions = [10, 25, 50, 100] as const;
@@ -96,7 +99,7 @@ function TablePaginationControls({
       )}
     >
       {mode === "paginated" ? (
-        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:max-lg:flex-nowrap md:max-lg:overflow-x-auto md:max-lg:[&>*]:shrink-0">
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
@@ -170,6 +173,10 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       controlsClassName,
       hideControlsWhenSinglePage = false,
       edgeToEdge = true,
+      tabletScrollable = true,
+      tabletStickyFirstColumn = true,
+      tabletMinTableWidth = "max-content",
+      style: tableStyle,
       ...props
     },
     ref,
@@ -317,11 +324,23 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
             />
           ) : null}
 
-          <div className={cn("table-rail", edgeToEdge && "table-edge-to-edge")}>
+          <div
+            className={cn("table-rail", edgeToEdge && "table-edge-to-edge")}
+            data-tablet-scrollable={tabletScrollable ? "true" : "false"}
+            data-tablet-sticky-first-column={tabletStickyFirstColumn ? "true" : "false"}
+            style={
+              tabletScrollable
+                ? ({
+                    "--table-tablet-min-width": tabletMinTableWidth,
+                  } as React.CSSProperties)
+                : undefined
+            }
+          >
             <table
               ref={ref}
               data-slot="table"
               className={cn("w-full caption-bottom text-sm", className)}
+              style={tableStyle}
               {...props}
             />
           </div>
