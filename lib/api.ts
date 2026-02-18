@@ -978,6 +978,36 @@ export type ExecutiveQuickLink = {
   primaryOrder?: number;
 };
 
+export type ExecutiveModuleStatus = "healthy" | "watch" | "critical";
+
+export type ExecutiveSummaryMetric = {
+  label: string;
+  value: number;
+  unit?: string;
+  valueLabel?: string;
+};
+
+export type ExecutiveModuleSummary = {
+  module:
+    | "finance"
+    | "gold"
+    | "workforce"
+    | "operations"
+    | "stores"
+    | "maintenance"
+    | "compliance"
+    | "security"
+    | "reports";
+  status: ExecutiveModuleStatus;
+  primaryMetric: ExecutiveSummaryMetric;
+  secondaryMetric?: ExecutiveSummaryMetric;
+  tertiaryMetric?: ExecutiveSummaryMetric;
+  openExceptions: number;
+  trendDelta?: number;
+  topExceptionLabel?: string;
+  reportHref: string;
+};
+
 export type ExecutiveDashboardResponse = {
   generatedAt: string;
   range: ExecutiveRange;
@@ -994,6 +1024,7 @@ export type ExecutiveDashboardResponse = {
   kpis: ExecutiveKpiCard[];
   charts: ExecutiveCharts;
   highlights: ExecutiveHighlight[];
+  executiveSummary: ExecutiveModuleSummary[];
   quickLinks: ExecutiveQuickLink[];
 };
 
