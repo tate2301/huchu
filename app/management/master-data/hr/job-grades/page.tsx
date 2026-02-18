@@ -70,7 +70,7 @@ export default function JobGradesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Job grade created",
-        description: "Job grade has been added successfully.",
+        description: "Job grade record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -92,7 +92,7 @@ export default function JobGradesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Job grade updated",
-        description: "Job grade changes saved.",
+        description: "Job grade record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -114,7 +114,7 @@ export default function JobGradesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Job grade deleted",
-        description: "Job grade has been removed.",
+        description: "Job grade record deleted.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "job-grades"] });
@@ -184,7 +184,7 @@ export default function JobGradesManagementPage() {
               size="icon"
               variant="ghost"
               onClick={() => {
-                if (window.confirm("Delete this job grade?")) {
+                if (window.confirm("Confirm deletion of this job grade.")) {
                   deleteMutation.mutate(row.original.id);
                 }
               }}
@@ -203,16 +203,16 @@ export default function JobGradesManagementPage() {
     event.preventDefault();
     if (!formState.name.trim()) {
       toast({
-        title: "Missing details",
-        description: "Name is required.",
+        title: "Incomplete form",
+        description: "Job grade name is required.",
         variant: "destructive",
       });
       return;
     }
     if (!editing && !resolvedCode.trim()) {
       toast({
-        title: "Unable to reserve grade code",
-        description: reserveError ?? "Please wait for the code reservation to complete.",
+        title: "Job grade code unavailable",
+        description: reserveError ?? "Code reservation is in progress.",
         variant: "destructive",
       });
       return;
@@ -252,7 +252,7 @@ export default function JobGradesManagementPage() {
     <MasterDataShell
       activeTab="job-grades"
       title="Job Grades"
-      description="Manage employee grade and ranking reference values."
+      description="Job grade and ranking reference data."
       actions={
         <Button
           size="sm"
@@ -280,7 +280,7 @@ export default function JobGradesManagementPage() {
         searchPlaceholder="Search job grades"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
-        emptyState={isLoading ? "Loading job grades..." : "No job grades found."}
+        emptyState={isLoading ? "Loading job grade records..." : "No job grade records available."}
       />
 
       <Sheet
@@ -298,8 +298,8 @@ export default function JobGradesManagementPage() {
             <SheetTitle>{editing ? "Edit Job Grade" : "New Job Grade"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Update grade details and ranking."
-                : "Create a job grade for workforce classification."}
+                ? "Update job grade details and ranking."
+                : "Create a job grade record for workforce classification."}
             </SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
@@ -308,13 +308,13 @@ export default function JobGradesManagementPage() {
               <Input
                 value={resolvedCode}
                 readOnly
-                placeholder={isReserving ? "Reserving..." : "Auto-generated"}
+                placeholder={isReserving ? "Reserving code..." : "Auto-generated"}
                 required
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 {editing
-                  ? "Job grade code is immutable."
-                  : reserveError ?? "Code is auto-generated and cannot be edited."}
+                  ? "Job grade code cannot be changed."
+                  : reserveError ?? "Code is generated automatically and cannot be edited."}
               </p>
             </div>
             <div>
