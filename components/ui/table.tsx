@@ -339,7 +339,12 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
             <table
               ref={ref}
               data-slot="table"
-              className={cn("w-full caption-bottom text-sm", className)}
+              className={cn(
+                "w-full caption-bottom text-sm",
+                tabletScrollable &&
+                  "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
+                className,
+              )}
               style={tableStyle}
               {...props}
             />
