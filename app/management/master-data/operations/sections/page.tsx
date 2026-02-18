@@ -66,7 +66,7 @@ export default function SectionsManagementPage() {
     onSuccess: () => {
       toast({
         title: "Section created",
-        description: "Section has been added successfully.",
+        description: "Section record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -88,7 +88,7 @@ export default function SectionsManagementPage() {
     onSuccess: () => {
       toast({
         title: "Section updated",
-        description: "Section changes saved.",
+        description: "Section record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -109,8 +109,8 @@ export default function SectionsManagementPage() {
     mutationFn: deleteSection,
     onSuccess: () => {
       toast({
-        title: "Section archived",
-        description: "Section was archived successfully.",
+        title: "Section record archived",
+        description: "Section record archived.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "sections"] });
@@ -178,7 +178,7 @@ export default function SectionsManagementPage() {
                 size="icon"
                 variant="ghost"
                 onClick={() => {
-                  if (window.confirm("Archive this section?")) {
+                  if (window.confirm("Confirm archival of this section.")) {
                     deleteMutation.mutate(row.original.id);
                   }
                 }}
@@ -195,7 +195,7 @@ export default function SectionsManagementPage() {
                 }
                 disabled={updateMutation.isPending}
               >
-                Activate
+                Set Active
               </Button>
             )}
           </div>
@@ -209,7 +209,7 @@ export default function SectionsManagementPage() {
     event.preventDefault();
     if (!formState.name.trim() || !formState.siteId) {
       toast({
-        title: "Missing details",
+        title: "Incomplete form",
         description: "Section name and site are required.",
         variant: "destructive",
       });
@@ -237,7 +237,7 @@ export default function SectionsManagementPage() {
     <MasterDataShell
       activeTab="sections"
       title="Sections"
-      description="Manage section lookup values under each site."
+      description="Section reference data by site."
       actions={
         <Button
           size="sm"
@@ -265,7 +265,7 @@ export default function SectionsManagementPage() {
         searchPlaceholder="Search sections"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
-        emptyState={isLoading ? "Loading sections..." : "No sections found."}
+        emptyState={isLoading ? "Loading section records..." : "No section records available."}
       />
 
       <Sheet
@@ -283,8 +283,8 @@ export default function SectionsManagementPage() {
             <SheetTitle>{editing ? "Edit Section" : "New Section"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Update section details and status."
-                : "Create a section under a site."}
+                ? "Update section record details and status."
+                : "Create a section record under a site."}
             </SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
@@ -304,7 +304,7 @@ export default function SectionsManagementPage() {
                 onValueChange={(value) => setFormState((prev) => ({ ...prev, siteId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select site" />
+                  <SelectValue placeholder="Select a site" />
                 </SelectTrigger>
                 <SelectContent>
                   {sites.map((site) => (

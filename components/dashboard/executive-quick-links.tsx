@@ -38,11 +38,11 @@ type ExecutiveQuickLinksProps = {
 };
 
 const MODULE_ORDER: ExecutiveQuickLink["module"][] = [
-  "operations",
-  "gold",
-  "stores",
-  "workforce",
   "finance",
+  "gold",
+  "workforce",
+  "operations",
+  "stores",
   "maintenance",
   "compliance",
   "security",
@@ -223,8 +223,8 @@ export function ExecutiveQuickLinks({
   links,
   className,
   title = "Quick Links",
-  description = "Primary quick actions first, then high-impact module workflows.",
-  emptyMessage = "No quick links available.",
+  description = "Primary actions first, then high-impact module workflows.",
+  emptyMessage = "No links are available for this scope.",
   showPrimary = true,
   showSecondary = true,
 }: ExecutiveQuickLinksProps) {
@@ -279,7 +279,7 @@ export function ExecutiveQuickLinks({
         {hasPrimary ? (
           <div className="mb-5 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Primary Quick Actions
+              Primary Actions
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {primaryQuickActions.map((link) => (
@@ -295,7 +295,7 @@ export function ExecutiveQuickLinks({
           hasSecondary ? (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Quick Links
+                Module Links
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {groupedSecondaryLinks.map((group) => (

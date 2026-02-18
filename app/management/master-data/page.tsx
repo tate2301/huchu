@@ -5,27 +5,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const coreManagers = [
   {
     title: "Departments",
-    description: "Manage employee department lookups used in HR and compensation.",
+    description: "Department reference data for HR and compensation workflows.",
     href: "/management/master-data/hr/departments",
   },
   {
     title: "Job Grades",
-    description: "Maintain job grade and rank definitions used across HR flows.",
+    description: "Job grade and rank reference data for HR workflows.",
     href: "/management/master-data/hr/job-grades",
   },
   {
     title: "Sites",
-    description: "Maintain active sites used by forms, reports, and operations.",
+    description: "Site reference data for forms, reports, and operations.",
     href: "/management/master-data/operations/sites",
   },
   {
     title: "Sections",
-    description: "Maintain sections under sites for shift and operations reporting.",
+    description: "Section reference data by site for shift and operations reporting.",
     href: "/management/master-data/operations/sections",
   },
   {
     title: "Downtime Codes",
-    description: "Maintain downtime reason codes used in plant reporting.",
+    description: "Downtime reason code reference data for plant reporting.",
     href: "/management/master-data/operations/downtime-codes",
   },
 ];
@@ -50,7 +50,7 @@ export default function MasterDataOverviewPage() {
     <MasterDataShell
       activeTab="overview"
       title="Master Data Management"
-      description="Centralize lookup entities used by forms and operational workflows."
+      description="Centralized reference entities for forms and operational workflows."
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {coreManagers.map((entry) => (
@@ -67,9 +67,10 @@ export default function MasterDataOverviewPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Existing Managers in Modules</CardTitle>
+          <CardTitle>Existing Module Managers</CardTitle>
           <CardDescription>
-            These entities already have CRUD in module screens and are linked here for centralized access.
+            These entities already provide CRUD operations in module screens and are listed here for centralized
+            access.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
