@@ -31,7 +31,11 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   changeManagedUserRole,
   createManagedUser,
+  fetchManagedUserFeatureAccess,
   fetchManagedUsers,
+  resetManagedUserFeatureAccess,
+  setManagedUserFeatureAccess,
+  type ManagedUserFeatureAccessEntry,
   type ManagedUserSummary,
   resetManagedUserPassword,
   setManagedUserStatus,
@@ -39,6 +43,7 @@ import {
 } from "@/lib/user-management-api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { ChevronDown } from "@/lib/icons";
+import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 
 export type UserManagementMode =
   | "directory"
@@ -49,10 +54,13 @@ export type UserManagementMode =
 
 type RoleFilter = "MANAGED" | "MANAGER" | "CLERK";
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
+type FeatureAccessBlockedReason = "COMPANY_DISABLED" | "TEMPLATE_BLOCKED";
 type ManagedUserTargetBase = {
   userId: string;
   userEmail: string;
 };
+
+const USER_FEATURE_ACCESS_KEY = "admin.user-management.feature-access";
 
 const modeMeta: Record<UserManagementMode, { title: string; description: string }> = {
   directory: {
@@ -88,20 +96,35 @@ function defaultRoleForMode(mode: UserManagementMode): ManagedUserRole {
   return mode === "create" ? "CLERK" : "MANAGER";
 }
 
+function toManagedRole(role: string | undefined): ManagedUserRole | null {
+  if (role === "MANAGER" || role === "CLERK") return role;
+  return null;
+}
+
+function getBlockedFeatureLabel(reason: FeatureAccessBlockedReason | null): string {
+  if (reason === "COMPANY_DISABLED") return "Company Disabled";
+  if (reason === "TEMPLATE_BLOCKED") return "Template Blocked";
+  return "Unavailable";
+}
+
 export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
 
   const canView =
     sessionRole === "SUPERADMIN" ||
     (sessionRole === "MANAGER" && mode === "directory");
   const canMutate = sessionRole === "SUPERADMIN";
+  const canManageFeatureAccess =
+    canMutate && hasTokenFeature(enabledFeatures, USER_FEATURE_ACCESS_KEY);
   const actionsVisible = {
     status: mode === "directory" || mode === "status",
     password: mode === "directory" || mode === "password-reset",
     role: mode === "directory" || mode === "role-change",
+    featureAccess: mode === "directory" && canManageFeatureAccess,
   };
 
   const [queryState, setQueryState] = React.useState<DataTableQueryState>({
@@ -112,6 +135,12 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
   });
   const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("MANAGED");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("ALL");
+  const [featureQueryState, setFeatureQueryState] = React.useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 20,
+    search: "",
+  });
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [createDraft, setCreateDraft] = React.useState({
@@ -136,12 +165,29 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
       role: ManagedUserRole;
     }) | null
   >(null);
+  const [featureTarget, setFeatureTarget] = React.useState<
+    (ManagedUserTargetBase & {
+      role: ManagedUserRole;
+    }) | null
+  >(null);
 
   React.useEffect(() => {
     if (mode === "create" && canMutate) {
       setCreateOpen(true);
     }
   }, [canMutate, mode]);
+
+  const featureTargetUserId = featureTarget?.userId;
+
+  React.useEffect(() => {
+    if (!featureTargetUserId) return;
+    setFeatureQueryState({
+      mode: "paginated",
+      page: 1,
+      pageSize: 20,
+      search: "",
+    });
+  }, [featureTargetUserId]);
 
   const usersQuery = useQuery({
     queryKey: [
@@ -174,6 +220,13 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
     () => new Map(users.map((user) => [user.id, user])),
     [users],
   );
+
+  const featureAccessQuery = useQuery({
+    queryKey: ["managed-user-feature-access", featureTarget?.userId],
+    queryFn: () => fetchManagedUserFeatureAccess(featureTarget!.userId),
+    enabled: Boolean(featureTarget?.userId) && canManageFeatureAccess,
+  });
+  const featureRows = featureAccessQuery.data?.features ?? [];
   const totalRows = usersQuery.data?.pagination.total ?? users.length;
   const totalPages = usersQuery.data?.pagination.pages ?? 1;
 
@@ -267,6 +320,118 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
     },
   });
 
+  const setFeatureAccessMutation = useMutation({
+    mutationFn: setManagedUserFeatureAccess,
+    onSuccess: () => {
+      toast({
+        title: "Feature access updated",
+        description: "Per-user feature access was updated successfully.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["managed-user-feature-access", featureTarget?.userId],
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update feature access",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetFeatureAccessMutation = useMutation({
+    mutationFn: resetManagedUserFeatureAccess,
+    onSuccess: () => {
+      toast({
+        title: "Feature access reset",
+        description: "User feature access was reset to role defaults.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["managed-user-feature-access", featureTarget?.userId],
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to reset feature access",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const featureColumns: ColumnDef<ManagedUserFeatureAccessEntry>[] = [
+    {
+      id: "feature",
+      header: "Feature",
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <div className="font-medium">{row.original.name}</div>
+          <div className="font-mono text-xs text-muted-foreground">
+            {row.original.featureKey}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "domain",
+      header: "Domain",
+      cell: ({ row }) => (
+        <Badge variant="outline" className="uppercase">
+          {row.original.domain}
+        </Badge>
+      ),
+    },
+    {
+      id: "availability",
+      header: "Availability",
+      cell: ({ row }) => {
+        if (row.original.available) {
+          return <Badge variant="secondary">Available</Badge>;
+        }
+        return (
+          <Badge variant="destructive">
+            {getBlockedFeatureLabel(
+              row.original.blockedReason as FeatureAccessBlockedReason | null,
+            )}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "access",
+      header: "Access",
+      cell: ({ row }) => {
+        const entry = row.original;
+        if (!entry.available) {
+          return <Badge variant="outline">Not Assignable</Badge>;
+        }
+
+        const nextEnabled = !entry.isEnabled;
+        return (
+          <Button
+            type="button"
+            size="sm"
+            variant={entry.isEnabled ? "outline" : "default"}
+            disabled={setFeatureAccessMutation.isPending || !featureTarget?.userId}
+            onClick={() => {
+              if (!featureTarget?.userId) return;
+              setFeatureAccessMutation.mutate({
+                userId: featureTarget.userId,
+                featureKey: entry.featureKey,
+                isEnabled: nextEnabled,
+              });
+            }}
+          >
+            {entry.isEnabled ? "Enabled" : "Disabled"}
+          </Button>
+        );
+      },
+    },
+  ];
+
   const columns = React.useMemo<ColumnDef<ManagedUserSummary>[]>(
     () => {
       const baseColumns: ColumnDef<ManagedUserSummary>[] = [
@@ -320,59 +485,83 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
         {
           id: "actions",
           header: "Actions",
-          cell: ({ row }) => (
-            <div className="flex flex-wrap justify-end gap-2">
-              {actionsVisible.status ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setStatusTarget({
-                      userId: row.original.id,
-                      userEmail: row.original.email,
-                      isActive: !row.original.isActive,
-                    })}
-                >
-                  {row.original.isActive ? "Deactivate" : "Activate"}
-                </Button>
-              ) : null}
-              {actionsVisible.password ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setPasswordTarget({
-                      userId: row.original.id,
-                      userEmail: row.original.email,
-                      newPassword: "",
-                    })}
-                >
-                  Reset Password
-                </Button>
-              ) : null}
-              {actionsVisible.role ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setRoleTarget({
-                      userId: row.original.id,
-                      userEmail: row.original.email,
-                      role: row.original.role === "MANAGER" ? "CLERK" : "MANAGER",
-                    })}
-                >
-                  Change Role
-                </Button>
-              ) : null}
-            </div>
-          ),
+          cell: ({ row }) => {
+            const managedRole = toManagedRole(row.original.role);
+            return (
+              <div className="flex flex-wrap justify-end gap-2">
+                {actionsVisible.status ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setStatusTarget({
+                        userId: row.original.id,
+                        userEmail: row.original.email,
+                        isActive: !row.original.isActive,
+                      })}
+                  >
+                    {row.original.isActive ? "Deactivate" : "Activate"}
+                  </Button>
+                ) : null}
+                {actionsVisible.password ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setPasswordTarget({
+                        userId: row.original.id,
+                        userEmail: row.original.email,
+                        newPassword: "",
+                      })}
+                  >
+                    Reset Password
+                  </Button>
+                ) : null}
+                {actionsVisible.role ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setRoleTarget({
+                        userId: row.original.id,
+                        userEmail: row.original.email,
+                        role: row.original.role === "MANAGER" ? "CLERK" : "MANAGER",
+                      })}
+                  >
+                    Change Role
+                  </Button>
+                ) : null}
+                {actionsVisible.featureAccess && managedRole ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setFeatureTarget({
+                        userId: row.original.id,
+                        userEmail: row.original.email,
+                        role: managedRole,
+                      })}
+                  >
+                    Feature Access
+                  </Button>
+                ) : null}
+              </div>
+            );
+          },
         },
       ];
     },
-    [actionsVisible.password, actionsVisible.role, actionsVisible.status, canMutate],
+    [
+      actionsVisible.featureAccess,
+      actionsVisible.password,
+      actionsVisible.role,
+      actionsVisible.status,
+      canMutate,
+    ],
   );
 
   const heading = modeMeta[mode];
@@ -402,6 +591,16 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           <AlertTitle>Read-only mode for your role</AlertTitle>
           <AlertDescription>
             You can browse users, but only SUPERADMIN can create or mutate user accounts.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {canMutate && mode === "directory" && !canManageFeatureAccess ? (
+        <Alert>
+          <AlertTitle>Feature access controls unavailable</AlertTitle>
+          <AlertDescription>
+            Enable the <span className="font-mono text-xs">{USER_FEATURE_ACCESS_KEY}</span> feature to
+            manage per-user feature access templates and overrides.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -520,6 +719,27 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                       >
                         Change Role
                       </DropdownMenuItem>
+                      {actionsVisible.featureAccess ? (
+                        <DropdownMenuItem
+                          disabled={users.length === 0}
+                          onClick={() => {
+                            const firstManagedUser = users.find((user) =>
+                              toManagedRole(user.role),
+                            );
+                            const managedRole = toManagedRole(
+                              firstManagedUser?.role,
+                            );
+                            if (!firstManagedUser || !managedRole) return;
+                            setFeatureTarget({
+                              userId: firstManagedUser.id,
+                              userEmail: firstManagedUser.email,
+                              role: managedRole,
+                            });
+                          }}
+                        >
+                          Manage Feature Access
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
@@ -900,6 +1120,82 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
               }}
             >
               {roleChangeMutation.isPending ? "Saving..." : "Apply Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(featureTarget)}
+        onOpenChange={(open) => {
+          if (!open) setFeatureTarget(null);
+        }}
+      >
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>Manage Feature Access</DialogTitle>
+            <DialogDescription>
+              {featureTarget?.userEmail
+                ? `Set feature access for ${featureTarget.userEmail}. Effective access is company access ∩ role template ∩ user overrides.`
+                : "Select a managed user and configure feature access."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {featureAccessQuery.error ? (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load feature access</AlertTitle>
+              <AlertDescription>{getApiErrorMessage(featureAccessQuery.error)}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {featureAccessQuery.isLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : (
+            <DataTable
+              data={featureRows}
+              columns={featureColumns}
+              queryState={featureQueryState}
+              onQueryStateChange={(next) =>
+                setFeatureQueryState((current) => ({
+                  ...current,
+                  ...next,
+                }))
+              }
+              features={{ sorting: false, globalFilter: true, pagination: true }}
+              searchPlaceholder="Search by feature name or key"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              noResultsText="No features found for current filters."
+              toolbar={
+                <>
+                  <Badge variant="outline">
+                    {featureRows.filter((entry) => entry.isEnabled).length} Enabled
+                  </Badge>
+                  <Badge variant="outline">
+                    {featureRows.filter((entry) => entry.available).length} Assignable
+                  </Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!featureTarget?.userId || resetFeatureAccessMutation.isPending}
+                    onClick={() => {
+                      if (!featureTarget?.userId) return;
+                      resetFeatureAccessMutation.mutate({
+                        userId: featureTarget.userId,
+                      });
+                    }}
+                  >
+                    {resetFeatureAccessMutation.isPending ? "Resetting..." : "Reset to Role Default"}
+                  </Button>
+                </>
+              }
+            />
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setFeatureTarget(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

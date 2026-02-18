@@ -26,7 +26,13 @@ export async function appendUserManagementEvent(input: {
   companyId: string;
   actorId: string;
   actorRole: string;
-  eventType: "USER_CREATE" | "USER_SET_STATUS" | "USER_RESET_PASSWORD" | "USER_CHANGE_ROLE";
+  eventType:
+    | "USER_CREATE"
+    | "USER_SET_STATUS"
+    | "USER_RESET_PASSWORD"
+    | "USER_CHANGE_ROLE"
+    | "USER_SET_FEATURE_ACCESS"
+    | "USER_RESET_FEATURE_ACCESS";
   message: string;
   payload: Record<string, unknown>;
 }): Promise<void> {

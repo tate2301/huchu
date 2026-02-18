@@ -53,6 +53,44 @@ export type ChangeManagedUserRoleInput = {
   role: ManagedUserRole;
 };
 
+export type ManagedUserFeatureBlockedReason =
+  | "COMPANY_DISABLED"
+  | "TEMPLATE_BLOCKED";
+
+export type ManagedUserFeatureAccessEntry = {
+  featureKey: string;
+  name: string;
+  description: string;
+  domain: string;
+  companyEnabled: boolean;
+  templateAllowed: boolean;
+  available: boolean;
+  isEnabled: boolean;
+  hasOverride: boolean;
+  blockedReason: ManagedUserFeatureBlockedReason | null;
+};
+
+export type ManagedUserFeatureAccessResponse = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: ManagedUserRole;
+    isActive: boolean;
+  };
+  features: ManagedUserFeatureAccessEntry[];
+};
+
+export type SetManagedUserFeatureAccessInput = {
+  userId: string;
+  featureKey: string;
+  isEnabled: boolean;
+};
+
+export type ResetManagedUserFeatureAccessInput = {
+  userId: string;
+};
+
 function buildQuery(
   params: Record<string, string | number | boolean | null | undefined>,
 ): string {
@@ -99,6 +137,34 @@ export async function resetManagedUserPassword(input: ResetManagedUserPasswordIn
 
 export async function changeManagedUserRole(input: ChangeManagedUserRoleInput) {
   return fetchJson<ManagedUserSummary>("/api/users/role-change", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function fetchManagedUserFeatureAccess(userId: string) {
+  const query = buildQuery({ userId });
+  return fetchJson<ManagedUserFeatureAccessResponse>(`/api/users/access${query}`);
+}
+
+export async function setManagedUserFeatureAccess(
+  input: SetManagedUserFeatureAccessInput,
+) {
+  return fetchJson<{
+    user: ManagedUserFeatureAccessResponse["user"];
+    feature: ManagedUserFeatureAccessEntry | null;
+  }>("/api/users/access", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function resetManagedUserFeatureAccess(
+  input: ResetManagedUserFeatureAccessInput,
+) {
+  return fetchJson<{
+    user: ManagedUserFeatureAccessResponse["user"];
+  }>("/api/users/access/reset", {
     method: "POST",
     body: JSON.stringify(input),
   });

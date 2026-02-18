@@ -15,6 +15,7 @@ import {
 } from "@/lib/platform/tenant";
 import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { getEffectiveFeaturesForUser } from "@/lib/platform/user-entitlements";
 import bcrypt from "bcryptjs";
 
 type PlatformJWT = JWT & {
@@ -150,7 +151,13 @@ export const authOptions: NextAuthOptions = {
         const tenantClaims = await getTenantClaimsForCompany(extendedToken.companyId);
         const [subscriptionHealth, enabledFeatures, allowedHosts] = await Promise.all([
           getSubscriptionHealth(extendedToken.companyId),
-          getEnabledFeatureKeys(extendedToken.companyId),
+          extendedToken.id && extendedToken.role
+            ? getEffectiveFeaturesForUser({
+                companyId: extendedToken.companyId,
+                userId: extendedToken.id,
+                role: extendedToken.role,
+              })
+            : getEnabledFeatureKeys(extendedToken.companyId),
           getAllowedHostsForCompany(extendedToken.companyId),
         ]);
         const subscriptionActive = !subscriptionHealth.shouldBlock;

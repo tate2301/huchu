@@ -1,8 +1,11 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo } from "react"
+import { useSession } from "next-auth/react"
 import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
+import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter"
 import { cn } from "@/lib/utils"
 import {
   type LucideIcon,
@@ -85,6 +88,16 @@ export function HrShell({
   title = "Human Resources",
   description = "Employee records and payout management",
 }: HrShellProps) {
+  const { data: session } = useSession()
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  )
+  const visibleTabs = useMemo(
+    () => filterHrefItemsByEnabledFeatures(hrTabs, enabledFeatures),
+    [enabledFeatures],
+  )
+
   return (
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
@@ -98,7 +111,7 @@ export function HrShell({
         aria-label="Human resources navigation"
         className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
       >
-        {hrTabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.id
           return (
             <Link

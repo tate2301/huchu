@@ -48,3 +48,22 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
   if (error instanceof Error) return error.message
   return fallback
 }
+
+export function isFeatureDisabledError(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  if (error.status !== 403) return false
+  return /feature disabled/i.test(error.message)
+}
+
+export function resolveDisplayErrorMessage(
+  errors: Array<unknown>,
+  fallback = "Something went wrong",
+): string | null {
+  const candidates = errors.filter(Boolean)
+  if (candidates.length === 0) return null
+
+  const visibleError = candidates.find((candidate) => !isFeatureDisabledError(candidate))
+  if (visibleError) return getApiErrorMessage(visibleError, fallback)
+
+  return null
+}

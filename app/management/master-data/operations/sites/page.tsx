@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import { createSite, deleteSite, fetchSitesList, type Site, updateSite } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -59,6 +59,7 @@ export default function SitesManagementPage() {
     queryKey: ["management", "master-data", "sites"],
     queryFn: () => fetchSitesList({ active: "all" }),
   });
+  const loadErrorMessage = resolveDisplayErrorMessage([error]);
 
   const rows = data ?? [];
 
@@ -269,10 +270,10 @@ export default function SitesManagementPage() {
         </Button>
       }
     >
-      {error ? (
+      {loadErrorMessage ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load sites</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+          <AlertDescription>{loadErrorMessage}</AlertDescription>
         </Alert>
       ) : null}
 

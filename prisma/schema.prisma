@@ -187,6 +187,7 @@ model PlatformFeature {
 
   companyFlags CompanyFeatureFlag[]
   bundleItems  FeatureBundleItem[]
+  userFlags    UserFeatureFlag[]
 
   @@index([isActive])
 }
@@ -207,6 +208,22 @@ model CompanyFeatureFlag {
   @@unique([companyId, featureId])
   @@index([featureId])
   @@index([companyId, isEnabled])
+}
+
+model UserFeatureFlag {
+  id        String   @id @default(uuid())
+  userId    String
+  featureId String
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature PlatformFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, featureId])
+  @@index([featureId])
+  @@index([userId, isEnabled])
 }
 
 model FeatureBundle {
@@ -677,6 +694,7 @@ model User {
   notificationRecipients        NotificationRecipient[]
   notificationPreference        UserNotificationPreference?
   webPushSubscriptions          WebPushSubscription[]
+  featureFlags                  UserFeatureFlag[]
   accounts                      Account[] // For NextAuth
   sessions                      Session[] // For NextAuth
 

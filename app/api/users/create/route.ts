@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { prisma } from "@/lib/prisma";
 
 import {
@@ -62,6 +63,8 @@ export async function POST(request: NextRequest) {
         updatedAt: true,
       },
     });
+
+    await clearUserFeatureOverrides(user.id);
 
     await appendUserManagementEvent({
       companyId: session.user.companyId,

@@ -38,7 +38,7 @@ import {
   fetchJobGrades,
   type EmployeeSummary,
 } from "@/lib/api"
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { fetchJson, getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client"
 
 const employeePositions = [
   { value: "MANAGER", label: "Manager" },
@@ -153,6 +153,12 @@ export default function HumanResourcesPage() {
     () => employees.find((employee) => employee.id === employeeIdPendingDelete) ?? null,
     [employeeIdPendingDelete, employees],
   )
+  const loadErrorMessage = resolveDisplayErrorMessage([
+    error,
+    departmentsError,
+    gradesError,
+    templatesError,
+  ])
 
   const toEmployeePayload = (
     payload: EmployeeForm,
@@ -612,14 +618,12 @@ export default function HumanResourcesPage() {
       }
       description="Employee records and attendance roster"
     >
-      {(error || departmentsError || gradesError || templatesError) && (
+      {loadErrorMessage ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load employees</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(error || departmentsError || gradesError || templatesError)}
-          </AlertDescription>
+          <AlertDescription>{loadErrorMessage}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <Sheet open={formOpen} onOpenChange={handleFormOpenChange}>
         <SheetContent size="md" className="w-full p-6">

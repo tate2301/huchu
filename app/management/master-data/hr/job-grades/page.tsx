@@ -24,7 +24,7 @@ import {
   type JobGradeRecord,
   updateJobGrade,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -62,6 +62,7 @@ export default function JobGradesManagementPage() {
     queryKey: ["management", "master-data", "job-grades"],
     queryFn: () => fetchJobGrades({ limit: 500 }),
   });
+  const loadErrorMessage = resolveDisplayErrorMessage([error]);
 
   const rows = data?.data ?? [];
 
@@ -267,10 +268,10 @@ export default function JobGradesManagementPage() {
         </Button>
       }
     >
-      {error ? (
+      {loadErrorMessage ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load job grades</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+          <AlertDescription>{loadErrorMessage}</AlertDescription>
         </Alert>
       ) : null}
 

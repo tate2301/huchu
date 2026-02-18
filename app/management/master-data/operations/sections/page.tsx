@@ -26,7 +26,7 @@ import {
   type SectionSummary,
   updateSection,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 
 type SectionFormState = {
@@ -52,6 +52,7 @@ export default function SectionsManagementPage() {
     queryKey: ["management", "master-data", "sections"],
     queryFn: () => fetchSections({ limit: 500 }),
   });
+  const loadErrorMessage = resolveDisplayErrorMessage([error]);
 
   const { data: sitesData } = useQuery({
     queryKey: ["management", "master-data", "sites-options"],
@@ -252,10 +253,10 @@ export default function SectionsManagementPage() {
         </Button>
       }
     >
-      {error ? (
+      {loadErrorMessage ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load sections</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+          <AlertDescription>{loadErrorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
