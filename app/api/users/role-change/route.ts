@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { prisma } from "@/lib/prisma";
 
 import {
@@ -61,6 +62,8 @@ async function applyRoleChange(request: NextRequest) {
       updatedAt: true,
     },
   });
+
+  await clearUserFeatureOverrides(updated.id);
 
   await appendUserManagementEvent({
     companyId: session.user.companyId,

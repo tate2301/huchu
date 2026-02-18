@@ -110,6 +110,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/users/status", featureKey: "admin.user-management.status" },
   { scope: "api", prefix: "/api/users/password-reset", featureKey: "admin.user-management.password-reset" },
   { scope: "api", prefix: "/api/users/role-change", featureKey: "admin.user-management.role-change" },
+  { scope: "api", prefix: "/api/users/access/reset", featureKey: "admin.user-management.feature-access" },
+  { scope: "api", prefix: "/api/users/access", featureKey: "admin.user-management.feature-access" },
   { scope: "api", prefix: "/api/users", featureKey: "admin.user-management.directory" },
   { scope: "api", prefix: "/api/sites", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/sections", featureKey: "admin.sites-sections" },
