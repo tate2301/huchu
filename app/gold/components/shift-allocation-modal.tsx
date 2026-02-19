@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { EmployeeAvatar } from "@/components/shared/employee-avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -318,6 +319,29 @@ export function ShiftAllocationModal({
                         </span>
                       ) : null}
                     </div>
+                    {selectedShift.presentEmployees.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        <div className="text-xs font-semibold text-muted-foreground">
+                          Present workers preview
+                        </div>
+                        <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border bg-background p-2">
+                          {selectedShift.presentEmployees.map((employee) => (
+                            <div
+                              key={employee.id}
+                              className="flex items-center justify-between gap-2 rounded px-2 py-1"
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <EmployeeAvatar name={employee.name} size="sm" />
+                                <span className="truncate text-sm">{employee.name}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {employee.employeeId}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 

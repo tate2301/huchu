@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Save, Send, UserCheck, UserX } from "@/lib/icons";
+import { Save, Send, Trash2, UserCheck, UserX } from "@/lib/icons";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
+import { EmployeeAvatar } from "@/components/shared/employee-avatar";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -38,6 +39,7 @@ type CrewWorker = {
   id: string;
   employeeId: string;
   name: string;
+  passportPhotoUrl?: string | null;
 };
 
 type CrewStatusState = {
@@ -118,6 +120,7 @@ export default function AttendancePage() {
         id: member.employee.id,
         employeeId: member.employee.employeeId,
         name: member.employee.name,
+        passportPhotoUrl: undefined,
       })),
     [groupMembersData],
   );
@@ -213,6 +216,10 @@ export default function AttendancePage() {
       ...prev,
       [id]: { status: prev[id]?.status ?? "PRESENT", overtime: prev[id]?.overtime ?? "", ...next },
     }));
+  };
+
+  const removeExtraWorker = (workerId: string) => {
+    setExtraWorkers((prev) => prev.filter((worker) => worker.id !== workerId));
   };
 
   const resetShiftContext = () => {
@@ -395,7 +402,17 @@ export default function AttendancePage() {
 
             <div>
               <label className="mb-2 block text-sm font-semibold">Shift Leader (Auto)</label>
-              <Input value={selectedShiftGroup?.leader?.name ?? ""} readOnly placeholder="Auto from group leader" />
+              {selectedShiftGroup?.leader?.name ? (
+                <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <EmployeeAvatar name={selectedShiftGroup.leader.name} size="sm" />
+                  <div>
+                    <div className="text-sm font-medium">{selectedShiftGroup.leader.name}</div>
+                    <div className="text-xs text-muted-foreground">{selectedShiftGroup.leader.employeeId}</div>
+                  </div>
+                </div>
+              ) : (
+                <Input value="" readOnly placeholder="Auto from group leader" />
+              )}
               <FieldHelp hint="Group leader is automatically used as shift leader for attendance." />
             </div>
           </CardContent>
@@ -422,16 +439,58 @@ export default function AttendancePage() {
                         setExtraWorkers((prev) =>
                           prev.some((worker) => worker.id === employee.id)
                             ? prev
-                            : [...prev, { id: employee.id, name: employee.name, employeeId: employee.employeeId }],
+                            : [
+                                ...prev,
+                                {
+                                  id: employee.id,
+                                  name: employee.name,
+                                  employeeId: employee.employeeId,
+                                  passportPhotoUrl: employee.passportPhotoUrl,
+                                },
+                              ],
                         );
                         setWorkerSearch("");
                       }}
                     >
-                      <span>{employee.name}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <EmployeeAvatar name={employee.name} photoUrl={employee.passportPhotoUrl} size="sm" />
+                        <span className="truncate">{employee.name}</span>
+                      </span>
                       <span className="text-xs text-muted-foreground">{employee.employeeId}</span>
                     </button>
                   ))
                 )}
+              </div>
+            ) : null}
+            {extraWorkers.length > 0 ? (
+              <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
+                <div className="text-xs font-semibold text-muted-foreground">Added workers preview</div>
+                {extraWorkers.map((worker) => (
+                  <div
+                    key={worker.id}
+                    className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <EmployeeAvatar
+                        name={worker.name}
+                        photoUrl={worker.passportPhotoUrl}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{worker.name}</div>
+                        <div className="text-xs text-muted-foreground">{worker.employeeId}</div>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => removeExtraWorker(worker.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             ) : null}
           </CardContent>
@@ -456,7 +515,13 @@ export default function AttendancePage() {
               <div className="space-y-3">
                 {crew.map((member) => (
                   <div key={member.id} className="flex flex-col gap-3 rounded-md border border-border bg-card/60 p-3 md:flex-row md:items-center">
-                    <div className="flex-1"><div className="font-semibold">{member.name}</div><div className="text-xs text-muted-foreground">ID: {member.employeeId}</div></div>
+                    <div className="flex flex-1 items-center gap-2">
+                      <EmployeeAvatar name={member.name} photoUrl={member.passportPhotoUrl} size="sm" />
+                      <div>
+                        <div className="font-semibold">{member.name}</div>
+                        <div className="text-xs text-muted-foreground">ID: {member.employeeId}</div>
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <Button type="button" size="sm" variant={member.status === "PRESENT" ? "default" : "outline"} onClick={() => updateCrew(member.id, { status: "PRESENT" })}>Present</Button>
                       <Button type="button" size="sm" variant={member.status === "LATE" ? "secondary" : "outline"} onClick={() => updateCrew(member.id, { status: "LATE" })}>Late</Button>

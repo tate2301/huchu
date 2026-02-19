@@ -3,14 +3,24 @@
 import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus, Trash2 } from "@/lib/icons"
+import { CheckIcon, Plus, Trash2 } from "@/lib/icons"
 
+import { EmployeeAvatar } from "@/components/shared/employee-avatar"
 import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -43,6 +53,13 @@ type GroupForm = {
   siteId: string
   leaderEmployeeId: string
   memberIds: string[]
+}
+
+type GroupEmployeePreview = {
+  id: string
+  name: string
+  employeeId: string
+  passportPhotoUrl?: string | null
 }
 
 type ScheduleForm = {
@@ -81,8 +98,11 @@ export default function HrShiftGroupsPage() {
     leaderEmployeeId: "",
     memberIds: [],
   })
+  const [selectedEmployees, setSelectedEmployees] = useState<Record<string, GroupEmployeePreview>>({})
   const [leaderSearch, setLeaderSearch] = useState("")
+  const [leaderPickerOpen, setLeaderPickerOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState("")
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
 
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     siteId: "",
@@ -124,16 +144,73 @@ export default function HrShiftGroupsPage() {
   const { data: leaderSearchData } = useQuery({
     queryKey: ["employees", "shift-group-leader-search", leaderSearch],
     queryFn: () => fetchEmployees({ active: true, search: leaderSearch.trim(), limit: 12 }),
-    enabled: groupSheetOpen && leaderSearch.trim().length >= 2,
+    enabled: groupSheetOpen && leaderSearch.trim().length >= 1,
   })
   const leaderSearchResults = useMemo(() => leaderSearchData?.data ?? [], [leaderSearchData])
 
   const { data: memberSearchData } = useQuery({
     queryKey: ["employees", "shift-group-member-search", memberSearch],
     queryFn: () => fetchEmployees({ active: true, search: memberSearch.trim(), limit: 12 }),
-    enabled: groupSheetOpen && memberSearch.trim().length >= 2,
+    enabled: groupSheetOpen && memberSearch.trim().length >= 1,
   })
   const memberSearchResults = useMemo(() => memberSearchData?.data ?? [], [memberSearchData])
+
+  const selectedLeaderPreview = groupForm.leaderEmployeeId
+    ? selectedEmployees[groupForm.leaderEmployeeId] ?? null
+    : null
+  const selectedMembersPreview = useMemo(
+    () =>
+      groupForm.memberIds
+        .map((memberId) => selectedEmployees[memberId])
+        .filter((member): member is GroupEmployeePreview => Boolean(member))
+        .sort((a, b) => {
+          if (a.id === groupForm.leaderEmployeeId) return -1
+          if (b.id === groupForm.leaderEmployeeId) return 1
+          return a.name.localeCompare(b.name)
+        }),
+    [groupForm.memberIds, groupForm.leaderEmployeeId, selectedEmployees],
+  )
+
+  const cacheEmployeePreview = (employee: EmployeeSummary) => {
+    setSelectedEmployees((prev) => ({
+      ...prev,
+      [employee.id]: {
+        id: employee.id,
+        name: employee.name,
+        employeeId: employee.employeeId,
+        passportPhotoUrl: employee.passportPhotoUrl,
+      },
+    }))
+  }
+
+  const handleLeaderSelect = (employee: EmployeeSummary) => {
+    cacheEmployeePreview(employee)
+    setGroupForm((prev) => ({
+      ...prev,
+      leaderEmployeeId: employee.id,
+      memberIds: Array.from(new Set([...prev.memberIds, employee.id])),
+    }))
+    setLeaderSearch("")
+    setLeaderPickerOpen(false)
+  }
+
+  const handleMemberSelect = (employee: EmployeeSummary) => {
+    cacheEmployeePreview(employee)
+    setGroupForm((prev) => ({
+      ...prev,
+      memberIds: Array.from(new Set([...prev.memberIds, employee.id])),
+    }))
+    setMemberSearch("")
+    setMemberPickerOpen(false)
+  }
+
+  const removeMember = (employeeId: string) => {
+    if (employeeId === groupForm.leaderEmployeeId) return
+    setGroupForm((prev) => ({
+      ...prev,
+      memberIds: prev.memberIds.filter((memberId) => memberId !== employeeId),
+    }))
+  }
 
   const { data: scheduleGroupOptionsData } = useQuery({
     queryKey: ["shift-groups", "schedule-options", scheduleForm.siteId],
@@ -164,8 +241,11 @@ export default function HrShiftGroupsPage() {
         leaderEmployeeId: "",
         memberIds: [],
       })
+      setSelectedEmployees({})
       setLeaderSearch("")
       setMemberSearch("")
+      setLeaderPickerOpen(false)
+      setMemberPickerOpen(false)
       queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
     },
     onError: (error) =>
@@ -255,9 +335,12 @@ export default function HrShiftGroupsPage() {
         header: "Leader",
         cell: ({ row }) =>
           row.original.leader ? (
-            <div>
-              <div className="font-semibold">{row.original.leader.name}</div>
-              <div className="text-xs text-muted-foreground">{row.original.leader.employeeId}</div>
+            <div className="flex items-center gap-2">
+              <EmployeeAvatar name={row.original.leader.name} size="sm" />
+              <div>
+                <div className="font-semibold">{row.original.leader.name}</div>
+                <div className="text-xs text-muted-foreground">{row.original.leader.employeeId}</div>
+              </div>
             </div>
           ) : (
             "-"
@@ -318,9 +401,12 @@ export default function HrShiftGroupsPage() {
         id: "group",
         header: "Group",
         cell: ({ row }) => (
-          <div>
+          <div className="space-y-1">
             <div className="font-semibold">{row.original.shiftGroup?.name ?? "-"}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {row.original.shiftGroup?.leader?.name ? (
+                <EmployeeAvatar name={row.original.shiftGroup.leader.name} size="sm" />
+              ) : null}
               {row.original.shiftGroup?.leader?.name ?? "-"}
             </div>
           </div>
@@ -356,10 +442,18 @@ export default function HrShiftGroupsPage() {
           <Button
             size="sm"
             onClick={() => {
-              setGroupForm((prev) => ({
-                ...prev,
+              setGroupForm({
+                name: "",
+                code: "",
                 siteId: siteFilter === "all" ? sites[0]?.id ?? "" : siteFilter,
-              }))
+                leaderEmployeeId: "",
+                memberIds: [],
+              })
+              setSelectedEmployees({})
+              setLeaderSearch("")
+              setMemberSearch("")
+              setLeaderPickerOpen(false)
+              setMemberPickerOpen(false)
               setGroupSheetOpen(true)
             }}
           >
@@ -463,7 +557,18 @@ export default function HrShiftGroupsPage() {
         )}
       </VerticalDataViews>
 
-      <Sheet open={groupSheetOpen} onOpenChange={setGroupSheetOpen}>
+      <Sheet
+        open={groupSheetOpen}
+        onOpenChange={(open) => {
+          setGroupSheetOpen(open)
+          if (!open) {
+            setLeaderPickerOpen(false)
+            setMemberPickerOpen(false)
+            setLeaderSearch("")
+            setMemberSearch("")
+          }
+        }}
+      >
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Create Shift Group</SheetTitle>
@@ -511,61 +616,158 @@ export default function HrShiftGroupsPage() {
               </Select>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Leader search *</label>
-              <Input
-                value={leaderSearch}
-                onChange={(event) => setLeaderSearch(event.target.value)}
-                placeholder="Type worker name or ID"
-              />
-              <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded border border-border p-2">
-                {leaderSearchResults.map((employee: EmployeeSummary) => (
-                  <button
-                    key={employee.id}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-muted"
-                    onClick={() => {
-                      setGroupForm((prev) => ({
-                        ...prev,
-                        leaderEmployeeId: employee.id,
-                        memberIds: Array.from(new Set([...prev.memberIds, employee.id])),
-                      }))
-                      setLeaderSearch("")
-                    }}
-                  >
-                    <span>{employee.name}</span>
-                    <span className="text-xs text-muted-foreground">{employee.employeeId}</span>
-                  </button>
-                ))}
-              </div>
+              <label className="mb-2 block text-sm font-semibold">Group leader *</label>
+              <Popover open={leaderPickerOpen} onOpenChange={setLeaderPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-between">
+                    <span className="truncate">
+                      {selectedLeaderPreview ? selectedLeaderPreview.name : "Search worker by name or ID"}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      value={leaderSearch}
+                      onValueChange={setLeaderSearch}
+                      placeholder="Type worker name or ID..."
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {leaderSearch.trim().length === 0 ? "Type a worker name or ID." : "No workers found."}
+                      </CommandEmpty>
+                      {leaderSearchResults.length > 0 ? (
+                        <CommandGroup>
+                          {leaderSearchResults.map((employee) => (
+                            <CommandItem
+                              key={employee.id}
+                              value={`${employee.name} ${employee.employeeId}`}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onSelect={() => handleLeaderSelect(employee)}
+                            >
+                              <EmployeeAvatar
+                                name={employee.name}
+                                photoUrl={employee.passportPhotoUrl}
+                                size="sm"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-medium">{employee.name}</div>
+                                <div className="text-xs text-muted-foreground">{employee.employeeId}</div>
+                              </div>
+                              {groupForm.leaderEmployeeId === employee.id ? (
+                                <CheckIcon className="h-4 w-4 text-primary" />
+                              ) : null}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      ) : null}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold">Add members</label>
-              <Input
-                value={memberSearch}
-                onChange={(event) => setMemberSearch(event.target.value)}
-                placeholder="Type worker name or ID"
-              />
-              <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded border border-border p-2">
-                {memberSearchResults.map((employee: EmployeeSummary) => (
-                  <button
-                    key={employee.id}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-muted"
-                    onClick={() => {
-                      setGroupForm((prev) => ({
-                        ...prev,
-                        memberIds: Array.from(new Set([...prev.memberIds, employee.id])),
-                      }))
-                      setMemberSearch("")
-                    }}
-                  >
-                    <span>{employee.name}</span>
-                    <span className="text-xs text-muted-foreground">{employee.employeeId}</span>
-                  </button>
-                ))}
+              <Popover open={memberPickerOpen} onOpenChange={setMemberPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-between">
+                    <span className="truncate">Search worker by name or ID</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      value={memberSearch}
+                      onValueChange={setMemberSearch}
+                      placeholder="Type worker name or ID..."
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {memberSearch.trim().length === 0 ? "Type a worker name or ID." : "No workers found."}
+                      </CommandEmpty>
+                      {memberSearchResults.length > 0 ? (
+                        <CommandGroup>
+                          {memberSearchResults.map((employee) => (
+                            <CommandItem
+                              key={employee.id}
+                              value={`${employee.name} ${employee.employeeId}`}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onSelect={() => handleMemberSelect(employee)}
+                            >
+                              <EmployeeAvatar
+                                name={employee.name}
+                                photoUrl={employee.passportPhotoUrl}
+                                size="sm"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-medium">{employee.name}</div>
+                                <div className="text-xs text-muted-foreground">{employee.employeeId}</div>
+                              </div>
+                              {groupForm.memberIds.includes(employee.id) ? (
+                                <CheckIcon className="h-4 w-4 text-primary" />
+                              ) : null}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      ) : null}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Selected people preview</label>
+              <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
+                {selectedMembersPreview.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Select a leader and members to preview the shift group roster.
+                  </p>
+                ) : (
+                  selectedMembersPreview.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <EmployeeAvatar
+                          name={member.name}
+                          photoUrl={member.passportPhotoUrl}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{member.name}</div>
+                          <div className="text-xs text-muted-foreground">{member.employeeId}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={member.id === groupForm.leaderEmployeeId ? "default" : "secondary"}>
+                          {member.id === groupForm.leaderEmployeeId ? "Leader" : "Member"}
+                        </Badge>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeMember(member.id)}
+                          disabled={member.id === groupForm.leaderEmployeeId}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={createGroupMutation.isPending}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                createGroupMutation.isPending ||
+                !groupForm.name.trim() ||
+                !groupForm.siteId ||
+                !groupForm.leaderEmployeeId
+              }
+            >
               Create Group
             </Button>
           </form>

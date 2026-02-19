@@ -10,6 +10,7 @@ import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { EmployeeAvatar } from "@/components/shared/employee-avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -381,11 +382,23 @@ export default function ShiftReportPage() {
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold">Shift Leader (Auto)</label>
-              <Input
-                value={selectedShiftGroup?.leader?.name ?? ""}
-                readOnly
-                placeholder="Select a shift group to auto-fill leader"
-              />
+              {selectedShiftGroup?.leader?.name ? (
+                <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <EmployeeAvatar name={selectedShiftGroup.leader.name} size="sm" />
+                  <div>
+                    <div className="text-sm font-medium">{selectedShiftGroup.leader.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedShiftGroup.leader.employeeId}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Input
+                  value=""
+                  readOnly
+                  placeholder="Select a shift group to auto-fill leader"
+                />
+              )}
               <FieldHelp hint="Group leader is automatically used as shift leader." />
             </div>
           </CardContent>

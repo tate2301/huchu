@@ -25,6 +25,7 @@ export type SearchableOption = {
   label: string;
   description?: string;
   meta?: string;
+  avatarUrl?: string;
   badgeVariant?: "default" | "secondary" | "destructive" | "outline";
 };
 
