@@ -3,72 +3,15 @@
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import {
-  ArrowRightLeft,
-  AlertTriangle,
-  BarChart3,
-  Gem,
-  PackageCheck,
-  Scale,
-} from "@/lib/icons";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { cn } from "@/lib/utils";
-import { goldRoutes } from "@/app/gold/routes";
-import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
-
-export type GoldLane =
-  | "command"
-  | "intake"
-  | "transit"
-  | "settlement"
-  | "exceptions"
-  | "reporting";
-
-type GoldLaneItem = {
-  id: GoldLane;
-  label: string;
-  href: string;
-  icon: typeof Gem;
-};
-
-const laneTabs: GoldLaneItem[] = [
-  { id: "command", label: "Home", href: goldRoutes.command, icon: Gem },
-  {
-    id: "intake",
-    label: "Batches",
-    href: goldRoutes.intake.pours,
-    icon: PackageCheck,
-  },
-  {
-    id: "transit",
-    label: "Dispatch",
-    href: goldRoutes.transit.dispatches,
-    icon: ArrowRightLeft,
-  },
-  {
-    id: "settlement",
-    label: "Sales",
-    href: goldRoutes.settlement.receipts,
-    icon: Scale,
-  },
-  {
-    id: "exceptions",
-    label: "Issues",
-    href: goldRoutes.exceptions.home,
-    icon: AlertTriangle,
-  },
-  {
-    id: "reporting",
-    label: "Reports",
-    href: goldRoutes.reporting.home,
-    icon: BarChart3,
-  },
-];
+import { type GoldTab, GOLD_TABS } from "@/lib/gold/tab-config";
+import { filterGoldTabsByFeatures } from "@/lib/gold/visibility";
 
 type GoldShellProps = {
-  activeTab: GoldLane;
+  activeTab: GoldTab;
   actions?: ReactNode;
   children: ReactNode;
   title?: string;
@@ -88,7 +31,7 @@ export function GoldShell({
     [session],
   );
   const visibleTabs = useMemo(
-    () => filterHrefItemsByEnabledFeatures(laneTabs, enabledFeatures),
+    () => filterGoldTabsByFeatures(GOLD_TABS, enabledFeatures),
     [enabledFeatures],
   );
 
@@ -98,41 +41,34 @@ export function GoldShell({
       <PageHeading
         title={title}
         description={description}
-        className="[&_h1]:text-section-title [&_h1]:leading-8"
+        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
       />
 
-      <section className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="section-shell space-y-2">
-          <h2 className="text-sm font-semibold tracking-wide text-foreground">
-            Gold Views
-          </h2>
-          <nav aria-label="Gold sections" className="space-y-2">
-            {visibleTabs.map((lane) => {
-              const isActive = lane.id === activeTab;
-              return (
-                <Link
-                  key={lane.id}
-                  href={lane.href}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "inline-flex min-h-10 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-transparent text-foreground hover:bg-muted/50",
-                  )}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <lane.icon className="h-4 w-4" />
-                    {lane.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-        <div className="space-y-6">{children}</div>
-      </section>
+      <nav
+        aria-label="Gold navigation"
+        className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
+      >
+        {visibleTabs.map((tab) => {
+          const isActive = tab.id === activeTab;
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <tab.icon className="size-5" />
+              <span className="ml-2">{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="space-y-6">{children}</div>
     </div>
   );
 }

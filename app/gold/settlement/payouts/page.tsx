@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, format, isAfter, isBefore } from "date-fns";
+import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -26,6 +27,7 @@ import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { goldRoutes } from "@/app/gold/routes";
+import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
 type WorkerPayoutDetail = {
   employeeId: string;
@@ -92,6 +94,19 @@ export default function GoldSettlementPayoutsPage() {
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState("2");
   const [selectedShift, setSelectedShift] = useState<ShiftPayoutSummary | null>(null);
   const payoutTableRef = useRef<HTMLDivElement>(null);
+  const { data: session } = useSession();
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const canOpenHrPayouts = useMemo(
+    () => canViewHrefWithEnabledFeatures("/human-resources/payouts", enabledFeatures),
+    [enabledFeatures],
+  );
+  const canOpenSales = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.receipts, enabledFeatures),
+    [enabledFeatures],
+  );
 
   const windowWeeks = Number(payoutWindowWeeks);
   const windowStartDate = useMemo(() => {
@@ -345,17 +360,21 @@ export default function GoldSettlementPayoutsPage() {
 
   return (
     <GoldShell
-      activeTab="settlement"
+      activeTab="payouts"
       title="Payouts"
       description="Shift-based worker payout schedule"
       actions={
         <div className="flex gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/human-resources/payouts">Manage payouts in HR</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href={goldRoutes.settlement.receipts}>Back to Sales</Link>
-          </Button>
+          {canOpenHrPayouts ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/human-resources/payouts">Manage payouts in HR</Link>
+            </Button>
+          ) : null}
+          {canOpenSales ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.settlement.receipts}>Back to Sales</Link>
+            </Button>
+          ) : null}
         </div>
       }
     >

@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Download } from "@/lib/icons";
 
 import { GoldShell } from "@/components/gold/gold-shell";
@@ -25,6 +26,7 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
+import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
 type MissingDispatchRow = {
   id: string;
@@ -53,6 +55,11 @@ type CorrectionRow = {
 
 export default function GoldExceptionsPage() {
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
   const initialView = searchParams.get("view");
   const exceptionPdfRef = useRef<HTMLDivElement>(null);
   const [activeView, setActiveView] = useState<
@@ -152,6 +159,14 @@ export default function GoldExceptionsPage() {
     missingDispatchRows.length === 0 &&
     missingSaleRows.length === 0 &&
     correctionRows.length === 0;
+  const canOpenDispatches = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.transit.dispatches, enabledFeatures),
+    [enabledFeatures],
+  );
+  const canOpenSales = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.receipts, enabledFeatures),
+    [enabledFeatures],
+  );
 
   const missingDispatchColumns = useMemo<ColumnDef<MissingDispatchRow>[]>(
     () => [
@@ -237,7 +252,7 @@ export default function GoldExceptionsPage() {
 
   return (
     <GoldShell
-      activeTab="exceptions"
+      activeTab="issues"
       title="Issues"
       description="Fix missing records and review corrections"
       actions={
@@ -257,12 +272,16 @@ export default function GoldExceptionsPage() {
             <Download className="mr-2 h-4 w-4" />
             Export Issues Snapshot
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href={goldRoutes.transit.dispatches}>View Dispatches</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href={goldRoutes.settlement.receipts}>View Sales</Link>
-          </Button>
+          {canOpenDispatches ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={goldRoutes.transit.dispatches}>View Dispatches</Link>
+            </Button>
+          ) : null}
+          {canOpenSales ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={goldRoutes.settlement.receipts}>View Sales</Link>
+            </Button>
+          ) : null}
         </div>
       }
     >

@@ -29,6 +29,10 @@ export function ReceiptForm({
   cancelHref,
   dispatchCreateHref,
   availableDispatches,
+  mode = "page",
+  onSuccess,
+  onCancel,
+  redirectOnSuccess,
 }: {
   cancelHref?: string;
   dispatchCreateHref?: string;
@@ -38,10 +42,15 @@ export function ReceiptForm({
     courier: string;
     goldPour: { pourBarId: string; grossWeight: number; site: { name: string } };
   }>;
+  mode?: "page" | "modal";
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  redirectOnSuccess?: boolean;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const shouldRedirect = redirectOnSuccess ?? mode === "page";
   const [formData, setFormData] = useState({
     goldDispatchId: "",
     receiptDate: new Date().toISOString().slice(0, 16),
@@ -107,12 +116,15 @@ export function ReceiptForm({
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
-      const destination = buildSavedRecordRedirect(goldRoutes.settlement.receipts, {
-        createdId: receipt.id,
-        createdAt: receipt.createdAt ?? payload.receiptDate,
-        source: "gold-receipt",
-      });
-      router.push(destination);
+      onSuccess?.();
+      if (shouldRedirect) {
+        const destination = buildSavedRecordRedirect(goldRoutes.settlement.receipts, {
+          createdId: receipt.id,
+          createdAt: receipt.createdAt ?? payload.receiptDate,
+          source: "gold-receipt",
+        });
+        router.push(destination);
+      }
     },
   });
 
@@ -190,10 +202,16 @@ export function ReceiptForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(cancelHref ?? goldRoutes.settlement.receipts)}
+            onClick={() => {
+              if (mode === "modal") {
+                onCancel?.();
+                return;
+              }
+              router.push(cancelHref ?? goldRoutes.settlement.receipts);
+            }}
             className="flex-1 sm:flex-none"
           >
-            Back to Sales
+            {mode === "modal" ? "Cancel" : "Back to Sales"}
           </Button>
           <Button
             type="submit"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -26,6 +27,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
 import type { AttendanceShiftSummary } from "@/app/gold/types";
+import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
 type GoldChainRow = {
   id: string;
@@ -39,6 +41,27 @@ export default function GoldPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [shiftModalOpen, setShiftModalOpen] = useState(false);
+  const { data: session } = useSession();
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const canRecordBatch = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.intake.pours, enabledFeatures),
+    [enabledFeatures],
+  );
+  const canRecordDispatch = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.transit.dispatches, enabledFeatures),
+    [enabledFeatures],
+  );
+  const canRecordSale = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.receipts, enabledFeatures),
+    [enabledFeatures],
+  );
+  const canRecordShiftOutput = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.payouts, enabledFeatures),
+    [enabledFeatures],
+  );
 
   const attendanceStart = useMemo(() => {
     const start = new Date();
@@ -299,21 +322,29 @@ export default function GoldPage() {
 
   return (
     <GoldShell
-      activeTab="command"
+      activeTab="home"
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href={goldRoutes.intake.newPour}>Create Batch</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href={goldRoutes.transit.newDispatch}>Send Batch</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href={goldRoutes.settlement.newReceipt}>Record Sale</Link>
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setShiftModalOpen(true)}>
-            Record Shift Output
-          </Button>
+          {canRecordBatch ? (
+            <Button asChild size="sm">
+              <Link href={goldRoutes.intake.create}>Record Batch</Link>
+            </Button>
+          ) : null}
+          {canRecordDispatch ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.transit.create}>Record Dispatch</Link>
+            </Button>
+          ) : null}
+          {canRecordSale ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.settlement.create}>Record Sale</Link>
+            </Button>
+          ) : null}
+          {canRecordShiftOutput ? (
+            <Button size="sm" variant="outline" onClick={() => setShiftModalOpen(true)}>
+              Record Shift Output
+            </Button>
+          ) : null}
         </div>
       }
     >

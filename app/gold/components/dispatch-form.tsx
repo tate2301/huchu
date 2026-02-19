@@ -29,6 +29,10 @@ export function DispatchForm({
   employees,
   employeesLoading,
   availablePours,
+  mode = "page",
+  onSuccess,
+  onCancel,
+  redirectOnSuccess,
 }: {
   cancelHref?: string;
   newBatchHref?: string;
@@ -42,10 +46,15 @@ export function DispatchForm({
     site: { name: string; code: string };
     dispatchCount: number;
   }>;
+  mode?: "page" | "modal";
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  redirectOnSuccess?: boolean;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const shouldRedirect = redirectOnSuccess ?? mode === "page";
   const [formData, setFormData] = useState({
     goldPourId: "",
     dispatchDate: new Date().toISOString().slice(0, 16),
@@ -116,12 +125,15 @@ export function DispatchForm({
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-dispatches"] });
-      const destination = buildSavedRecordRedirect(goldRoutes.transit.dispatches, {
-        createdId: dispatch.id,
-        createdAt: dispatch.createdAt ?? payload.dispatchDate,
-        source: "gold-dispatch",
-      });
-      router.push(destination);
+      onSuccess?.();
+      if (shouldRedirect) {
+        const destination = buildSavedRecordRedirect(goldRoutes.transit.dispatches, {
+          createdId: dispatch.id,
+          createdAt: dispatch.createdAt ?? payload.dispatchDate,
+          source: "gold-dispatch",
+        });
+        router.push(destination);
+      }
     },
   });
 
@@ -179,10 +191,16 @@ export function DispatchForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(cancelHref ?? goldRoutes.transit.dispatches)}
+            onClick={() => {
+              if (mode === "modal") {
+                onCancel?.();
+                return;
+              }
+              router.push(cancelHref ?? goldRoutes.transit.dispatches);
+            }}
             className="flex-1 sm:flex-none"
           >
-            Back to Dispatches
+            {mode === "modal" ? "Cancel" : "Back to Dispatches"}
           </Button>
           <Button
             type="submit"

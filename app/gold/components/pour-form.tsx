@@ -29,6 +29,10 @@ export function PourForm({
   employeesLoading,
   sites,
   sitesLoading,
+  mode = "page",
+  onSuccess,
+  onCancel,
+  redirectOnSuccess,
 }: {
   cancelHref?: string;
   employees: Array<{ id: string; name: string; employeeId: string }>;
@@ -40,6 +44,10 @@ export function PourForm({
     location?: string | null;
   }>;
   sitesLoading: boolean;
+  mode?: "page" | "modal";
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  redirectOnSuccess?: boolean;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -62,6 +70,7 @@ export function PourForm({
     entity: "GOLD_POUR",
     enabled: true,
   });
+  const shouldRedirect = redirectOnSuccess ?? mode === "page";
 
   const handleSelectChange =
     (field: keyof typeof formData) => (value: string) => {
@@ -111,12 +120,15 @@ export function PourForm({
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
-      const destination = buildSavedRecordRedirect(goldRoutes.intake.pours, {
-        createdId: pour.id,
-        createdAt: pour.createdAt ?? payload.pourDate,
-        source: "gold-pour",
-      });
-      router.push(destination);
+      onSuccess?.();
+      if (shouldRedirect) {
+        const destination = buildSavedRecordRedirect(goldRoutes.intake.pours, {
+          createdId: pour.id,
+          createdAt: pour.createdAt ?? payload.pourDate,
+          source: "gold-pour",
+        });
+        router.push(destination);
+      }
     },
   });
 
@@ -193,10 +205,16 @@ export function PourForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(cancelHref ?? goldRoutes.intake.pours)}
+            onClick={() => {
+              if (mode === "modal") {
+                onCancel?.();
+                return;
+              }
+              router.push(cancelHref ?? goldRoutes.intake.pours);
+            }}
             className="flex-1 sm:flex-none"
           >
-            Back to Batches
+            {mode === "modal" ? "Cancel" : "Back to Batches"}
           </Button>
           <Button
             type="submit"
