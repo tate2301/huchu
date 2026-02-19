@@ -25,13 +25,26 @@ const allocationSchema = z.object({
   siteId: z.string().uuid(),
   totalWeight: z.number().positive(),
   expenses: z.array(expenseSchema).optional(),
+  splitMode: z.enum(["DEFAULT_50_50", "OVERRIDE_WORKER_WEIGHT"]).optional(),
+  workerShareOverrideWeight: z.number().positive().optional(),
+  splitOverrideReason: z.string().trim().max(500).optional(),
   payCycleWeeks: z
     .number()
     .int()
     .refine((value) => value === 2 || value === 4, {
       message: "Pay cycle must be 2 or 4 weeks",
     }),
-})
+}).refine(
+  (value) =>
+    value.splitMode !== "OVERRIDE_WORKER_WEIGHT" ||
+    (typeof value.workerShareOverrideWeight === "number" &&
+      value.workerShareOverrideWeight > 0 &&
+      Boolean(value.splitOverrideReason?.trim())),
+  {
+    message: "Worker share weight and reason are required for manual split override",
+    path: ["workerShareOverrideWeight"],
+  },
+)
 
 function formatTwoDigits(value: number) {
   return String(value).padStart(2, "0")
@@ -199,8 +212,17 @@ export async function POST(request: NextRequest) {
       return errorResponse("Net weight must be positive after expenses", 400)
     }
 
-    const workerShareWeight = netWeight / 2
-    const companyShareWeight = netWeight / 2
+    const splitMode = validated.splitMode ?? "DEFAULT_50_50"
+    let workerShareWeight = netWeight / 2
+    let companyShareWeight = netWeight / 2
+    if (splitMode === "OVERRIDE_WORKER_WEIGHT") {
+      const overrideWeight = validated.workerShareOverrideWeight ?? 0
+      if (overrideWeight <= 0 || overrideWeight >= netWeight) {
+        return errorResponse("Worker share override must be greater than 0 and less than net weight", 400)
+      }
+      workerShareWeight = overrideWeight
+      companyShareWeight = netWeight - overrideWeight
+    }
     const perWorkerWeight = workerShareWeight / attendance.length
 
     const primaryWitnessId = attendance[0]?.employee.id
@@ -231,6 +253,15 @@ export async function POST(request: NextRequest) {
           shiftReportId: shiftReport.id,
           totalWeight: validated.totalWeight,
           netWeight,
+          splitMode,
+          workerShareOverrideWeight:
+            splitMode === "OVERRIDE_WORKER_WEIGHT"
+              ? validated.workerShareOverrideWeight
+              : undefined,
+          splitOverrideReason:
+            splitMode === "OVERRIDE_WORKER_WEIGHT"
+              ? validated.splitOverrideReason?.trim()
+              : undefined,
           workerShareWeight,
           companyShareWeight,
           perWorkerWeight,
@@ -330,6 +361,8 @@ export async function POST(request: NextRequest) {
           shift: result.allocation.shift,
           workerShareWeight: result.allocation.workerShareWeight,
           companyShareWeight: result.allocation.companyShareWeight,
+          splitMode: result.allocation.splitMode,
+          workerShareOverrideWeight: result.allocation.workerShareOverrideWeight,
           payoutRecordsCreated: result.payoutRecordsCreated,
           createdBatchId: result.createdBatchId,
         },

@@ -20,7 +20,9 @@ import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { ContextHelp } from "@/components/shared/context-help";
-import { fetchEmployees, fetchSites } from "@/lib/api";
+import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import type { SearchableOption } from "@/app/gold/types";
+import { fetchShiftGroupSchedules, fetchShiftGroups, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
@@ -38,6 +40,7 @@ export default function ShiftReportPage() {
     date: new Date().toISOString().split("T")[0],
     shift: "DAY",
     siteId: searchParams.get("siteId") ?? "",
+    shiftGroupId: "",
     groupLeaderId: "",
     crewCount: "",
     workType: "EXTRACTION",
@@ -61,16 +64,54 @@ export default function ShiftReportPage() {
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
 
   const {
-    data: employeesData,
-    isLoading: employeesLoading,
-    error: employeesError,
+    data: shiftGroupsData,
+    isLoading: shiftGroupsLoading,
+    error: shiftGroupsError,
   } = useQuery({
-    queryKey: ["employees", "group-leaders"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+    queryKey: ["shift-groups", "shift-report", activeSiteId],
+    queryFn: () =>
+      fetchShiftGroups({
+        siteId: activeSiteId || undefined,
+        active: true,
+        limit: 300,
+      }),
+    enabled: Boolean(activeSiteId),
+  });
+  const shiftGroups = useMemo(() => shiftGroupsData?.data ?? [], [shiftGroupsData]);
+
+  const { data: scheduleData } = useQuery({
+    queryKey: ["shift-group-schedules", "shift-report", activeSiteId, formData.date, formData.shift],
+    queryFn: () =>
+      fetchShiftGroupSchedules({
+        siteId: activeSiteId,
+        date: formData.date,
+        shift: formData.shift as "DAY" | "NIGHT",
+        limit: 10,
+      }),
+    enabled: Boolean(activeSiteId && formData.date && formData.shift),
   });
 
-  const groupLeaders = useMemo(() => employeesData?.data ?? [], [employeesData]);
-  const hasGroupLeaders = groupLeaders.length > 0;
+  const scheduledShiftGroupId = scheduleData?.data?.[0]?.shiftGroupId ?? "";
+  const effectiveShiftGroupId = formData.shiftGroupId || scheduledShiftGroupId;
+  const selectedShiftGroup = useMemo(
+    () => shiftGroups.find((group) => group.id === effectiveShiftGroupId),
+    [shiftGroups, effectiveShiftGroupId],
+  );
+  const effectiveGroupLeaderId =
+    selectedShiftGroup?.leaderEmployeeId ||
+    scheduleData?.data?.[0]?.shiftGroup?.leader?.id ||
+    formData.groupLeaderId;
+
+  const shiftGroupOptions = useMemo<SearchableOption[]>(
+    () =>
+      shiftGroups.map((group) => ({
+        value: group.id,
+        label: group.name,
+        description: `Leader: ${group.leader?.name ?? "Not set"}`,
+        meta: group.code || group.site?.code || undefined,
+      })),
+    [shiftGroups],
+  );
   const isExtraction = formData.workType === "EXTRACTION";
   const isHauling = formData.workType === "HAULING";
   const isCrushing = formData.workType === "CRUSHING";
@@ -120,14 +161,35 @@ export default function ShiftReportPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-    }));
+    setFormData((prev) => {
+      const nextValue = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
+      if (name === "date") {
+        return {
+          ...prev,
+          [name]: value,
+          shiftGroupId: "",
+          groupLeaderId: "",
+        };
+      }
+      return {
+        ...prev,
+        [name]: nextValue as never,
+      };
+    });
   };
 
   const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      if (field === "siteId" || field === "shift") {
+        return {
+          ...prev,
+          [field]: value,
+          shiftGroupId: "",
+          groupLeaderId: "",
+        };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const handleSaveDraft = () => {
@@ -147,10 +209,10 @@ export default function ShiftReportPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!activeSiteId || !formData.groupLeaderId) {
+    if (!activeSiteId || !effectiveShiftGroupId) {
       toast({
         title: "Missing details",
-        description: "Site and group leader are required.",
+        description: "Site and shift group are required.",
         variant: "destructive",
       });
       return;
@@ -160,7 +222,8 @@ export default function ShiftReportPage() {
       date: formData.date,
       shift: formData.shift,
       siteId: activeSiteId,
-      groupLeaderId: formData.groupLeaderId,
+      shiftGroupId: effectiveShiftGroupId,
+      groupLeaderId: effectiveGroupLeaderId,
       crewCount: Number(formData.crewCount),
       workType: formData.workType,
       outputTonnes: toNumber(formData.outputTonnes),
@@ -175,7 +238,7 @@ export default function ShiftReportPage() {
     shiftReportMutation.mutate(payload);
   };
 
-  const error = sitesError || employeesError || shiftReportMutation.error;
+  const error = sitesError || shiftGroupsError || shiftReportMutation.error;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -280,36 +343,28 @@ export default function ShiftReportPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-semibold">Group Leader *</label>
-                {employeesLoading ? (
+                {shiftGroupsLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <Select
-                    name="groupLeaderId"
-                    value={formData.groupLeaderId || undefined}
-                    onValueChange={handleSelectChange("groupLeaderId")}
-                    required
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select group leader" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hasGroupLeaders ? (
-                        groupLeaders.map((leader) => (
-                          <SelectItem key={leader.id} value={leader.id}>
-                            {leader.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="__no_group_leaders__" disabled>
-                          No active employees available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    label="Shift Group *"
+                    value={effectiveShiftGroupId || undefined}
+                    options={shiftGroupOptions}
+                    placeholder="Search shift group"
+                    searchPlaceholder="Search group name or leader..."
+                    onValueChange={(value) => {
+                      const matched = shiftGroups.find((group) => group.id === value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        shiftGroupId: value,
+                        groupLeaderId: matched?.leaderEmployeeId ?? prev.groupLeaderId,
+                      }));
+                    }}
+                    onAddOption={() => router.push("/human-resources/shift-groups")}
+                    addLabel="Manage shift groups"
+                  />
                 )}
               </div>
-
               <div>
                 <label className="mb-2 block text-sm font-semibold">Crew Count *</label>
                 <Input
@@ -323,6 +378,15 @@ export default function ShiftReportPage() {
                 />
                 <FieldHelp hint="Enter the number of crew members who worked this shift." />
               </div>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Shift Leader (Auto)</label>
+              <Input
+                value={selectedShiftGroup?.leader?.name ?? ""}
+                readOnly
+                placeholder="Select a shift group to auto-fill leader"
+              />
+              <FieldHelp hint="Group leader is automatically used as shift leader." />
             </div>
           </CardContent>
         </Card>

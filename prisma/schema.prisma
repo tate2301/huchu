@@ -34,6 +34,8 @@ model Company {
   sites               Site[]
   users               User[]
   employees           Employee[]
+  shiftGroups         ShiftGroup[]
+  shiftGroupSchedules ShiftGroupSchedule[]
   departments         Department[]
   jobGrades           JobGrade[]
   compensationRules   CompensationRule[]
@@ -576,6 +578,8 @@ model Site {
 
   company              Company               @relation(fields: [companyId], references: [id])
   sections             Section[]
+  shiftGroups          ShiftGroup[]
+  shiftGroupSchedules  ShiftGroupSchedule[]
   shiftReports         ShiftReport[]
   plantReports         PlantReport[]
   goldPours            GoldPour[]
@@ -633,6 +637,7 @@ model User {
 
   company                       Company                     @relation(fields: [companyId], references: [id])
   createdShiftReports           ShiftReport[]               @relation("CreatedBy")
+  createdShiftGroupSchedules    ShiftGroupSchedule[]        @relation("ShiftGroupScheduleCreatedBy")
   verifiedShiftReports          ShiftReport[]               @relation("VerifiedBy")
   approvedShiftReports          ShiftReport[]               @relation("ApprovedBy")
   plantReports                  PlantReport[]
@@ -732,6 +737,8 @@ model Employee {
   supervisor                Employee?              @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
   supervisees               Employee[]             @relation("EmployeeSupervisor")
   attendance                Attendance[]
+  ledShiftGroups            ShiftGroup[]            @relation("ShiftGroupLeader")
+  shiftGroupMemberships     ShiftGroupMember[]
   groupLeaderReports        ShiftReport[]          @relation("GroupLeaderReports")
   workOrders                WorkOrder[]            @relation("WorkOrderTechnicians")
   goldPoursWitness1         GoldPour[]             @relation("Witness1")
@@ -1260,6 +1267,11 @@ enum ShiftType {
   NIGHT
 }
 
+enum GoldShiftSplitMode {
+  DEFAULT_50_50
+  OVERRIDE_WORKER_WEIGHT
+}
+
 enum WorkType {
   EXTRACTION
   HAULING
@@ -1518,6 +1530,7 @@ model ShiftReport {
   shift         ShiftType
   siteId        String
   sectionId     String?
+  shiftGroupId  String?
   groupLeaderId String
   crewCount     Int
   workType      WorkType
@@ -1549,6 +1562,7 @@ model ShiftReport {
 
   site                Site                 @relation(fields: [siteId], references: [id])
   section             Section?             @relation(fields: [sectionId], references: [id])
+  shiftGroup          ShiftGroup?          @relation(fields: [shiftGroupId], references: [id])
   groupLeader         Employee             @relation("GroupLeaderReports", fields: [groupLeaderId], references: [id])
   createdBy           User                 @relation("CreatedBy", fields: [createdById], references: [id])
   verifiedBy          User?                @relation("VerifiedBy", fields: [verifiedById], references: [id])
@@ -1558,6 +1572,7 @@ model ShiftReport {
 
   @@index([siteId, date])
   @@index([date])
+  @@index([shiftGroupId])
 }
 
 model DowntimeCode {
@@ -1597,6 +1612,9 @@ model Attendance {
   date       DateTime
   siteId     String
   shift      ShiftType
+  shiftGroupId String?
+  shiftLeaderId String?
+  shiftLeaderName String?
   employeeId String
   status     String // PRESENT, ABSENT, LATE
   overtime   Float? // hours
@@ -1604,10 +1622,75 @@ model Attendance {
   createdAt  DateTime  @default(now())
 
   site     Site     @relation(fields: [siteId], references: [id])
+  shiftGroup ShiftGroup? @relation(fields: [shiftGroupId], references: [id])
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@unique([date, siteId, shift, employeeId])
   @@index([siteId, date])
+  @@index([shiftGroupId])
+}
+
+model ShiftGroup {
+  id             String   @id @default(uuid())
+  companyId      String
+  siteId         String
+  name           String
+  code           String?
+  leaderEmployeeId String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company    Company              @relation(fields: [companyId], references: [id])
+  site       Site                 @relation(fields: [siteId], references: [id])
+  leader     Employee             @relation("ShiftGroupLeader", fields: [leaderEmployeeId], references: [id])
+  members    ShiftGroupMember[]
+  schedules  ShiftGroupSchedule[]
+  attendance Attendance[]
+  reports    ShiftReport[]
+
+  @@unique([companyId, name])
+  @@index([companyId, siteId, isActive])
+  @@index([leaderEmployeeId])
+}
+
+model ShiftGroupMember {
+  id           String   @id @default(uuid())
+  shiftGroupId String
+  employeeId   String
+  isActive     Boolean  @default(true)
+  joinedAt     DateTime @default(now())
+  leftAt       DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shiftGroup ShiftGroup @relation(fields: [shiftGroupId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+
+  @@unique([shiftGroupId, employeeId])
+  @@index([employeeId, isActive])
+}
+
+model ShiftGroupSchedule {
+  id           String   @id @default(uuid())
+  companyId    String
+  siteId       String
+  date         DateTime
+  shift        ShiftType
+  shiftGroupId String
+  notes        String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  site       Site       @relation(fields: [siteId], references: [id])
+  shiftGroup ShiftGroup @relation(fields: [shiftGroupId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("ShiftGroupScheduleCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([siteId, date, shift])
+  @@index([companyId, date, shift])
+  @@index([shiftGroupId])
 }
 
 // ============================================
@@ -1724,6 +1807,9 @@ model GoldShiftAllocation {
   shiftReportId      String    @unique
   totalWeight        Float
   netWeight          Float
+  splitMode          GoldShiftSplitMode @default(DEFAULT_50_50)
+  workerShareOverrideWeight Float?
+  splitOverrideReason String?
   workerShareWeight  Float
   companyShareWeight Float
   perWorkerWeight    Float

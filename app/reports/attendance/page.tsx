@@ -116,6 +116,18 @@ export default function AttendanceHistoryPage() {
         cell: ({ row }) => row.original.site?.name ?? "-",
       },
       {
+        id: "group",
+        header: "Group",
+        accessorFn: (row) => row.shiftGroup?.name ?? "",
+        cell: ({ row }) => row.original.shiftGroup?.name ?? "-",
+      },
+      {
+        id: "leader",
+        header: "Shift Leader",
+        accessorFn: (row) => row.shiftLeaderName ?? "",
+        cell: ({ row }) => row.original.shiftLeaderName ?? "-",
+      },
+      {
         id: "employee",
         header: "Employee",
         accessorFn: (row) => `${row.employee?.name ?? ""} ${row.employee?.employeeId ?? ""}`,
@@ -200,7 +212,7 @@ export default function AttendanceHistoryPage() {
             columns={columns}
             queryState={queryState}
             onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
-            searchPlaceholder="Search employee, shift, status"
+            searchPlaceholder="Search employee, group, leader, shift, status"
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
@@ -275,6 +287,8 @@ export default function AttendanceHistoryPage() {
                   <th className="py-2">Date</th>
                   <th className="py-2">Shift</th>
                   <th className="py-2">Site</th>
+                  <th className="py-2">Group</th>
+                  <th className="py-2">Shift Leader</th>
                   <th className="py-2">Employee</th>
                   <th className="py-2">Status</th>
                   <th className="py-2">Overtime</th>
@@ -286,6 +300,8 @@ export default function AttendanceHistoryPage() {
                     <td className="py-2">{format(new Date(record.date), "MMM d, yyyy")}</td>
                     <td className="py-2">{record.shift}</td>
                     <td className="py-2">{record.site?.name}</td>
+                    <td className="py-2">{record.shiftGroup?.name ?? "-"}</td>
+                    <td className="py-2">{record.shiftLeaderName ?? "-"}</td>
                     <td className="py-2">
                       <div className="font-semibold">{record.employee?.name}</div>
                       <div className="text-[10px] text-gray-500">{record.employee?.employeeId}</div>

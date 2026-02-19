@@ -216,6 +216,9 @@ export default function GoldPage() {
       siteId: string;
       totalWeight: number;
       expenses: Array<{ type: string; weight: number }>;
+      splitMode?: "DEFAULT_50_50" | "OVERRIDE_WORKER_WEIGHT";
+      workerShareOverrideWeight?: number;
+      splitOverrideReason?: string;
       payCycleWeeks: number;
     }) =>
       fetchJson<{

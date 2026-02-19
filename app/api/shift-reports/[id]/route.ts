@@ -19,6 +19,7 @@ export async function GET(
       include: {
         site: { select: { name: true, code: true, companyId: true } },
         section: { select: { name: true } },
+        shiftGroup: { select: { id: true, name: true, code: true } },
         groupLeader: { select: { name: true, employeeId: true } },
         createdBy: { select: { name: true } },
         verifiedBy: { select: { name: true } },

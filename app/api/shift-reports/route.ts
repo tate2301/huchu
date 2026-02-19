@@ -19,7 +19,8 @@ const shiftReportSchema = z
       .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
     shift: z.enum(["DAY", "NIGHT"]),
     siteId: z.string().uuid(),
-    groupLeaderId: z.string().uuid(),
+    shiftGroupId: z.string().uuid().optional(),
+    groupLeaderId: z.string().uuid().optional(),
     crewCount: z.number().int().min(0).max(1000),
     workType: z.nativeEnum(WorkType),
     outputTonnes: z.number().min(0).optional(),
@@ -29,6 +30,10 @@ const shiftReportSchema = z
     hasIncident: z.boolean().optional(),
     incidentNotes: z.string().max(1000).optional(),
     handoverNotes: z.string().max(2000).optional(),
+  })
+  .refine((data) => Boolean(data.groupLeaderId || data.shiftGroupId), {
+    message: "Group leader or shift group is required",
+    path: ["groupLeaderId"],
   })
   .refine((data) => !data.hasIncident || !!data.incidentNotes, {
     message: "Incident notes are required when an incident is reported",
@@ -46,6 +51,7 @@ export async function GET(request: NextRequest) {
     const siteId = searchParams.get("siteId");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const shiftGroupId = searchParams.get("shiftGroupId");
     const status = searchParams.get("status");
     const search = searchParams.get("search")?.trim();
     const { page, limit, skip } = getPaginationParams(request);
@@ -57,6 +63,7 @@ export async function GET(request: NextRequest) {
     };
 
     if (siteId) where.siteId = siteId;
+    if (shiftGroupId) where.shiftGroupId = shiftGroupId;
     if (startDate) {
       const dateWhere = (where.date as Record<string, Date> | undefined) ?? {};
       where.date = { ...dateWhere, gte: new Date(startDate) };
@@ -77,6 +84,7 @@ export async function GET(request: NextRequest) {
         { incidentNotes: { contains: search, mode: "insensitive" } },
         { site: { name: { contains: search, mode: "insensitive" } } },
         { site: { code: { contains: search, mode: "insensitive" } } },
+        { shiftGroup: { name: { contains: search, mode: "insensitive" } } },
         { groupLeader: { name: { contains: search, mode: "insensitive" } } },
         ...(shiftMatches ? [{ shift: normalizedSearch }] : []),
         ...(statusMatches ? [{ status: normalizedSearch }] : []),
@@ -89,6 +97,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           site: { select: { name: true, code: true } },
+          shiftGroup: { select: { id: true, name: true, code: true } },
           groupLeader: { select: { name: true } },
           downtimeEvents: {
             include: {
@@ -129,15 +138,23 @@ export async function POST(request: NextRequest) {
     };
     const validated = shiftReportSchema.parse(normalizedBody);
 
-    const [site, groupLeader] = await Promise.all([
+    const [site, shiftGroup] = await Promise.all([
       prisma.site.findUnique({
         where: { id: validated.siteId },
         select: { companyId: true, isActive: true },
       }),
-      prisma.employee.findUnique({
-        where: { id: validated.groupLeaderId },
-        select: { companyId: true, isActive: true },
-      }),
+      validated.shiftGroupId
+        ? prisma.shiftGroup.findUnique({
+            where: { id: validated.shiftGroupId },
+            select: {
+              id: true,
+              companyId: true,
+              siteId: true,
+              isActive: true,
+              leaderEmployeeId: true,
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
     if (!site || site.companyId !== session.user.companyId) {
@@ -148,11 +165,31 @@ export async function POST(request: NextRequest) {
       return errorResponse("Site is not active", 400);
     }
 
-    if (
-      !groupLeader ||
-      groupLeader.companyId !== session.user.companyId ||
-      !groupLeader.isActive
-    ) {
+    if (shiftGroup) {
+      if (shiftGroup.companyId !== session.user.companyId) {
+        return errorResponse("Invalid shift group", 403);
+      }
+      if (!shiftGroup.isActive) {
+        return errorResponse("Shift group is not active", 400);
+      }
+      if (shiftGroup.siteId !== validated.siteId) {
+        return errorResponse("Shift group does not belong to the selected site", 400);
+      }
+    } else if (validated.shiftGroupId) {
+      return errorResponse("Shift group not found", 404);
+    }
+
+    const resolvedGroupLeaderId = shiftGroup?.leaderEmployeeId ?? validated.groupLeaderId;
+    if (!resolvedGroupLeaderId) {
+      return errorResponse("Group leader is required", 400);
+    }
+
+    const groupLeader = await prisma.employee.findUnique({
+      where: { id: resolvedGroupLeaderId },
+      select: { companyId: true, isActive: true },
+    });
+
+    if (!groupLeader || groupLeader.companyId !== session.user.companyId || !groupLeader.isActive) {
       return errorResponse("Invalid group leader", 400);
     }
 
@@ -178,7 +215,8 @@ export async function POST(request: NextRequest) {
         date: new Date(validated.date),
         shift: validated.shift,
         siteId: validated.siteId,
-        groupLeaderId: validated.groupLeaderId,
+        shiftGroupId: validated.shiftGroupId,
+        groupLeaderId: resolvedGroupLeaderId,
         crewCount: validated.crewCount,
         workType: validated.workType,
         outputTonnes: validated.outputTonnes,

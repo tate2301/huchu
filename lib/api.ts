@@ -83,6 +83,60 @@ export type EmployeeSummary = {
   salaryOwed: number;
 };
 
+export type ShiftGroupRecord = {
+  id: string;
+  companyId: string;
+  siteId: string;
+  name: string;
+  code?: string | null;
+  leaderEmployeeId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  site?: { id: string; name: string; code: string } | null;
+  leader?: { id: string; name: string; employeeId: string } | null;
+  _count?: { members: number; schedules: number };
+};
+
+export type ShiftGroupMemberRecord = {
+  id: string;
+  shiftGroupId: string;
+  employeeId: string;
+  isActive: boolean;
+  joinedAt: string;
+  leftAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  employee: {
+    id: string;
+    name: string;
+    employeeId: string;
+    phone?: string;
+    isActive?: boolean;
+  };
+};
+
+export type ShiftGroupScheduleRecord = {
+  id: string;
+  companyId: string;
+  siteId: string;
+  date: string;
+  shift: "DAY" | "NIGHT";
+  shiftGroupId: string;
+  notes?: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  site?: { id: string; name: string; code: string } | null;
+  shiftGroup?: {
+    id: string;
+    name: string;
+    code?: string | null;
+    leader?: { id: string; name: string; employeeId: string } | null;
+  } | null;
+  createdBy?: { id: string; name: string } | null;
+};
+
 export type DepartmentRecord = {
   id: string;
   companyId: string;
@@ -565,10 +619,19 @@ export type AttendanceRecord = {
   id: string;
   date: string;
   shift: "DAY" | "NIGHT";
+  shiftGroupId?: string | null;
+  shiftLeaderId?: string | null;
+  shiftLeaderName?: string | null;
   status: string;
   overtime?: number | null;
   notes?: string | null;
   site: { id: string; name: string; code: string };
+  shiftGroup?: {
+    id: string;
+    name: string;
+    code?: string | null;
+    leader?: { id: string; name: string; employeeId: string } | null;
+  } | null;
   employee: { id: string; name: string; employeeId: string };
 };
 
@@ -577,10 +640,12 @@ export type ShiftReportSummary = {
   date: string;
   shift: "DAY" | "NIGHT";
   siteId: string;
+  shiftGroupId?: string | null;
   crewCount: number;
   workType: string;
   status: string;
   site: { name: string; code: string };
+  shiftGroup?: { id: string; name: string; code?: string | null } | null;
   section?: { name: string } | null;
   groupLeader?: { name: string } | null;
   downtimeEvents?: Array<{
@@ -705,6 +770,9 @@ export type GoldShiftAllocation = {
   siteId: string;
   totalWeight: number;
   netWeight: number;
+  splitMode: "DEFAULT_50_50" | "OVERRIDE_WORKER_WEIGHT";
+  workerShareOverrideWeight?: number | null;
+  splitOverrideReason?: string | null;
   workerShareWeight: number;
   companyShareWeight: number;
   perWorkerWeight: number;
@@ -1154,6 +1222,170 @@ export async function fetchEmployees(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`);
+}
+
+export async function fetchShiftGroups(
+  params: {
+    search?: string;
+    siteId?: string;
+    active?: boolean;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<ShiftGroupRecord>>(`/api/hr/shift-groups${query}`);
+}
+
+export async function fetchShiftGroup(id: string) {
+  return fetchJson<
+    ShiftGroupRecord & {
+      members: ShiftGroupMemberRecord[];
+      schedules: ShiftGroupScheduleRecord[];
+    }
+  >(`/api/hr/shift-groups/${id}`);
+}
+
+export async function createShiftGroup(input: {
+  name: string;
+  code?: string;
+  siteId: string;
+  leaderEmployeeId: string;
+  memberIds?: string[];
+}) {
+  return fetchJson<ShiftGroupRecord>(`/api/hr/shift-groups`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateShiftGroup(
+  id: string,
+  input: {
+    name?: string;
+    code?: string | null;
+    siteId?: string;
+    leaderEmployeeId?: string;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<ShiftGroupRecord>(`/api/hr/shift-groups/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function archiveShiftGroup(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(
+    `/api/hr/shift-groups/${id}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function fetchShiftGroupMembers(
+  groupId: string,
+  params: { active?: boolean } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<{
+    data: ShiftGroupMemberRecord[];
+    leaderEmployeeId?: string;
+  }>(`/api/hr/shift-groups/${groupId}/members${query}`);
+}
+
+export async function addShiftGroupMembers(
+  groupId: string,
+  input: { employeeIds: string[] },
+) {
+  return fetchJson<{ data: ShiftGroupMemberRecord[] }>(
+    `/api/hr/shift-groups/${groupId}/members`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function updateShiftGroupMember(
+  groupId: string,
+  memberId: string,
+  input: { isActive: boolean },
+) {
+  return fetchJson<ShiftGroupMemberRecord>(
+    `/api/hr/shift-groups/${groupId}/members/${memberId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function removeShiftGroupMember(groupId: string, memberId: string) {
+  return fetchJson<{ success: boolean; removed?: boolean }>(
+    `/api/hr/shift-groups/${groupId}/members/${memberId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function fetchShiftGroupSchedules(
+  params: {
+    search?: string;
+    siteId?: string;
+    shift?: "DAY" | "NIGHT";
+    shiftGroupId?: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<ShiftGroupScheduleRecord>>(
+    `/api/hr/shift-group-schedules${query}`,
+  );
+}
+
+export async function createShiftGroupSchedule(input: {
+  siteId: string;
+  date: string;
+  shift: "DAY" | "NIGHT";
+  shiftGroupId: string;
+  notes?: string;
+}) {
+  return fetchJson<ShiftGroupScheduleRecord>(`/api/hr/shift-group-schedules`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateShiftGroupSchedule(
+  id: string,
+  input: {
+    siteId?: string;
+    date?: string;
+    shift?: "DAY" | "NIGHT";
+    shiftGroupId?: string;
+    notes?: string | null;
+  },
+) {
+  return fetchJson<ShiftGroupScheduleRecord>(`/api/hr/shift-group-schedules/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteShiftGroupSchedule(id: string) {
+  return fetchJson<{ success: boolean; deleted?: boolean }>(
+    `/api/hr/shift-group-schedules/${id}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function fetchDepartments(
@@ -1671,6 +1903,8 @@ export async function fetchAttendance(
     search?: string;
     siteId?: string;
     employeeId?: string;
+    shiftGroupId?: string;
+    shiftLeaderId?: string;
     shift?: string;
     status?: string;
     date?: string;
@@ -1688,6 +1922,7 @@ export async function fetchShiftReports(
   params: {
     search?: string;
     siteId?: string;
+    shiftGroupId?: string;
     startDate?: string;
     endDate?: string;
     status?: string;

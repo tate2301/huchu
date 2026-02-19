@@ -97,6 +97,18 @@ export default function ShiftReportHistoryPage() {
       },
       { id: "shift", header: "Shift", accessorFn: (row) => row.shift, cell: ({ row }) => row.original.shift },
       { id: "site", header: "Site", accessorFn: (row) => row.site?.name ?? "", cell: ({ row }) => row.original.site?.name ?? "-" },
+      {
+        id: "shiftGroup",
+        header: "Group",
+        accessorFn: (row) => row.shiftGroup?.name ?? "",
+        cell: ({ row }) => row.original.shiftGroup?.name ?? "-",
+      },
+      {
+        id: "groupLeader",
+        header: "Leader",
+        accessorFn: (row) => row.groupLeader?.name ?? "",
+        cell: ({ row }) => row.original.groupLeader?.name ?? "-",
+      },
       { id: "workType", header: "Work Type", accessorFn: (row) => row.workType, cell: ({ row }) => row.original.workType },
       { id: "crew", header: "Crew", accessorFn: (row) => row.crewCount, cell: ({ row }) => <NumericCell>{row.original.crewCount}</NumericCell> },
       { id: "status", header: "Status", accessorFn: (row) => row.status, cell: ({ row }) => row.original.status },
@@ -162,7 +174,7 @@ export default function ShiftReportHistoryPage() {
             columns={columns}
             queryState={queryState}
             onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
-            searchPlaceholder="Search site, work type, status"
+            searchPlaceholder="Search site, group, leader, work type, status"
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
@@ -237,6 +249,8 @@ export default function ShiftReportHistoryPage() {
                   <th className="py-2">Date</th>
                   <th className="py-2">Shift</th>
                   <th className="py-2">Site</th>
+                  <th className="py-2">Group</th>
+                  <th className="py-2">Leader</th>
                   <th className="py-2">Work Type</th>
                   <th className="py-2">Crew</th>
                   <th className="py-2">Status</th>
@@ -248,6 +262,8 @@ export default function ShiftReportHistoryPage() {
                     <td className="py-2">{format(new Date(report.date), "MMM d, yyyy")}</td>
                     <td className="py-2">{report.shift}</td>
                     <td className="py-2">{report.site?.name}</td>
+                    <td className="py-2">{report.shiftGroup?.name ?? "-"}</td>
+                    <td className="py-2">{report.groupLeader?.name ?? "-"}</td>
                     <td className="py-2">{report.workType}</td>
                     <td className="py-2">{report.crewCount}</td>
                     <td className="py-2">{report.status}</td>

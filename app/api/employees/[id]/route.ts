@@ -221,10 +221,20 @@ export async function DELETE(
       return errorResponse("Forbidden", 403)
     }
 
-    const [attendanceCount, shiftCount, workOrderCount, witnessCount, dispatchCount] =
+    const [
+      attendanceCount,
+      shiftCount,
+      shiftGroupLeaderCount,
+      shiftGroupMembershipCount,
+      workOrderCount,
+      witnessCount,
+      dispatchCount,
+    ] =
       await Promise.all([
         prisma.attendance.count({ where: { employeeId: id } }),
         prisma.shiftReport.count({ where: { groupLeaderId: id } }),
+        prisma.shiftGroup.count({ where: { leaderEmployeeId: id } }),
+        prisma.shiftGroupMember.count({ where: { employeeId: id, isActive: true } }),
         prisma.workOrder.count({ where: { technicianId: id } }),
         prisma.goldPour.count({
           where: {
@@ -235,7 +245,13 @@ export async function DELETE(
       ])
 
     const totalLinks =
-      attendanceCount + shiftCount + workOrderCount + witnessCount + dispatchCount
+      attendanceCount +
+      shiftCount +
+      shiftGroupLeaderCount +
+      shiftGroupMembershipCount +
+      workOrderCount +
+      witnessCount +
+      dispatchCount
 
     if (totalLinks > 0) {
       return errorResponse(

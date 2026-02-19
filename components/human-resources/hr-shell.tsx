@@ -20,6 +20,7 @@ import {
 
 export type HrTab =
   | "employees"
+  | "shift-groups"
   | "incidents"
   | "payouts"
   | "salaries"
@@ -38,6 +39,12 @@ type HrTabItem = {
 
 const hrTabs: HrTabItem[] = [
   { id: "employees", label: "Employees", href: "/human-resources", icon: ManageAccounts },
+  {
+    id: "shift-groups",
+    label: "Shift Groups",
+    href: "/human-resources/shift-groups",
+    icon: UserRound,
+  },
   {
     id: "incidents",
     label: "Workforce Incidents",

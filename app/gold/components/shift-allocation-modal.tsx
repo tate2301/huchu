@@ -65,6 +65,9 @@ export function ShiftAllocationModal({
     siteId: string;
     totalWeight: number;
     expenses: Array<{ type: string; weight: number }>;
+    splitMode?: "DEFAULT_50_50" | "OVERRIDE_WORKER_WEIGHT";
+    workerShareOverrideWeight?: number;
+    splitOverrideReason?: string;
     payCycleWeeks: number;
   }) => void;
 }) {
@@ -86,12 +89,18 @@ export function ShiftAllocationModal({
     "Other",
   ]);
   const [payCycleWeeks, setPayCycleWeeks] = useState("2");
+  const [manualSplitEnabled, setManualSplitEnabled] = useState(false);
+  const [workerShareOverride, setWorkerShareOverride] = useState("");
+  const [splitOverrideReason, setSplitOverrideReason] = useState("");
 
   const resetForm = () => {
     setSelectedShiftKey(undefined);
     setTotalWeight("");
     setExpenses([{ id: "expense-1", type: "Diesel", weight: "" }]);
     setPayCycleWeeks("2");
+    setManualSplitEnabled(false);
+    setWorkerShareOverride("");
+    setSplitOverrideReason("");
   };
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
@@ -137,10 +146,15 @@ export function ShiftAllocationModal({
     return sum + (Number.isNaN(value) ? 0 : value);
   }, 0);
   const netWeight = Math.max(totalWeightValue - expenseTotal, 0);
-  const workerShare = netWeight / 2;
-  const companyShare = netWeight / 2;
+  const workerShareOverrideValue = Number(workerShareOverride || 0);
+  const workerShare = manualSplitEnabled
+    ? Math.max(Math.min(workerShareOverrideValue, netWeight), 0)
+    : netWeight / 2;
+  const companyShare = Math.max(netWeight - workerShare, 0);
   const presentCount = selectedShift?.presentEmployees.length ?? 0;
   const perWorker = presentCount > 0 ? workerShare / presentCount : 0;
+  const workerPercent = netWeight > 0 ? (workerShare / netWeight) * 100 : 0;
+  const companyPercent = netWeight > 0 ? (companyShare / netWeight) * 100 : 0;
 
   const hasReport = !!selectedReport;
   const crewMismatch =
@@ -153,7 +167,11 @@ export function ShiftAllocationModal({
     hasReport &&
     totalWeightValue > 0 &&
     presentCount > 0 &&
-    netWeight > 0;
+    netWeight > 0 &&
+    (!manualSplitEnabled ||
+      (workerShare > 0 &&
+        workerShare < netWeight &&
+        splitOverrideReason.trim().length > 0));
 
   const handleAddExpense = () => {
     setExpenses((prev) => [
@@ -204,6 +222,11 @@ export function ShiftAllocationModal({
           type: expense.type,
           weight: Number(expense.weight || 0),
         })),
+      splitMode: manualSplitEnabled ? "OVERRIDE_WORKER_WEIGHT" : "DEFAULT_50_50",
+      workerShareOverrideWeight: manualSplitEnabled ? workerShare : undefined,
+      splitOverrideReason: manualSplitEnabled
+        ? splitOverrideReason.trim() || undefined
+        : undefined,
       payCycleWeeks: Number(payCycleWeeks) || 2,
     });
   };
@@ -480,6 +503,52 @@ export function ShiftAllocationModal({
                     </AlertDescription>
                   </Alert>
                 ) : null}
+
+                <div className="space-y-3 border-t border-border pt-4">
+                  <label className="flex items-center gap-2 text-sm font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={manualSplitEnabled}
+                      onChange={(event) => setManualSplitEnabled(event.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    Manual split override (worker share by grams)
+                  </label>
+                  {manualSplitEnabled ? (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold">
+                          Worker share override (g)
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          value={workerShareOverride}
+                          onChange={(event) =>
+                            setWorkerShareOverride(event.target.value)
+                          }
+                          placeholder="0.000"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Must be greater than 0 and less than net gold.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold">
+                          Override reason
+                        </label>
+                        <Input
+                          value={splitOverrideReason}
+                          onChange={(event) =>
+                            setSplitOverrideReason(event.target.value)
+                          }
+                          placeholder="Reason for morale adjustment"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
 
@@ -490,7 +559,9 @@ export function ShiftAllocationModal({
                   Allocation Summary
                 </CardTitle>
                 <CardDescription>
-                  Net gold is split 50/50 between workers and company.
+                  {manualSplitEnabled
+                    ? "Manual override applied for worker/company split."
+                    : "Net gold is split 50/50 between workers and company."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -505,7 +576,7 @@ export function ShiftAllocationModal({
                   </div>
                   <div className="rounded-lg border border-border p-3">
                     <div className="text-xs text-muted-foreground">
-                      Workers (50%)
+                      Workers ({workerPercent.toFixed(1)}%)
                     </div>
                     <div className="text-lg font-semibold">
                       {workerShare.toFixed(3)} g
@@ -513,7 +584,7 @@ export function ShiftAllocationModal({
                   </div>
                   <div className="rounded-lg border border-border p-3">
                     <div className="text-xs text-muted-foreground">
-                      Company (50%)
+                      Company ({companyPercent.toFixed(1)}%)
                     </div>
                     <div className="text-lg font-semibold">
                       {companyShare.toFixed(3)} g

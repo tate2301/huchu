@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Save, Send, UserCheck, UserPlus, UserX } from "@/lib/icons";
-import Image from "next/image";
+import { Save, Send, UserCheck, UserX } from "@/lib/icons";
 
+import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import type { SearchableOption } from "@/app/gold/types";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { FieldHelp } from "@/components/shared/field-help";
@@ -19,102 +20,143 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchEmployees, fetchSites } from "@/lib/api";
+import {
+  fetchEmployees,
+  fetchShiftGroupMembers,
+  fetchShiftGroupSchedules,
+  fetchShiftGroups,
+  fetchSites,
+} from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
-interface CrewMember {
+type CrewStatus = "PRESENT" | "ABSENT" | "LATE";
+
+type CrewWorker = {
   id: string;
   employeeId: string;
   name: string;
-  status: "PRESENT" | "ABSENT" | "LATE";
+};
+
+type CrewStatusState = {
+  status: CrewStatus;
   overtime: string;
-}
+};
 
 export default function AttendancePage() {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
+
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split("T")[0],
+    date: new Date().toISOString().slice(0, 10),
     shift: "DAY",
     siteId: "",
+    shiftGroupId: "",
   });
-
-  const [crew, setCrew] = useState<CrewMember[]>([]);
-  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
-  const [passportUploading, setPassportUploading] = useState(false);
-  const [newEmployee, setNewEmployee] = useState({
-    name: "",
-    phone: "",
-    nextOfKinName: "",
-    nextOfKinPhone: "",
-    passportPhotoUrl: "",
-    villageOfOrigin: "",
-  });
-
-  const resetNewEmployee = () => {
-    setNewEmployee({
-      name: "",
-      phone: "",
-      nextOfKinName: "",
-      nextOfKinPhone: "",
-      passportPhotoUrl: "",
-      villageOfOrigin: "",
-    });
-    setPassportUploading(false);
-  };
+  const [statusByEmployeeId, setStatusByEmployeeId] = useState<Record<string, CrewStatusState>>({});
+  const [extraWorkers, setExtraWorkers] = useState<CrewWorker[]>([]);
+  const [workerSearch, setWorkerSearch] = useState("");
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
   });
+  const activeSiteId = formData.siteId || sites?.[0]?.id || "";
 
   const {
-    data: employeesData,
-    isLoading: employeesLoading,
-    error: employeesError,
+    data: shiftGroupsData,
+    isLoading: shiftGroupsLoading,
+    error: shiftGroupsError,
   } = useQuery({
-    queryKey: ["employees", "attendance"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+    queryKey: ["shift-groups", "attendance", activeSiteId],
+    queryFn: () =>
+      fetchShiftGroups({
+        siteId: activeSiteId || undefined,
+        active: true,
+        limit: 300,
+      }),
+    enabled: Boolean(activeSiteId),
+  });
+  const shiftGroups = useMemo(() => shiftGroupsData?.data ?? [], [shiftGroupsData]);
+
+  const { data: scheduleData } = useQuery({
+    queryKey: ["shift-group-schedules", "attendance", activeSiteId, formData.date, formData.shift],
+    queryFn: () =>
+      fetchShiftGroupSchedules({
+        siteId: activeSiteId,
+        date: formData.date,
+        shift: formData.shift as "DAY" | "NIGHT",
+        limit: 10,
+      }),
+    enabled: Boolean(activeSiteId && formData.date && formData.shift),
   });
 
-  useEffect(() => {
-    if (!formData.siteId && sites && sites.length > 0) {
-      setFormData((prev) => ({ ...prev, siteId: sites[0].id }));
-    }
-  }, [formData.siteId, sites]);
+  const scheduledShiftGroupId = scheduleData?.data?.[0]?.shiftGroupId ?? "";
+  const effectiveShiftGroupId = formData.shiftGroupId || scheduledShiftGroupId;
+  const selectedShiftGroup = shiftGroups.find((group) => group.id === effectiveShiftGroupId);
+  const effectiveShiftLeaderId =
+    selectedShiftGroup?.leaderEmployeeId ??
+    scheduleData?.data?.[0]?.shiftGroup?.leader?.id ??
+    "";
 
-  useEffect(() => {
-    if (!employeesData) return;
-    const employees = employeesData.data;
-    setCrew((prev) => {
-      const prevMap = new Map(prev.map((member) => [member.id, member]));
-      return employees.map((employee) =>
-        prevMap.get(employee.id) ?? {
-          id: employee.id,
-          employeeId: employee.employeeId,
-          name: employee.name,
-          status: "PRESENT",
-          overtime: "",
-        },
-      );
-    });
-  }, [employeesData]);
+  const {
+    data: groupMembersData,
+    isLoading: groupMembersLoading,
+    error: groupMembersError,
+  } = useQuery({
+    queryKey: ["shift-group-members", effectiveShiftGroupId],
+    queryFn: () => fetchShiftGroupMembers(effectiveShiftGroupId, { active: true }),
+    enabled: Boolean(effectiveShiftGroupId),
+  });
+
+  const baseWorkers = useMemo<CrewWorker[]>(
+    () =>
+      (groupMembersData?.data ?? []).map((member) => ({
+        id: member.employee.id,
+        employeeId: member.employee.employeeId,
+        name: member.employee.name,
+      })),
+    [groupMembersData],
+  );
+
+  const crewWorkers = useMemo(() => {
+    const map = new Map<string, CrewWorker>();
+    for (const worker of baseWorkers) map.set(worker.id, worker);
+    for (const worker of extraWorkers) map.set(worker.id, worker);
+    return Array.from(map.values());
+  }, [baseWorkers, extraWorkers]);
+
+  const crew = useMemo(
+    () =>
+      crewWorkers.map((worker) => ({
+        ...worker,
+        status: statusByEmployeeId[worker.id]?.status ?? "PRESENT",
+        overtime: statusByEmployeeId[worker.id]?.overtime ?? "",
+      })),
+    [crewWorkers, statusByEmployeeId],
+  );
+
+  const { data: workerSearchData } = useQuery({
+    queryKey: ["employees", "attendance", "search", workerSearch],
+    queryFn: () => fetchEmployees({ active: true, search: workerSearch.trim(), limit: 12 }),
+    enabled: workerSearch.trim().length >= 2,
+  });
+  const workerSearchResults = useMemo(() => workerSearchData?.data ?? [], [workerSearchData]);
 
   const attendanceMutation = useMutation({
     mutationFn: async (payload: {
       date: string;
       siteId: string;
       shift: "DAY" | "NIGHT";
+      shiftGroupId?: string;
+      shiftLeaderId?: string;
       records: Array<{
         employeeId: string;
-        status: "PRESENT" | "ABSENT" | "LATE";
+        status: CrewStatus;
         overtime?: number;
-        notes?: string;
       }>;
     }) =>
       fetchJson("/api/attendance", {
@@ -147,136 +189,36 @@ export default function AttendancePage() {
       );
       router.push(destination);
     },
-    onError: (error) => {
+    onError: (error) =>
       toast({
         title: "Unable to submit attendance",
         description: getApiErrorMessage(error),
         variant: "destructive",
-      });
-    },
-  });
-
-  const createEmployeeMutation = useMutation({
-    mutationFn: async (payload: typeof newEmployee) =>
-      fetchJson("/api/employees", {
-        method: "POST",
-        body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
-      toast({
-        title: "Employee added",
-        description: "New employee is available for attendance.",
-        variant: "success",
-      });
-      resetNewEmployee();
-      setAddEmployeeOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to add employee",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
   });
 
-  const handleSelectChange = (field: keyof typeof formData) => (value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const shiftGroupOptions = useMemo<SearchableOption[]>(
+    () =>
+      shiftGroups.map((group) => ({
+        value: group.id,
+        label: group.name,
+        description: `Leader: ${group.leader?.name ?? "Not set"}`,
+        meta: group.code || group.site?.code || undefined,
+      })),
+    [shiftGroups],
+  );
+
+  const updateCrew = (id: string, next: Partial<CrewStatusState>) => {
+    setStatusByEmployeeId((prev) => ({
+      ...prev,
+      [id]: { status: prev[id]?.status ?? "PRESENT", overtime: prev[id]?.overtime ?? "", ...next },
+    }));
   };
 
-  const handleAddEmployeeOpenChange = (open: boolean) => {
-    setAddEmployeeOpen(open);
-    if (!open) {
-      resetNewEmployee();
-    }
-  };
-
-  const handleNewEmployeeChange =
-    (field: keyof typeof newEmployee) => (event: React.ChangeEvent<HTMLInputElement>) => {
-      setNewEmployee((prev) => ({ ...prev, [field]: event.target.value }));
-    };
-
-  const uploadPassportPhoto = async (file: File) => {
-    const formDataPayload = new FormData();
-    formDataPayload.append("context", "employee-passport");
-    formDataPayload.append("file", file);
-
-    const response = await fetch("/api/uploads", {
-      method: "POST",
-      credentials: "include",
-      body: formDataPayload,
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      const message = data && typeof data.error === "string" ? data.error : "Upload failed";
-      throw new Error(message);
-    }
-
-    if (!data || typeof data.url !== "string") {
-      throw new Error("Upload response missing file URL");
-    }
-
-    return data.url as string;
-  };
-
-  const handlePassportPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setPassportUploading(true);
-    try {
-      const url = await uploadPassportPhoto(file);
-      setNewEmployee((prev) => ({ ...prev, passportPhotoUrl: url }));
-      toast({
-        title: "Photo uploaded",
-        description: "Passport photo saved successfully.",
-        variant: "success",
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed";
-      toast({
-        title: "Unable to upload photo",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setPassportUploading(false);
-      event.target.value = "";
-    }
-  };
-
-  const updateCrewStatus = (id: string, status: CrewMember["status"]) => {
-    setCrew((prev) => prev.map((member) => (member.id === id ? { ...member, status } : member)));
-  };
-
-  const updateOvertime = (id: string, overtime: string) => {
-    setCrew((prev) => prev.map((member) => (member.id === id ? { ...member, overtime } : member)));
-  };
-
-  const handleAddEmployeeSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (passportUploading) {
-      toast({
-        title: "Upload in progress",
-        description: "Wait for the passport photo to finish uploading.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!newEmployee.passportPhotoUrl) {
-      toast({
-        title: "Passport photo required",
-        description: "Upload a passport photo before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createEmployeeMutation.mutate(newEmployee);
+  const resetShiftContext = () => {
+    setStatusByEmployeeId({});
+    setExtraWorkers([]);
+    setWorkerSearch("");
   };
 
   const handleSaveDraft = () => {
@@ -284,23 +226,22 @@ export default function AttendancePage() {
       "attendanceDraft",
       JSON.stringify({
         ...formData,
+        siteId: activeSiteId,
+        shiftGroupId: effectiveShiftGroupId,
+        shiftLeaderId: effectiveShiftLeaderId,
         crew,
         savedAt: new Date().toISOString(),
       }),
     );
-    toast({
-      title: "Draft saved",
-      description: "Attendance saved locally on this device.",
-    });
+    toast({ title: "Draft saved", description: "Attendance saved locally on this device." });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.siteId) {
+    if (!activeSiteId || !effectiveShiftGroupId) {
       toast({
-        title: "Site required",
-        description: "Select a site before submitting attendance.",
+        title: "Missing details",
+        description: "Site and shift group are required.",
         variant: "destructive",
       });
       return;
@@ -309,16 +250,15 @@ export default function AttendancePage() {
     const records = crew.map((member) => ({
       employeeId: member.id,
       status: member.status,
-      overtime:
-        member.status === "ABSENT" || member.overtime.trim() === ""
-          ? undefined
-          : Number(member.overtime),
+      overtime: member.status === "ABSENT" || member.overtime.trim() === "" ? undefined : Number(member.overtime),
     }));
 
     attendanceMutation.mutate({
       date: formData.date,
-      siteId: formData.siteId,
+      siteId: activeSiteId,
       shift: formData.shift as "DAY" | "NIGHT",
+      shiftGroupId: effectiveShiftGroupId,
+      shiftLeaderId: effectiveShiftLeaderId || undefined,
       records,
     });
   };
@@ -326,8 +266,8 @@ export default function AttendancePage() {
   const presentCount = crew.filter((m) => m.status === "PRESENT" || m.status === "LATE").length;
   const absentCount = crew.filter((m) => m.status === "ABSENT").length;
 
-  const loading = sitesLoading || employeesLoading;
-  const error = sitesError || employeesError || attendanceMutation.error;
+  const loading = sitesLoading || groupMembersLoading;
+  const error = sitesError || shiftGroupsError || groupMembersError || attendanceMutation.error;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -335,119 +275,29 @@ export default function AttendancePage() {
         <Button size="sm" asChild variant="outline">
           <Link href="/reports/attendance">View Attendance Records</Link>
         </Button>
-        <Sheet open={addEmployeeOpen} onOpenChange={handleAddEmployeeOpenChange}>
-          <SheetTrigger asChild>
-            <Button size="sm" variant="outline" type="button">
-              <UserPlus className="h-4 w-4" />
-              Add Employee
-            </Button>
-          </SheetTrigger>
-          <SheetContent size="md" className="w-full p-6">
-            <SheetHeader>
-              <SheetTitle>Add Employee</SheetTitle>
-              <SheetDescription>Capture a new crew member for attendance.</SheetDescription>
-            </SheetHeader>
-            <form onSubmit={handleAddEmployeeSubmit} className="mt-6 space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Name *</label>
-                  <Input value={newEmployee.name} onChange={handleNewEmployeeChange("name")} placeholder="Full name" required />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Phone *</label>
-                  <Input
-                    type="tel"
-                    value={newEmployee.phone}
-                    onChange={handleNewEmployeeChange("phone")}
-                    placeholder="07xx xxx xxx"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Village of Origin *</label>
-                  <Input
-                    value={newEmployee.villageOfOrigin}
-                    onChange={handleNewEmployeeChange("villageOfOrigin")}
-                    placeholder="Village"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Next of Kin Name *</label>
-                  <Input
-                    value={newEmployee.nextOfKinName}
-                    onChange={handleNewEmployeeChange("nextOfKinName")}
-                    placeholder="Next of kin"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Next of Kin Phone *</label>
-                  <Input
-                    type="tel"
-                    value={newEmployee.nextOfKinPhone}
-                    onChange={handleNewEmployeeChange("nextOfKinPhone")}
-                    placeholder="07xx xxx xxx"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Passport Photo *</label>
-                <Input type="file" accept="image/*" onChange={handlePassportPhotoChange} disabled={passportUploading} />
-                <p className="text-xs text-muted-foreground">JPG, PNG, or WebP up to 5MB.</p>
-                {passportUploading ? <p className="text-xs text-muted-foreground">Uploading photo...</p> : null}
-                {newEmployee.passportPhotoUrl ? (
-                  <Image
-                    src={newEmployee.passportPhotoUrl}
-                    alt="Passport preview"
-                    width={80}
-                    height={80}
-                    className="h-20 w-20 rounded border object-cover"
-                  />
-                ) : null}
-              </div>
-
-              <Button
-                type="submit"
-                disabled={passportUploading || createEmployeeMutation.isPending}
-                className="w-full"
-              >
-                {createEmployeeMutation.isPending ? "Saving..." : "Save Employee"}
-              </Button>
-            </form>
-          </SheetContent>
-        </Sheet>
       </PageActions>
 
       <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
       <PageIntro
         title="Complete attendance in 3 steps"
-        purpose="Step 1: choose date, shift, and site. Step 2: mark each crew member status. Step 3: submit and verify the saved records in history."
+        purpose="Step 1: choose date, shift, site, and group. Step 2: mark each worker status. Step 3: submit and verify in history."
         nextStep="Confirm Shift Details first, then mark crew attendance."
       />
       <ContextHelp href="/help#attendance" />
 
-      {error && (
+      {error ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to submit attendance</AlertTitle>
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <FormShell
         title="Attendance Entry Form"
         description="Set shift details, mark crew status, and submit attendance."
         onSubmit={handleSubmit}
         formClassName="space-y-6"
-        requiredHint="Fields marked * are required. Submitting redirects to attendance history with the saved batch highlighted."
+        requiredHint="Fields marked * are required."
         actions={
           <>
             <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1 sm:flex-none">
@@ -464,7 +314,7 @@ export default function AttendancePage() {
         <Card>
           <CardHeader>
             <CardTitle>Shift Details</CardTitle>
-            <CardDescription>Date, shift, and site information</CardDescription>
+            <CardDescription>Date, shift, site, group, and shift leader</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -473,16 +323,24 @@ export default function AttendancePage() {
                 <Input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, date: e.target.value, shiftGroupId: "" }));
+                    resetShiftContext();
+                  }}
                   required
                 />
               </div>
-
               <div>
                 <label className="mb-2 block text-sm font-semibold">Shift *</label>
-                <Select name="shift" value={formData.shift} onValueChange={handleSelectChange("shift")} required>
+                <Select
+                  value={formData.shift}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, shift: value, shiftGroupId: "" }));
+                    resetShiftContext();
+                  }}
+                >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select shift" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="DAY">Day Shift</SelectItem>
@@ -490,13 +348,18 @@ export default function AttendancePage() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
                 <label className="mb-2 block text-sm font-semibold">Site *</label>
                 {sitesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
-                  <Select name="site" value={formData.siteId || undefined} onValueChange={handleSelectChange("siteId")} required>
+                  <Select
+                    value={activeSiteId || undefined}
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({ ...prev, siteId: value, shiftGroupId: "" }));
+                      resetShiftContext();
+                    }}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select site..." />
                     </SelectTrigger>
@@ -511,105 +374,100 @@ export default function AttendancePage() {
                 )}
               </div>
             </div>
+
+            {shiftGroupsLoading ? (
+              <Skeleton className="h-9 w-full" />
+            ) : (
+              <SearchableSelect
+                label="Shift Group *"
+                value={effectiveShiftGroupId || undefined}
+                options={shiftGroupOptions}
+                placeholder="Search shift group"
+                searchPlaceholder="Search group name or leader..."
+                onValueChange={(value) => {
+                  setFormData((prev) => ({ ...prev, shiftGroupId: value }));
+                  resetShiftContext();
+                }}
+                onAddOption={() => router.push("/human-resources/shift-groups")}
+                addLabel="Manage shift groups"
+              />
+            )}
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Shift Leader (Auto)</label>
+              <Input value={selectedShiftGroup?.leader?.name ?? ""} readOnly placeholder="Auto from group leader" />
+              <FieldHelp hint="Group leader is automatically used as shift leader for attendance." />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Out-of-Group Worker</CardTitle>
+            <CardDescription>Add extra workers who joined this shift.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Input value={workerSearch} onChange={(e) => setWorkerSearch(e.target.value)} placeholder="Search worker by name or ID" />
+            {workerSearch.trim().length >= 2 ? (
+              <div className="max-h-36 space-y-1 overflow-y-auto rounded border border-border p-2">
+                {workerSearchResults.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">No workers found.</div>
+                ) : (
+                  workerSearchResults.map((employee) => (
+                    <button
+                      key={employee.id}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        setExtraWorkers((prev) =>
+                          prev.some((worker) => worker.id === employee.id)
+                            ? prev
+                            : [...prev, { id: employee.id, name: employee.name, employeeId: employee.employeeId }],
+                        );
+                        setWorkerSearch("");
+                      }}
+                    >
+                      <span>{employee.name}</span>
+                      <span className="text-xs text-muted-foreground">{employee.employeeId}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <UserCheck className="h-8 w-8 text-green-600" />
-                <div>
-                  <div className="text-2xl font-bold">{presentCount}</div>
-                  <div className="text-sm text-muted-foreground">Present</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <UserX className="h-8 w-8 text-red-600" />
-                <div>
-                  <div className="text-2xl font-bold">{absentCount}</div>
-                  <div className="text-sm text-muted-foreground">Absent</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><UserCheck className="h-8 w-8 text-green-600" /><div><div className="text-2xl font-bold">{presentCount}</div><div className="text-sm text-muted-foreground">Present</div></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><UserX className="h-8 w-8 text-red-600" /><div><div className="text-2xl font-bold">{absentCount}</div><div className="text-sm text-muted-foreground">Absent</div></div></div></CardContent></Card>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Crew Attendance</CardTitle>
-            <CardDescription>Mark attendance for each crew member</CardDescription>
+            <CardDescription>Mark attendance for each worker</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <StatusState
-                variant="loading"
-                title="Loading crew list"
-                description="Please wait while we fetch active employees for this shift."
-              />
+              <StatusState variant="loading" title="Loading crew list" description="Please wait while we fetch shift group members." />
             ) : crew.length === 0 ? (
-              <StatusState
-                variant="empty"
-                title="No crew members available"
-                description="Add employees first, then return here to mark attendance."
-              />
+              <StatusState variant="empty" title="No crew members available" description="Select a shift group or add workers." />
             ) : (
               <div className="space-y-3">
                 {crew.map((member) => (
-                  <div
-                    key={member.id}
-                    className="flex flex-col gap-3 rounded-md border border-border bg-card/60 p-3 md:flex-row md:items-center"
-                  >
-                    <div className="flex-1">
-                      <div className="font-semibold">{member.name}</div>
-                      <div className="text-xs text-muted-foreground">ID: {member.employeeId}</div>
-                    </div>
-
+                  <div key={member.id} className="flex flex-col gap-3 rounded-md border border-border bg-card/60 p-3 md:flex-row md:items-center">
+                    <div className="flex-1"><div className="font-semibold">{member.name}</div><div className="text-xs text-muted-foreground">ID: {member.employeeId}</div></div>
                     <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={member.status === "PRESENT" ? "default" : "outline"}
-                        onClick={() => updateCrewStatus(member.id, "PRESENT")}
-                      >
-                        Present
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={member.status === "LATE" ? "secondary" : "outline"}
-                        onClick={() => updateCrewStatus(member.id, "LATE")}
-                      >
-                        Late
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={member.status === "ABSENT" ? "destructive" : "outline"}
-                        onClick={() => updateCrewStatus(member.id, "ABSENT")}
-                      >
-                        Absent
-                      </Button>
+                      <Button type="button" size="sm" variant={member.status === "PRESENT" ? "default" : "outline"} onClick={() => updateCrew(member.id, { status: "PRESENT" })}>Present</Button>
+                      <Button type="button" size="sm" variant={member.status === "LATE" ? "secondary" : "outline"} onClick={() => updateCrew(member.id, { status: "LATE" })}>Late</Button>
+                      <Button type="button" size="sm" variant={member.status === "ABSENT" ? "destructive" : "outline"} onClick={() => updateCrew(member.id, { status: "ABSENT" })}>Absent</Button>
                     </div>
-
-                    {(member.status === "PRESENT" || member.status === "LATE") && (
+                    {(member.status === "PRESENT" || member.status === "LATE") ? (
                       <div className="w-full md:w-32">
-                        <Input
-                          type="number"
-                          placeholder="OT hrs"
-                          value={member.overtime}
-                          onChange={(e) => updateOvertime(member.id, e.target.value)}
-                          step="0.5"
-                          className="h-9"
-                        />
+                        <Input type="number" placeholder="OT hrs" value={member.overtime} onChange={(e) => updateCrew(member.id, { overtime: e.target.value })} step="0.5" className="h-9" />
                         <FieldHelp hint="Optional overtime in hours." />
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>

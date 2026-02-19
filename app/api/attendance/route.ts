@@ -13,6 +13,8 @@ const attendanceSchema = z.object({
   date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   siteId: z.string().uuid(),
   shift: z.enum(['DAY', 'NIGHT']),
+  shiftGroupId: z.string().uuid().optional(),
+  shiftLeaderId: z.string().uuid().optional(),
   records: z.array(z.object({
     employeeId: z.string().uuid(),
     status: z.enum(['PRESENT', 'ABSENT', 'LATE']),
@@ -33,6 +35,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const employeeId = searchParams.get('employeeId');
     const date = searchParams.get('date');
+    const shiftGroupId = searchParams.get("shiftGroupId");
+    const shiftLeaderId = searchParams.get("shiftLeaderId");
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const search = searchParams.get("search")?.trim();
@@ -44,6 +48,8 @@ export async function GET(request: NextRequest) {
 
     if (siteId) where.siteId = siteId;
     if (employeeId) where.employeeId = employeeId;
+    if (shiftGroupId) where.shiftGroupId = shiftGroupId;
+    if (shiftLeaderId) where.shiftLeaderId = shiftLeaderId;
     if (shift === 'DAY' || shift === 'NIGHT') where.shift = shift;
     if (status) where.status = status;
 
@@ -67,10 +73,12 @@ export async function GET(request: NextRequest) {
       const statusMatches = ["PRESENT", "ABSENT", "LATE"].includes(normalizedSearch);
       where.OR = [
         { notes: { contains: search, mode: "insensitive" } },
+        { shiftLeaderName: { contains: search, mode: "insensitive" } },
         { employee: { name: { contains: search, mode: "insensitive" } } },
         { employee: { employeeId: { contains: search, mode: "insensitive" } } },
         { site: { name: { contains: search, mode: "insensitive" } } },
         { site: { code: { contains: search, mode: "insensitive" } } },
+        { shiftGroup: { name: { contains: search, mode: "insensitive" } } },
         ...(shiftMatches ? [{ shift: normalizedSearch }] : []),
         ...(statusMatches ? [{ status: normalizedSearch }] : []),
       ];
@@ -82,6 +90,14 @@ export async function GET(request: NextRequest) {
         include: {
           employee: { select: { id: true, name: true, employeeId: true } },
           site: { select: { id: true, name: true, code: true } },
+          shiftGroup: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              leader: { select: { id: true, name: true, employeeId: true } },
+            },
+          },
         },
         orderBy: [{ date: 'desc' }],
         skip,
@@ -118,6 +134,45 @@ export async function POST(request: NextRequest) {
 
     if (!site.isActive) {
       return errorResponse('Site is not active', 400);
+    }
+
+    let resolvedShiftLeaderId: string | undefined = validated.shiftLeaderId;
+    let resolvedShiftLeaderName: string | undefined;
+
+    if (validated.shiftGroupId) {
+      const shiftGroup = await prisma.shiftGroup.findUnique({
+        where: { id: validated.shiftGroupId },
+        select: {
+          id: true,
+          companyId: true,
+          siteId: true,
+          isActive: true,
+          leaderEmployeeId: true,
+          leader: { select: { name: true } },
+        },
+      });
+
+      if (!shiftGroup || shiftGroup.companyId !== session.user.companyId) {
+        return errorResponse("Invalid shift group", 403);
+      }
+      if (!shiftGroup.isActive) {
+        return errorResponse("Shift group is not active", 400);
+      }
+      if (shiftGroup.siteId !== validated.siteId) {
+        return errorResponse("Shift group does not belong to the selected site", 400);
+      }
+
+      resolvedShiftLeaderId = shiftGroup.leaderEmployeeId;
+      resolvedShiftLeaderName = shiftGroup.leader.name;
+    } else if (resolvedShiftLeaderId) {
+      const leader = await prisma.employee.findUnique({
+        where: { id: resolvedShiftLeaderId },
+        select: { id: true, companyId: true, isActive: true, name: true },
+      });
+      if (!leader || leader.companyId !== session.user.companyId || !leader.isActive) {
+        return errorResponse("Invalid shift leader", 400);
+      }
+      resolvedShiftLeaderName = leader.name;
     }
 
     const employeeIds = validated.records.map((record) => record.employeeId);
@@ -157,6 +212,9 @@ export async function POST(request: NextRequest) {
       date: attendanceDate,
       siteId: validated.siteId,
       shift: validated.shift,
+      shiftGroupId: validated.shiftGroupId,
+      shiftLeaderId: resolvedShiftLeaderId,
+      shiftLeaderName: resolvedShiftLeaderName,
       employeeId: record.employeeId,
       status: record.status,
       overtime: record.overtime || 0,
