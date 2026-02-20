@@ -1875,6 +1875,7 @@ model StockLocation {
 
   site  Site            @relation(fields: [siteId], references: [id])
   items InventoryItem[]
+  equipment Equipment[]
   incomingMovements StockMovement[] @relation("StockMovementDestination")
 
   @@index([siteId])
@@ -1944,6 +1945,8 @@ model Equipment {
   name          String
   category      String // CRUSHER, MILL, PUMP, VEHICLE, etc.
   siteId        String
+  locationId    String
+  numberOfItems Int     @default(1)
   qrCode        String? @unique
   isActive      Boolean @default(true)
 
@@ -1956,11 +1959,13 @@ model Equipment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  site       Site        @relation(fields: [siteId], references: [id])
+  site       Site          @relation(fields: [siteId], references: [id])
+  location   StockLocation @relation(fields: [locationId], references: [id])
   workOrders WorkOrder[]
 
   @@unique([siteId, equipmentCode])
   @@index([siteId])
+  @@index([locationId])
 }
 
 enum WorkOrderStatus {

@@ -9,7 +9,8 @@ const equipmentUpdateSchema = z
     name: z.string().min(1).max(200).optional(),
     category: z.enum(["CRUSHER", "MILL", "PUMP", "GENERATOR", "VEHICLE", "OTHER"]).optional(),
     siteId: z.string().uuid().optional(),
-    qrCode: z.string().max(100).optional(),
+    locationId: z.string().uuid().optional(),
+    numberOfItems: z.number().int().min(1).optional(),
     lastServiceDate: z
       .string()
       .datetime()
@@ -41,7 +42,10 @@ export async function GET(
 
     const equipment = await prisma.equipment.findUnique({
       where: { id },
-      include: { site: { select: { name: true, code: true, companyId: true } } },
+      include: {
+        site: { select: { name: true, code: true, companyId: true } },
+        location: { select: { id: true, code: true, name: true } },
+      },
     })
 
     if (!equipment) {
@@ -122,13 +126,25 @@ export async function PATCH(
       }
     }
 
+    if (validated.locationId || validated.siteId) {
+      const location = await prisma.stockLocation.findUnique({
+        where: { id: validated.locationId ?? existing.locationId },
+        select: { siteId: true, isActive: true },
+      })
+
+      if (!location || location.siteId !== targetSiteId || !location.isActive) {
+        return errorResponse("Invalid stock location for site", 400)
+      }
+    }
+
     const equipment = await prisma.equipment.update({
       where: { id },
       data: {
         name: validated.name,
         category: validated.category,
         siteId: validated.siteId,
-        qrCode: validated.qrCode,
+        locationId: validated.locationId,
+        numberOfItems: validated.numberOfItems,
         serviceHours: validated.serviceHours,
         serviceDays: validated.serviceDays,
         isActive: validated.isActive,
@@ -141,6 +157,7 @@ export async function PATCH(
       },
       include: {
         site: { select: { name: true, code: true } },
+        location: { select: { id: true, code: true, name: true } },
       },
     })
 

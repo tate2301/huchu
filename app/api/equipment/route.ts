@@ -9,7 +9,8 @@ const equipmentSchema = z.object({
   name: z.string().min(1).max(200),
   category: z.enum(['CRUSHER', 'MILL', 'PUMP', 'GENERATOR', 'VEHICLE', 'OTHER']),
   siteId: z.string().uuid(),
-  qrCode: z.string().max(100).optional(),
+  locationId: z.string().uuid(),
+  numberOfItems: z.number().int().min(1).optional().default(1),
   lastServiceDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   nextServiceDue: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   serviceHours: z.number().int().min(0).optional(),
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           site: { select: { name: true, code: true } },
+          location: { select: { id: true, code: true, name: true } },
         },
         orderBy: { name: 'asc' },
         skip,
@@ -82,6 +84,15 @@ export async function POST(request: NextRequest) {
       return errorResponse('Site is not active', 400);
     }
 
+    const location = await prisma.stockLocation.findUnique({
+      where: { id: validated.locationId },
+      select: { siteId: true, isActive: true },
+    });
+
+    if (!location || location.siteId !== validated.siteId || !location.isActive) {
+      return errorResponse("Invalid stock location for site", 400);
+    }
+
     // Check for duplicate code
     const existing = await prisma.equipment.findFirst({
       where: {
@@ -100,7 +111,8 @@ export async function POST(request: NextRequest) {
         name: validated.name,
         category: validated.category,
         siteId: validated.siteId,
-        qrCode: validated.qrCode,
+        locationId: validated.locationId,
+        numberOfItems: validated.numberOfItems,
         serviceHours: validated.serviceHours,
         serviceDays: validated.serviceDays,
         isActive: validated.isActive ?? true,
@@ -109,6 +121,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         site: { select: { name: true, code: true } },
+        location: { select: { id: true, code: true, name: true } },
       },
     });
 

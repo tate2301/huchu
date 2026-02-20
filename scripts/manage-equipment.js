@@ -98,9 +98,9 @@ function printUsage() {
   pnpm manage-equipment list [--company-id <uuid>] [--site-id <uuid>] [--active|--inactive] [--search <text>] [--limit <n>] [--skip <n>]
   pnpm manage-equipment show --id <uuid>
   pnpm manage-equipment show --equipment-code <code> [--site-id <uuid>] [--company-id <uuid>]
-  pnpm manage-equipment create --equipment-code <code> --name <name> --category <category> [--site-id <uuid>] [--company-id <uuid>] [--qr-code <text>] [--last-service-date <date>] [--next-service-due <date>] [--service-hours <n>] [--service-days <n>] [--inactive]
-  pnpm manage-equipment update --id <uuid> [--set-equipment-code <code>] [--name <name>] [--category <category>] [--qr-code <text>] [--last-service-date <date>] [--next-service-due <date>] [--service-hours <n>] [--service-days <n>] [--set-site-id <uuid>] [--active|--inactive]
-  pnpm manage-equipment update --equipment-code <code> [--site-id <uuid>] [--company-id <uuid>] [--set-equipment-code <code>] [--name <name>] [--category <category>] [--qr-code <text>] [--last-service-date <date>] [--next-service-due <date>] [--service-hours <n>] [--service-days <n>] [--set-site-id <uuid>] [--active|--inactive]
+  pnpm manage-equipment create --equipment-code <code> --name <name> --category <category> --location-id <uuid> [--number-of-items <n>] [--site-id <uuid>] [--company-id <uuid>] [--last-service-date <date>] [--next-service-due <date>] [--service-hours <n>] [--service-days <n>] [--inactive]
+  pnpm manage-equipment update --id <uuid> [--set-equipment-code <code>] [--name <name>] [--category <category>] [--location-id <uuid>] [--number-of-items <n>] [--last-service-date <date>] [--next-service-due <date>] [--service-hours <n>] [--service-days <n>] [--set-site-id <uuid>] [--active|--inactive]
+  pnpm manage-equipment update --equipment-code <code> [--site-id <uuid>] [--company-id <uuid>] [--set-equipment-code <code>] [--name <name>] [--category <category>] [--location-id <uuid>] [--number-of-items <n>] [--last-service-date <date>] [--next-service-due <date>] [--service-hours <n>] [--service-days <n>] [--set-site-id <uuid>] [--active|--inactive]
   pnpm manage-equipment activate --id <uuid>
   pnpm manage-equipment activate --equipment-code <code> [--site-id <uuid>] [--company-id <uuid>]
   pnpm manage-equipment deactivate --id <uuid>
@@ -195,6 +195,31 @@ async function resolveSite({ siteIdArg, companyIdArg, requireActive = false }) {
   return site;
 }
 
+async function resolveLocation(locationIdArg, siteId) {
+  if (!locationIdArg) {
+    throw new Error("Missing --location-id.");
+  }
+
+  const location = await prisma.stockLocation.findUnique({
+    where: { id: locationIdArg },
+    select: { id: true, siteId: true, name: true, isActive: true },
+  });
+
+  if (!location) {
+    throw new Error(`Stock location not found for id: ${locationIdArg}`);
+  }
+
+  if (location.siteId !== siteId) {
+    throw new Error("Stock location does not belong to the specified site.");
+  }
+
+  if (!location.isActive) {
+    throw new Error(`Stock location ${location.name} is not active.`);
+  }
+
+  return location;
+}
+
 async function resolveEquipment({ idArg, equipmentCodeArg, siteIdArg, companyIdArg }) {
   if (idArg) {
     const equipment = await prisma.equipment.findUnique({
@@ -282,7 +307,10 @@ async function listEquipment() {
 
   const equipment = await prisma.equipment.findMany({
     where,
-    include: { site: { select: { name: true, code: true } } },
+    include: {
+      site: { select: { name: true, code: true } },
+      location: { select: { name: true, code: true } },
+    },
     orderBy: { name: "asc" },
     skip,
     take: limit,
@@ -315,7 +343,8 @@ async function createEquipment() {
   const categoryArg = getArg("--category");
   const siteIdArg = getArg("--site-id");
   const companyIdArg = getArg("--company-id");
-  const qrCodeArg = getArg("--qr-code");
+  const locationIdArg = getArg("--location-id");
+  const numberOfItemsArg = getArg("--number-of-items");
 
   if (!equipmentCodeArg || !nameArg || !categoryArg) {
     printUsage();
@@ -325,7 +354,10 @@ async function createEquipment() {
   const equipmentCode = equipmentCodeArg.trim();
   const name = nameArg.trim();
   const category = parseCategory(categoryArg);
-  const qrCode = qrCodeArg ? qrCodeArg.trim() : undefined;
+  const numberOfItems = parseInteger(numberOfItemsArg, "number-of-items", {
+    min: 1,
+    fallback: 1,
+  });
 
   if (!equipmentCode) throw new Error("Equipment code cannot be empty.");
   if (!name) throw new Error("Equipment name cannot be empty.");
@@ -335,6 +367,7 @@ async function createEquipment() {
     companyIdArg,
     requireActive: true,
   });
+  await resolveLocation(locationIdArg, site.id);
 
   const existing = await prisma.equipment.findFirst({
     where: { equipmentCode, siteId: site.id },
@@ -343,16 +376,6 @@ async function createEquipment() {
 
   if (existing) {
     throw new Error(`Equipment code already exists for site: ${equipmentCode}`);
-  }
-
-  if (qrCode) {
-    const duplicateQr = await prisma.equipment.findFirst({
-      where: { qrCode },
-      select: { id: true },
-    });
-    if (duplicateQr) {
-      throw new Error(`QR code already in use: ${qrCode}`);
-    }
   }
 
   const lastServiceDate = parseDate(
@@ -378,14 +401,18 @@ async function createEquipment() {
       name,
       category,
       siteId: site.id,
-      qrCode,
+      locationId: locationIdArg,
+      numberOfItems,
       lastServiceDate,
       nextServiceDue,
       serviceHours,
       serviceDays,
       isActive,
     },
-    include: { site: { select: { name: true, code: true } } },
+    include: {
+      site: { select: { name: true, code: true } },
+      location: { select: { name: true, code: true } },
+    },
   });
 
   console.log("Equipment created:");
@@ -417,14 +444,12 @@ async function updateEquipment() {
 
   const category = parseCategory(getArg("--category"));
   if (category) data.category = category;
-
-  const qrCodeArg = getArg("--qr-code");
-  if (qrCodeArg !== undefined) {
-    const trimmed = qrCodeArg.trim();
-    if (!trimmed) {
-      throw new Error("QR code cannot be empty.");
-    }
-    data.qrCode = trimmed;
+  const locationIdArg = getArg("--location-id");
+  const numberOfItemsArg = getArg("--number-of-items");
+  if (numberOfItemsArg !== undefined) {
+    data.numberOfItems = parseInteger(numberOfItemsArg, "number-of-items", {
+      min: 1,
+    });
   }
 
   const lastServiceDate = parseDate(
@@ -456,6 +481,9 @@ async function updateEquipment() {
   if (setInactive) data.isActive = false;
 
   if (setSiteIdArg && setSiteIdArg !== equipment.siteId) {
+    if (!locationIdArg) {
+      throw new Error("Provide --location-id when changing site.");
+    }
     const site = await resolveSite({
       siteIdArg: setSiteIdArg,
       companyIdArg,
@@ -464,21 +492,15 @@ async function updateEquipment() {
     data.siteId = site.id;
   }
 
+  const targetSiteId = data.siteId ?? equipment.siteId;
+  if (locationIdArg) {
+    await resolveLocation(locationIdArg, targetSiteId);
+    data.locationId = locationIdArg;
+  }
+
   if (Object.keys(data).length === 0) {
     throw new Error("No update fields provided.");
   }
-
-  if (data.qrCode && data.qrCode !== equipment.qrCode) {
-    const duplicateQr = await prisma.equipment.findFirst({
-      where: { qrCode: data.qrCode, NOT: { id: equipment.id } },
-      select: { id: true },
-    });
-    if (duplicateQr) {
-      throw new Error(`QR code already in use: ${data.qrCode}`);
-    }
-  }
-
-  const targetSiteId = data.siteId ?? equipment.siteId;
   const targetCode = data.equipmentCode ?? equipment.equipmentCode;
   if (targetSiteId !== equipment.siteId || targetCode !== equipment.equipmentCode) {
     const duplicate = await prisma.equipment.findFirst({
@@ -497,7 +519,10 @@ async function updateEquipment() {
   const updated = await prisma.equipment.update({
     where: { id: equipment.id },
     data,
-    include: { site: { select: { name: true, code: true } } },
+    include: {
+      site: { select: { name: true, code: true } },
+      location: { select: { name: true, code: true } },
+    },
   });
 
   console.log("Equipment updated:");
@@ -520,7 +545,10 @@ async function setEquipmentActive(isActive) {
   const updated = await prisma.equipment.update({
     where: { id: equipment.id },
     data: { isActive },
-    include: { site: { select: { name: true, code: true } } },
+    include: {
+      site: { select: { name: true, code: true } },
+      location: { select: { name: true, code: true } },
+    },
   });
 
   console.log("Equipment updated:");
