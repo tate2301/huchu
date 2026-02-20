@@ -540,7 +540,10 @@ export type Equipment = {
   name: string;
   category: string;
   siteId?: string;
+  locationId: string;
+  numberOfItems: number;
   site: { name: string; code: string };
+  location: { id: string; code: string; name: string };
   qrCode?: string | null;
   lastServiceDate?: string | null;
   nextServiceDue?: string | null;

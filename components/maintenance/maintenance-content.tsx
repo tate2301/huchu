@@ -54,6 +54,7 @@ import {
   fetchEmployees,
   fetchEquipment,
   fetchSites,
+  fetchStockLocations,
   fetchWorkOrders,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -112,6 +113,38 @@ const formatDateTime = (value?: string | null) => {
   return format(new Date(value), "yyyy-MM-dd HH:mm");
 };
 
+const buildEquipmentQrPayload = (item: {
+  id: string;
+  equipmentCode: string;
+  name: string;
+  category: string;
+  siteId?: string;
+  locationId: string;
+  numberOfItems: number;
+}) =>
+  JSON.stringify({
+    type: "equipment-item",
+    version: 1,
+    id: item.id,
+    equipmentCode: item.equipmentCode,
+    name: item.name,
+    category: item.category,
+    siteId: item.siteId ?? "",
+    locationId: item.locationId,
+    numberOfItems: item.numberOfItems,
+  });
+
+const buildQrImageUrl = (payload: string) =>
+  `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`;
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export function MaintenanceContent({
   activeView,
 }: {
@@ -157,12 +190,24 @@ export function MaintenanceContent({
   const [editingEquipmentId, setEditingEquipmentId] = useState<string | null>(
     null,
   );
+  const [qrPreviewEquipment, setQrPreviewEquipment] = useState<{
+    id: string;
+    equipmentCode: string;
+    name: string;
+    category: string;
+    siteId?: string;
+    site?: { name: string; code: string };
+    locationId: string;
+    location?: { id: string; code: string; name: string };
+    numberOfItems: number;
+  } | null>(null);
   const [equipmentForm, setEquipmentForm] = useState({
     equipmentCode: "",
     name: "",
     category: "OTHER",
     siteId: "",
-    qrCode: "",
+    locationId: "",
+    numberOfItems: "1",
     lastServiceDate: "",
     nextServiceDue: "",
     serviceHours: "",
@@ -230,6 +275,19 @@ export function MaintenanceContent({
     enabled: !!activeSiteId,
   });
 
+  const stockLocationSiteId = equipmentForm.siteId || activeSiteId;
+  const { data: stockLocationsData, isLoading: stockLocationsLoading } =
+    useQuery({
+      queryKey: ["stock-locations", "active", stockLocationSiteId],
+      queryFn: () =>
+        fetchStockLocations({
+          siteId: stockLocationSiteId,
+          active: true,
+          limit: 200,
+        }),
+      enabled: !!stockLocationSiteId,
+    });
+
   const {
     data: employeesData,
     isLoading: employeesLoading,
@@ -241,12 +299,17 @@ export function MaintenanceContent({
 
   const equipment = equipmentData?.data ?? [];
   const workOrders = workOrdersData?.data ?? [];
+  const stockLocations = stockLocationsData?.data ?? [];
   const technicians = employeesData?.data ?? [];
   const hasSites = (sites?.length ?? 0) > 0;
   const hasEquipment = equipment.length > 0;
   const hasTechnicians = technicians.length > 0;
   const equipmentExportDisabled = equipmentLoading || equipment.length === 0;
   const workOrdersExportDisabled = workOrdersLoading || workOrders.length === 0;
+  const qrPreviewPayload = qrPreviewEquipment
+    ? buildEquipmentQrPayload(qrPreviewEquipment)
+    : "";
+  const qrPreviewImageUrl = qrPreviewPayload ? buildQrImageUrl(qrPreviewPayload) : "";
 
   const resetEquipmentForm = (
     overrides: Partial<typeof equipmentForm> = {},
@@ -256,7 +319,8 @@ export function MaintenanceContent({
       name: "",
       category: "OTHER",
       siteId: "",
-      qrCode: "",
+      locationId: "",
+      numberOfItems: "1",
       lastServiceDate: "",
       nextServiceDue: "",
       serviceHours: "",
@@ -308,6 +372,12 @@ export function MaintenanceContent({
     return Number.isNaN(parsed) ? undefined : parsed;
   };
 
+  const toRequiredInteger = (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return undefined;
+    return parsed;
+  };
+
   const openBreakdownForm = () => {
     if (!selectedSiteId && sites?.[0]?.id) {
       setSelectedSiteId(sites[0].id);
@@ -339,7 +409,8 @@ export function MaintenanceContent({
       name: item.name ?? "",
       category: item.category ?? "OTHER",
       siteId: item.siteId ?? selectedSiteId,
-      qrCode: item.qrCode ?? "",
+      locationId: item.locationId ?? "",
+      numberOfItems: String(item.numberOfItems ?? 1),
       lastServiceDate: formatDateInput(item.lastServiceDate),
       nextServiceDue: formatDateInput(item.nextServiceDue),
       serviceHours:
@@ -374,7 +445,12 @@ export function MaintenanceContent({
       setEquipmentForm((prev) => ({
         ...prev,
         [field]: value,
-        ...(field === "siteId" && !editingEquipmentId ? { equipmentCode: "" } : {}),
+        ...(field === "siteId"
+          ? {
+              locationId: "",
+              ...(!editingEquipmentId ? { equipmentCode: "" } : {}),
+            }
+          : {}),
       }));
     };
 
@@ -557,7 +633,7 @@ export function MaintenanceContent({
       });
       setSelectedSiteId(site.id);
       if (equipmentFormOpen) {
-        setEquipmentForm((prev) => ({ ...prev, siteId: site.id }));
+        setEquipmentForm((prev) => ({ ...prev, siteId: site.id, locationId: "" }));
       }
       setSiteFormOpen(false);
       resetSiteForm();
@@ -609,11 +685,25 @@ export function MaintenanceContent({
     const resolvedEquipmentCode = editingEquipmentId
       ? equipmentForm.equipmentCode
       : reservedEquipmentCode;
+    const numberOfItems = toRequiredInteger(equipmentForm.numberOfItems);
 
-    if (!equipmentForm.name.trim() || !equipmentForm.siteId) {
+    if (
+      !equipmentForm.name.trim() ||
+      !equipmentForm.siteId ||
+      !equipmentForm.locationId
+    ) {
       toast({
         title: "Missing details",
-        description: "Name and site are required.",
+        description: "Name, site, and location are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!numberOfItems || numberOfItems < 1) {
+      toast({
+        title: "Invalid item count",
+        description: "Number of items must be an integer of 1 or more.",
         variant: "destructive",
       });
       return;
@@ -634,7 +724,8 @@ export function MaintenanceContent({
       name: equipmentForm.name.trim(),
       category: equipmentForm.category,
       siteId: equipmentForm.siteId,
-      qrCode: equipmentForm.qrCode.trim() || undefined,
+      locationId: equipmentForm.locationId,
+      numberOfItems,
       lastServiceDate: equipmentForm.lastServiceDate || undefined,
       nextServiceDue: equipmentForm.nextServiceDue || undefined,
       serviceHours: toOptionalNumber(equipmentForm.serviceHours),
@@ -655,6 +746,86 @@ export function MaintenanceContent({
   const handleEquipmentDelete = (id: string) => {
     if (!window.confirm("Delete this equipment?")) return;
     deleteEquipmentMutation.mutate(id);
+  };
+
+  const handleQrPreviewOpenChange = (open: boolean) => {
+    if (!open) setQrPreviewEquipment(null);
+  };
+
+  const handleQrPrint = () => {
+    if (!qrPreviewEquipment) return;
+    const payload = buildEquipmentQrPayload(qrPreviewEquipment);
+    const imageUrl = buildQrImageUrl(payload);
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "noopener,noreferrer,width=460,height=640",
+    );
+
+    if (!printWindow) {
+      toast({
+        title: "Unable to open print preview",
+        description: "Allow popups and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const locationName = qrPreviewEquipment.location?.name ?? "-";
+    const siteName = qrPreviewEquipment.site?.name ?? "-";
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Equipment QR Label</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 24px; color: #111827; }
+            .label { border: 1px solid #d1d5db; border-radius: 12px; padding: 16px; max-width: 380px; margin: 0 auto; }
+            .meta { margin: 0 0 10px; font-size: 12px; line-height: 1.45; }
+            .meta strong { display: inline-block; min-width: 95px; }
+            .qr-wrap { display: flex; justify-content: center; margin: 12px 0; }
+            .qr { width: 260px; height: 260px; object-fit: contain; }
+            .payload { margin-top: 8px; font-size: 10px; word-break: break-all; color: #4b5563; }
+            @media print { body { padding: 0; } .label { border: none; max-width: 100%; } }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <p class="meta"><strong>Code:</strong> ${escapeHtml(qrPreviewEquipment.equipmentCode)}</p>
+            <p class="meta"><strong>Name:</strong> ${escapeHtml(qrPreviewEquipment.name)}</p>
+            <p class="meta"><strong>Site:</strong> ${escapeHtml(siteName)}</p>
+            <p class="meta"><strong>Location:</strong> ${escapeHtml(locationName)}</p>
+            <p class="meta"><strong>Items:</strong> ${escapeHtml(String(qrPreviewEquipment.numberOfItems))}</p>
+            <div class="qr-wrap">
+              <img id="qr-image" class="qr" src="${imageUrl}" alt="QR code" />
+            </div>
+            <div class="payload">${escapeHtml(payload)}</div>
+          </div>
+          <script>
+            (function () {
+              var img = document.getElementById("qr-image");
+              var printed = false;
+              function runPrint() {
+                if (printed) return;
+                printed = true;
+                window.focus();
+                window.print();
+                window.close();
+              }
+              if (!img || img.complete) {
+                setTimeout(runPrint, 120);
+                return;
+              }
+              img.addEventListener("load", function () { setTimeout(runPrint, 120); });
+              img.addEventListener("error", function () { setTimeout(runPrint, 120); });
+            })();
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const workOrderStatusInfo = (status: string) => {
@@ -1298,6 +1469,12 @@ export function MaintenanceContent({
                         Category
                       </TableHead>
                       <TableHead className="text-left p-3 text-sm font-semibold">
+                        Location
+                      </TableHead>
+                      <TableHead className="text-right p-3 text-sm font-semibold">
+                        Items
+                      </TableHead>
+                      <TableHead className="text-left p-3 text-sm font-semibold">
                         QR Code
                       </TableHead>
                       <TableHead className="text-left p-3 text-sm font-semibold">
@@ -1320,14 +1497,14 @@ export function MaintenanceContent({
                   <TableBody>
                     {equipmentLoading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="p-3">
+                        <TableCell colSpan={11} className="p-3">
                           <Skeleton className="h-10 w-full" />
                         </TableCell>
                       </TableRow>
                     ) : equipment.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={9}
+                          colSpan={11}
                           className="p-3 text-sm text-muted-foreground"
                         >
                           No equipment found for this site.
@@ -1349,13 +1526,20 @@ export function MaintenanceContent({
                             </TableCell>
                             <TableCell className="p-3 text-sm">{item.category}</TableCell>
                             <TableCell className="p-3 text-sm">
+                              {item.location?.name ?? "-"}
+                            </TableCell>
+                            <TableCell className="p-3 text-sm text-right font-semibold">
+                              {item.numberOfItems}
+                            </TableCell>
+                            <TableCell className="p-3 text-sm">
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="gap-2"
+                                onClick={() => setQrPreviewEquipment(item)}
                               >
                                 <QrCode className="h-4 w-4" />
-                                {item.qrCode || "—"}
+                                Preview
                               </Button>
                             </TableCell>
                             <TableCell className="p-3 text-sm">
@@ -1402,6 +1586,64 @@ export function MaintenanceContent({
                   </TableBody>
                 </Table>
               </div>
+
+              <Dialog
+                open={Boolean(qrPreviewEquipment)}
+                onOpenChange={handleQrPreviewOpenChange}
+              >
+                <DialogContent size="md" className="w-full p-6">
+                  <DialogHeader>
+                    <DialogTitle>Equipment QR Label</DialogTitle>
+                    <DialogDescription>
+                      Preview the generated QR code and print a label.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {qrPreviewEquipment ? (
+                    <div className="space-y-4">
+                      <div className="rounded-md border p-4 space-y-2">
+                        <p className="text-sm">
+                          <span className="font-semibold">Code:</span>{" "}
+                          {qrPreviewEquipment.equipmentCode}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-semibold">Name:</span>{" "}
+                          {qrPreviewEquipment.name}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-semibold">Location:</span>{" "}
+                          {qrPreviewEquipment.location?.name ?? "-"}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-semibold">Items:</span>{" "}
+                          {qrPreviewEquipment.numberOfItems}
+                        </p>
+                        <div className="flex justify-center py-2">
+                          <img
+                            src={qrPreviewImageUrl}
+                            alt={`QR code for ${qrPreviewEquipment.name}`}
+                            className="h-64 w-64 rounded border object-contain"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground break-all">
+                          {qrPreviewPayload}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button type="button" className="flex-1" onClick={handleQrPrint}>
+                          Print Label
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setQrPreviewEquipment(null)}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </DialogContent>
+              </Dialog>
 
               <Dialog
                 open={equipmentFormOpen}
@@ -1519,15 +1761,53 @@ export function MaintenanceContent({
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        QR Code
-                      </label>
-                      <Input
-                        value={equipmentForm.qrCode}
-                        onChange={handleEquipmentChange("qrCode")}
-                        placeholder="Optional"
-                      />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">
+                          Location *
+                        </label>
+                        {stockLocationsLoading ? (
+                          <Skeleton className="h-9 w-full" />
+                        ) : (
+                          <Select
+                            value={equipmentForm.locationId || undefined}
+                            onValueChange={(value) =>
+                              setEquipmentForm((prev) => ({ ...prev, locationId: value }))
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stockLocations.length === 0 ? (
+                                <SelectItem value="__no_locations__" disabled>
+                                  No active stock locations
+                                </SelectItem>
+                              ) : (
+                                stockLocations.map((location) => (
+                                  <SelectItem key={location.id} value={location.id}>
+                                    {location.name}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">
+                          Number of Items *
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={equipmentForm.numberOfItems}
+                          onChange={handleEquipmentChange("numberOfItems")}
+                          placeholder="1"
+                          required
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2077,6 +2357,8 @@ export function MaintenanceContent({
                   <th className="py-2">Code</th>
                   <th className="py-2">Equipment</th>
                   <th className="py-2">Category</th>
+                  <th className="py-2">Location</th>
+                  <th className="py-2 text-right">Items</th>
                   <th className="py-2">Site</th>
                   <th className="py-2">Last Service</th>
                   <th className="py-2">Next Service</th>
@@ -2091,6 +2373,8 @@ export function MaintenanceContent({
                       <td className="py-2 font-mono">{item.equipmentCode}</td>
                       <td className="py-2 font-semibold">{item.name}</td>
                       <td className="py-2">{item.category}</td>
+                      <td className="py-2">{item.location?.name ?? "-"}</td>
+                      <td className="py-2 text-right">{item.numberOfItems}</td>
                       <td className="py-2">{item.site?.code ?? "-"}</td>
                       <td className="py-2">
                         {formatDate(item.lastServiceDate)}
