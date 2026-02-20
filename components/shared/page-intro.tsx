@@ -17,16 +17,13 @@ export function PageIntro({
   actions,
   className,
 }: PageIntroProps) {
+  void purpose;
+  void nextStep;
+
   return (
-    <section className={cn("rounded-lg border bg-card p-4 sm:p-5", className)}>
-      <div className="space-y-2">
+    <section className={cn("rounded-xl border-0 bg-card p-4 shadow-[var(--surface-frame-shadow)] sm:p-5", className)}>
+      <div className="space-y-1">
         <h1 className="text-page-title text-foreground">{title}</h1>
-        <p className="text-sm text-muted-foreground">{purpose}</p>
-        {nextStep ? (
-          <p className="text-sm font-medium text-foreground">
-            Next: <span className="font-normal">{nextStep}</span>
-          </p>
-        ) : null}
       </div>
       {actions ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">{actions}</div>

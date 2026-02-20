@@ -136,7 +136,7 @@ export function Breadcrumbs() {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="flex items-center gap-2 text-sm text-muted-foreground"
+      className="flex items-center gap-2 text-[13px] text-muted-foreground"
     >
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1;

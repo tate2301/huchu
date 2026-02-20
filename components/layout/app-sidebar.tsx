@@ -241,7 +241,7 @@ export function AppSidebar() {
                       size="sm"
                       isActive={isActive}
                       tooltip={item.label}
-                      className="h-8 text-[13px]"
+                      className="h-8 text-[12.5px]"
                     >
                       <Link href={item.href}>
                         <item.icon className="h-4 w-4" />
@@ -268,9 +268,9 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   size="lg"
                   tooltip="Organization"
-                  className="h-[3.15rem] rounded-lg bg-sidebar-accent/75 shadow-[var(--surface-frame-shadow)]"
+                  className="h-[3.15rem] rounded-xl bg-sidebar-accent/85 shadow-[var(--surface-frame-shadow)]"
                 >
-                  <div className="bg-primary/15 text-primary flex aspect-square size-8 items-center justify-center rounded-lg shadow-[var(--surface-frame-shadow)]">
+                  <div className="bg-primary/10 text-primary flex aspect-square size-8 items-center justify-center rounded-lg shadow-[var(--surface-frame-shadow)]">
                     <Building2 className="h-4 w-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
@@ -289,7 +289,7 @@ export function AppSidebar() {
               <DropdownMenuContent
                 align="start"
                 side={isCollapsed ? "right" : isMobile ? "bottom" : "bottom"}
-                className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
+                className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
               >
                 <DropdownMenuItem asChild>
                   <Link href="/">
@@ -319,7 +319,7 @@ export function AppSidebar() {
                       <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
                           variant="default"
-                          className="h-9 bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                          className="h-9 rounded-lg bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
                           tooltip="Daily Shortcuts"
                         >
                           <Plus className="h-4 w-4" />
@@ -334,7 +334,7 @@ export function AppSidebar() {
                         side={
                           isCollapsed ? "right" : isMobile ? "bottom" : "bottom"
                         }
-                        className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
+                        className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
                       >
                         <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
                         <DropdownMenuSeparator />
@@ -418,7 +418,7 @@ export function AppSidebar() {
                         ? "Guided tips are on"
                         : "Guided tips are off"
                     }
-                    className="h-8 text-[12px]"
+                    className="h-8 text-[12.5px]"
                     onClick={() => setGuidedMode(!guidedModeEnabled)}
                   >
                     <HelpCircle className="h-4 w-4" />
@@ -434,7 +434,7 @@ export function AppSidebar() {
                         size="sm"
                         isActive={isActive}
                         tooltip={item.label}
-                        className="h-8 text-[12px]"
+                        className="h-8 text-[12.5px]"
                       >
                         <Link href={item.href}>
                           <item.icon className="h-4 w-4" />
@@ -452,14 +452,14 @@ export function AppSidebar() {
 
       <SidebarFooter className="pt-2">
         {session ? (
-          <div className="space-y-1.5 rounded-lg bg-sidebar-accent/55 p-1.5 shadow-[var(--surface-frame-shadow)]">
+          <div className="space-y-1.5 rounded-xl bg-sidebar-accent/65 p-1.5 shadow-[var(--surface-frame-shadow)]">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   tooltip="Account"
-                  className="h-10 rounded-lg bg-sidebar-accent/65 shadow-[var(--surface-frame-shadow)]"
+                  className="h-10 rounded-lg bg-sidebar-accent/75 shadow-[var(--surface-frame-shadow)]"
                 >
-                  <div className="bg-primary/15 text-primary flex size-8 items-center justify-center rounded-md text-xs font-semibold shadow-[var(--surface-frame-shadow)]">
+                  <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-md text-xs font-semibold shadow-[var(--surface-frame-shadow)]">
                     {getInitials(session.user?.name)}
                   </div>
                   <div className="min-w-0">
@@ -478,7 +478,7 @@ export function AppSidebar() {
               <DropdownMenuContent
                 align="start"
                 side={isCollapsed ? "right" : isMobile ? "bottom" : "top"}
-                className="w-64 border-0 shadow-[var(--surface-frame-shadow)]"
+                className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
               >
                 <DropdownMenuLabel>Account</DropdownMenuLabel>
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">

@@ -80,10 +80,10 @@ export function ExecutiveKpiGrid({
             const deltaLabel = formatDelta(item);
 
             return (
-              <div key={item.id} className="rounded-md border border-border/60 bg-card/95 p-4">
+              <div key={item.id} className="surface-framed rounded-md border border-border/60 bg-card/95 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                  <Badge variant="neutral" className="text-[10px] uppercase tracking-wide">
                     {item.module}
                   </Badge>
                 </div>
@@ -92,11 +92,8 @@ export function ExecutiveKpiGrid({
                 </p>
                 {deltaLabel ? (
                   <Badge
-                    variant={trendNegative ? "destructive" : "secondary"}
-                    className={cn(
-                      "mt-3 inline-flex gap-1 font-mono tabular-nums",
-                      trendPositive && "bg-emerald-100 text-emerald-700",
-                    )}
+                    variant={trendNegative ? "danger" : trendPositive ? "success" : "neutral"}
+                    className={cn("mt-3 inline-flex gap-1 font-mono tabular-nums")}
                   >
                     {trendPositive ? <ArrowUpward className="h-3.5 w-3.5" /> : null}
                     {trendNegative ? <ArrowDownward className="h-3.5 w-3.5" /> : null}

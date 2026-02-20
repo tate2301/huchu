@@ -175,7 +175,7 @@ function QuickActionTile({ link }: { link: ExecutiveQuickLink }) {
     <Link
       href={link.href}
       className={cn(
-        "group flex min-h-24 items-center gap-3 rounded-md border border-border/70 bg-background/70 px-4 py-3 transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "surface-framed group flex min-h-24 items-center gap-3 rounded-md border border-border/70 bg-background/70 px-4 py-3 transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -228,6 +228,8 @@ export function ExecutiveQuickLinks({
   showPrimary = true,
   showSecondary = true,
 }: ExecutiveQuickLinksProps) {
+  void description;
+
   const sortedLinks = useMemo(() => {
     return [...links].sort((a, b) => {
       if (a.isPrimary && !b.isPrimary) return -1;
@@ -271,9 +273,8 @@ export function ExecutiveQuickLinks({
 
   return (
     <section className={cn("space-y-3", className)}>
-      <div className="space-y-1">
+      <div className="space-y-0">
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       <div>
         {hasPrimary ? (
@@ -299,7 +300,7 @@ export function ExecutiveQuickLinks({
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {groupedSecondaryLinks.map((group) => (
-                  <div key={group.module} className="rounded-md border border-border/60 bg-background/60 p-2.5">
+                  <div key={group.module} className="surface-framed rounded-lg border border-border/60 bg-[var(--surface-subtle)] p-2.5">
                     <div className="mb-1.5 flex items-center gap-2">
                       <p className="text-sm font-semibold">{group.label}</p>
                     </div>

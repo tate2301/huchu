@@ -22,6 +22,8 @@ export function WorkflowStep({
   className,
   children,
 }: WorkflowStepProps) {
+  void description;
+
   return (
     <section className={cn("space-y-3", className)}>
       <header className="section-shell flex flex-wrap items-start justify-between gap-3">
@@ -36,7 +38,6 @@ export function WorkflowStep({
               )
             ) : null}
           </div>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>

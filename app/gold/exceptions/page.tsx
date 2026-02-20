@@ -241,7 +241,7 @@ export default function GoldExceptionsPage() {
       {
         id: "entityType",
         header: "Type",
-        cell: ({ row }) => <Badge variant="outline">{row.original.entityType}</Badge>,
+        cell: ({ row }) => <Badge variant="neutral">{row.original.entityType}</Badge>,
       },
       { id: "reference", header: "Reference", accessorKey: "reference" },
       { id: "reason", header: "Reason", accessorKey: "reason" },
@@ -438,3 +438,4 @@ export default function GoldExceptionsPage() {
     </GoldShell>
   );
 }
+
