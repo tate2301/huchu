@@ -53,7 +53,7 @@ export function StatusState({
   return (
     <section
       className={cn(
-        "flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border p-5 text-center",
+        "flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border p-5 text-center shadow-[var(--surface-frame-shadow)]",
         variantClass[variant],
         className
       )}

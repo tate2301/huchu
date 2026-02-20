@@ -370,7 +370,7 @@ export default function DisbursementsPage() {
         id: "type",
         header: "Type",
         cell: ({ row }) => (
-          <Badge variant="outline">
+          <Badge variant="neutral">
             {row.original.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
           </Badge>
         ),
@@ -434,7 +434,7 @@ export default function DisbursementsPage() {
         id: "type",
         header: "Type",
         cell: ({ row }) => (
-          <Badge variant="outline">
+          <Badge variant="neutral">
             {row.original.payrollRun.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
           </Badge>
         ),
@@ -480,7 +480,7 @@ export default function DisbursementsPage() {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
+          <Badge variant={row.original.status === "PAID" ? "success" : "warning"}>
             {row.original.status}
           </Badge>
         ),
@@ -588,7 +588,7 @@ export default function DisbursementsPage() {
         header: "Status",
         accessorKey: "status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
+          <Badge variant={row.original.status === "PAID" ? "success" : "warning"}>
             {row.original.status}
           </Badge>
         ),
@@ -992,3 +992,4 @@ export default function DisbursementsPage() {
     </HrShell>
   );
 }
+

@@ -20,7 +20,7 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "17.75rem";
+const SIDEBAR_WIDTH = "18.5rem";
 const SIDEBAR_WIDTH_ICON = "3.5rem";
 const SIDEBAR_WIDTH_MOBILE = "20rem";
 
@@ -155,7 +155,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible}
         data-variant={variant}
         className={cn(
-          "peer group/sidebar relative flex h-screen flex-col border-0 bg-muted text-sidebar-foreground shadow-[var(--surface-frame-shadow)] transition-[width] duration-200",
+          "peer group/sidebar relative flex h-screen flex-col border-0 bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width] duration-200",
           collapsible === "icon" && state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -198,7 +198,7 @@ const SidebarHeader = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="header"
-    className={cn("flex flex-col gap-2 px-2 pt-2.5 pb-2", className)}
+    className={cn("flex flex-col gap-2 px-2 pt-3 pb-2", className)}
     {...props}
   />
 ));
@@ -211,7 +211,7 @@ const SidebarFooter = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="footer"
-    className={cn("mt-auto px-2 pt-2 pb-2.5", className)}
+    className={cn("mt-auto px-2 pt-2 pb-3", className)}
     {...props}
   />
 ));
@@ -254,7 +254,7 @@ const SidebarGroupLabel = React.forwardRef<
     ref={ref}
     data-sidebar="group-label"
     className={cn(
-      "px-2 text-[11px] font-semibold tracking-[0.06em] text-foreground/65",
+      "px-2 text-[11px] font-semibold tracking-[0.08em] text-foreground/60",
       className,
     )}
     {...props}
@@ -302,7 +302,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "relative flex w-full items-center gap-2 rounded px-2 py-2 text-[13px] font-medium text-sidebar-foreground/80 transition-[color,background-color,box-shadow] duration-150 hover:bg-background hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)] hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground data-[active=true]:before:bg-primary data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:mx-auto data-[collapsed=true]:[&_span]:hidden data-[collapsed=true]:before:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
+  "relative flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[13px] font-medium text-sidebar-foreground/80 transition-[color,background-color,box-shadow] duration-150 hover:bg-[var(--surface-elevated)] hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)] hover:text-foreground data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:mx-auto data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
   {
     variants: {
       variant: {
@@ -384,7 +384,7 @@ const SidebarInput = React.forwardRef<
     ref={ref}
     data-sidebar="input"
     className={cn(
-      "h-8 rounded-lg bg-sidebar-accent/70 shadow-[var(--surface-frame-shadow)]",
+      "h-[var(--control-height-sm)] rounded-lg bg-sidebar-accent/85 shadow-[var(--surface-frame-shadow)]",
       className,
     )}
     {...props}

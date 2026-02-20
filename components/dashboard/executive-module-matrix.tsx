@@ -83,9 +83,9 @@ function formatTrendDelta(delta?: number) {
 }
 
 function getStatusBadgeClass(status: ExecutiveModuleSummary["status"]) {
-  if (status === "critical") return "bg-destructive/10 text-destructive";
-  if (status === "watch") return "bg-amber-100 text-amber-700";
-  return "bg-emerald-100 text-emerald-700";
+  if (status === "critical") return "danger" as const;
+  if (status === "watch") return "warning" as const;
+  return "success" as const;
 }
 
 function getStatusSurfaceClass(status: ExecutiveModuleSummary["status"]) {
@@ -117,14 +117,14 @@ export function ExecutiveModuleMatrix({
 }: ExecutiveModuleMatrixProps) {
   if (isLoading) {
     return (
-      <section className="space-y-3">
-        <div className="space-y-1">
+      <section className="space-y-2">
+        <div className="space-y-0.5">
           <Skeleton className="h-5 w-44" />
           <Skeleton className="h-4 w-80" />
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 9 }).map((_, index) => (
-            <div key={`executive-module-matrix-skeleton-${index}`} className="rounded-md border border-border/60 p-4">
+            <div key={`executive-module-matrix-skeleton-${index}`} className="rounded-lg border border-border/60 p-3">
               <Skeleton className="h-4 w-24" />
               <Skeleton className="mt-3 h-8 w-32" />
               <Skeleton className="mt-3 h-12 w-full" />
@@ -159,15 +159,15 @@ export function ExecutiveModuleMatrix({
   const moduleMap = new Map(items.map((item) => [item.module, item] as const));
 
   return (
-    <section className="space-y-3">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">Module Matrix</h3>
+    <section className="space-y-2">
+      <div className="space-y-0.5">
+        <h3 className="text-base font-semibold tracking-tight">Module Matrix</h3>
         <p className="text-sm text-muted-foreground">
           Finance-first module cards with status, metrics, exceptions, trend, and report links.
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {EXECUTIVE_MODULE_ORDER.map((moduleKey) => {
           const summary = moduleMap.get(moduleKey);
           const meta = MODULE_META[moduleKey];
@@ -176,16 +176,16 @@ export function ExecutiveModuleMatrix({
           if (!summary) {
             return (
               <Card key={moduleKey} className="border border-dashed border-border/70 bg-muted/30">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
                       <Icon className="h-4 w-4" />
                     </div>
-                    <CardTitle className="text-base">{meta.label}</CardTitle>
+                    <CardTitle className="text-sm">{meta.label}</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-sm text-muted-foreground">No summary data is available for this module.</p>
+                <CardContent className="pt-0 pb-3">
+                  <p className="text-xs text-muted-foreground">No summary data is available for this module.</p>
                 </CardContent>
               </Card>
             );
@@ -200,39 +200,39 @@ export function ExecutiveModuleMatrix({
                 : "text-muted-foreground";
 
           return (
-            <Card key={moduleKey} className={cn("pb-3", getStatusSurfaceClass(summary.status))}>
-              <CardHeader className="space-y-3 border-b border-border/60 pb-3">
+            <Card key={moduleKey} className={cn("pb-2", getStatusSurfaceClass(summary.status))}>
+              <CardHeader className="space-y-2 border-b border-border/60 pb-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <CardTitle className="text-base">{meta.label}</CardTitle>
-                      <CardDescription className="text-xs">Module status and key pressure metrics.</CardDescription>
+                      <CardTitle className="text-sm">{meta.label}</CardTitle>
+                      <CardDescription className="text-[11px]">Module status and pressure metrics.</CardDescription>
                     </div>
                   </div>
-                  <Badge variant="secondary" className={cn("text-[11px] uppercase", getStatusBadgeClass(summary.status))}>
+                  <Badge variant={getStatusBadgeClass(summary.status)} className="text-[11px] uppercase">
                     {getStatusLabel(summary.status)}
                   </Badge>
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-3 pt-3">
+              <CardContent className="space-y-2.5 pt-2">
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{summary.primaryMetric.label}</p>
-                  <p className="mt-1 break-words font-mono text-2xl font-semibold tabular-nums">{formatMetric(summary.primaryMetric)}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{summary.primaryMetric.label}</p>
+                  <p className="mt-1 break-words font-mono text-xl font-semibold tabular-nums">{formatMetric(summary.primaryMetric)}</p>
                 </div>
 
                 {summary.secondaryMetric || summary.tertiaryMetric ? (
-                  <div className="space-y-2 rounded-md bg-muted/45 p-2.5">
+                  <div className="space-y-1.5 rounded-md bg-muted/45 p-2">
                     {summary.secondaryMetric ? <SecondaryMetricLine metric={summary.secondaryMetric} /> : null}
                     {summary.tertiaryMetric ? <SecondaryMetricLine metric={summary.tertiaryMetric} /> : null}
                   </div>
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Badge variant="outline" className="font-mono text-[11px] tabular-nums">
+                  <Badge variant="neutral" className="font-mono text-[11px] tabular-nums">
                     {summary.openExceptions} open exceptions
                   </Badge>
                   <span className={cn("inline-flex items-center gap-1.5 text-xs font-mono tabular-nums", trendClass)}>
@@ -243,13 +243,13 @@ export function ExecutiveModuleMatrix({
                   </span>
                 </div>
 
-                <p className="min-h-9 text-xs text-muted-foreground">
+                <p className="min-h-8 text-[11px] text-muted-foreground">
                   {summary.topExceptionLabel || "No dominant exception label."}
                 </p>
 
                 <Link
                   href={summary.reportHref}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary transition-colors hover:text-primary/80"
                 >
                   Open report
                   <ArrowRight className="h-3.5 w-3.5" />

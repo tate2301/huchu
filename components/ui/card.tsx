@@ -7,7 +7,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col rounded-md pb-4 border-0 shadow-[var(--surface-frame-shadow)]",
+        "bg-card text-card-foreground relative isolate flex flex-col rounded-[calc(var(--radius)+2px)] pb-4 border-0 shadow-[var(--card-shadow-rest)]",
         className,
       )}
       {...props}
@@ -20,7 +20,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-[var(--section-gutter-x)] pt-4 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-4",
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-[var(--section-gutter-x)] pt-4 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:border-[var(--card-divider)] [.border-b]:pb-4",
         className,
       )}
       {...props}
@@ -42,13 +42,9 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-description"
-      className={cn("text-muted-foreground text-sm", className)}
-      {...props}
-    />
-  );
+  void className;
+  void props;
+  return null;
 }
 
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
@@ -79,7 +75,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center px-[var(--section-gutter-x)] pb-4 [.border-t]:pt-4",
+        "flex items-center px-[var(--section-gutter-x)] pb-4 [.border-t]:border-[var(--card-divider)] [.border-t]:pt-4",
         className,
       )}
       {...props}

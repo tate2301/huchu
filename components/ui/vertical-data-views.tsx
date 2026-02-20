@@ -30,10 +30,10 @@ export function VerticalDataViews({
 }: VerticalDataViewsProps) {
   return (
     <section
-      className={cn("grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]", className)}
+      className={cn("grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]", className)}
     >
       <aside className="section-shell space-y-2">
-        <h3 className="text-sm font-semibold tracking-wide text-foreground">
+        <h3 className="text-xs font-semibold tracking-[0.08em] text-foreground">
           {railLabel}
         </h3>
         <div className="space-y-2">
@@ -42,7 +42,7 @@ export function VerticalDataViews({
               key={item.id}
               type="button"
               variant={item.id === value ? "default" : "outline"}
-              className="w-full justify-between"
+              className="h-[var(--control-height-md)] w-full justify-between"
               onClick={() => onValueChange(item.id)}
             >
               <span className="truncate text-left">{item.label}</span>

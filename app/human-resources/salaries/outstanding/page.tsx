@@ -182,7 +182,7 @@ export default function OutstandingSalariesPage() {
         header: "Status",
         accessorKey: "status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "PARTIAL" ? "secondary" : "outline"}>
+          <Badge variant={row.original.status === "PARTIAL" ? "warning" : "neutral"}>
             {row.original.status}
           </Badge>
         ),

@@ -479,23 +479,31 @@ export default function HumanResourcesPage() {
             <img
               src={row.original.passportPhotoUrl}
               alt={row.original.name}
-              className="h-10 w-10 rounded border object-cover"
+              className="h-10 w-10 rounded-lg object-cover shadow-[var(--edge-outline-sharp)]"
             />
             <div>
               <div className="font-semibold">{row.original.name}</div>
-              <div className="text-xs text-muted-foreground">ID: {row.original.employeeId}</div>
+              <div className="font-mono text-xs text-muted-foreground">
+                ID: {row.original.employeeId}
+              </div>
             </div>
           </div>
         ),
       },
       {
-        accessorKey: "phone",
+        id: "phone",
         header: "Contact",
+        cell: ({ row }) => <span className="font-mono">{row.original.phone}</span>,
       },
       {
         id: "nationalIdNumber",
         header: "National ID",
-        cell: ({ row }) => row.original.nationalIdNumber || "-",
+        cell: ({ row }) =>
+          row.original.nationalIdNumber ? (
+            <span className="font-mono">{row.original.nationalIdNumber}</span>
+          ) : (
+            "-"
+          ),
       },
       {
         id: "position",
@@ -558,8 +566,8 @@ export default function HumanResourcesPage() {
         id: "goldOwed",
         header: "Gold Owed",
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">{row.original.goldOwed.toFixed(3)} g</div>
+          <div className="text-right">
+            <div className="font-mono font-semibold">{row.original.goldOwed.toFixed(3)} g</div>
             <div className="text-xs text-muted-foreground">Outstanding gold</div>
           </div>
         ),
@@ -568,8 +576,8 @@ export default function HumanResourcesPage() {
         id: "salaryOwed",
         header: "Salary Owed",
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">${row.original.salaryOwed.toFixed(2)}</div>
+          <div className="text-right">
+            <div className="font-mono font-semibold">${row.original.salaryOwed.toFixed(2)}</div>
             <div className="text-xs text-muted-foreground">Outstanding salary</div>
           </div>
         ),
@@ -578,7 +586,7 @@ export default function HumanResourcesPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+          <Badge variant={row.original.isActive ? "default" : "destructive"}>
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
@@ -588,12 +596,17 @@ export default function HumanResourcesPage() {
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(row.original)}>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              onClick={() => handleEdit(row.original)}
+            >
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
               type="button"
-              size="sm"
+              size="icon-sm"
               variant="destructive"
               onClick={() => handleDelete(row.original.id)}
               disabled={deleteEmployeeMutation.isPending}

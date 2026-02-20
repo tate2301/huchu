@@ -297,7 +297,7 @@ export function ShiftAllocationModal({
                 {selectedShift ? (
                   <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
                     <div className="flex flex-wrap items-center gap-3">
-                      <Badge variant="outline">
+                      <Badge variant="neutral">
                         {selectedShift.shift} - {selectedShift.date}
                       </Badge>
                       <Badge variant="secondary">

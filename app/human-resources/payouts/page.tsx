@@ -64,7 +64,7 @@ type ShiftPayoutGroup = {
 };
 
 function workflowBadgeVariant(status: ShiftPayoutGroup["workflowStatus"]) {
-  return status === "APPROVED" ? "secondary" : "outline";
+  return status === "APPROVED" ? "success" : "warning";
 }
 
 function toDateOnly(value: string | Date) {
@@ -374,9 +374,9 @@ export default function HrPayoutsPage() {
         accessorFn: (row) => `paid:${row.paidCount} partial:${row.partialCount} due:${row.dueCount}`,
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">Paid {row.original.paidCount}</Badge>
-            {row.original.partialCount > 0 ? <Badge variant="outline">Partial {row.original.partialCount}</Badge> : null}
-            {row.original.dueCount > 0 ? <Badge variant="outline">Due {row.original.dueCount}</Badge> : null}
+            <Badge variant="success">Paid {row.original.paidCount}</Badge>
+            {row.original.partialCount > 0 ? <Badge variant="warning">Partial {row.original.partialCount}</Badge> : null}
+            {row.original.dueCount > 0 ? <Badge variant="neutral">Due {row.original.dueCount}</Badge> : null}
           </div>
         ),
       },
@@ -489,11 +489,15 @@ export default function HrPayoutsPage() {
       id: "status",
       header: "Status",
       accessorKey: "status",
-      cell: ({ row }) => (
-        <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
-          {row.original.status}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const variant =
+          row.original.status === "PAID"
+            ? "success"
+            : row.original.status === "PARTIAL"
+              ? "warning"
+              : "neutral";
+        return <Badge variant={variant}>{row.original.status}</Badge>;
+      },
     },
     {
       id: "paid",
@@ -588,7 +592,7 @@ export default function HrPayoutsPage() {
                   Export PDF
                 </Button>
                 {allocationIdFilter ? (
-                  <Badge variant="outline">Focused: {allocationIdFilter}</Badge>
+                  <Badge variant="neutral">Focused: {allocationIdFilter}</Badge>
                 ) : null}
                 <span className="text-xs text-muted-foreground">
                   Shifts <span className="font-mono text-foreground">{payoutGroups.length}</span>
@@ -757,3 +761,5 @@ export default function HrPayoutsPage() {
     </HrShell>
   );
 }
+
+

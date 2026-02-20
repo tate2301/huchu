@@ -306,10 +306,10 @@ export default function GoldPage() {
           <Badge
             variant={
               row.original.status === "Complete"
-                ? "default"
+                ? "success"
                 : row.original.status === "Dispatched"
-                  ? "secondary"
-                  : "outline"
+                  ? "info"
+                  : "warning"
             }
           >
             {row.original.status}

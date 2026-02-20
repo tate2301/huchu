@@ -496,7 +496,7 @@ export default function CompensationPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "outline"}>
+          <Badge variant={row.original.isActive ? "success" : "neutral"}>
             {row.original.isActive ? "ACTIVE" : "INACTIVE"}
           </Badge>
         ),
@@ -548,7 +548,7 @@ export default function CompensationPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "ACTIVE" ? "secondary" : "outline"}>
+          <Badge variant={row.original.status === "ACTIVE" ? "success" : "neutral"}>
             {row.original.status}
           </Badge>
         ),
@@ -557,7 +557,7 @@ export default function CompensationPage() {
         id: "workflow",
         header: "Workflow",
         cell: ({ row }) => (
-          <Badge variant={row.original.workflowStatus === "APPROVED" ? "secondary" : "outline"}>
+          <Badge variant={row.original.workflowStatus === "APPROVED" ? "success" : "neutral"}>
             {row.original.workflowStatus}
           </Badge>
         ),
@@ -666,7 +666,7 @@ export default function CompensationPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "outline"}>
+          <Badge variant={row.original.isActive ? "success" : "neutral"}>
             {row.original.isActive ? "ACTIVE" : "INACTIVE"}
           </Badge>
         ),
@@ -675,7 +675,7 @@ export default function CompensationPage() {
         id: "workflow",
         header: "Workflow",
         cell: ({ row }) => (
-          <Badge variant={row.original.workflowStatus === "APPROVED" ? "secondary" : "outline"}>
+          <Badge variant={row.original.workflowStatus === "APPROVED" ? "success" : "neutral"}>
             {row.original.workflowStatus}
           </Badge>
         ),
@@ -1379,5 +1379,6 @@ export default function CompensationPage() {
     </HrShell>
   )
 }
+
 
 

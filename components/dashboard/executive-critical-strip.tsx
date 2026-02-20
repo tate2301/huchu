@@ -47,9 +47,9 @@ function formatTrendDelta(delta?: number) {
 }
 
 function getStatusBadgeClass(status: ExecutiveModuleSummary["status"]) {
-  if (status === "critical") return "bg-destructive/10 text-destructive";
-  if (status === "watch") return "bg-amber-100 text-amber-700";
-  return "bg-emerald-100 text-emerald-700";
+  if (status === "critical") return "danger" as const;
+  if (status === "watch") return "warning" as const;
+  return "success" as const;
 }
 
 function getStatusLabel(status: ExecutiveModuleSummary["status"]) {
@@ -149,10 +149,10 @@ export function ExecutiveCriticalStrip({
                   : "text-muted-foreground";
 
             return (
-              <div key={moduleSummary.module} className="rounded-md border border-border/60 bg-background/75 p-3">
+              <div key={moduleSummary.module} className="surface-framed rounded-md border border-border/60 bg-background/75 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold">{MODULE_LABELS[moduleSummary.module]}</p>
-                  <Badge variant="secondary" className={cn("text-[11px] uppercase", getStatusBadgeClass(moduleSummary.status))}>
+                  <Badge variant={getStatusBadgeClass(moduleSummary.status)} className="text-[11px] uppercase">
                     {getStatusLabel(moduleSummary.status)}
                   </Badge>
                 </div>

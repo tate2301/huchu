@@ -252,12 +252,21 @@ export async function GET(request: NextRequest) {
         requiredFeatures: ["hr.employees"],
       },
       {
-        id: "workforce-liability",
-        label: "Workforce Liability",
-        value: metrics.workforceLiability,
+        id: "salary-owed",
+        label: "Salary Owed",
+        value: metrics.salaryOwed,
         unit: "USD",
         module: "workforce",
-        tone: metrics.workforceLiability > 0 ? "warning" : "positive",
+        tone: metrics.salaryOwed > 0 ? "warning" : "positive",
+        requiredFeatures: ["hr.salaries"],
+      },
+      {
+        id: "gold-payout-owed",
+        label: "Gold Payout Owed",
+        value: metrics.goldPayoutOwed,
+        unit: "USD",
+        module: "workforce",
+        tone: metrics.goldPayoutOwed > 0 ? "warning" : "positive",
         requiredFeatures: ["hr.salaries"],
       },
       {
@@ -312,11 +321,21 @@ export async function GET(request: NextRequest) {
         requiredFeatures: ["gold.receipts"],
       },
       {
-        id: "workforce-owed-breakdown",
-        title: "Workforce obligations",
-        description: "Outstanding salary and gold payout obligations across all active workers.",
-        valueLabel: `Salary USD ${metrics.salaryOwed.toLocaleString()} | Gold USD ${metrics.goldPayoutOwed.toLocaleString()}`,
-        tone: metrics.workforceLiability > 0 ? "warning" : "positive",
+        id: "salary-obligations",
+        title: "Salary obligations",
+        description: "Outstanding salary obligations across all active workers.",
+        value: metrics.salaryOwed,
+        unit: "USD",
+        tone: metrics.salaryOwed > 0 ? "warning" : "positive",
+        requiredFeatures: ["hr.salaries"],
+      },
+      {
+        id: "gold-obligations",
+        title: "Gold obligations",
+        description: "Outstanding gold payout obligations across all active workers.",
+        value: metrics.goldPayoutOwed,
+        unit: "USD",
+        tone: metrics.goldPayoutOwed > 0 ? "warning" : "positive",
         requiredFeatures: ["hr.salaries"],
       },
       {
@@ -357,7 +376,8 @@ export async function GET(request: NextRequest) {
         title: highlight.title,
         description: highlight.description,
         value: highlight.value,
-        valueLabel: highlight.valueLabel,
+        valueLabel: "valueLabel" in highlight ? highlight.valueLabel : undefined,
+        unit: "unit" in highlight ? highlight.unit : undefined,
         tone: highlight.tone,
       }));
 
@@ -469,11 +489,12 @@ export async function GET(request: NextRequest) {
       },
       workforce: {
         primaryMetric: createSummaryMetric("Active Workers", metrics.activeWorkers),
-        secondaryMetric: createSummaryMetric("Workforce Liability", metrics.workforceLiability, {
+        secondaryMetric: createSummaryMetric("Salary Owed", metrics.salaryOwed, {
           unit: "USD",
-          valueLabel: `Salary USD ${metrics.salaryOwed.toLocaleString()} | Gold USD ${metrics.goldPayoutOwed.toLocaleString()}`,
         }),
-        tertiaryMetric: createSummaryMetric("Pending Approvals", pendingApprovals),
+        tertiaryMetric: createSummaryMetric("Gold Payout Owed", metrics.goldPayoutOwed, {
+          unit: "USD",
+        }),
         openExceptions: toExceptionCount(pendingApprovals + (metrics.workforceLiability > 0 ? 1 : 0)),
         topExceptionLabel: pickTopExceptionLabel(workforceSignals),
         reportHref: getModuleReportHref("workforce"),

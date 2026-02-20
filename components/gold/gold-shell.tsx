@@ -46,7 +46,7 @@ export function GoldShell({
 
       <nav
         aria-label="Gold navigation"
-        className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
+        className="flex w-full flex-wrap justify-start gap-1 rounded-xl bg-[var(--surface-subtle)] p-1.5 shadow-[var(--surface-frame-shadow)]"
       >
         {visibleTabs.map((tab) => {
           const isActive = tab.id === activeTab;
@@ -56,9 +56,11 @@ export function GoldShell({
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors",
+                "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-[background-color,color,box-shadow]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                isActive
+                  ? "bg-[var(--surface-panel)] text-foreground shadow-[var(--surface-frame-shadow)]"
+                  : "text-muted-foreground hover:bg-[var(--surface-soft)] hover:text-foreground",
               )}
             >
               <tab.icon className="size-5" />

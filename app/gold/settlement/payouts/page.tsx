@@ -272,12 +272,12 @@ export default function GoldSettlementPayoutsPage() {
         header: "Payment Progress",
         cell: ({ row }) => (
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Paid {row.original.paidCount}</Badge>
+            <Badge variant="success">Paid {row.original.paidCount}</Badge>
             {row.original.partialCount > 0 ? (
-              <Badge variant="outline">Partial {row.original.partialCount}</Badge>
+              <Badge variant="warning">Partial {row.original.partialCount}</Badge>
             ) : null}
             {row.original.dueCount > 0 ? (
-              <Badge variant="outline">Due {row.original.dueCount}</Badge>
+              <Badge variant="neutral">Due {row.original.dueCount}</Badge>
             ) : null}
           </div>
         ),
@@ -329,11 +329,15 @@ export default function GoldSettlementPayoutsPage() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === "PAID" ? "secondary" : "outline"}>
-            {row.original.status}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const variant =
+            row.original.status === "PAID"
+              ? "success"
+              : row.original.status === "PARTIAL"
+                ? "warning"
+                : "neutral";
+          return <Badge variant={variant}>{row.original.status}</Badge>;
+        },
       },
       {
         id: "paidAmount",
@@ -563,3 +567,5 @@ export default function GoldSettlementPayoutsPage() {
     </GoldShell>
   );
 }
+
+

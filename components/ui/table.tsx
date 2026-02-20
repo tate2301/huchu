@@ -79,6 +79,7 @@ function TablePaginationControls({
   setPage,
   setPageSize,
   pageSizeOptions,
+  edgeToEdge,
   className,
 }: {
   rowCount: number;
@@ -89,12 +90,14 @@ function TablePaginationControls({
   setPage: (page: number) => void;
   setPageSize: (pageSize: number) => void;
   pageSizeOptions: readonly number[];
+  edgeToEdge: boolean;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "section-shell flex flex-col gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
+        "flex flex-wrap items-center gap-2 rounded-none bg-[var(--table-toolbar-bg)] px-[var(--content-gutter-x)] py-1",
+        edgeToEdge && "table-edge-to-edge",
         className,
       )}
     >
@@ -108,7 +111,7 @@ function TablePaginationControls({
               setPage(1);
             }}
           >
-            <SelectTrigger size="sm" className="h-8 w-[88px]">
+            <SelectTrigger size="sm" className="h-8 w-[88px] bg-[var(--surface-base)]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -169,10 +172,10 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       persistKey,
       stickyHeader = true,
       stickyHeaderOffset = 0,
-      controlsPosition = "top",
+      controlsPosition = "bottom",
       controlsClassName,
       hideControlsWhenSinglePage = false,
-      edgeToEdge = true,
+      edgeToEdge = false,
       tabletScrollable = true,
       tabletStickyFirstColumn = false,
       tabletMinTableWidth = "100%",
@@ -309,7 +312,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
 
     return (
       <TableContext.Provider value={contextValue}>
-        <div className="space-y-2">
+        <div className="space-y-0">
           {shouldRenderTopControls ? (
             <TablePaginationControls
               rowCount={rowCount}
@@ -320,6 +323,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
               setPage={setPage}
               setPageSize={setPageSize}
               pageSizeOptions={pageSizeOptions}
+              edgeToEdge={edgeToEdge}
               className={controlsClassName}
             />
           ) : null}
@@ -331,8 +335,8 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
             style={
               tabletScrollable
                 ? ({
-                    "--table-tablet-min-width": tabletMinTableWidth,
-                  } as React.CSSProperties)
+                  "--table-tablet-min-width": tabletMinTableWidth,
+                } as React.CSSProperties)
                 : undefined
             }
           >
@@ -342,7 +346,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
               className={cn(
                 "w-full caption-bottom text-sm",
                 tabletScrollable &&
-                  "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
+                "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
                 className,
               )}
               style={tableStyle}
@@ -360,6 +364,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
               setPage={setPage}
               setPageSize={setPageSize}
               pageSizeOptions={pageSizeOptions}
+              edgeToEdge={edgeToEdge}
               className={controlsClassName}
             />
           ) : null}
@@ -383,9 +388,9 @@ const TableHeader = React.forwardRef<
       ref={ref}
       data-slot="table-header"
       className={cn(
-        "[&_tr]:border-b [&_tr]:border-border/45",
+        "[&_tr]:border-b [&_tr]:border-[var(--table-divider)] [&_tr]:text-[var(--table-header-text)]",
         stickyHeader &&
-          "sticky z-20 [&_tr]:bg-[var(--surface-subtle)]/95 supports-[backdrop-filter]:backdrop-blur",
+        "sticky z-20 [&_tr]:bg-[var(--table-header-bg)] supports-[backdrop-filter]:backdrop-blur",
         className,
       )}
       style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
@@ -423,7 +428,10 @@ const TableBody = React.forwardRef<
     <tbody
       ref={ref}
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn(
+        "[&_tr:last-child]:border-0 [&_tr]:bg-[var(--table-row-bg)] [&_tr:nth-child(even)]:bg-[var(--table-row-bg-alt)] [&_tr:hover]:bg-[var(--table-row-hover-bg)] [&_tr[data-state=selected]]:bg-[var(--table-row-selected-bg)]",
+        className,
+      )}
       {...props}
     >
       {visibleRows}
@@ -439,7 +447,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     data-slot="table-footer"
-    className={cn("bg-muted/50 border-t font-medium [&>tr]:last:border-b-0", className)}
+    className={cn("border-t border-[var(--table-divider)] bg-[var(--surface-subtle)]/60 font-medium [&>tr]:last:border-b-0", className)}
     {...props}
   />
 ));
@@ -451,7 +459,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.ComponentProps<"tr"
       ref={ref}
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/35 data-[state=selected]:bg-muted/70 border-b border-border/45 transition-colors",
+        "border-b border-[var(--table-divider)] transition-colors duration-[var(--motion-duration-fast)]",
         className,
       )}
       {...props}
@@ -466,7 +474,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-head"
       className={cn(
-        "text-foreground h-11 px-[var(--table-gutter-x)] text-left align-middle font-semibold [&:has([role=checkbox])]:pr-0",
+        "h-[var(--table-head-min-h)] border border-[var(--table-divider)] px-[var(--table-gutter-x)] text-left align-middle text-[12px] font-semibold tracking-[0.03em] uppercase [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -481,7 +489,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-cell"
       className={cn(
-        "min-h-[var(--table-row-min-h)] px-[var(--table-gutter-x)] py-2.5 align-middle [&:has([role=checkbox])]:pr-0",
+        "min-h-[var(--table-row-min-h)] border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-table-cell [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

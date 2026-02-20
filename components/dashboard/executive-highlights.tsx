@@ -1,9 +1,12 @@
 "use client";
 
 import type { ExecutiveHighlight } from "@/lib/api";
+import { AlertTriangle, CheckCircle2, Minus, ReportProblem } from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 type ExecutiveHighlightsProps = {
   items?: ExecutiveHighlight[];
@@ -23,11 +26,65 @@ function formatHighlightValue(item: ExecutiveHighlight) {
   return item.unit ? `${value} ${item.unit}` : value;
 }
 
-function getToneVariant(tone: ExecutiveHighlight["tone"]) {
-  if (tone === "critical") return "destructive";
-  if (tone === "warning") return "outline";
-  if (tone === "positive") return "secondary";
-  return "secondary";
+function getToneMeta(tone: ExecutiveHighlight["tone"]) {
+  if (tone === "critical") {
+    return {
+      label: "Critical",
+      badgeVariant: "danger" as const,
+      markerClassName: "bg-[var(--status-error-border)]",
+      icon: AlertTriangle,
+    };
+  }
+  if (tone === "warning") {
+    return {
+      label: "Watch",
+      badgeVariant: "warning" as const,
+      markerClassName: "bg-[var(--status-warning-border)]",
+      icon: ReportProblem,
+    };
+  }
+  if (tone === "positive") {
+    return {
+      label: "Positive",
+      badgeVariant: "success" as const,
+      markerClassName: "bg-[var(--status-success-border)]",
+      icon: CheckCircle2,
+    };
+  }
+  return {
+    label: "Neutral",
+    badgeVariant: "info" as const,
+    markerClassName: "bg-[var(--status-info-border)]",
+    icon: Minus,
+  };
+}
+
+function HighlightStatCard({ item }: { item: ExecutiveHighlight }) {
+  const toneMeta = getToneMeta(item.tone ?? "neutral");
+  const ToneIcon = toneMeta.icon;
+
+  return (
+    <div className="surface-framed rounded-md bg-muted/50 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${toneMeta.markerClassName}`} />
+          <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {item.title}
+          </p>
+        </div>
+        <Badge
+          variant={toneMeta.badgeVariant}
+          className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px]")}
+        >
+          <ToneIcon className="h-3 w-3" />
+          {toneMeta.label}
+        </Badge>
+      </div>
+      <p className="mt-2 font-mono text-xl font-semibold tabular-nums">
+        {formatHighlightValue(item) ?? "n/a"}
+      </p>
+    </div>
+  );
 }
 
 export function ExecutiveHighlights({
@@ -36,65 +93,79 @@ export function ExecutiveHighlights({
   isError,
   errorMessage,
 }: ExecutiveHighlightsProps) {
+  if (isLoading) {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={`highlight-skeleton-${index}`} className="rounded-md bg-muted/40 p-3">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="mt-2 h-6 w-20" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <StatusState
+        variant="error"
+        title="Exception highlights unavailable"
+        description={errorMessage || "Highlight records could not be retrieved."}
+      />
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <StatusState
+        variant="empty"
+        title="No exception highlights"
+        description="No notable exception records were returned for this selection."
+      />
+    );
+  }
+
+  const criticalCount = items.filter((item) => item.tone === "critical").length;
+  const watchCount = items.filter((item) => item.tone === "warning").length;
+  const positiveCount = items.filter((item) => item.tone === "positive").length;
+
   return (
-    <section className="space-y-3">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">Exception Highlights</h3>
-        <p className="text-sm text-muted-foreground">
-          Highest-priority exception items and pressure points.
-        </p>
-      </div>
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={`highlight-skeleton-${index}`} className="rounded-lg border p-3">
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="mt-2 h-3 w-full" />
-              <Skeleton className="mt-2 h-3 w-4/5" />
-            </div>
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border/60 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-[1.15rem]">Exception Highlights</CardTitle>
+            <CardDescription>Priority exception signals across active domains.</CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="danger">
+              Critical: {criticalCount}
+            </Badge>
+            <Badge variant="warning">
+              Watch: {watchCount}
+            </Badge>
+            <Badge variant="success">
+              Positive: {positiveCount}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <HighlightStatCard key={item.id} item={item} />
           ))}
         </div>
-      ) : null}
-
-      {!isLoading && isError ? (
-        <StatusState
-          variant="error"
-          title="Exception highlights unavailable"
-          description={errorMessage || "Highlight records could not be retrieved."}
-        />
-      ) : null}
-
-      {!isLoading && !isError && (!items || items.length === 0) ? (
-        <StatusState
-          variant="empty"
-          title="No exception highlights"
-          description="No notable exception records were returned for this selection."
-        />
-      ) : null}
-
-      {!isLoading && !isError && items && items.length > 0 ? (
-        <div className="space-y-3">
-          {items.map((item) => {
-            const value = formatHighlightValue(item);
-            const tone = item.tone ?? "neutral";
-
-            return (
-              <div key={item.id} className="rounded-md border border-border/60 bg-card/95 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">{item.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-                  </div>
-                  <Badge variant={getToneVariant(tone)}>{tone}</Badge>
-                </div>
-                {value ? (
-                  <p className="mt-2 font-mono text-sm font-semibold tabular-nums">{value}</p>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-    </section>
+      </CardContent>
+    </Card>
   );
 }

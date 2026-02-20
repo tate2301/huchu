@@ -39,12 +39,13 @@ export function DataListShell({
   className,
   contentClassName,
 }: DataListShellProps) {
+  void description;
+
   return (
     <section className={cn("space-y-4", className)}>
       <header className="section-shell flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">{title}</h2>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
         {actions ? <div>{actions}</div> : null}
       </header>

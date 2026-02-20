@@ -129,6 +129,7 @@ export type DataTableProps<TData, TValue> = {
   className?: string;
   tableClassName?: string;
   tableContainerClassName?: string;
+  edgeToEdge?: boolean;
   emptyState?: React.ReactNode;
   noResultsText?: string;
   toolbar?: React.ReactNode;
@@ -177,6 +178,7 @@ export function DataTable<TData, TValue>({
   className,
   tableClassName,
   tableContainerClassName,
+  edgeToEdge = true,
   emptyState,
   noResultsText = "No records found.",
   toolbar,
@@ -359,8 +361,8 @@ export function DataTable<TData, TValue>({
   });
 
   const showToolbarPagination = paginationEnabled;
-  const showTopToolbar =
-    globalFilterEnabled || Boolean(toolbar) || showToolbarPagination;
+  const showTopToolbar = globalFilterEnabled || Boolean(toolbar);
+  const showBottomPagination = showToolbarPagination;
 
   const totalPages = serverPagination
     ? (pagination?.totalPages ??
@@ -449,12 +451,17 @@ export function DataTable<TData, TValue>({
   const totalColumnCount = visibleColumnCount + (expansionEnabled ? 1 : 0);
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-0", className)}>
       {showTopToolbar ? (
-        <div className="section-shell flex flex-wrap items-center gap-2 py-1">
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2 bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-1.5",
+            edgeToEdge && "table-edge-to-edge",
+          )}
+        >
           {globalFilterEnabled ? (
             <form
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 p-0"
               onSubmit={(event) => {
                 event.preventDefault();
                 applySearch(searchDraft);
@@ -472,9 +479,9 @@ export function DataTable<TData, TValue>({
                   }
                 }}
                 placeholder={searchPlaceholder}
-                className="h-8 w-[240px]"
+                className="h-[var(--control-height-sm)] w-[260px] bg-[var(--surface-elevated)]"
               />
-              <Button type="submit" size="sm" className="h-8">
+              <Button type="submit" size="sm" className="min-w-[78px]">
                 {searchSubmitLabel}
               </Button>
             </form>
@@ -482,46 +489,6 @@ export function DataTable<TData, TValue>({
 
           {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
 
-          {showToolbarPagination ? (
-            <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(value) => setPaginationState(1, Number(value))}
-              >
-                <SelectTrigger size="sm" className="h-8 w-[88px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-              <span>
-                Page {Math.max(page, 1)} of {Math.max(totalPages, 1)}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setPaginationState(page - 1, pageSize)}
-                disabled={page <= 1}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setPaginationState(page + 1, pageSize)}
-                disabled={page >= totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -537,7 +504,7 @@ export function DataTable<TData, TValue>({
           tabletScrollable={tabletScrollable}
           tabletStickyFirstColumn={tabletStickyFirstColumn}
           tabletMinTableWidth={tabletMinTableWidth}
-          edgeToEdge
+          edgeToEdge={edgeToEdge}
         >
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -574,7 +541,7 @@ export function DataTable<TData, TValue>({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground"
+                              className="h-7 w-7 text-muted-foreground shadow-none hover:bg-[var(--button-ghost-hover-bg)]"
                               onClick={() => toggleRowExpansion(row.original, row.index)}
                               aria-label={isExpanded ? "Collapse row" : "Expand row"}
                               aria-expanded={isExpanded}
@@ -596,7 +563,7 @@ export function DataTable<TData, TValue>({
                     </TableRow>
                     {expansionEnabled && isExpanded ? (
                       <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
-                        <TableCell colSpan={totalColumnCount} className="bg-transparent py-0">
+                        <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-expanded-bg)] py-0">
                           {expansion?.renderExpandedContent({
                             row: row.original,
                             rowId,
@@ -613,7 +580,7 @@ export function DataTable<TData, TValue>({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={totalColumnCount} className="text-center text-muted-foreground">
+                <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-empty-bg)] py-9 text-center text-muted-foreground">
                   {emptyState ?? noResultsText}
                 </TableCell>
               </TableRow>
@@ -621,6 +588,52 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
+
+      {showBottomPagination ? (
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-end gap-2 bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-1 text-xs text-muted-foreground",
+            edgeToEdge && "table-edge-to-edge",
+          )}
+        >
+          <span>Rows per page</span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => setPaginationState(1, Number(value))}
+          >
+            <SelectTrigger size="sm" className="w-[86px] bg-[var(--surface-base)]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+          <span>
+            Page {Math.max(page, 1)} of {Math.max(totalPages, 1)}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setPaginationState(page - 1, pageSize)}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setPaginationState(page + 1, pageSize)}
+            disabled={page >= totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      ) : null}
 
       {rowSelection?.enabled && selectedRows.length > 0 && rowSelection.bulkActions ? (
         <DataTableFloatingActions>

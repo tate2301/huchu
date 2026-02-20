@@ -6,9 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { differenceInMinutes, format } from "date-fns";
 import {
   AlertTriangle,
-  Calendar,
   CheckCircle,
-  Clock,
   Download,
   Pencil,
   Plus,
@@ -901,6 +899,18 @@ export function MaintenanceContent({
     upcomingMaintenance.length > 0 ? upcomingMaintenance[0].daysUntil : null;
   const scheduleExportDisabled =
     equipmentLoading || upcomingMaintenance.length === 0;
+  const equipmentHealthPercent =
+    totalEquipment > 0
+      ? Math.round((operationalCount / totalEquipment) * 100)
+      : 0;
+  const servicePressurePercent =
+    totalEquipment > 0
+      ? Math.round(((needsServiceCount + downCount) / totalEquipment) * 100)
+      : 0;
+  const openWorkOrderPercent =
+    workOrders.length > 0
+      ? Math.round((openWorkOrders / workOrders.length) * 100)
+      : 0;
 
   const createWorkOrderMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
@@ -1116,269 +1126,352 @@ export function MaintenanceContent({
         className="space-y-6"
       >
         <TabsContent value="dashboard" className="mt-0">
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Card className="py-4 gap-3">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">
-                    Equipment Status
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Live availability snapshot
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  {equipmentLoading ? (
-                    <Skeleton className="h-8 w-full" />
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full justify-between px-2"
+          <div className="space-y-5">
+            <Card className="overflow-hidden">
+              <CardHeader className="border-b border-border/60">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-[1.1rem]">
+                      Maintenance Command Center
+                    </CardTitle>
+                    <CardDescription>
+                      Equipment availability, PM readiness, and active repairs by
+                      site.
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="info">{activeSiteName}</Badge>
+                    <Badge
+                      variant={
+                        downCount > 0 || needsServiceCount > 0
+                          ? "warning"
+                          : "success"
+                      }
                     >
-                      <div className="flex items-center gap-2 text-left">
-                        <Wrench className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs">Total Equipment</span>
-                      </div>
-                      <span className="text-sm font-semibold">
+                      Service Pressure: {servicePressurePercent}%
+                    </Badge>
+                    <Badge
+                      variant={openWorkOrders > 0 ? "warning" : "success"}
+                    >
+                      Open Work Orders: {openWorkOrders}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Total Equipment
+                      </p>
+                      <Wrench className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    {equipmentLoading ? (
+                      <Skeleton className="mt-2 h-7 w-16" />
+                    ) : (
+                      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
                         {totalEquipment}
-                      </span>
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Operational</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="surface-framed rounded-lg bg-emerald-50/80 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Operational
+                      </p>
+                      <CheckCircle className="h-4 w-4 text-emerald-700" />
                     </div>
-                    <span className="text-sm font-semibold">
-                      {operationalCount}
-                    </span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Needs Service</span>
+                    {equipmentLoading ? (
+                      <Skeleton className="mt-2 h-7 w-16" />
+                    ) : (
+                      <>
+                        <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-emerald-900">
+                          {operationalCount}
+                        </p>
+                        <p className="mt-1 text-xs text-emerald-900/70">
+                          Fleet health {equipmentHealthPercent}%
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="surface-framed rounded-lg bg-amber-50/80 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Needs Service
+                      </p>
+                      <AlertTriangle className="h-4 w-4 text-amber-700" />
                     </div>
-                    <span className="text-sm font-semibold text-amber-600">
-                      {needsServiceCount}
-                    </span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Equipment Down</span>
+                    {equipmentLoading ? (
+                      <Skeleton className="mt-2 h-7 w-16" />
+                    ) : (
+                      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-amber-900">
+                        {needsServiceCount}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="surface-framed rounded-lg bg-rose-50/80 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Equipment Down
+                      </p>
+                      <AlertTriangle className="h-4 w-4 text-rose-700" />
                     </div>
-                    <span className="text-sm font-semibold text-destructive">
-                      {downCount}
-                    </span>
-                  </Button>
+                    {equipmentLoading ? (
+                      <Skeleton className="mt-2 h-7 w-16" />
+                    ) : (
+                      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-rose-900">
+                        {downCount}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-4 xl:grid-cols-12">
+              <Card className="overflow-hidden xl:col-span-7">
+                <CardHeader className="border-b border-border/60">
+                  <CardTitle className="text-base">Active Work Orders</CardTitle>
+                  <CardDescription>
+                    Open and in-progress tasks requiring technician attention.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="space-y-2">
+                    {workOrdersLoading ? (
+                      <>
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                      </>
+                    ) : activeWorkOrders.length === 0 ? (
+                      <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3 text-sm text-muted-foreground">
+                        No active work orders.
+                      </div>
+                    ) : (
+                      activeWorkOrders.slice(0, 6).map((order) => {
+                        const statusInfo = workOrderStatusInfo(order.status);
+                        return (
+                          <div
+                            key={order.id}
+                            className="surface-framed flex items-start justify-between gap-3 rounded-lg bg-[var(--surface-subtle)] p-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">
+                                {order.equipment.name}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {order.issue}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {order.equipment.equipmentCode} |{" "}
+                                {formatDateTime(order.downtimeStart)}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              <Badge variant={statusInfo.variant}>
+                                {statusInfo.label}
+                              </Badge>
+                              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                                {getDowntimeHours(
+                                  order.downtimeStart,
+                                  order.downtimeEnd,
+                                )}
+                                h
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="py-4 gap-3">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">
-                    Work Orders
+              <Card className="overflow-hidden xl:col-span-5">
+                <CardHeader className="border-b border-border/60">
+                  <CardTitle className="text-base">
+                    Upcoming Maintenance
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    Current workload
+                  <CardDescription>
+                    Preventive maintenance due within the next 90 days.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Active Work Orders</span>
-                    </div>
-                    <span className="text-sm font-semibold">
-                      {openWorkOrders}
-                    </span>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="py-4 gap-3">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">
-                    Preventive Maintenance
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Scheduled services
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Upcoming (90 days)</span>
-                    </div>
-                    <span className="text-sm font-semibold">
-                      {upcomingMaintenance.length}
-                    </span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full justify-between px-2"
-                  >
-                    <div className="flex items-center gap-2 text-left">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">Next Due</span>
-                    </div>
-                    <span className="text-sm font-semibold">
-                      {nextPmDue !== null ? `${nextPmDue} days` : "None"}
-                    </span>
-                  </Button>
+                <CardContent className="pt-4">
+                  <div className="space-y-2">
+                    {equipmentLoading ? (
+                      <>
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                      </>
+                    ) : upcomingMaintenance.length === 0 ? (
+                      <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3 text-sm text-muted-foreground">
+                        No upcoming services.
+                      </div>
+                    ) : (
+                      upcomingMaintenance.slice(0, 6).map((item) => (
+                        <div
+                          key={item.equipment.id}
+                          className="surface-framed flex items-start justify-between gap-3 rounded-lg bg-[var(--surface-subtle)] p-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {item.equipment.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.equipment.equipmentCode} |{" "}
+                              {item.equipment.site?.code ?? "-"}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <span className="text-xs font-semibold">
+                              {item.dueDate}
+                            </span>
+                            <Badge
+                              variant={
+                                item.daysUntil <= 14
+                                  ? "danger"
+                                  : item.daysUntil <= 30
+                                    ? "warning"
+                                    : "success"
+                              }
+                            >
+                              {item.daysUntil} days
+                            </Badge>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="py-4 gap-3">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">
-                    Active Work Orders
+            <div className="grid gap-4 xl:grid-cols-12">
+              <Card className="overflow-hidden xl:col-span-6">
+                <CardHeader className="border-b border-border/60">
+                  <CardTitle className="text-base">
+                    Equipment Status Mix
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    Open and in-progress tasks
+                  <CardDescription>
+                    Service pressure and availability distribution.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-2">
-                  {workOrdersLoading ? (
-                    <Skeleton className="h-12 w-full" />
-                  ) : activeWorkOrders.length === 0 ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full"
-                      disabled
-                    >
-                      No active work orders
-                    </Button>
-                  ) : (
-                    activeWorkOrders.map((order) => (
-                      <Button
-                        key={order.id}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
-                      >
-                        <div className="flex flex-col items-start gap-1 text-left">
-                          <span className="text-sm font-semibold">
-                            {order.equipment.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {order.issue}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {order.equipment.equipmentCode} | {order.id}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge
-                            variant={
-                              order.status === "OPEN"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {order.status === "OPEN" ? "Open" : "In Progress"}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {getDowntimeHours(
-                              order.downtimeStart,
-                              order.downtimeEnd,
-                            )}
-                            h
-                          </span>
-                        </div>
-                      </Button>
-                    ))
-                  )}
+                <CardContent className="space-y-3 pt-4">
+                  <div className="surface-framed space-y-1.5 rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-muted-foreground">
+                        Operational
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {operationalCount}/{totalEquipment}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-background">
+                      <div
+                        className="h-2 rounded-full bg-emerald-500"
+                        style={{ width: `${equipmentHealthPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="surface-framed space-y-1.5 rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-muted-foreground">
+                        Needs Service
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {needsServiceCount}/{totalEquipment}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-background">
+                      <div
+                        className="h-2 rounded-full bg-amber-500"
+                        style={{
+                          width: `${
+                            totalEquipment > 0
+                              ? Math.round(
+                                  (needsServiceCount / totalEquipment) * 100,
+                                )
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="surface-framed space-y-1.5 rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-muted-foreground">
+                        Down
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {downCount}/{totalEquipment}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-background">
+                      <div
+                        className="h-2 rounded-full bg-rose-500"
+                        style={{
+                          width: `${
+                            totalEquipment > 0
+                              ? Math.round((downCount / totalEquipment) * 100)
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="py-4 gap-3">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">
-                    Upcoming Maintenance
+              <Card className="overflow-hidden xl:col-span-6">
+                <CardHeader className="border-b border-border/60">
+                  <CardTitle className="text-base">
+                    Preventive Maintenance Outlook
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    Scheduled in the next 90 days
+                  <CardDescription>
+                    Near-term PM load and work-order closure pressure.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-2">
-                  {upcomingMaintenance.length === 0 ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full"
-                      disabled
-                    >
-                      No upcoming services
-                    </Button>
-                  ) : (
-                    upcomingMaintenance.map((item) => (
-                      <Button
-                        key={item.equipment.id}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-auto w-full items-start justify-between gap-3 whitespace-normal px-2 py-1.5"
-                      >
-                        <div className="flex flex-col items-start text-left">
-                          <span className="text-sm font-semibold">
-                            {item.equipment.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            Scheduled Service
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="text-xs font-semibold">
-                            {item.dueDate}
-                          </span>
-                          <Badge
-                            variant={
-                              item.daysUntil < 14 ? "destructive" : "secondary"
-                            }
-                          >
-                            {item.daysUntil} days
-                          </Badge>
-                        </div>
-                      </Button>
-                    ))
-                  )}
+                <CardContent className="grid gap-2 pt-4 sm:grid-cols-2">
+                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Upcoming PM (90 days)
+                    </p>
+                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+                      {upcomingMaintenance.length}
+                    </p>
+                  </div>
+                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Next Service Due
+                    </p>
+                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+                      {nextPmDue !== null ? `${nextPmDue}d` : "None"}
+                    </p>
+                  </div>
+                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Open Work Orders
+                    </p>
+                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+                      {openWorkOrders}
+                    </p>
+                  </div>
+                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Open Ratio
+                    </p>
+                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+                      {openWorkOrderPercent}%
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </div>

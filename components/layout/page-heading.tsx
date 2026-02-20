@@ -7,12 +7,11 @@ type PageHeadingProps = {
 }
 
 export function PageHeading({ title, description, className }: PageHeadingProps) {
+  void description;
+
   return (
-    <div className={cn("mb-6 space-y-2", className)}>
-      <h1 className="text-page-title text-foreground font-bold tracking-tight">{title}</h1>
-      {description ? (
-        <p className="text-field-help text-muted-foreground">{description}</p>
-      ) : null}
+    <div className={cn("mb-5", className)}>
+      <h1 className="text-page-title text-foreground font-semibold tracking-[-0.01em]">{title}</h1>
     </div>
   )
 }

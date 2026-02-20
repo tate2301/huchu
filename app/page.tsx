@@ -69,83 +69,13 @@ export default function HomePage() {
       : overview?.sites.find((candidate) => candidate.id === selectedSiteId)?.name ?? "Selected site";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeading
         title="Executive Dashboard"
         description="Enterprise visibility across finance, gold, workforce, operations, and risk."
       />
 
       <section className="space-y-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1">
-            <h2 className="text-section-title font-semibold tracking-tight">Executive Summary</h2>
-            <p className="text-sm text-muted-foreground">
-              Top-level module status, exception load, and trend exposure for the selected scope.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[28rem]">
-            <div className="space-y-1">
-              <label htmlFor={siteFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Site
-              </label>
-              {isLoading && !overview ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                  <SelectTrigger id={siteFilterId}>
-                    <SelectValue placeholder="All sites" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_SITES_VALUE}>All sites</SelectItem>
-                    {(overview?.sites ?? []).map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor={rangeFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Range
-              </label>
-              <Select value={selectedRange} onValueChange={(value) => setSelectedRange(value as ExecutiveRange)}>
-                <SelectTrigger id={rangeFilterId}>
-                  <SelectValue placeholder="Select range" />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXECUTIVE_RANGE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <RefreshCcw className="h-3.5 w-3.5" />
-            Refresh every <span className="font-mono tabular-nums">60s</span>
-          </span>
-          {updatedAt ? (
-            <span>
-              Last update: <span className="font-mono tabular-nums">{updatedAt}</span>
-            </span>
-          ) : null}
-          <span>
-            Scope: <span className="font-mono tabular-nums">{selectedSiteLabel}</span>
-          </span>
-          <span>
-            Range: <span className="font-mono tabular-nums">{selectedRangeLabel}</span>
-          </span>
-        </div>
-
         {error && !hasOverviewData ? (
           <Alert variant="destructive">
             <AlertTitle>Unable to load executive dashboard</AlertTitle>
@@ -158,6 +88,69 @@ export default function HomePage() {
           isLoading={isLoading}
           isError={Boolean(error) && !hasOverviewData}
           errorMessage={overviewErrorMessage}
+          headerControls={
+            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[28rem]">
+              <div className="space-y-1">
+                <label htmlFor={siteFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Site
+                </label>
+                {isLoading && !overview ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                    <SelectTrigger id={siteFilterId}>
+                      <SelectValue placeholder="All sites" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_SITES_VALUE}>All sites</SelectItem>
+                      {(overview?.sites ?? []).map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor={rangeFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Range
+                </label>
+                <Select value={selectedRange} onValueChange={(value) => setSelectedRange(value as ExecutiveRange)}>
+                  <SelectTrigger id={rangeFilterId}>
+                    <SelectValue placeholder="Select range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXECUTIVE_RANGE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          }
+          headerMeta={
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <RefreshCcw className="h-3.5 w-3.5" />
+                Refresh every <span className="font-mono tabular-nums">60s</span>
+              </span>
+              {updatedAt ? (
+                <span>
+                  Last update: <span className="font-mono tabular-nums">{updatedAt}</span>
+                </span>
+              ) : null}
+              <span>
+                Scope: <span className="font-mono tabular-nums">{selectedSiteLabel}</span>
+              </span>
+              <span>
+                Range: <span className="font-mono tabular-nums">{selectedRangeLabel}</span>
+              </span>
+            </div>
+          }
         />
         <ExecutiveCriticalStrip
           items={overview?.executiveSummary}
@@ -165,6 +158,33 @@ export default function HomePage() {
           isError={Boolean(error) && !hasOverviewData}
           errorMessage={overviewErrorMessage}
         />
+      </section>
+
+      <section className="space-y-5">
+        <ExecutiveKpiGrid
+          items={overview?.kpis}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+        <ExecutiveCharts
+          data={overview?.charts}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+      </section>
+
+      <section className="space-y-5">
+        <ExecutiveHighlights
+          items={overview?.highlights}
+          isLoading={isLoading}
+          isError={Boolean(error) && !hasOverviewData}
+          errorMessage={overviewErrorMessage}
+        />
+      </section>
+
+      <section className="space-y-5">
         <ExecutiveModuleMatrix
           items={overview?.executiveSummary}
           isLoading={isLoading}
@@ -173,43 +193,14 @@ export default function HomePage() {
         />
       </section>
 
-      <ExecutiveQuickLinks
-        links={overview?.quickLinks ?? []}
-        title="Quick Actions"
-        description="Primary operational actions ranked by priority."
-        showSecondary={false}
-      />
-
-      <section className="space-y-6">
-        <ExecutiveKpiGrid
-          items={overview?.kpis}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
+      <section className="surface-framed rounded-xl bg-[var(--surface-subtle)] p-3 sm:p-4">
+        <ExecutiveQuickLinks
+          links={overview?.quickLinks ?? []}
+          title="Module Links"
+          description="Module and report entry points grouped by domain."
+          showPrimary={false}
         />
-
-        <div className="grid gap-6 xl:grid-cols-[1.8fr_1fr]">
-          <ExecutiveCharts
-            data={overview?.charts}
-            isLoading={isLoading}
-            isError={Boolean(error) && !hasOverviewData}
-            errorMessage={overviewErrorMessage}
-          />
-          <ExecutiveHighlights
-            items={overview?.highlights}
-            isLoading={isLoading}
-            isError={Boolean(error) && !hasOverviewData}
-            errorMessage={overviewErrorMessage}
-          />
-        </div>
       </section>
-
-      <ExecutiveQuickLinks
-        links={overview?.quickLinks ?? []}
-        title="Module Links"
-        description="Module and report entry points grouped by domain."
-        showPrimary={false}
-      />
     </div>
   );
 }

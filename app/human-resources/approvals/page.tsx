@@ -98,7 +98,7 @@ export default function ApprovalsPage() {
       {
         accessorKey: "action",
         header: "Action",
-        cell: ({ row }) => <Badge variant="outline">{row.original.action}</Badge>,
+        cell: ({ row }) => <Badge variant="neutral">{row.original.action}</Badge>,
       },
       {
         id: "status",
@@ -250,7 +250,7 @@ export default function ApprovalsPage() {
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="text-xs text-muted-foreground">Action</div>
                 <div className="mt-1">
-                  <Badge variant="outline">{selectedRecord.action}</Badge>
+                  <Badge variant="neutral">{selectedRecord.action}</Badge>
                 </div>
                 <div className="mt-2 text-muted-foreground">
                   {selectedRecord.fromStatus ?? "-"}
@@ -274,3 +274,4 @@ export default function ApprovalsPage() {
     </HrShell>
   );
 }
+
