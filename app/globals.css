@@ -182,9 +182,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --icon-size-xl: 1.5rem;
     --content-gutter-x: clamp(0.9rem, 1.9vw, 1.45rem);
     --section-gutter-x: 0.9rem;
-    --table-gutter-x: 0.9rem;
-    --table-row-min-h: 2.5rem;
-    --table-head-min-h: 2.5rem;
+    --table-gutter-x: 0.65rem;
+    --table-row-min-h: 0rem;
+    --table-head-min-h: 0rem;
     --control-height-sm: 2rem;
     --control-height-md: 2.25rem;
     --surface-app: #f3f6fb;
@@ -618,6 +618,28 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     }
     .table-rail > [data-slot="table"] {
         min-width: 100%;
+    }
+    .huchu-listview-compact {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    .huchu-listview-compact .grid {
+        width: 100%;
+    }
+    .huchu-listview-compact .grid > * {
+        min-width: 0;
+    }
+    .huchu-listview-compact .grid.items-center {
+        gap: 0.5rem;
+        padding-inline: 0.5rem;
+    }
+    .huchu-listview-compact .mb-2.grid {
+        margin-bottom: 0.375rem;
+        padding-block: 0.375rem;
+    }
+    .huchu-listview-compact .text-base {
+        font-size: var(--type-table-text-size);
+        line-height: var(--type-table-text-line);
     }
     .table-edge-to-edge {
         width: calc(100% + (var(--content-gutter-x) * 2));

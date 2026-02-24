@@ -204,6 +204,7 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
       key: `col_${index}`,
       label: props.children,
       align: resolveAlign(props.className),
+      width: "minmax(0,1fr)",
     });
   }
 
@@ -553,7 +554,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 cellRenderer={({ item }) => {
                   if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
                     const cell = item as ParsedFrappeCell;
-                    return <div className={cn("text-table-cell", cell.className)}>{cell.content}</div>;
+                    return <div className={cn("text-table-cell min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", cell.className)}>{cell.content}</div>;
                   }
                   return item as React.ReactNode;
                 }}
@@ -696,7 +697,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-head"
       className={cn(
-        "h-[var(--table-head-min-h)] border border-[var(--table-divider)] px-[var(--table-gutter-x)] text-left align-middle text-[12px] font-semibold tracking-[0.03em] uppercase [&:has([role=checkbox])]:pr-0",
+        "border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-1.5 text-left align-middle text-[12px] font-semibold tracking-[0.03em] uppercase [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -711,7 +712,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-cell"
       className={cn(
-        "min-h-[var(--table-row-min-h)] border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-table-cell [&:has([role=checkbox])]:pr-0",
+        "border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-1.5 align-middle text-table-cell [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

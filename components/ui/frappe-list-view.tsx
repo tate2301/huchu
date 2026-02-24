@@ -10,6 +10,7 @@ import {
   ListSelectBanner,
   ListView,
 } from "@rtcamp/frappe-ui-react";
+import { cn } from "@/lib/utils";
 
 type FrappeListViewAlign = "left" | "center" | "right";
 
@@ -45,6 +46,7 @@ export type FrappeListViewAdapterProps<TRow extends Record<string, unknown>> = {
   emptyState?: FrappeListViewEmptyState;
   selectable?: boolean;
   selectionText?: (count: number) => string;
+  rowHeight?: number | string;
   resizeColumn?: boolean;
   showTooltip?: boolean;
   onRowClick?: (row: TRow, event: React.MouseEvent) => void;
@@ -115,6 +117,7 @@ export function FrappeListViewAdapter<TRow extends Record<string, unknown>>({
   emptyState,
   selectable = false,
   selectionText,
+  rowHeight = "auto",
   resizeColumn = false,
   showTooltip = false,
   onRowClick,
@@ -172,12 +175,13 @@ export function FrappeListViewAdapter<TRow extends Record<string, unknown>>({
       options: {
         selectable,
         selectionText,
+        rowHeight,
         resizeColumn,
         showTooltip,
         onRowClick: onRowClick as ((row: unknown, event: React.MouseEvent) => void) | undefined,
       },
     }),
-    [cellRenderer, emptyState, onRowClick, resizeColumn, selectable, selectionText, showTooltip],
+    [cellRenderer, emptyState, onRowClick, resizeColumn, rowHeight, selectable, selectionText, showTooltip],
   );
 
   return (
@@ -186,7 +190,7 @@ export function FrappeListViewAdapter<TRow extends Record<string, unknown>>({
       rows={rows as unknown[]}
       rowKey={rowKey}
       options={options}
-      className={className}
+      className={cn("huchu-listview-compact !w-full !min-w-0", className)}
       style={style}
     >
       <>
