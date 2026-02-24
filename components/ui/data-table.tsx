@@ -719,7 +719,10 @@ export function DataTable<TData, TValue>({
       ) : null}
 
       <div
-        className={cn(maxBodyHeight ? "overflow-auto" : undefined, tableContainerClassName)}
+        className={cn(
+          maxBodyHeight ? "overflow-x-hidden overflow-y-auto" : undefined,
+          tableContainerClassName,
+        )}
         style={maxBodyHeight ? { maxHeight: maxBodyHeight } : undefined}
       >
         {useLegacyTableRendering ? (

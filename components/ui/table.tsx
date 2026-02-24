@@ -548,7 +548,11 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
           ) : null}
 
           <div
-            className={cn("table-rail", edgeToEdge && "table-edge-to-edge")}
+            className={cn(
+              "table-rail",
+              parsedFrappeTable && "table-rail-listview",
+              edgeToEdge && "table-edge-to-edge",
+            )}
             data-tablet-scrollable={tabletScrollable ? "true" : "false"}
             data-tablet-sticky-first-column={tabletStickyFirstColumn ? "true" : "false"}
             style={
