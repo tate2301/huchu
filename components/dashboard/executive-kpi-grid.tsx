@@ -40,13 +40,17 @@ export function ExecutiveKpiGrid({
   return (
     <section className="space-y-3">
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">Key Indicators</h3>
-        <p className="text-sm text-muted-foreground">Cross-functional KPI snapshot for the selected filters.</p>
+        <h3 className="text-lg font-semibold tracking-tight">
+          Position Indicators
+        </h3>
       </div>
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={`kpi-skeleton-${index}`} className="rounded-md border border-border/60 p-4">
+            <div
+              key={`kpi-skeleton-${index}`}
+              className="rounded-md border border-border/60 p-4"
+            >
               <Skeleton className="h-3 w-24" />
               <Skeleton className="mt-3 h-8 w-28" />
               <Skeleton className="mt-3 h-5 w-20" />
@@ -80,10 +84,18 @@ export function ExecutiveKpiGrid({
             const deltaLabel = formatDelta(item);
 
             return (
-              <div key={item.id} className="surface-framed rounded-md border border-border/60 bg-card/95 p-4">
+              <div
+                key={item.id}
+                className="surface-framed rounded-md border border-border/60 bg-card/95 p-4"
+              >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
-                  <Badge variant="neutral" className="text-[10px] uppercase tracking-wide">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {item.label}
+                  </p>
+                  <Badge
+                    variant="neutral"
+                    className="text-[10px] uppercase tracking-wide"
+                  >
                     {item.module}
                   </Badge>
                 </div>
@@ -92,12 +104,26 @@ export function ExecutiveKpiGrid({
                 </p>
                 {deltaLabel ? (
                   <Badge
-                    variant={trendNegative ? "danger" : trendPositive ? "success" : "neutral"}
-                    className={cn("mt-3 inline-flex gap-1 font-mono tabular-nums")}
+                    variant={
+                      trendNegative
+                        ? "danger"
+                        : trendPositive
+                          ? "success"
+                          : "neutral"
+                    }
+                    className={cn(
+                      "mt-3 inline-flex gap-1 font-mono tabular-nums",
+                    )}
                   >
-                    {trendPositive ? <ArrowUpward className="h-3.5 w-3.5" /> : null}
-                    {trendNegative ? <ArrowDownward className="h-3.5 w-3.5" /> : null}
-                    {!trendPositive && !trendNegative ? <Minus className="h-3.5 w-3.5" /> : null}
+                    {trendPositive ? (
+                      <ArrowUpward className="h-3.5 w-3.5" />
+                    ) : null}
+                    {trendNegative ? (
+                      <ArrowDownward className="h-3.5 w-3.5" />
+                    ) : null}
+                    {!trendPositive && !trendNegative ? (
+                      <Minus className="h-3.5 w-3.5" />
+                    ) : null}
                     {deltaLabel}
                   </Badge>
                 ) : null}

@@ -4,15 +4,23 @@ import type { ExecutiveHighlight } from "@/lib/api";
 import { AlertTriangle, CheckCircle2, Minus, ReportProblem } from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { ReactNode } from "react";
 
 type ExecutiveHighlightsProps = {
   items?: ExecutiveHighlight[];
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
+  extras: ReactNode;
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
@@ -67,14 +75,18 @@ function HighlightStatCard({ item }: { item: ExecutiveHighlight }) {
     <div className="surface-framed rounded-md bg-muted/50 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${toneMeta.markerClassName}`} />
+          <span
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${toneMeta.markerClassName}`}
+          />
           <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {item.title}
           </p>
         </div>
         <Badge
           variant={toneMeta.badgeVariant}
-          className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px]")}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px]",
+          )}
         >
           <ToneIcon className="h-3 w-3" />
           {toneMeta.label}
@@ -92,6 +104,7 @@ export function ExecutiveHighlights({
   isLoading,
   isError,
   errorMessage,
+  extras,
 }: ExecutiveHighlightsProps) {
   if (isLoading) {
     return (
@@ -103,7 +116,10 @@ export function ExecutiveHighlights({
         <CardContent className="pt-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={`highlight-skeleton-${index}`} className="rounded-md bg-muted/40 p-3">
+              <div
+                key={`highlight-skeleton-${index}`}
+                className="rounded-md bg-muted/40 p-3"
+              >
                 <Skeleton className="h-3 w-24" />
                 <Skeleton className="mt-2 h-6 w-20" />
               </div>
@@ -119,7 +135,9 @@ export function ExecutiveHighlights({
       <StatusState
         variant="error"
         title="Exception highlights unavailable"
-        description={errorMessage || "Highlight records could not be retrieved."}
+        description={
+          errorMessage || "Highlight records could not be retrieved."
+        }
       />
     );
   }
@@ -142,20 +160,11 @@ export function ExecutiveHighlights({
     <Card className="overflow-hidden">
       <CardHeader className="border-b border-border/60 pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-[1.15rem]">Exception Highlights</CardTitle>
-            <CardDescription>Priority exception signals across active domains.</CardDescription>
-          </div>
+          <div>{extras}</div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="danger">
-              Critical: {criticalCount}
-            </Badge>
-            <Badge variant="warning">
-              Watch: {watchCount}
-            </Badge>
-            <Badge variant="success">
-              Positive: {positiveCount}
-            </Badge>
+            <Badge variant="danger">Critical: {criticalCount}</Badge>
+            <Badge variant="warning">Watch: {watchCount}</Badge>
+            <Badge variant="success">Positive: {positiveCount}</Badge>
           </div>
         </div>
       </CardHeader>

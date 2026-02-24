@@ -38,6 +38,7 @@ export const AlertCircle = createMaterialIcon("error", "AlertCircle");
 export const AlertTriangle = createMaterialIcon("warning", "AlertTriangle");
 export const ArrowRight = createMaterialIcon("arrow_forward", "ArrowRight");
 export const ArrowRightLeft = createMaterialIcon("sync_alt", "ArrowRightLeft");
+export const ArrowRightUp = createMaterialIcon("call_made", "ArrowRightLeft");
 export const ArrowDownward = createMaterialIcon(
   "arrow_downward",
   "ArrowDownward",

@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowDownward,
   ArrowRight,
+  ArrowRightLeft,
+  ArrowRightUp,
   ArrowUpward,
   BarChart3,
   Coins,
@@ -69,7 +71,10 @@ type IconKey =
   | "gold-receipt"
   | "gold-dispatch";
 
-const MODULE_META: Record<ExecutiveQuickLink["module"], { label: string; icon: IconKey }> = {
+const MODULE_META: Record<
+  ExecutiveQuickLink["module"],
+  { label: string; icon: IconKey }
+> = {
   operations: { label: "Operations", icon: "operations" },
   gold: { label: "Gold", icon: "gold" },
   stores: { label: "Stores", icon: "stores" },
@@ -119,10 +124,14 @@ function getBadgeText(link: ExecutiveQuickLink) {
 
 function getLinkIcon(link: ExecutiveQuickLink): IconKey {
   if (link.isPrimary) {
-    return QUICK_ACTION_ICON_BY_HREF[link.href] ?? MODULE_META[link.module].icon;
+    return (
+      QUICK_ACTION_ICON_BY_HREF[link.href] ?? MODULE_META[link.module].icon
+    );
   }
 
-  const matched = LINK_ICON_BY_HREF_PREFIX.find((entry) => link.href.startsWith(entry.prefix));
+  const matched = LINK_ICON_BY_HREF_PREFIX.find((entry) =>
+    link.href.startsWith(entry.prefix),
+  );
   if (matched) return matched.icon;
   return MODULE_META[link.module].icon;
 }
@@ -206,14 +215,10 @@ function QuickLinkListItem({ link }: { link: ExecutiveQuickLink }) {
     <li>
       <Link
         href={link.href}
-        className="group flex items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 text-sm transition-colors hover:border-border/70 hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+        className="group flex items-center gap-2 rounded-sm border border-transparent py-1 text-sm transition-colors"
       >
-        <span className="min-w-0 flex-1 truncate">{link.label}</span>
-        {badgeText ? (
-          <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">
-            {badgeText}
-          </Badge>
-        ) : null}
+        <span className="min-w-0 truncate">{link.label}</span>
+        <ArrowRightUp />
       </Link>
     </li>
   );
@@ -235,7 +240,10 @@ export function ExecutiveQuickLinks({
       if (a.isPrimary && !b.isPrimary) return -1;
       if (!a.isPrimary && b.isPrimary) return 1;
       if (a.isPrimary && b.isPrimary) {
-        return (a.primaryOrder ?? Number.MAX_SAFE_INTEGER) - (b.primaryOrder ?? Number.MAX_SAFE_INTEGER);
+        return (
+          (a.primaryOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.primaryOrder ?? Number.MAX_SAFE_INTEGER)
+        );
       }
       if (a.priority !== b.priority) {
         return b.priority - a.priority;
@@ -273,9 +281,6 @@ export function ExecutiveQuickLinks({
 
   return (
     <section className={cn("space-y-3", className)}>
-      <div className="space-y-0">
-        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-      </div>
       <div>
         {hasPrimary ? (
           <div className="mb-5 space-y-3">
@@ -292,29 +297,24 @@ export function ExecutiveQuickLinks({
 
         {showEmpty ? (
           <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        ) : (
-          hasSecondary ? (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Module Links
-              </p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {groupedSecondaryLinks.map((group) => (
-                  <div key={group.module} className="surface-framed rounded-lg border border-border/60 bg-[var(--surface-subtle)] p-2.5">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <p className="text-sm font-semibold">{group.label}</p>
-                    </div>
-                    <ul className="space-y-1">
-                      {group.links.map((link) => (
-                        <QuickLinkListItem key={link.href} link={link} />
-                      ))}
-                    </ul>
+        ) : hasSecondary ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
+              {groupedSecondaryLinks.map((group) => (
+                <div key={group.module}>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <p className="text-base font-semibold">{group.label}</p>
                   </div>
-                ))}
-              </div>
+                  <ul className="space-y-1">
+                    {group.links.slice(0, 6).map((link) => (
+                      <QuickLinkListItem key={link.href} link={link} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
-          ) : null
-        )}
+          </div>
+        ) : null}
       </div>
     </section>
   );

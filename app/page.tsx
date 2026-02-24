@@ -11,7 +11,13 @@ import {
 import { getApiErrorMessage } from "@/lib/api-client";
 import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCcw } from "@/lib/icons";
 import { ExecutiveKpiGrid } from "@/components/dashboard/executive-kpi-grid";
@@ -23,13 +29,16 @@ import { ExecutiveCriticalStrip } from "@/components/dashboard/executive-critica
 import { ExecutiveModuleMatrix } from "@/components/dashboard/executive-module-matrix";
 
 const ALL_SITES_VALUE = "all";
-const EXECUTIVE_RANGE_OPTIONS: Array<{ value: ExecutiveRange; label: string }> = [
-  { value: "7d", label: "Last 7 days" },
-  { value: "30d", label: "Last 30 days" },
-  { value: "90d", label: "Last 90 days" },
-];
+const EXECUTIVE_RANGE_OPTIONS: Array<{ value: ExecutiveRange; label: string }> =
+  [
+    { value: "7d", label: "Last 7 days" },
+    { value: "30d", label: "Last 30 days" },
+    { value: "90d", label: "Last 90 days" },
+  ];
 
-function formatUpdatedAt(overview: ExecutiveDashboardResponse | undefined): string | null {
+function formatUpdatedAt(
+  overview: ExecutiveDashboardResponse | undefined,
+): string | null {
   if (!overview?.generatedAt) return null;
   const parsed = new Date(overview.generatedAt);
   if (Number.isNaN(parsed.getTime())) return null;
@@ -62,11 +71,13 @@ export default function HomePage() {
   const overviewErrorMessage = error ? getApiErrorMessage(error) : undefined;
   const updatedAt = useMemo(() => formatUpdatedAt(overview), [overview]);
   const selectedRangeLabel =
-    EXECUTIVE_RANGE_OPTIONS.find((option) => option.value === selectedRange)?.label ?? "Last 30 days";
+    EXECUTIVE_RANGE_OPTIONS.find((option) => option.value === selectedRange)
+      ?.label ?? "Last 30 days";
   const selectedSiteLabel =
     selectedSiteId === ALL_SITES_VALUE
       ? "All sites"
-      : overview?.sites.find((candidate) => candidate.id === selectedSiteId)?.name ?? "Selected site";
+      : (overview?.sites.find((candidate) => candidate.id === selectedSiteId)
+          ?.name ?? "Selected site");
 
   return (
     <div className="space-y-6">
@@ -83,81 +94,74 @@ export default function HomePage() {
           </Alert>
         ) : null}
 
-        <ExecutiveSummaryBar
-          items={overview?.executiveSummary}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
-          headerControls={
-            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[28rem]">
-              <div className="space-y-1">
-                <label htmlFor={siteFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Site
-                </label>
-                {isLoading && !overview ? (
-                  <Skeleton className="h-9 w-full" />
-                ) : (
-                  <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                    <SelectTrigger id={siteFilterId}>
-                      <SelectValue placeholder="All sites" />
+        <section className="space-y-5">
+          <ExecutiveHighlights
+            items={overview?.highlights}
+            isLoading={isLoading}
+            isError={Boolean(error) && !hasOverviewData}
+            errorMessage={overviewErrorMessage}
+            extras={
+              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[28rem]">
+                <div className="space-y-1">
+                  <label
+                    htmlFor={siteFilterId}
+                    className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    Site
+                  </label>
+                  {isLoading && !overview ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : (
+                    <Select
+                      value={selectedSiteId}
+                      onValueChange={setSelectedSiteId}
+                    >
+                      <SelectTrigger id={siteFilterId}>
+                        <SelectValue placeholder="All sites" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_SITES_VALUE}>
+                          All sites
+                        </SelectItem>
+                        {(overview?.sites ?? []).map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label
+                    htmlFor={rangeFilterId}
+                    className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    Range
+                  </label>
+                  <Select
+                    value={selectedRange}
+                    onValueChange={(value) =>
+                      setSelectedRange(value as ExecutiveRange)
+                    }
+                  >
+                    <SelectTrigger id={rangeFilterId}>
+                      <SelectValue placeholder="Select range" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL_SITES_VALUE}>All sites</SelectItem>
-                      {(overview?.sites ?? []).map((site) => (
-                        <SelectItem key={site.id} value={site.id}>
-                          {site.name}
+                      {EXECUTIVE_RANGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
+                </div>
               </div>
-
-              <div className="space-y-1">
-                <label htmlFor={rangeFilterId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Range
-                </label>
-                <Select value={selectedRange} onValueChange={(value) => setSelectedRange(value as ExecutiveRange)}>
-                  <SelectTrigger id={rangeFilterId}>
-                    <SelectValue placeholder="Select range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXECUTIVE_RANGE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          }
-          headerMeta={
-            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <RefreshCcw className="h-3.5 w-3.5" />
-                Refresh every <span className="font-mono tabular-nums">60s</span>
-              </span>
-              {updatedAt ? (
-                <span>
-                  Last update: <span className="font-mono tabular-nums">{updatedAt}</span>
-                </span>
-              ) : null}
-              <span>
-                Scope: <span className="font-mono tabular-nums">{selectedSiteLabel}</span>
-              </span>
-              <span>
-                Range: <span className="font-mono tabular-nums">{selectedRangeLabel}</span>
-              </span>
-            </div>
-          }
-        />
-        <ExecutiveCriticalStrip
-          items={overview?.executiveSummary}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
-        />
+            }
+          />
+        </section>
       </section>
 
       <section className="space-y-5">
@@ -175,29 +179,10 @@ export default function HomePage() {
         />
       </section>
 
-      <section className="space-y-5">
-        <ExecutiveHighlights
-          items={overview?.highlights}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
-        />
-      </section>
-
-      <section className="space-y-5">
-        <ExecutiveModuleMatrix
-          items={overview?.executiveSummary}
-          isLoading={isLoading}
-          isError={Boolean(error) && !hasOverviewData}
-          errorMessage={overviewErrorMessage}
-        />
-      </section>
-
-      <section className="surface-framed rounded-xl bg-[var(--surface-subtle)] p-3 sm:p-4">
+      <section>
         <ExecutiveQuickLinks
           links={overview?.quickLinks ?? []}
-          title="Module Links"
-          description="Module and report entry points grouped by domain."
+          title="Navigation"
           showPrimary={false}
         />
       </section>
