@@ -562,7 +562,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
             {parsedFrappeTable ? (
               <FrappeListViewAdapter
                 className={cn(
-                  "w-max text-sm",
+                  "w-full text-sm",
                   tabletScrollable &&
                   "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
                   className,
@@ -587,7 +587,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 ref={ref}
                 data-slot="table"
                 className={cn(
-                  "w-max caption-bottom text-sm",
+                  "w-full caption-bottom text-sm",
                   tabletScrollable &&
                   "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
                   className,

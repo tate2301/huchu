@@ -617,11 +617,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         border-radius: 0;
     }
     .table-rail > [data-slot="table"] {
-        min-width: max-content;
+        width: max(100%, max-content);
+        min-width: 100%;
     }
     .huchu-listview-compact {
-        width: max-content !important;
-        min-width: 0 !important;
+        width: max(100%, max-content) !important;
+        min-width: 100% !important;
         max-width: none !important;
     }
     .huchu-listview-compact .grid.items-center {

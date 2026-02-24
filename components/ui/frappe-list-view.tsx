@@ -190,7 +190,7 @@ export function FrappeListViewAdapter<TRow extends Record<string, unknown>>({
       rows={rows as unknown[]}
       rowKey={rowKey}
       options={options}
-      className={cn("huchu-listview-compact !w-max !min-w-0", className)}
+      className={cn("huchu-listview-compact !w-full !min-w-full", className)}
       style={style}
     >
       <>

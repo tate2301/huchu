@@ -834,7 +834,7 @@ export function DataTable<TData, TValue>({
           </Table>
         ) : (
           <FrappeListViewAdapter
-            className={cn("w-max", tableClassName)}
+            className={cn("w-full", tableClassName)}
             columns={listColumns}
             rows={listRows}
             rowKey="__rowId"
