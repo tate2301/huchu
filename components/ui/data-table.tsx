@@ -17,6 +17,10 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
+import {
+  FrappeListViewAdapter,
+  type FrappeListViewColumn,
+} from "@/components/ui/frappe-list-view";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -70,7 +74,7 @@ type DataTablePaginationConfig = {
 };
 
 type DataTableRowSelectionConfig<TData> = {
-  enabled: boolean;
+  enabled?: boolean;
   onSelectionChange?: (rows: TData[]) => void;
   bulkActions?: (context: {
     selectedRows: TData[];
@@ -123,6 +127,16 @@ type DataTableExpansionConfig<TData> = {
   };
 };
 
+type DataTableListCell = {
+  className?: string;
+  content: React.ReactNode;
+};
+
+type DataTableListRow<TData> = Record<string, unknown> & {
+  __rowId: string;
+  __source: TData;
+};
+
 export type DataTableProps<TData, TValue> = {
   data: TData[];
   columns: ColumnDef<TData, TValue>[];
@@ -172,6 +186,74 @@ function defaultResolveExpansionRowId<TData>(row: TData, index: number) {
   return String(index);
 }
 
+function getElementDisplayName(node: React.ReactElement): string {
+  if (typeof node.type === "string") return node.type;
+  if (typeof node.type === "function") {
+    const component = node.type as { displayName?: string; name?: string };
+    return component.displayName ?? component.name ?? "";
+  }
+  if (typeof node.type === "object" && node.type !== null && "displayName" in node.type) {
+    const displayName = (node.type as { displayName?: unknown }).displayName;
+    return typeof displayName === "string" ? displayName : "";
+  }
+  return "";
+}
+
+function hasInteractiveContent(node: React.ReactNode): boolean {
+  if (node === null || node === undefined || typeof node === "boolean") return false;
+  if (typeof node === "string" || typeof node === "number" || typeof node === "bigint") return false;
+  if (Array.isArray(node)) return node.some((item) => hasInteractiveContent(item));
+  if (!React.isValidElement(node)) return false;
+
+  const element = node as React.ReactElement<{ children?: React.ReactNode; role?: string }>;
+  const name = getElementDisplayName(element);
+  if (element.type === React.Fragment) {
+    return hasInteractiveContent(element.props.children);
+  }
+
+  if (typeof element.type === "string") {
+    if (["button", "a", "input", "select", "textarea"].includes(element.type)) {
+      return true;
+    }
+  } else if (/(Button|Trigger|Select|Checkbox|Switch|Radio|Combobox)/i.test(name)) {
+    return true;
+  }
+
+  if (typeof element.props.role === "string") {
+    if (["button", "link", "checkbox", "switch", "radio", "tab", "menuitem"].includes(element.props.role)) {
+      return true;
+    }
+  }
+
+  return hasInteractiveContent(element.props.children);
+}
+
+type SelectionCheckboxProps = Omit<React.ComponentProps<"input">, "type"> & {
+  indeterminate?: boolean;
+};
+
+function SelectionCheckbox({
+  indeterminate = false,
+  className,
+  ...props
+}: SelectionCheckboxProps) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!inputRef.current) return;
+    inputRef.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="checkbox"
+      className={cn("h-4 w-4 rounded border-[var(--table-divider)] accent-[var(--action-primary-bg)]", className)}
+      {...props}
+    />
+  );
+}
+
 export function DataTable<TData, TValue>({
   data,
   columns,
@@ -203,6 +285,7 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const sortingEnabled = features?.sorting ?? true;
   const globalFilterEnabled = features?.globalFilter ?? true;
+  const rowSelectionEnabled = true;
   const paginationEnabled = features?.pagination ?? pagination?.enabled ?? true;
   const serverPagination = pagination?.server ?? false;
   const resolvedSearchScope: Exclude<DataTableSearchScope, "auto"> =
@@ -213,6 +296,10 @@ export function DataTable<TData, TValue>({
   const [searchDraft, setSearchDraft] = React.useState(queryState?.search ?? "");
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelectionState, setRowSelectionState] = React.useState<RowSelectionState>({});
+  const [listViewSelectedRows, setListViewSelectedRows] = React.useState<TData[]>([]);
+  const listViewSelectionControlsRef = React.useRef<{
+    clearSelection: () => void;
+  } | null>(null);
   const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: 25,
@@ -293,18 +380,6 @@ export function DataTable<TData, TValue>({
     searchDraft,
   ]);
 
-  const selectedRows = React.useMemo(() => {
-    return Object.keys(rowSelectionState)
-      .filter((id) => rowSelectionState[id])
-      .map((id) => data[Number(id)])
-      .filter(Boolean);
-  }, [data, rowSelectionState]);
-
-  React.useEffect(() => {
-    if (!rowSelection?.enabled) return;
-    rowSelection.onSelectionChange?.(selectedRows);
-  }, [rowSelection, selectedRows]);
-
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -312,14 +387,14 @@ export function DataTable<TData, TValue>({
     state: {
       sorting: sortingEnabled ? sorting : [],
       globalFilter: useClientGlobalFilter ? effectiveGlobalFilter : undefined,
-      rowSelection: rowSelection?.enabled ? rowSelectionState : {},
+      rowSelection: rowSelectionEnabled ? rowSelectionState : {},
       pagination: {
         pageIndex: toPageIndex(page),
         pageSize,
       },
     },
     enableSorting: sortingEnabled,
-    enableRowSelection: rowSelection?.enabled ?? false,
+    enableRowSelection: rowSelectionEnabled,
     manualPagination: serverPagination,
     pageCount: serverPagination ? (pagination?.totalPages ?? -1) : undefined,
     onSortingChange: sortingEnabled
@@ -346,7 +421,7 @@ export function DataTable<TData, TValue>({
           return getSearchText(row.original).includes(query);
         }
       : undefined,
-    onRowSelectionChange: rowSelection?.enabled ? setRowSelectionState : undefined,
+    onRowSelectionChange: rowSelectionEnabled ? setRowSelectionState : undefined,
     onPaginationChange: (updater) => {
       const next = typeof updater === "function" ? updater({ pageIndex: toPageIndex(page), pageSize }) : updater;
       onQueryStateChange?.({ page: toPage(next.pageIndex), pageSize: next.pageSize });
@@ -382,10 +457,6 @@ export function DataTable<TData, TValue>({
     },
     [onQueryStateChange, queryState, totalPages],
   );
-
-  const clearSelection = React.useCallback(() => {
-    setRowSelectionState({});
-  }, []);
 
   const updateExpandedRowIds = React.useCallback(
     (nextIds: string[]) => {
@@ -448,7 +519,132 @@ export function DataTable<TData, TValue>({
 
   const renderedRows = table.getRowModel().rows;
   const visibleColumnCount = table.getVisibleLeafColumns().length;
-  const totalColumnCount = visibleColumnCount + (expansionEnabled ? 1 : 0);
+  const totalColumnCount =
+    visibleColumnCount + (expansionEnabled ? 1 : 0) + (rowSelectionEnabled ? 1 : 0);
+  const bulkActions = rowSelection?.bulkActions;
+
+  const leafHeaders = React.useMemo(() => {
+    const leafHeadersByColumnId = new Map<string, ReturnType<typeof table.getFlatHeaders>[number]>();
+    for (const header of table.getFlatHeaders()) {
+      if (header.isPlaceholder || header.subHeaders.length > 0) continue;
+      if (!leafHeadersByColumnId.has(header.column.id)) {
+        leafHeadersByColumnId.set(header.column.id, header);
+      }
+    }
+    return leafHeadersByColumnId;
+  }, [table]);
+
+  const resolveAlign = React.useCallback((value?: string) => {
+    if (!value) return "left" as const;
+    if (value.includes("text-right")) return "right" as const;
+    if (value.includes("text-center")) return "center" as const;
+    return "left" as const;
+  }, []);
+
+  const listColumns = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
+    return table.getVisibleLeafColumns().map((column) => {
+      const header = leafHeaders.get(column.id);
+      const align = resolveAlign(column.columnDef.meta && typeof column.columnDef.meta === "object" && "className" in column.columnDef.meta
+        ? String((column.columnDef.meta as { className?: string }).className ?? "")
+        : "");
+
+      return {
+        key: `col_${column.id}`,
+        label: header
+          ? flexRender(header.column.columnDef.header, header.getContext())
+          : column.id,
+        align,
+      };
+    });
+  }, [leafHeaders, resolveAlign, table]);
+
+  const listRows = React.useMemo<DataTableListRow<TData>[]>(() => {
+    return renderedRows.map((row) => {
+      const nextRow: DataTableListRow<TData> = {
+        __rowId: row.id,
+        __source: row.original,
+      };
+      for (const cell of row.getVisibleCells()) {
+        nextRow[`col_${cell.column.id}`] = {
+          className:
+            cell.column.columnDef.meta &&
+            typeof cell.column.columnDef.meta === "object" &&
+            "className" in cell.column.columnDef.meta
+              ? String((cell.column.columnDef.meta as { className?: string }).className ?? "")
+              : undefined,
+          content: flexRender(cell.column.columnDef.cell, cell.getContext()),
+        } satisfies DataTableListCell;
+      }
+      return nextRow;
+    });
+  }, [renderedRows]);
+
+  const hasInteractiveCellContent = React.useMemo(() => {
+    return listRows.some((row) =>
+      Object.entries(row).some(([key, value]) => {
+        if (!key.startsWith("col_")) return false;
+        if (!value || typeof value !== "object" || !("content" in value)) return false;
+        return hasInteractiveContent((value as DataTableListCell).content);
+      }),
+    );
+  }, [listRows]);
+
+  const useLegacyTableRendering = expansionEnabled || hasInteractiveCellContent;
+
+  const handleListViewSelectionChange = React.useCallback(
+    (rows: DataTableListRow<TData>[]) => {
+      const nextRows = rows.map((row) => row.__source);
+      setListViewSelectedRows((prev) => {
+        if (
+          prev.length === nextRows.length &&
+          prev.every((row, index) => Object.is(row, nextRows[index]))
+        ) {
+          return prev;
+        }
+        return nextRows;
+      });
+    },
+    [],
+  );
+
+  const handleListViewSelectionMetaChange = React.useCallback(
+    (meta: { clearSelection: () => void }) => {
+      listViewSelectionControlsRef.current = {
+        clearSelection: meta.clearSelection,
+      };
+    },
+    [],
+  );
+
+  const selectedRows = React.useMemo(() => {
+    if (!rowSelectionEnabled) return [];
+    if (!useLegacyTableRendering) {
+      return listViewSelectedRows;
+    }
+    return table.getSelectedRowModel().rows.map((row) => row.original);
+  }, [listViewSelectedRows, rowSelectionEnabled, table, useLegacyTableRendering]);
+
+  const onSelectionChange = rowSelection?.onSelectionChange;
+  const lastNotifiedSelectedRowsRef = React.useRef<TData[] | null>(null);
+  React.useEffect(() => {
+    if (!onSelectionChange) return;
+    const previous = lastNotifiedSelectedRowsRef.current;
+    const hasSameSelection =
+      previous !== null &&
+      previous.length === selectedRows.length &&
+      previous.every((row, index) => Object.is(row, selectedRows[index]));
+    if (hasSameSelection) return;
+    lastNotifiedSelectedRowsRef.current = selectedRows;
+    onSelectionChange(selectedRows);
+  }, [onSelectionChange, selectedRows]);
+
+  const clearSelection = React.useCallback(() => {
+    if (useLegacyTableRendering) {
+      setRowSelectionState({});
+      return;
+    }
+    listViewSelectionControlsRef.current?.clearSelection();
+  }, [useLegacyTableRendering]);
 
   return (
     <div className={cn("space-y-0", className)}>
@@ -496,97 +692,152 @@ export function DataTable<TData, TValue>({
         className={cn(maxBodyHeight ? "overflow-auto" : undefined, tableContainerClassName)}
         style={maxBodyHeight ? { maxHeight: maxBodyHeight } : undefined}
       >
-        <Table
-          className={tableClassName}
-          enablePagination={false}
-          stickyHeader={stickyHeader}
-          stickyHeaderOffset={stickyHeaderOffset}
-          tabletScrollable={tabletScrollable}
-          tabletStickyFirstColumn={tabletStickyFirstColumn}
-          tabletMinTableWidth={tabletMinTableWidth}
-          edgeToEdge={edgeToEdge}
-        >
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {expansionEnabled ? (
-                  <TableHead className={cn("pl-2", expandColumnWidthClassName)}>
-                    {expansion?.expandColumn?.header ?? null}
-                  </TableHead>
-                ) : null}
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {renderedRows.length > 0 ? (
-              renderedRows.map((row) => {
-                const { rowId, canExpand, isExpanded } = getRowExpansionMeta(row);
-                const isLoading = loadingRowIdsSet.has(rowId);
-                const error = expansion?.errorByRowId?.[rowId];
+        {useLegacyTableRendering ? (
+          <Table
+            className={tableClassName}
+            enablePagination={false}
+            stickyHeader={stickyHeader}
+            stickyHeaderOffset={stickyHeaderOffset}
+            tabletScrollable={tabletScrollable}
+            tabletStickyFirstColumn={tabletStickyFirstColumn}
+            tabletMinTableWidth={tabletMinTableWidth}
+            edgeToEdge={edgeToEdge}
+          >
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {rowSelectionEnabled ? (
+                    <TableHead className="w-10 px-2">
+                      <SelectionCheckbox
+                        checked={table.getIsAllRowsSelected()}
+                        indeterminate={table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
+                        onChange={table.getToggleAllRowsSelectedHandler()}
+                        aria-label="Select all rows"
+                      />
+                    </TableHead>
+                  ) : null}
+                  {expansionEnabled ? (
+                    <TableHead className={cn("pl-2", expandColumnWidthClassName)}>
+                      {expansion?.expandColumn?.header ?? null}
+                    </TableHead>
+                  ) : null}
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {renderedRows.length > 0 ? (
+                renderedRows.map((row) => {
+                  const { rowId, canExpand, isExpanded } = getRowExpansionMeta(row);
+                  const isLoading = loadingRowIdsSet.has(rowId);
+                  const error = expansion?.errorByRowId?.[rowId];
 
-                return (
-                  <React.Fragment key={row.id}>
-                    <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
-                      {expansionEnabled ? (
-                        <TableCell className={cn("w-10 pl-2 align-top", expandColumnWidthClassName)}>
-                          {canExpand ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground shadow-none hover:bg-[var(--button-ghost-hover-bg)]"
-                              onClick={() => toggleRowExpansion(row.original, row.index)}
-                              aria-label={isExpanded ? "Collapse row" : "Expand row"}
-                              aria-expanded={isExpanded}
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="size-4" />
-                              ) : (
-                                <ChevronRight className="size-4" />
-                              )}
-                            </Button>
-                          ) : null}
-                        </TableCell>
-                      ) : null}
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                    {expansionEnabled && isExpanded ? (
+                  return (
+                    <React.Fragment key={row.id}>
                       <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
-                        <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-expanded-bg)] py-0">
-                          {expansion?.renderExpandedContent({
-                            row: row.original,
-                            rowId,
-                            isExpanded,
-                            isLoading,
-                            error,
-                            collapse: () => toggleRowExpansion(row.original, row.index, false),
-                          })}
+                        <TableCell className="w-10 px-2 align-top">
+                          <SelectionCheckbox
+                            checked={row.getIsSelected()}
+                            onChange={row.getToggleSelectedHandler()}
+                            disabled={!row.getCanSelect()}
+                            aria-label={`Select row ${row.index + 1}`}
+                          />
                         </TableCell>
+                        {expansionEnabled ? (
+                          <TableCell className={cn("w-10 pl-2 align-top", expandColumnWidthClassName)}>
+                            {canExpand ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground shadow-none hover:bg-[var(--button-ghost-hover-bg)]"
+                                onClick={() => toggleRowExpansion(row.original, row.index)}
+                                aria-label={isExpanded ? "Collapse row" : "Expand row"}
+                                aria-expanded={isExpanded}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="size-4" />
+                                ) : (
+                                  <ChevronRight className="size-4" />
+                                )}
+                              </Button>
+                            ) : null}
+                          </TableCell>
+                        ) : null}
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
                       </TableRow>
-                    ) : null}
-                  </React.Fragment>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-empty-bg)] py-9 text-center text-muted-foreground">
-                  {emptyState ?? noResultsText}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                      {expansionEnabled && isExpanded ? (
+                        <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
+                          <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-expanded-bg)] py-0">
+                            {expansion?.renderExpandedContent({
+                              row: row.original,
+                              rowId,
+                              isExpanded,
+                              isLoading,
+                              error,
+                              collapse: () => toggleRowExpansion(row.original, row.index, false),
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-empty-bg)] py-9 text-center text-muted-foreground">
+                    {emptyState ?? noResultsText}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        ) : (
+          <FrappeListViewAdapter
+            className={cn("w-full", tableClassName)}
+            columns={listColumns}
+            rows={listRows}
+            rowKey="__rowId"
+            selectable={rowSelectionEnabled}
+            selectionText={(count) =>
+              count === 1 ? "1 row selected" : `${count} rows selected`
+            }
+            resizeColumn={false}
+            showTooltip={false}
+            onSelectionChange={handleListViewSelectionChange}
+            onSelectionMetaChange={handleListViewSelectionMetaChange}
+            selectionBannerActions={
+              bulkActions
+                ? ({ selectedRows, clearSelection: clearListSelection }) =>
+                    bulkActions({
+                      selectedRows: selectedRows.map((row) => row.__source),
+                      clearSelection: clearListSelection,
+                    })
+                : undefined
+            }
+            emptyState={{
+              title: "No records found",
+              description: typeof noResultsText === "string" ? noResultsText : "No records found.",
+            }}
+            cellRenderer={({ item }) => {
+              if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
+                const listCell = item as DataTableListCell;
+                return <div className={cn("text-table-cell", listCell.className)}>{listCell.content}</div>;
+              }
+              return item as React.ReactNode;
+            }}
+          />
+        )}
       </div>
 
       {showBottomPagination ? (
@@ -635,9 +886,12 @@ export function DataTable<TData, TValue>({
         </div>
       ) : null}
 
-      {rowSelection?.enabled && selectedRows.length > 0 && rowSelection.bulkActions ? (
+      {useLegacyTableRendering &&
+      rowSelectionEnabled &&
+      selectedRows.length > 0 &&
+      bulkActions ? (
         <DataTableFloatingActions>
-          {rowSelection.bulkActions({ selectedRows, clearSelection })}
+          {bulkActions({ selectedRows, clearSelection })}
         </DataTableFloatingActions>
       ) : null}
     </div>

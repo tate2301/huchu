@@ -1,4 +1,5 @@
 import "material-symbols";
+import "@rtcamp/frappe-ui-react/theme";
 
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
