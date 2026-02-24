@@ -8,6 +8,10 @@ import {
   type FrappeListViewColumn,
 } from "@/components/ui/frappe-list-view";
 import {
+  computeListViewColumnWidths,
+  inferPrimaryColumnKeys,
+} from "@/components/ui/listview-column-sizing";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -249,7 +253,26 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
     rows.push(nextRow);
   }
 
-  return { columns, rows };
+  const columnWidths = computeListViewColumnWidths({
+    columns,
+    rows,
+    getCellContent: (row, column) => {
+      const value = row[column.key];
+      if (value && typeof value === "object" && "content" in (value as Record<string, unknown>)) {
+        return (value as ParsedFrappeCell).content;
+      }
+      return value;
+    },
+    primaryColumnKeys: inferPrimaryColumnKeys(columns),
+  });
+
+  return {
+    columns: columns.map((column) => ({
+      ...column,
+      width: columnWidths[column.key] ?? column.width,
+    })),
+    rows,
+  };
 }
 
 function TablePaginationControls({

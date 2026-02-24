@@ -21,6 +21,10 @@ import {
   FrappeListViewAdapter,
   type FrappeListViewColumn,
 } from "@/components/ui/frappe-list-view";
+import {
+  computeListViewColumnWidths,
+  inferPrimaryColumnKeys,
+} from "@/components/ui/listview-column-sizing";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -541,24 +545,6 @@ export function DataTable<TData, TValue>({
     return "left" as const;
   }, []);
 
-  const listColumns = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
-    return table.getVisibleLeafColumns().map((column) => {
-      const header = leafHeaders.get(column.id);
-      const align = resolveAlign(column.columnDef.meta && typeof column.columnDef.meta === "object" && "className" in column.columnDef.meta
-        ? String((column.columnDef.meta as { className?: string }).className ?? "")
-        : "");
-
-      return {
-        key: `col_${column.id}`,
-        label: header
-          ? flexRender(header.column.columnDef.header, header.getContext())
-          : column.id,
-        align,
-        width: "max-content",
-      };
-    });
-  }, [leafHeaders, resolveAlign, table]);
-
   const listRows = React.useMemo<DataTableListRow<TData>[]>(() => {
     return renderedRows.map((row) => {
       const nextRow: DataTableListRow<TData> = {
@@ -579,6 +565,49 @@ export function DataTable<TData, TValue>({
       return nextRow;
     });
   }, [renderedRows]);
+
+  const listColumnDefinitions = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
+    return table.getVisibleLeafColumns().map((column) => {
+      const header = leafHeaders.get(column.id);
+      const align = resolveAlign(
+        column.columnDef.meta &&
+        typeof column.columnDef.meta === "object" &&
+        "className" in column.columnDef.meta
+          ? String((column.columnDef.meta as { className?: string }).className ?? "")
+          : "",
+      );
+
+      return {
+        key: `col_${column.id}`,
+        label: header
+          ? flexRender(header.column.columnDef.header, header.getContext())
+          : column.id,
+        align,
+      };
+    });
+  }, [leafHeaders, resolveAlign, table]);
+
+  const listColumnWidths = React.useMemo(() => {
+    return computeListViewColumnWidths({
+      columns: listColumnDefinitions,
+      rows: listRows,
+      getCellContent: (row, column) => {
+        const value = row[column.key];
+        if (value && typeof value === "object" && "content" in (value as Record<string, unknown>)) {
+          return (value as DataTableListCell).content;
+        }
+        return value;
+      },
+      primaryColumnKeys: inferPrimaryColumnKeys(listColumnDefinitions),
+    });
+  }, [listColumnDefinitions, listRows]);
+
+  const listColumns = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
+    return listColumnDefinitions.map((column) => ({
+      ...column,
+      width: listColumnWidths[column.key] ?? "max-content",
+    }));
+  }, [listColumnDefinitions, listColumnWidths]);
 
   const hasInteractiveCellContent = React.useMemo(() => {
     return listRows.some((row) =>
