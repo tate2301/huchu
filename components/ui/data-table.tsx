@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/frappe-list-view";
 import {
   computeListViewColumnWidths,
+  inferNumericColumnKeys,
   inferPrimaryColumnKeys,
 } from "@/components/ui/listview-column-sizing";
 import { Input } from "@/components/ui/input";
@@ -599,6 +600,7 @@ export function DataTable<TData, TValue>({
         return value;
       },
       primaryColumnKeys: inferPrimaryColumnKeys(listColumnDefinitions),
+      numericColumnKeys: inferNumericColumnKeys(listColumnDefinitions),
     });
   }, [listColumnDefinitions, listRows]);
 
@@ -865,7 +867,7 @@ export function DataTable<TData, TValue>({
             cellRenderer={({ item }) => {
               if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
                 const listCell = item as DataTableListCell;
-                return <div className={cn("text-table-cell", listCell.className)}>{listCell.content}</div>;
+                return <div className={cn("text-table-cell whitespace-nowrap", listCell.className)}>{listCell.content}</div>;
               }
               return item as React.ReactNode;
             }}

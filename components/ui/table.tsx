@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/frappe-list-view";
 import {
   computeListViewColumnWidths,
+  inferNumericColumnKeys,
   inferPrimaryColumnKeys,
 } from "@/components/ui/listview-column-sizing";
 import {
@@ -264,6 +265,7 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
       return value;
     },
     primaryColumnKeys: inferPrimaryColumnKeys(columns),
+    numericColumnKeys: inferNumericColumnKeys(columns),
   });
 
   return {
@@ -581,7 +583,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 cellRenderer={({ item }) => {
                   if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
                     const cell = item as ParsedFrappeCell;
-                    return <div className={cn("text-table-cell", cell.className)}>{cell.content}</div>;
+                    return <div className={cn("text-table-cell whitespace-nowrap", cell.className)}>{cell.content}</div>;
                   }
                   return item as React.ReactNode;
                 }}

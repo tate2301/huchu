@@ -13,6 +13,7 @@ type ComputeListViewColumnWidthsOptions<TRow extends Record<string, unknown>> = 
   rows: TRow[];
   getCellContent?: (row: TRow, column: ColumnLike<TRow>) => unknown;
   primaryColumnKeys?: string[];
+  numericColumnKeys?: string[];
   sampleSize?: number;
   baseMinWidthPx?: number;
   numericMinWidthPx?: number;
@@ -23,6 +24,8 @@ type ComputeListViewColumnWidthsOptions<TRow extends Record<string, unknown>> = 
 
 const PRIMARY_COLUMN_PATTERN =
   /\b(name|title|description|employee|account|vendor|customer|reference|item|subject|site|group)\b/i;
+const NUMERIC_COLUMN_PATTERN =
+  /\b(amount|total|balance|value|qty|quantity|count|number|no\.?|id|rate|price|cost|weight|hours|days|percent|percentage|debit|credit|paid|due|net|gross)\b/i;
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -75,6 +78,23 @@ export function inferPrimaryColumnKeys<TRow extends Record<string, unknown>>(
   return primaryKeys;
 }
 
+export function inferNumericColumnKeys<TRow extends Record<string, unknown>>(
+  columns: ColumnLike<TRow>[],
+): string[] {
+  const keys: string[] = [];
+
+  for (const column of columns) {
+    const signature = `${column.key} ${normalizeText(extractNodeText(column.label))}`;
+    const isNumericByAlign = column.align === "right";
+    const isNumericByPattern = NUMERIC_COLUMN_PATTERN.test(signature);
+    if (isNumericByAlign || isNumericByPattern) {
+      keys.push(column.key);
+    }
+  }
+
+  return keys;
+}
+
 function toEstimatedTextWidthPx(value: unknown, characterWidthPx: number): number {
   const text = normalizeText(extractNodeText(value as React.ReactNode));
   if (!text) return 0;
@@ -86,18 +106,24 @@ export function computeListViewColumnWidths<TRow extends Record<string, unknown>
   rows,
   getCellContent,
   primaryColumnKeys,
+  numericColumnKeys,
   sampleSize = 200,
-  baseMinWidthPx = 96,
-  numericMinWidthPx = 84,
-  primaryMinWidthPx = 176,
-  horizontalPaddingPx = 26,
-  characterWidthPx = 7.2,
+  baseMinWidthPx = 120,
+  numericMinWidthPx = 72,
+  primaryMinWidthPx = 240,
+  horizontalPaddingPx = 34,
+  characterWidthPx = 7.6,
 }: ComputeListViewColumnWidthsOptions<TRow>): Record<string, string> {
   const widths: Record<string, string> = {};
   const primaryKeys = new Set(
     primaryColumnKeys && primaryColumnKeys.length > 0
       ? primaryColumnKeys
       : inferPrimaryColumnKeys(columns),
+  );
+  const numericKeys = new Set(
+    numericColumnKeys && numericColumnKeys.length > 0
+      ? numericColumnKeys
+      : inferNumericColumnKeys(columns),
   );
   const sampledRows = rows.slice(0, sampleSize);
 
@@ -112,10 +138,9 @@ export function computeListViewColumnWidths<TRow extends Record<string, unknown>
       }
     }
 
-    const alignMinWidthPx =
-      column.align === "right" || column.align === "center"
-        ? numericMinWidthPx
-        : baseMinWidthPx;
+    const alignMinWidthPx = numericKeys.has(column.key)
+      ? numericMinWidthPx
+      : baseMinWidthPx;
     const minWidthPx = primaryKeys.has(column.key)
       ? Math.max(primaryMinWidthPx, alignMinWidthPx)
       : alignMinWidthPx;
