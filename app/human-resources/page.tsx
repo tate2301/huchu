@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useCallback, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -475,11 +476,15 @@ export default function HumanResourcesPage() {
         id: "employee",
         header: "Employee",
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <img
+          <div className="flex items-center gap-2">
+            <Image
               src={row.original.passportPhotoUrl}
               alt={row.original.name}
-              className="h-10 w-10 rounded-lg object-cover shadow-[var(--edge-outline-sharp)]"
+              width={32}
+              height={32}
+              quality={60}
+              sizes="32px"
+              className="h-8 w-8 rounded-md object-cover shadow-[var(--edge-outline-sharp)]"
             />
             <div>
               <div className="font-semibold">{row.original.name}</div>
@@ -895,9 +900,13 @@ export default function HumanResourcesPage() {
                 <p className="text-xs text-muted-foreground">Uploading photo...</p>
               ) : null}
               {formData.passportPhotoUrl ? (
-                <img
+                <Image
                   src={formData.passportPhotoUrl}
                   alt="Passport preview"
+                  width={80}
+                  height={80}
+                  quality={60}
+                  sizes="80px"
                   className="h-20 w-20 rounded border object-cover"
                 />
               ) : null}
@@ -927,9 +936,13 @@ export default function HumanResourcesPage() {
                       View uploaded ID document
                     </a>
                   ) : (
-                    <img
+                    <Image
                       src={formData.nationalIdDocumentUrl}
                       alt="National ID preview"
+                      width={80}
+                      height={80}
+                      quality={60}
+                      sizes="80px"
                       className="h-20 w-20 rounded border object-cover"
                     />
                   )}
@@ -983,7 +996,7 @@ export default function HumanResourcesPage() {
           features={{ sorting: false, globalFilter: true, pagination: true }}
           pagination={{ enabled: true, server: false }}
           searchPlaceholder="Search by name, ID, or phone"
-          tableClassName="text-sm"
+          tableClassName="text-sm [--table-row-min-h:0rem] [--table-head-min-h:0rem] [--table-gutter-x:0.6rem] [&_td]:py-1.5 [&_th]:py-1.5"
           noResultsText="No employees found."
           toolbar={
             <>
