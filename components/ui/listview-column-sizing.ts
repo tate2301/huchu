@@ -65,17 +65,16 @@ export function inferPrimaryColumnKeys<TRow extends Record<string, unknown>>(
 ): string[] {
   if (columns.length === 0) return [];
 
-  const primaryKeys: string[] = [columns[0].key];
   const prioritized = columns.find((column) => {
     const signature = `${column.key} ${normalizeText(extractNodeText(column.label))}`;
     return PRIMARY_COLUMN_PATTERN.test(signature);
   });
 
-  if (prioritized && !primaryKeys.includes(prioritized.key)) {
-    primaryKeys.push(prioritized.key);
+  if (prioritized) {
+    return [prioritized.key];
   }
 
-  return primaryKeys;
+  return [columns[0].key];
 }
 
 export function inferNumericColumnKeys<TRow extends Record<string, unknown>>(

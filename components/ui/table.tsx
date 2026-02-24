@@ -254,6 +254,9 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
     rows.push(nextRow);
   }
 
+  const primaryColumnKeys = inferPrimaryColumnKeys(columns);
+  const primaryColumnKey = primaryColumnKeys[0];
+
   const columnWidths = computeListViewColumnWidths({
     columns,
     rows,
@@ -264,14 +267,19 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
       }
       return value;
     },
-    primaryColumnKeys: inferPrimaryColumnKeys(columns),
+    primaryColumnKeys,
     numericColumnKeys: inferNumericColumnKeys(columns),
   });
 
   return {
     columns: columns.map((column) => ({
       ...column,
-      width: columnWidths[column.key] ?? column.width,
+      width:
+        column.key === primaryColumnKey &&
+        typeof columnWidths[column.key] === "string" &&
+        columnWidths[column.key].endsWith("px")
+          ? `minmax(${columnWidths[column.key]},1fr)`
+          : (columnWidths[column.key] ?? column.width),
     })),
     rows,
   };

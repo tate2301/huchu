@@ -588,6 +588,12 @@ export function DataTable<TData, TValue>({
     });
   }, [leafHeaders, resolveAlign, table]);
 
+  const primaryColumnKeys = React.useMemo(
+    () => inferPrimaryColumnKeys(listColumnDefinitions),
+    [listColumnDefinitions],
+  );
+  const primaryColumnKey = primaryColumnKeys[0];
+
   const listColumnWidths = React.useMemo(() => {
     return computeListViewColumnWidths({
       columns: listColumnDefinitions,
@@ -599,17 +605,22 @@ export function DataTable<TData, TValue>({
         }
         return value;
       },
-      primaryColumnKeys: inferPrimaryColumnKeys(listColumnDefinitions),
+      primaryColumnKeys,
       numericColumnKeys: inferNumericColumnKeys(listColumnDefinitions),
     });
-  }, [listColumnDefinitions, listRows]);
+  }, [listColumnDefinitions, listRows, primaryColumnKeys]);
 
   const listColumns = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
     return listColumnDefinitions.map((column) => ({
       ...column,
-      width: listColumnWidths[column.key] ?? "max-content",
+      width:
+        column.key === primaryColumnKey &&
+        typeof listColumnWidths[column.key] === "string" &&
+        listColumnWidths[column.key].endsWith("px")
+          ? `minmax(${listColumnWidths[column.key]},1fr)`
+          : (listColumnWidths[column.key] ?? "max-content"),
     }));
-  }, [listColumnDefinitions, listColumnWidths]);
+  }, [listColumnDefinitions, listColumnWidths, primaryColumnKey]);
 
   const hasInteractiveCellContent = React.useMemo(() => {
     return listRows.some((row) =>
