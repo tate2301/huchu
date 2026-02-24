@@ -617,17 +617,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         border-radius: 0;
     }
     .table-rail > [data-slot="table"] {
-        min-width: 100%;
+        min-width: max-content;
     }
     .huchu-listview-compact {
-        width: 100% !important;
+        width: max-content !important;
         min-width: 0 !important;
-    }
-    .huchu-listview-compact .grid {
-        width: 100%;
-    }
-    .huchu-listview-compact .grid > * {
-        min-width: 0;
+        max-width: none !important;
     }
     .huchu-listview-compact .grid.items-center {
         gap: 0.5rem;
@@ -640,6 +635,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     .huchu-listview-compact .text-base {
         font-size: var(--type-table-text-size);
         line-height: var(--type-table-text-line);
+    }
+    .huchu-listview-compact .truncate {
+        overflow: visible;
+        text-overflow: clip;
     }
     .table-edge-to-edge {
         width: calc(100% + (var(--content-gutter-x) * 2));

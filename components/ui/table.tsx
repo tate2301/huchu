@@ -204,7 +204,7 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
       key: `col_${index}`,
       label: props.children,
       align: resolveAlign(props.className),
-      width: "minmax(0,1fr)",
+      width: "max-content",
     });
   }
 
@@ -539,7 +539,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
             {parsedFrappeTable ? (
               <FrappeListViewAdapter
                 className={cn(
-                  "w-full text-sm",
+                  "w-max text-sm",
                   tabletScrollable &&
                   "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
                   className,
@@ -554,7 +554,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 cellRenderer={({ item }) => {
                   if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
                     const cell = item as ParsedFrappeCell;
-                    return <div className={cn("text-table-cell min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", cell.className)}>{cell.content}</div>;
+                    return <div className={cn("text-table-cell", cell.className)}>{cell.content}</div>;
                   }
                   return item as React.ReactNode;
                 }}
@@ -564,7 +564,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 ref={ref}
                 data-slot="table"
                 className={cn(
-                  "w-full caption-bottom text-sm",
+                  "w-max caption-bottom text-sm",
                   tabletScrollable &&
                   "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
                   className,
