@@ -288,7 +288,9 @@ export default function HrIncidentsPage() {
           <div className="text-xs text-muted-foreground">{row.original.category}</div>
         </div>
       ),
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "employee",
       header: "Employee",
@@ -299,7 +301,9 @@ export default function HrIncidentsPage() {
           <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
         </div>
       ),
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "severity",
       header: "Severity",
@@ -307,7 +311,9 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <Badge variant={incidentSeverityVariant(row.original.severity)}>{row.original.severity}</Badge>
       ),
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "status",
       header: "Status",
@@ -315,19 +321,25 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <Badge variant={incidentStatusVariant(row.original.status)}>{row.original.status}</Badge>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "date",
       header: "Date",
       accessorFn: (row) => row.incidentDate,
       cell: ({ row }) => <NumericCell>{format(new Date(row.original.incidentDate), "yyyy-MM-dd")}</NumericCell>,
-    },
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
     {
       id: "actionsCount",
       header: "Actions",
       accessorFn: (row) => row._count?.actions ?? 0,
       cell: ({ row }) => <NumericCell>{row.original._count?.actions ?? 0}</NumericCell>,
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
     {
       id: "quickActions",
       header: "",
@@ -351,7 +363,9 @@ export default function HrIncidentsPage() {
           </Button>
         </div>
       ),
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
   ];
 
   const actionColumns: ColumnDef<DisciplinaryActionRecord>[] = [
@@ -365,7 +379,9 @@ export default function HrIncidentsPage() {
           <div className="text-xs text-muted-foreground">{row.original.summary}</div>
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
     {
       id: "employee",
       header: "Employee",
@@ -376,13 +392,17 @@ export default function HrIncidentsPage() {
           <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
         </div>
       ),
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "status",
       header: "Status",
       accessorKey: "status",
       cell: ({ row }) => <Badge variant={actionStatusVariant(row.original.status)}>{row.original.status}</Badge>,
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "penalty",
       header: "Penalty",
@@ -395,7 +415,9 @@ export default function HrIncidentsPage() {
           <div className="text-xs text-muted-foreground">{row.original.penaltyStatus}</div>
         </div>
       ),
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "workflow",
       header: "",
@@ -468,7 +490,9 @@ export default function HrIncidentsPage() {
           )}
         </div>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
   ];
 
   const selectedRejectAction = rejectActionId ? actionLookup.get(rejectActionId) ?? null : null;

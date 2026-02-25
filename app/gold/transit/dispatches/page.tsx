@@ -114,24 +114,32 @@ export default function GoldTransitDispatchesPage() {
             {new Date(row.original.dispatchDate).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "batch",
         header: "Batch",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.goldPour.pourBarId}</span>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "courier",
         header: "Courier",
         accessorKey: "courier",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "destination",
         header: "Destination",
         accessorKey: "destination",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -143,7 +151,9 @@ export default function GoldTransitDispatchesPage() {
             </Badge>
           );
         },
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [soldPourIds],
   );

@@ -469,7 +469,9 @@ export default function CompensationPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "scope",
         header: "Scope",
@@ -481,17 +483,23 @@ export default function CompensationPage() {
             </div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "base",
         header: "Base",
         cell: ({ row }) => `${row.original.currency} ${row.original.baseAmount.toFixed(2)}`,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "rules",
         header: "Rules",
         cell: ({ row }) => row.original._count?.rules ?? row.original.rules.length,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -500,7 +508,9 @@ export default function CompensationPage() {
             {row.original.isActive ? "ACTIVE" : "INACTIVE"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "action",
         header: "",
@@ -514,7 +524,9 @@ export default function CompensationPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [],
   )
@@ -530,12 +542,16 @@ export default function CompensationPage() {
             <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "baseAmount",
         header: "Base Amount",
         cell: ({ row }) => `${row.original.currency} ${row.original.baseAmount.toFixed(2)}`,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "window",
         header: "Effective Window",
@@ -543,7 +559,9 @@ export default function CompensationPage() {
           `${row.original.effectiveFrom.slice(0, 10)} to ${
             row.original.effectiveTo ? row.original.effectiveTo.slice(0, 10) : "Open"
           }`,
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "status",
         header: "Status",
@@ -552,7 +570,9 @@ export default function CompensationPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "workflow",
         header: "Workflow",
@@ -561,7 +581,9 @@ export default function CompensationPage() {
             {row.original.workflowStatus}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "",
@@ -608,7 +630,9 @@ export default function CompensationPage() {
             </div>
           )
         },
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [
       approveProfileMutation,
@@ -631,12 +655,16 @@ export default function CompensationPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "type",
         header: "Type",
         cell: ({ row }) => row.original.type,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "value",
         header: "Value",
@@ -652,7 +680,9 @@ export default function CompensationPage() {
             ) : null}
           </div>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "scope",
         header: "Scope",
@@ -661,7 +691,9 @@ export default function CompensationPage() {
           row.original.department?.name ||
           row.original.grade?.name ||
           "Global",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -670,7 +702,9 @@ export default function CompensationPage() {
             {row.original.isActive ? "ACTIVE" : "INACTIVE"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "workflow",
         header: "Workflow",
@@ -679,7 +713,9 @@ export default function CompensationPage() {
             {row.original.workflowStatus}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "",
@@ -726,7 +762,9 @@ export default function CompensationPage() {
             </div>
           )
         },
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [
       approveRuleMutation,

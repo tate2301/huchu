@@ -70,7 +70,9 @@ export default function AssetsPage() {
         id: "code",
         header: "Asset Code",
         cell: ({ row }) => <span className="font-mono">{row.original.assetCode}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "name",
         header: "Asset",
@@ -80,7 +82,9 @@ export default function AssetsPage() {
             <div className="text-xs text-muted-foreground">{row.original.category ?? "-"}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "date",
         header: "Acquired",
@@ -89,12 +93,16 @@ export default function AssetsPage() {
             {format(new Date(row.original.acquisitionDate), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "cost",
         header: "Cost",
         cell: ({ row }) => <NumericCell>{row.original.cost.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -103,7 +111,9 @@ export default function AssetsPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

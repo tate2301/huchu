@@ -64,7 +64,9 @@ export default function AccountingPeriodsPage() {
           {format(new Date(row.original.endDate), "yyyy-MM-dd")}
         </NumericCell>
       ),
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "status",
       header: "Status",
@@ -74,7 +76,9 @@ export default function AccountingPeriodsPage() {
           {row.original.status}
         </Badge>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "actions",
       header: "",
@@ -87,7 +91,9 @@ export default function AccountingPeriodsPage() {
           ) : null}
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
   ];
 
   const createMutation = useMutation({

@@ -49,12 +49,16 @@ export default function CostCentersPage() {
         id: "code",
         header: "Code",
         cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "name",
         header: "Cost Center",
         accessorKey: "name",
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -63,7 +67,9 @@ export default function CostCentersPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

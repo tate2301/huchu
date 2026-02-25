@@ -616,78 +616,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         -webkit-overflow-scrolling: touch;
         border-radius: 0;
     }
-    .table-rail.table-rail-listview {
-        overflow-x: hidden;
-    }
     .table-rail > [data-slot="table"] {
         width: max(100%, max-content);
         min-width: 100%;
-    }
-    .huchu-listview-compact {
-        width: max(100%, max-content) !important;
-        min-width: 100% !important;
-        max-width: none !important;
-    }
-    .huchu-listview-compact .grid.items-center {
-        gap: 0.5rem;
-        padding-inline: 0.5rem;
-    }
-    .huchu-listview-compact .grid.items-center > * {
-        min-width: 0;
-        align-self: stretch;
-        display: flex;
-        align-items: center;
-    }
-    .huchu-listview-compact .grid.items-center > *:has(input[type="checkbox"]) {
-        min-width: 1.75rem;
-        justify-content: center;
-    }
-    .huchu-listview-compact .grid.items-center > * + * {
-        border-left: 1px solid var(--table-divider);
-    }
-    .huchu-listview-compact .grid.items-center > *:has(input[type="checkbox"]) + * {
-        border-left: 0;
-    }
-    .huchu-listview-compact .mb-2.grid {
-        margin-bottom: 0.375rem;
-        padding-inline: 0;
-        padding-block: 0;
-    }
-    .huchu-listview-compact .mb-2.grid > * {
-        padding-block: 0.375rem;
-    }
-    .huchu-listview-compact > .h-full.overflow-y-auto {
-        overflow-x: visible !important;
-        overflow-y: visible !important;
-    }
-    .huchu-listview-compact .grid.items-center > .ml-4 {
-        margin-left: 0 !important;
-    }
-    .huchu-listview-compact .text-base {
-        font-size: var(--type-table-text-size);
-        line-height: var(--type-table-text-line);
-    }
-    .huchu-listview-compact .truncate {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .huchu-cell-nowrap {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .huchu-cell-clamp-2 {
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        overflow: hidden;
-        white-space: normal;
-        word-break: break-word;
-        line-height: var(--type-table-text-line);
-        max-height: calc(var(--type-table-text-line) * 2);
-    }
-    .huchu-cell-clamp-2 .truncate {
-        white-space: normal !important;
     }
     .table-edge-to-edge {
         width: calc(100% + (var(--content-gutter-x) * 2));

@@ -105,19 +105,25 @@ export default function GoldSettlementReceiptsPage() {
             {new Date(row.original.receiptDate).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "receiptNumber",
         header: "Sale No.",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.receiptNumber}</span>
         ),
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "batch",
         header: "Batch",
         cell: ({ row }) => row.original.goldPour.pourBarId,
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "source",
         header: "Source",
@@ -125,19 +131,25 @@ export default function GoldSettlementReceiptsPage() {
           row.original.goldDispatch
             ? `Dispatch ${row.original.goldDispatch.id.slice(0, 8)}`
             : "Direct from batch",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "paymentMethod",
         header: "Method",
         accessorKey: "paymentMethod",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "paidAmount",
         header: "Paid Amount",
         cell: ({ row }) => (
           <NumericCell>{row.original.paidAmount.toFixed(3)} g</NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

@@ -91,7 +91,9 @@ export default function FiscalisationPage() {
             <div className="text-xs text-muted-foreground">{row.original.providerKey ?? ""}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "status",
         header: "Status",
@@ -100,12 +102,16 @@ export default function FiscalisationPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "fiscal",
         header: "Fiscal Number",
         cell: ({ row }) => <span className="font-mono">{row.original.fiscalNumber ?? "-"}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "created",
         header: "Created",
@@ -114,7 +120,9 @@ export default function FiscalisationPage() {
             {format(new Date(row.original.createdAt), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
     ],
     [],
   );

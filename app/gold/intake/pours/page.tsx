@@ -77,31 +77,41 @@ export default function GoldIntakePoursPage() {
             {new Date(row.original.pourDate).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "pourBarId",
         header: "Batch ID",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.pourBarId}</span>
         ),
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "site",
         header: "Site",
         cell: ({ row }) => row.original.site.name,
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "storageLocation",
         header: "Storage",
         accessorKey: "storageLocation",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "grossWeight",
         header: "Gross Weight",
         cell: ({ row }) => (
           <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

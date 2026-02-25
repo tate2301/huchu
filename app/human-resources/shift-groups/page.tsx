@@ -324,12 +324,16 @@ export default function HrShiftGroupsPage() {
             <div className="text-xs text-muted-foreground">{row.original.code || "-"}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "site",
         header: "Site",
         cell: ({ row }) => row.original.site?.name ?? "-",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "leader",
         header: "Leader",
@@ -345,12 +349,16 @@ export default function HrShiftGroupsPage() {
           ) : (
             "-"
           ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "members",
         header: "Members",
         cell: ({ row }) => <span className="font-mono">{row.original._count?.members ?? 0}</span>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -359,7 +367,9 @@ export default function HrShiftGroupsPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "",
@@ -375,7 +385,9 @@ export default function HrShiftGroupsPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [archiveGroupMutation],
   )
@@ -386,17 +398,23 @@ export default function HrShiftGroupsPage() {
         id: "date",
         header: "Date",
         cell: ({ row }) => <span className="font-mono">{String(row.original.date).slice(0, 10)}</span>,
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "shift",
         header: "Shift",
         cell: ({ row }) => <span className="font-mono">{row.original.shift}</span>,
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "site",
         header: "Site",
         cell: ({ row }) => row.original.site?.name ?? "-",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "group",
         header: "Group",
@@ -411,7 +429,9 @@ export default function HrShiftGroupsPage() {
             </div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "actions",
         header: "",
@@ -427,7 +447,9 @@ export default function HrShiftGroupsPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [deleteScheduleMutation],
   )

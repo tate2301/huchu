@@ -494,12 +494,16 @@ export default function HumanResourcesPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "phone",
         header: "Contact",
         cell: ({ row }) => <span className="font-mono">{row.original.phone}</span>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "nationalIdNumber",
         header: "National ID",
@@ -509,14 +513,18 @@ export default function HumanResourcesPage() {
           ) : (
             "-"
           ),
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "position",
         header: "Position",
         cell: ({ row }) =>
           employeePositions.find((position) => position.value === row.original.position)?.label ??
           row.original.position,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "org",
         header: "Org",
@@ -534,7 +542,9 @@ export default function HumanResourcesPage() {
             </div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "employment",
         header: "Employment",
@@ -552,7 +562,9 @@ export default function HumanResourcesPage() {
             </div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "nextOfKin",
         header: "Next of Kin",
@@ -562,11 +574,15 @@ export default function HumanResourcesPage() {
             <div className="text-xs text-muted-foreground">{row.original.nextOfKinPhone}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         accessorKey: "villageOfOrigin",
         header: "Village",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "goldOwed",
         header: "Gold Owed",
@@ -576,7 +592,9 @@ export default function HumanResourcesPage() {
             <div className="text-xs text-muted-foreground">Outstanding gold</div>
           </div>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "salaryOwed",
         header: "Salary Owed",
@@ -586,7 +604,9 @@ export default function HumanResourcesPage() {
             <div className="text-xs text-muted-foreground">Outstanding salary</div>
           </div>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -595,7 +615,9 @@ export default function HumanResourcesPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "",
@@ -620,7 +642,9 @@ export default function HumanResourcesPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [deleteEmployeeMutation.isPending, handleDelete, handleEdit],
   )

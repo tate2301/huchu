@@ -365,7 +365,9 @@ export default function DisbursementsPage() {
             <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "type",
         header: "Type",
@@ -374,12 +376,16 @@ export default function DisbursementsPage() {
             {row.original.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
           </Badge>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         accessorKey: "period.periodKey",
         header: "Period",
         cell: ({ row }) => row.original.period.periodKey,
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "approvedRate",
         header: "Approved Rate",
@@ -391,12 +397,16 @@ export default function DisbursementsPage() {
               </NumericCell>
             )
             : "-",
-      },
+        size: 88,
+        minSize: 88,
+        maxSize: 88},
       {
         accessorKey: "netTotal",
         header: "Net Total",
         cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "action",
         header: "",
@@ -413,7 +423,9 @@ export default function DisbursementsPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [],
   );
@@ -429,7 +441,9 @@ export default function DisbursementsPage() {
             <div className="text-xs text-muted-foreground">{row.original.method}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "type",
         header: "Type",
@@ -438,7 +452,9 @@ export default function DisbursementsPage() {
             {row.original.payrollRun.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
           </Badge>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "run",
         header: "Run",
@@ -452,7 +468,9 @@ export default function DisbursementsPage() {
             </div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "rate",
         header: "Applied Rate",
@@ -470,12 +488,16 @@ export default function DisbursementsPage() {
           }
           return "-";
         },
-      },
+        size: 88,
+        minSize: 88,
+        maxSize: 88},
       {
         accessorKey: "totalAmount",
         header: "Amount",
         cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         accessorKey: "status",
         header: "Status",
@@ -484,7 +506,9 @@ export default function DisbursementsPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         accessorKey: "createdAt",
         header: "Created",
@@ -493,7 +517,9 @@ export default function DisbursementsPage() {
             {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "actions",
         header: "",
@@ -541,7 +567,9 @@ export default function DisbursementsPage() {
             </div>
           );
         },
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [
       approveBatchMutation,
@@ -562,7 +590,9 @@ export default function DisbursementsPage() {
             <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "amount",
         header: "Amount",
@@ -572,7 +602,9 @@ export default function DisbursementsPage() {
             {row.original.lineItem.currency} {row.original.amount.toFixed(2)}
           </NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "paid",
         header: "Paid",
@@ -582,7 +614,9 @@ export default function DisbursementsPage() {
             {row.original.lineItem.currency} {(row.original.paidAmount ?? 0).toFixed(2)}
           </NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -592,7 +626,9 @@ export default function DisbursementsPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "paidAt",
         header: "Paid At",
@@ -602,13 +638,17 @@ export default function DisbursementsPage() {
             {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "receipt",
         header: "Receipt",
         accessorFn: (row) => row.receiptReference ?? "",
         cell: ({ row }) => row.original.receiptReference ?? "-",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [],
   );

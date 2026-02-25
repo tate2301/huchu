@@ -131,7 +131,9 @@ export default function SectionsManagementPage() {
         id: "name",
         header: "Section",
         accessorKey: "name",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "site",
         header: "Site",
@@ -139,12 +141,16 @@ export default function SectionsManagementPage() {
           if (!row.original.site) return "-";
           return `${row.original.site.code} - ${row.original.site.name}`;
         },
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "reports",
         header: "Shift Reports",
         cell: ({ row }) => row.original._count?.shiftReports ?? 0,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -153,7 +159,9 @@ export default function SectionsManagementPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "Actions",
@@ -201,7 +209,9 @@ export default function SectionsManagementPage() {
             )}
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [deleteMutation, updateMutation],
   );

@@ -72,22 +72,30 @@ export default function GoldIntakePurchasesPage() {
             {new Date(row.original.purchaseDate).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "purchaseNumber",
         header: "Purchase No.",
         cell: ({ row }) => <span className="font-mono font-semibold">{row.original.purchaseNumber}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "batch",
         header: "Batch ID",
         cell: ({ row }) => <span className="font-mono">{row.original.goldPour.pourBarId}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "site",
         header: "Site",
         cell: ({ row }) => row.original.site.name,
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "seller",
         header: "Seller",
@@ -97,7 +105,9 @@ export default function GoldIntakePurchasesPage() {
             <div className="text-xs text-muted-foreground">{row.original.sellerPhone}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "sellerType",
         header: "Type",
@@ -106,12 +116,16 @@ export default function GoldIntakePurchasesPage() {
             {row.original.sellerType === "EMPLOYEE" ? "Employee" : "Walk-in"}
           </Badge>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "grossWeight",
         header: "Weight",
         cell: ({ row }) => <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "paidAmount",
         header: "Spend",
@@ -120,7 +134,9 @@ export default function GoldIntakePurchasesPage() {
             {row.original.paidAmount.toFixed(2)} {row.original.currency}
           </NumericCell>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [],
   )

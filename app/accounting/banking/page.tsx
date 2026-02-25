@@ -106,23 +106,31 @@ export default function BankingPage() {
             <div className="text-xs text-muted-foreground">{row.original.bankName || "-"}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "number",
         header: "Account Number",
         accessorKey: "accountNumber",
         cell: ({ row }) => <span className="font-mono">{row.original.accountNumber || "-"}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "currency",
         header: "Currency",
         accessorKey: "currency",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "opening",
         header: "Opening Balance",
         cell: ({ row }) => <NumericCell>{row.original.openingBalance.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -131,7 +139,9 @@ export default function BankingPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -146,17 +156,23 @@ export default function BankingPage() {
             {format(new Date(row.original.txnDate), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "account",
         header: "Account",
         cell: ({ row }) => row.original.bankAccount?.name ?? "-",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "description",
         header: "Description",
         accessorKey: "description",
-      },
+        size: 260,
+        minSize: 200,
+        maxSize: 360},
       {
         id: "direction",
         header: "Direction",
@@ -165,12 +181,16 @@ export default function BankingPage() {
             {row.original.direction}
           </Badge>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "amount",
         header: "Amount",
         cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "reconciled",
         header: "Reconciled",
@@ -179,7 +199,9 @@ export default function BankingPage() {
             {row.original.reconciledAt ? "Yes" : "No"}
           </Badge>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [],
   );
@@ -197,7 +219,9 @@ export default function BankingPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "period",
         header: "Period",
@@ -209,12 +233,16 @@ export default function BankingPage() {
             </div>
           </div>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "statement",
         header: "Statement Balance",
         cell: ({ row }) => <NumericCell>{row.original.statementBalance.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -223,7 +251,9 @@ export default function BankingPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

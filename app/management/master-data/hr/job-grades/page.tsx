@@ -135,22 +135,30 @@ export default function JobGradesManagementPage() {
         id: "code",
         header: "Code",
         cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "name",
         header: "Name",
         accessorKey: "name",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "rank",
         header: "Rank",
         cell: ({ row }) => row.original.rank,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "employees",
         header: "Employees",
         cell: ({ row }) => row.original._count?.employees ?? 0,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -159,7 +167,9 @@ export default function JobGradesManagementPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "Actions",
@@ -195,7 +205,9 @@ export default function JobGradesManagementPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [deleteMutation],
   );

@@ -286,12 +286,16 @@ export default function GoldPage() {
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.pourBarId}</span>
         ),
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "site",
         header: "Site",
         accessorKey: "site",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "date",
         header: "Date",
@@ -300,7 +304,9 @@ export default function GoldPage() {
             {new Date(row.original.date).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "status",
         header: "Status",
@@ -317,7 +323,9 @@ export default function GoldPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

@@ -118,26 +118,34 @@ export default function GoldChainReportPage() {
             {format(new Date(row.original.pourDate), "MMM d, yyyy")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "pourBarId",
         header: "Bar ID",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.pourBarId}</span>
         ),
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "site",
         header: "Site",
         accessorKey: "site",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "grossWeight",
         header: "Weight",
         cell: ({ row }) => (
           <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "dispatchDate",
         header: "Dispatch Date",
@@ -149,7 +157,9 @@ export default function GoldChainReportPage() {
           ) : (
             "-"
           ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "receiptDate",
         header: "Receipt Date",
@@ -161,7 +171,9 @@ export default function GoldChainReportPage() {
           ) : (
             "-"
           ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "status",
         header: "Status",
@@ -178,7 +190,9 @@ export default function GoldChainReportPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

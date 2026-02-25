@@ -152,7 +152,9 @@ export default function OutstandingSalariesPage() {
             <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "period",
         header: "Period",
@@ -163,7 +165,9 @@ export default function OutstandingSalariesPage() {
             {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "dueDate",
         header: "Due Date",
@@ -176,7 +180,9 @@ export default function OutstandingSalariesPage() {
             ) : null}
           </div>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "status",
         header: "Status",
@@ -186,13 +192,17 @@ export default function OutstandingSalariesPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "amount",
         header: "Amount",
         accessorFn: (row) => row.amount,
         cell: ({ row }) => <NumericCell>{toCurrency(row.original.amount, row.original.unit)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "paid",
         header: "Paid",
@@ -200,7 +210,9 @@ export default function OutstandingSalariesPage() {
         cell: ({ row }) => (
           <NumericCell>{toCurrency(row.original.paidAmount ?? 0, row.original.unit)}</NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "outstanding",
         header: "Outstanding",
@@ -210,7 +222,9 @@ export default function OutstandingSalariesPage() {
             {toCurrency(row.original.outstandingAmount, row.original.unit)}
           </NumericCell>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "source",
         header: "Source",
@@ -226,7 +240,9 @@ export default function OutstandingSalariesPage() {
             : row.original.payrollRun
               ? `Run #${row.original.payrollRun.runNumber}`
               : "Manual",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "action",
         header: "",
@@ -238,7 +254,9 @@ export default function OutstandingSalariesPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [],
   )

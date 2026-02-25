@@ -52,12 +52,16 @@ export default function CurrencyRatesPage() {
             {row.original.baseCurrency}/{row.original.quoteCurrency}
           </span>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "rate",
         header: "Rate",
         cell: ({ row }) => <NumericCell>{row.original.rate.toFixed(6)}</NumericCell>,
-      },
+        size: 88,
+        minSize: 88,
+        maxSize: 88},
       {
         id: "date",
         header: "Effective Date",
@@ -66,7 +70,9 @@ export default function CurrencyRatesPage() {
             {format(new Date(row.original.effectiveDate), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
     ],
     [],
   );

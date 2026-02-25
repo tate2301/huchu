@@ -132,22 +132,30 @@ export default function SitesManagementPage() {
         id: "code",
         header: "Code",
         cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "name",
         header: "Name",
         accessorKey: "name",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "location",
         header: "Location",
         cell: ({ row }) => row.original.location ?? "-",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "unit",
         header: "Measurement Unit",
         cell: ({ row }) => row.original.measurementUnit,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -156,7 +164,9 @@ export default function SitesManagementPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "Actions",
@@ -206,7 +216,9 @@ export default function SitesManagementPage() {
             )}
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [deleteMutation, updateMutation],
   );

@@ -84,7 +84,9 @@ export default function ApprovalsPage() {
         accessorKey: "actedAt",
         header: "Timestamp",
         cell: ({ row }) => format(new Date(row.original.actedAt), "yyyy-MM-dd HH:mm:ss"),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         accessorKey: "entityType",
         header: "Entity",
@@ -94,17 +96,23 @@ export default function ApprovalsPage() {
             <div className="text-xs text-muted-foreground">{row.original.entityId}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         accessorKey: "action",
         header: "Action",
         cell: ({ row }) => <Badge variant="neutral">{row.original.action}</Badge>,
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
       {
         id: "status",
         header: "Status Change",
         cell: ({ row }) => `${row.original.fromStatus ?? "-"} -> ${row.original.toStatus ?? "-"}`,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actor",
         header: "Actor",
@@ -114,12 +122,16 @@ export default function ApprovalsPage() {
             <div className="text-xs text-muted-foreground">{row.original.actedBy.role}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         accessorKey: "note",
         header: "Note",
         cell: ({ row }) => row.original.note || "-",
-      },
+        size: 260,
+        minSize: 200,
+        maxSize: 360},
       {
         id: "details",
         header: "",
@@ -132,7 +144,9 @@ export default function ApprovalsPage() {
             Details
           </button>
         ),
-      },
+        size: 260,
+        minSize: 200,
+        maxSize: 360},
     ],
     [],
   );

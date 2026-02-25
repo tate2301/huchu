@@ -235,7 +235,9 @@ export default function GoldSettlementPayoutsPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "site",
         header: "Site",
@@ -245,19 +247,25 @@ export default function GoldSettlementPayoutsPage() {
             <div className="text-xs text-muted-foreground">{row.original.siteCode}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "workerCount",
         header: "Workers",
         cell: ({ row }) => <NumericCell>{row.original.workerCount}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "workerShareWeight",
         header: "Worker Gold",
         cell: ({ row }) => (
           <NumericCell>{row.original.workerShareWeight.toFixed(3)} g</NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "expectedDueDate",
         header: "Expected Due",
@@ -266,7 +274,9 @@ export default function GoldSettlementPayoutsPage() {
             {format(row.original.expectedDueDate, "MMM d, yyyy")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "progress",
         header: "Payment Progress",
@@ -281,7 +291,9 @@ export default function GoldSettlementPayoutsPage() {
             ) : null}
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "actions",
         header: "",
@@ -297,7 +309,9 @@ export default function GoldSettlementPayoutsPage() {
             </Button>
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [],
   );
@@ -313,19 +327,25 @@ export default function GoldSettlementPayoutsPage() {
             <div className="text-xs text-muted-foreground font-mono">{row.original.code}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "shareWeight",
         header: "Share (g)",
         cell: ({ row }) => <NumericCell>{row.original.shareWeight.toFixed(3)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "dueDate",
         header: "Due",
         cell: ({ row }) => (
           <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "status",
         header: "Status",
@@ -338,7 +358,9 @@ export default function GoldSettlementPayoutsPage() {
                 : "neutral";
           return <Badge variant={variant}>{row.original.status}</Badge>;
         },
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "paidAmount",
         header: "Paid",
@@ -347,7 +369,9 @@ export default function GoldSettlementPayoutsPage() {
             {row.original.paidAmount > 0 ? row.original.paidAmount.toFixed(3) : "-"}
           </NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "paidAt",
         header: "Paid Date",
@@ -357,7 +381,9 @@ export default function GoldSettlementPayoutsPage() {
           ) : (
             "-"
           ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
     ],
     [],
   );

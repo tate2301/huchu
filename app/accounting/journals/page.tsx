@@ -100,7 +100,9 @@ export default function JournalsPage() {
       cell: ({ row }) => (
         <NumericCell align="left">#{row.original.entryNumber}</NumericCell>
       ),
-    },
+      size: 112,
+      minSize: 112,
+      maxSize: 112},
     {
       id: "date",
       header: "Date",
@@ -110,13 +112,17 @@ export default function JournalsPage() {
           {format(new Date(row.original.entryDate), "yyyy-MM-dd")}
         </NumericCell>
       ),
-    },
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
     {
       id: "description",
       header: "Description",
       accessorKey: "description",
       cell: ({ row }) => <span className="font-medium">{row.original.description}</span>,
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "status",
       header: "Status",
@@ -126,7 +132,9 @@ export default function JournalsPage() {
           {row.original.status}
         </Badge>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "period",
       header: "Period",
@@ -140,7 +148,9 @@ export default function JournalsPage() {
           </NumericCell>
         );
       },
-    },
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
     {
       id: "actions",
       header: "",
@@ -153,7 +163,9 @@ export default function JournalsPage() {
           ) : null}
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
   ];
 
   const createMutation = useMutation({

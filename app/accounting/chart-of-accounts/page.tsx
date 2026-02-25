@@ -82,25 +82,33 @@ export default function ChartOfAccountsPage() {
       header: "Code",
       accessorKey: "code",
       cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-    },
+      size: 112,
+      minSize: 112,
+      maxSize: 112},
     {
       id: "name",
       header: "Account Name",
       accessorKey: "name",
       cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "type",
       header: "Type",
       accessorKey: "type",
       cell: ({ row }) => <Badge variant="outline">{row.original.type}</Badge>,
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "category",
       header: "Category",
       accessorKey: "category",
       cell: ({ row }) => row.original.category ?? "-",
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "status",
       header: "Status",
@@ -110,7 +118,9 @@ export default function ChartOfAccountsPage() {
           {row.original.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "actions",
       header: "",
@@ -136,7 +146,9 @@ export default function ChartOfAccountsPage() {
           ) : null}
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
   ];
 
   const createMutation = useMutation({

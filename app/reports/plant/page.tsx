@@ -90,26 +90,37 @@ export default function PlantReportHistoryPage() {
             {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
           </div>
         ),
-      },
-      { id: "site", header: "Site", accessorFn: (row) => row.site?.name ?? "", cell: ({ row }) => row.original.site?.name ?? "-" },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
+      { id: "site", header: "Site", accessorFn: (row) => row.site?.name ?? "", cell: ({ row }) => row.original.site?.name ?? "-" ,
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "tonnes",
         header: "Tonnes Processed",
         accessorFn: (row) => row.tonnesProcessed ?? 0,
         cell: ({ row }) => <NumericCell>{(row.original.tonnesProcessed ?? 0).toFixed(1)}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "runHours",
         header: "Run Hours",
         accessorFn: (row) => row.runHours ?? 0,
         cell: ({ row }) => <NumericCell>{(row.original.runHours ?? 0).toFixed(1)}</NumericCell>,
-      },
+        size: 88,
+        minSize: 88,
+        maxSize: 88},
       {
         id: "goldRecovered",
         header: "Gold Recovered",
         accessorFn: (row) => row.goldRecovered ?? 0,
         cell: ({ row }) => <NumericCell>{(row.original.goldRecovered ?? 0).toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "downtime",
         header: "Downtime",
@@ -120,7 +131,9 @@ export default function PlantReportHistoryPage() {
             row.original.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0;
           return <NumericCell>{downtimeHours.toFixed(1)}h</NumericCell>;
         },
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [createdId],
   );

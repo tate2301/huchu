@@ -1,20 +1,8 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  FrappeListViewAdapter,
-  type FrappeListViewColumn,
-} from "@/components/ui/frappe-list-view";
-import {
-  computeListViewColumnWidths,
-  inferListViewColumnRole,
-  inferNumericColumnKeys,
-  inferPrimaryColumnKeys,
-  resolveClampLinesForRole,
-  type ListViewColumnRole,
-} from "@/components/ui/listview-column-sizing";
 import {
   Select,
   SelectContent,
@@ -45,22 +33,6 @@ const TableContext = React.createContext<TableContextValue | null>(null);
 
 type ControlsPosition = "top" | "bottom" | "both";
 
-type ParsedFrappeCell = {
-  className?: string;
-  content: React.ReactNode;
-  role?: ListViewColumnRole;
-  clampLines?: 1 | 2;
-};
-
-type ParsedFrappeRow = Record<string, unknown> & {
-  __rowId: string;
-};
-
-type ParsedFrappeTable = {
-  columns: FrappeListViewColumn<ParsedFrappeRow>[];
-  rows: ParsedFrappeRow[];
-};
-
 export type TableProps = React.ComponentProps<"table"> & {
   enablePagination?: boolean;
   manualPagination?: boolean;
@@ -80,7 +52,6 @@ export type TableProps = React.ComponentProps<"table"> & {
   controlsPosition?: ControlsPosition;
   controlsClassName?: string;
   hideControlsWhenSinglePage?: boolean;
-  selectableRows?: boolean;
   edgeToEdge?: boolean;
   tabletScrollable?: boolean;
   tabletStickyFirstColumn?: boolean;
@@ -97,215 +68,6 @@ function clampPage(page: number, pageCount: number) {
 
 function getStorageKey(key: string, suffix: string) {
   return `datatable:${key}:${suffix}`;
-}
-
-function getElementDisplayName(node: React.ReactElement): string {
-  if (typeof node.type === "string") return node.type;
-  if (typeof node.type === "function") {
-    const component = node.type as { displayName?: string; name?: string };
-    return component.displayName ?? component.name ?? "";
-  }
-  if (typeof node.type === "object" && node.type !== null && "displayName" in node.type) {
-    const value = (node.type as { displayName?: unknown }).displayName;
-    return typeof value === "string" ? value : "";
-  }
-  return "";
-}
-
-function isElementNamed(node: React.ReactNode, displayName: string) {
-  return React.isValidElement(node) && getElementDisplayName(node) === displayName;
-}
-
-function flattenElements(children: React.ReactNode): React.ReactElement[] {
-  const nodes: React.ReactElement[] = [];
-  React.Children.forEach(children, (child) => {
-    if (!React.isValidElement(child)) return;
-    const element = child as React.ReactElement<{ children?: React.ReactNode }>;
-    if (element.type === React.Fragment) {
-      nodes.push(...flattenElements(element.props.children));
-      return;
-    }
-    nodes.push(element);
-  });
-  return nodes;
-}
-
-function elementChildren(element: React.ReactElement): React.ReactNode {
-  return (element.props as { children?: React.ReactNode }).children;
-}
-
-function hasInteractiveContent(node: React.ReactNode): boolean {
-  if (node === null || node === undefined || typeof node === "boolean") return false;
-  if (typeof node === "string" || typeof node === "number" || typeof node === "bigint") return false;
-  if (Array.isArray(node)) return node.some((item) => hasInteractiveContent(item));
-  if (!React.isValidElement(node)) return false;
-
-  const element = node as React.ReactElement<{ children?: React.ReactNode; role?: string }>;
-  const name = getElementDisplayName(element);
-
-  if (element.type === React.Fragment) {
-    return hasInteractiveContent(element.props.children);
-  }
-
-  if (typeof element.type === "string") {
-    if (["button", "a", "input", "select", "textarea"].includes(element.type)) {
-      return true;
-    }
-  } else if (/(Button|Trigger|Select|Checkbox|Switch|Radio|Combobox)/i.test(name)) {
-    return true;
-  }
-
-  if (typeof element.props.role === "string") {
-    if (["button", "link", "checkbox", "switch", "radio", "tab", "menuitem"].includes(element.props.role)) {
-      return true;
-    }
-  }
-
-  return hasInteractiveContent(element.props.children);
-}
-
-function resolveAlign(className?: string) {
-  if (!className) return "left" as const;
-  if (className.includes("text-right")) return "right" as const;
-  if (className.includes("text-center")) return "center" as const;
-  return "left" as const;
-}
-
-function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
-  const sections = flattenElements(children);
-  const headerSection = sections.find((node) => isElementNamed(node, "TableHeader"));
-  const bodySection = sections.find((node) => isElementNamed(node, "TableBody"));
-  const hasUnsupportedSections = sections.some(
-    (node) => isElementNamed(node, "TableFooter") || isElementNamed(node, "TableCaption"),
-  );
-
-  if (!headerSection || !bodySection || hasUnsupportedSections) {
-    return null;
-  }
-
-  const headerRows = flattenElements(elementChildren(headerSection)).filter((node) =>
-    isElementNamed(node, "TableRow"),
-  );
-  if (headerRows.length !== 1) {
-    return null;
-  }
-
-  const headerCells = flattenElements(elementChildren(headerRows[0])).filter((node) =>
-    isElementNamed(node, "TableHead"),
-  );
-  if (headerCells.length === 0) {
-    return null;
-  }
-
-  const columns: FrappeListViewColumn<ParsedFrappeRow>[] = [];
-  for (let index = 0; index < headerCells.length; index += 1) {
-    const cell = headerCells[index];
-    const props = cell.props as React.ComponentProps<"th">;
-    const colSpan = props.colSpan ?? 1;
-    const rowSpan = props.rowSpan ?? 1;
-    if (colSpan !== 1 || rowSpan !== 1) {
-      return null;
-    }
-    if (hasInteractiveContent(props.children)) {
-      return null;
-    }
-
-    columns.push({
-      key: `col_${index}`,
-      label: props.children,
-      align: resolveAlign(props.className),
-      width: "max-content",
-    });
-  }
-
-  const bodyRows = flattenElements(elementChildren(bodySection)).filter((node) =>
-    isElementNamed(node, "TableRow"),
-  );
-
-  const primaryColumnKeys = inferPrimaryColumnKeys(columns);
-  const primaryColumnSet = new Set(primaryColumnKeys);
-  const numericColumnKeys = inferNumericColumnKeys(columns);
-  const numericColumnSet = new Set(numericColumnKeys);
-  const columnPresentationByKey = new Map<
-    string,
-    { role: ListViewColumnRole; clampLines: 1 | 2 }
-  >();
-  for (const column of columns) {
-    const role = inferListViewColumnRole(column, primaryColumnSet, numericColumnSet);
-    const clampLines = resolveClampLinesForRole(role);
-    columnPresentationByKey.set(column.key, { role, clampLines });
-  }
-
-  const rows: ParsedFrappeRow[] = [];
-  for (let rowIndex = 0; rowIndex < bodyRows.length; rowIndex += 1) {
-    const row = bodyRows[rowIndex];
-    const rowProps = row.props as React.ComponentProps<"tr">;
-    const cells = flattenElements(rowProps.children).filter((node) =>
-      isElementNamed(node, "TableCell"),
-    );
-
-    if (cells.length !== columns.length) {
-      return null;
-    }
-
-    const nextRow: ParsedFrappeRow = {
-      __rowId: `row-${rowIndex}`,
-    };
-
-    for (let columnIndex = 0; columnIndex < cells.length; columnIndex += 1) {
-      const cell = cells[columnIndex];
-      const cellProps = cell.props as React.ComponentProps<"td">;
-      const colSpan = cellProps.colSpan ?? 1;
-      const rowSpan = cellProps.rowSpan ?? 1;
-      if (colSpan !== 1 || rowSpan !== 1) {
-        return null;
-      }
-      if (hasInteractiveContent(cellProps.children)) {
-        return null;
-      }
-
-      const presentation = columnPresentationByKey.get(`col_${columnIndex}`);
-
-      nextRow[`col_${columnIndex}`] = {
-        className: cellProps.className,
-        content: cellProps.children,
-        role: presentation?.role,
-        clampLines: presentation?.clampLines,
-      } satisfies ParsedFrappeCell;
-    }
-
-    rows.push(nextRow);
-  }
-
-  const primaryColumnKey = primaryColumnKeys[0];
-
-  const columnWidths = computeListViewColumnWidths({
-    columns,
-    rows,
-    getCellContent: (row, column) => {
-      const value = row[column.key];
-      if (value && typeof value === "object" && "content" in (value as Record<string, unknown>)) {
-        return (value as ParsedFrappeCell).content;
-      }
-      return value;
-    },
-    primaryColumnKeys,
-    numericColumnKeys,
-  });
-
-  return {
-    columns: columns.map((column) => ({
-      ...column,
-      align: numericColumnSet.has(column.key) ? "right" : column.align,
-      width:
-        column.key === primaryColumnKey &&
-        typeof columnWidths[column.key] === "string" &&
-        columnWidths[column.key].endsWith("px")
-          ? `minmax(${columnWidths[column.key]},1fr)`
-          : (columnWidths[column.key] ?? column.width),
-    })),
-    rows,
-  };
 }
 
 function TablePaginationControls({
@@ -413,13 +175,11 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       controlsPosition = "bottom",
       controlsClassName,
       hideControlsWhenSinglePage = false,
-      selectableRows = false,
       edgeToEdge = false,
       tabletScrollable = true,
       tabletStickyFirstColumn = false,
       tabletMinTableWidth = "100%",
       style: tableStyle,
-      children,
       ...props
     },
     ref,
@@ -429,23 +189,11 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
     const [internalPageSize, setInternalPageSize] = React.useState(defaultPageSize);
     const [measuredRowCount, setMeasuredRowCount] = React.useState(0);
 
-    const parsedFrappeTable = React.useMemo(() => parseFrappeTable(children), [children]);
     const mode = modeProp ?? internalMode;
     const page = pageProp ?? internalPage;
     const pageSize = pageSizeProp ?? internalPageSize;
-    const resolvedMeasuredCount = parsedFrappeTable ? parsedFrappeTable.rows.length : measuredRowCount;
-    const rowCount = totalRows ?? resolvedMeasuredCount;
+    const rowCount = totalRows ?? measuredRowCount;
     const pageCount = Math.max(1, Math.ceil(Math.max(rowCount, 1) / pageSize));
-    const visibleFrappeRows = React.useMemo(() => {
-      if (!parsedFrappeTable) return [];
-      const parsedRows = parsedFrappeTable.rows;
-      if (enablePagination && mode === "paginated" && !manualPagination) {
-        const start = (page - 1) * pageSize;
-        const end = start + pageSize;
-        return parsedRows.slice(start, end);
-      }
-      return parsedRows;
-    }, [enablePagination, manualPagination, mode, page, pageSize, parsedFrappeTable]);
 
     React.useEffect(() => {
       if (!persistKey) return;
@@ -581,11 +329,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
           ) : null}
 
           <div
-            className={cn(
-              "table-rail",
-              parsedFrappeTable && "table-rail-listview",
-              edgeToEdge && "table-edge-to-edge",
-            )}
+            className={cn("table-rail", edgeToEdge && "table-edge-to-edge")}
             data-tablet-scrollable={tabletScrollable ? "true" : "false"}
             data-tablet-sticky-first-column={tabletStickyFirstColumn ? "true" : "false"}
             style={
@@ -596,55 +340,18 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 : undefined
             }
           >
-            {parsedFrappeTable ? (
-              <FrappeListViewAdapter
-                className={cn(
-                  "w-full text-sm",
-                  tabletScrollable &&
-                  "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
-                  className,
-                )}
-                style={tableStyle}
-                columns={parsedFrappeTable.columns}
-                rows={visibleFrappeRows}
-                rowKey="__rowId"
-                selectable={selectableRows}
-                resizeColumn={false}
-                showTooltip={false}
-                cellRenderer={({ item }) => {
-                  if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
-                    const cell = item as ParsedFrappeCell;
-                    return (
-                      <div
-                        className={cn(
-                          "text-table-cell",
-                          cell.clampLines === 2 ? "huchu-cell-clamp-2" : "huchu-cell-nowrap",
-                          cell.className,
-                        )}
-                      >
-                        {cell.content}
-                      </div>
-                    );
-                  }
-                  return item as React.ReactNode;
-                }}
-              />
-            ) : (
-              <table
-                ref={ref}
-                data-slot="table"
-                className={cn(
-                  "w-full caption-bottom text-sm",
-                  tabletScrollable &&
-                  "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
-                  className,
-                )}
-                style={tableStyle}
-                {...props}
-              >
-                {children}
-              </table>
-            )}
+            <table
+              ref={ref}
+              data-slot="table"
+              className={cn(
+                "w-full caption-bottom text-sm",
+                tabletScrollable &&
+                "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
+                className,
+              )}
+              style={tableStyle}
+              {...props}
+            />
           </div>
 
           {shouldRenderBottomControls ? (
@@ -681,9 +388,9 @@ const TableHeader = React.forwardRef<
       ref={ref}
       data-slot="table-header"
       className={cn(
-        "[&_tr]:border-b [&_tr]:border-[var(--table-divider)] [&_tr]:text-[var(--table-header-text)]",
+        "[&_tr]:bg-surface-gray-2 [&_tr]:text-ink-gray-5 [&_tr]:border-b [&_tr]:border-[var(--table-divider)] [&_th]:border-b [&_th]:border-[var(--table-divider)] [&_th:first-child]:rounded-l-md [&_th:last-child]:rounded-r-md",
         stickyHeader &&
-        "sticky z-20 [&_tr]:bg-[var(--table-header-bg)] supports-[backdrop-filter]:backdrop-blur",
+        "sticky z-20 supports-[backdrop-filter]:backdrop-blur",
         className,
       )}
       style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
@@ -767,7 +474,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-head"
       className={cn(
-        "border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-1.5 text-left align-middle text-[12px] font-semibold tracking-[0.03em] uppercase [&:has([role=checkbox])]:pr-0",
+        "h-[var(--table-head-min-h)] border border-[var(--table-divider)] bg-surface-gray-2 px-2 py-2 text-left align-middle text-sm font-medium [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -782,7 +489,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-cell"
       className={cn(
-        "border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-1.5 align-middle text-table-cell [&:has([role=checkbox])]:pr-0",
+        "min-h-[var(--table-row-min-h)] border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-table-cell [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

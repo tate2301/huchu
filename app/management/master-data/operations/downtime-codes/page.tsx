@@ -152,12 +152,16 @@ export default function DowntimeCodesManagementPage() {
         id: "code",
         header: "Code",
         cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "description",
         header: "Description",
         accessorKey: "description",
-      },
+        size: 260,
+        minSize: 200,
+        maxSize: 360},
       {
         id: "site",
         header: "Site",
@@ -166,12 +170,16 @@ export default function DowntimeCodesManagementPage() {
           if (!row.original.site) return "Site unavailable";
           return `${row.original.site.code} - ${row.original.site.name}`;
         },
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "sortOrder",
         header: "Sort",
         cell: ({ row }) => row.original.sortOrder,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -180,7 +188,9 @@ export default function DowntimeCodesManagementPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "actions",
         header: "Actions",
@@ -230,7 +240,9 @@ export default function DowntimeCodesManagementPage() {
             )}
           </div>
         ),
-      },
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
     ],
     [deleteMutation, updateMutation],
   );

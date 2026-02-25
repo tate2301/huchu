@@ -180,22 +180,31 @@ export default function GoldExceptionsPage() {
             {new Date(row.original.pourDate).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "batchId",
         header: "Batch ID",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.batchId}</span>
         ),
-      },
-      { id: "site", header: "Site", accessorKey: "site" },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
+      { id: "site", header: "Site", accessorKey: "site" ,
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "grossWeight",
         header: "Gross Weight",
         cell: ({ row }) => (
           <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -210,21 +219,33 @@ export default function GoldExceptionsPage() {
             {new Date(row.original.dispatchDate).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "batchId",
         header: "Batch",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.batchId}</span>
         ),
-      },
-      { id: "courier", header: "Courier", accessorKey: "courier" },
-      { id: "destination", header: "Destination", accessorKey: "destination" },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
+      { id: "courier", header: "Courier", accessorKey: "courier" ,
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
+      { id: "destination", header: "Destination", accessorKey: "destination" ,
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
         cell: () => <Badge variant="secondary">Awaiting sale</Badge>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -239,15 +260,28 @@ export default function GoldExceptionsPage() {
             {new Date(row.original.createdAt).toLocaleString()}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "entityType",
         header: "Type",
         cell: ({ row }) => <Badge variant="neutral">{row.original.entityType}</Badge>,
-      },
-      { id: "reference", header: "Reference", accessorKey: "reference" },
-      { id: "reason", header: "Reason", accessorKey: "reason" },
-      { id: "createdBy", header: "By", accessorKey: "createdBy" },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
+      { id: "reference", header: "Reference", accessorKey: "reference" ,
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
+      { id: "reason", header: "Reason", accessorKey: "reason" ,
+        size: 260,
+        minSize: 200,
+        maxSize: 360},
+      { id: "createdBy", header: "By", accessorKey: "createdBy" ,
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [],
   );

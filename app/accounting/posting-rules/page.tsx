@@ -116,17 +116,23 @@ export default function PostingRulesPage() {
         const match = sourceTypeOptions.find((item) => item.value === row.original.sourceType);
         return <span className="font-medium">{match?.label ?? row.original.sourceType}</span>;
       },
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "name",
       header: "Rule Name",
       accessorKey: "name",
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "lines",
       header: "Lines",
       cell: ({ row }) => <span className="font-mono">{row.original.lines.length}</span>,
-    },
+      size: 160,
+      minSize: 160,
+      maxSize: 160},
     {
       id: "status",
       header: "Status",
@@ -136,7 +142,9 @@ export default function PostingRulesPage() {
           {row.original.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "actions",
       header: "",
@@ -147,7 +155,9 @@ export default function PostingRulesPage() {
           </Button>
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
   ];
 
   const saveMutation = useMutation({

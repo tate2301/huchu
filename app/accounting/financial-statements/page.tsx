@@ -137,19 +137,25 @@ export default function FinancialStatementsPage() {
             <div className="text-xs text-muted-foreground">{row.original.name}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "group",
         header: "Group",
         accessorKey: "group",
         cell: ({ row }) => <Badge variant="outline">{row.original.group}</Badge>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "value",
         header: "Amount",
         accessorKey: "value",
         cell: ({ row }) => <NumericCell>{row.original.value.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

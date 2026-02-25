@@ -338,7 +338,9 @@ export default function HrPayoutsPage() {
             <div className="text-xs text-muted-foreground">Allocation {row.original.allocationId.slice(0, 8)}</div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "site",
         header: "Site",
@@ -349,25 +351,33 @@ export default function HrPayoutsPage() {
             <div className="text-xs text-muted-foreground">{row.original.siteCode}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "workers",
         header: "Workers",
         accessorFn: (row) => row.workers.length,
         cell: ({ row }) => <NumericCell>{row.original.workers.length}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "goldDue",
         header: "Gold Due (g)",
         accessorFn: (row) => row.totalGold,
         cell: ({ row }) => <NumericCell>{row.original.totalGold.toFixed(3)}</NumericCell>,
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "expectedDue",
         header: "Expected Due",
         accessorFn: (row) => format(row.expectedDueDate, "yyyy-MM-dd"),
         cell: ({ row }) => <NumericCell align="left">{format(row.original.expectedDueDate, "MMM d, yyyy")}</NumericCell>,
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "payoutStatus",
         header: "Payout Status",
@@ -379,7 +389,9 @@ export default function HrPayoutsPage() {
             {row.original.dueCount > 0 ? <Badge variant="neutral">Due {row.original.dueCount}</Badge> : null}
           </div>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "workflow",
         header: "Workflow",
@@ -401,7 +413,9 @@ export default function HrPayoutsPage() {
             ) : null}
           </div>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "workflowActions",
         header: "",
@@ -445,7 +459,9 @@ export default function HrPayoutsPage() {
             </Button>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [approveAllocationMutation, rejectAllocationMutation, submitAllocationMutation],
   );
@@ -464,13 +480,17 @@ export default function HrPayoutsPage() {
           ) : null}
         </div>
       ),
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "earned",
       header: "Shift Earned (g)",
       accessorFn: (row) => row.shareWeight,
       cell: ({ row }) => <NumericCell>{row.original.shareWeight.toFixed(3)}</NumericCell>,
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "dueDate",
       header: "Due Date",
@@ -484,7 +504,9 @@ export default function HrPayoutsPage() {
           </div>
         );
       },
-    },
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
     {
       id: "status",
       header: "Status",
@@ -498,7 +520,9 @@ export default function HrPayoutsPage() {
               : "neutral";
         return <Badge variant={variant}>{row.original.status}</Badge>;
       },
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "paid",
       header: "Paid",
@@ -506,7 +530,9 @@ export default function HrPayoutsPage() {
       cell: ({ row }) => (
         <NumericCell>{row.original.paidAmount > 0 ? row.original.paidAmount.toFixed(3) : "-"}</NumericCell>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "paidDate",
       header: "Paid Date",
@@ -514,7 +540,9 @@ export default function HrPayoutsPage() {
       cell: ({ row }) => (
         <NumericCell align="left">{row.original.paidAt ? format(row.original.paidAt, "MMM d, yyyy") : "-"}</NumericCell>
       ),
-    },
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
     {
       id: "action",
       header: "",
@@ -534,7 +562,9 @@ export default function HrPayoutsPage() {
           )}
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
   ];
 
   return (

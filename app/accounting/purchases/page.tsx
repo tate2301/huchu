@@ -208,7 +208,9 @@ export default function AccountingPurchasesPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "contact",
         header: "Contact",
@@ -218,7 +220,9 @@ export default function AccountingPurchasesPage() {
             <div className="text-xs text-muted-foreground">{row.original.email || ""}</div>
           </div>
         ),
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "status",
         header: "Status",
@@ -227,7 +231,9 @@ export default function AccountingPurchasesPage() {
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -242,7 +248,9 @@ export default function AccountingPurchasesPage() {
           <div className="text-xs text-muted-foreground">{row.original.vendor?.name}</div>
         </div>
       ),
-    },
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
     {
       id: "date",
       header: "Date",
@@ -251,7 +259,9 @@ export default function AccountingPurchasesPage() {
           {format(new Date(row.original.billDate), "yyyy-MM-dd")}
         </NumericCell>
       ),
-    },
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
     {
       id: "status",
       header: "Status",
@@ -260,14 +270,18 @@ export default function AccountingPurchasesPage() {
           {row.original.status}
         </Badge>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "total",
       header: "Total",
       cell: ({ row }) => (
         <NumericCell>{row.original.total.toFixed(2)} {row.original.currency}</NumericCell>
       ),
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "balance",
       header: "Balance",
@@ -280,7 +294,9 @@ export default function AccountingPurchasesPage() {
             (row.original.writeOffTotal ?? 0);
         return <NumericCell>{balance.toFixed(2)} {row.original.currency}</NumericCell>;
       },
-    },
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
     {
       id: "actions",
       header: "",
@@ -293,7 +309,9 @@ export default function AccountingPurchasesPage() {
           ) : null}
         </div>
       ),
-    },
+      size: 108,
+      minSize: 108,
+      maxSize: 108},
   ];
 
   const paymentColumns = useMemo<ColumnDef<PurchasePaymentRecord>[]>(
@@ -309,7 +327,9 @@ export default function AccountingPurchasesPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "date",
         header: "Paid",
@@ -318,17 +338,23 @@ export default function AccountingPurchasesPage() {
             {format(new Date(row.original.paidAt), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "amount",
         header: "Amount",
         cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "method",
         header: "Method",
         accessorKey: "method",
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
     ],
     [],
   );
@@ -346,7 +372,9 @@ export default function AccountingPurchasesPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "date",
         header: "Date",
@@ -355,7 +383,9 @@ export default function AccountingPurchasesPage() {
             {format(new Date(row.original.noteDate), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "status",
         header: "Status",
@@ -364,7 +394,9 @@ export default function AccountingPurchasesPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "total",
         header: "Total",
@@ -373,7 +405,9 @@ export default function AccountingPurchasesPage() {
             {row.original.total.toFixed(2)} {row.original.currency}
           </NumericCell>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -388,7 +422,9 @@ export default function AccountingPurchasesPage() {
             {format(new Date(row.original.createdAt), "yyyy-MM-dd")}
           </NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "bill",
         header: "Bill",
@@ -400,12 +436,16 @@ export default function AccountingPurchasesPage() {
             </div>
           </div>
         ),
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "amount",
         header: "Amount",
         cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",
@@ -414,7 +454,9 @@ export default function AccountingPurchasesPage() {
             {row.original.status}
           </Badge>
         ),
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -425,37 +467,51 @@ export default function AccountingPurchasesPage() {
         id: "name",
         header: "Vendor",
         accessorKey: "name",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "current",
         header: "Current",
         cell: ({ row }) => <NumericCell>{row.original.current.toFixed(2)}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "days30",
         header: "1-30",
         cell: ({ row }) => <NumericCell>{row.original.days30.toFixed(2)}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "days60",
         header: "31-60",
         cell: ({ row }) => <NumericCell>{row.original.days60.toFixed(2)}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "days90",
         header: "61-90",
         cell: ({ row }) => <NumericCell>{row.original.days90.toFixed(2)}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "days90Plus",
         header: "90+",
         cell: ({ row }) => <NumericCell>{row.original.days90Plus.toFixed(2)}</NumericCell>,
-      },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "total",
         header: "Total",
         cell: ({ row }) => <NumericCell>{row.original.total.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );
@@ -468,33 +524,45 @@ export default function AccountingPurchasesPage() {
         cell: ({ row }) => (
           <NumericCell align="left">{format(new Date(row.original.date), "yyyy-MM-dd")}</NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "type",
         header: "Type",
         accessorKey: "type",
-      },
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
       {
         id: "reference",
         header: "Reference",
         accessorKey: "reference",
         cell: ({ row }) => <span className="font-mono">{row.original.reference}</span>,
-      },
+        size: 112,
+        minSize: 112,
+        maxSize: 112},
       {
         id: "debit",
         header: "Debit",
         cell: ({ row }) => <NumericCell>{row.original.debit.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "credit",
         header: "Credit",
         cell: ({ row }) => <NumericCell>{row.original.credit.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "balance",
         header: "Balance",
         cell: ({ row }) => <NumericCell>{row.original.balance.toFixed(2)}</NumericCell>,
-      },
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

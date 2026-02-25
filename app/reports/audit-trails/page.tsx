@@ -116,7 +116,9 @@ export default function AuditTrailsReportPage() {
         cell: ({ row }) => (
           <NumericCell align="left">{format(new Date(row.original.at), "MMM d, yyyy HH:mm")}</NumericCell>
         ),
-      },
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "module",
         header: "Module",
@@ -128,11 +130,25 @@ export default function AuditTrailsReportPage() {
             {row.original.module}
           </Badge>
         ),
-      },
-      { id: "action", header: "Action", accessorFn: (row) => row.action, cell: ({ row }) => row.original.action },
-      { id: "actor", header: "Actor", accessorFn: (row) => row.actor, cell: ({ row }) => row.original.actor },
-      { id: "site", header: "Site", accessorFn: (row) => row.site, cell: ({ row }) => row.original.site },
-      { id: "details", header: "Details", accessorFn: (row) => row.details, cell: ({ row }) => row.original.details },
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
+      { id: "action", header: "Action", accessorFn: (row) => row.action, cell: ({ row }) => row.original.action ,
+        size: 108,
+        minSize: 108,
+        maxSize: 108},
+      { id: "actor", header: "Actor", accessorFn: (row) => row.actor, cell: ({ row }) => row.original.actor ,
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
+      { id: "site", header: "Site", accessorFn: (row) => row.site, cell: ({ row }) => row.original.site ,
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
+      { id: "details", header: "Details", accessorFn: (row) => row.details, cell: ({ row }) => row.original.details ,
+        size: 260,
+        minSize: 200,
+        maxSize: 360},
     ],
     [],
   );
