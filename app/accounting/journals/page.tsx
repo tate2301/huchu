@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,9 @@ type JournalLineForm = {
 export default function JournalsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [formOpen, setFormOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [entryDate, setEntryDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -59,6 +63,23 @@ export default function JournalsPage() {
     { accountId: "", debit: "", credit: "", memo: "", costCenterId: "" },
     { accountId: "", debit: "", credit: "", memo: "", costCenterId: "" },
   ]);
+
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (!action) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (action === "new-journal" || action === "new-entry") {
+        setFormOpen(true);
+      }
+    });
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("action");
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [pathname, router, searchParams]);
 
   const {
     data: journalData,

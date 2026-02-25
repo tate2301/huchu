@@ -1,38 +1,98 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { NumberChart } from "@rtcamp/frappe-ui-react";
-import { useSession } from "next-auth/react";
+import { AxisChart } from "@rtcamp/frappe-ui-react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
-import { canViewAccountingHref } from "@/lib/accounting/visibility";
-import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
-import { fetchAccountingSummary } from "@/lib/api";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  fetchAccountingSummary,
+  fetchFinancialReportsHubSummary,
+  fetchPayablesHubSummary,
+  fetchReceivablesHubSummary,
+  fetchSites,
+} from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRight, RefreshCcw } from "@/lib/icons";
+import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
+import { ArrowRight, Plus, RefreshCcw } from "@/lib/icons";
+
+function formatCurrency(value: number) {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function AccountingOverviewPage() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
-  const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
-    [session],
-  );
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [branchId, setBranchId] = useState("all");
+
+  const { data: branches } = useQuery({
+    queryKey: ["sites", "accounting-branches"],
+    queryFn: fetchSites,
+  });
 
   const {
-    data: summary,
-    isLoading,
-    error,
+    data: accountingSummary,
+    error: accountingSummaryError,
   } = useQuery({
     queryKey: ["accounting-summary"],
     queryFn: fetchAccountingSummary,
+  });
+
+  const {
+    data: receivablesSummary,
+    isLoading: receivablesLoading,
+    error: receivablesError,
+  } = useQuery({
+    queryKey: ["accounting", "hubs", "receivables", startDate, endDate, branchId],
+    queryFn: () =>
+      fetchReceivablesHubSummary({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        branchId: branchId === "all" ? undefined : branchId,
+      }),
+  });
+
+  const {
+    data: payablesSummary,
+    isLoading: payablesLoading,
+    error: payablesError,
+  } = useQuery({
+    queryKey: ["accounting", "hubs", "payables", startDate, endDate, branchId],
+    queryFn: () =>
+      fetchPayablesHubSummary({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        branchId: branchId === "all" ? undefined : branchId,
+      }),
+  });
+
+  const {
+    data: financialSummary,
+    isLoading: financialLoading,
+    error: financialError,
+  } = useQuery({
+    queryKey: ["accounting", "hubs", "financial-reports", startDate, endDate, branchId],
+    queryFn: () =>
+      fetchFinancialReportsHubSummary({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        branchId: branchId === "all" ? undefined : branchId,
+      }),
   });
 
   const setupMutation = useMutation({
@@ -41,148 +101,383 @@ export default function AccountingOverviewPage() {
         method: "POST",
       }),
     onSuccess: () => {
-      toast({
-        title: "Accounting defaults loaded",
-        description: "Chart of accounts, tax codes, and posting rules seeded.",
-        variant: "success",
-      });
       queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
-    },
-    onError: (err) => {
-      toast({
-        title: "Setup failed",
-        description: getApiErrorMessage(err),
-        variant: "destructive",
-      });
     },
   });
 
-  const primaryActions = useMemo(
-    () =>
-      [
-        { href: "/accounting/journals", label: "New Journal Entry", variant: "default" as const },
-        { href: "/accounting/sales", label: "New Sales Invoice", variant: "outline" as const },
-        { href: "/accounting/purchases", label: "New Purchase Bill", variant: "outline" as const },
-      ].filter((action) => canViewAccountingHref(action.href, enabledFeatures)),
-    [enabledFeatures],
+  const charts = useMemo(() => {
+    const positionData = [
+      { label: "Open AR", value: receivablesSummary?.kpis.openBalance ?? 0 },
+      { label: "Open AP", value: payablesSummary?.kpis.openBalance ?? 0 },
+      { label: "Net Income", value: financialSummary?.kpis.netIncome ?? 0 },
+      { label: "Net Cash", value: financialSummary?.kpis.netCash ?? 0 },
+    ];
+    const flowData = [
+      { label: "Invoiced", value: receivablesSummary?.kpis.issuedInvoiceValue ?? 0 },
+      { label: "Collected", value: receivablesSummary?.kpis.collectedAmount ?? 0 },
+      { label: "Billed", value: payablesSummary?.kpis.receivedBillValue ?? 0 },
+      { label: "Paid", value: payablesSummary?.kpis.paidAmount ?? 0 },
+    ];
+
+    return {
+      position: buildAxisChartConfig({
+        data: positionData,
+        title: "Overall Position",
+        subtitle: "Cross-domain accounting position for selected filters.",
+        xAxisKey: "label",
+        xAxisType: "category",
+        yAxisTitle: "Amount",
+        series: [{ name: "value", type: "bar" }],
+      }),
+      flow: buildAxisChartConfig({
+        data: flowData,
+        title: "Flow Comparison",
+        subtitle: "Receivables and payables movement comparison.",
+        xAxisKey: "label",
+        xAxisType: "category",
+        yAxisTitle: "Amount",
+        series: [{ name: "value", type: "bar" }],
+      }),
+    };
+  }, [financialSummary, payablesSummary, receivablesSummary]);
+
+  const groupedLinks = useMemo<HubLinkGroup[]>(
+    () => [
+      {
+        group: "Receivables",
+        items: [
+          {
+            id: "receivables-home",
+            label: "Receivables Home",
+            description: "Overall AR position, trends, and quick access.",
+            href: "/accounting/receivables",
+            tag: "Home",
+          },
+          {
+            id: "sales",
+            label: "Sales Operations",
+            description: "Customers, invoices, receipts, and adjustments.",
+            href: "/accounting/sales",
+            tag: "Operations",
+          },
+          {
+            id: "ar-aging",
+            label: "AR Aging",
+            description: "Receivables exposure by aging bucket.",
+            href: "/accounting/sales?view=aging",
+            tag: "Report",
+          },
+        ],
+      },
+      {
+        group: "Payables",
+        items: [
+          {
+            id: "payables-home",
+            label: "Payables Home",
+            description: "Overall AP position, trends, and quick access.",
+            href: "/accounting/payables",
+            tag: "Home",
+          },
+          {
+            id: "purchases",
+            label: "Purchases Operations",
+            description: "Vendors, bills, payments, and adjustments.",
+            href: "/accounting/purchases",
+            tag: "Operations",
+          },
+          {
+            id: "ap-aging",
+            label: "AP Aging",
+            description: "Payables exposure by aging bucket.",
+            href: "/accounting/purchases?view=aging",
+            tag: "Report",
+          },
+        ],
+      },
+      {
+        group: "Financial Reporting",
+        items: [
+          {
+            id: "financial-home",
+            label: "Financial Reports Home",
+            description: "Overall reporting position and report access.",
+            href: "/accounting/financial-reports",
+            tag: "Home",
+          },
+          {
+            id: "trial-balance",
+            label: "Trial Balance",
+            description: "Ledger checks by account debits and credits.",
+            href: "/accounting/trial-balance",
+            tag: "Report",
+          },
+          {
+            id: "financial-statements",
+            label: "Financial Statements",
+            description: "Profit and loss, balance sheet, and cash flow.",
+            href: "/accounting/financial-statements",
+            tag: "Report",
+          },
+          {
+            id: "vat-summary",
+            label: "VAT Summary",
+            description: "Output/input VAT position and net tax.",
+            href: "/accounting/tax?view=vat-summary",
+            tag: "Tax",
+          },
+        ],
+      },
+      {
+        group: "Payments and Banking",
+        items: [
+          {
+            id: "banking",
+            label: "Banking",
+            description: "Bank accounts, transactions, and reconciliations.",
+            href: "/accounting/banking",
+            tag: "Cash",
+          },
+          {
+            id: "sales-receipts",
+            label: "Receipt Register",
+            description: "Incoming customer cash movements.",
+            href: "/accounting/sales?view=receipts",
+            tag: "AR",
+          },
+          {
+            id: "purchase-payments",
+            label: "Payment Register",
+            description: "Outgoing supplier cash movements.",
+            href: "/accounting/purchases?view=payments",
+            tag: "AP",
+          },
+        ],
+      },
+      {
+        group: "Accounting Master",
+        items: [
+          {
+            id: "coa",
+            label: "Chart of Accounts",
+            description: "Account structure and classifications.",
+            href: "/accounting/chart-of-accounts",
+            tag: "Master",
+          },
+          {
+            id: "periods",
+            label: "Accounting Periods",
+            description: "Period control and lock management.",
+            href: "/accounting/periods",
+            tag: "Master",
+          },
+          {
+            id: "journals",
+            label: "Journals",
+            description: "Manual journals and posting control.",
+            href: "/accounting/journals",
+            tag: "Core",
+          },
+          {
+            id: "posting-rules",
+            label: "Posting Rules",
+            description: "Automation mappings for source postings.",
+            href: "/accounting/posting-rules",
+            tag: "Automation",
+          },
+          {
+            id: "cost-centers",
+            label: "Cost Centers",
+            description: "Cost allocation dimensions by department.",
+            href: "/accounting/cost-centers",
+            tag: "Master",
+          },
+          {
+            id: "budgets",
+            label: "Budgets",
+            description: "Budget setup and tracking.",
+            href: "/accounting/budgets",
+            tag: "Planning",
+          },
+          {
+            id: "currency",
+            label: "Currency Rates",
+            description: "Exchange rates and conversion controls.",
+            href: "/accounting/currency",
+            tag: "Master",
+          },
+          {
+            id: "tax",
+            label: "Tax Setup",
+            description: "Tax code setup and VAT controls.",
+            href: "/accounting/tax",
+            tag: "Tax",
+          },
+          {
+            id: "assets",
+            label: "Fixed Assets",
+            description: "Asset register and depreciation controls.",
+            href: "/accounting/assets",
+            tag: "Master",
+          },
+          {
+            id: "fiscalisation",
+            label: "Fiscalisation",
+            description: "Fiscal device and receipt integration settings.",
+            href: "/accounting/fiscalisation",
+            tag: "Compliance",
+          },
+        ],
+      },
+    ],
+    [],
   );
 
-  const quickLinks = useMemo(
-    () =>
-      [
-        { href: "/accounting/chart-of-accounts", label: "Chart of Accounts" },
-        { href: "/accounting/posting-rules", label: "Posting Rules" },
-        { href: "/accounting/trial-balance", label: "Trial Balance" },
-        { href: "/accounting/financial-statements", label: "Financial Statements" },
-      ].filter((link) => canViewAccountingHref(link.href, enabledFeatures)),
-    [enabledFeatures],
-  );
-
-  const overviewMetrics = [
-    { label: "Accounts in Chart", value: summary?.accounts ?? 0 },
-    { label: "Open Accounting Periods", value: summary?.openPeriods ?? 0 },
-    { label: "Posted Journals", value: summary?.postedJournals ?? 0 },
-    { label: "Draft Journals", value: summary?.draftJournals ?? 0 },
-    { label: "Open Sales Invoices", value: summary?.openInvoices ?? 0 },
-    { label: "Open Purchase Bills", value: summary?.openBills ?? 0 },
-    { label: "Pending Integration Events", value: summary?.pendingIntegrationEvents ?? 0 },
-    { label: "Failed Integration Events", value: summary?.failedIntegrationEvents ?? 0 },
-  ];
+  const loading = receivablesLoading || payablesLoading || financialLoading;
+  const error = receivablesError || payablesError || financialError || accountingSummaryError;
 
   return (
     <AccountingShell
       activeTab="overview"
       title="Accounting Overview"
-      description="Core accounting health, journal activity, and AR/AP status."
+      description="Company-wide accounting position with grouped navigation and quick actions."
       actions={
-        primaryActions.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {primaryActions.map((action) => (
-              <Button key={action.href} asChild size="sm" variant={action.variant}>
-                <Link href={action.href}>
-                  {action.label}
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            ))}
-          </div>
-        ) : undefined
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href="/accounting/journals?action=new-journal">
+              <Plus className="mr-2 size-4" />
+              New Journal
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/accounting/sales?action=new-invoice">
+              <Plus className="mr-2 size-4" />
+              New Invoice
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/accounting/purchases?action=new-bill">
+              <Plus className="mr-2 size-4" />
+              New Bill
+            </Link>
+          </Button>
+        </div>
       }
     >
       {error ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to load accounting summary</AlertTitle>
+          <AlertTitle>Unable to load accounting overview</AlertTitle>
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
       ) : null}
 
+      <Card>
+        <CardContent className="pt-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+            <Select value={branchId} onValueChange={setBranchId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {(branches ?? []).map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Branch filter is shown for planning consistency. Current accounting totals remain company-wide.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {isLoading ? (
-          Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="h-[140px] w-full" />
-          ))
-        ) : (
-          <>
-            {overviewMetrics.map((metric) => (
-              <div key={metric.label} className="rounded-md border border-border/60 bg-card/70">
-                <NumberChart
-                  config={buildNumberMetricConfig({
-                    title: metric.label,
-                    value: metric.value,
-                    negativeIsBetter: metric.label.includes("Failed"),
-                  })}
-                  subtitle={() => (
-                    <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                      {metric.value.toLocaleString()}
-                    </div>
-                  )}
-                />
-              </div>
-            ))}
-          </>
-        )}
+        <MetricTile
+          title="Accounts in Chart"
+          value={accountingSummary?.accounts ?? 0}
+          valueLabel={(accountingSummary?.accounts ?? 0).toLocaleString()}
+          detail="Active account structure"
+        />
+        <MetricTile
+          title="Open AR"
+          value={receivablesSummary?.kpis.openBalance ?? 0}
+          valueLabel={formatCurrency(receivablesSummary?.kpis.openBalance ?? 0)}
+          detail="Outstanding receivables"
+        />
+        <MetricTile
+          title="Open AP"
+          value={payablesSummary?.kpis.openBalance ?? 0}
+          valueLabel={formatCurrency(payablesSummary?.kpis.openBalance ?? 0)}
+          detail="Outstanding payables"
+        />
+        <MetricTile
+          title="Net Income"
+          value={financialSummary?.kpis.netIncome ?? 0}
+          valueLabel={formatCurrency(financialSummary?.kpis.netIncome ?? 0)}
+          detail="Profit and loss position"
+        />
+        <MetricTile
+          title="Net Cash"
+          value={financialSummary?.kpis.netCash ?? 0}
+          valueLabel={formatCurrency(financialSummary?.kpis.netCash ?? 0)}
+          detail="Cash flow net movement"
+        />
+        <MetricTile
+          title="Open Periods"
+          value={accountingSummary?.openPeriods ?? 0}
+          valueLabel={(accountingSummary?.openPeriods ?? 0).toLocaleString()}
+          detail="Current open accounting periods"
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <FrappeChartShell>{loading ? null : <AxisChart config={charts.position} />}</FrappeChartShell>
+        <FrappeChartShell>{loading ? null : <AxisChart config={charts.flow} />}</FrappeChartShell>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <GroupedLinkList groups={groupedLinks} />
         <Card>
-          <CardHeader className="space-y-2">
-            <CardTitle>Accounting Setup</CardTitle>
-            <CardDescription>
-              Seed default chart of accounts, VAT codes, and posting rules for a fast start.
-            </CardDescription>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Launch workflows and setup tasks immediately.</CardDescription>
           </CardHeader>
-          <div className="px-6 pb-6">
+          <CardContent className="space-y-2">
+            <Button className="w-full justify-between" asChild size="sm" variant="outline">
+              <Link href="/accounting/receivables">
+                Receivables Home
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button className="w-full justify-between" asChild size="sm" variant="outline">
+              <Link href="/accounting/payables">
+                Payables Home
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button className="w-full justify-between" asChild size="sm" variant="outline">
+              <Link href="/accounting/financial-reports">
+                Financial Reports Home
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
             <Button
               type="button"
+              className="w-full justify-between"
               size="sm"
               onClick={() => setupMutation.mutate()}
               disabled={setupMutation.isPending}
             >
-              <RefreshCcw className="mr-2 size-4" />
               Initialize Accounting Defaults
+              <RefreshCcw className="size-4" />
             </Button>
-          </div>
+          </CardContent>
         </Card>
-        {quickLinks.length > 0 ? (
-          <Card>
-          <CardHeader className="space-y-2">
-            <CardTitle>Quick Links</CardTitle>
-            <CardDescription>Jump into your core accounting workflows.</CardDescription>
-          </CardHeader>
-          <div className="px-6 pb-6 space-y-2 text-sm">
-            {quickLinks.map((link) => (
-              <Link
-                key={link.href}
-                className="flex items-center justify-between text-primary hover:underline"
-                href={link.href}
-              >
-                {link.label}
-                <ArrowRight className="size-4" />
-              </Link>
-            ))}
-          </div>
-          </Card>
-        ) : null}
       </div>
     </AccountingShell>
   );

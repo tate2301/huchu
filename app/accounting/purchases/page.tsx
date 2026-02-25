@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,9 @@ type BillLineForm = {
 export default function AccountingPurchasesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [activeView, setActiveView] = useState<
     "vendors" | "bills" | "payments" | "debit-notes" | "write-offs" | "aging" | "statements"
   >("vendors");
@@ -125,6 +129,65 @@ export default function AccountingPurchasesPage() {
     amount: "",
     reason: "",
   });
+
+  useEffect(() => {
+    const view = searchParams.get("view");
+    if (!view) return;
+    const allowed = new Set([
+      "vendors",
+      "bills",
+      "payments",
+      "debit-notes",
+      "write-offs",
+      "aging",
+      "statements",
+    ]);
+    if (allowed.has(view)) {
+      const nextView = view as
+        | "vendors"
+        | "bills"
+        | "payments"
+        | "debit-notes"
+        | "write-offs"
+        | "aging"
+        | "statements";
+      const frameId = window.requestAnimationFrame(() => {
+        setActiveView(nextView);
+      });
+      return () => window.cancelAnimationFrame(frameId);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (!action) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (action === "new-vendor") {
+        setActiveView("vendors");
+        setVendorFormOpen(true);
+      } else if (action === "new-bill") {
+        setActiveView("bills");
+        setBillFormOpen(true);
+      } else if (action === "new-payment") {
+        setActiveView("payments");
+        setPaymentFormOpen(true);
+      } else if (action === "new-debit-note") {
+        setActiveView("debit-notes");
+        setDebitNoteFormOpen(true);
+      } else if (action === "new-write-off") {
+        setActiveView("write-offs");
+        setWriteOffFormOpen(true);
+      }
+    });
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("action");
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [pathname, router, searchParams]);
   const { data: vendorsData, error: vendorsError } = useQuery({
     queryKey: ["accounting", "purchases", "vendors"],
     queryFn: () => fetchVendors({ limit: 200 }),

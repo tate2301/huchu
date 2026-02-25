@@ -2763,6 +2763,68 @@ export type VatSummaryReport = {
   totals: { outputTax: number; inputTax: number; netTax: number };
 };
 
+export type AccountingHubMeta = {
+  startDate: string | null;
+  endDate: string | null;
+  branchId: string | null;
+  branchMode: "company-wide";
+};
+
+export type ReceivablesHubSummary = {
+  kpis: {
+    openBalance: number;
+    overdueBalance: number;
+    issuedInvoiceCount: number;
+    issuedInvoiceValue: number;
+    collectedAmount: number;
+    creditNoteAmount: number;
+  };
+  charts: {
+    aging: Array<{ bucket: string; amount: number }>;
+    statusBreakdown: Array<{ status: string; count: number }>;
+    collectionsTrend: Array<{ date: string; invoiced: number; collected: number }>;
+  };
+  meta: AccountingHubMeta;
+};
+
+export type PayablesHubSummary = {
+  kpis: {
+    openBalance: number;
+    overdueBalance: number;
+    receivedBillCount: number;
+    receivedBillValue: number;
+    paidAmount: number;
+    debitNoteAmount: number;
+  };
+  charts: {
+    aging: Array<{ bucket: string; amount: number }>;
+    statusBreakdown: Array<{ status: string; count: number }>;
+    paymentsTrend: Array<{ date: string; billed: number; paid: number }>;
+  };
+  meta: AccountingHubMeta;
+};
+
+export type FinancialReportsHubSummary = {
+  kpis: {
+    income: number;
+    expenses: number;
+    netIncome: number;
+    assets: number;
+    liabilities: number;
+    equity: number;
+    netCash: number;
+    totalDebit: number;
+    totalCredit: number;
+  };
+  charts: {
+    pnlBreakdown: Array<{ label: string; amount: number }>;
+    balanceComposition: Array<{ label: string; amount: number }>;
+    cashFlowComposition: Array<{ label: string; amount: number }>;
+    accountTypeBreakdown: Array<{ type: string; amount: number }>;
+  };
+  meta: AccountingHubMeta;
+};
+
 export async function fetchAccountingSummary() {
   return fetchJson<AccountingSummary>("/api/accounting/summary");
 }
@@ -2971,6 +3033,33 @@ export async function fetchCashFlowReport(params: {
 }) {
   const query = buildQuery(params);
   return fetchJson<CashFlowReport>(`/api/accounting/reports/cash-flow${query}`);
+}
+
+export async function fetchReceivablesHubSummary(params: {
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+} = {}) {
+  const query = buildQuery(params);
+  return fetchJson<ReceivablesHubSummary>(`/api/accounting/hubs/receivables-summary${query}`);
+}
+
+export async function fetchPayablesHubSummary(params: {
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+} = {}) {
+  const query = buildQuery(params);
+  return fetchJson<PayablesHubSummary>(`/api/accounting/hubs/payables-summary${query}`);
+}
+
+export async function fetchFinancialReportsHubSummary(params: {
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+} = {}) {
+  const query = buildQuery(params);
+  return fetchJson<FinancialReportsHubSummary>(`/api/accounting/hubs/financial-reports-summary${query}`);
 }
 
 export async function fetchArAging(params: { asOf?: string } = {}) {
