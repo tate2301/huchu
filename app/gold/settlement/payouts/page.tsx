@@ -69,6 +69,7 @@ function findPaymentForShiftWorker(
     dueDate: string;
     status: "DUE" | "PARTIAL" | "PAID";
     paidAmount?: number | null;
+    paidAmountUsd?: number | null;
     paidAt?: string | null;
   }>,
   employeeId: string,
@@ -600,4 +601,3 @@ export default function GoldSettlementPayoutsPage() {
     </GoldShell>
   );
 }
-

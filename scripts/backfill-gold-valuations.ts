@@ -35,7 +35,7 @@ function roundUsd(value: number): number {
 }
 
 function isValidRate(value: number | null | undefined): value is number {
-  return Number.isFinite(value) && value > 0;
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function resolveSnapshot(prices: PriceRow[], businessDate: Date): PriceRow | null {
