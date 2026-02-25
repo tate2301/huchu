@@ -56,54 +56,90 @@ export default function TrialBalancePage() {
   const columns = useMemo<ColumnDef<TrialBalanceRow>[]>(
     () => [
       {
-        id: "code",
+        id: "name",
         header: "Account",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-mono">{row.original.code}</div>
-            <div className="text-xs text-muted-foreground">{row.original.name}</div>
-          </div>
-        ),
-        size: 112,
-        minSize: 112,
-        maxSize: 112},
+        accessorKey: "name",
+        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+        size: 280,
+        minSize: 240,
+        maxSize: 420},
       {
         id: "type",
         header: "Type",
         accessorKey: "type",
         cell: ({ row }) => <Badge variant="outline">{row.original.type}</Badge>,
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
+        size: 140,
+        minSize: 140,
+        maxSize: 140},
+      {
+        id: "openingDebit",
+        header: "Opening Dr",
+        accessorKey: "openingDebit",
+        cell: ({ row }) => <NumericCell>{row.original.openingDebit.toFixed(2)}</NumericCell>,
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
+      {
+        id: "openingCredit",
+        header: "Opening Cr",
+        accessorKey: "openingCredit",
+        cell: ({ row }) => <NumericCell>{row.original.openingCredit.toFixed(2)}</NumericCell>,
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "debit",
-        header: "Debit",
+        header: "Period Dr",
         accessorKey: "debit",
         cell: ({ row }) => <NumericCell>{row.original.debit.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
         id: "credit",
-        header: "Credit",
+        header: "Period Cr",
         accessorKey: "credit",
         cell: ({ row }) => <NumericCell>{row.original.credit.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
       {
-        id: "balance",
-        header: "Balance",
-        accessorKey: "balance",
-        cell: ({ row }) => <NumericCell>{row.original.balance.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
+        id: "closingDebit",
+        header: "Closing Dr",
+        accessorKey: "closingDebit",
+        cell: ({ row }) => <NumericCell>{row.original.closingDebit.toFixed(2)}</NumericCell>,
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
+      {
+        id: "closingCredit",
+        header: "Closing Cr",
+        accessorKey: "closingCredit",
+        cell: ({ row }) => <NumericCell>{row.original.closingCredit.toFixed(2)}</NumericCell>,
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
+      {
+        id: "total",
+        header: "Total",
+        accessorKey: "total",
+        cell: ({ row }) => <NumericCell>{row.original.total.toFixed(2)}</NumericCell>,
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
     ],
     [],
   );
 
-  const totals = report?.totals ?? { debit: 0, credit: 0 };
+  const totals = report?.totals ?? {
+    openingDebit: 0,
+    openingCredit: 0,
+    debit: 0,
+    credit: 0,
+    closingDebit: 0,
+    closingCredit: 0,
+    total: 0,
+  };
 
   const handlePeriodChange = (value: string) => {
     setPeriodId(value);
@@ -139,14 +175,20 @@ export default function TrialBalancePage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardDescription>Total Debits</CardDescription>
-            <CardTitle className="font-mono">{totals.debit.toFixed(2)}</CardTitle>
+            <CardDescription>Opening Credits</CardDescription>
+            <CardTitle className="font-mono">{totals.openingCredit.toFixed(2)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Total Credits</CardDescription>
-            <CardTitle className="font-mono">{totals.credit.toFixed(2)}</CardTitle>
+            <CardDescription>Closing Credits</CardDescription>
+            <CardTitle className="font-mono">{totals.closingCredit.toFixed(2)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>Total</CardDescription>
+            <CardTitle className="font-mono">{totals.total.toFixed(2)}</CardTitle>
           </CardHeader>
         </Card>
       </div>

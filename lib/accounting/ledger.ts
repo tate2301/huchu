@@ -67,59 +67,139 @@ export async function getTrialBalance(input: {
   startDate?: Date | null;
   endDate?: Date | null;
 }) {
-  const where: Record<string, unknown> = {
-    entry: {
-      companyId: input.companyId,
-      status: "POSTED",
-    },
+  const baseEntryWhere: Record<string, unknown> = {
+    companyId: input.companyId,
+    status: "POSTED",
   };
 
+  let openingBeforeDate: Date | null = null;
+  let periodEntryWhere: Record<string, unknown> = { ...baseEntryWhere };
+
   if (input.periodId) {
-    (where.entry as Record<string, unknown>).periodId = input.periodId;
-  } else if (input.startDate || input.endDate) {
-    (where.entry as Record<string, unknown>).entryDate = {
-      ...(input.startDate ? { gte: input.startDate } : null),
-      ...(input.endDate ? { lte: input.endDate } : null),
+    periodEntryWhere = {
+      ...baseEntryWhere,
+      periodId: input.periodId,
     };
+    const period = await prisma.accountingPeriod.findFirst({
+      where: { id: input.periodId, companyId: input.companyId },
+      select: { startDate: true },
+    });
+    openingBeforeDate = period?.startDate ?? null;
+  } else if (input.startDate || input.endDate) {
+    periodEntryWhere = {
+      ...baseEntryWhere,
+      entryDate: {
+        ...(input.startDate ? { gte: input.startDate } : null),
+        ...(input.endDate ? { lte: input.endDate } : null),
+      },
+    };
+    openingBeforeDate = input.startDate ?? null;
   }
 
-  const grouped = await prisma.journalLine.groupBy({
-    by: ["accountId"],
-    where,
-    _sum: {
-      debit: true,
-      credit: true,
-    },
-  });
+  const [periodGrouped, openingGrouped] = await Promise.all([
+    prisma.journalLine.groupBy({
+      by: ["accountId"],
+      where: {
+        entry: periodEntryWhere,
+      },
+      _sum: {
+        debit: true,
+        credit: true,
+      },
+    }),
+    openingBeforeDate
+      ? prisma.journalLine.groupBy({
+          by: ["accountId"],
+          where: {
+            entry: {
+              ...baseEntryWhere,
+              entryDate: {
+                lt: openingBeforeDate,
+              },
+            },
+          },
+          _sum: {
+            debit: true,
+            credit: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  const accountIds = grouped.map((row) => row.accountId);
+  const openingByAccount = new Map(
+    openingGrouped.map((row) => [
+      row.accountId,
+      {
+        debit: toMoney(row._sum.debit),
+        credit: toMoney(row._sum.credit),
+      },
+    ]),
+  );
+  const periodByAccount = new Map(
+    periodGrouped.map((row) => [
+      row.accountId,
+      {
+        debit: toMoney(row._sum.debit),
+        credit: toMoney(row._sum.credit),
+      },
+    ]),
+  );
+
+  const accountIds = Array.from(new Set([...openingByAccount.keys(), ...periodByAccount.keys()]));
   const accounts = await prisma.chartOfAccount.findMany({
     where: { id: { in: accountIds } },
   });
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
 
-  const rows = grouped.map((row) => {
-    const account = accountMap.get(row.accountId);
-    const debit = toMoney(row._sum.debit);
-    const credit = toMoney(row._sum.credit);
+  const rows = accountIds.map((accountId) => {
+    const account = accountMap.get(accountId);
+    const opening = openingByAccount.get(accountId) ?? { debit: 0, credit: 0 };
+    const period = periodByAccount.get(accountId) ?? { debit: 0, credit: 0 };
+
+    const openingBalance = opening.debit - opening.credit;
+    const openingDebit = openingBalance >= 0 ? openingBalance : 0;
+    const openingCredit = openingBalance < 0 ? Math.abs(openingBalance) : 0;
+
+    const closingBalance = openingBalance + period.debit - period.credit;
+    const closingDebit = closingBalance >= 0 ? closingBalance : 0;
+    const closingCredit = closingBalance < 0 ? Math.abs(closingBalance) : 0;
+
     return {
-      accountId: row.accountId,
+      accountId,
       code: account?.code ?? "",
       name: account?.name ?? "Unknown",
       type: account?.type ?? "ASSET",
       category: account?.category ?? null,
-      debit,
-      credit,
-      balance: debit - credit,
+      openingDebit,
+      openingCredit,
+      debit: period.debit,
+      credit: period.credit,
+      balance: period.debit - period.credit,
+      closingDebit,
+      closingCredit,
+      total: closingDebit + closingCredit,
     };
   });
 
   const totals = rows.reduce(
     (acc, row) => ({
+      openingDebit: acc.openingDebit + row.openingDebit,
+      openingCredit: acc.openingCredit + row.openingCredit,
       debit: acc.debit + row.debit,
       credit: acc.credit + row.credit,
+      closingDebit: acc.closingDebit + row.closingDebit,
+      closingCredit: acc.closingCredit + row.closingCredit,
+      total: acc.total + row.total,
     }),
-    { debit: 0, credit: 0 },
+    {
+      openingDebit: 0,
+      openingCredit: 0,
+      debit: 0,
+      credit: 0,
+      closingDebit: 0,
+      closingCredit: 0,
+      total: 0,
+    },
   );
 
   return { rows, totals };

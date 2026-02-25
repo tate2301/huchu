@@ -2682,14 +2682,27 @@ export type TrialBalanceRow = {
   name: string;
   type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
   category?: string | null;
+  openingDebit: number;
+  openingCredit: number;
   debit: number;
   credit: number;
   balance: number;
+  closingDebit: number;
+  closingCredit: number;
+  total: number;
 };
 
 export type TrialBalanceReport = {
   rows: TrialBalanceRow[];
-  totals: { debit: number; credit: number };
+  totals: {
+    openingDebit: number;
+    openingCredit: number;
+    debit: number;
+    credit: number;
+    closingDebit: number;
+    closingCredit: number;
+    total: number;
+  };
 };
 
 export type FinancialStatementsReport = {

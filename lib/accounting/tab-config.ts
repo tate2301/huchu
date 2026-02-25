@@ -48,27 +48,6 @@ export type AccountingTabItem = {
 export const ACCOUNTING_TABS: AccountingTabItem[] = [
   { id: "overview", label: "Overview", href: "/accounting", icon: Scale, featureKey: "accounting.core" },
   {
-    id: "receivables",
-    label: "Receivables",
-    href: "/accounting/receivables",
-    icon: ReceiptLong,
-    featureKey: "accounting.ar",
-  },
-  {
-    id: "payables",
-    label: "Payables",
-    href: "/accounting/payables",
-    icon: PackageCheck,
-    featureKey: "accounting.ap",
-  },
-  {
-    id: "financial-reports",
-    label: "Financial Reports",
-    href: "/accounting/financial-reports",
-    icon: BarChart3,
-    featureKey: "accounting.financial-statements",
-  },
-  {
     id: "chart-of-accounts",
     label: "Chart of Accounts",
     href: "/accounting/chart-of-accounts",
