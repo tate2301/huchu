@@ -35,10 +35,10 @@ type ShiftWorkerPayout = {
   employeeId: string;
   employeeName: string;
   employeeCode: string;
-  shareWeight: number;
+  shareValueUsd: number;
   status: "DUE" | "PARTIAL" | "PAID";
   dueDate: Date;
-  paidAmount: number;
+  paidAmountUsd: number;
   paidAt?: Date;
   payment?: EmployeePayment;
 };
@@ -57,7 +57,7 @@ type ShiftPayoutGroup = {
   approvedByName?: string;
   expectedDueDate: Date;
   workers: ShiftWorkerPayout[];
-  totalGold: number;
+  totalValueUsd: number;
   paidCount: number;
   partialCount: number;
   dueCount: number;
@@ -162,10 +162,15 @@ export default function HrPayoutsPage() {
             employeeId: share.employee.id,
             employeeName: share.employee.name,
             employeeCode: share.employee.employeeId,
-            shareWeight: share.shareWeight,
+            shareValueUsd:
+              share.shareValueUsd ??
+              share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0),
             status: payment?.status ?? "DUE",
             dueDate: payment ? new Date(payment.dueDate) : expectedDueDate,
-            paidAmount: payment?.paidAmount ?? 0,
+            paidAmountUsd:
+              payment?.paidAmountUsd ??
+              payment?.paidAmount ??
+              0,
             paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
             payment,
           } satisfies ShiftWorkerPayout;
@@ -174,7 +179,9 @@ export default function HrPayoutsPage() {
         const paidCount = workers.filter((worker) => worker.status === "PAID").length;
         const partialCount = workers.filter((worker) => worker.status === "PARTIAL").length;
         const dueCount = workers.length - paidCount - partialCount;
-        const totalGold = workers.reduce((sum, worker) => sum + worker.shareWeight, 0);
+        const totalValueUsd =
+          allocation.workerShareValueUsd ??
+          workers.reduce((sum, worker) => sum + worker.shareValueUsd, 0);
 
         return {
           allocationId: allocation.id,
@@ -190,7 +197,7 @@ export default function HrPayoutsPage() {
           approvedByName: allocation.approvedBy?.name,
           expectedDueDate,
           workers,
-          totalGold,
+          totalValueUsd,
           paidCount,
           partialCount,
           dueCount,
@@ -199,8 +206,8 @@ export default function HrPayoutsPage() {
       .sort((a, b) => b.date.getTime() - a.date.getTime());
   }, [allocationIdFilter, payments, shiftAllocations, windowWeeks]);
 
-  const totalGoldDue = useMemo(
-    () => payoutGroups.reduce((sum, group) => sum + group.totalGold, 0),
+  const totalValueDueUsd = useMemo(
+    () => payoutGroups.reduce((sum, group) => sum + group.totalValueUsd, 0),
     [payoutGroups],
   );
 
@@ -363,10 +370,10 @@ export default function HrPayoutsPage() {
         minSize: 160,
         maxSize: 160},
       {
-        id: "goldDue",
-        header: "Gold Due (g)",
-        accessorFn: (row) => row.totalGold,
-        cell: ({ row }) => <NumericCell>{row.original.totalGold.toFixed(3)}</NumericCell>,
+        id: "valueDueUsd",
+        header: "Value Due",
+        accessorFn: (row) => row.totalValueUsd,
+        cell: ({ row }) => <NumericCell>${row.original.totalValueUsd.toFixed(2)}</NumericCell>,
         size: 128,
         minSize: 128,
         maxSize: 128},
@@ -485,9 +492,9 @@ export default function HrPayoutsPage() {
       maxSize: 420},
     {
       id: "earned",
-      header: "Shift Earned (g)",
-      accessorFn: (row) => row.shareWeight,
-      cell: ({ row }) => <NumericCell>{row.original.shareWeight.toFixed(3)}</NumericCell>,
+      header: "Shift Earned",
+      accessorFn: (row) => row.shareValueUsd,
+      cell: ({ row }) => <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>,
       size: 120,
       minSize: 120,
       maxSize: 120},
@@ -525,10 +532,10 @@ export default function HrPayoutsPage() {
       maxSize: 120},
     {
       id: "paid",
-      header: "Paid",
-      accessorFn: (row) => row.paidAmount,
+      header: "Paid (USD)",
+      accessorFn: (row) => row.paidAmountUsd,
       cell: ({ row }) => (
-        <NumericCell>{row.original.paidAmount > 0 ? row.original.paidAmount.toFixed(3) : "-"}</NumericCell>
+        <NumericCell>{row.original.paidAmountUsd > 0 ? `$${row.original.paidAmountUsd.toFixed(2)}` : "-"}</NumericCell>
       ),
       size: 120,
       minSize: 120,
@@ -631,7 +638,7 @@ export default function HrPayoutsPage() {
                   Workers <span className="font-mono text-foreground">{totalWorkers}</span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Gold Due <span className="font-mono text-foreground">{totalGoldDue.toFixed(3)} g</span>
+                  Gold Due <span className="font-mono text-foreground">${totalValueDueUsd.toFixed(2)}</span>
                 </span>
               </>
             }
@@ -726,7 +733,7 @@ export default function HrPayoutsPage() {
                   Workers: <span className="font-semibold text-foreground">{selectedGroup.workers.length}</span>
                 </div>
                 <div>
-                  Gold due: <span className="font-semibold text-foreground">{selectedGroup.totalGold.toFixed(3)} g</span>
+                  Gold due: <span className="font-semibold text-foreground">${selectedGroup.totalValueUsd.toFixed(2)}</span>
                 </div>
                 <div>
                   Expected due: <span className="font-semibold text-foreground">{format(selectedGroup.expectedDueDate, "MMM d, yyyy")}</span>
@@ -756,7 +763,7 @@ export default function HrPayoutsPage() {
             meta={[
               { label: "Pay window", value: `${payoutWindowWeeks} weeks` },
               { label: "Total shifts", value: String(payoutGroups.length) },
-              { label: "Gold due", value: `${totalGoldDue.toFixed(3)} g` },
+              { label: "Gold due", value: `$${totalValueDueUsd.toFixed(2)}` },
             ]}
           >
             <table className="w-full text-xs">
@@ -765,7 +772,7 @@ export default function HrPayoutsPage() {
                   <th className="py-2">Shift</th>
                   <th className="py-2">Site</th>
                   <th className="py-2">Worker</th>
-                  <th className="py-2">Earned (g)</th>
+                  <th className="py-2">Earned (USD)</th>
                   <th className="py-2">Due Date</th>
                   <th className="py-2">Status</th>
                 </tr>
@@ -777,7 +784,7 @@ export default function HrPayoutsPage() {
                       <td className="py-2">{format(group.date, "yyyy-MM-dd")} ({group.shift})</td>
                       <td className="py-2">{group.siteCode}</td>
                       <td className="py-2">{worker.employeeName} ({worker.employeeCode})</td>
-                      <td className="py-2">{worker.shareWeight.toFixed(3)}</td>
+                      <td className="py-2">{worker.shareValueUsd.toFixed(2)}</td>
                       <td className="py-2">{format(worker.dueDate, "yyyy-MM-dd")}</td>
                       <td className="py-2">{worker.status}</td>
                     </tr>
@@ -791,5 +798,4 @@ export default function HrPayoutsPage() {
     </HrShell>
   );
 }
-
 

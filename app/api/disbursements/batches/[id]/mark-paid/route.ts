@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { AUTO_PAYOUT_NOTE_PREFIX } from "@/lib/gold-payouts"
+import { convertUsdToGrams } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import {
@@ -54,7 +55,7 @@ export async function POST(
         },
         items: {
           include: {
-            lineItem: { select: { currency: true } },
+            lineItem: { select: { currency: true, baseAmount: true, netAmount: true } },
           },
         },
       },
@@ -69,13 +70,6 @@ export async function POST(
     if (!["APPROVED", "PAID"].includes(batch.status)) {
       return errorResponse("Batch must be approved before recording payments", 400)
     }
-    if (
-      batch.payrollRun.domain === "GOLD_PAYOUT" &&
-      (!batch.payrollRun.goldRatePerUnit || batch.payrollRun.goldRatePerUnit <= 0)
-    ) {
-      return errorResponse("Gold payout runs require a positive gold rate before disbursement", 400)
-    }
-
     const pendingAdjustments = await prisma.adjustmentEntry.count({
       where: {
         disbursementBatchId: id,
@@ -112,7 +106,7 @@ export async function POST(
             receiptReference: payload.receiptReference,
             notes: payload.notes,
           },
-          include: { lineItem: { select: { currency: true } } },
+          include: { lineItem: { select: { currency: true, baseAmount: true, netAmount: true } } },
         })
 
         if (isGoldRun) {
@@ -136,21 +130,40 @@ export async function POST(
             orderBy: [{ periodStart: "asc" }, { createdAt: "asc" }],
           })
 
-          if (linkedGoldPayments.length > 0 && (batch.payrollRun.goldRatePerUnit ?? 0) > 0) {
-            let remainingGoldPaid =
-              (updatedItem.paidAmount ?? 0) / (batch.payrollRun.goldRatePerUnit ?? 1)
+          if (linkedGoldPayments.length > 0) {
+            let remainingPaidUsd = updatedItem.paidAmount ?? 0
 
             for (const linked of linkedGoldPayments) {
-              const paidGoldForRecord =
-                remainingGoldPaid > 0 ? Math.min(linked.amount, remainingGoldPaid) : 0
-              remainingGoldPaid = Math.max(remainingGoldPaid - paidGoldForRecord, 0)
+              const amountUsd =
+                linked.amountUsd ??
+                ((linked.goldPriceUsdPerGram ?? 0) > 0
+                  ? linked.amount * (linked.goldPriceUsdPerGram ?? 0)
+                  : linked.amount)
+              const paidAmountUsd =
+                remainingPaidUsd > 0 ? Math.min(amountUsd, remainingPaidUsd) : 0
+              remainingPaidUsd = Math.max(remainingPaidUsd - paidAmountUsd, 0)
+
+              const sourceWeightGrams = linked.goldWeightGrams ?? linked.amount
+              let paidGoldForRecord = 0
+              if ((linked.goldPriceUsdPerGram ?? 0) > 0) {
+                paidGoldForRecord = convertUsdToGrams({
+                  usd: paidAmountUsd,
+                  goldPriceUsdPerGram: linked.goldPriceUsdPerGram ?? 0,
+                })
+              } else if (amountUsd > 0 && sourceWeightGrams > 0) {
+                paidGoldForRecord = (paidAmountUsd / amountUsd) * sourceWeightGrams
+              }
+              paidGoldForRecord = Math.max(0, Math.min(paidGoldForRecord, sourceWeightGrams))
 
               await tx.employeePayment.update({
                 where: { id: linked.id },
                 data: {
+                  amountUsd,
+                  paidAmountUsd: paidAmountUsd > 0 ? paidAmountUsd : null,
+                  goldWeightGrams: sourceWeightGrams,
                   paidAmount: paidGoldForRecord > 0 ? paidGoldForRecord : null,
                   paidAt: paidGoldForRecord > 0 ? updatedItem.paidAt : null,
-                  status: derivePaidStatus(linked.amount, paidGoldForRecord),
+                  status: derivePaidStatus(amountUsd, paidAmountUsd),
                   notes: linked.notes ?? `AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:${batch.id}`,
                   payrollRunId: batch.payrollRunId,
                   payrollLineItemId: updatedItem.lineItemId,
@@ -167,11 +180,19 @@ export async function POST(
                 periodStart: batch.payrollRun.period.startDate,
                 periodEnd: batch.payrollRun.period.endDate,
                 dueDate: batch.payrollRun.period.dueDate,
-                amount: updatedItem.amount,
+                amount: updatedItem.lineItem.baseAmount,
+                amountUsd: updatedItem.amount,
                 unit: updatedItem.lineItem.currency,
+                goldWeightGrams: updatedItem.lineItem.baseAmount,
+                goldPriceUsdPerGram:
+                  updatedItem.lineItem.baseAmount > 0
+                    ? updatedItem.amount / updatedItem.lineItem.baseAmount
+                    : null,
+                valuationDate: batch.payrollRun.period.endDate,
                 paidAmount: updatedItem.paidAmount,
+                paidAmountUsd: updatedItem.paidAmount,
                 paidAt: updatedItem.paidAt,
-                status: updatedItem.status,
+                status: derivePaidStatus(updatedItem.amount, updatedItem.paidAmount ?? 0),
                 notes: updatedItem.notes ?? `Gold disbursement batch ${batch.code}`,
                 createdById: session.user.id,
                 payrollRunId: batch.payrollRunId,
@@ -192,7 +213,9 @@ export async function POST(
               where: { id: existingPayment.id },
               data: {
                 amount: updatedItem.amount,
+                amountUsd: updatedItem.amount,
                 paidAmount: updatedItem.paidAmount,
+                paidAmountUsd: updatedItem.paidAmount,
                 paidAt: updatedItem.paidAt,
                 status: updatedItem.status,
                 notes: updatedItem.notes ?? `Disbursement batch ${batch.code}`,
@@ -207,8 +230,10 @@ export async function POST(
                 periodEnd: batch.payrollRun.period.endDate,
                 dueDate: batch.payrollRun.period.dueDate,
                 amount: updatedItem.amount,
+                amountUsd: updatedItem.amount,
                 unit: updatedItem.lineItem.currency,
                 paidAmount: updatedItem.paidAmount,
+                paidAmountUsd: updatedItem.paidAmount,
                 paidAt: updatedItem.paidAt,
                 status: updatedItem.status,
                 notes: updatedItem.notes ?? `Disbursement batch ${batch.code}`,

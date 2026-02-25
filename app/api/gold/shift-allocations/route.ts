@@ -11,6 +11,7 @@ import {
   AUTO_BATCH_NOTE_PREFIX,
   AUTO_PAYOUT_NOTE_PREFIX,
 } from "@/lib/gold-payouts"
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -129,6 +130,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               shareWeight: true,
+              shareValueUsd: true,
               employee: { select: { id: true, name: true, employeeId: true } },
             },
           },
@@ -235,6 +237,21 @@ export async function POST(request: NextRequest) {
       companyShareWeight = netWeight - overrideWeight
     }
     const perWorkerWeight = workerShareWeight / attendance.length
+    const valuationSnapshot = await snapshotGoldUsdValue({
+      companyId: session.user.companyId,
+      businessDate: start,
+      grams: 1,
+    })
+    if (!valuationSnapshot) {
+      return errorResponse("No gold price configured. Add a gold price before recording shift output.", 409)
+    }
+    const goldPriceUsdPerGram = valuationSnapshot.goldPriceUsdPerGram
+    const valuationDate = valuationSnapshot.valuationDate
+    const totalWeightValueUsd = Math.round(validated.totalWeight * goldPriceUsdPerGram * 100) / 100
+    const netWeightValueUsd = Math.round(netWeight * goldPriceUsdPerGram * 100) / 100
+    const workerShareValueUsd = Math.round(workerShareWeight * goldPriceUsdPerGram * 100) / 100
+    const companyShareValueUsd = Math.round(companyShareWeight * goldPriceUsdPerGram * 100) / 100
+    const perWorkerValueUsd = Math.round(perWorkerWeight * goldPriceUsdPerGram * 100) / 100
 
     const primaryWitnessId = attendance[0]?.employee.id
     let secondaryWitnessId = attendance.find(
@@ -276,6 +293,13 @@ export async function POST(request: NextRequest) {
           workerShareWeight,
           companyShareWeight,
           perWorkerWeight,
+          goldPriceUsdPerGram,
+          valuationDate,
+          totalWeightValueUsd,
+          netWeightValueUsd,
+          workerShareValueUsd,
+          companyShareValueUsd,
+          perWorkerValueUsd,
           payCycleWeeks: validated.payCycleWeeks,
           createdById: session.user.id,
           expenses: {
@@ -288,6 +312,7 @@ export async function POST(request: NextRequest) {
             create: attendance.map((record) => ({
               employeeId: record.employee.id,
               shareWeight: perWorkerWeight,
+              shareValueUsd: perWorkerValueUsd,
             })),
           },
         },
@@ -302,6 +327,7 @@ export async function POST(request: NextRequest) {
             select: {
               id: true,
               shareWeight: true,
+              shareValueUsd: true,
               employee: { select: { id: true, name: true, employeeId: true } },
             },
           },
@@ -320,7 +346,11 @@ export async function POST(request: NextRequest) {
             periodEnd: start,
             dueDate: payoutDueDate,
             amount: share.shareWeight,
+            amountUsd: share.shareValueUsd ?? perWorkerValueUsd,
             unit: "g",
+            goldWeightGrams: share.shareWeight,
+            goldPriceUsdPerGram,
+            valuationDate,
             status: "DUE",
             notes: `${AUTO_PAYOUT_NOTE_PREFIX}${allocation.id}`,
             createdById: session.user.id,
@@ -339,6 +369,9 @@ export async function POST(request: NextRequest) {
             pourBarId: batchCode,
             pourDate: start,
             grossWeight: netWeight,
+            goldPriceUsdPerGram,
+            valuationDate,
+            valueUsd: netWeightValueUsd,
             witness1Id: primaryWitnessId,
             witness2Id: secondaryWitnessId,
             storageLocation: "Shift Vault",
@@ -367,11 +400,16 @@ export async function POST(request: NextRequest) {
         entryDate: result.allocation.date,
         description: `Gold shift allocation ${result.allocation.id} created`,
         amount: result.allocation.netWeight,
+        netAmount: result.allocation.netWeightValueUsd ?? undefined,
         payload: {
           siteId: result.allocation.siteId,
           shift: result.allocation.shift,
           workerShareWeight: result.allocation.workerShareWeight,
+          workerShareValueUsd: result.allocation.workerShareValueUsd,
           companyShareWeight: result.allocation.companyShareWeight,
+          companyShareValueUsd: result.allocation.companyShareValueUsd,
+          goldPriceUsdPerGram: result.allocation.goldPriceUsdPerGram,
+          valuationDate: result.allocation.valuationDate,
           splitMode: result.allocation.splitMode,
           workerShareOverrideWeight: result.allocation.workerShareOverrideWeight,
           payoutRecordsCreated: result.payoutRecordsCreated,

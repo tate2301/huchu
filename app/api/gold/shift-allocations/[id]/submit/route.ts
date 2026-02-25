@@ -63,6 +63,7 @@ export async function POST(
             select: {
               id: true,
               shareWeight: true,
+              shareValueUsd: true,
               employee: { select: { id: true, name: true, employeeId: true } },
             },
           },

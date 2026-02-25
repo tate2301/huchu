@@ -121,11 +121,25 @@ export default function GoldTransitDispatchesPage() {
         id: "batch",
         header: "Batch",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.goldPour.pourBarId}</span>
+          <div>
+            <div className="font-mono font-semibold">{row.original.goldPour.pourBarId}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.goldPour.grossWeight.toFixed(3)} g
+            </div>
+          </div>
         ),
         size: 280,
         minSize: 220,
         maxSize: 420},
+      {
+        id: "value",
+        header: "Value",
+        cell: ({ row }) => (
+          <NumericCell>${(row.original.valueUsd ?? row.original.goldPour.valueUsd ?? 0).toFixed(2)}</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "courier",
         header: "Courier",

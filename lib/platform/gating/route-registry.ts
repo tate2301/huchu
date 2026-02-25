@@ -66,6 +66,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold/audit", featureKey: "gold.audit-trail" },
   { scope: "page", prefix: "/gold/payouts", featureKey: "gold.payouts" },
   { scope: "page", prefix: "/gold/settlement/payouts", featureKey: "gold.payouts" },
+  { scope: "page", prefix: "/gold/prices", featureKey: "gold.home" },
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
 
   { scope: "page", prefix: "/compliance", featureKey: "compliance.overview" },
@@ -150,6 +151,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/purchases", featureKey: "gold.intake.pours" },
   { scope: "api", prefix: "/api/gold/corrections", featureKey: "gold.reconciliation" },
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
+  { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },

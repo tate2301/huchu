@@ -588,8 +588,8 @@ export default function HumanResourcesPage() {
         header: "Gold Owed",
         cell: ({ row }) => (
           <div className="text-right">
-            <div className="font-mono font-semibold">{row.original.goldOwed.toFixed(3)} g</div>
-            <div className="text-xs text-muted-foreground">Outstanding gold</div>
+            <div className="font-mono font-semibold">${row.original.goldOwed.toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground">Outstanding gold value</div>
           </div>
         ),
         size: 120,
@@ -1082,5 +1082,4 @@ export default function HumanResourcesPage() {
     </HrShell>
   )
 }
-
 

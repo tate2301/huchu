@@ -43,6 +43,7 @@ export function ReceiptForm({
     pourDate: string;
     pourBarId: string;
     grossWeight: number;
+    valueUsd?: number | null;
     site: { name: string };
   }>;
   availableDispatches: Array<{
@@ -109,7 +110,7 @@ export function ReceiptForm({
         value: batch.id,
         label: batch.pourBarId,
         description: batch.site.name,
-        meta: `${batch.grossWeight} g`,
+        meta: `${batch.grossWeight} g | $${(batch.valueUsd ?? 0).toFixed(2)}`,
       })),
     [availableBatches],
   );
@@ -383,17 +384,17 @@ export function ReceiptForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold mb-2">
-                  Paid weight (grams) *
+                  Paid amount (USD) *
                 </label>
                 <Input
                   type="number"
                   step="0.01"
                   value={formData.paidAmount}
                   onChange={(e) => setFormData({ ...formData, paidAmount: e.target.value })}
-                  placeholder="0.000"
+                  placeholder="0.00"
                   required
                 />
-                <FieldHelp hint="Paid weight used for settlement and payout calculations." />
+                <FieldHelp hint="Recorded cash value used for settlement and accounting." />
               </div>
 
               <SearchableSelect

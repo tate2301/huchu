@@ -413,6 +413,8 @@ export async function getExecutiveDashboardAggregations({
         type: true,
         amount: true,
         paidAmount: true,
+        amountUsd: true,
+        paidAmountUsd: true,
       },
     }),
     prisma.payrollRun.count({
@@ -548,7 +550,11 @@ export async function getExecutiveDashboardAggregations({
   let salaryOwed = 0;
   let goldPayoutOwed = 0;
   for (const payment of employeePaymentsDue) {
-    const outstanding = Math.max(0, (payment.amount ?? 0) - (payment.paidAmount ?? 0));
+    const total =
+      payment.type === "GOLD" ? (payment.amountUsd ?? 0) : (payment.amount ?? 0);
+    const paid =
+      payment.type === "GOLD" ? (payment.paidAmountUsd ?? 0) : (payment.paidAmount ?? 0);
+    const outstanding = Math.max(0, total - paid);
     if (payment.type === "SALARY") {
       salaryOwed += outstanding;
     } else {

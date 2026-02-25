@@ -482,8 +482,13 @@ export type EmployeePayment = {
   periodEnd: string;
   dueDate: string;
   amount: number;
+  amountUsd?: number | null;
   unit: string;
+  goldWeightGrams?: number | null;
+  goldPriceUsdPerGram?: number | null;
+  valuationDate?: string | null;
   paidAmount?: number | null;
+  paidAmountUsd?: number | null;
   paidAt?: string | null;
   status: "DUE" | "PARTIAL" | "PAID";
   notes?: string | null;
@@ -695,6 +700,9 @@ export type GoldPour = {
   pourDate: string;
   sourceType?: "PRODUCTION" | "PURCHASE_PUBLIC";
   grossWeight: number;
+  goldPriceUsdPerGram?: number | null;
+  valuationDate?: string | null;
+  valueUsd?: number | null;
   estimatedPurity?: number | null;
   storageLocation: string;
   site: { name: string; code: string };
@@ -708,6 +716,9 @@ export type GoldDispatch = {
   batchCode?: string;
   goldPourId: string;
   dispatchDate: string;
+  goldPriceUsdPerGram?: number | null;
+  valuationDate?: string | null;
+  valueUsd?: number | null;
   courier: string;
   vehicle?: string | null;
   destination: string;
@@ -723,6 +734,8 @@ export type GoldDispatch = {
     pourBarId: string;
     pourDate: string;
     grossWeight: number;
+    goldPriceUsdPerGram?: number | null;
+    valueUsd?: number | null;
     site: { name: string; code: string };
   };
 };
@@ -735,6 +748,9 @@ export type BuyerReceipt = {
   receiptDate: string;
   assayResult?: number | null;
   paidAmount: number;
+  goldPriceUsdPerGram?: number | null;
+  valuationDate?: string | null;
+  paidValueUsd?: number | null;
   paymentMethod: string;
   paymentChannel?: string | null;
   paymentReference?: string | null;
@@ -745,6 +761,8 @@ export type BuyerReceipt = {
     batchCode?: string;
     pourBarId: string;
     grossWeight: number;
+    goldPriceUsdPerGram?: number | null;
+    valueUsd?: number | null;
     pourDate: string;
     site: { name: string; code: string };
   };
@@ -760,6 +778,8 @@ export type BuyerReceipt = {
       batchCode?: string;
       pourBarId: string;
       grossWeight: number;
+      goldPriceUsdPerGram?: number | null;
+      valueUsd?: number | null;
       pourDate: string;
       site: { name: string; code: string };
     };
@@ -792,6 +812,8 @@ export type GoldPurchase = {
     pourBarId: string;
     pourDate: string;
     grossWeight: number;
+    goldPriceUsdPerGram?: number | null;
+    valueUsd?: number | null;
     site: { name: string; code: string };
   };
 };
@@ -805,6 +827,7 @@ export type GoldShiftAllocationExpense = {
 export type GoldShiftAllocationWorkerShare = {
   id: string;
   shareWeight: number;
+  shareValueUsd?: number | null;
   employee: { id: string; name: string; employeeId: string };
 };
 
@@ -821,6 +844,13 @@ export type GoldShiftAllocation = {
   workerShareWeight: number;
   companyShareWeight: number;
   perWorkerWeight: number;
+  goldPriceUsdPerGram?: number | null;
+  valuationDate?: string | null;
+  totalWeightValueUsd?: number | null;
+  netWeightValueUsd?: number | null;
+  workerShareValueUsd?: number | null;
+  companyShareValueUsd?: number | null;
+  perWorkerValueUsd?: number | null;
   payCycleWeeks: number;
   workflowStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
   submittedAt?: string | null;
@@ -854,6 +884,17 @@ export type GoldCorrection = {
     pourBarId: string;
     site: { id: string; name: string; code: string };
   };
+};
+
+export type GoldPriceRecord = {
+  id: string;
+  companyId: string;
+  effectiveDate: string;
+  priceUsdPerGram: number;
+  note?: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type PermitRecord = {
@@ -2072,6 +2113,43 @@ export async function fetchGoldCorrections(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<GoldCorrection>>(`/api/gold/corrections${query}`);
+}
+
+export async function fetchGoldPrices(
+  params: {
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<GoldPriceRecord>>(`/api/gold/prices${query}`);
+}
+
+export async function createGoldPrice(input: {
+  effectiveDate: string;
+  priceUsdPerGram: number;
+  note?: string;
+}) {
+  return fetchJson<GoldPriceRecord>("/api/gold/prices", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateGoldPrice(
+  id: string,
+  input: {
+    effectiveDate?: string;
+    priceUsdPerGram?: number;
+    note?: string | null;
+  },
+) {
+  return fetchJson<GoldPriceRecord>(`/api/gold/prices/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function fetchPermits(

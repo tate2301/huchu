@@ -63,8 +63,6 @@ type RunDetails = {
   runNumber: number
   status: string
   netTotal: number
-  goldRatePerUnit?: number | null
-  goldRateUnit: string
   lineItems: Array<{
     id: string
     employee: { id: string; employeeId: string; name: string }
@@ -100,8 +98,6 @@ export default function GoldPayrollPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [selectedPeriodId, setSelectedPeriodId] = useState("")
-  const [goldRatePerUnit, setGoldRatePerUnit] = useState("0")
-  const [goldRateUnit, setGoldRateUnit] = useState("g")
   const [generateRunOpen, setGenerateRunOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [manualPeriodOpen, setManualPeriodOpen] = useState(false)
@@ -260,10 +256,6 @@ export default function GoldPayrollPage() {
     mutationFn: async (periodId: string) =>
       fetchJson(`/api/payroll/periods/${periodId}/generate-run`, {
         method: "POST",
-        body: JSON.stringify({
-          goldRatePerUnit: Number(goldRatePerUnit),
-          goldRateUnit: goldRateUnit || "g",
-        }),
       }),
     onSuccess: () => {
       toast({ title: "Gold payout run generated", variant: "success" })
@@ -853,7 +845,7 @@ export default function GoldPayrollPage() {
             <DialogTitle>Generate Gold Payout Run</DialogTitle>
             <DialogDescription>
               {activePeriod
-                ? `Create a draft run for period ${activePeriod.periodKey} using the current gold rate.`
+                ? `Create a draft run for period ${activePeriod.periodKey} using allocation valuation snapshots.`
                 : "Select a period before generating a run."}
             </DialogDescription>
           </DialogHeader>
@@ -864,11 +856,6 @@ export default function GoldPayrollPage() {
               className="grid gap-4"
               onSubmit={(event) => {
                 event.preventDefault()
-                const rate = Number(goldRatePerUnit)
-                if (!Number.isFinite(rate) || rate <= 0) {
-                  toast({ title: "Enter a valid gold rate", variant: "destructive" })
-                  return
-                }
                 generateRunMutation.mutate(activePeriodId, {
                   onSuccess: () => {
                     setGenerateRunOpen(false)
@@ -884,23 +871,11 @@ export default function GoldPayrollPage() {
                   {format(new Date(activePeriod.startDate), "yyyy-MM-dd")} to {format(new Date(activePeriod.endDate), "yyyy-MM-dd")}
                 </div>
               </div>
-              <div className="grid gap-3 md:grid-cols-[1fr,140px]">
-                <div>
-                  <label htmlFor="gold-rate" className="mb-2 block text-sm font-semibold">Gold Rate per Unit</label>
-                  <Input id="gold-rate" type="number" min="0" step="0.0001" value={goldRatePerUnit} onChange={(event) => setGoldRatePerUnit(event.target.value)} />
-                </div>
-                <div>
-                  <label htmlFor="gold-unit" className="mb-2 block text-sm font-semibold">Unit</label>
-                  <Select value={goldRateUnit} onValueChange={setGoldRateUnit}>
-                    <SelectTrigger id="gold-unit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="g">g</SelectItem>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="oz">oz</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
+                <div className="text-xs text-muted-foreground">Valuation Basis</div>
+                <div className="font-semibold">Recorded gold price on each allocation date</div>
+                <div className="text-xs text-muted-foreground">
+                  Runs are generated in USD using historical snapshots, not a manual rate input.
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -1039,7 +1014,7 @@ export default function GoldPayrollPage() {
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Run</div><div className="font-semibold font-mono">#{runDetails.runNumber}</div></div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Status</div><div className="font-semibold">{runDetails.status}</div></div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Net Total</div><div className="font-semibold font-mono">{runDetails.netTotal.toFixed(2)}</div></div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Rate</div><div className="font-semibold font-mono">{runDetails.goldRatePerUnit ? `${runDetails.goldRatePerUnit.toFixed(4)} / ${runDetails.goldRateUnit}` : "-"}</div></div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]"><div className="text-xs text-muted-foreground">Valuation</div><div className="font-semibold">Per-allocation snapshot</div></div>
               </div>
               <div className="rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
                 <DataTable

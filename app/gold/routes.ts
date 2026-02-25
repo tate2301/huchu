@@ -20,6 +20,7 @@ export const goldRoutes = {
     newReceipt: "/gold/settlement/receipts/new",
     payouts: "/gold/settlement/payouts",
   },
+  prices: "/gold/prices",
   exceptions: {
     home: "/gold/exceptions",
   },

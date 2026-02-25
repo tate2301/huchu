@@ -8,6 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
@@ -96,6 +97,8 @@ export async function GET(request: NextRequest) {
               pourBarId: true,
               pourDate: true,
               grossWeight: true,
+              goldPriceUsdPerGram: true,
+              valueUsd: true,
               site: { select: { name: true, code: true } },
             },
           },
@@ -208,6 +211,14 @@ export async function POST(request: NextRequest) {
     })
 
     const purchaseDate = new Date(validated.purchaseDate)
+    const valuation = await snapshotGoldUsdValue({
+      companyId: session.user.companyId,
+      businessDate: purchaseDate,
+      grams: validated.grossWeight,
+    })
+    if (!valuation) {
+      return errorResponse("No gold price configured. Add a gold price before recording purchases.", 409)
+    }
 
     const purchase = await prisma.$transaction(async (tx) => {
       const pour = await tx.goldPour.create({
@@ -217,6 +228,9 @@ export async function POST(request: NextRequest) {
           pourDate: purchaseDate,
           sourceType: "PURCHASE_PUBLIC",
           grossWeight: validated.grossWeight,
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+          valuationDate: valuation.valuationDate,
+          valueUsd: valuation.valueUsd,
           estimatedPurity: validated.estimatedPurity,
           witness1Id: validated.receiver1Id,
           witness2Id: validated.receiver2Id,
@@ -261,6 +275,8 @@ export async function POST(request: NextRequest) {
               pourBarId: true,
               pourDate: true,
               grossWeight: true,
+              goldPriceUsdPerGram: true,
+              valueUsd: true,
               site: { select: { name: true, code: true } },
             },
           },

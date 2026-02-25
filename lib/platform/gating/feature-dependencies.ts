@@ -1,6 +1,14 @@
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 
 const FEATURE_DEPENDENCIES: Record<string, string[]> = {
+  "gold.intake.pours": ["gold.home"],
+  "gold.dispatches": ["gold.home"],
+  "gold.receipts": ["gold.home"],
+  "gold.reconciliation": ["gold.home"],
+  "gold.exceptions": ["gold.home"],
+  "gold.audit-trail": ["gold.home"],
+  "gold.payouts": ["gold.home"],
+  "hr.gold-payouts": ["gold.home"],
   "accounting.chart-of-accounts": ["accounting.core"],
   "accounting.journals": ["accounting.core"],
   "accounting.periods": ["accounting.core"],

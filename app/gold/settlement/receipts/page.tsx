@@ -120,10 +120,28 @@ export default function GoldSettlementReceiptsPage() {
       {
         id: "batch",
         header: "Batch",
-        cell: ({ row }) => row.original.goldPour.pourBarId,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.goldPour.pourBarId}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.goldPour.grossWeight.toFixed(3)} g
+            </div>
+          </div>
+        ),
         size: 280,
         minSize: 220,
         maxSize: 420},
+      {
+        id: "batchValue",
+        header: "Batch Value",
+        cell: ({ row }) => (
+          <NumericCell>
+            ${((row.original.goldPour.valueUsd ?? 0)).toFixed(2)}
+          </NumericCell>
+        ),
+        size: 160,
+        minSize: 160,
+        maxSize: 160},
       {
         id: "source",
         header: "Source",
@@ -145,7 +163,9 @@ export default function GoldSettlementReceiptsPage() {
         id: "paidAmount",
         header: "Paid Amount",
         cell: ({ row }) => (
-          <NumericCell>{row.original.paidAmount.toFixed(3)} g</NumericCell>
+          <NumericCell>
+            ${((row.original.paidValueUsd ?? row.original.paidAmount)).toFixed(2)}
+          </NumericCell>
         ),
         size: 120,
         minSize: 120,

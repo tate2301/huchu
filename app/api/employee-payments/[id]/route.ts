@@ -7,6 +7,7 @@ import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
 } from "@/lib/gold-payouts"
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { derivePaidStatus } from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
 
@@ -47,6 +48,10 @@ function normalizePaymentState(input: {
     status,
     paidAmount: paidAmount > 0 ? paidAmount : null,
   }
+}
+
+function roundUsd(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 type GoldAllocationResolution =
@@ -180,8 +185,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         employeeId: true,
         periodStart: true,
         periodEnd: true,
+        unit: true,
         notes: true,
         amount: true,
+        amountUsd: true,
+        paidAmountUsd: true,
+        goldWeightGrams: true,
+        goldPriceUsdPerGram: true,
+        valuationDate: true,
         status: true,
         paidAmount: true,
         paidAt: true,
@@ -238,6 +249,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const nextAmount = validated.amount ?? existing.amount
+    const nextPeriodEndIso = validated.periodEnd ?? existing.periodEnd.toISOString()
     let nextPaidAmount =
       validated.paidAmount !== undefined
         ? (validated.paidAmount ?? 0)
@@ -249,14 +261,47 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       nextPaidAmount = 0
     }
 
-    const normalized = normalizePaymentState({
+    const normalizedByInput = normalizePaymentState({
       amount: nextAmount,
       paidAmount: nextPaidAmount,
       status: validated.status ?? (existing.status as "DUE" | "PARTIAL" | "PAID"),
     })
 
+    const nextUnit = existing.type === "GOLD" ? "g" : (validated.unit ?? existing.unit)
+    let nextAmountUsd = roundUsd(nextAmount)
+    let nextPaidAmountUsd =
+      normalizedByInput.paidAmount && normalizedByInput.paidAmount > 0
+        ? roundUsd(normalizedByInput.paidAmount)
+        : null
+    let nextGoldWeightGrams: number | null =
+      existing.type === "GOLD" ? nextAmount : null
+    let nextGoldPriceUsdPerGram: number | null = null
+    let nextValuationDate: Date | null = null
+
+    if (existing.type === "GOLD") {
+      const valuation = await snapshotGoldUsdValue({
+        companyId: session.user.companyId,
+        businessDate: nextPeriodEndIso,
+        grams: nextAmount,
+      })
+      if (!valuation) {
+        return errorResponse("No gold price configured. Add a gold price before updating gold payouts.", 409)
+      }
+
+      nextAmountUsd = valuation.valueUsd
+      nextGoldWeightGrams = nextAmount
+      nextGoldPriceUsdPerGram = valuation.goldPriceUsdPerGram
+      nextValuationDate = valuation.valuationDate
+      nextPaidAmountUsd =
+        normalizedByInput.paidAmount && normalizedByInput.paidAmount > 0
+          ? roundUsd(normalizedByInput.paidAmount * valuation.goldPriceUsdPerGram)
+          : null
+    }
+
+    const normalizedStatus = derivePaidStatus(nextAmountUsd, nextPaidAmountUsd ?? 0)
+
     const nextPaidAt =
-      normalized.paidAmount && normalized.paidAmount > 0
+      nextPaidAmountUsd && nextPaidAmountUsd > 0
         ? validated.paidAt !== undefined
           ? (validated.paidAt ? new Date(validated.paidAt) : new Date())
           : (existing.paidAt ?? new Date())
@@ -269,10 +314,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         periodEnd: validated.periodEnd ? new Date(validated.periodEnd) : undefined,
         dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
         amount: validated.amount,
-        unit: validated.unit,
-        paidAmount: normalized.paidAmount,
+        amountUsd: nextAmountUsd,
+        unit: nextUnit,
+        goldWeightGrams: nextGoldWeightGrams,
+        goldPriceUsdPerGram: nextGoldPriceUsdPerGram,
+        valuationDate: nextValuationDate,
+        paidAmount: normalizedByInput.paidAmount,
+        paidAmountUsd: nextPaidAmountUsd,
         paidAt: nextPaidAt,
-        status: normalized.status,
+        status: normalizedStatus,
         notes:
           existing.type === "GOLD"
             ? normalizedGoldNotes
@@ -318,11 +368,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         sourceId: updated.id,
         entryDate: updated.updatedAt,
         description: `${updated.type} employee payment updated`,
-        amount: updated.amount,
+        amount: updated.amountUsd ?? updated.amount,
         payload: {
           employeeId: updated.employee.id,
           status: updated.status,
           paidAmount: updated.paidAmount,
+          paidAmountUsd: updated.paidAmountUsd,
         },
         createdById: session.user.id,
         status: shouldQueueForAccounting ? "PENDING" : "IGNORED",

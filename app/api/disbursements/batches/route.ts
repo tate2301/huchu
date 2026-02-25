@@ -19,8 +19,6 @@ const batchSchema = z.object({
   payrollRunId: z.string().uuid(),
   code: z.string().trim().min(1).max(100).optional(),
   method: z.enum(["CASH"]).optional(),
-  goldRatePerUnit: z.number().positive().optional(),
-  goldRateUnit: z.string().trim().min(1).max(20).optional(),
   notes: z.string().max(1000).optional(),
   cashCustodian: z.string().max(200).optional(),
   cashIssuedAt: z
@@ -29,28 +27,6 @@ const batchSchema = z.object({
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
     .optional(),
 })
-
-function parseGoldWeight(line: {
-  baseAmount: number
-  netAmount: number
-  notes: string | null
-}, fallbackRate?: number | null) {
-  if (line.baseAmount > 0) return line.baseAmount
-
-  const notes = line.notes ?? ""
-  const match = notes.match(/gold payout conversion:\s*([0-9]+(?:\.[0-9]+)?)/i)
-  if (match) {
-    const parsed = Number(match[1])
-    if (Number.isFinite(parsed) && parsed > 0) return parsed
-  }
-
-  if (fallbackRate && fallbackRate > 0) {
-    const derived = line.netAmount / fallbackRate
-    if (Number.isFinite(derived) && derived > 0) return derived
-  }
-
-  return null
-}
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100
@@ -179,52 +155,12 @@ export async function POST(request: NextRequest) {
     }
 
     const isGoldRun = run.domain === "GOLD_PAYOUT"
-    const disbursementRate = isGoldRun ? (validated.goldRatePerUnit ?? run.goldRatePerUnit) : null
-    const disbursementRateUnit = validated.goldRateUnit ?? run.goldRateUnit ?? "g"
-
-    if (isGoldRun && (!disbursementRate || disbursementRate <= 0)) {
-      return errorResponse("Provide the current gold rate to create this disbursement batch", 400)
-    }
-
-    const unresolvedEmployeeIds: string[] = []
-    const disbursementItems = run.lineItems
-      .map((line) => {
-        if (!isGoldRun) {
-          return {
-            employeeId: line.employeeId,
-            lineItemId: line.id,
-            amount: roundMoney(line.netAmount),
-            status: "DUE" as const,
-          }
-        }
-
-        const goldWeight = parseGoldWeight(line, run.goldRatePerUnit)
-        if (!goldWeight || !disbursementRate) {
-          unresolvedEmployeeIds.push(line.employeeId)
-          return null
-        }
-
-        return {
-          employeeId: line.employeeId,
-          lineItemId: line.id,
-          amount: roundMoney(goldWeight * disbursementRate),
-          status: "DUE" as const,
-        }
-      })
-      .filter((item): item is {
-      employeeId: string
-      lineItemId: string
-      amount: number
-      status: "DUE"
-    } => item !== null)
-
-    if (isGoldRun && unresolvedEmployeeIds.length > 0) {
-      return errorResponse(
-        "Unable to derive gold weight for one or more payout lines. Regenerate the gold run first.",
-        409,
-        { unresolvedEmployeeIds },
-      )
-    }
+    const disbursementItems = run.lineItems.map((line) => ({
+      employeeId: line.employeeId,
+      lineItemId: line.id,
+      amount: roundMoney(line.netAmount),
+      status: "DUE" as const,
+    }))
 
     const code = validated.code ?? generateDisbursementCode()
     const totalAmount = disbursementItems.reduce((sum, item) => sum + item.amount, 0)
@@ -233,11 +169,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("Selected run has no disbursable items", 400)
     }
 
-    const rateNote =
-      isGoldRun && disbursementRate
-        ? `Disbursement rate applied: ${disbursementRate.toFixed(4)} / ${disbursementRateUnit}.`
-        : undefined
-    const normalizedNotes = [validated.notes?.trim(), rateNote]
+    const normalizedNotes = [validated.notes?.trim()]
       .filter((value): value is string => Boolean(value))
       .join(" | ")
       .slice(0, 1000)
@@ -287,8 +219,8 @@ export async function POST(request: NextRequest) {
         action: "CREATE",
         actedById: session.user.id,
         toStatus: "DRAFT",
-        note: isGoldRun && disbursementRate
-          ? `Gold disbursement batch ${created.code} created from payout run ${run.runNumber} at ${disbursementRate.toFixed(4)} / ${disbursementRateUnit}.`
+        note: isGoldRun
+          ? `Gold disbursement batch ${created.code} created from payout run ${run.runNumber}.`
           : `Salary disbursement batch ${created.code} created from payroll run ${run.runNumber}.`,
       })
 

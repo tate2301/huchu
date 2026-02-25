@@ -19,6 +19,7 @@
     "platform:audit-feature-gates": "tsx scripts/platform/audit-feature-gates.ts",
     "platform:accounting-replay": "tsx scripts/platform/accounting-replay.ts",
     "platform:accounting-backfill-events": "tsx scripts/platform/accounting-backfill-events.ts",
+    "backfill:gold-valuations": "tsx scripts/backfill-gold-valuations.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
     "db:push": "prisma db push"

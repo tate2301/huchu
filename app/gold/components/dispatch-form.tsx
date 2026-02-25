@@ -43,6 +43,7 @@ export function DispatchForm({
     pourBarId: string;
     batchCode?: string;
     grossWeight: number;
+    valueUsd?: number | null;
     site: { name: string; code: string };
     dispatchCount: number;
   }>;
@@ -83,7 +84,7 @@ export function DispatchForm({
             ? `${pour.dispatchCount} previous dispatch${pour.dispatchCount === 1 ? "" : "es"}`
             : "No previous dispatch"
         }`,
-        meta: `${pour.grossWeight} g`,
+        meta: `${pour.grossWeight} g | $${(pour.valueUsd ?? 0).toFixed(2)}`,
         badgeVariant: (pour.dispatchCount > 0 ? "destructive" : "secondary") as "destructive" | "secondary",
       })),
     [availablePours],

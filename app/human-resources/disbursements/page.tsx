@@ -41,8 +41,6 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type BatchForm = {
   payrollRunId: string;
-  goldRatePerUnit: string;
-  goldRateUnit: string;
   cashCustodian: string;
   cashIssuedAt: string;
   notes: string;
@@ -92,23 +90,10 @@ type BatchDetailItem = BatchDetails["items"][number];
 
 const emptyBatchForm: BatchForm = {
   payrollRunId: "",
-  goldRatePerUnit: "",
-  goldRateUnit: "g",
   cashCustodian: "",
   cashIssuedAt: format(new Date(), "yyyy-MM-dd"),
   notes: "",
 };
-
-function parseAppliedRate(notes?: string | null) {
-  if (!notes) return null;
-  const match = notes.match(
-    /disbursement rate applied:\s*([0-9]+(?:\.[0-9]+)?)\s*\/\s*([^\s.]+)/i,
-  );
-  if (!match) return null;
-  const rate = Number(match[1]);
-  if (!Number.isFinite(rate) || rate <= 0) return null;
-  return { rate, unit: match[2] };
-}
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
@@ -119,19 +104,9 @@ function hydrateFormFromRun(
   current: BatchForm,
 ): BatchForm {
   if (!run) return current;
-  if (run.domain === "GOLD_PAYOUT") {
-    return {
-      ...current,
-      payrollRunId: run.id,
-      goldRatePerUnit: run.goldRatePerUnit ? String(run.goldRatePerUnit) : "",
-      goldRateUnit: run.goldRateUnit || "g",
-    };
-  }
   return {
     ...current,
     payrollRunId: run.id,
-    goldRatePerUnit: "",
-    goldRateUnit: "g",
   };
 }
 
@@ -201,26 +176,11 @@ export default function DisbursementsPage() {
     () => availableRuns.find((run) => run.id === batchForm.payrollRunId),
     [availableRuns, batchForm.payrollRunId],
   );
-  const isGoldSelection = selectedRun?.domain === "GOLD_PAYOUT";
 
-  const previewAmount = useMemo(() => {
-    if (!selectedRun) return 0;
-    if (selectedRun.domain !== "GOLD_PAYOUT") return selectedRun.netTotal;
-    const currentRate = Number(
-      batchForm.goldRatePerUnit ||
-        (selectedRun.goldRatePerUnit
-          ? String(selectedRun.goldRatePerUnit)
-          : ""),
-    );
-    if (!Number.isFinite(currentRate) || currentRate <= 0)
-      return selectedRun.netTotal;
-    if (selectedRun.goldRatePerUnit && selectedRun.goldRatePerUnit > 0) {
-      const estimatedWeight =
-        selectedRun.netTotal / selectedRun.goldRatePerUnit;
-      return roundMoney(estimatedWeight * currentRate);
-    }
-    return selectedRun.netTotal;
-  }, [selectedRun, batchForm.goldRatePerUnit]);
+  const previewAmount = useMemo(
+    () => (selectedRun ? roundMoney(selectedRun.netTotal) : 0),
+    [selectedRun],
+  );
 
   const {
     data: batchDetails,
@@ -246,10 +206,6 @@ export default function DisbursementsPage() {
         cashIssuedAt: payload.cashIssuedAt || undefined,
         notes: payload.notes || undefined,
       };
-      if (run.domain === "GOLD_PAYOUT") {
-        body.goldRatePerUnit = Number(payload.goldRatePerUnit);
-        body.goldRateUnit = payload.goldRateUnit || "g";
-      }
 
       return fetchJson("/api/disbursements/batches", {
         method: "POST",
@@ -387,20 +343,6 @@ export default function DisbursementsPage() {
         minSize: 128,
         maxSize: 128},
       {
-        id: "approvedRate",
-        header: "Approved Rate",
-        cell: ({ row }) =>
-          row.original.domain === "GOLD_PAYOUT" && row.original.goldRatePerUnit
-            ? (
-              <NumericCell>
-                {row.original.goldRatePerUnit.toFixed(4)} / {row.original.goldRateUnit}
-              </NumericCell>
-            )
-            : "-",
-        size: 88,
-        minSize: 88,
-        maxSize: 88},
-      {
         accessorKey: "netTotal",
         header: "Net Total",
         cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
@@ -471,26 +413,6 @@ export default function DisbursementsPage() {
         size: 160,
         minSize: 160,
         maxSize: 160},
-      {
-        id: "rate",
-        header: "Applied Rate",
-        cell: ({ row }) => {
-          const parsedRate = parseAppliedRate(row.original.notes);
-          const isGold = row.original.payrollRun.domain === "GOLD_PAYOUT";
-          if (!isGold) return "-";
-          if (parsedRate) return <NumericCell>{parsedRate.rate.toFixed(4)} / {parsedRate.unit}</NumericCell>;
-          if (row.original.payrollRun.goldRatePerUnit) {
-            return (
-              <NumericCell>
-                {row.original.payrollRun.goldRatePerUnit.toFixed(4)} / {row.original.payrollRun.goldRateUnit}
-              </NumericCell>
-            );
-          }
-          return "-";
-        },
-        size: 88,
-        minSize: 88,
-        maxSize: 88},
       {
         accessorKey: "totalAmount",
         header: "Amount",
@@ -767,28 +689,6 @@ export default function DisbursementsPage() {
                 });
                 return;
               }
-              if (isGoldSelection) {
-                const rate = Number(
-                  batchForm.goldRatePerUnit ||
-                    (selectedRun?.goldRatePerUnit
-                      ? String(selectedRun.goldRatePerUnit)
-                      : ""),
-                );
-                if (!Number.isFinite(rate) || rate <= 0) {
-                  toast({
-                    title: "Enter a valid current gold rate",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                createBatchMutation.mutate({
-                  ...batchForm,
-                  goldRatePerUnit: String(rate),
-                  goldRateUnit:
-                    batchForm.goldRateUnit || selectedRun?.goldRateUnit || "g",
-                });
-                return;
-              }
               createBatchMutation.mutate(batchForm);
             }}
           >
@@ -822,52 +722,6 @@ export default function DisbursementsPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            {isGoldSelection && (
-              <div className="grid gap-3 md:grid-cols-[1fr,140px]">
-                <div>
-                  <label
-                    htmlFor="disbursement-rate"
-                    className="mb-2 block text-sm font-semibold"
-                  >
-                    Current Gold Rate
-                  </label>
-                  <Input
-                    id="disbursement-rate"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={batchForm.goldRatePerUnit}
-                    onChange={(event) =>
-                      setBatchForm((prev) => ({
-                        ...prev,
-                        goldRatePerUnit: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Rate Unit
-                  </label>
-                  <Select
-                    value={batchForm.goldRateUnit}
-                    onValueChange={(value) =>
-                      setBatchForm((prev) => ({ ...prev, goldRateUnit: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="g">g</SelectItem>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="oz">oz</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
 
             <div className="grid gap-3 md:grid-cols-2">
               <div>
@@ -1032,4 +886,3 @@ export default function DisbursementsPage() {
     </HrShell>
   );
 }
-

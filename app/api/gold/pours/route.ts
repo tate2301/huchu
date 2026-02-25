@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -127,12 +128,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Create gold pour
+    const valuation = await snapshotGoldUsdValue({
+      companyId: session.user.companyId,
+      businessDate: validated.pourDate,
+      grams: validated.grossWeight,
+    });
+    if (!valuation) {
+      return errorResponse("No gold price configured. Add a gold price before recording batches.", 409);
+    }
+
     const pour = await prisma.goldPour.create({
       data: {
         siteId: validated.siteId,
         pourBarId,
         pourDate: new Date(validated.pourDate),
         grossWeight: validated.grossWeight,
+        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+        valuationDate: valuation.valuationDate,
+        valueUsd: valuation.valueUsd,
         witness1Id: validated.witness1Id,
         witness2Id: validated.witness2Id,
         storageLocation: validated.storageLocation,
@@ -154,9 +167,13 @@ export async function POST(request: NextRequest) {
         sourceId: pour.id,
         entryDate: pour.pourDate,
         description: `Gold pour ${pour.pourBarId} created`,
-        amount: pour.grossWeight,
+        amount: pour.valueUsd ?? pour.grossWeight,
         payload: {
           siteId: pour.siteId,
+          grossWeight: pour.grossWeight,
+          valueUsd: pour.valueUsd,
+          goldPriceUsdPerGram: pour.goldPriceUsdPerGram,
+          valuationDate: pour.valuationDate,
           storageLocation: pour.storageLocation,
           estimatedPurity: pour.estimatedPurity,
         },

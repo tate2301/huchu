@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   BarChart3,
+  Coins,
   Gem,
   PackageCheck,
   Payments,
@@ -16,6 +17,7 @@ export type GoldTab =
   | "purchases"
   | "dispatches"
   | "sales"
+  | "prices"
   | "payouts"
   | "issues"
   | "reports";
@@ -63,6 +65,13 @@ export const GOLD_TABS: GoldTabItem[] = [
     href: "/gold/settlement/receipts",
     icon: Scale,
     featureKey: "gold.receipts",
+  },
+  {
+    id: "prices",
+    label: "Pricing",
+    href: "/gold/prices",
+    icon: Coins,
+    featureKey: "gold.home",
   },
   {
     id: "payouts",

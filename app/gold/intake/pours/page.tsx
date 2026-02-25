@@ -112,6 +112,15 @@ export default function GoldIntakePoursPage() {
         size: 120,
         minSize: 120,
         maxSize: 120},
+      {
+        id: "valueUsd",
+        header: "Value",
+        cell: ({ row }) => (
+          <NumericCell>${(row.original.valueUsd ?? 0).toFixed(2)}</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
     ],
     [],
   );

@@ -7,6 +7,7 @@ import {
   paginationResponse,
 } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -57,6 +58,8 @@ export async function GET(request: NextRequest) {
               pourBarId: true,
               pourDate: true,
               grossWeight: true,
+              goldPriceUsdPerGram: true,
+              valueUsd: true,
               site: { select: { name: true, code: true } },
             },
           },
@@ -141,11 +144,22 @@ export async function POST(request: NextRequest) {
       notesSegments.push(`Override reason: ${validated.overrideReason.trim()}`)
     }
     const mergedNotes = notesSegments.filter(Boolean).join("\n\n")
+    const valuation = await snapshotGoldUsdValue({
+      companyId: session.user.companyId,
+      businessDate: validated.dispatchDate,
+      grams: goldPour.grossWeight,
+    })
+    if (!valuation) {
+      return errorResponse("No gold price configured. Add a gold price before recording dispatches.", 409)
+    }
 
     const dispatchRecord = await prisma.goldDispatch.create({
       data: {
         goldPourId: validated.goldPourId,
         dispatchDate: new Date(validated.dispatchDate),
+        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+        valuationDate: valuation.valuationDate,
+        valueUsd: valuation.valueUsd,
         courier: validated.courier,
         vehicle: validated.vehicle,
         destination: validated.destination,
@@ -161,6 +175,8 @@ export async function POST(request: NextRequest) {
             pourBarId: true,
             pourDate: true,
             grossWeight: true,
+            goldPriceUsdPerGram: true,
+            valueUsd: true,
             site: { select: { name: true, code: true } },
           },
         },
@@ -177,9 +193,13 @@ export async function POST(request: NextRequest) {
         sourceId: dispatchRecord.id,
         entryDate: dispatchRecord.dispatchDate,
         description: `Gold dispatch ${dispatchRecord.id} for batch ${dispatchRecord.goldPour.pourBarId}`,
-        amount: dispatchRecord.goldPour.grossWeight,
+        amount: dispatchRecord.valueUsd ?? dispatchRecord.goldPour.grossWeight,
         payload: {
           goldPourId: dispatchRecord.goldPourId,
+          grossWeight: dispatchRecord.goldPour.grossWeight,
+          valueUsd: dispatchRecord.valueUsd,
+          goldPriceUsdPerGram: dispatchRecord.goldPriceUsdPerGram,
+          valuationDate: dispatchRecord.valuationDate,
           destination: dispatchRecord.destination,
           courier: dispatchRecord.courier,
           sealNumbers: dispatchRecord.sealNumbers,

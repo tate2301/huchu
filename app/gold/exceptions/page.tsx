@@ -34,6 +34,7 @@ type MissingDispatchRow = {
   site: string;
   pourDate: string;
   grossWeight: number;
+  valueUsd: number;
 };
 
 type MissingSaleRow = {
@@ -126,6 +127,7 @@ export default function GoldExceptionsPage() {
           site: pour.site.name,
           pourDate: pour.pourDate,
           grossWeight: pour.grossWeight,
+          valueUsd: pour.valueUsd ?? 0,
         })),
     [dispatchByPourId, pours],
   );
@@ -202,6 +204,13 @@ export default function GoldExceptionsPage() {
         cell: ({ row }) => (
           <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
         ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "valueUsd",
+        header: "Value",
+        cell: ({ row }) => <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>,
         size: 120,
         minSize: 120,
         maxSize: 120},
@@ -474,4 +483,3 @@ export default function GoldExceptionsPage() {
     </GoldShell>
   );
 }
-

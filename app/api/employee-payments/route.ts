@@ -11,6 +11,7 @@ import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
 } from "@/lib/gold-payouts"
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { derivePaidStatus } from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
@@ -56,6 +57,10 @@ function normalizePaymentState(input: {
     status,
     paidAmount: paidAmount > 0 ? paidAmount : null,
   }
+}
+
+function roundUsd(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 type GoldAllocationResolution =
@@ -300,8 +305,45 @@ export async function POST(request: NextRequest) {
       status: validated.status,
     })
 
+    let unit = validated.unit
+    let amountUsd = validated.amount
+    let paidAmountUsd = normalized.paidAmount
+    let status = normalized.status
+    let goldWeightGrams: number | null = null
+    let goldPriceUsdPerGram: number | null = null
+    let valuationDate: Date | null = null
+
+    if (validated.type === "GOLD") {
+      const valuation = await snapshotGoldUsdValue({
+        companyId: session.user.companyId,
+        businessDate: validated.periodEnd,
+        grams: validated.amount,
+      })
+      if (!valuation) {
+        return errorResponse("No gold price configured. Add a gold price before recording gold payouts.", 409)
+      }
+
+      unit = "g"
+      goldWeightGrams = validated.amount
+      goldPriceUsdPerGram = valuation.goldPriceUsdPerGram
+      valuationDate = valuation.valuationDate
+      amountUsd = valuation.valueUsd
+      paidAmountUsd =
+        normalized.paidAmount && normalized.paidAmount > 0
+          ? roundUsd(normalized.paidAmount * valuation.goldPriceUsdPerGram)
+          : null
+      status = derivePaidStatus(amountUsd, paidAmountUsd ?? 0)
+    } else {
+      amountUsd = roundUsd(validated.amount)
+      paidAmountUsd =
+        normalized.paidAmount && normalized.paidAmount > 0
+          ? roundUsd(normalized.paidAmount)
+          : null
+      status = derivePaidStatus(amountUsd, paidAmountUsd ?? 0)
+    }
+
     const paidAt =
-      normalized.paidAmount && normalized.paidAmount > 0
+      paidAmountUsd && paidAmountUsd > 0
         ? validated.paidAt
           ? new Date(validated.paidAt)
           : new Date()
@@ -315,10 +357,15 @@ export async function POST(request: NextRequest) {
         periodEnd: new Date(validated.periodEnd),
         dueDate: new Date(validated.dueDate),
         amount: validated.amount,
-        unit: validated.unit,
+        amountUsd,
+        unit,
+        goldWeightGrams,
+        goldPriceUsdPerGram,
+        valuationDate,
         paidAmount: normalized.paidAmount,
+        paidAmountUsd,
         paidAt,
-        status: normalized.status,
+        status,
         notes,
         createdById: session.user.id,
       },
@@ -362,11 +409,13 @@ export async function POST(request: NextRequest) {
         sourceId: payment.id,
         entryDate: payment.createdAt,
         description: `${payment.type} employee payment recorded`,
-        amount: payment.amount,
+        amount: payment.amountUsd ?? payment.amount,
         payload: {
           employeeId: payment.employeeId,
           type: payment.type,
           status: payment.status,
+          amountUsd: payment.amountUsd,
+          paidAmountUsd: payment.paidAmountUsd,
           payrollRunId: payment.payrollRun?.id ?? null,
           disbursementBatchId: payment.disbursementBatch?.id ?? null,
         },

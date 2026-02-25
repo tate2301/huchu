@@ -153,21 +153,26 @@ export async function GET(request: NextRequest) {
     >()
 
     if (employeeIds.length > 0) {
-      const outstandingTotals = await prisma.employeePayment.groupBy({
-        by: ["employeeId", "type"],
+      const outstandingTotals = await prisma.employeePayment.findMany({
         where: {
           employeeId: { in: employeeIds },
           status: { in: ["DUE", "PARTIAL"] },
         },
-        _sum: {
+        select: {
+          employeeId: true,
+          type: true,
           amount: true,
           paidAmount: true,
+          amountUsd: true,
+          paidAmountUsd: true,
         },
       })
 
       outstandingTotals.forEach((row) => {
-        const amount = row._sum.amount ?? 0
-        const paidAmount = row._sum.paidAmount ?? 0
+        const amount =
+          row.type === "GOLD" ? (row.amountUsd ?? 0) : (row.amount ?? 0)
+        const paidAmount =
+          row.type === "GOLD" ? (row.paidAmountUsd ?? 0) : (row.paidAmount ?? 0)
         const outstanding = Math.max(amount - paidAmount, 0)
         const current = owedByEmployee.get(row.employeeId) ?? {
           goldOwed: 0,
@@ -175,9 +180,9 @@ export async function GET(request: NextRequest) {
         }
 
         if (row.type === "GOLD") {
-          current.goldOwed = outstanding
+          current.goldOwed += outstanding
         } else if (row.type === "SALARY") {
-          current.salaryOwed = outstanding
+          current.salaryOwed += outstanding
         }
 
         owedByEmployee.set(row.employeeId, current)

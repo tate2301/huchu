@@ -13,8 +13,6 @@ const generateRunSchema = z.object({
   notes: z.string().max(1000).optional(),
   runNumber: z.number().int().min(1).optional(),
   overwriteDraft: z.boolean().optional(),
-  goldRatePerUnit: z.number().positive().optional(),
-  goldRateUnit: z.string().trim().min(1).max(20).optional(),
 })
 
 type LineComponentDraft = {
@@ -84,8 +82,6 @@ async function buildGoldPayoutRunDraft(input: {
   periodStart: Date
   periodEnd: Date
   goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD"
-  goldRatePerUnit: number
-  goldRateUnit: string
 }) {
   const allocationDateFloor = new Date(input.periodStart)
   allocationDateFloor.setDate(allocationDateFloor.getDate() - 42)
@@ -104,12 +100,13 @@ async function buildGoldPayoutRunDraft(input: {
         select: {
           employeeId: true,
           shareWeight: true,
+          shareValueUsd: true,
         },
       },
     },
   })
 
-  const goldWeightByEmployee = new Map<string, number>()
+  const payoutByEmployee = new Map<string, { goldWeight: number; valueUsd: number }>()
   for (const allocation of approvedAllocations) {
     const dueDate = new Date(allocation.date)
     dueDate.setDate(dueDate.getDate() + allocation.payCycleWeeks * 7)
@@ -122,12 +119,19 @@ async function buildGoldPayoutRunDraft(input: {
     if (!qualifiesForPeriod) continue
 
     for (const workerShare of allocation.workerShares) {
-      const current = goldWeightByEmployee.get(workerShare.employeeId) ?? 0
-      goldWeightByEmployee.set(workerShare.employeeId, current + workerShare.shareWeight)
+      const current = payoutByEmployee.get(workerShare.employeeId) ?? { goldWeight: 0, valueUsd: 0 }
+      const fallbackValueUsd =
+        (allocation.goldPriceUsdPerGram ?? 0) > 0
+          ? workerShare.shareWeight * (allocation.goldPriceUsdPerGram ?? 0)
+          : 0
+      payoutByEmployee.set(workerShare.employeeId, {
+        goldWeight: current.goldWeight + workerShare.shareWeight,
+        valueUsd: current.valueUsd + (workerShare.shareValueUsd ?? fallbackValueUsd),
+      })
     }
   }
 
-  const employeeIds = Array.from(goldWeightByEmployee.keys())
+  const employeeIds = Array.from(payoutByEmployee.keys())
   if (employeeIds.length === 0) {
     return null
   }
@@ -144,33 +148,43 @@ async function buildGoldPayoutRunDraft(input: {
   })
   const employeeById = new Map(employees.map((employee) => [employee.id, employee]))
 
+  let totalGoldWeight = 0
+  let totalValueUsd = 0
   const lineItems: LineItemDraft[] = employeeIds.map((employeeId) => {
-    const goldWeight = goldWeightByEmployee.get(employeeId) ?? 0
-    const convertedAmount = goldWeight * input.goldRatePerUnit
+    const payout = payoutByEmployee.get(employeeId) ?? { goldWeight: 0, valueUsd: 0 }
+    const goldWeight = payout.goldWeight
+    const convertedAmount = payout.valueUsd
+    const derivedRate = goldWeight > 0 ? convertedAmount / goldWeight : null
     const employee = employeeById.get(employeeId)
+    totalGoldWeight += goldWeight
+    totalValueUsd += convertedAmount
 
     return {
       employeeId,
       compensationProfileId: null,
-      baseAmount: 0,
+      baseAmount: goldWeight,
       variableAmount: convertedAmount,
       allowancesTotal: 0,
       deductionsTotal: 0,
       grossAmount: convertedAmount,
       netAmount: convertedAmount,
       currency: employee?.defaultCurrency ?? "USD",
-      notes: `Gold payout conversion: ${goldWeight.toFixed(3)} ${input.goldRateUnit} @ ${input.goldRatePerUnit.toFixed(4)}`,
+      notes: derivedRate
+        ? `Gold payout snapshot: ${goldWeight.toFixed(3)} g => ${convertedAmount.toFixed(2)} USD @ ${derivedRate.toFixed(4)} per g`
+        : `Gold payout snapshot: ${goldWeight.toFixed(3)} g => ${convertedAmount.toFixed(2)} USD`,
       components: [],
     }
   })
+
+  const weightedRate = totalGoldWeight > 0 ? totalValueUsd / totalGoldWeight : undefined
 
   return {
     lineItems,
     totals: deriveRunTotals(lineItems),
     workflowNote: "Gold payout run generated from approved gold shift allocations.",
     warnings: [],
-    goldRatePerUnit: input.goldRatePerUnit,
-    goldRateUnit: input.goldRateUnit,
+    goldRatePerUnit: weightedRate,
+    goldRateUnit: "g",
     goldSettlementMode: input.goldSettlementMode,
   } satisfies RunDraft
 }
@@ -374,16 +388,6 @@ export async function POST(
       return errorResponse("Approved or closed payroll periods cannot be regenerated", 400)
     }
 
-    if (period.domain === "GOLD_PAYOUT" && !validated.goldRatePerUnit) {
-      return errorResponse("Gold payout runs require a positive gold rate", 400)
-    }
-    if (
-      period.domain === "PAYROLL" &&
-      (validated.goldRatePerUnit !== undefined || validated.goldRateUnit !== undefined)
-    ) {
-      return errorResponse("Gold rate fields are not valid for salary payroll runs", 400)
-    }
-
     const draftRun = period.runs.find((run) => run.status === "DRAFT")
     if (draftRun && !validated.overwriteDraft) {
       return errorResponse(
@@ -403,8 +407,6 @@ export async function POST(
         periodStart: new Date(period.startDate),
         periodEnd: new Date(period.endDate),
         goldSettlementMode: period.company.goldSettlementMode,
-        goldRatePerUnit: validated.goldRatePerUnit!,
-        goldRateUnit: validated.goldRateUnit ?? "g",
       })
       if (!goldDraft) {
         return errorResponse(

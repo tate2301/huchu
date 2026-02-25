@@ -6,6 +6,7 @@ import {
   getPaginationParams,
   paginationResponse,
 } from "@/lib/api-utils"
+import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
@@ -38,6 +39,8 @@ const receiptInclude = {
       id: true,
       pourBarId: true,
       grossWeight: true,
+      goldPriceUsdPerGram: true,
+      valueUsd: true,
       pourDate: true,
       site: { select: { name: true, code: true } },
     },
@@ -49,6 +52,8 @@ const receiptInclude = {
           id: true,
           pourBarId: true,
           grossWeight: true,
+          goldPriceUsdPerGram: true,
+          valueUsd: true,
           pourDate: true,
           site: { select: { name: true, code: true } },
         },
@@ -210,6 +215,7 @@ export async function POST(request: NextRequest) {
       where: { id: resolvedGoldPourId },
       select: {
         id: true,
+        grossWeight: true,
         site: { select: { companyId: true } },
       },
     })
@@ -248,6 +254,15 @@ export async function POST(request: NextRequest) {
       return errorResponse("Receipt number already exists", 409)
     }
 
+    const valuation = await snapshotGoldUsdValue({
+      companyId: session.user.companyId,
+      businessDate: validated.receiptDate,
+      grams: goldPour.grossWeight,
+    })
+    if (!valuation) {
+      return errorResponse("No gold price configured. Add a gold price before recording sales.", 409)
+    }
+
     const receipt = await prisma.buyerReceipt.create({
       data: {
         goldDispatchId: validated.goldDispatchId,
@@ -256,6 +271,9 @@ export async function POST(request: NextRequest) {
         receiptDate: new Date(validated.receiptDate),
         assayResult: validated.assayResult,
         paidAmount: validated.paidAmount,
+        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+        valuationDate: valuation.valuationDate,
+        paidValueUsd: validated.paidAmount,
         paymentMethod: validated.paymentMethod,
         paymentChannel: validated.paymentChannel,
         paymentReference: validated.paymentReference,
@@ -272,10 +290,10 @@ export async function POST(request: NextRequest) {
         entryDate: receipt.receiptDate,
         description: `Gold receipt ${receipt.receiptNumber}`,
         createdById: session.user.id,
-        amount: receipt.paidAmount,
-        netAmount: receipt.paidAmount,
+        amount: receipt.paidValueUsd ?? receipt.paidAmount,
+        netAmount: receipt.paidValueUsd ?? receipt.paidAmount,
         taxAmount: 0,
-        grossAmount: receipt.paidAmount,
+        grossAmount: receipt.paidValueUsd ?? receipt.paidAmount,
       })
     } catch (error) {
       console.error("[Accounting] Gold receipt auto-post failed:", error)
