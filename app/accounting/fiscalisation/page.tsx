@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -436,6 +436,7 @@ export default function FiscalisationPage() {
           <DataTable
             data={receipts}
             columns={columns}
+            groupBy="status"
             searchPlaceholder="Search fiscal receipts"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}

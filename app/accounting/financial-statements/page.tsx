@@ -8,7 +8,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -282,6 +282,7 @@ export default function FinancialStatementsPage() {
                 <DataTable
                   data={profitRows}
                   columns={columns}
+                  groupBy="group"
                   searchPlaceholder="Search accounts"
                   searchSubmitLabel="Search"
                   pagination={{ enabled: true }}
@@ -294,6 +295,7 @@ export default function FinancialStatementsPage() {
                 <DataTable
                   data={balanceRows}
                   columns={columns}
+                  groupBy="group"
                   searchPlaceholder="Search accounts"
                   searchSubmitLabel="Search"
                   pagination={{ enabled: true }}
@@ -332,6 +334,7 @@ export default function FinancialStatementsPage() {
                 <DataTable
                   data={cashFlowRows}
                   columns={columns}
+                  groupBy="group"
                   searchPlaceholder="Search accounts"
                   searchSubmitLabel="Search"
                   pagination={{ enabled: true }}

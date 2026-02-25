@@ -8,7 +8,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -461,6 +461,7 @@ export default function BankingPage() {
           <DataTable
             data={accounts}
             columns={accountColumns}
+            groupBy={(row) => (row.isActive ? "Active" : "Inactive")}
             searchPlaceholder="Search bank accounts"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -472,6 +473,9 @@ export default function BankingPage() {
           <DataTable
             data={filteredTransactions}
             columns={transactionColumns}
+            groupBy={(row) =>
+              `${row.direction} / ${row.reconciledAt ? "Reconciled" : "Unreconciled"}`
+            }
             searchPlaceholder="Search transactions"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -498,6 +502,7 @@ export default function BankingPage() {
           <DataTable
             data={reconciliations}
             columns={reconciliationColumns}
+            groupBy="status"
             searchPlaceholder="Search reconciliations"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}

@@ -7,7 +7,8 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingEditableListView } from "@/components/accounting/listview/accounting-editable-list-view";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -23,7 +24,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import {
   type ChartOfAccountRecord,
@@ -273,6 +273,122 @@ export default function PostingRulesPage() {
     });
   };
 
+  const lineColumns = [
+      {
+        key: "account",
+        label: "Account",
+        width: "220px",
+        renderCell: ({ row, rowIndex }: { row: PostingRuleLineForm; rowIndex: number }) => (
+          <Select
+            value={row.accountId}
+            onValueChange={(value) => updateLine(rowIndex, "accountId", value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((account: ChartOfAccountRecord) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.code} - {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        key: "direction",
+        label: "Direction",
+        width: "140px",
+        renderCell: ({ row, rowIndex }: { row: PostingRuleLineForm; rowIndex: number }) => (
+          <Select
+            value={row.direction}
+            onValueChange={(value) => updateLine(rowIndex, "direction", value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="DEBIT">Debit</SelectItem>
+              <SelectItem value="CREDIT">Credit</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        key: "basis",
+        label: "Basis",
+        width: "140px",
+        renderCell: ({ row, rowIndex }: { row: PostingRuleLineForm; rowIndex: number }) => (
+          <Select
+            value={row.basis}
+            onValueChange={(value) => updateLine(rowIndex, "basis", value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              {basisOptions.map((basis) => (
+                <SelectItem key={basis} value={basis}>
+                  {basis}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        key: "allocationType",
+        label: "Allocation",
+        width: "140px",
+        renderCell: ({ row, rowIndex }: { row: PostingRuleLineForm; rowIndex: number }) => (
+          <Select
+            value={row.allocationType}
+            onValueChange={(value) => updateLine(rowIndex, "allocationType", value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              {allocationTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        key: "allocationValue",
+        label: "Value",
+        width: "140px",
+        align: "right" as const,
+        renderCell: ({ row, rowIndex }: { row: PostingRuleLineForm; rowIndex: number }) => (
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={row.allocationValue}
+            onChange={(event) => updateLine(rowIndex, "allocationValue", event.target.value)}
+            className="text-right font-mono"
+          />
+        ),
+      },
+      {
+        key: "actions",
+        label: "",
+        width: "90px",
+        align: "right" as const,
+        renderCell: ({ rowIndex }: { row: PostingRuleLineForm; rowIndex: number }) =>
+          lines.length > 2 ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(rowIndex)}>
+              Remove
+            </Button>
+          ) : null,
+      },
+    ];
+
   return (
     <AccountingShell
       activeTab="posting-rules"
@@ -295,6 +411,7 @@ export default function PostingRulesPage() {
       <DataTable
         data={rules}
         columns={columns}
+        groupBy="sourceType"
         searchPlaceholder="Search posting rules"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
@@ -368,116 +485,14 @@ export default function PostingRulesPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Posting Lines</h3>
-                <Button type="button" size="sm" variant="outline" onClick={addLine}>
-                  Add Line
-                </Button>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[220px]">Account</TableHead>
-                    <TableHead className="w-[140px]">Direction</TableHead>
-                    <TableHead className="w-[140px]">Basis</TableHead>
-                    <TableHead className="w-[140px]">Allocation</TableHead>
-                    <TableHead className="w-[140px] text-right">Value</TableHead>
-                    <TableHead className="w-[90px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((line, index) => (
-                    <TableRow key={`line-${index}`}>
-                      <TableCell>
-                        <Select
-                          value={line.accountId}
-                          onValueChange={(value) => updateLine(index, "accountId", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {accounts.map((account: ChartOfAccountRecord) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.code} - {account.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={line.direction}
-                          onValueChange={(value) => updateLine(index, "direction", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="DEBIT">Debit</SelectItem>
-                            <SelectItem value="CREDIT">Credit</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={line.basis}
-                          onValueChange={(value) => updateLine(index, "basis", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {basisOptions.map((basis) => (
-                              <SelectItem key={basis} value={basis}>
-                                {basis}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={line.allocationType}
-                          onValueChange={(value) => updateLine(index, "allocationType", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allocationTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={line.allocationValue}
-                          onChange={(event) =>
-                            updateLine(index, "allocationValue", event.target.value)
-                          }
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {lines.length > 2 ? (
-                          <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(index)}>
-                            Remove
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <AccountingEditableListView
+              title="Posting Lines"
+              addLabel="Add Line"
+              onAddRow={addLine}
+              rows={lines}
+              getRowKey={(_, index) => `line_${index}`}
+              columns={lineColumns}
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="submit" className="flex-1" disabled={saveMutation.isPending}>

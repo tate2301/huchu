@@ -9,7 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingLineItemsListView } from "@/components/accounting/listview/accounting-line-items-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -26,7 +27,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -37,7 +37,6 @@ import {
   type PurchasePaymentRecord,
   type PurchaseWriteOffRecord,
   type StatementLineRecord,
-  type TaxCodeRecord,
   type VendorRecord,
   fetchApAging,
   fetchBankAccounts,
@@ -1030,6 +1029,7 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={vendors}
             columns={vendorColumns}
+            groupBy={(row) => (row.isActive ? "Active" : "Inactive")}
             searchPlaceholder="Search vendors"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1041,6 +1041,7 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={filteredBills}
             columns={billColumns}
+            groupBy="status"
             searchPlaceholder="Search bills"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1066,6 +1067,7 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={payments}
             columns={paymentColumns}
+            groupBy="method"
             searchPlaceholder="Search payments"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1077,6 +1079,7 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={debitNotes}
             columns={debitNoteColumns}
+            groupBy="status"
             searchPlaceholder="Search debit notes"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1088,6 +1091,7 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={writeOffs}
             columns={writeOffColumns}
+            groupBy="status"
             searchPlaceholder="Search write-offs"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1099,6 +1103,16 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={agingRows}
             columns={agingColumns}
+            groupBy={(row) => {
+              const buckets = [
+                { label: "Current", value: row.current },
+                { label: "1-30", value: row.days30 },
+                { label: "31-60", value: row.days60 },
+                { label: "61-90", value: row.days90 },
+                { label: "90+", value: row.days90Plus },
+              ];
+              return buckets.sort((a, b) => b.value - a.value)[0].label;
+            }}
             searchPlaceholder="Search vendors"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1136,6 +1150,7 @@ export default function AccountingPurchasesPage() {
           <DataTable
             data={statementLines}
             columns={statementColumns}
+            groupBy="type"
             searchPlaceholder="Search statement lines"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -1353,105 +1368,28 @@ export default function AccountingPurchasesPage() {
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Bill Lines</h3>
-                <Button type="button" size="sm" variant="outline" onClick={addBillLine}>
-                  Add Line
-                </Button>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="w-[120px] text-right">Qty</TableHead>
-                    <TableHead className="w-[140px] text-right">Unit Price</TableHead>
-                    <TableHead className="w-[180px]">Tax Code</TableHead>
-                    <TableHead className="w-[120px] text-right">Tax %</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {billLines.map((line, index) => (
-                    <TableRow key={`bill-line-${index}`}>
-                      <TableCell>
-                        <Input
-                          value={line.description}
-                          onChange={(event) => updateBillLine(index, "description", event.target.value)}
-                          placeholder="Service or product"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.quantity}
-                          onChange={(event) => updateBillLine(index, "quantity", event.target.value)}
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.unitPrice}
-                          onChange={(event) => updateBillLine(index, "unitPrice", event.target.value)}
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={line.taxCodeId}
-                          onValueChange={(value) => updateBillLine(index, "taxCodeId", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Optional" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">No tax</SelectItem>
-                            {taxOptions.map((tax: TaxCodeRecord) => (
-                              <SelectItem key={tax.id} value={tax.id}>
-                                {tax.code} ({tax.rate}%)
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.taxRate}
-                          onChange={(event) => updateBillLine(index, "taxRate", event.target.value)}
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {billLines.length > 1 ? (
-                          <Button type="button" size="sm" variant="ghost" onClick={() => removeBillLine(index)}>
-                            Remove
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-muted-foreground">
-                  Subtotal: <span className="font-mono">{billTotals.subtotal.toFixed(2)}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Tax: <span className="font-mono">{billTotals.taxTotal.toFixed(2)}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Total: <span className="font-mono">{billTotals.total.toFixed(2)}</span>
-                </span>
-              </div>
-            </div>
+            <AccountingLineItemsListView
+              title="Bill Lines"
+              lines={billLines}
+              taxOptions={taxOptions}
+              onAddLine={addBillLine}
+              onRemoveLine={removeBillLine}
+              onChangeLine={updateBillLine}
+              canRemoveLine={() => billLines.length > 1}
+              footer={
+                <div className="flex justify-end gap-6 text-sm">
+                  <span className="text-muted-foreground">
+                    Subtotal: <span className="font-mono">{billTotals.subtotal.toFixed(2)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    Tax: <span className="font-mono">{billTotals.taxTotal.toFixed(2)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    Total: <span className="font-mono">{billTotals.total.toFixed(2)}</span>
+                  </span>
+                </div>
+              }
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="submit" className="flex-1" disabled={createBillMutation.isPending}>
@@ -1645,118 +1583,28 @@ export default function AccountingPurchasesPage() {
                 placeholder="Reason for debit"
               />
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Debit Note Lines</h3>
-                <Button type="button" size="sm" variant="outline" onClick={addDebitNoteLine}>
-                  Add Line
-                </Button>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="w-[120px] text-right">Qty</TableHead>
-                    <TableHead className="w-[140px] text-right">Unit Price</TableHead>
-                    <TableHead className="w-[180px]">Tax Code</TableHead>
-                    <TableHead className="w-[120px] text-right">Tax %</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {debitNoteLines.map((line, index) => (
-                    <TableRow key={`debit-line-${index}`}>
-                      <TableCell>
-                        <Input
-                          value={line.description}
-                          onChange={(event) =>
-                            updateDebitNoteLine(index, "description", event.target.value)
-                          }
-                          placeholder="Service or product"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.quantity}
-                          onChange={(event) =>
-                            updateDebitNoteLine(index, "quantity", event.target.value)
-                          }
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.unitPrice}
-                          onChange={(event) =>
-                            updateDebitNoteLine(index, "unitPrice", event.target.value)
-                          }
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={line.taxCodeId}
-                          onValueChange={(value) => updateDebitNoteLine(index, "taxCodeId", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Optional" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">No tax</SelectItem>
-                            {taxOptions.map((tax: TaxCodeRecord) => (
-                              <SelectItem key={tax.id} value={tax.id}>
-                                {tax.code} ({tax.rate}%)
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.taxRate}
-                          onChange={(event) =>
-                            updateDebitNoteLine(index, "taxRate", event.target.value)
-                          }
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {debitNoteLines.length > 1 ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeDebitNoteLine(index)}
-                          >
-                            Remove
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-muted-foreground">
-                  Subtotal: <span className="font-mono">{debitNoteTotals.subtotal.toFixed(2)}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Tax: <span className="font-mono">{debitNoteTotals.taxTotal.toFixed(2)}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Total: <span className="font-mono">{debitNoteTotals.total.toFixed(2)}</span>
-                </span>
-              </div>
-            </div>
+            <AccountingLineItemsListView
+              title="Debit Note Lines"
+              lines={debitNoteLines}
+              taxOptions={taxOptions}
+              onAddLine={addDebitNoteLine}
+              onRemoveLine={removeDebitNoteLine}
+              onChangeLine={updateDebitNoteLine}
+              canRemoveLine={() => debitNoteLines.length > 1}
+              footer={
+                <div className="flex justify-end gap-6 text-sm">
+                  <span className="text-muted-foreground">
+                    Subtotal: <span className="font-mono">{debitNoteTotals.subtotal.toFixed(2)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    Tax: <span className="font-mono">{debitNoteTotals.taxTotal.toFixed(2)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    Total: <span className="font-mono">{debitNoteTotals.total.toFixed(2)}</span>
+                  </span>
+                </div>
+              }
+            />
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="submit" className="flex-1" disabled={createDebitNoteMutation.isPending}>
                 Save Debit Note

@@ -7,7 +7,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -320,6 +320,7 @@ export default function ChartOfAccountsPage() {
       <DataTable
         data={filteredAccounts}
         columns={columns}
+        groupBy="type"
         searchPlaceholder="Search accounts"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}

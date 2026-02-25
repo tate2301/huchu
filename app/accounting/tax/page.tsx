@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -291,6 +291,7 @@ export default function TaxSetupPage() {
           <DataTable
             data={taxCodes ?? []}
             columns={columns}
+            groupBy="type"
             searchPlaceholder="Search tax codes"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -321,6 +322,7 @@ export default function TaxSetupPage() {
           <DataTable
             data={vatRows}
             columns={vatColumns}
+            groupBy={(row) => `${row.rate}%`}
             searchPlaceholder="Search VAT summary"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}

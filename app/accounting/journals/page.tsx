@@ -8,7 +8,8 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingEditableListView } from "@/components/accounting/listview/accounting-editable-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -25,7 +26,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import {
   type CostCenterRecord,
@@ -294,6 +294,110 @@ export default function JournalsPage() {
     });
   };
 
+  const lineColumns = [
+      {
+        key: "account",
+        label: "Account",
+        width: "220px",
+        renderCell: ({ row, rowIndex }: { row: JournalLineForm; rowIndex: number }) => (
+          <Select
+            value={row.accountId}
+            onValueChange={(value) => updateLine(rowIndex, "accountId", value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.code} - {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        key: "debit",
+        label: "Debit",
+        width: "140px",
+        align: "right" as const,
+        renderCell: ({ row, rowIndex }: { row: JournalLineForm; rowIndex: number }) => (
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={row.debit}
+            onChange={(event) => updateLine(rowIndex, "debit", event.target.value)}
+            className="text-right font-mono"
+          />
+        ),
+      },
+      {
+        key: "credit",
+        label: "Credit",
+        width: "140px",
+        align: "right" as const,
+        renderCell: ({ row, rowIndex }: { row: JournalLineForm; rowIndex: number }) => (
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={row.credit}
+            onChange={(event) => updateLine(rowIndex, "credit", event.target.value)}
+            className="text-right font-mono"
+          />
+        ),
+      },
+      {
+        key: "memo",
+        label: "Memo",
+        width: "2fr",
+        renderCell: ({ row, rowIndex }: { row: JournalLineForm; rowIndex: number }) => (
+          <Input
+            value={row.memo}
+            onChange={(event) => updateLine(rowIndex, "memo", event.target.value)}
+            placeholder="Optional memo"
+          />
+        ),
+      },
+      {
+        key: "costCenter",
+        label: "Cost Center",
+        width: "180px",
+        renderCell: ({ row, rowIndex }: { row: JournalLineForm; rowIndex: number }) => (
+          <Select
+            value={row.costCenterId}
+            onValueChange={(value) => updateLine(rowIndex, "costCenterId", value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Optional" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">No cost center</SelectItem>
+              {costCenters.map((center: CostCenterRecord) => (
+                <SelectItem key={center.id} value={center.id}>
+                  {center.code} - {center.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        key: "actions",
+        label: "",
+        width: "100px",
+        align: "right" as const,
+        renderCell: ({ rowIndex }: { row: JournalLineForm; rowIndex: number }) =>
+          lines.length > 2 ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(rowIndex)}>
+              Remove
+            </Button>
+          ) : null,
+      },
+    ];
+
   return (
     <AccountingShell
       activeTab="journals"
@@ -316,6 +420,7 @@ export default function JournalsPage() {
       <DataTable
         data={filteredEntries}
         columns={columns}
+        groupBy="status"
         searchPlaceholder="Search journals"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
@@ -380,112 +485,27 @@ export default function JournalsPage() {
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Entry Lines</h3>
-                <Button type="button" size="sm" variant="outline" onClick={addLine}>
-                  Add Line
-                </Button>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[220px]">Account</TableHead>
-                    <TableHead className="w-[140px] text-right">Debit</TableHead>
-                    <TableHead className="w-[140px] text-right">Credit</TableHead>
-                    <TableHead>Memo</TableHead>
-                    <TableHead className="w-[160px]">Cost Center</TableHead>
-                    <TableHead className="w-[90px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((line, index) => (
-                    <TableRow key={`line-${index}`}>
-                      <TableCell>
-                        <Select
-                          value={line.accountId}
-                          onValueChange={(value) => updateLine(index, "accountId", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {accounts.map((account) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.code} - {account.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={line.debit}
-                          onChange={(event) => updateLine(index, "debit", event.target.value)}
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={line.credit}
-                          onChange={(event) => updateLine(index, "credit", event.target.value)}
-                          className="text-right font-mono"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={line.memo}
-                          onChange={(event) => updateLine(index, "memo", event.target.value)}
-                          placeholder="Optional memo"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={line.costCenterId}
-                          onValueChange={(value) => updateLine(index, "costCenterId", value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Optional" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">No cost center</SelectItem>
-                            {costCenters.map((center: CostCenterRecord) => (
-                              <SelectItem key={center.id} value={center.id}>
-                                {center.code} - {center.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {lines.length > 2 ? (
-                          <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(index)}>
-                            Remove
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-muted-foreground">
-                  Total Debit: <span className="font-mono">{totals.debit.toFixed(2)}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Total Credit: <span className="font-mono">{totals.credit.toFixed(2)}</span>
-                </span>
-                <Badge variant={totals.balanced ? "secondary" : "destructive"}>
-                  {totals.balanced ? "Balanced" : "Not Balanced"}
-                </Badge>
-              </div>
-            </div>
+            <AccountingEditableListView
+              title="Entry Lines"
+              addLabel="Add Line"
+              onAddRow={addLine}
+              rows={lines}
+              getRowKey={(_, index) => `line_${index}`}
+              columns={lineColumns}
+              footer={
+                <div className="flex justify-end gap-6 text-sm">
+                  <span className="text-muted-foreground">
+                    Total Debit: <span className="font-mono">{totals.debit.toFixed(2)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    Total Credit: <span className="font-mono">{totals.credit.toFixed(2)}</span>
+                  </span>
+                  <Badge variant={totals.balanced ? "secondary" : "destructive"}>
+                    {totals.balanced ? "Balanced" : "Not Balanced"}
+                  </Badge>
+                </div>
+              }
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button

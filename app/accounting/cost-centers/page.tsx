@@ -7,7 +7,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -149,6 +149,7 @@ export default function CostCentersPage() {
       <DataTable
         data={costCenters}
         columns={columns}
+        groupBy={(row) => (row.isActive ? "Active" : "Inactive")}
         searchPlaceholder="Search cost centers"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}

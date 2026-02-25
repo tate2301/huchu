@@ -8,7 +8,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -173,6 +173,7 @@ export default function BudgetsPage() {
       <DataTable
         data={filteredBudgets}
         columns={columns}
+        groupBy="status"
         searchPlaceholder="Search budgets"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}

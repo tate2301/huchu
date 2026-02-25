@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -144,6 +144,7 @@ export default function CurrencyRatesPage() {
       <DataTable
         data={rates}
         columns={columns}
+        groupBy="baseCurrency"
         searchPlaceholder="Search currency pairs"
         searchSubmitLabel="Search"
         pagination={{ enabled: true }}
