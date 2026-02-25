@@ -680,6 +680,7 @@ export function DataTable<TData, TValue>({
   const listColumns = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
     return listColumnDefinitions.map((column) => ({
       ...column,
+      align: numericColumnSet.has(column.key) ? "right" : column.align,
       width:
         column.key === primaryColumnKey &&
         typeof listColumnWidths[column.key] === "string" &&
@@ -687,7 +688,7 @@ export function DataTable<TData, TValue>({
           ? `minmax(${listColumnWidths[column.key]},1fr)`
           : (listColumnWidths[column.key] ?? "max-content"),
     }));
-  }, [listColumnDefinitions, listColumnWidths, primaryColumnKey]);
+  }, [listColumnDefinitions, listColumnWidths, numericColumnSet, primaryColumnKey]);
 
   const hasInteractiveCellContent = React.useMemo(() => {
     return listRows.some((row) =>

@@ -296,6 +296,7 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
   return {
     columns: columns.map((column) => ({
       ...column,
+      align: numericColumnSet.has(column.key) ? "right" : column.align,
       width:
         column.key === primaryColumnKey &&
         typeof columnWidths[column.key] === "string" &&
