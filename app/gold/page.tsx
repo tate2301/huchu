@@ -239,7 +239,7 @@ export default function GoldPage() {
   const createShiftAllocationMutation = useMutation({
     mutationFn: async (payload: {
       date: string;
-      shift: "DAY" | "NIGHT";
+      shift: string;
       siteId: string;
       totalWeight: number;
       expenses: Array<{ type: string; weight: number }>;

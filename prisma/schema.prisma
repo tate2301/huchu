@@ -1268,11 +1268,6 @@ model AdjustmentEntry {
 // PHASE 1: DAILY OPERATIONS
 // ============================================
 
-enum ShiftType {
-  DAY
-  NIGHT
-}
-
 enum GoldShiftSplitMode {
   DEFAULT_50_50
   OVERRIDE_WORKER_WEIGHT
@@ -1533,7 +1528,7 @@ enum AdjustmentStatus {
 model ShiftReport {
   id            String    @id @default(uuid())
   date          DateTime
-  shift         ShiftType
+  shift         String
   siteId        String
   sectionId     String?
   shiftGroupId  String?
@@ -1617,7 +1612,7 @@ model Attendance {
   id         String    @id @default(uuid())
   date       DateTime
   siteId     String
-  shift      ShiftType
+  shift      String
   shiftGroupId String?
   shiftLeaderId String?
   shiftLeaderName String?
@@ -1682,7 +1677,7 @@ model ShiftGroupSchedule {
   companyId    String
   siteId       String
   date         DateTime
-  shift        ShiftType
+  shift        String
   shiftGroupId String
   notes        String?
   createdById  String
@@ -1694,8 +1689,9 @@ model ShiftGroupSchedule {
   shiftGroup ShiftGroup @relation(fields: [shiftGroupId], references: [id], onDelete: Cascade)
   createdBy  User       @relation("ShiftGroupScheduleCreatedBy", fields: [createdById], references: [id])
 
-  @@unique([siteId, date, shift])
+  @@unique([shiftGroupId, date])
   @@index([companyId, date, shift])
+  @@index([siteId, date, shift])
   @@index([shiftGroupId])
 }
 
@@ -1862,7 +1858,7 @@ model BuyerReceipt {
 model GoldShiftAllocation {
   id                 String    @id @default(uuid())
   date               DateTime
-  shift              ShiftType
+  shift              String
   siteId             String
   shiftReportId      String    @unique
   totalWeight        Float

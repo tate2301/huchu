@@ -14,6 +14,17 @@ import {
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
+function normalizeShiftLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toUpperCase()
+}
+
+const shiftLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Shift is required")
+  .max(50, "Shift must be 50 characters or less")
+  .transform(normalizeShiftLabel)
+
 const expenseSchema = z.object({
   type: z.string().min(1).max(100),
   weight: z.number().min(0.0001),
@@ -21,7 +32,7 @@ const expenseSchema = z.object({
 
 const allocationSchema = z.object({
   date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  shift: z.enum(["DAY", "NIGHT"]),
+  shift: shiftLabelSchema,
   siteId: z.string().uuid(),
   totalWeight: z.number().positive(),
   expenses: z.array(expenseSchema).optional(),
@@ -96,7 +107,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (siteId) where.siteId = siteId
-    if (shift === "DAY" || shift === "NIGHT") where.shift = shift
+    if (shift?.trim()) where.shift = normalizeShiftLabel(shift)
     if (startDate || endDate) {
       const dateFilter: Record<string, Date> = {}
       if (startDate) dateFilter.gte = new Date(startDate)

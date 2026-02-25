@@ -65,7 +65,7 @@ type GroupEmployeePreview = {
 type ScheduleForm = {
   siteId: string
   date: string
-  shift: "DAY" | "NIGHT"
+  shift: string
   shiftGroupId: string
   notes: string
 }
@@ -107,7 +107,7 @@ export default function HrShiftGroupsPage() {
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     siteId: "",
     date: new Date().toISOString().slice(0, 10),
-    shift: "DAY",
+    shift: "SHIFT-1",
     shiftGroupId: "",
     notes: "",
   })
@@ -285,7 +285,7 @@ export default function HrShiftGroupsPage() {
       setScheduleForm({
         siteId: "",
         date: new Date().toISOString().slice(0, 10),
-        shift: "DAY",
+        shift: "SHIFT-1",
         shiftGroupId: "",
         notes: "",
       })
@@ -778,7 +778,7 @@ export default function HrShiftGroupsPage() {
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Create Schedule</SheetTitle>
-            <SheetDescription>Assign one shift group to a site/date/shift.</SheetDescription>
+            <SheetDescription>Assign a shift group to a site/date with any shift label.</SheetDescription>
           </SheetHeader>
           <form
             className="mt-6 space-y-4"
@@ -819,18 +819,14 @@ export default function HrShiftGroupsPage() {
               </div>
               <div>
                 <label className="mb-2 block text-sm font-semibold">Shift *</label>
-                <Select
+                <Input
                   value={scheduleForm.shift}
-                  onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, shift: value as "DAY" | "NIGHT" }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DAY">Day</SelectItem>
-                    <SelectItem value="NIGHT">Night</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(event) =>
+                    setScheduleForm((prev) => ({ ...prev, shift: event.target.value }))
+                  }
+                  placeholder="e.g. SHIFT-1, SHIFT-2, SHIFT-3"
+                  required
+                />
               </div>
             </div>
             <div>

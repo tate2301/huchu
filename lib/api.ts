@@ -121,7 +121,7 @@ export type ShiftGroupScheduleRecord = {
   companyId: string;
   siteId: string;
   date: string;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   shiftGroupId: string;
   notes?: string | null;
   createdById: string;
@@ -621,7 +621,7 @@ export type StockMovement = {
 export type AttendanceRecord = {
   id: string;
   date: string;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   shiftGroupId?: string | null;
   shiftLeaderId?: string | null;
   shiftLeaderName?: string | null;
@@ -641,7 +641,7 @@ export type AttendanceRecord = {
 export type ShiftReportSummary = {
   id: string;
   date: string;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   siteId: string;
   shiftGroupId?: string | null;
   crewCount: number;
@@ -800,7 +800,7 @@ export type GoldShiftAllocationWorkerShare = {
 export type GoldShiftAllocation = {
   id: string;
   date: string;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   siteId: string;
   totalWeight: number;
   netWeight: number;
@@ -1369,7 +1369,7 @@ export async function fetchShiftGroupSchedules(
   params: {
     search?: string;
     siteId?: string;
-    shift?: "DAY" | "NIGHT";
+    shift?: string;
     shiftGroupId?: string;
     date?: string;
     startDate?: string;
@@ -1387,7 +1387,7 @@ export async function fetchShiftGroupSchedules(
 export async function createShiftGroupSchedule(input: {
   siteId: string;
   date: string;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   shiftGroupId: string;
   notes?: string;
 }) {
@@ -1402,7 +1402,7 @@ export async function updateShiftGroupSchedule(
   input: {
     siteId?: string;
     date?: string;
-    shift?: "DAY" | "NIGHT";
+    shift?: string;
     shiftGroupId?: string;
     notes?: string | null;
   },

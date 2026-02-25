@@ -39,7 +39,7 @@ export default function ShiftReportPage() {
   const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
-    shift: "DAY",
+    shift: "SHIFT-1",
     siteId: searchParams.get("siteId") ?? "",
     shiftGroupId: "",
     groupLeaderId: "",
@@ -86,7 +86,7 @@ export default function ShiftReportPage() {
       fetchShiftGroupSchedules({
         siteId: activeSiteId,
         date: formData.date,
-        shift: formData.shift as "DAY" | "NIGHT",
+        shift: formData.shift,
         limit: 10,
       }),
     enabled: Boolean(activeSiteId && formData.date && formData.shift),
@@ -164,10 +164,10 @@ export default function ShiftReportPage() {
     const { name, value, type } = e.target;
     setFormData((prev) => {
       const nextValue = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
-      if (name === "date") {
+      if (name === "date" || name === "shift") {
         return {
           ...prev,
-          [name]: value,
+          [name]: nextValue as never,
           shiftGroupId: "",
           groupLeaderId: "",
         };
@@ -303,15 +303,14 @@ export default function ShiftReportPage() {
 
               <div>
                 <label className="mb-2 block text-sm font-semibold">Shift *</label>
-                <Select name="shift" value={formData.shift} onValueChange={handleSelectChange("shift")} required>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select shift" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DAY">Day Shift</SelectItem>
-                    <SelectItem value="NIGHT">Night Shift</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  name="shift"
+                  value={formData.shift}
+                  onChange={handleChange}
+                  placeholder="e.g. SHIFT-1, SHIFT-2, SHIFT-3"
+                  required
+                />
+                <FieldHelp hint="Use any shift label used at your site (for example SHIFT-1, SHIFT-2)." />
               </div>
             </div>
 

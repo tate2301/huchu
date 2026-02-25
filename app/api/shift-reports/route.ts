@@ -10,6 +10,17 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { WorkType } from "@prisma/client";
 
+function normalizeShiftLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+const shiftLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Shift is required")
+  .max(50, "Shift must be 50 characters or less")
+  .transform(normalizeShiftLabel);
+
 // Validation schema
 const shiftReportSchema = z
   .object({
@@ -17,7 +28,7 @@ const shiftReportSchema = z
       .string()
       .datetime()
       .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-    shift: z.enum(["DAY", "NIGHT"]),
+    shift: shiftLabelSchema,
     siteId: z.string().uuid(),
     shiftGroupId: z.string().uuid().optional(),
     groupLeaderId: z.string().uuid().optional(),
@@ -75,18 +86,19 @@ export async function GET(request: NextRequest) {
     if (status) where.status = status;
     if (search) {
       const normalizedSearch = search.toUpperCase();
-      const statusMatches = ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED"].includes(normalizedSearch);
-      const shiftMatches = normalizedSearch === "DAY" || normalizedSearch === "NIGHT";
+      const statusMatches = ["DRAFT", "SUBMITTED", "VERIFIED", "APPROVED", "REJECTED"].includes(
+        normalizedSearch,
+      );
       const workTypeMatches = (Object.values(WorkType) as string[]).includes(normalizedSearch);
 
       where.OR = [
         { handoverNotes: { contains: search, mode: "insensitive" } },
         { incidentNotes: { contains: search, mode: "insensitive" } },
+        { shift: { contains: search, mode: "insensitive" } },
         { site: { name: { contains: search, mode: "insensitive" } } },
         { site: { code: { contains: search, mode: "insensitive" } } },
         { shiftGroup: { name: { contains: search, mode: "insensitive" } } },
         { groupLeader: { name: { contains: search, mode: "insensitive" } } },
-        ...(shiftMatches ? [{ shift: normalizedSearch }] : []),
         ...(statusMatches ? [{ status: normalizedSearch }] : []),
         ...(workTypeMatches ? [{ workType: normalizedSearch as WorkType }] : []),
       ];

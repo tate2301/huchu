@@ -3,7 +3,7 @@ import type { GoldShiftAllocation } from "@/lib/api";
 export type AttendanceShiftSummary = {
   key: string;
   date: string;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   siteId: string;
   siteName: string;
   siteCode: string;

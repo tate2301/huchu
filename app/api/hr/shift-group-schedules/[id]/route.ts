@@ -9,10 +9,28 @@ import {
 import { ensureApproverRole } from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
 
+function normalizeShiftLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toUpperCase()
+}
+
+const shiftLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Shift is required")
+  .max(50, "Shift must be 50 characters or less")
+  .transform(normalizeShiftLabel)
+
+function getDayRange(dateValue: string | Date) {
+  const start = new Date(dateValue)
+  const end = new Date(dateValue)
+  end.setDate(end.getDate() + 1)
+  return { start, end }
+}
+
 const updateScheduleSchema = z.object({
   siteId: z.string().uuid().optional(),
   date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  shift: z.enum(["DAY", "NIGHT"]).optional(),
+  shift: shiftLabelSchema.optional(),
   shiftGroupId: z.string().uuid().optional(),
   notes: z.string().trim().max(500).nullable().optional(),
 })
@@ -78,9 +96,10 @@ export async function PATCH(
     }
 
     const nextSiteId = validated.siteId ?? existing.siteId
-    const nextDate = validated.date ? new Date(validated.date) : existing.date
+    const nextDate = validated.date ? getDayRange(validated.date).start : existing.date
     const nextShift = validated.shift ?? existing.shift
     const nextGroupId = validated.shiftGroupId ?? existing.shiftGroupId
+    const { start: nextDateStart, end: nextDateEnd } = getDayRange(nextDate)
 
     const [site, group] = await Promise.all([
       prisma.site.findUnique({
@@ -112,22 +131,21 @@ export async function PATCH(
     const conflicting = await prisma.shiftGroupSchedule.findFirst({
       where: {
         id: { not: id },
-        siteId: nextSiteId,
-        date: nextDate,
-        shift: nextShift,
+        shiftGroupId: nextGroupId,
+        date: { gte: nextDateStart, lt: nextDateEnd },
       },
       select: { id: true },
     })
     if (conflicting) {
-      return errorResponse("A shift group is already scheduled for this site/date/shift", 409)
+      return errorResponse("This shift group already has a shift scheduled for this date", 409)
     }
 
     const updated = await prisma.shiftGroupSchedule.update({
       where: { id },
       data: {
         siteId: validated.siteId,
-        date: validated.date ? new Date(validated.date) : undefined,
-        shift: validated.shift,
+        date: validated.date ? nextDate : undefined,
+        shift: validated.shift ?? nextShift,
         shiftGroupId: validated.shiftGroupId,
         notes: validated.notes === null ? null : validated.notes,
       },
@@ -184,4 +202,3 @@ export async function DELETE(
     return errorResponse("Failed to delete shift group schedule")
   }
 }
-

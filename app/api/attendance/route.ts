@@ -9,10 +9,21 @@ import {
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
+function normalizeShiftLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+const shiftLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Shift is required")
+  .max(50, "Shift must be 50 characters or less")
+  .transform(normalizeShiftLabel);
+
 const attendanceSchema = z.object({
   date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   siteId: z.string().uuid(),
-  shift: z.enum(['DAY', 'NIGHT']),
+  shift: shiftLabelSchema,
   shiftGroupId: z.string().uuid().optional(),
   shiftLeaderId: z.string().uuid().optional(),
   records: z.array(z.object({
@@ -50,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (employeeId) where.employeeId = employeeId;
     if (shiftGroupId) where.shiftGroupId = shiftGroupId;
     if (shiftLeaderId) where.shiftLeaderId = shiftLeaderId;
-    if (shift === 'DAY' || shift === 'NIGHT') where.shift = shift;
+    if (shift?.trim()) where.shift = normalizeShiftLabel(shift);
     if (status) where.status = status;
 
     if (date) {
@@ -69,17 +80,16 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       const normalizedSearch = search.toUpperCase();
-      const shiftMatches = normalizedSearch === "DAY" || normalizedSearch === "NIGHT";
       const statusMatches = ["PRESENT", "ABSENT", "LATE"].includes(normalizedSearch);
       where.OR = [
         { notes: { contains: search, mode: "insensitive" } },
+        { shift: { contains: search, mode: "insensitive" } },
         { shiftLeaderName: { contains: search, mode: "insensitive" } },
         { employee: { name: { contains: search, mode: "insensitive" } } },
         { employee: { employeeId: { contains: search, mode: "insensitive" } } },
         { site: { name: { contains: search, mode: "insensitive" } } },
         { site: { code: { contains: search, mode: "insensitive" } } },
         { shiftGroup: { name: { contains: search, mode: "insensitive" } } },
-        ...(shiftMatches ? [{ shift: normalizedSearch }] : []),
         ...(statusMatches ? [{ status: normalizedSearch }] : []),
       ];
     }

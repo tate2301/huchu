@@ -54,7 +54,7 @@ export default function AttendancePage() {
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 10),
-    shift: "DAY",
+    shift: "SHIFT-1",
     siteId: "",
     shiftGroupId: "",
   });
@@ -90,7 +90,7 @@ export default function AttendancePage() {
       fetchShiftGroupSchedules({
         siteId: activeSiteId,
         date: formData.date,
-        shift: formData.shift as "DAY" | "NIGHT",
+        shift: formData.shift,
         limit: 10,
       }),
     enabled: Boolean(activeSiteId && formData.date && formData.shift),
@@ -153,7 +153,7 @@ export default function AttendancePage() {
     mutationFn: async (payload: {
       date: string;
       siteId: string;
-      shift: "DAY" | "NIGHT";
+      shift: string;
       shiftGroupId?: string;
       shiftLeaderId?: string;
       records: Array<{
@@ -263,7 +263,7 @@ export default function AttendancePage() {
     attendanceMutation.mutate({
       date: formData.date,
       siteId: activeSiteId,
-      shift: formData.shift as "DAY" | "NIGHT",
+      shift: formData.shift,
       shiftGroupId: effectiveShiftGroupId,
       shiftLeaderId: effectiveShiftLeaderId || undefined,
       records,
@@ -339,21 +339,16 @@ export default function AttendancePage() {
               </div>
               <div>
                 <label className="mb-2 block text-sm font-semibold">Shift *</label>
-                <Select
+                <Input
                   value={formData.shift}
-                  onValueChange={(value) => {
-                    setFormData((prev) => ({ ...prev, shift: value, shiftGroupId: "" }));
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, shift: e.target.value, shiftGroupId: "" }));
                     resetShiftContext();
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DAY">Day Shift</SelectItem>
-                    <SelectItem value="NIGHT">Night Shift</SelectItem>
-                  </SelectContent>
-                </Select>
+                  placeholder="e.g. SHIFT-1, SHIFT-2, SHIFT-3"
+                  required
+                />
+                <FieldHelp hint="Use the shift label for this run (for example SHIFT-1)." />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-semibold">Site *</label>

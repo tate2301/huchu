@@ -43,7 +43,7 @@ type WorkerPayoutDetail = {
 type ShiftPayoutSummary = {
   allocationId: string;
   date: Date;
-  shift: "DAY" | "NIGHT";
+  shift: string;
   siteName: string;
   siteCode: string;
   payCycleWeeks: number;

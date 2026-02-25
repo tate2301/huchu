@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { ShiftType } from "@prisma/client"
 import { z } from "zod"
 
 import {
@@ -12,10 +11,28 @@ import {
 import { ensureApproverRole } from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
 
+function normalizeShiftLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toUpperCase()
+}
+
+const shiftLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Shift is required")
+  .max(50, "Shift must be 50 characters or less")
+  .transform(normalizeShiftLabel)
+
+function getDayRange(dateValue: string) {
+  const start = new Date(dateValue)
+  const end = new Date(dateValue)
+  end.setDate(end.getDate() + 1)
+  return { start, end }
+}
+
 const createScheduleSchema = z.object({
   siteId: z.string().uuid(),
   date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  shift: z.enum(["DAY", "NIGHT"]),
+  shift: shiftLabelSchema,
   shiftGroupId: z.string().uuid(),
   notes: z.string().trim().max(500).optional(),
 })
@@ -42,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     if (siteId) where.siteId = siteId
     if (shiftGroupId) where.shiftGroupId = shiftGroupId
-    if (shift === "DAY" || shift === "NIGHT") where.shift = shift
+    if (shift?.trim()) where.shift = normalizeShiftLabel(shift)
 
     if (date) {
       const start = new Date(date)
@@ -59,6 +76,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { notes: { contains: search, mode: "insensitive" } },
+        { shift: { contains: search, mode: "insensitive" } },
         { site: { name: { contains: search, mode: "insensitive" } } },
         { site: { code: { contains: search, mode: "insensitive" } } },
         { shiftGroup: { name: { contains: search, mode: "insensitive" } } },
@@ -136,17 +154,16 @@ export async function POST(request: NextRequest) {
       return errorResponse("Shift group does not belong to the selected site", 400)
     }
 
-    const scheduleDate = new Date(validated.date)
+    const { start: scheduleDate, end: scheduleDateEnd } = getDayRange(validated.date)
     const existing = await prisma.shiftGroupSchedule.findFirst({
       where: {
-        siteId: validated.siteId,
-        shift: validated.shift,
-        date: scheduleDate,
+        shiftGroupId: validated.shiftGroupId,
+        date: { gte: scheduleDate, lt: scheduleDateEnd },
       },
       select: { id: true },
     })
     if (existing) {
-      return errorResponse("A shift group is already scheduled for this site/date/shift", 409)
+      return errorResponse("This shift group already has a shift scheduled for this date", 409)
     }
 
     const created = await prisma.shiftGroupSchedule.create({
@@ -154,7 +171,7 @@ export async function POST(request: NextRequest) {
         companyId: session.user.companyId,
         siteId: validated.siteId,
         date: scheduleDate,
-        shift: validated.shift as ShiftType,
+        shift: validated.shift,
         shiftGroupId: validated.shiftGroupId,
         notes: validated.notes,
         createdById: session.user.id,
@@ -182,4 +199,3 @@ export async function POST(request: NextRequest) {
     return errorResponse("Failed to create shift group schedule")
   }
 }
-
