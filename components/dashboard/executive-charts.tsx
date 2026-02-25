@@ -36,11 +36,11 @@ export function ExecutiveCharts({
   }));
   const goldChartConfig = buildTimeSeriesChartConfig({
     data: goldChartData,
-    title: "Gold Over Time",
-    subtitle: "Produced gold weight trend (grams).",
+    title: "Gold Value Over Time",
+    subtitle: "Produced gold value trend (USD).",
     colors: ["hsl(var(--primary))", "hsl(var(--muted-foreground))"],
     xAxisKey: "date",
-    yAxisTitle: "Gold (g)",
+    yAxisTitle: "USD",
     series: [
       { name: "gold", type: "line", lineWidth: 2.1 },
       { name: "prev_avg", type: "line", lineType: "dashed", lineWidth: 1.8 },

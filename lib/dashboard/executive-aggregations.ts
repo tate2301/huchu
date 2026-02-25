@@ -45,8 +45,8 @@ export type ExecutiveDashboardMetrics = {
   nearTermNetPosition: number;
   openReceivables: number;
   openPayables: number;
-  goldProducedWeight: number;
-  previousGoldProducedWeight: number;
+  goldProducedValue: number;
+  previousGoldProducedValue: number;
   goldRealizedValue: number;
   previousGoldRealizedValue: number;
   activeWorkers: number;
@@ -323,7 +323,7 @@ export async function getExecutiveDashboardAggregations({
       },
     }),
     prisma.goldPour.aggregate({
-      _sum: { grossWeight: true },
+      _sum: { valueUsd: true },
       where: {
         pourDate: currentRange,
         sourceType: "PRODUCTION",
@@ -331,7 +331,7 @@ export async function getExecutiveDashboardAggregations({
       },
     }),
     prisma.goldPour.aggregate({
-      _sum: { grossWeight: true },
+      _sum: { valueUsd: true },
       where: {
         pourDate: previousRange,
         sourceType: "PRODUCTION",
@@ -346,12 +346,14 @@ export async function getExecutiveDashboardAggregations({
       },
       select: {
         pourDate: true,
+        valueUsd: true,
         grossWeight: true,
+        goldPriceUsdPerGram: true,
       },
       orderBy: { pourDate: "asc" },
     }),
     prisma.buyerReceipt.aggregate({
-      _sum: { paidAmount: true },
+      _sum: { paidValueUsd: true },
       where: {
         receiptDate: currentRange,
         OR: [
@@ -375,7 +377,7 @@ export async function getExecutiveDashboardAggregations({
       },
     }),
     prisma.buyerReceipt.aggregate({
-      _sum: { paidAmount: true },
+      _sum: { paidValueUsd: true },
       where: {
         receiptDate: previousRange,
         OR: [
@@ -565,10 +567,10 @@ export async function getExecutiveDashboardAggregations({
   const workforceLiability = salaryOwed + goldPayoutOwed;
   const nearTermNetPosition = receivablesDueSoon - payablesDueSoon;
 
-  const goldProducedWeight = round(goldPoursCurrent._sum.grossWeight ?? 0);
-  const previousGoldProducedWeight = round(goldPoursPrevious._sum.grossWeight ?? 0);
-  const goldRealizedValue = round(buyerReceiptsCurrent._sum.paidAmount ?? 0);
-  const previousGoldRealizedValue = round(buyerReceiptsPrevious._sum.paidAmount ?? 0);
+  const goldProducedValue = round(goldPoursCurrent._sum.valueUsd ?? 0);
+  const previousGoldProducedValue = round(goldPoursPrevious._sum.valueUsd ?? 0);
+  const goldRealizedValue = round(buyerReceiptsCurrent._sum.paidValueUsd ?? 0);
+  const previousGoldRealizedValue = round(buyerReceiptsPrevious._sum.paidValueUsd ?? 0);
 
   const plantThroughput = round(plantCurrent._sum.tonnesProcessed ?? 0);
   const previousPlantThroughput = round(plantPrevious._sum.tonnesProcessed ?? 0);
@@ -590,7 +592,11 @@ export async function getExecutiveDashboardAggregations({
   const goldDailyMap = toMapPoints(
     goldPoursDaily.map((row) => ({
       date: row.pourDate,
-      value: row.grossWeight ?? 0,
+      value:
+        row.valueUsd ??
+        ((row.goldPriceUsdPerGram ?? 0) > 0
+          ? (row.grossWeight ?? 0) * (row.goldPriceUsdPerGram ?? 0)
+          : 0),
     })),
   );
 
@@ -606,7 +612,7 @@ export async function getExecutiveDashboardAggregations({
   const goldTrend = axis.map((day) => ({
     date: day,
     value: round(goldDailyMap[day] ?? 0),
-    comparison: round(previousGoldProducedWeight / window.days),
+    comparison: round(previousGoldProducedValue / window.days),
   }));
 
   const throughputTrend = axis.map((day) => ({
@@ -648,8 +654,8 @@ export async function getExecutiveDashboardAggregations({
     nearTermNetPosition: round(nearTermNetPosition),
     openReceivables: round(openReceivables),
     openPayables: round(openPayables),
-    goldProducedWeight,
-    previousGoldProducedWeight,
+    goldProducedValue,
+    previousGoldProducedValue,
     goldRealizedValue,
     previousGoldRealizedValue,
     activeWorkers,
@@ -728,7 +734,7 @@ export async function getExecutiveDashboardAggregations({
     metrics: {
       ...metrics,
       previousCashPosition: round(previousCashPosition),
-      previousGoldProducedWeight: round(previousGoldProducedWeight),
+      previousGoldProducedValue: round(previousGoldProducedValue),
       previousGoldRealizedValue: round(previousGoldRealizedValue),
       previousPlantThroughput: round(previousPlantThroughput),
     },

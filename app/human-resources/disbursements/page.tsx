@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -87,6 +87,14 @@ type BatchDetails = {
 };
 
 type BatchDetailItem = BatchDetails["items"][number];
+type MarkPaidItemForm = {
+  id: string;
+  employeeName: string;
+  employeeCode: string;
+  amount: number;
+  currency: string;
+  paidAmountInput: string;
+};
 
 const emptyBatchForm: BatchForm = {
   payrollRunId: "",
@@ -97,6 +105,12 @@ const emptyBatchForm: BatchForm = {
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function derivePaidState(total: number, paid: number) {
+  if (paid <= 0) return "DUE";
+  if (paid >= total) return "PAID";
+  return "PARTIAL";
 }
 
 function hydrateFormFromRun(
@@ -125,6 +139,9 @@ export default function DisbursementsPage() {
   const [detailsBatchId, setDetailsBatchId] = useState<string | null>(
     batchIdFromQuery,
   );
+  const [markPaidBatch, setMarkPaidBatch] = useState<BatchDetails | null>(null);
+  const [markPaidItems, setMarkPaidItems] = useState<MarkPaidItemForm[]>([]);
+  const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const [availableRunsQuery, setAvailableRunsQuery] = useState<DataTableQueryState>({
     mode: "paginated",
     page: 1,
@@ -278,27 +295,24 @@ export default function DisbursementsPage() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async (batchId: string) => {
-      const batch = await fetchJson<{
-        id: string;
-        items: Array<{ id: string }>;
-      }>(`/api/disbursements/batches/${batchId}`);
-
-      return fetchJson(`/api/disbursements/batches/${batchId}/mark-paid`, {
+    mutationFn: async (payload: { batchId: string; items: Array<{ id: string; paidAmount: number }> }) =>
+      fetchJson(`/api/disbursements/batches/${payload.batchId}/mark-paid`, {
         method: "POST",
         body: JSON.stringify({
-          items: batch.items.map((item) => ({ id: item.id })),
+          items: payload.items,
         }),
-      });
-    },
+      }),
     onSuccess: () => {
       toast({
         title: "Batch payment recorded",
         description:
-          "All disbursement items marked and synced to employee payments.",
+          "Disbursement item payments were updated and synced to employee payments.",
         variant: "success",
       });
+      setMarkPaidBatch(null);
+      setMarkPaidItems([]);
       queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["disbursement-batch-details"] });
       queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
     },
@@ -310,6 +324,63 @@ export default function DisbursementsPage() {
       });
     },
   });
+
+  const openMarkPaidDialog = useCallback(async (batchId: string) => {
+    try {
+      setMarkPaidLoading(true);
+      const batch = await fetchJson<BatchDetails>(`/api/disbursements/batches/${batchId}`);
+      setMarkPaidBatch(batch);
+      setMarkPaidItems(
+        batch.items.map((item) => ({
+          id: item.id,
+          employeeName: item.employee.name,
+          employeeCode: item.employee.employeeId,
+          amount: item.amount,
+          currency: item.lineItem.currency,
+          paidAmountInput: String(item.paidAmount ?? item.amount),
+        })),
+      );
+    } catch (error) {
+      toast({
+        title: "Unable to prepare payment form",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setMarkPaidLoading(false);
+    }
+  }, [toast]);
+
+  const submitMarkPaid = () => {
+    if (!markPaidBatch) return;
+
+    const payloadItems: Array<{ id: string; paidAmount: number }> = [];
+    for (const item of markPaidItems) {
+      const paidAmount = Number(item.paidAmountInput);
+      if (!Number.isFinite(paidAmount) || paidAmount < 0) {
+        toast({
+          title: "Invalid paid amount",
+          description: `Enter a valid paid amount for ${item.employeeName}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (paidAmount > item.amount) {
+        toast({
+          title: "Paid amount exceeds item amount",
+          description: `${item.employeeName} cannot exceed ${item.amount.toFixed(2)} ${item.currency}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      payloadItems.push({ id: item.id, paidAmount: roundMoney(paidAmount) });
+    }
+
+    markPaidMutation.mutate({
+      batchId: markPaidBatch.id,
+      items: payloadItems,
+    });
+  };
 
   const availableRunColumns = useMemo<ColumnDef<PayrollRunRecord>[]>(
     () => [
@@ -473,8 +544,8 @@ export default function DisbursementsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={markPaidMutation.isPending}
-                  onClick={() => markPaidMutation.mutate(row.original.id)}
+                  disabled={markPaidMutation.isPending || markPaidLoading}
+                  onClick={() => openMarkPaidDialog(row.original.id)}
                 >
                   Mark Paid
                 </Button>
@@ -495,7 +566,9 @@ export default function DisbursementsPage() {
     ],
     [
       approveBatchMutation,
+      markPaidLoading,
       markPaidMutation,
+      openMarkPaidDialog,
       submitBatchMutation,
     ],
   );
@@ -813,6 +886,137 @@ export default function DisbursementsPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(markPaidBatch)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMarkPaidBatch(null);
+            setMarkPaidItems([]);
+          }
+        }}
+      >
+        <DialogContent size="xl">
+          <DialogHeader>
+            <DialogTitle>Record Batch Payouts</DialogTitle>
+            <DialogDescription>
+              Capture paid amounts per worker. Set unpaid workers to 0.00 and finalize later when they are paid.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!markPaidBatch ? null : (
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-4 text-sm">
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
+                  <div className="text-xs text-muted-foreground">Batch</div>
+                  <div className="font-semibold">{markPaidBatch.code}</div>
+                </div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
+                  <div className="text-xs text-muted-foreground">Run</div>
+                  <div className="font-semibold">
+                    #{markPaidBatch.payrollRun.runNumber} ({markPaidBatch.payrollRun.period.periodKey})
+                  </div>
+                </div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
+                  <div className="text-xs text-muted-foreground">Total Amount</div>
+                  <div className="font-semibold"><NumericCell>{markPaidBatch.totalAmount.toFixed(2)}</NumericCell></div>
+                </div>
+                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
+                  <div className="text-xs text-muted-foreground">Items</div>
+                  <div className="font-semibold"><NumericCell>{markPaidBatch.itemCount}</NumericCell></div>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
+                {markPaidItems.map((item, index) => {
+                  const paidAmount = Number(item.paidAmountInput || 0);
+                  const state = derivePaidState(item.amount, Number.isFinite(paidAmount) ? paidAmount : 0);
+                  return (
+                    <div key={item.id} className="grid gap-2 md:grid-cols-[1.6fr_1fr_1fr_auto] md:items-center">
+                      <div>
+                        <div className="font-medium">{item.employeeName}</div>
+                        <div className="text-xs text-muted-foreground">{item.employeeCode}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Amount</div>
+                        <NumericCell>{item.currency} {item.amount.toFixed(2)}</NumericCell>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground" htmlFor={`paid-amount-${item.id}`}>
+                          Paid Amount
+                        </label>
+                        <Input
+                          id={`paid-amount-${item.id}`}
+                          type="number"
+                          min="0"
+                          max={item.amount}
+                          step="0.01"
+                          value={item.paidAmountInput}
+                          onChange={(event) =>
+                            setMarkPaidItems((prev) =>
+                              prev.map((row, rowIndex) =>
+                                rowIndex === index
+                                  ? { ...row, paidAmountInput: event.target.value }
+                                  : row,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Badge variant={state === "PAID" ? "success" : state === "PARTIAL" ? "warning" : "neutral"}>
+                          {state}
+                        </Badge>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setMarkPaidItems((prev) =>
+                              prev.map((row, rowIndex) =>
+                                rowIndex === index ? { ...row, paidAmountInput: "0" } : row,
+                              ),
+                            )
+                          }
+                        >
+                          Unpaid
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setMarkPaidItems((prev) =>
+                      prev.map((item) => ({ ...item, paidAmountInput: item.amount.toFixed(2) })),
+                    )
+                  }
+                >
+                  Set All Full
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setMarkPaidBatch(null);
+                    setMarkPaidItems([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="button" disabled={markPaidMutation.isPending} onClick={submitMarkPaid}>
+                  Save Payouts
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -34,6 +34,8 @@ type GoldChainRow = {
   pourBarId: string;
   site: string;
   date: string;
+  grossWeight: number;
+  valueUsd: number;
   status: "Complete" | "Dispatched" | "Waiting for dispatch";
 };
 
@@ -169,6 +171,8 @@ export default function GoldPage() {
           pourBarId: pour.pourBarId,
           site: pour.site.code,
           date: pour.pourDate,
+          grossWeight: pour.grossWeight,
+          valueUsd: pour.valueUsd ?? 0,
           status,
         };
       });
@@ -307,6 +311,20 @@ export default function GoldPage() {
         size: 128,
         minSize: 128,
         maxSize: 128},
+      {
+        id: "grossWeight",
+        header: "Gross Weight",
+        cell: ({ row }) => <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>,
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "valueUsd",
+        header: "Value (USD)",
+        cell: ({ row }) => <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>,
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
       {
         id: "status",
         header: "Status",

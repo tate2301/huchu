@@ -20,6 +20,7 @@
     "platform:accounting-replay": "tsx scripts/platform/accounting-replay.ts",
     "platform:accounting-backfill-events": "tsx scripts/platform/accounting-backfill-events.ts",
     "backfill:gold-valuations": "tsx scripts/backfill-gold-valuations.ts",
+    "backfill:gold-accounting-usd": "tsx scripts/backfill-gold-accounting-usd.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
     "db:push": "prisma db push"

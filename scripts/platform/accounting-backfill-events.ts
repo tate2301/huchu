@@ -139,6 +139,11 @@ async function backfillCompany(companyId: string, dryRun: boolean) {
   }
 
   for (const receipt of buyerReceipts) {
+    const receiptUsdAmount =
+      receipt.paidValueUsd ??
+      ((receipt.goldPriceUsdPerGram ?? 0) > 0
+        ? receipt.paidAmount * (receipt.goldPriceUsdPerGram ?? 0)
+        : receipt.paidAmount);
     await captureAccountingEvent({
       companyId,
       sourceDomain: "gold",
@@ -147,9 +152,9 @@ async function backfillCompany(companyId: string, dryRun: boolean) {
       sourceId: receipt.id,
       entryDate: receipt.receiptDate,
       description: `Backfill gold receipt ${receipt.receiptNumber}`,
-      amount: receipt.paidAmount,
-      netAmount: receipt.paidAmount,
-      grossAmount: receipt.paidAmount,
+      amount: receiptUsdAmount,
+      netAmount: receiptUsdAmount,
+      grossAmount: receiptUsdAmount,
       status: "PENDING",
     });
     captured += 1;

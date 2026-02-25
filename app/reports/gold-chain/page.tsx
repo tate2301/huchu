@@ -32,6 +32,7 @@ type GoldChainReportRow = {
   pourBarId: string;
   site: string;
   grossWeight: number;
+  valueUsd: number;
   dispatchDate?: string;
   receiptDate?: string;
   status: "Poured" | "Dispatched" | "Receipted";
@@ -99,6 +100,12 @@ export default function GoldChainReportPage() {
             pourBarId: pour.pourBarId,
             site: pour.site.name,
             grossWeight: pour.grossWeight,
+            valueUsd:
+              pour.valueUsd ??
+              receipt?.paidValueUsd ??
+              dispatch?.valueUsd ??
+              dispatch?.goldPour.valueUsd ??
+              0,
             dispatchDate: dispatch?.dispatchDate,
             receiptDate: receipt?.receiptDate,
             status,
@@ -142,6 +149,15 @@ export default function GoldChainReportPage() {
         header: "Weight",
         cell: ({ row }) => (
           <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "valueUsd",
+        header: "Value (USD)",
+        cell: ({ row }) => (
+          <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>
         ),
         size: 120,
         minSize: 120,

@@ -227,12 +227,12 @@ export async function GET(request: NextRequest) {
         requiredFeatures: ["accounting.ar", "accounting.ap"],
       },
       {
-        id: "gold-produced",
-        label: "Gold Produced",
-        value: metrics.goldProducedWeight,
-        unit: "g",
+        id: "gold-produced-value",
+        label: "Gold Produced Value",
+        value: metrics.goldProducedValue,
+        unit: "USD",
         module: "gold",
-        delta: calculateDelta(metrics.goldProducedWeight, metrics.previousGoldProducedWeight),
+        delta: calculateDelta(metrics.goldProducedValue, metrics.previousGoldProducedValue),
         requiredFeatures: ["gold.intake.pours"],
       },
       {
@@ -477,13 +477,15 @@ export async function GET(request: NextRequest) {
         reportHref: getModuleReportHref("finance"),
       },
       gold: {
-        primaryMetric: createSummaryMetric("Gold Produced", metrics.goldProducedWeight, { unit: "g" }),
+        primaryMetric: createSummaryMetric("Gold Produced Value", metrics.goldProducedValue, {
+          unit: "USD",
+        }),
         secondaryMetric: createSummaryMetric("Gold Realized Value", metrics.goldRealizedValue, {
           unit: "USD",
         }),
         tertiaryMetric: createSummaryMetric("Dispatches Pending Receipt", metrics.dispatchPendingReceipt),
         openExceptions: toExceptionCount(metrics.dispatchPendingReceipt),
-        trendDelta: calculateDelta(metrics.goldProducedWeight, metrics.previousGoldProducedWeight),
+        trendDelta: calculateDelta(metrics.goldProducedValue, metrics.previousGoldProducedValue),
         topExceptionLabel: pickTopExceptionLabel(goldSignals),
         reportHref: getModuleReportHref("gold"),
       },
