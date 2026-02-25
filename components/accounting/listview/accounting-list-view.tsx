@@ -116,6 +116,17 @@ function getRowKey<TData>(
   return `row_${index}`;
 }
 
+function toNormalCaseGroupLabel(value: string): string {
+  const compact = value.trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (!compact) return "Other";
+
+  return compact.replace(/[A-Za-z]+/g, (word) => {
+    if (/^[A-Z]{3}$/.test(word)) return word;
+    const lower = word.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  });
+}
+
 export function AccountingListView<TData>({
   data,
   columns,
@@ -170,9 +181,13 @@ export function AccountingListView<TData>({
       (row) => resolveGroupByValue(row.__original, groupBy),
       { groupOrder, fallbackGroup: "Other" },
     );
+    const normalized = withGroup.map((group) => ({
+      ...group,
+      group: toNormalCaseGroupLabel(group.group),
+    }));
     const hasMultipleGroups = withGroup.length > 1;
     if (!hasMultipleGroups && !groupBy) return null;
-    return withGroup;
+    return normalized;
   }, [internalRows, groupBy, groupOrder]);
 
   const listRows = groupedRows ?? internalRows;
@@ -276,14 +291,6 @@ export function AccountingListView<TData>({
               if (!found) return "";
               return renderColumnCell(found, source, rowIndex);
             },
-            "group-header": ({ group }) => (
-              <div className="flex w-full items-center justify-between pr-2">
-                <span className="text-sm font-medium">{group.group}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {Array.isArray(group.rows) ? group.rows.length : 0}
-                </span>
-              </div>
-            ),
           },
         }}
       />
