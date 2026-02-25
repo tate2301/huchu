@@ -175,35 +175,7 @@ export function AccountingListView<TData>({
     return withGroup;
   }, [internalRows, groupBy, groupOrder]);
 
-  const groupedSections = groupedRows && groupedRows.length > 0 ? groupedRows : null;
-
-  const listViewColumns = listColumns.map((column) => ({
-    key: column.key,
-    label: column.label,
-    width: column.width,
-    align: column.align,
-  }));
-
-  const listViewOptions = {
-    emptyState: {
-      title: emptyState,
-      description: "",
-    },
-    options: {
-      selectable,
-      showTooltip: false,
-      rowHeight: 42,
-    },
-    slots: {
-      cell: ({ row, column }: { row: unknown; column: { key: string } }) => {
-        const source = (row as InternalRow<TData>).__original;
-        const rowIndex = (row as InternalRow<TData>).__row_index;
-        const found = listColumns.find((candidate) => candidate.key === column.key);
-        if (!found) return "";
-        return renderColumnCell(found, source, rowIndex);
-      },
-    },
-  } as const;
+  const listRows = groupedRows ?? internalRows;
 
   return (
     <div className={className ?? "space-y-0"}>
@@ -277,33 +249,44 @@ export function AccountingListView<TData>({
         ) : null}
       </div>
 
-      {groupedSections ? (
-        <div className="space-y-4 pt-3">
-          {groupedSections.map((section) => (
-            <div key={section.group} className="space-y-2">
-              <div className="flex items-center justify-between px-[var(--content-gutter-x)]">
-                <span className="text-sm font-medium">{section.group}</span>
+      <ListView
+        columns={listColumns.map((column) => ({
+          key: column.key,
+          label: column.label,
+          width: column.width,
+          align: column.align,
+        }))}
+        rows={listRows}
+        rowKey="__list_row_key"
+        options={{
+          emptyState: {
+            title: emptyState,
+            description: "",
+          },
+          options: {
+            selectable,
+            showTooltip: false,
+            rowHeight: 42,
+          },
+          slots: {
+            cell: ({ row, column }) => {
+              const source = (row as InternalRow<TData>).__original;
+              const rowIndex = (row as InternalRow<TData>).__row_index;
+              const found = listColumns.find((candidate) => candidate.key === column.key);
+              if (!found) return "";
+              return renderColumnCell(found, source, rowIndex);
+            },
+            "group-header": ({ group }) => (
+              <div className="flex w-full items-center justify-between pr-2">
+                <span className="text-sm font-medium">{group.group}</span>
                 <span className="font-mono text-xs text-muted-foreground">
-                  {section.rows.length}
+                  {Array.isArray(group.rows) ? group.rows.length : 0}
                 </span>
               </div>
-              <ListView
-                columns={listViewColumns}
-                rows={section.rows}
-                rowKey="__list_row_key"
-                options={listViewOptions}
-              />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <ListView
-          columns={listViewColumns}
-          rows={internalRows}
-          rowKey="__list_row_key"
-          options={listViewOptions}
-        />
-      )}
+            ),
+          },
+        }}
+      />
     </div>
   );
 }

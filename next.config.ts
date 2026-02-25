@@ -9,6 +9,17 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  turbopack: {
+    rules: {
+      "*.svg": {
+        condition: {
+          path: /@rtcamp\/frappe-ui-react\/dist\/icons\/down-solid\.svg$/,
+        },
+        loaders: ["@svgr/webpack"],
+        as: "*.js",
+      },
+    },
+  },
 };
 
 export default nextConfig;
