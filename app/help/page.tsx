@@ -42,7 +42,7 @@ const helpTopics = [
     id: "gold",
     title: "Gold Control",
     tips: [
-      "Record pour, dispatch, and receipt in order to keep chain integrity.",
+      "Record each sale against a batch; dispatch is optional when not needed.",
       "Required witness and handover fields prevent incomplete records.",
       "After submit, review the highlighted history row under each form.",
     ],

@@ -185,7 +185,12 @@ async function findEntityMaxExistingCode(
     }
     case "GOLD_RECEIPT": {
       const records = await db.buyerReceipt.findMany({
-        where: { goldDispatch: { goldPour: { site: { companyId } } } },
+        where: {
+          OR: [
+            { goldPour: { is: { site: { companyId } } } },
+            { goldDispatch: { is: { goldPour: { site: { companyId } } } } },
+          ],
+        },
         select: { receiptNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNumber), prefix);

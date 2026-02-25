@@ -68,9 +68,11 @@ export default function GoldTransitDispatchesPage() {
     enabled: createOpen,
   });
 
-  const settledDispatchIds = useMemo(() => {
+  const soldPourIds = useMemo(() => {
     const ids = new Set<string>();
-    (receiptsData?.data ?? []).forEach((receipt) => ids.add(receipt.goldDispatch.id));
+    (receiptsData?.data ?? []).forEach((receipt) => {
+      if (receipt.goldPour.id) ids.add(receipt.goldPour.id);
+    });
     return ids;
   }, [receiptsData]);
 
@@ -134,7 +136,7 @@ export default function GoldTransitDispatchesPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => {
-          const settled = settledDispatchIds.has(row.original.id);
+          const settled = soldPourIds.has(row.original.goldPourId);
           return (
             <Badge variant={settled ? "default" : "secondary"}>
               {settled ? "Settled" : "Awaiting sale"}
@@ -143,7 +145,7 @@ export default function GoldTransitDispatchesPage() {
         },
       },
     ],
-    [settledDispatchIds],
+    [soldPourIds],
   );
 
   return (

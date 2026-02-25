@@ -93,6 +93,12 @@ async function resolveCorrectionTarget(
     where: { id: entityId },
     select: {
       id: true,
+      goldPour: {
+        select: {
+          id: true,
+          site: { select: { companyId: true } },
+        },
+      },
       goldDispatch: {
         select: {
           goldPour: {
@@ -106,10 +112,11 @@ async function resolveCorrectionTarget(
     },
   });
 
-  if (!receipt || receipt.goldDispatch.goldPour.site.companyId !== companyId) {
+  const receiptPour = receipt?.goldPour ?? receipt?.goldDispatch?.goldPour
+  if (!receipt || !receiptPour || receiptPour.site.companyId !== companyId) {
     return null;
   }
-  return { pourId: receipt.goldDispatch.goldPour.id };
+  return { pourId: receiptPour.id };
 }
 
 export async function GET(request: NextRequest) {

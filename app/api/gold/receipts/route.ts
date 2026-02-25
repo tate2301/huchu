@@ -11,20 +11,108 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
-const buyerReceiptSchema = z.object({
-  receiptNumber: z.string().min(1).max(50).optional(),
-  goldDispatchId: z.string().uuid(),
-  receiptDate: z
-    .string()
-    .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
-  assayResult: z.number().min(0).optional(),
-  paidAmount: z.number().min(0),
-  paymentMethod: z.string().min(1).max(100),
-  paymentChannel: z.string().max(100).optional(),
-  paymentReference: z.string().max(100).optional(),
-  notes: z.string().max(1000).optional(),
-})
+const buyerReceiptSchema = z
+  .object({
+    receiptNumber: z.string().min(1).max(50).optional(),
+    goldDispatchId: z.string().uuid().optional(),
+    goldPourId: z.string().uuid().optional(),
+    receiptDate: z
+      .string()
+      .datetime()
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
+    assayResult: z.number().min(0).optional(),
+    paidAmount: z.number().min(0),
+    paymentMethod: z.string().min(1).max(100),
+    paymentChannel: z.string().max(100).optional(),
+    paymentReference: z.string().max(100).optional(),
+    notes: z.string().max(1000).optional(),
+  })
+  .refine((value) => Boolean(value.goldDispatchId || value.goldPourId), {
+    message: "Batch or dispatch is required",
+    path: ["goldPourId"],
+  })
+
+const receiptInclude = {
+  goldPour: {
+    select: {
+      id: true,
+      pourBarId: true,
+      grossWeight: true,
+      pourDate: true,
+      site: { select: { name: true, code: true } },
+    },
+  },
+  goldDispatch: {
+    include: {
+      goldPour: {
+        select: {
+          id: true,
+          pourBarId: true,
+          grossWeight: true,
+          pourDate: true,
+          site: { select: { name: true, code: true } },
+        },
+      },
+    },
+  },
+} as const
+
+function toBatchRef<T extends { id: string; pourBarId: string }>(goldPour: T) {
+  return {
+    ...goldPour,
+    batchId: goldPour.id,
+    batchCode: goldPour.pourBarId,
+  }
+}
+
+function normalizeReceipt<
+  T extends {
+    goldPour: {
+      id: string
+      pourBarId: string
+      grossWeight: number
+      pourDate: Date
+      site: { name: string; code: string }
+    } | null
+    goldDispatch: {
+      id: string
+      dispatchDate: Date
+      courier: string
+      goldPour: {
+        id: string
+        pourBarId: string
+        grossWeight: number
+        pourDate: Date
+        site: { name: string; code: string }
+      }
+    } | null
+  },
+>(receipt: T) {
+  const basePour = receipt.goldPour ?? receipt.goldDispatch?.goldPour
+  if (!basePour) return receipt
+
+  return {
+    ...receipt,
+    goldPour: toBatchRef(basePour),
+    goldDispatch: receipt.goldDispatch
+      ? {
+          ...receipt.goldDispatch,
+          batchId: receipt.goldDispatch.goldPour.id,
+          batchCode: receipt.goldDispatch.goldPour.pourBarId,
+          goldPour: toBatchRef(receipt.goldDispatch.goldPour),
+        }
+      : null,
+  }
+}
+
+function companyScope(companyId: string) {
+  return {
+    OR: [
+      { goldPour: { is: { site: { companyId } } } },
+      { goldDispatch: { is: { goldPour: { site: { companyId } } } } },
+    ],
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,42 +123,36 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const siteId = searchParams.get("siteId")
     const goldDispatchId = searchParams.get("goldDispatchId")
+    const goldPourId = searchParams.get("goldPourId")
     const { page, limit, skip } = getPaginationParams(request)
 
-    const where: Record<string, unknown> = {
-      goldDispatch: {
-        goldPour: { site: { companyId: session.user.companyId } },
-      },
-    }
+    const andFilters: Record<string, unknown>[] = [companyScope(session.user.companyId)]
 
     if (siteId) {
-      const goldDispatchWhere = (where.goldDispatch as Record<string, unknown> | undefined) ?? {}
-      where.goldDispatch = {
-        ...goldDispatchWhere,
-        goldPour: { siteId },
-      }
+      andFilters.push({
+        OR: [
+          { goldPour: { is: { siteId } } },
+          { goldDispatch: { is: { goldPour: { siteId } } } },
+        ],
+      })
     }
 
-    if (goldDispatchId) where.goldDispatchId = goldDispatchId
+    if (goldDispatchId) andFilters.push({ goldDispatchId })
+    if (goldPourId) {
+      andFilters.push({
+        OR: [
+          { goldPourId },
+          { goldDispatch: { is: { goldPourId } } },
+        ],
+      })
+    }
+
+    const where: Record<string, unknown> = { AND: andFilters }
 
     const [receipts, total] = await Promise.all([
       prisma.buyerReceipt.findMany({
         where,
-        include: {
-          goldDispatch: {
-            include: {
-              goldPour: {
-                select: {
-                  id: true,
-                  pourBarId: true,
-                  grossWeight: true,
-                  pourDate: true,
-                  site: { select: { name: true, code: true } },
-                },
-              },
-            },
-          },
-        },
+        include: receiptInclude,
         orderBy: { receiptDate: "desc" },
         skip,
         take: limit,
@@ -78,19 +160,7 @@ export async function GET(request: NextRequest) {
       prisma.buyerReceipt.count({ where }),
     ])
 
-    const normalizedReceipts = receipts.map((receipt) => ({
-      ...receipt,
-      goldDispatch: {
-        ...receipt.goldDispatch,
-        batchId: receipt.goldDispatch.goldPour.id,
-        batchCode: receipt.goldDispatch.goldPour.pourBarId,
-        goldPour: {
-          ...receipt.goldDispatch.goldPour,
-          batchId: receipt.goldDispatch.goldPour.id,
-          batchCode: receipt.goldDispatch.goldPour.pourBarId,
-        },
-      },
-    }))
+    const normalizedReceipts = receipts.map((receipt) => normalizeReceipt(receipt))
 
     return successResponse(paginationResponse(normalizedReceipts, total, page, limit))
   } catch (error) {
@@ -108,24 +178,56 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = buyerReceiptSchema.parse(body)
 
-    const dispatch = await prisma.goldDispatch.findUnique({
-      where: { id: validated.goldDispatchId },
-      include: {
-        goldPour: { include: { site: { select: { companyId: true } } } },
-      },
-    })
+    const dispatch = validated.goldDispatchId
+      ? await prisma.goldDispatch.findUnique({
+          where: { id: validated.goldDispatchId },
+          include: {
+            goldPour: { select: { id: true, site: { select: { companyId: true } } } },
+          },
+        })
+      : null
 
-    if (!dispatch || dispatch.goldPour.site.companyId !== session.user.companyId) {
+    if (
+      validated.goldDispatchId &&
+      (!dispatch || dispatch.goldPour.site.companyId !== session.user.companyId)
+    ) {
       return errorResponse("Invalid dispatch", 403)
     }
 
-    const existingReceipt = await prisma.buyerReceipt.findUnique({
-      where: { goldDispatchId: validated.goldDispatchId },
+    const resolvedGoldPourId = validated.goldPourId ?? dispatch?.goldPourId
+    if (!resolvedGoldPourId) {
+      return errorResponse("Batch is required", 400)
+    }
+    if (
+      dispatch &&
+      validated.goldPourId &&
+      validated.goldPourId !== dispatch.goldPourId
+    ) {
+      return errorResponse("Dispatch does not belong to selected batch", 400)
+    }
+
+    const goldPour = await prisma.goldPour.findUnique({
+      where: { id: resolvedGoldPourId },
+      select: {
+        id: true,
+        site: { select: { companyId: true } },
+      },
+    })
+    if (!goldPour || goldPour.site.companyId !== session.user.companyId) {
+      return errorResponse("Invalid batch", 403)
+    }
+
+    const existingBatchReceipt = await prisma.buyerReceipt.findFirst({
+      where: {
+        OR: [
+          { goldPourId: resolvedGoldPourId },
+          { goldDispatch: { is: { goldPourId: resolvedGoldPourId } } },
+        ],
+      },
       select: { id: true },
     })
-
-    if (existingReceipt) {
-      return errorResponse("Receipt already exists for this dispatch", 409)
+    if (existingBatchReceipt) {
+      return errorResponse("Sale record already exists for this batch", 409)
     }
 
     const receiptNumber = validated.receiptNumber
@@ -138,11 +240,7 @@ export async function POST(request: NextRequest) {
     const duplicateReceiptNumber = await prisma.buyerReceipt.findFirst({
       where: {
         receiptNumber,
-        goldDispatch: {
-          goldPour: {
-            site: { companyId: session.user.companyId },
-          },
-        },
+        AND: [companyScope(session.user.companyId)],
       },
       select: { id: true },
     })
@@ -153,6 +251,7 @@ export async function POST(request: NextRequest) {
     const receipt = await prisma.buyerReceipt.create({
       data: {
         goldDispatchId: validated.goldDispatchId,
+        goldPourId: resolvedGoldPourId,
         receiptNumber,
         receiptDate: new Date(validated.receiptDate),
         assayResult: validated.assayResult,
@@ -162,21 +261,7 @@ export async function POST(request: NextRequest) {
         paymentReference: validated.paymentReference,
         notes: validated.notes,
       },
-      include: {
-        goldDispatch: {
-          include: {
-            goldPour: {
-              select: {
-                id: true,
-                pourBarId: true,
-                grossWeight: true,
-                pourDate: true,
-                site: { select: { name: true, code: true } },
-              },
-            },
-          },
-        },
-      },
+      include: receiptInclude,
     })
 
     try {
@@ -196,22 +281,7 @@ export async function POST(request: NextRequest) {
       console.error("[Accounting] Gold receipt auto-post failed:", error)
     }
 
-    return successResponse(
-      {
-        ...receipt,
-        goldDispatch: {
-          ...receipt.goldDispatch,
-          batchId: receipt.goldDispatch.goldPour.id,
-          batchCode: receipt.goldDispatch.goldPour.pourBarId,
-          goldPour: {
-            ...receipt.goldDispatch.goldPour,
-            batchId: receipt.goldDispatch.goldPour.id,
-            batchCode: receipt.goldDispatch.goldPour.pourBarId,
-          },
-        },
-      },
-      201,
-    )
+    return successResponse(normalizeReceipt(receipt), 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)

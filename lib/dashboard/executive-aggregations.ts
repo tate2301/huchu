@@ -354,22 +354,48 @@ export async function getExecutiveDashboardAggregations({
       _sum: { paidAmount: true },
       where: {
         receiptDate: currentRange,
-        goldDispatch: {
-          goldPour: {
-            site: siteScope,
+        OR: [
+          {
+            goldPour: {
+              is: {
+                site: siteScope,
+              },
+            },
           },
-        },
+          {
+            goldDispatch: {
+              is: {
+                goldPour: {
+                  site: siteScope,
+                },
+              },
+            },
+          },
+        ],
       },
     }),
     prisma.buyerReceipt.aggregate({
       _sum: { paidAmount: true },
       where: {
         receiptDate: previousRange,
-        goldDispatch: {
-          goldPour: {
-            site: siteScope,
+        OR: [
+          {
+            goldPour: {
+              is: {
+                site: siteScope,
+              },
+            },
           },
-        },
+          {
+            goldDispatch: {
+              is: {
+                goldPour: {
+                  site: siteScope,
+                },
+              },
+            },
+          },
+        ],
       },
     }),
     prisma.employee.count({
@@ -477,6 +503,7 @@ export async function getExecutiveDashboardAggregations({
         buyerReceipt: { is: null },
         goldPour: {
           site: siteScope,
+          receipts: { none: {} },
         },
       },
     }),

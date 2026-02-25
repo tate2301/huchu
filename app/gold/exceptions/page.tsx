@@ -108,10 +108,12 @@ export default function GoldExceptionsPage() {
     return map;
   }, [dispatches]);
 
-  const receiptByDispatchId = useMemo(() => {
-    const map = new Map<string, (typeof receipts)[number]>();
-    receipts.forEach((receipt) => map.set(receipt.goldDispatch.id, receipt));
-    return map;
+  const soldPourIds = useMemo(() => {
+    const ids = new Set<string>();
+    receipts.forEach((receipt) => {
+      if (receipt.goldPour.id) ids.add(receipt.goldPour.id);
+    });
+    return ids;
   }, [receipts]);
 
   const missingDispatchRows = useMemo<MissingDispatchRow[]>(
@@ -131,7 +133,7 @@ export default function GoldExceptionsPage() {
   const missingSaleRows = useMemo<MissingSaleRow[]>(
     () =>
       dispatches
-        .filter((dispatch) => !receiptByDispatchId.has(dispatch.id))
+        .filter((dispatch) => !soldPourIds.has(dispatch.goldPourId))
         .map((dispatch) => ({
           id: dispatch.id,
           batchId: dispatch.goldPour.pourBarId,
@@ -139,7 +141,7 @@ export default function GoldExceptionsPage() {
           destination: dispatch.destination,
           dispatchDate: dispatch.dispatchDate,
         })),
-    [dispatches, receiptByDispatchId],
+    [dispatches, soldPourIds],
   );
 
   const correctionRows = useMemo<CorrectionRow[]>(

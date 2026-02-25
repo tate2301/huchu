@@ -22,7 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { fetchGoldDispatches, fetchGoldReceipts } from "@/lib/api";
+import { fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
@@ -64,6 +64,11 @@ export default function GoldSettlementReceiptsPage() {
     queryFn: () => fetchGoldDispatches({ limit: 300 }),
     enabled: createOpen,
   });
+  const { data: poursData } = useQuery({
+    queryKey: ["gold-pours", "settlement-lane"],
+    queryFn: () => fetchGoldPours({ limit: 300 }),
+    enabled: createOpen,
+  });
 
   const rows = useMemo(
     () =>
@@ -73,14 +78,21 @@ export default function GoldSettlementReceiptsPage() {
     [data],
   );
   const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
-  const receiptDispatchIds = useMemo(() => {
+  const pours = useMemo(() => poursData?.data ?? [], [poursData]);
+  const soldPourIds = useMemo(() => {
     const ids = new Set<string>();
-    rows.forEach((receipt) => ids.add(receipt.goldDispatch.id));
+    rows.forEach((receipt) => {
+      if (receipt.goldPour.id) ids.add(receipt.goldPour.id);
+    });
     return ids;
   }, [rows]);
+  const availableBatches = useMemo(
+    () => pours.filter((pour) => !soldPourIds.has(pour.id)),
+    [pours, soldPourIds],
+  );
   const availableDispatches = useMemo(
-    () => dispatches.filter((dispatch) => !receiptDispatchIds.has(dispatch.id)),
-    [dispatches, receiptDispatchIds],
+    () => dispatches.filter((dispatch) => !soldPourIds.has(dispatch.goldPourId)),
+    [dispatches, soldPourIds],
   );
 
   const columns = useMemo<ColumnDef<GoldReceiptRow>[]>(
@@ -104,7 +116,15 @@ export default function GoldSettlementReceiptsPage() {
       {
         id: "batch",
         header: "Batch",
-        cell: ({ row }) => row.original.goldDispatch.goldPour.pourBarId,
+        cell: ({ row }) => row.original.goldPour.pourBarId,
+      },
+      {
+        id: "source",
+        header: "Source",
+        cell: ({ row }) =>
+          row.original.goldDispatch
+            ? `Dispatch ${row.original.goldDispatch.id.slice(0, 8)}`
+            : "Direct from batch",
       },
       {
         id: "paymentMethod",
@@ -142,8 +162,8 @@ export default function GoldSettlementReceiptsPage() {
     >
       <PageIntro
         title="Sales"
-        purpose="Record buyer sale details for dispatched batches."
-        nextStep="Add missing sale records for dispatches still waiting."
+        purpose="Record buyer sale details per batch, with or without dispatch."
+        nextStep="Select an unsold batch and optionally link a dispatch."
       />
       <RecordSavedBanner entityLabel="gold sale record" />
 
@@ -193,8 +213,9 @@ export default function GoldSettlementReceiptsPage() {
               redirectOnSuccess={false}
               onSuccess={handleCloseCreate}
               onCancel={handleCloseCreate}
+              availableBatches={availableBatches}
               availableDispatches={availableDispatches}
-              dispatchCreateHref={goldRoutes.transit.create}
+              batchCreateHref={goldRoutes.intake.create}
             />
           </div>
         </SheetContent>

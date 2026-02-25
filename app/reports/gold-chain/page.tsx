@@ -74,9 +74,11 @@ export default function GoldChainReportPage() {
     return map;
   }, [dispatches]);
 
-  const receiptByDispatch = useMemo(() => {
+  const receiptByPour = useMemo(() => {
     const map = new Map<string, (typeof receipts)[number]>();
-    receipts.forEach((row) => map.set(row.goldDispatch.id, row));
+    receipts.forEach((row) => {
+      if (row.goldPour.id) map.set(row.goldPour.id, row);
+    });
     return map;
   }, [receipts]);
 
@@ -85,7 +87,7 @@ export default function GoldChainReportPage() {
       pours
         .map((pour) => {
           const dispatch = dispatchByPour.get(pour.id);
-          const receipt = dispatch ? receiptByDispatch.get(dispatch.id) : undefined;
+          const receipt = receiptByPour.get(pour.id);
           const status: GoldChainReportRow["status"] = receipt
             ? "Receipted"
             : dispatch
@@ -103,7 +105,7 @@ export default function GoldChainReportPage() {
           };
         })
         .sort((a, b) => b.pourDate.localeCompare(a.pourDate)),
-    [dispatchByPour, pours, receiptByDispatch],
+    [dispatchByPour, pours, receiptByPour],
   );
 
   const columns = useMemo<ColumnDef<GoldChainReportRow>[]>(

@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -27,7 +28,8 @@ import { useReservedId } from "@/hooks/use-reserved-id";
 
 export function ReceiptForm({
   cancelHref,
-  dispatchCreateHref,
+  batchCreateHref,
+  availableBatches,
   availableDispatches,
   mode = "page",
   onSuccess,
@@ -35,11 +37,19 @@ export function ReceiptForm({
   redirectOnSuccess,
 }: {
   cancelHref?: string;
-  dispatchCreateHref?: string;
+  batchCreateHref?: string;
+  availableBatches: Array<{
+    id: string;
+    pourDate: string;
+    pourBarId: string;
+    grossWeight: number;
+    site: { name: string };
+  }>;
   availableDispatches: Array<{
     id: string;
     dispatchDate: string;
     courier: string;
+    goldPourId: string;
     goldPour: { pourBarId: string; grossWeight: number; site: { name: string } };
   }>;
   mode?: "page" | "modal";
@@ -52,6 +62,7 @@ export function ReceiptForm({
   const router = useRouter();
   const shouldRedirect = redirectOnSuccess ?? mode === "page";
   const [formData, setFormData] = useState({
+    goldPourId: "",
     goldDispatchId: "",
     receiptDate: new Date().toISOString().slice(0, 16),
     assayResult: "",
@@ -79,24 +90,44 @@ export function ReceiptForm({
 
   const handleSelectChange =
     (field: keyof typeof formData) => (value: string) => {
-      setFormData((prev) => ({ ...prev, [field]: value }));
+      setFormData((prev) => {
+        if (field === "goldPourId") {
+          const nextDispatch =
+            prev.goldDispatchId &&
+            dispatchById.get(prev.goldDispatchId)?.goldPourId === value
+              ? prev.goldDispatchId
+              : ""
+          return { ...prev, goldPourId: value, goldDispatchId: nextDispatch }
+        }
+        return { ...prev, [field]: value }
+      });
     };
 
-  const dispatchOptions = useMemo(
+  const batchOptions = useMemo(
     () =>
-      availableDispatches.map((dispatch) => ({
-        value: dispatch.id,
-        label: dispatch.goldPour.pourBarId,
-        description: `${dispatch.goldPour.site.name} - ${dispatch.courier}`,
-        meta: `${dispatch.goldPour.grossWeight} g`,
+      availableBatches.map((batch) => ({
+        value: batch.id,
+        label: batch.pourBarId,
+        description: batch.site.name,
+        meta: `${batch.grossWeight} g`,
       })),
-    [availableDispatches],
+    [availableBatches],
+  );
+
+  const dispatchById = new Map(availableDispatches.map((dispatch) => [dispatch.id, dispatch]));
+  const filteredDispatches = useMemo(
+    () =>
+      formData.goldPourId
+        ? availableDispatches.filter((dispatch) => dispatch.goldPourId === formData.goldPourId)
+        : availableDispatches,
+    [availableDispatches, formData.goldPourId],
   );
 
   const createReceiptMutation = useMutation({
     mutationFn: async (payload: {
       receiptNumber: string;
-      goldDispatchId: string;
+      goldPourId: string;
+      goldDispatchId?: string;
       receiptDate: string;
       assayResult?: number;
       paidAmount: number;
@@ -144,7 +175,7 @@ export function ReceiptForm({
     : undefined;
   const canSubmit =
     !!reservedReceiptNumber &&
-    !!formData.goldDispatchId &&
+    !!formData.goldPourId &&
     !!formData.receiptDate &&
     !!formData.assayResult &&
     !Number.isNaN(paidAmountValue) &&
@@ -173,7 +204,8 @@ export function ReceiptForm({
     }
     createReceiptMutation.mutate({
       receiptNumber: reservedReceiptNumber,
-      goldDispatchId: formData.goldDispatchId,
+      goldPourId: formData.goldPourId,
+      goldDispatchId: formData.goldDispatchId || undefined,
       receiptDate: formData.receiptDate,
       assayResult: assayResultValue,
       paidAmount: paidAmountValue,
@@ -241,15 +273,15 @@ export function ReceiptForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Sale Record</CardTitle>
-          <CardDescription>Fill all required fields.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {availableDispatches.length === 0 ? (
+        <CardTitle>Sale Record</CardTitle>
+        <CardDescription>Fill all required fields.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+          {availableBatches.length === 0 ? (
             <Alert>
-              <AlertTitle>No dispatches awaiting receipt</AlertTitle>
+              <AlertTitle>No batches awaiting sale</AlertTitle>
               <AlertDescription>
-                Record a dispatch before adding a receipt.
+                Record a batch, or complete pending sales before adding a new one.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -271,21 +303,51 @@ export function ReceiptForm({
             </div>
 
             <SearchableSelect
-              label="Select Dispatch *"
-              value={formData.goldDispatchId || undefined}
-              options={dispatchOptions}
-              placeholder={
-                availableDispatches.length === 0
-                  ? "No dispatches awaiting receipt"
-                  : "Select dispatch"
-              }
-              searchPlaceholder="Search dispatches..."
-              onValueChange={handleSelectChange("goldDispatchId")}
+              label="Select Batch *"
+              value={formData.goldPourId || undefined}
+              options={batchOptions}
+              placeholder={availableBatches.length === 0 ? "No batches awaiting sale" : "Select batch"}
+              searchPlaceholder="Search batches..."
+              onValueChange={handleSelectChange("goldPourId")}
               onAddOption={() =>
-                router.push(dispatchCreateHref ?? goldRoutes.transit.newDispatch)
+                router.push(batchCreateHref ?? goldRoutes.intake.create)
               }
-              addLabel="Record dispatch"
+              addLabel="Record batch"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">Dispatch (Optional)</label>
+            <Select
+              value={formData.goldDispatchId || "none"}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, goldDispatchId: value === "none" ? "" : value }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="No dispatch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No dispatch (direct sale from batch)</SelectItem>
+                {filteredDispatches.map((dispatch) => (
+                  <SelectItem key={dispatch.id} value={dispatch.id}>
+                    {dispatch.goldPour.pourBarId} | {dispatch.courier} | {dispatch.goldPour.site.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldHelp
+              hint={
+                formData.goldPourId
+                  ? "Link a dispatch only if this sale came through transit."
+                  : "Select a batch first to narrow dispatch options."
+              }
+            />
+            {formData.goldPourId && filteredDispatches.length === 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                No dispatch records for this batch yet. You can still save this as a direct sale.
+              </p>
+            ) : null}
           </div>
 
           <div>

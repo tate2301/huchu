@@ -729,6 +729,8 @@ export type GoldDispatch = {
 
 export type BuyerReceipt = {
   id: string;
+  goldDispatchId?: string | null;
+  goldPourId?: string | null;
   receiptNumber: string;
   receiptDate: string;
   assayResult?: number | null;
@@ -737,7 +739,16 @@ export type BuyerReceipt = {
   paymentChannel?: string | null;
   paymentReference?: string | null;
   notes?: string | null;
-  goldDispatch: {
+  goldPour: {
+    id?: string;
+    batchId?: string;
+    batchCode?: string;
+    pourBarId: string;
+    grossWeight: number;
+    pourDate: string;
+    site: { name: string; code: string };
+  };
+  goldDispatch?: {
     id: string;
     batchId?: string;
     batchCode?: string;
@@ -752,7 +763,7 @@ export type BuyerReceipt = {
       pourDate: string;
       site: { name: string; code: string };
     };
-  };
+  } | null;
 };
 
 export type GoldPurchase = {
@@ -2013,6 +2024,7 @@ export async function fetchGoldReceipts(
   params: {
     siteId?: string;
     goldDispatchId?: string;
+    goldPourId?: string;
     page?: number;
     limit?: number;
   } = {},

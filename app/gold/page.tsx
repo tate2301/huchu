@@ -134,18 +134,18 @@ export default function GoldPage() {
     return map;
   }, [dispatches]);
 
-  const receiptByDispatchId = useMemo(() => {
+  const receiptByPourId = useMemo(() => {
     const map = new Map<string, (typeof receipts)[number]>();
     receipts.forEach((receipt) => {
-      map.set(receipt.goldDispatch.id, receipt);
+      if (receipt.goldPour.id) map.set(receipt.goldPour.id, receipt);
     });
     return map;
   }, [receipts]);
 
   const pendingSettlementDispatches = useMemo(
     () =>
-      dispatches.filter((dispatch) => !receiptByDispatchId.has(dispatch.id)),
-    [dispatches, receiptByDispatchId],
+      dispatches.filter((dispatch) => !receiptByPourId.has(dispatch.goldPourId)),
+    [dispatches, receiptByPourId],
   );
 
   const commandError = poursError || dispatchesError || receiptsError;
@@ -158,9 +158,7 @@ export default function GoldPage() {
       .slice(0, 50)
       .map((pour) => {
         const dispatch = dispatchByPourId.get(pour.id);
-        const receipt = dispatch
-          ? receiptByDispatchId.get(dispatch.id)
-          : undefined;
+        const receipt = receiptByPourId.get(pour.id);
         const status = receipt
           ? "Complete"
           : dispatch
@@ -174,7 +172,7 @@ export default function GoldPage() {
           status,
         };
       });
-  }, [dispatchByPourId, pours, receiptByDispatchId]);
+  }, [dispatchByPourId, pours, receiptByPourId]);
 
   const attendanceShifts = useMemo(() => {
     const grouped = new Map<string, AttendanceShiftSummary>();

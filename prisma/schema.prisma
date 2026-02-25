@@ -1756,6 +1756,7 @@ model GoldPour {
   witness2   Employee       @relation("Witness2", fields: [witness2Id], references: [id])
   purchase   GoldPurchase?
   dispatches GoldDispatch[]
+  receipts   BuyerReceipt[]
 
   @@index([siteId])
   @@index([pourDate])
@@ -1837,7 +1838,8 @@ model GoldDispatch {
 
 model BuyerReceipt {
   id               String   @id @default(uuid())
-  goldDispatchId   String   @unique
+  goldDispatchId   String?  @unique
+  goldPourId       String?
   receiptNumber    String
   receiptDate      DateTime
   assayResult      Float? // actual purity
@@ -1850,8 +1852,10 @@ model BuyerReceipt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  goldDispatch GoldDispatch @relation(fields: [goldDispatchId], references: [id])
+  goldDispatch GoldDispatch? @relation(fields: [goldDispatchId], references: [id])
+  goldPour     GoldPour?     @relation(fields: [goldPourId], references: [id])
 
+  @@index([goldPourId])
   @@index([receiptDate])
 }
 
