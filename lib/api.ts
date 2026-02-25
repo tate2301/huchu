@@ -693,6 +693,7 @@ export type GoldPour = {
   batchCode?: string;
   pourBarId: string;
   pourDate: string;
+  sourceType?: "PRODUCTION" | "PURCHASE_PUBLIC";
   grossWeight: number;
   estimatedPurity?: number | null;
   storageLocation: string;
@@ -751,6 +752,36 @@ export type BuyerReceipt = {
       pourDate: string;
       site: { name: string; code: string };
     };
+  };
+};
+
+export type GoldPurchase = {
+  id: string;
+  purchaseNumber: string;
+  purchaseDate: string;
+  sellerType: "EMPLOYEE" | "EXTERNAL";
+  sellerName: string;
+  sellerPhone: string;
+  grossWeight: number;
+  estimatedPurity?: number | null;
+  storageLocation: string;
+  paidAmount: number;
+  currency: string;
+  paymentMethod: string;
+  paymentChannel?: string | null;
+  paymentReference?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  site: { id: string; name: string; code: string };
+  sellerEmployee?: { id: string; name: string; employeeId: string } | null;
+  receiver1: { id: string; name: string; employeeId: string };
+  receiver2: { id: string; name: string; employeeId: string };
+  goldPour: {
+    id: string;
+    pourBarId: string;
+    pourDate: string;
+    grossWeight: number;
+    site: { name: string; code: string };
   };
 };
 
@@ -1883,7 +1914,8 @@ export type ReserveIdEntity =
   | "STOCK_LOCATION"
   | "STOCK_MOVEMENT"
   | "GOLD_POUR"
-  | "GOLD_RECEIPT";
+  | "GOLD_RECEIPT"
+  | "GOLD_PURCHASE";
 
 export async function reserveEntityId(
   entity: ReserveIdEntity,
@@ -1954,7 +1986,12 @@ export async function fetchPlantReports(
 }
 
 export async function fetchGoldPours(
-  params: { siteId?: string; page?: number; limit?: number } = {},
+  params: {
+    siteId?: string;
+    sourceType?: "PRODUCTION" | "PURCHASE_PUBLIC";
+    page?: number;
+    limit?: number;
+  } = {},
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<GoldPour>>(`/api/gold/pours${query}`);
@@ -1982,6 +2019,18 @@ export async function fetchGoldReceipts(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<BuyerReceipt>>(`/api/gold/receipts${query}`);
+}
+
+export async function fetchGoldPurchases(
+  params: {
+    siteId?: string;
+    sellerType?: "EMPLOYEE" | "EXTERNAL";
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<GoldPurchase>>(`/api/gold/purchases${query}`);
 }
 
 export async function fetchGoldShiftAllocations(

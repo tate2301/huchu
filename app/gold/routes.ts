@@ -5,6 +5,9 @@ export const goldRoutes = {
     pours: "/gold/intake/pours",
     create: "/gold/intake/pours?create=1",
     newPour: "/gold/intake/pours/new",
+    purchases: "/gold/intake/purchases",
+    createPurchase: "/gold/intake/purchases?create=1",
+    newPurchase: "/gold/intake/purchases/new",
   },
   transit: {
     dispatches: "/gold/transit/dispatches",

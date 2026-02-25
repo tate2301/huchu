@@ -56,6 +56,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/accounting", featureKey: "accounting.core" },
 
   { scope: "page", prefix: "/gold/intake/pours", featureKey: "gold.intake.pours" },
+  { scope: "page", prefix: "/gold/intake/purchases", featureKey: "gold.intake.pours" },
   { scope: "page", prefix: "/gold/transit/dispatches", featureKey: "gold.dispatches" },
   { scope: "page", prefix: "/gold/dispatch", featureKey: "gold.dispatches" },
   { scope: "page", prefix: "/gold/settlement/receipts", featureKey: "gold.receipts" },
@@ -146,6 +147,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/dispatches", featureKey: "gold.dispatches" },
   { scope: "api", prefix: "/api/gold/receipts", featureKey: "gold.receipts" },
   { scope: "api", prefix: "/api/gold/pours", featureKey: "gold.intake.pours" },
+  { scope: "api", prefix: "/api/gold/purchases", featureKey: "gold.intake.pours" },
   { scope: "api", prefix: "/api/gold/corrections", featureKey: "gold.reconciliation" },
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
 

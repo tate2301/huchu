@@ -5,6 +5,7 @@ import {
   BarChart3,
   Gem,
   PackageCheck,
+  Payments,
   Scale,
   Wallet,
 } from "@/lib/icons";
@@ -12,6 +13,7 @@ import {
 export type GoldTab =
   | "home"
   | "batches"
+  | "purchases"
   | "dispatches"
   | "sales"
   | "payouts"
@@ -39,6 +41,13 @@ export const GOLD_TABS: GoldTabItem[] = [
     label: "Batches",
     href: "/gold/intake/pours",
     icon: PackageCheck,
+    featureKey: "gold.intake.pours",
+  },
+  {
+    id: "purchases",
+    label: "Purchases",
+    href: "/gold/intake/purchases",
+    icon: Payments,
     featureKey: "gold.intake.pours",
   },
   {

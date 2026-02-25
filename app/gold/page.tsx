@@ -50,6 +50,10 @@ export default function GoldPage() {
     () => canViewHrefWithEnabledFeatures(goldRoutes.intake.pours, enabledFeatures),
     [enabledFeatures],
   );
+  const canRecordPurchase = useMemo(
+    () => canViewHrefWithEnabledFeatures(goldRoutes.intake.purchases, enabledFeatures),
+    [enabledFeatures],
+  );
   const canRecordDispatch = useMemo(
     () => canViewHrefWithEnabledFeatures(goldRoutes.transit.dispatches, enabledFeatures),
     [enabledFeatures],
@@ -328,6 +332,11 @@ export default function GoldPage() {
           {canRecordBatch ? (
             <Button asChild size="sm">
               <Link href={goldRoutes.intake.create}>Record Batch</Link>
+            </Button>
+          ) : null}
+          {canRecordPurchase ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.intake.createPurchase}>Record Purchase</Link>
             </Button>
           ) : null}
           {canRecordDispatch ? (

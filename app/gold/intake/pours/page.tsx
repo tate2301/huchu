@@ -44,7 +44,7 @@ export default function GoldIntakePoursPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["gold-pours", "intake-lane"],
-    queryFn: () => fetchGoldPours({ limit: 300 }),
+    queryFn: () => fetchGoldPours({ limit: 300, sourceType: "PRODUCTION" }),
   });
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ["employees", "gold-intake-modal"],

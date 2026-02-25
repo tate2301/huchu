@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const siteId = searchParams.get('siteId');
+    const sourceType = searchParams.get("sourceType");
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
     };
 
     if (siteId) where.siteId = siteId;
+    if (sourceType === "PRODUCTION" || sourceType === "PURCHASE_PUBLIC") {
+      where.sourceType = sourceType;
+    }
     const [pours, total] = await Promise.all([
       prisma.goldPour.findMany({
         where,

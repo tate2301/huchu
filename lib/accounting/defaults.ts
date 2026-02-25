@@ -124,6 +124,14 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    name: "Gold Purchase",
+    sourceType: "GOLD_PURCHASE",
+    lines: [
+      { accountCode: "1200", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
     name: "Gold Receipt",
     sourceType: "GOLD_RECEIPT",
     lines: [

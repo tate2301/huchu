@@ -326,6 +326,7 @@ export async function getExecutiveDashboardAggregations({
       _sum: { grossWeight: true },
       where: {
         pourDate: currentRange,
+        sourceType: "PRODUCTION",
         site: siteScope,
       },
     }),
@@ -333,12 +334,14 @@ export async function getExecutiveDashboardAggregations({
       _sum: { grossWeight: true },
       where: {
         pourDate: previousRange,
+        sourceType: "PRODUCTION",
         site: siteScope,
       },
     }),
     prisma.goldPour.findMany({
       where: {
         pourDate: currentRange,
+        sourceType: "PRODUCTION",
         site: siteScope,
       },
       select: {

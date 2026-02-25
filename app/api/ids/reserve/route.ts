@@ -20,6 +20,7 @@ const reserveSchema = z.object({
     "STOCK_MOVEMENT",
     "GOLD_POUR",
     "GOLD_RECEIPT",
+    "GOLD_PURCHASE",
   ]),
   siteId: z.string().uuid().optional(),
 });

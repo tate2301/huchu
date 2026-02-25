@@ -41,6 +41,7 @@ const sourceTypeOptions = [
   { value: "STOCK_TRANSFER", label: "Stock Transfer" },
   { value: "PAYROLL_RUN", label: "Payroll Run" },
   { value: "PAYROLL_DISBURSEMENT", label: "Payroll Disbursement" },
+  { value: "GOLD_PURCHASE", label: "Gold Purchase" },
   { value: "GOLD_RECEIPT", label: "Gold Receipt" },
   { value: "GOLD_DISPATCH", label: "Gold Dispatch" },
   { value: "SALES_INVOICE", label: "Sales Invoice" },

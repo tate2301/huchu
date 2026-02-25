@@ -88,6 +88,12 @@ export const navSections: NavSection[] = [
         label: "Log Gold Output",
         roles: ["SUPERADMIN", "MANAGER"],
       },
+      {
+        href: "/gold/intake/purchases/new",
+        icon: Payments,
+        label: "Record Gold Purchase",
+        roles: ["SUPERADMIN", "MANAGER"],
+      },
     ],
   },
   {
@@ -203,6 +209,7 @@ export const navSections: NavSection[] = [
     items: [
       { href: "/gold", icon: Coins, label: "Gold Home" },
       { href: "/gold/intake/pours/new", icon: Dataset, label: "Log Gold Output" },
+      { href: "/gold/intake/purchases/new", icon: Payments, label: "Record Purchase" },
       { href: "/gold/transit/dispatches/new", icon: LocalShipping, label: "Record Dispatch" },
       { href: "/gold/settlement/receipts/new", icon: ReceiptLong, label: "Record Receipt" },
       { href: "/gold/exceptions", icon: ReportProblem, label: "Problems" },
@@ -350,6 +357,13 @@ const quickActions: QuickAction[] = [
     label: "Log Gold Output",
     description: "Record gold produced for the shift",
     icon: Dataset,
+    roles: ["SUPERADMIN", "MANAGER"],
+  },
+  {
+    href: "/gold/intake/purchases/new",
+    label: "Record Purchase",
+    description: "Capture gold bought from walk-in sellers",
+    icon: Payments,
     roles: ["SUPERADMIN", "MANAGER"],
   },
 ]
