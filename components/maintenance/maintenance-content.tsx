@@ -2,17 +2,15 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { differenceInMinutes, format } from "date-fns";
 import {
-  AlertTriangle,
-  CheckCircle,
   Download,
   Pencil,
   Plus,
   QrCode,
   Trash2,
-  Wrench,
 } from "@/lib/icons";
 
 import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
@@ -55,6 +53,7 @@ import {
   fetchStockLocations,
   fetchWorkOrders,
 } from "@/lib/api";
+import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { EmployeePosition } from "@prisma/client";
@@ -1160,72 +1159,82 @@ export function MaintenanceContent({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Total Equipment
-                      </p>
-                      <Wrench className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                  <div className="rounded-md border border-border/60 bg-card/70">
                     {equipmentLoading ? (
-                      <Skeleton className="mt-2 h-7 w-16" />
+                      <Skeleton className="h-[140px] w-full" />
                     ) : (
-                      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
-                        {totalEquipment}
-                      </p>
+                      <NumberChart
+                        config={buildNumberMetricConfig({
+                          title: "Total Equipment",
+                          value: totalEquipment,
+                        })}
+                        subtitle={() => (
+                          <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                            {totalEquipment.toLocaleString()}
+                          </div>
+                        )}
+                      />
                     )}
                   </div>
 
-                  <div className="surface-framed rounded-lg bg-emerald-50/80 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Operational
-                      </p>
-                      <CheckCircle className="h-4 w-4 text-emerald-700" />
-                    </div>
+                  <div className="rounded-md border border-border/60 bg-emerald-50/80">
                     {equipmentLoading ? (
-                      <Skeleton className="mt-2 h-7 w-16" />
+                      <Skeleton className="h-[140px] w-full" />
                     ) : (
-                      <>
-                        <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-emerald-900">
-                          {operationalCount}
-                        </p>
-                        <p className="mt-1 text-xs text-emerald-900/70">
-                          Fleet health {equipmentHealthPercent}%
-                        </p>
-                      </>
+                      <NumberChart
+                        config={buildNumberMetricConfig({
+                          title: "Operational",
+                          value: operationalCount,
+                        })}
+                        subtitle={() => (
+                          <div className="flex flex-col gap-1">
+                            <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                              {operationalCount.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Fleet health {equipmentHealthPercent}%
+                            </div>
+                          </div>
+                        )}
+                      />
                     )}
                   </div>
 
-                  <div className="surface-framed rounded-lg bg-amber-50/80 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Needs Service
-                      </p>
-                      <AlertTriangle className="h-4 w-4 text-amber-700" />
-                    </div>
+                  <div className="rounded-md border border-border/60 bg-amber-50/80">
                     {equipmentLoading ? (
-                      <Skeleton className="mt-2 h-7 w-16" />
+                      <Skeleton className="h-[140px] w-full" />
                     ) : (
-                      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-amber-900">
-                        {needsServiceCount}
-                      </p>
+                      <NumberChart
+                        config={buildNumberMetricConfig({
+                          title: "Needs Service",
+                          value: needsServiceCount,
+                          negativeIsBetter: true,
+                        })}
+                        subtitle={() => (
+                          <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                            {needsServiceCount.toLocaleString()}
+                          </div>
+                        )}
+                      />
                     )}
                   </div>
 
-                  <div className="surface-framed rounded-lg bg-rose-50/80 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Equipment Down
-                      </p>
-                      <AlertTriangle className="h-4 w-4 text-rose-700" />
-                    </div>
+                  <div className="rounded-md border border-border/60 bg-rose-50/80">
                     {equipmentLoading ? (
-                      <Skeleton className="mt-2 h-7 w-16" />
+                      <Skeleton className="h-[140px] w-full" />
                     ) : (
-                      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-rose-900">
-                        {downCount}
-                      </p>
+                      <NumberChart
+                        config={buildNumberMetricConfig({
+                          title: "Equipment Down",
+                          value: downCount,
+                          negativeIsBetter: true,
+                        })}
+                        subtitle={() => (
+                          <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                            {downCount.toLocaleString()}
+                          </div>
+                        )}
+                      />
                     )}
                   </div>
                 </div>

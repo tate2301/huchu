@@ -1,11 +1,13 @@
 "use client";
 
+import { NumberChart } from "@rtcamp/frappe-ui-react";
 import type { ExecutiveModuleStatus, ExecutiveModuleSummary } from "@/lib/api";
 import { AlertTriangle, CheckCircle2, Minus, ReportProblem } from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { cn } from "@/lib/utils";
 
 type ExecutiveSummaryBarProps = {
@@ -54,11 +56,33 @@ const STATUS_META: Record<
   },
 };
 
-function SummaryStatCard({ label, value }: { label: string; value: string }) {
+function SummaryStatCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+}) {
+  const metricConfig = buildNumberMetricConfig({
+    title: label,
+    value,
+  });
+
   return (
-    <div className="surface-framed rounded-md bg-muted/50 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{value}</p>
+    <div className="rounded-md border border-border/60 bg-card/70">
+      <NumberChart
+        config={metricConfig}
+        subtitle={() => (
+          <div className="flex flex-col gap-1">
+            <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+              {value.toLocaleString()}
+            </div>
+            {detail ? <div className="text-xs text-muted-foreground">{detail}</div> : null}
+          </div>
+        )}
+      />
     </div>
   );
 }
@@ -143,10 +167,10 @@ export function ExecutiveSummaryBar({
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <SummaryStatCard label="Modules Monitored" value={String(totalModules)} />
-              <SummaryStatCard label="Open Exceptions" value={String(totalExceptions)} />
-              <SummaryStatCard label="Critical Modules" value={String(criticalCount)} />
-              <SummaryStatCard label="Watch Modules" value={String(watchCount)} />
+              <SummaryStatCard label="Modules Monitored" value={totalModules} />
+              <SummaryStatCard label="Open Exceptions" value={totalExceptions} />
+              <SummaryStatCard label="Critical Modules" value={criticalCount} />
+              <SummaryStatCard label="Watch Modules" value={watchCount} />
             </div>
             {highestPressureModule ? (
               <div className="surface-framed rounded-md bg-muted/35 px-3 py-2 text-xs text-muted-foreground">

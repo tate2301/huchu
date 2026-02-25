@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { useSession } from "next-auth/react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,6 +12,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { canViewAccountingHref } from "@/lib/accounting/visibility";
+import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { fetchAccountingSummary } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ArrowRight, RefreshCcw } from "@/lib/icons";
@@ -76,6 +78,17 @@ export default function AccountingOverviewPage() {
     [enabledFeatures],
   );
 
+  const overviewMetrics = [
+    { label: "Accounts in Chart", value: summary?.accounts ?? 0 },
+    { label: "Open Accounting Periods", value: summary?.openPeriods ?? 0 },
+    { label: "Posted Journals", value: summary?.postedJournals ?? 0 },
+    { label: "Draft Journals", value: summary?.draftJournals ?? 0 },
+    { label: "Open Sales Invoices", value: summary?.openInvoices ?? 0 },
+    { label: "Open Purchase Bills", value: summary?.openBills ?? 0 },
+    { label: "Pending Integration Events", value: summary?.pendingIntegrationEvents ?? 0 },
+    { label: "Failed Integration Events", value: summary?.failedIntegrationEvents ?? 0 },
+  ];
+
   return (
     <AccountingShell
       activeTab="overview"
@@ -105,63 +118,27 @@ export default function AccountingOverviewPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading ? (
-          Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-24 w-full" />
+          Array.from({ length: 8 }).map((_, index) => (
+            <Skeleton key={index} className="h-[140px] w-full" />
           ))
         ) : (
           <>
-            <Card>
-              <CardHeader>
-                <CardDescription>Accounts in Chart</CardDescription>
-                <CardTitle className="font-mono">{summary?.accounts ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Open Accounting Periods</CardDescription>
-                <CardTitle className="font-mono">{summary?.openPeriods ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Posted Journals</CardDescription>
-                <CardTitle className="font-mono">{summary?.postedJournals ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Draft Journals</CardDescription>
-                <CardTitle className="font-mono">{summary?.draftJournals ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Open Sales Invoices</CardDescription>
-                <CardTitle className="font-mono">{summary?.openInvoices ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Open Purchase Bills</CardDescription>
-                <CardTitle className="font-mono">{summary?.openBills ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Pending Integration Events</CardDescription>
-                <CardTitle className="font-mono">
-                  {summary?.pendingIntegrationEvents ?? 0}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Failed Integration Events</CardDescription>
-                <CardTitle className="font-mono">
-                  {summary?.failedIntegrationEvents ?? 0}
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            {overviewMetrics.map((metric) => (
+              <div key={metric.label} className="rounded-md border border-border/60 bg-card/70">
+                <NumberChart
+                  config={buildNumberMetricConfig({
+                    title: metric.label,
+                    value: metric.value,
+                    negativeIsBetter: metric.label.includes("Failed"),
+                  })}
+                  subtitle={() => (
+                    <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                      {metric.value.toLocaleString()}
+                    </div>
+                  )}
+                />
+              </div>
+            ))}
           </>
         )}
       </div>

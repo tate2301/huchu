@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,55 +16,63 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
-  AlertTriangle,
-  Fuel,
   Minus,
   Plus,
-  TrendingDown,
   TrendingUp,
-  type LucideIcon,
 } from "@/lib/icons";
 
 type MetricTone = "neutral" | "success" | "warning" | "danger";
 
 const metricToneClass: Record<MetricTone, string> = {
-  neutral: "bg-[var(--surface-subtle)] text-foreground",
-  success: "bg-emerald-50/80 text-emerald-900",
-  warning: "bg-amber-50/80 text-amber-900",
-  danger: "bg-rose-50/80 text-rose-900",
+  neutral: "bg-[var(--surface-subtle)]",
+  success: "bg-emerald-50/80",
+  warning: "bg-amber-50/80",
+  danger: "bg-rose-50/80",
 };
 
 function MetricTile({
   label,
-  value,
+  valueLabel,
+  valueNumber,
   detail,
-  icon: Icon,
   tone = "neutral",
   loading = false,
+  negativeIsBetter = false,
 }: {
   label: string;
-  value: string;
+  valueLabel: string;
+  valueNumber: number;
   detail?: string;
-  icon: LucideIcon;
   tone?: MetricTone;
   loading?: boolean;
+  negativeIsBetter?: boolean;
 }) {
+  const metricConfig = buildNumberMetricConfig({
+    title: label,
+    value: valueNumber,
+    negativeIsBetter,
+  });
+
   return (
-    <div className={`surface-framed rounded-lg p-3 ${metricToneClass[tone]}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
+    <div className={`rounded-md border border-border/60 ${metricToneClass[tone]}`}>
       {loading ? (
-        <Skeleton className="mt-2 h-7 w-24" />
+        <Skeleton className="h-[140px] w-full" />
       ) : (
-        <>
-          <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{value}</p>
-          {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
-        </>
+        <NumberChart
+          config={metricConfig}
+          subtitle={() => (
+            <div className="flex flex-col gap-1">
+              <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                {valueLabel}
+              </div>
+              {detail ? <p className="text-xs text-muted-foreground">{detail}</p> : null}
+            </div>
+          )}
+        />
       )}
     </div>
   );
@@ -209,31 +218,33 @@ export default function StoresDashboardPage() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricTile
                 label="Inventory Value"
-                value={`$${totalValue.toLocaleString()}`}
-                icon={TrendingUp}
+                valueLabel={`$${totalValue.toLocaleString()}`}
+                valueNumber={totalValue}
                 loading={inventoryLoading}
               />
               <MetricTile
                 label="Low Stock Exposure"
-                value={`${lowStockItems.length}`}
+                valueLabel={`${lowStockItems.length}`}
+                valueNumber={lowStockItems.length}
                 detail={`${lowStockPercent}% of catalog below threshold`}
-                icon={TrendingDown}
                 tone={lowStockItems.length > 0 ? "warning" : "success"}
                 loading={inventoryLoading}
+                negativeIsBetter
               />
               <MetricTile
                 label="Critical Items"
-                value={`${criticalItems.length}`}
+                valueLabel={`${criticalItems.length}`}
+                valueNumber={criticalItems.length}
                 detail={criticalItems.length > 0 ? "Requires immediate replenishment" : "No stock-outs"}
-                icon={AlertTriangle}
                 tone={criticalItems.length > 0 ? "danger" : "success"}
                 loading={inventoryLoading}
+                negativeIsBetter
               />
               <MetricTile
                 label="Fuel Balance"
-                value={`${fuelStock.toLocaleString()} ${fuelUnit}`}
+                valueLabel={`${fuelStock.toLocaleString()} ${fuelUnit}`}
+                valueNumber={fuelStock}
                 detail={coverageDaysLabel}
-                icon={Fuel}
                 tone={fuelBelowMin ? "warning" : "success"}
                 loading={inventoryLoading}
               />

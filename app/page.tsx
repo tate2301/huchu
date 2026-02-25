@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
   fetchExecutiveDashboardOverview,
-  type ExecutiveDashboardResponse,
   type ExecutiveRange,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -19,14 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCcw } from "@/lib/icons";
 import { ExecutiveKpiGrid } from "@/components/dashboard/executive-kpi-grid";
 import { ExecutiveCharts } from "@/components/dashboard/executive-charts";
 import { ExecutiveHighlights } from "@/components/dashboard/executive-highlights";
 import { ExecutiveQuickLinks } from "@/components/dashboard/executive-quick-links";
-import { ExecutiveSummaryBar } from "@/components/dashboard/executive-summary-bar";
-import { ExecutiveCriticalStrip } from "@/components/dashboard/executive-critical-strip";
-import { ExecutiveModuleMatrix } from "@/components/dashboard/executive-module-matrix";
 
 const ALL_SITES_VALUE = "all";
 const EXECUTIVE_RANGE_OPTIONS: Array<{ value: ExecutiveRange; label: string }> =
@@ -35,15 +30,6 @@ const EXECUTIVE_RANGE_OPTIONS: Array<{ value: ExecutiveRange; label: string }> =
     { value: "30d", label: "Last 30 days" },
     { value: "90d", label: "Last 90 days" },
   ];
-
-function formatUpdatedAt(
-  overview: ExecutiveDashboardResponse | undefined,
-): string | null {
-  if (!overview?.generatedAt) return null;
-  const parsed = new Date(overview.generatedAt);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleString();
-}
 
 export default function HomePage() {
   const [selectedSiteId, setSelectedSiteId] = useState<string>(ALL_SITES_VALUE);
@@ -69,15 +55,6 @@ export default function HomePage() {
 
   const hasOverviewData = Boolean(overview);
   const overviewErrorMessage = error ? getApiErrorMessage(error) : undefined;
-  const updatedAt = useMemo(() => formatUpdatedAt(overview), [overview]);
-  const selectedRangeLabel =
-    EXECUTIVE_RANGE_OPTIONS.find((option) => option.value === selectedRange)
-      ?.label ?? "Last 30 days";
-  const selectedSiteLabel =
-    selectedSiteId === ALL_SITES_VALUE
-      ? "All sites"
-      : (overview?.sites.find((candidate) => candidate.id === selectedSiteId)
-          ?.name ?? "Selected site");
 
   return (
     <div className="space-y-6">

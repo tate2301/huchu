@@ -1,5 +1,6 @@
 "use client";
 
+import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageIntro } from "@/components/shared/page-intro";
 import { StatusState } from "@/components/shared/status-state";
@@ -11,12 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import {
   Camera as CameraIcon,
   Server,
   AlertCircle,
-  CheckCircle,
-  XCircle,
   Shield,
 } from "@/lib/icons";
 import {
@@ -63,6 +63,27 @@ export function DashboardView({
     offlineNVRs === 0 &&
     unacknowledgedEvents === 0;
   const siteFilterId = "cctv-dashboard-site-filter";
+
+  const totalCamerasMetric = buildNumberMetricConfig({
+    title: "Total Cameras",
+    value: cameras.length,
+  });
+
+  const recordingMetric = buildNumberMetricConfig({
+    title: "Recording",
+    value: recordingCameras,
+  });
+
+  const nvrMetric = buildNumberMetricConfig({
+    title: "NVRs",
+    value: nvrs.length,
+  });
+
+  const eventsMetric = buildNumberMetricConfig({
+    title: "Active Events",
+    value: unacknowledgedEvents,
+    negativeIsBetter: true,
+  });
 
   if (cameras.length === 0 && nvrs.length === 0 && events.length === 0) {
     return (
@@ -122,86 +143,71 @@ export function DashboardView({
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cameras</CardTitle>
-            <CameraIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{cameras.length}</div>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline" className="text-xs">
-                <CheckCircle className="mr-1 h-3 w-3 text-green-600" />
-                {onlineCameras} Online
-              </Badge>
-              {offlineCameras > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  <XCircle className="mr-1 h-3 w-3 text-red-600" />
-                  {offlineCameras} Offline
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-md border border-border/60 bg-card/70">
+          <NumberChart
+            config={totalCamerasMetric}
+            subtitle={() => (
+              <div className="flex flex-col gap-1">
+                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                  {cameras.length}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {onlineCameras} online, {offlineCameras} offline
+                </div>
+              </div>
+            )}
+          />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recording</CardTitle>
-            <CameraIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{recordingCameras}</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {cameras.length > 0
-                ? `${Math.round((recordingCameras / cameras.length) * 100)}% of cameras`
-                : "No cameras"}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-md border border-border/60 bg-card/70">
+          <NumberChart
+            config={recordingMetric}
+            subtitle={() => (
+              <div className="flex flex-col gap-1">
+                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                  {recordingCameras}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {cameras.length > 0
+                    ? `${Math.round((recordingCameras / cameras.length) * 100)}% of cameras`
+                    : "No cameras"}
+                </div>
+              </div>
+            )}
+          />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">NVRs</CardTitle>
-            <Server className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{nvrs.length}</div>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline" className="text-xs">
-                <CheckCircle className="mr-1 h-3 w-3 text-green-600" />
-                {onlineNVRs} Online
-              </Badge>
-              {offlineNVRs > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  <XCircle className="mr-1 h-3 w-3 text-red-600" />
-                  {offlineNVRs} Offline
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-md border border-border/60 bg-card/70">
+          <NumberChart
+            config={nvrMetric}
+            subtitle={() => (
+              <div className="flex flex-col gap-1">
+                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                  {nvrs.length}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {onlineNVRs} online, {offlineNVRs} offline
+                </div>
+              </div>
+            )}
+          />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Events</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{unacknowledgedEvents}</div>
-            <div className="flex items-center gap-2 mt-2">
-              {criticalEvents > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  {criticalEvents} Critical
-                </Badge>
-              )}
-              {highEvents > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  {highEvents} High
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-md border border-border/60 bg-card/70">
+          <NumberChart
+            config={eventsMetric}
+            subtitle={() => (
+              <div className="flex flex-col gap-1">
+                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+                  {unacknowledgedEvents}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {criticalEvents} critical, {highEvents} high
+                </div>
+              </div>
+            )}
+          />
+        </div>
       </div>
 
       {/* High Security Cameras */}

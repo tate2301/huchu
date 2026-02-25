@@ -2,25 +2,20 @@
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { AxisChart, NumberChart } from "@rtcamp/frappe-ui-react"
 import { endOfMonth, endOfQuarter, endOfWeek, format, startOfMonth, startOfQuarter, startOfWeek } from "date-fns"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { FrappeChartShell } from "@/components/charts/frappe-chart-shell"
 import { PageHeading } from "@/components/layout/page-heading"
 import { StatusState } from "@/components/shared/status-state"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  buildNumberMetricConfig,
+  buildTimeSeriesChartConfig,
+} from "@/lib/charts/frappe-config-builders"
 import { fetchPlantReports, fetchSites } from "@/lib/api"
 import { getApiErrorMessage } from "@/lib/api-client"
 
@@ -41,6 +36,42 @@ function getDateRange(range: TimeRangeKey) {
     return { start: startOfQuarter(now), end: endOfQuarter(now) }
   }
   return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) }
+}
+
+function MetricTile({
+  title,
+  value,
+  valueLabel,
+  detail,
+  negativeIsBetter = false,
+}: {
+  title: string
+  value: number
+  valueLabel: string
+  detail: string
+  negativeIsBetter?: boolean
+}) {
+  const metricConfig = buildNumberMetricConfig({
+    title,
+    value,
+    negativeIsBetter,
+  })
+
+  return (
+    <div className="rounded-md border border-border/60 bg-card/70">
+      <NumberChart
+        config={metricConfig}
+        subtitle={() => (
+          <div className="flex flex-col gap-1">
+            <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
+              {valueLabel}
+            </div>
+            <div className="text-xs text-muted-foreground">{detail}</div>
+          </div>
+        )}
+      />
+    </div>
+  )
 }
 
 export default function DashboardPage() {
@@ -128,6 +159,26 @@ export default function DashboardPage() {
 
   const averageRunHours = summary.reportCount ? summary.runHours / summary.reportCount : 0
 
+  const tonnesChartConfig = buildTimeSeriesChartConfig({
+    data: series,
+    title: "Tonnes Processed",
+    subtitle: "Daily production totals",
+    colors: ["hsl(var(--primary))"],
+    xAxisKey: "date",
+    yAxisTitle: "Tonnes",
+    series: [{ name: "tonnesProcessed", type: "line", lineWidth: 2 }],
+  })
+
+  const goldChartConfig = buildTimeSeriesChartConfig({
+    data: series,
+    title: "Gold Recovery",
+    subtitle: "Daily recovered grams",
+    colors: ["hsl(var(--primary))"],
+    xAxisKey: "date",
+    yAxisTitle: "Grams",
+    series: [{ name: "goldRecovered", type: "bar" }],
+  })
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeading title="Production Dashboard" description="Production trends across sites" />
@@ -212,134 +263,60 @@ export default function DashboardPage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Tonnes Processed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reportsLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <div className="text-3xl font-bold">{summary.tonnesProcessed.toFixed(1)}</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">{timeRanges[timeRange]}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Gold Recovered</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reportsLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <div className="text-3xl font-bold">{summary.goldRecovered.toFixed(2)} g</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">Plant reports</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Average Run Hours</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reportsLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <div className="text-3xl font-bold">{averageRunHours.toFixed(1)}h</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">Per report</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Diesel Used</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reportsLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <div className="text-3xl font-bold">{summary.dieselUsed.toFixed(1)} L</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">Consumables</p>
-          </CardContent>
-        </Card>
+        {reportsLoading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={`production-metric-skeleton-${index}`} className="h-[140px] w-full" />
+          ))
+        ) : (
+          <>
+            <MetricTile
+              title="Tonnes Processed"
+              value={summary.tonnesProcessed}
+              valueLabel={summary.tonnesProcessed.toFixed(1)}
+              detail={timeRanges[timeRange]}
+            />
+            <MetricTile
+              title="Gold Recovered"
+              value={summary.goldRecovered}
+              valueLabel={`${summary.goldRecovered.toFixed(2)} g`}
+              detail="Plant reports"
+            />
+            <MetricTile
+              title="Average Run Hours"
+              value={averageRunHours}
+              valueLabel={`${averageRunHours.toFixed(1)}h`}
+              detail="Per report"
+            />
+            <MetricTile
+              title="Diesel Used"
+              value={summary.dieselUsed}
+              valueLabel={`${summary.dieselUsed.toFixed(1)} L`}
+              detail="Consumables"
+            />
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tonnes Processed</CardTitle>
-            <CardDescription>Daily production totals</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {reportsLoading ? (
-              <Skeleton className="h-48 w-full" />
-            ) : series.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No plant reports in this range.</div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={series} margin={{ top: 10, right: 20, left: 0, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(value) => format(new Date(value), "MMM d")}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${Number(value).toFixed(1)} t`, "Tonnes"]}
-                      labelFormatter={(label) => format(new Date(label), "MMM d, yyyy")}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="tonnesProcessed"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Gold Recovery</CardTitle>
-            <CardDescription>Daily recovered grams</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {reportsLoading ? (
-              <Skeleton className="h-48 w-full" />
-            ) : series.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No gold recovery recorded.</div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={series} margin={{ top: 10, right: 20, left: 0, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(value) => format(new Date(value), "MMM d")}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${Number(value).toFixed(2)} g`, "Gold"]}
-                      labelFormatter={(label) => format(new Date(label), "MMM d, yyyy")}
-                    />
-                    <Bar dataKey="goldRecovered" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {reportsLoading ? (
+          <>
+            <Skeleton className="h-[340px] w-full" />
+            <Skeleton className="h-[340px] w-full" />
+          </>
+        ) : series.length === 0 ? (
+          <div className="col-span-full text-sm text-muted-foreground">No plant reports in this range.</div>
+        ) : (
+          <>
+            <FrappeChartShell>
+              <AxisChart config={tonnesChartConfig} />
+            </FrappeChartShell>
+            <FrappeChartShell>
+              <AxisChart config={goldChartConfig} />
+            </FrappeChartShell>
+          </>
+        )}
       </div>
     </div>
   )
 }
+
