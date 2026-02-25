@@ -639,6 +639,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         display: flex;
         align-items: center;
     }
+    .huchu-listview-compact .grid.items-center > *:has(input[type="checkbox"]) {
+        min-width: 1.75rem;
+        justify-content: center;
+    }
     .huchu-listview-compact .grid.items-center > * + * {
         border-left: 1px solid var(--table-divider);
     }
