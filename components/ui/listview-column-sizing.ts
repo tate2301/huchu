@@ -1,6 +1,7 @@
 import * as React from "react";
 
 type AlignValue = "left" | "center" | "right" | string | undefined;
+export type ListViewColumnRole = "primary" | "text" | "numeric" | "status" | "action";
 
 type ColumnLike<TRow extends Record<string, unknown>> = {
   key: keyof TRow & string;
@@ -26,6 +27,8 @@ const PRIMARY_COLUMN_PATTERN =
   /\b(name|title|description|employee|account|vendor|customer|reference|item|subject|site|group)\b/i;
 const NUMERIC_COLUMN_PATTERN =
   /\b(amount|total|balance|value|qty|quantity|count|number|no\.?|id|rate|price|cost|weight|hours|days|percent|percentage|debit|credit|paid|due|net|gross)\b/i;
+const STATUS_COLUMN_PATTERN = /\b(status|state|workflow|stage)\b/i;
+const ACTION_COLUMN_PATTERN = /\b(action|actions|ops|operation)\b/i;
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -92,6 +95,28 @@ export function inferNumericColumnKeys<TRow extends Record<string, unknown>>(
   }
 
   return keys;
+}
+
+export function inferListViewColumnRole<TRow extends Record<string, unknown>>(
+  column: ColumnLike<TRow>,
+  primaryColumnKeys: Set<string>,
+  numericColumnKeys: Set<string>,
+): ListViewColumnRole {
+  if (primaryColumnKeys.has(column.key)) return "primary";
+  if (numericColumnKeys.has(column.key)) return "numeric";
+
+  const signature = `${column.key} ${normalizeText(extractNodeText(column.label))}`;
+  if (ACTION_COLUMN_PATTERN.test(signature)) return "action";
+  if (STATUS_COLUMN_PATTERN.test(signature)) return "status";
+  return "text";
+}
+
+export function resolveClampLinesForRole(
+  role: ListViewColumnRole,
+  override?: 1 | 2,
+): 1 | 2 {
+  if (override === 1 || override === 2) return override;
+  return role === "primary" || role === "text" ? 2 : 1;
 }
 
 function toEstimatedTextWidthPx(value: unknown, characterWidthPx: number): number {

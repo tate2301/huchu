@@ -648,9 +648,26 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         line-height: var(--type-table-text-line);
     }
     .huchu-listview-compact .truncate {
-        overflow: visible;
-        text-overflow: clip;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .huchu-cell-nowrap {
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
+    }
+    .huchu-cell-clamp-2 {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        white-space: normal;
+        word-break: break-word;
+        line-height: var(--type-table-text-line);
+        max-height: calc(var(--type-table-text-line) * 2);
+    }
+    .huchu-cell-clamp-2 .truncate {
+        white-space: normal !important;
     }
     .table-edge-to-edge {
         width: calc(100% + (var(--content-gutter-x) * 2));

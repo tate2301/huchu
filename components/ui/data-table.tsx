@@ -23,8 +23,11 @@ import {
 } from "@/components/ui/frappe-list-view";
 import {
   computeListViewColumnWidths,
+  inferListViewColumnRole,
   inferNumericColumnKeys,
   inferPrimaryColumnKeys,
+  resolveClampLinesForRole,
+  type ListViewColumnRole,
 } from "@/components/ui/listview-column-sizing";
 import { Input } from "@/components/ui/input";
 import {
@@ -135,6 +138,14 @@ type DataTableExpansionConfig<TData> = {
 type DataTableListCell = {
   className?: string;
   content: React.ReactNode;
+  role?: ListViewColumnRole;
+  clampLines?: 1 | 2;
+};
+
+type DataTableColumnMeta = {
+  className?: string;
+  tableRole?: ListViewColumnRole;
+  clampLines?: 1 | 2;
 };
 
 type DataTableListRow<TData> = Record<string, unknown> & {
@@ -231,6 +242,10 @@ function hasInteractiveContent(node: React.ReactNode): boolean {
   }
 
   return hasInteractiveContent(element.props.children);
+}
+
+function isListViewColumnRole(value: unknown): value is ListViewColumnRole {
+  return value === "primary" || value === "text" || value === "numeric" || value === "status" || value === "action";
 }
 
 type SelectionCheckboxProps = Omit<React.ComponentProps<"input">, "type"> & {
@@ -546,29 +561,13 @@ export function DataTable<TData, TValue>({
     return "left" as const;
   }, []);
 
-  const listRows = React.useMemo<DataTableListRow<TData>[]>(() => {
-    return renderedRows.map((row) => {
-      const nextRow: DataTableListRow<TData> = {
-        __rowId: row.id,
-        __source: row.original,
-      };
-      for (const cell of row.getVisibleCells()) {
-        nextRow[`col_${cell.column.id}`] = {
-          className:
-            cell.column.columnDef.meta &&
-            typeof cell.column.columnDef.meta === "object" &&
-            "className" in cell.column.columnDef.meta
-              ? String((cell.column.columnDef.meta as { className?: string }).className ?? "")
-              : undefined,
-          content: flexRender(cell.column.columnDef.cell, cell.getContext()),
-        } satisfies DataTableListCell;
-      }
-      return nextRow;
-    });
-  }, [renderedRows]);
+  const visibleLeafColumns = React.useMemo(
+    () => table.getVisibleLeafColumns(),
+    [table],
+  );
 
   const listColumnDefinitions = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
-    return table.getVisibleLeafColumns().map((column) => {
+    return visibleLeafColumns.map((column) => {
       const header = leafHeaders.get(column.id);
       const align = resolveAlign(
         column.columnDef.meta &&
@@ -586,13 +585,81 @@ export function DataTable<TData, TValue>({
         align,
       };
     });
-  }, [leafHeaders, resolveAlign, table]);
+  }, [leafHeaders, resolveAlign, visibleLeafColumns]);
+
+  const listColumnMetaByKey = React.useMemo(() => {
+    const metaByKey = new Map<string, DataTableColumnMeta>();
+    for (const column of visibleLeafColumns) {
+      const columnKey = `col_${column.id}`;
+      const rawMeta = column.columnDef.meta;
+      const nextMeta: DataTableColumnMeta = {};
+      if (rawMeta && typeof rawMeta === "object") {
+        if ("className" in rawMeta) {
+          nextMeta.className = String((rawMeta as { className?: string }).className ?? "");
+        }
+        if ("tableRole" in rawMeta) {
+          const tableRole = (rawMeta as { tableRole?: unknown }).tableRole;
+          if (isListViewColumnRole(tableRole)) {
+            nextMeta.tableRole = tableRole;
+          }
+        }
+        if ("clampLines" in rawMeta) {
+          const clampLines = (rawMeta as { clampLines?: unknown }).clampLines;
+          if (clampLines === 1 || clampLines === 2) {
+            nextMeta.clampLines = clampLines;
+          }
+        }
+      }
+      metaByKey.set(columnKey, nextMeta);
+    }
+    return metaByKey;
+  }, [visibleLeafColumns]);
 
   const primaryColumnKeys = React.useMemo(
     () => inferPrimaryColumnKeys(listColumnDefinitions),
     [listColumnDefinitions],
   );
   const primaryColumnKey = primaryColumnKeys[0];
+  const primaryColumnSet = React.useMemo(() => new Set(primaryColumnKeys), [primaryColumnKeys]);
+  const numericColumnKeys = React.useMemo(
+    () => inferNumericColumnKeys(listColumnDefinitions),
+    [listColumnDefinitions],
+  );
+  const numericColumnSet = React.useMemo(() => new Set(numericColumnKeys), [numericColumnKeys]);
+
+  const listColumnPresentationByKey = React.useMemo(() => {
+    const presentation = new Map<string, { role: ListViewColumnRole; clampLines: 1 | 2 }>();
+    for (const column of listColumnDefinitions) {
+      const meta = listColumnMetaByKey.get(column.key);
+      const role =
+        meta?.tableRole ??
+        inferListViewColumnRole(column, primaryColumnSet, numericColumnSet);
+      const clampLines = resolveClampLinesForRole(role, meta?.clampLines);
+      presentation.set(column.key, { role, clampLines });
+    }
+    return presentation;
+  }, [listColumnDefinitions, listColumnMetaByKey, numericColumnSet, primaryColumnSet]);
+
+  const listRows = React.useMemo<DataTableListRow<TData>[]>(() => {
+    return renderedRows.map((row) => {
+      const nextRow: DataTableListRow<TData> = {
+        __rowId: row.id,
+        __source: row.original,
+      };
+      for (const cell of row.getVisibleCells()) {
+        const columnKey = `col_${cell.column.id}`;
+        const presentation = listColumnPresentationByKey.get(columnKey);
+        const columnMeta = listColumnMetaByKey.get(columnKey);
+        nextRow[columnKey] = {
+          className: columnMeta?.className,
+          content: flexRender(cell.column.columnDef.cell, cell.getContext()),
+          role: presentation?.role,
+          clampLines: presentation?.clampLines,
+        } satisfies DataTableListCell;
+      }
+      return nextRow;
+    });
+  }, [listColumnMetaByKey, listColumnPresentationByKey, renderedRows]);
 
   const listColumnWidths = React.useMemo(() => {
     return computeListViewColumnWidths({
@@ -606,9 +673,9 @@ export function DataTable<TData, TValue>({
         return value;
       },
       primaryColumnKeys,
-      numericColumnKeys: inferNumericColumnKeys(listColumnDefinitions),
+      numericColumnKeys,
     });
-  }, [listColumnDefinitions, listRows, primaryColumnKeys]);
+  }, [listColumnDefinitions, listRows, numericColumnKeys, primaryColumnKeys]);
 
   const listColumns = React.useMemo<FrappeListViewColumn<DataTableListRow<TData>>[]>(() => {
     return listColumnDefinitions.map((column) => ({
@@ -878,7 +945,17 @@ export function DataTable<TData, TValue>({
             cellRenderer={({ item }) => {
               if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
                 const listCell = item as DataTableListCell;
-                return <div className={cn("text-table-cell whitespace-nowrap", listCell.className)}>{listCell.content}</div>;
+                return (
+                  <div
+                    className={cn(
+                      "text-table-cell",
+                      listCell.clampLines === 2 ? "huchu-cell-clamp-2" : "huchu-cell-nowrap",
+                      listCell.className,
+                    )}
+                  >
+                    {listCell.content}
+                  </div>
+                );
               }
               return item as React.ReactNode;
             }}

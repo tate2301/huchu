@@ -9,8 +9,11 @@ import {
 } from "@/components/ui/frappe-list-view";
 import {
   computeListViewColumnWidths,
+  inferListViewColumnRole,
   inferNumericColumnKeys,
   inferPrimaryColumnKeys,
+  resolveClampLinesForRole,
+  type ListViewColumnRole,
 } from "@/components/ui/listview-column-sizing";
 import {
   Select,
@@ -45,6 +48,8 @@ type ControlsPosition = "top" | "bottom" | "both";
 type ParsedFrappeCell = {
   className?: string;
   content: React.ReactNode;
+  role?: ListViewColumnRole;
+  clampLines?: 1 | 2;
 };
 
 type ParsedFrappeRow = Record<string, unknown> & {
@@ -217,6 +222,20 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
     isElementNamed(node, "TableRow"),
   );
 
+  const primaryColumnKeys = inferPrimaryColumnKeys(columns);
+  const primaryColumnSet = new Set(primaryColumnKeys);
+  const numericColumnKeys = inferNumericColumnKeys(columns);
+  const numericColumnSet = new Set(numericColumnKeys);
+  const columnPresentationByKey = new Map<
+    string,
+    { role: ListViewColumnRole; clampLines: 1 | 2 }
+  >();
+  for (const column of columns) {
+    const role = inferListViewColumnRole(column, primaryColumnSet, numericColumnSet);
+    const clampLines = resolveClampLinesForRole(role);
+    columnPresentationByKey.set(column.key, { role, clampLines });
+  }
+
   const rows: ParsedFrappeRow[] = [];
   for (let rowIndex = 0; rowIndex < bodyRows.length; rowIndex += 1) {
     const row = bodyRows[rowIndex];
@@ -245,16 +264,19 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
         return null;
       }
 
+      const presentation = columnPresentationByKey.get(`col_${columnIndex}`);
+
       nextRow[`col_${columnIndex}`] = {
         className: cellProps.className,
         content: cellProps.children,
+        role: presentation?.role,
+        clampLines: presentation?.clampLines,
       } satisfies ParsedFrappeCell;
     }
 
     rows.push(nextRow);
   }
 
-  const primaryColumnKeys = inferPrimaryColumnKeys(columns);
   const primaryColumnKey = primaryColumnKeys[0];
 
   const columnWidths = computeListViewColumnWidths({
@@ -268,7 +290,7 @@ function parseFrappeTable(children: React.ReactNode): ParsedFrappeTable | null {
       return value;
     },
     primaryColumnKeys,
-    numericColumnKeys: inferNumericColumnKeys(columns),
+    numericColumnKeys,
   });
 
   return {
@@ -591,7 +613,17 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
                 cellRenderer={({ item }) => {
                   if (item && typeof item === "object" && "content" in (item as Record<string, unknown>)) {
                     const cell = item as ParsedFrappeCell;
-                    return <div className={cn("text-table-cell whitespace-nowrap", cell.className)}>{cell.content}</div>;
+                    return (
+                      <div
+                        className={cn(
+                          "text-table-cell",
+                          cell.clampLines === 2 ? "huchu-cell-clamp-2" : "huchu-cell-nowrap",
+                          cell.className,
+                        )}
+                      >
+                        {cell.content}
+                      </div>
+                    );
                   }
                   return item as React.ReactNode;
                 }}

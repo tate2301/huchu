@@ -49,6 +49,7 @@ export type FrappeListViewAdapterProps<TRow extends Record<string, unknown>> = {
   rowHeight?: number | string;
   resizeColumn?: boolean;
   showTooltip?: boolean;
+  autoFitColumns?: boolean;
   onRowClick?: (row: TRow, event: React.MouseEvent) => void;
   cellRenderer?: (context: FrappeListViewCellContext<TRow>) => React.ReactNode;
   onSelectionChange?: (rows: TRow[]) => void;
@@ -64,6 +65,51 @@ export type FrappeListViewAdapterProps<TRow extends Record<string, unknown>> = {
     allRowsSelected: boolean;
   }) => React.ReactNode;
 };
+
+function parseBaseWidthPx(width: number | string | undefined): number | undefined {
+  if (typeof width === "number") return width;
+  if (typeof width !== "string") return undefined;
+
+  const minMaxMatch = width.match(/^minmax\(\s*([\d.]+)px\s*,\s*([^)]+)\)$/i);
+  if (minMaxMatch) {
+    return Number(minMaxMatch[1]);
+  }
+
+  const pxMatch = width.match(/^([\d.]+)px$/i);
+  if (pxMatch) {
+    return Number(pxMatch[1]);
+  }
+
+  return undefined;
+}
+
+function mergeColumnWidth(
+  width: number | string | undefined,
+  measuredWidthPx: number | undefined,
+): number | string | undefined {
+  if (!measuredWidthPx || !Number.isFinite(measuredWidthPx)) {
+    return width;
+  }
+
+  const safeMeasuredWidth = Math.max(0, Math.ceil(measuredWidthPx));
+  if (typeof width === "number") {
+    return `${Math.max(width, safeMeasuredWidth)}px`;
+  }
+  if (typeof width === "string") {
+    const minMaxMatch = width.match(/^minmax\(\s*([\d.]+)px\s*,\s*([^)]+)\)$/i);
+    if (minMaxMatch) {
+      const minPx = Number(minMaxMatch[1]);
+      const maxPart = minMaxMatch[2];
+      return `minmax(${Math.max(minPx, safeMeasuredWidth)}px,${maxPart})`;
+    }
+    const pxMatch = width.match(/^([\d.]+)px$/i);
+    if (pxMatch) {
+      const px = Number(pxMatch[1]);
+      return `${Math.max(px, safeMeasuredWidth)}px`;
+    }
+  }
+  return `${safeMeasuredWidth}px`;
+}
 
 type SelectionSyncProps<TRow extends Record<string, unknown>> = {
   rowByKey: Map<unknown, TRow>;
@@ -120,12 +166,103 @@ export function FrappeListViewAdapter<TRow extends Record<string, unknown>>({
   rowHeight = "auto",
   resizeColumn = false,
   showTooltip = false,
+  autoFitColumns = true,
   onRowClick,
   cellRenderer,
   onSelectionChange,
   onSelectionMetaChange,
   selectionBannerActions,
 }: FrappeListViewAdapterProps<TRow>) {
+  const hostRef = React.useRef<HTMLDivElement>(null);
+  const [measuredColumnWidths, setMeasuredColumnWidths] = React.useState<Record<string, number>>({});
+
+  const columnSignature = React.useMemo(
+    () => columns.map((column) => `${column.key}:${String(column.width ?? "")}`).join("|"),
+    [columns],
+  );
+
+  React.useEffect(() => {
+    setMeasuredColumnWidths({});
+  }, [columnSignature]);
+
+  const resolvedColumns = React.useMemo(() => {
+    return columns.map((column) => ({
+      ...column,
+      width: mergeColumnWidth(column.width, measuredColumnWidths[column.key]),
+    }));
+  }, [columns, measuredColumnWidths]);
+
+  React.useEffect(() => {
+    if (!autoFitColumns || rows.length === 0 || columns.length === 0) return;
+
+    const host = hostRef.current;
+    if (!host) return;
+
+    let rafId: number | null = null;
+
+    const measure = () => {
+      const grids = Array.from(host.querySelectorAll<HTMLElement>(".huchu-listview-compact .grid.items-center"));
+      if (grids.length === 0) return;
+
+      const selectionOffset = selectable ? 1 : 0;
+
+      setMeasuredColumnWidths((previous) => {
+        const next = { ...previous };
+        let changed = false;
+
+        for (let index = 0; index < columns.length; index += 1) {
+          const column = columns[index];
+          const columnKey = String(column.key);
+          const configuredMinWidth = parseBaseWidthPx(column.width) ?? 0;
+          let requiredWidth = Math.max(configuredMinWidth, previous[columnKey] ?? 0);
+
+          for (const grid of grids) {
+            const columnCell = grid.children.item(index + selectionOffset) as HTMLElement | null;
+            if (!columnCell) continue;
+
+            const inner = columnCell.firstElementChild as HTMLElement | null;
+            const candidateScrollWidth = Math.max(
+              columnCell.scrollWidth,
+              inner?.scrollWidth ?? 0,
+            );
+            const hasHorizontalOverflow = candidateScrollWidth - columnCell.clientWidth > 1;
+            if (!hasHorizontalOverflow) continue;
+
+            requiredWidth = Math.max(requiredWidth, Math.ceil(candidateScrollWidth + 8));
+          }
+
+          if (requiredWidth > (previous[columnKey] ?? 0) + 1) {
+            next[columnKey] = requiredWidth;
+            changed = true;
+          }
+        }
+
+        return changed ? next : previous;
+      });
+    };
+
+    const scheduleMeasure = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        measure();
+      });
+    };
+
+    scheduleMeasure();
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleMeasure();
+    });
+    resizeObserver.observe(host);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      resizeObserver.disconnect();
+    };
+  }, [autoFitColumns, columns, rows, selectable]);
+
   const rowByKey = React.useMemo(() => {
     const map = new Map<unknown, TRow>();
     for (const row of rows) {
@@ -185,42 +322,44 @@ export function FrappeListViewAdapter<TRow extends Record<string, unknown>>({
   );
 
   return (
-    <ListView
-      columns={columns as unknown[]}
-      rows={rows as unknown[]}
-      rowKey={rowKey}
-      options={options}
-      className={cn("huchu-listview-compact !w-full !min-w-full", className)}
-      style={style}
-    >
-      <>
-        <SelectionSync
-          rowByKey={rowByKey}
-          onSelectionChange={onSelectionChange}
-          onSelectionMetaChange={onSelectionMetaChange}
-        />
-        <ListHeader />
-        {rows.length > 0 ? showGroupedRows ? <ListGroups /> : <ListRows /> : <ListEmptyState />}
-        {selectable ? (
-          <ListSelectBanner
-            actions={
-              selectionBannerActions
-                ? ({ selections, selectAll, unselectAll, allRowsSelected }) => {
-                    const selectedRows = Array.from(selections)
-                      .map((key) => rowByKey.get(key))
-                      .filter((row): row is TRow => Boolean(row));
-                    return selectionBannerActions({
-                      selectedRows,
-                      clearSelection: unselectAll,
-                      selectAll,
-                      allRowsSelected,
-                    });
-                  }
-                : undefined
-            }
+    <div ref={hostRef}>
+      <ListView
+        columns={resolvedColumns as unknown[]}
+        rows={rows as unknown[]}
+        rowKey={rowKey}
+        options={options}
+        className={cn("huchu-listview-compact !w-full !min-w-full", className)}
+        style={style}
+      >
+        <>
+          <SelectionSync
+            rowByKey={rowByKey}
+            onSelectionChange={onSelectionChange}
+            onSelectionMetaChange={onSelectionMetaChange}
           />
-        ) : null}
-      </>
-    </ListView>
+          <ListHeader />
+          {rows.length > 0 ? showGroupedRows ? <ListGroups /> : <ListRows /> : <ListEmptyState />}
+          {selectable ? (
+            <ListSelectBanner
+              actions={
+                selectionBannerActions
+                  ? ({ selections, selectAll, unselectAll, allRowsSelected }) => {
+                      const selectedRows = Array.from(selections)
+                        .map((key) => rowByKey.get(key))
+                        .filter((row): row is TRow => Boolean(row));
+                      return selectionBannerActions({
+                        selectedRows,
+                        clearSelection: unselectAll,
+                        selectAll,
+                        allRowsSelected,
+                      });
+                    }
+                  : undefined
+              }
+            />
+          ) : null}
+        </>
+      </ListView>
+    </div>
   );
 }
