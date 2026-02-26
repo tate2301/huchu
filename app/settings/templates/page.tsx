@@ -111,6 +111,7 @@ export default function TemplateSettingsPage() {
           sourceKey: newSourceKey.trim(),
           documentType: "REPORT_TABLE",
           targetType: "LIST",
+          cloneFromSystemDefault: true,
           setDefault: true,
         }),
       });
@@ -267,4 +268,3 @@ export default function TemplateSettingsPage() {
     </div>
   );
 }
-

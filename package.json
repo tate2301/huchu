@@ -21,6 +21,7 @@
     "platform:accounting-backfill-events": "tsx scripts/platform/accounting-backfill-events.ts",
     "backfill:gold-valuations": "tsx scripts/backfill-gold-valuations.ts",
     "backfill:gold-accounting-usd": "tsx scripts/backfill-gold-accounting-usd.ts",
+    "templates:seed-defaults": "tsx scripts/seed-document-templates.ts",
     "worker:pdf": "tsx scripts/pdf-worker.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
