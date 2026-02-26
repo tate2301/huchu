@@ -505,7 +505,7 @@ export function DataTable<TData, TValue>({
         >
           {globalFilterEnabled ? (
             <form
-              className="flex items-center gap-2 p-0"
+              className="flex w-full flex-wrap items-center gap-2 p-0 sm:w-auto sm:flex-nowrap"
               onSubmit={(event) => {
                 event.preventDefault();
                 applySearch(searchDraft);
@@ -523,7 +523,7 @@ export function DataTable<TData, TValue>({
                   }
                 }}
                 placeholder={searchPlaceholder}
-                className="h-[var(--control-height-sm)] w-[260px] bg-[var(--surface-elevated)]"
+                className="h-[var(--control-height-sm)] min-w-0 flex-1 bg-[var(--surface-elevated)] sm:w-[260px] sm:flex-none"
               />
               <Button type="submit" size="sm" className="min-w-[78px]">
                 {searchSubmitLabel}

@@ -1,9 +1,9 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckIcon, Plus, Trash2 } from "@/lib/icons"
+import { CheckIcon, Pencil, Plus, Trash2 } from "@/lib/icons"
 
 import { EmployeeAvatar } from "@/components/shared/employee-avatar"
 import { HrShell } from "@/components/human-resources/hr-shell"
@@ -38,14 +38,17 @@ import {
   createShiftGroupSchedule,
   deleteShiftGroupSchedule,
   fetchEmployees,
+  fetchShiftGroup,
   fetchShiftGroups,
   fetchShiftGroupSchedules,
   fetchSites,
+  updateShiftGroup,
   type EmployeeSummary,
   type ShiftGroupRecord,
+  type ShiftGroupMemberRecord,
   type ShiftGroupScheduleRecord,
 } from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
+import { ApiError, getApiErrorMessage } from "@/lib/api-client"
 
 type GroupForm = {
   name: string
@@ -70,12 +73,96 @@ type ScheduleForm = {
   notes: string
 }
 
+type FormFeedback = {
+  message: string
+  issues: string[]
+}
+
+function resolveShiftGroupFormFeedback(error: unknown): FormFeedback {
+  const fallback = getApiErrorMessage(error)
+  if (!(error instanceof ApiError)) {
+    return { message: fallback, issues: [] }
+  }
+
+  const payload =
+    error.details && typeof error.details === "object"
+      ? (error.details as { details?: unknown })
+      : undefined
+  const details = payload?.details
+
+  if (!Array.isArray(details)) {
+    return { message: fallback, issues: [] }
+  }
+
+  const issues = details
+    .map((entry) => (entry && typeof entry === "object" ? entry as Record<string, unknown> : null))
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .map((entry) => {
+      if (typeof entry.message === "string") {
+        const path = Array.isArray(entry.path)
+          ? entry.path.filter((value): value is string => typeof value === "string").join(".")
+          : ""
+        return path ? `${path}: ${entry.message}` : entry.message
+      }
+      if (typeof entry.employeeName === "string" && typeof entry.groupName === "string") {
+        const employeeCode =
+          typeof entry.employeeCode === "string" && entry.employeeCode.trim().length > 0
+            ? ` (${entry.employeeCode})`
+            : ""
+        return `${entry.employeeName}${employeeCode} -> ${entry.groupName}`
+      }
+      return null
+    })
+    .filter((entry): entry is string => Boolean(entry))
+
+  return { message: fallback, issues }
+}
+
+function buildGroupFormFromRecord(
+  group: ShiftGroupRecord & {
+    members: ShiftGroupMemberRecord[]
+  },
+) {
+  const memberIds = Array.from(
+    new Set([...group.members.map((membership) => membership.employeeId), group.leaderEmployeeId]),
+  )
+
+  const selectedEmployeeMap: Record<string, GroupEmployeePreview> = {}
+  for (const membership of group.members) {
+    selectedEmployeeMap[membership.employee.id] = {
+      id: membership.employee.id,
+      name: membership.employee.name,
+      employeeId: membership.employee.employeeId,
+    }
+  }
+  if (group.leader) {
+    selectedEmployeeMap[group.leader.id] = {
+      id: group.leader.id,
+      name: group.leader.name,
+      employeeId: group.leader.employeeId,
+    }
+  }
+
+  return {
+    form: {
+      name: group.name,
+      code: group.code ?? "",
+      siteId: group.siteId,
+      leaderEmployeeId: group.leaderEmployeeId,
+      memberIds,
+    },
+    selectedEmployeeMap,
+  }
+}
+
 export default function HrShiftGroupsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const [activeView, setActiveView] = useState<"groups" | "schedules">("groups")
   const [groupSheetOpen, setGroupSheetOpen] = useState(false)
+  const [groupSheetLoading, setGroupSheetLoading] = useState(false)
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [scheduleSheetOpen, setScheduleSheetOpen] = useState(false)
   const [siteFilter, setSiteFilter] = useState("all")
   const [groupsQuery, setGroupsQuery] = useState<DataTableQueryState>({
@@ -103,6 +190,7 @@ export default function HrShiftGroupsPage() {
   const [leaderPickerOpen, setLeaderPickerOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState("")
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
+  const [groupFormFeedback, setGroupFormFeedback] = useState<FormFeedback | null>(null)
 
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     siteId: "",
@@ -111,6 +199,23 @@ export default function HrShiftGroupsPage() {
     shiftGroupId: "",
     notes: "",
   })
+
+  const resetGroupComposerState = useCallback((siteId = "") => {
+    setEditingGroupId(null)
+    setGroupFormFeedback(null)
+    setGroupForm({
+      name: "",
+      code: "",
+      siteId,
+      leaderEmployeeId: "",
+      memberIds: [],
+    })
+    setSelectedEmployees({})
+    setLeaderSearch("")
+    setMemberSearch("")
+    setLeaderPickerOpen(false)
+    setMemberPickerOpen(false)
+  }, [])
 
   const { data: sitesData, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
@@ -184,6 +289,7 @@ export default function HrShiftGroupsPage() {
   }
 
   const handleLeaderSelect = (employee: EmployeeSummary) => {
+    setGroupFormFeedback(null)
     cacheEmployeePreview(employee)
     setGroupForm((prev) => ({
       ...prev,
@@ -195,6 +301,7 @@ export default function HrShiftGroupsPage() {
   }
 
   const handleMemberSelect = (employee: EmployeeSummary) => {
+    setGroupFormFeedback(null)
     cacheEmployeePreview(employee)
     setGroupForm((prev) => ({
       ...prev,
@@ -206,11 +313,46 @@ export default function HrShiftGroupsPage() {
 
   const removeMember = (employeeId: string) => {
     if (employeeId === groupForm.leaderEmployeeId) return
+    setGroupFormFeedback(null)
     setGroupForm((prev) => ({
       ...prev,
       memberIds: prev.memberIds.filter((memberId) => memberId !== employeeId),
     }))
   }
+
+  const openCreateGroupSheet = useCallback(() => {
+    const defaultSiteId = siteFilter === "all" ? sites[0]?.id ?? "" : siteFilter
+    resetGroupComposerState(defaultSiteId)
+    setGroupSheetOpen(true)
+  }, [resetGroupComposerState, siteFilter, sites])
+
+  const openEditGroupSheet = useCallback(
+    async (groupId: string) => {
+      setGroupSheetLoading(true)
+      try {
+        const group = await fetchShiftGroup(groupId)
+        const { form, selectedEmployeeMap } = buildGroupFormFromRecord(group)
+        setGroupFormFeedback(null)
+        setEditingGroupId(group.id)
+        setGroupForm(form)
+        setSelectedEmployees(selectedEmployeeMap)
+        setLeaderSearch("")
+        setMemberSearch("")
+        setLeaderPickerOpen(false)
+        setMemberPickerOpen(false)
+        setGroupSheetOpen(true)
+      } catch (error) {
+        toast({
+          title: "Unable to load shift group",
+          description: getApiErrorMessage(error),
+          variant: "destructive",
+        })
+      } finally {
+        setGroupSheetLoading(false)
+      }
+    },
+    [toast],
+  )
 
   const { data: scheduleGroupOptionsData } = useQuery({
     queryKey: ["shift-groups", "schedule-options", scheduleForm.siteId],
@@ -229,31 +371,47 @@ export default function HrShiftGroupsPage() {
         code: groupForm.code.trim() || undefined,
         siteId: groupForm.siteId,
         leaderEmployeeId: groupForm.leaderEmployeeId,
-        memberIds: groupForm.memberIds,
+        memberIds: Array.from(new Set([...groupForm.memberIds, groupForm.leaderEmployeeId])),
       }),
+    onMutate: () => {
+      setGroupFormFeedback(null)
+    },
     onSuccess: () => {
       toast({ title: "Shift group created", variant: "success" })
       setGroupSheetOpen(false)
-      setGroupForm({
-        name: "",
-        code: "",
-        siteId: "",
-        leaderEmployeeId: "",
-        memberIds: [],
-      })
-      setSelectedEmployees({})
-      setLeaderSearch("")
-      setMemberSearch("")
-      setLeaderPickerOpen(false)
-      setMemberPickerOpen(false)
+      resetGroupComposerState()
       queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
     },
-    onError: (error) =>
-      toast({
-        title: "Unable to create shift group",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
+    onError: (error) => {
+      setGroupFormFeedback(resolveShiftGroupFormFeedback(error))
+    },
+  })
+
+  const updateGroupMutation = useMutation({
+    mutationFn: () => {
+      if (!editingGroupId) {
+        throw new Error("No shift group selected for update")
+      }
+      return updateShiftGroup(editingGroupId, {
+        name: groupForm.name.trim(),
+        code: groupForm.code.trim() || null,
+        siteId: groupForm.siteId,
+        leaderEmployeeId: groupForm.leaderEmployeeId,
+        memberIds: Array.from(new Set([...groupForm.memberIds, groupForm.leaderEmployeeId])),
+      })
+    },
+    onMutate: () => {
+      setGroupFormFeedback(null)
+    },
+    onSuccess: () => {
+      toast({ title: "Shift group updated", variant: "success" })
+      setGroupSheetOpen(false)
+      resetGroupComposerState()
+      queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
+    },
+    onError: (error) => {
+      setGroupFormFeedback(resolveShiftGroupFormFeedback(error))
+    },
   })
 
   const archiveGroupMutation = useMutation({
@@ -374,7 +532,15 @@ export default function HrShiftGroupsPage() {
         id: "actions",
         header: "",
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={groupSheetLoading || updateGroupMutation.isPending || createGroupMutation.isPending}
+              onClick={() => void openEditGroupSheet(row.original.id)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
             <Button
               size="sm"
               variant="destructive"
@@ -385,11 +551,17 @@ export default function HrShiftGroupsPage() {
             </Button>
           </div>
         ),
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
+        size: 156,
+        minSize: 156,
+        maxSize: 156},
     ],
-    [archiveGroupMutation],
+    [
+      archiveGroupMutation,
+      createGroupMutation.isPending,
+      groupSheetLoading,
+      openEditGroupSheet,
+      updateGroupMutation.isPending,
+    ],
   )
 
   const schedulesColumns = useMemo<ColumnDef<ShiftGroupScheduleRecord>[]>(
@@ -463,21 +635,7 @@ export default function HrShiftGroupsPage() {
         activeView === "groups" ? (
           <Button
             size="sm"
-            onClick={() => {
-              setGroupForm({
-                name: "",
-                code: "",
-                siteId: siteFilter === "all" ? sites[0]?.id ?? "" : siteFilter,
-                leaderEmployeeId: "",
-                memberIds: [],
-              })
-              setSelectedEmployees({})
-              setLeaderSearch("")
-              setMemberSearch("")
-              setLeaderPickerOpen(false)
-              setMemberPickerOpen(false)
-              setGroupSheetOpen(true)
-            }}
+            onClick={openCreateGroupSheet}
           >
             <Plus className="h-4 w-4" />
             New Group
@@ -531,7 +689,7 @@ export default function HrShiftGroupsPage() {
             tableClassName="text-sm"
             toolbar={
               <Select value={siteFilter} onValueChange={setSiteFilter}>
-                <SelectTrigger className="h-8 w-[200px]">
+                <SelectTrigger className="h-8 w-full sm:w-[200px]">
                   <SelectValue placeholder="Filter site" />
                 </SelectTrigger>
                 <SelectContent>
@@ -560,7 +718,7 @@ export default function HrShiftGroupsPage() {
             tableClassName="text-sm"
             toolbar={
               <Select value={siteFilter} onValueChange={setSiteFilter}>
-                <SelectTrigger className="h-8 w-[200px]">
+                <SelectTrigger className="h-8 w-full sm:w-[200px]">
                   <SelectValue placeholder="Filter site" />
                 </SelectTrigger>
                 <SelectContent>
@@ -584,30 +742,56 @@ export default function HrShiftGroupsPage() {
         onOpenChange={(open) => {
           setGroupSheetOpen(open)
           if (!open) {
-            setLeaderPickerOpen(false)
-            setMemberPickerOpen(false)
-            setLeaderSearch("")
-            setMemberSearch("")
+            resetGroupComposerState()
           }
         }}
       >
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>Create Shift Group</SheetTitle>
-            <SheetDescription>Group leader automatically acts as shift leader.</SheetDescription>
+            <SheetTitle>{editingGroupId ? "Edit Shift Group" : "Create Shift Group"}</SheetTitle>
+            <SheetDescription>
+              {editingGroupId
+                ? "Update group details, leader, and member roster."
+                : "Group leader automatically acts as shift leader."}
+            </SheetDescription>
           </SheetHeader>
           <form
             className="mt-6 space-y-4"
             onSubmit={(event) => {
               event.preventDefault()
+              if (editingGroupId) {
+                updateGroupMutation.mutate()
+                return
+              }
               createGroupMutation.mutate()
             }}
           >
+            {groupFormFeedback ? (
+              <Alert variant="destructive">
+                <AlertTitle>Unable to save shift group</AlertTitle>
+                <AlertDescription>
+                  <p>{groupFormFeedback.message}</p>
+                  {groupFormFeedback.issues.length > 0 ? (
+                    <div className="mt-2 space-y-1 text-xs">
+                      {groupFormFeedback.issues.slice(0, 4).map((issue, index) => (
+                        <p key={`${issue}-${index}`}>- {issue}</p>
+                      ))}
+                      {groupFormFeedback.issues.length > 4 ? (
+                        <p>- +{groupFormFeedback.issues.length - 4} more issue(s)</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <div>
               <label className="mb-2 block text-sm font-semibold">Name *</label>
               <Input
                 value={groupForm.name}
-                onChange={(event) => setGroupForm((prev) => ({ ...prev, name: event.target.value }))}
+                onChange={(event) => {
+                  setGroupFormFeedback(null)
+                  setGroupForm((prev) => ({ ...prev, name: event.target.value }))
+                }}
                 required
               />
             </div>
@@ -615,7 +799,10 @@ export default function HrShiftGroupsPage() {
               <label className="mb-2 block text-sm font-semibold">Code</label>
               <Input
                 value={groupForm.code}
-                onChange={(event) => setGroupForm((prev) => ({ ...prev, code: event.target.value }))}
+                onChange={(event) => {
+                  setGroupFormFeedback(null)
+                  setGroupForm((prev) => ({ ...prev, code: event.target.value }))
+                }}
                 placeholder="Optional"
               />
             </div>
@@ -623,7 +810,10 @@ export default function HrShiftGroupsPage() {
               <label className="mb-2 block text-sm font-semibold">Site *</label>
               <Select
                 value={groupForm.siteId}
-                onValueChange={(value) => setGroupForm((prev) => ({ ...prev, siteId: value }))}
+                onValueChange={(value) => {
+                  setGroupFormFeedback(null)
+                  setGroupForm((prev) => ({ ...prev, siteId: value }))
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select site" />
@@ -784,13 +974,15 @@ export default function HrShiftGroupsPage() {
               type="submit"
               className="w-full"
               disabled={
+                groupSheetLoading ||
                 createGroupMutation.isPending ||
+                updateGroupMutation.isPending ||
                 !groupForm.name.trim() ||
                 !groupForm.siteId ||
                 !groupForm.leaderEmployeeId
               }
             >
-              Create Group
+              {editingGroupId ? "Save Changes" : "Create Group"}
             </Button>
           </form>
         </SheetContent>

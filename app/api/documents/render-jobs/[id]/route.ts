@@ -1,5 +1,7 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { processDocumentRenderJobsBatch } from "@/lib/documents/service";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -39,6 +41,16 @@ export async function GET(
 
     if (!job || job.companyId !== session.user.companyId) {
       return errorResponse("Render job not found", 404);
+    }
+
+    if (job.status === "QUEUED" || job.status === "FAILED") {
+      after(async () => {
+        try {
+          await processDocumentRenderJobsBatch(1);
+        } catch (error) {
+          console.error("[API] render job status poke processing error:", error);
+        }
+      });
     }
 
     return successResponse(job);
