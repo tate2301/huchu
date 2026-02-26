@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 
 type DomainStatus =
@@ -17,19 +18,48 @@ type DomainStatus =
   | "FAILED"
   | "DISABLED";
 
+type BrandingPayload = {
+  displayName: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  fontFamilyKey: string | null;
+  logoUrl: string | null;
+  secondaryLogoUrl: string | null;
+  signatureUrl: string | null;
+  stampUrl: string | null;
+  legalName: string | null;
+  tradingName: string | null;
+  registrationNumber: string | null;
+  vatNumber: string | null;
+  taxNumber: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  physicalAddress: string | null;
+  postalAddress: string | null;
+  bankName: string | null;
+  bankAccountName: string | null;
+  bankAccountNumber: string | null;
+  bankSwiftCode: string | null;
+  bankIban: string | null;
+  defaultFooterText: string | null;
+  legalDisclaimer: string | null;
+  paymentTerms: string | null;
+  documentLocale: string | null;
+  dateFormat: string | null;
+  timeFormat: string | null;
+  numberFormat: string | null;
+  currencyDisplayMode: string | null;
+};
+
 type BrandingSettingsResponse = {
   company: {
     id: string;
     name: string;
     slug: string;
   };
-  branding: {
-    displayName: string | null;
-    primaryColor: string | null;
-    secondaryColor: string | null;
-    accentColor: string | null;
-    fontFamilyKey: string | null;
-  } | null;
+  branding: BrandingPayload | null;
   effective: {
     displayName: string;
     brandingEnabled: boolean;
@@ -64,6 +94,33 @@ type BrandingFormState = {
   secondaryColor: string;
   accentColor: string;
   fontFamilyKey: string;
+  logoUrl: string;
+  secondaryLogoUrl: string;
+  signatureUrl: string;
+  stampUrl: string;
+  legalName: string;
+  tradingName: string;
+  registrationNumber: string;
+  vatNumber: string;
+  taxNumber: string;
+  email: string;
+  phone: string;
+  website: string;
+  physicalAddress: string;
+  postalAddress: string;
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankSwiftCode: string;
+  bankIban: string;
+  defaultFooterText: string;
+  legalDisclaimer: string;
+  paymentTerms: string;
+  documentLocale: string;
+  dateFormat: string;
+  timeFormat: string;
+  numberFormat: string;
+  currencyDisplayMode: string;
 };
 
 const DEFAULT_FORM_STATE: BrandingFormState = {
@@ -72,6 +129,33 @@ const DEFAULT_FORM_STATE: BrandingFormState = {
   secondaryColor: "#dcf4f1",
   accentColor: "#ebf7f5",
   fontFamilyKey: "huchu",
+  logoUrl: "",
+  secondaryLogoUrl: "",
+  signatureUrl: "",
+  stampUrl: "",
+  legalName: "",
+  tradingName: "",
+  registrationNumber: "",
+  vatNumber: "",
+  taxNumber: "",
+  email: "",
+  phone: "",
+  website: "",
+  physicalAddress: "",
+  postalAddress: "",
+  bankName: "",
+  bankAccountName: "",
+  bankAccountNumber: "",
+  bankSwiftCode: "",
+  bankIban: "",
+  defaultFooterText: "",
+  legalDisclaimer: "",
+  paymentTerms: "",
+  documentLocale: "",
+  dateFormat: "",
+  timeFormat: "",
+  numberFormat: "",
+  currencyDisplayMode: "",
 };
 
 function statusVariant(status: DomainStatus) {
@@ -87,6 +171,15 @@ function statusLabel(status: DomainStatus) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function toValue(value: string | null | undefined) {
+  return value ?? "";
+}
+
+function toNullable(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 async function fetchBrandingSettings(): Promise<BrandingSettingsResponse> {
@@ -114,20 +207,52 @@ export default function BrandingSettingsPage() {
   const customDomainEnabled = settings?.effective.customDomainEnabled ?? false;
 
   const baseForm = useMemo<BrandingFormState>(() => {
-    if (!settings) {
-      return DEFAULT_FORM_STATE;
-    }
+    if (!settings) return DEFAULT_FORM_STATE;
     return {
-      displayName: settings.branding?.displayName ?? "",
+      displayName: toValue(settings.branding?.displayName),
       primaryColor: settings.branding?.primaryColor ?? settings.effective.colors.primary,
       secondaryColor: settings.branding?.secondaryColor ?? settings.effective.colors.secondary,
       accentColor: settings.branding?.accentColor ?? settings.effective.colors.accent,
       fontFamilyKey: settings.branding?.fontFamilyKey ?? settings.effective.fontFamilyKey,
+      logoUrl: toValue(settings.branding?.logoUrl),
+      secondaryLogoUrl: toValue(settings.branding?.secondaryLogoUrl),
+      signatureUrl: toValue(settings.branding?.signatureUrl),
+      stampUrl: toValue(settings.branding?.stampUrl),
+      legalName: toValue(settings.branding?.legalName),
+      tradingName: toValue(settings.branding?.tradingName),
+      registrationNumber: toValue(settings.branding?.registrationNumber),
+      vatNumber: toValue(settings.branding?.vatNumber),
+      taxNumber: toValue(settings.branding?.taxNumber),
+      email: toValue(settings.branding?.email),
+      phone: toValue(settings.branding?.phone),
+      website: toValue(settings.branding?.website),
+      physicalAddress: toValue(settings.branding?.physicalAddress),
+      postalAddress: toValue(settings.branding?.postalAddress),
+      bankName: toValue(settings.branding?.bankName),
+      bankAccountName: toValue(settings.branding?.bankAccountName),
+      bankAccountNumber: toValue(settings.branding?.bankAccountNumber),
+      bankSwiftCode: toValue(settings.branding?.bankSwiftCode),
+      bankIban: toValue(settings.branding?.bankIban),
+      defaultFooterText: toValue(settings.branding?.defaultFooterText),
+      legalDisclaimer: toValue(settings.branding?.legalDisclaimer),
+      paymentTerms: toValue(settings.branding?.paymentTerms),
+      documentLocale: toValue(settings.branding?.documentLocale),
+      dateFormat: toValue(settings.branding?.dateFormat),
+      timeFormat: toValue(settings.branding?.timeFormat),
+      numberFormat: toValue(settings.branding?.numberFormat),
+      currencyDisplayMode: toValue(settings.branding?.currencyDisplayMode),
     };
   }, [settings]);
 
   const form = formDraft ?? baseForm;
   const domainInput = domainInputDraft ?? settings?.domain?.hostname ?? "";
+
+  const setField = <K extends keyof BrandingFormState>(field: K, value: BrandingFormState[K]) => {
+    setFormDraft((prev) => ({
+      ...(prev ?? form),
+      [field]: value,
+    }));
+  };
 
   const saveBrandingMutation = useMutation({
     mutationFn: async (payload: BrandingFormState) => {
@@ -135,17 +260,42 @@ export default function BrandingSettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          displayName: payload.displayName.trim() ? payload.displayName.trim() : null,
+          displayName: toNullable(payload.displayName),
           primaryColor: payload.primaryColor,
           secondaryColor: payload.secondaryColor,
           accentColor: payload.accentColor,
           fontFamilyKey: payload.fontFamilyKey,
+          logoUrl: toNullable(payload.logoUrl),
+          secondaryLogoUrl: toNullable(payload.secondaryLogoUrl),
+          signatureUrl: toNullable(payload.signatureUrl),
+          stampUrl: toNullable(payload.stampUrl),
+          legalName: toNullable(payload.legalName),
+          tradingName: toNullable(payload.tradingName),
+          registrationNumber: toNullable(payload.registrationNumber),
+          vatNumber: toNullable(payload.vatNumber),
+          taxNumber: toNullable(payload.taxNumber),
+          email: toNullable(payload.email),
+          phone: toNullable(payload.phone),
+          website: toNullable(payload.website),
+          physicalAddress: toNullable(payload.physicalAddress),
+          postalAddress: toNullable(payload.postalAddress),
+          bankName: toNullable(payload.bankName),
+          bankAccountName: toNullable(payload.bankAccountName),
+          bankAccountNumber: toNullable(payload.bankAccountNumber),
+          bankSwiftCode: toNullable(payload.bankSwiftCode),
+          bankIban: toNullable(payload.bankIban),
+          defaultFooterText: toNullable(payload.defaultFooterText),
+          legalDisclaimer: toNullable(payload.legalDisclaimer),
+          paymentTerms: toNullable(payload.paymentTerms),
+          documentLocale: toNullable(payload.documentLocale),
+          dateFormat: toNullable(payload.dateFormat),
+          timeFormat: toNullable(payload.timeFormat),
+          numberFormat: toNullable(payload.numberFormat),
+          currencyDisplayMode: toNullable(payload.currencyDisplayMode),
         }),
       });
 
-      const body = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "Failed to save branding settings");
       }
@@ -176,12 +326,8 @@ export default function BrandingSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hostname }),
       });
-      const body = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-      if (!response.ok) {
-        throw new Error(body?.error ?? "Failed to save custom domain");
-      }
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Failed to save custom domain");
       return body;
     },
     onSuccess: async () => {
@@ -212,9 +358,7 @@ export default function BrandingSettingsPage() {
       const body = (await response.json().catch(() => null)) as
         | { error?: string; verified?: boolean; message?: string }
         | null;
-      if (!response.ok) {
-        throw new Error(body?.error ?? "Failed to verify custom domain");
-      }
+      if (!response.ok) throw new Error(body?.error ?? "Failed to verify custom domain");
       return body;
     },
     onSuccess: async (result) => {
@@ -240,7 +384,6 @@ export default function BrandingSettingsPage() {
   });
 
   const fontOptions = settings?.fontOptions ?? [];
-
   const effectivePreview = useMemo(
     () => ({
       displayName: form.displayName.trim() || settings?.company?.name || "Company",
@@ -255,7 +398,7 @@ export default function BrandingSettingsPage() {
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeading
         title="Branding"
-        description="Customize your tenant identity, colors, typography, and custom domain."
+        description="Control your document identity, brand visuals, legal details, and custom domain."
       />
 
       {settingsQuery.isLoading ? (
@@ -274,9 +417,9 @@ export default function BrandingSettingsPage() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Brand Identity</CardTitle>
+              <CardTitle>Identity and Theme</CardTitle>
               <CardDescription>
-                These settings apply across login and your workspace experience.
+                Core company identity and the color/typography palette used on generated documents.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -289,16 +432,8 @@ export default function BrandingSettingsPage() {
                     id="display-name"
                     placeholder={settings?.company.name ?? "Company Name"}
                     value={form.displayName}
-                    onChange={(event) =>
-                      setFormDraft((prev) => ({
-                        ...(prev ?? form),
-                        displayName: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setField("displayName", event.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty to use your company name.
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="font-family">
@@ -306,12 +441,7 @@ export default function BrandingSettingsPage() {
                   </label>
                   <Select
                     value={form.fontFamilyKey}
-                    onValueChange={(value) =>
-                      setFormDraft((prev) => ({
-                        ...(prev ?? form),
-                        fontFamilyKey: value,
-                      }))
-                    }
+                    onValueChange={(value) => setField("fontFamilyKey", value)}
                   >
                     <SelectTrigger id="font-family">
                       <SelectValue placeholder="Select font" />
@@ -344,19 +474,19 @@ export default function BrandingSettingsPage() {
                         className="h-10 w-14 p-1"
                         value={colorField.value}
                         onChange={(event) =>
-                          setFormDraft((prev) => ({
-                            ...(prev ?? form),
-                            [colorField.key]: event.target.value,
-                          }))
+                          setField(
+                            colorField.key as "primaryColor" | "secondaryColor" | "accentColor",
+                            event.target.value,
+                          )
                         }
                       />
                       <Input
                         value={colorField.value}
                         onChange={(event) =>
-                          setFormDraft((prev) => ({
-                            ...(prev ?? form),
-                            [colorField.key]: event.target.value,
-                          }))
+                          setField(
+                            colorField.key as "primaryColor" | "secondaryColor" | "accentColor",
+                            event.target.value,
+                          )
                         }
                         placeholder="#000000"
                       />
@@ -365,36 +495,169 @@ export default function BrandingSettingsPage() {
                 ))}
               </div>
 
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input
+                  placeholder="Legal Name"
+                  value={form.legalName}
+                  onChange={(event) => setField("legalName", event.target.value)}
+                />
+                <Input
+                  placeholder="Trading Name"
+                  value={form.tradingName}
+                  onChange={(event) => setField("tradingName", event.target.value)}
+                />
+                <Input
+                  placeholder="Registration Number"
+                  value={form.registrationNumber}
+                  onChange={(event) => setField("registrationNumber", event.target.value)}
+                />
+                <Input
+                  placeholder="Tax Number"
+                  value={form.taxNumber}
+                  onChange={(event) => setField("taxNumber", event.target.value)}
+                />
+                <Input
+                  placeholder="VAT Number"
+                  value={form.vatNumber}
+                  onChange={(event) => setField("vatNumber", event.target.value)}
+                />
+              </div>
+
               <div className="rounded-lg border bg-muted/20 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Live Preview
                 </p>
                 <div className="mt-3 flex items-center gap-3">
-                  <div
-                    className="h-9 w-9 rounded-md"
-                    style={{ backgroundColor: effectivePreview.primaryColor }}
-                  />
+                  <div className="h-9 w-9 rounded-md" style={{ backgroundColor: effectivePreview.primaryColor }} />
                   <div>
                     <p className="text-sm font-semibold">{effectivePreview.displayName}</p>
                     <p className="text-xs text-muted-foreground">
-                      Primary {effectivePreview.primaryColor} · Secondary {effectivePreview.secondaryColor} · Accent{" "}
+                      Primary {effectivePreview.primaryColor} | Secondary {effectivePreview.secondaryColor} | Accent{" "}
                       {effectivePreview.accentColor}
                     </p>
                   </div>
                 </div>
               </div>
-
-              <div className="flex items-center justify-end">
-                <Button
-                  type="button"
-                  onClick={() => saveBrandingMutation.mutate(formDraft ?? form)}
-                  disabled={saveBrandingMutation.isPending}
-                >
-                  {saveBrandingMutation.isPending ? "Saving..." : "Save Branding"}
-                </Button>
-              </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Brand Assets and Contact</CardTitle>
+              <CardDescription>
+                Asset and contact fields used by templates for headers, signatures, and contact blocks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input placeholder="Logo URL" value={form.logoUrl} onChange={(event) => setField("logoUrl", event.target.value)} />
+                <Input
+                  placeholder="Secondary Logo URL"
+                  value={form.secondaryLogoUrl}
+                  onChange={(event) => setField("secondaryLogoUrl", event.target.value)}
+                />
+                <Input
+                  placeholder="Signature URL"
+                  value={form.signatureUrl}
+                  onChange={(event) => setField("signatureUrl", event.target.value)}
+                />
+                <Input placeholder="Stamp URL" value={form.stampUrl} onChange={(event) => setField("stampUrl", event.target.value)} />
+                <Input placeholder="Email" value={form.email} onChange={(event) => setField("email", event.target.value)} />
+                <Input placeholder="Phone" value={form.phone} onChange={(event) => setField("phone", event.target.value)} />
+                <Input placeholder="Website" value={form.website} onChange={(event) => setField("website", event.target.value)} />
+                <Input
+                  placeholder="Physical Address"
+                  value={form.physicalAddress}
+                  onChange={(event) => setField("physicalAddress", event.target.value)}
+                />
+              </div>
+              <Textarea
+                placeholder="Postal Address"
+                value={form.postalAddress}
+                onChange={(event) => setField("postalAddress", event.target.value)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Finance and Document Defaults</CardTitle>
+              <CardDescription>
+                Bank, payment, legal, and localization values used by invoice/report templates.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input placeholder="Bank Name" value={form.bankName} onChange={(event) => setField("bankName", event.target.value)} />
+                <Input
+                  placeholder="Bank Account Name"
+                  value={form.bankAccountName}
+                  onChange={(event) => setField("bankAccountName", event.target.value)}
+                />
+                <Input
+                  placeholder="Bank Account Number"
+                  value={form.bankAccountNumber}
+                  onChange={(event) => setField("bankAccountNumber", event.target.value)}
+                />
+                <Input
+                  placeholder="SWIFT Code"
+                  value={form.bankSwiftCode}
+                  onChange={(event) => setField("bankSwiftCode", event.target.value)}
+                />
+                <Input placeholder="IBAN" value={form.bankIban} onChange={(event) => setField("bankIban", event.target.value)} />
+                <Input
+                  placeholder="Document Locale (e.g. en-US)"
+                  value={form.documentLocale}
+                  onChange={(event) => setField("documentLocale", event.target.value)}
+                />
+                <Input
+                  placeholder="Date Format (e.g. yyyy-MM-dd)"
+                  value={form.dateFormat}
+                  onChange={(event) => setField("dateFormat", event.target.value)}
+                />
+                <Input
+                  placeholder="Time Format (e.g. HH:mm)"
+                  value={form.timeFormat}
+                  onChange={(event) => setField("timeFormat", event.target.value)}
+                />
+                <Input
+                  placeholder="Number Format"
+                  value={form.numberFormat}
+                  onChange={(event) => setField("numberFormat", event.target.value)}
+                />
+                <Input
+                  placeholder="Currency Display Mode"
+                  value={form.currencyDisplayMode}
+                  onChange={(event) => setField("currencyDisplayMode", event.target.value)}
+                />
+              </div>
+              <Textarea
+                placeholder="Default Footer Text"
+                value={form.defaultFooterText}
+                onChange={(event) => setField("defaultFooterText", event.target.value)}
+              />
+              <Textarea
+                placeholder="Legal Disclaimer"
+                value={form.legalDisclaimer}
+                onChange={(event) => setField("legalDisclaimer", event.target.value)}
+              />
+              <Textarea
+                placeholder="Payment Terms"
+                value={form.paymentTerms}
+                onChange={(event) => setField("paymentTerms", event.target.value)}
+              />
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={() => saveBrandingMutation.mutate(formDraft ?? form)}
+              disabled={saveBrandingMutation.isPending}
+            >
+              {saveBrandingMutation.isPending ? "Saving..." : "Save Branding"}
+            </Button>
+          </div>
 
           <Card>
             <CardHeader>
@@ -420,19 +683,13 @@ export default function BrandingSettingsPage() {
                   type="button"
                   variant="outline"
                   onClick={() => submitDomainMutation.mutate(domainInput)}
-                  disabled={
-                    !customDomainEnabled ||
-                    submitDomainMutation.isPending ||
-                    !domainInput.trim()
-                  }
+                  disabled={!customDomainEnabled || submitDomainMutation.isPending || !domainInput.trim()}
                 >
                   {submitDomainMutation.isPending ? "Saving..." : "Save Domain"}
                 </Button>
                 <Button
                   type="button"
-                  onClick={() =>
-                    verifyDomainMutation.mutate(currentDomain?.hostname ?? domainInput)
-                  }
+                  onClick={() => verifyDomainMutation.mutate(currentDomain?.hostname ?? domainInput)}
                   disabled={
                     !customDomainEnabled ||
                     verifyDomainMutation.isPending ||
@@ -471,9 +728,6 @@ export default function BrandingSettingsPage() {
                       <p className="mt-1 font-mono text-sm">{currentDomain.verificationValue}</p>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Add the TXT record above in your DNS provider, then click <span className="font-semibold">Verify DNS</span>.
-                  </p>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -487,3 +741,4 @@ export default function BrandingSettingsPage() {
     </div>
   );
 }
+
