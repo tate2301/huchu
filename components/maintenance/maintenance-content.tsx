@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { differenceInMinutes, format } from "date-fns";
 import {
@@ -54,7 +53,6 @@ import {
   fetchStockLocations,
   fetchWorkOrders,
 } from "@/lib/api";
-import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { exportElementToPdf } from "@/lib/pdf";
 import { EmployeePosition } from "@prisma/client";
@@ -1160,84 +1158,39 @@ export function MaintenanceContent({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-md border border-border/60 bg-card/70">
-                    {equipmentLoading ? (
-                      <Skeleton className="h-[140px] w-full" />
-                    ) : (
-                      <NumberChart
-                        config={buildNumberMetricConfig({
-                          title: "Total Equipment",
-                          value: totalEquipment,
-                        })}
-                        subtitle={() => (
-                          <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                            {totalEquipment.toLocaleString()}
-                          </div>
-                        )}
-                      />
-                    )}
-                  </div>
+                  <FrappeStatCard
+                    label="Total Equipment"
+                    value={totalEquipment}
+                    valueLabel={totalEquipment.toLocaleString()}
+                    loading={equipmentLoading}
+                  />
 
-                  <div className="rounded-md border border-border/60 bg-emerald-50/80">
-                    {equipmentLoading ? (
-                      <Skeleton className="h-[140px] w-full" />
-                    ) : (
-                      <NumberChart
-                        config={buildNumberMetricConfig({
-                          title: "Operational",
-                          value: operationalCount,
-                        })}
-                        subtitle={() => (
-                          <div className="flex flex-col gap-1">
-                            <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                              {operationalCount.toLocaleString()}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Fleet health {equipmentHealthPercent}%
-                            </div>
-                          </div>
-                        )}
-                      />
-                    )}
-                  </div>
+                  <FrappeStatCard
+                    label="Operational"
+                    value={operationalCount}
+                    valueLabel={operationalCount.toLocaleString()}
+                    detail={`Fleet health ${equipmentHealthPercent}%`}
+                    tone="success"
+                    loading={equipmentLoading}
+                  />
 
-                  <div className="rounded-md border border-border/60 bg-amber-50/80">
-                    {equipmentLoading ? (
-                      <Skeleton className="h-[140px] w-full" />
-                    ) : (
-                      <NumberChart
-                        config={buildNumberMetricConfig({
-                          title: "Needs Service",
-                          value: needsServiceCount,
-                          negativeIsBetter: true,
-                        })}
-                        subtitle={() => (
-                          <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                            {needsServiceCount.toLocaleString()}
-                          </div>
-                        )}
-                      />
-                    )}
-                  </div>
+                  <FrappeStatCard
+                    label="Needs Service"
+                    value={needsServiceCount}
+                    valueLabel={needsServiceCount.toLocaleString()}
+                    tone="warning"
+                    negativeIsBetter
+                    loading={equipmentLoading}
+                  />
 
-                  <div className="rounded-md border border-border/60 bg-rose-50/80">
-                    {equipmentLoading ? (
-                      <Skeleton className="h-[140px] w-full" />
-                    ) : (
-                      <NumberChart
-                        config={buildNumberMetricConfig({
-                          title: "Equipment Down",
-                          value: downCount,
-                          negativeIsBetter: true,
-                        })}
-                        subtitle={() => (
-                          <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                            {downCount.toLocaleString()}
-                          </div>
-                        )}
-                      />
-                    )}
-                  </div>
+                  <FrappeStatCard
+                    label="Equipment Down"
+                    value={downCount}
+                    valueLabel={downCount.toLocaleString()}
+                    tone="danger"
+                    negativeIsBetter
+                    loading={equipmentLoading}
+                  />
                 </div>
               </CardContent>
             </Card>

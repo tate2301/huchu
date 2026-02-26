@@ -2,18 +2,18 @@
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { AxisChart, NumberChart } from "@rtcamp/frappe-ui-react"
+import { AxisChart } from "@rtcamp/frappe-ui-react"
 import { endOfMonth, endOfQuarter, endOfWeek, format, startOfMonth, startOfQuarter, startOfWeek } from "date-fns"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FrappeChartShell } from "@/components/charts/frappe-chart-shell"
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card"
 import { PageHeading } from "@/components/layout/page-heading"
 import { StatusState } from "@/components/shared/status-state"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  buildNumberMetricConfig,
   buildTimeSeriesChartConfig,
 } from "@/lib/charts/frappe-config-builders"
 import { fetchPlantReports, fetchSites } from "@/lib/api"
@@ -51,27 +51,7 @@ function MetricTile({
   detail: string
   negativeIsBetter?: boolean
 }) {
-  const metricConfig = buildNumberMetricConfig({
-    title,
-    value,
-    negativeIsBetter,
-  })
-
-  return (
-    <div className="rounded-md border border-border/60 bg-card/70">
-      <NumberChart
-        config={metricConfig}
-        subtitle={() => (
-          <div className="flex flex-col gap-1">
-            <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-              {valueLabel}
-            </div>
-            <div className="text-xs text-muted-foreground">{detail}</div>
-          </div>
-        )}
-      />
-    </div>
-  )
+  return <FrappeStatCard label={title} value={value} valueLabel={valueLabel} detail={detail} negativeIsBetter={negativeIsBetter} />
 }
 
 export default function DashboardPage() {
@@ -319,4 +299,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-

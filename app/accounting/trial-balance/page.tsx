@@ -5,9 +5,9 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -173,24 +173,21 @@ export default function TrialBalancePage() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Opening Credits</CardDescription>
-            <CardTitle className="font-mono">{totals.openingCredit.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Closing Credits</CardDescription>
-            <CardTitle className="font-mono">{totals.closingCredit.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total</CardDescription>
-            <CardTitle className="font-mono">{totals.total.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
+        <FrappeStatCard
+          label="Opening Credits"
+          value={totals.openingCredit}
+          valueLabel={totals.openingCredit.toFixed(2)}
+        />
+        <FrappeStatCard
+          label="Closing Credits"
+          value={totals.closingCredit}
+          valueLabel={totals.closingCredit.toFixed(2)}
+        />
+        <FrappeStatCard
+          label="Total"
+          value={totals.total}
+          valueLabel={totals.total.toFixed(2)}
+        />
       </div>
 
       <DataTable

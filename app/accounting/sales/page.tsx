@@ -6,10 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { AccountingLineItemsListView } from "@/components/accounting/listview/accounting-line-items-list-view";
 import { Input } from "@/components/ui/input";
@@ -1202,22 +1202,16 @@ export default function AccountingSalesPage() {
 
         <div className={activeView === "statements" ? "space-y-3" : "hidden"}>
           <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardDescription>Opening Balance</CardDescription>
-                <CardTitle className="font-mono">
-                  {(statementReport?.openingBalance ?? 0).toFixed(2)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Closing Balance</CardDescription>
-                <CardTitle className="font-mono">
-                  {(statementReport?.closingBalance ?? 0).toFixed(2)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            <FrappeStatCard
+              label="Opening Balance"
+              value={statementReport?.openingBalance ?? 0}
+              valueLabel={(statementReport?.openingBalance ?? 0).toFixed(2)}
+            />
+            <FrappeStatCard
+              label="Closing Balance"
+              value={statementReport?.closingBalance ?? 0}
+              valueLabel={(statementReport?.closingBalance ?? 0).toFixed(2)}
+            />
           </div>
           <DataTable
             data={statementLines}

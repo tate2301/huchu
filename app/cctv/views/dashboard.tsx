@@ -1,7 +1,7 @@
 "use client";
 
-import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { PageIntro } from "@/components/shared/page-intro";
 import { StatusState } from "@/components/shared/status-state";
 import {
@@ -12,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import {
   Camera as CameraIcon,
   Server,
@@ -63,27 +62,6 @@ export function DashboardView({
     offlineNVRs === 0 &&
     unacknowledgedEvents === 0;
   const siteFilterId = "cctv-dashboard-site-filter";
-
-  const totalCamerasMetric = buildNumberMetricConfig({
-    title: "Total Cameras",
-    value: cameras.length,
-  });
-
-  const recordingMetric = buildNumberMetricConfig({
-    title: "Recording",
-    value: recordingCameras,
-  });
-
-  const nvrMetric = buildNumberMetricConfig({
-    title: "NVRs",
-    value: nvrs.length,
-  });
-
-  const eventsMetric = buildNumberMetricConfig({
-    title: "Active Events",
-    value: unacknowledgedEvents,
-    negativeIsBetter: true,
-  });
 
   if (cameras.length === 0 && nvrs.length === 0 && events.length === 0) {
     return (
@@ -143,71 +121,36 @@ export function DashboardView({
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-md border border-border/60 bg-card/70">
-          <NumberChart
-            config={totalCamerasMetric}
-            subtitle={() => (
-              <div className="flex flex-col gap-1">
-                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                  {cameras.length}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {onlineCameras} online, {offlineCameras} offline
-                </div>
-              </div>
-            )}
-          />
-        </div>
-
-        <div className="rounded-md border border-border/60 bg-card/70">
-          <NumberChart
-            config={recordingMetric}
-            subtitle={() => (
-              <div className="flex flex-col gap-1">
-                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                  {recordingCameras}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {cameras.length > 0
-                    ? `${Math.round((recordingCameras / cameras.length) * 100)}% of cameras`
-                    : "No cameras"}
-                </div>
-              </div>
-            )}
-          />
-        </div>
-
-        <div className="rounded-md border border-border/60 bg-card/70">
-          <NumberChart
-            config={nvrMetric}
-            subtitle={() => (
-              <div className="flex flex-col gap-1">
-                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                  {nvrs.length}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {onlineNVRs} online, {offlineNVRs} offline
-                </div>
-              </div>
-            )}
-          />
-        </div>
-
-        <div className="rounded-md border border-border/60 bg-card/70">
-          <NumberChart
-            config={eventsMetric}
-            subtitle={() => (
-              <div className="flex flex-col gap-1">
-                <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                  {unacknowledgedEvents}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {criticalEvents} critical, {highEvents} high
-                </div>
-              </div>
-            )}
-          />
-        </div>
+        <FrappeStatCard
+          label="Total Cameras"
+          value={cameras.length}
+          valueLabel={cameras.length.toLocaleString()}
+          detail={`${onlineCameras} online, ${offlineCameras} offline`}
+        />
+        <FrappeStatCard
+          label="Recording Cameras"
+          value={recordingCameras}
+          valueLabel={recordingCameras.toLocaleString()}
+          detail={
+            cameras.length > 0
+              ? `${Math.round((recordingCameras / cameras.length) * 100)}% of cameras`
+              : "No cameras"
+          }
+        />
+        <FrappeStatCard
+          label="NVRs"
+          value={nvrs.length}
+          valueLabel={nvrs.length.toLocaleString()}
+          detail={`${onlineNVRs} online, ${offlineNVRs} offline`}
+        />
+        <FrappeStatCard
+          label="Active Events"
+          value={unacknowledgedEvents}
+          valueLabel={unacknowledgedEvents.toLocaleString()}
+          detail={`${criticalEvents} critical, ${highEvents} high`}
+          tone={unacknowledgedEvents > 0 ? "warning" : "success"}
+          negativeIsBetter
+        />
       </div>
 
       {/* High Security Cameras */}

@@ -8,6 +8,7 @@ import { Save, Send, Trash2, UserCheck, UserX } from "@/lib/icons";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
@@ -492,8 +493,21 @@ export default function AttendancePage() {
         </Card>
 
         <div className="grid grid-cols-2 gap-4">
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><UserCheck className="h-8 w-8 text-green-600" /><div><div className="text-2xl font-bold">{presentCount}</div><div className="text-sm text-muted-foreground">Present</div></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><UserX className="h-8 w-8 text-red-600" /><div><div className="text-2xl font-bold">{absentCount}</div><div className="text-sm text-muted-foreground">Absent</div></div></div></CardContent></Card>
+          <FrappeStatCard
+            label="Present"
+            value={presentCount}
+            valueLabel={presentCount.toLocaleString()}
+            tone="success"
+            titleAdornment={<UserCheck className="h-4 w-4 text-green-600" />}
+          />
+          <FrappeStatCard
+            label="Absent"
+            value={absentCount}
+            valueLabel={absentCount.toLocaleString()}
+            tone="danger"
+            negativeIsBetter
+            titleAdornment={<UserX className="h-4 w-4 text-red-600" />}
+          />
         </div>
 
         <Card>

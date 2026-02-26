@@ -5,9 +5,9 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -196,42 +196,12 @@ export default function FinancialStatementsPage() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Income</CardDescription>
-            <CardTitle className="font-mono">{totals.income.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Expenses</CardDescription>
-            <CardTitle className="font-mono">{totals.expenses.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Net Income</CardDescription>
-            <CardTitle className="font-mono">{totals.netIncome.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Assets</CardDescription>
-            <CardTitle className="font-mono">{balanceTotals.assets.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Liabilities</CardDescription>
-            <CardTitle className="font-mono">{balanceTotals.liabilities.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Equity</CardDescription>
-            <CardTitle className="font-mono">{balanceTotals.equity.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
+        <FrappeStatCard label="Total Income" value={totals.income} valueLabel={totals.income.toFixed(2)} />
+        <FrappeStatCard label="Total Expenses" value={totals.expenses} valueLabel={totals.expenses.toFixed(2)} />
+        <FrappeStatCard label="Net Income" value={totals.netIncome} valueLabel={totals.netIncome.toFixed(2)} />
+        <FrappeStatCard label="Total Assets" value={balanceTotals.assets} valueLabel={balanceTotals.assets.toFixed(2)} />
+        <FrappeStatCard label="Total Liabilities" value={balanceTotals.liabilities} valueLabel={balanceTotals.liabilities.toFixed(2)} />
+        <FrappeStatCard label="Total Equity" value={balanceTotals.equity} valueLabel={balanceTotals.equity.toFixed(2)} />
       </div>
 
       <VerticalDataViews
@@ -306,30 +276,10 @@ export default function FinancialStatementsPage() {
 
               <div className={activeView === "cash-flow" ? "space-y-3" : "hidden"}>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <Card>
-                    <CardHeader>
-                      <CardDescription>Operating Cash</CardDescription>
-                      <CardTitle className="font-mono">{cashTotals.operating.toFixed(2)}</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardDescription>Investing Cash</CardDescription>
-                      <CardTitle className="font-mono">{cashTotals.investing.toFixed(2)}</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardDescription>Financing Cash</CardDescription>
-                      <CardTitle className="font-mono">{cashTotals.financing.toFixed(2)}</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardDescription>Net Cash</CardDescription>
-                      <CardTitle className="font-mono">{cashTotals.netCash.toFixed(2)}</CardTitle>
-                    </CardHeader>
-                  </Card>
+                  <FrappeStatCard label="Operating Cash" value={cashTotals.operating} valueLabel={cashTotals.operating.toFixed(2)} />
+                  <FrappeStatCard label="Investing Cash" value={cashTotals.investing} valueLabel={cashTotals.investing.toFixed(2)} />
+                  <FrappeStatCard label="Financing Cash" value={cashTotals.financing} valueLabel={cashTotals.financing.toFixed(2)} />
+                  <FrappeStatCard label="Net Cash" value={cashTotals.netCash} valueLabel={cashTotals.netCash.toFixed(2)} />
                 </div>
                 <DataTable
                   data={cashFlowRows}

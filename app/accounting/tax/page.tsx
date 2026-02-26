@@ -6,10 +6,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -522,24 +522,15 @@ export default function TaxSetupPage() {
         </div>
         <div className={activeView === "vat-summary" ? "space-y-3" : "hidden"}>
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardDescription>Output VAT</CardDescription>
-                <CardTitle className="font-mono">{vatTotals.outputTax.toFixed(2)}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Input VAT</CardDescription>
-                <CardTitle className="font-mono">{vatTotals.inputTax.toFixed(2)}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Net VAT</CardDescription>
-                <CardTitle className="font-mono">{vatTotals.netTax.toFixed(2)}</CardTitle>
-              </CardHeader>
-            </Card>
+            <FrappeStatCard label="Output VAT" value={vatTotals.outputTax} valueLabel={vatTotals.outputTax.toFixed(2)} />
+            <FrappeStatCard label="Input VAT" value={vatTotals.inputTax} valueLabel={vatTotals.inputTax.toFixed(2)} />
+            <FrappeStatCard
+              label="Net VAT"
+              value={vatTotals.netTax}
+              valueLabel={vatTotals.netTax.toFixed(2)}
+              tone={vatTotals.netTax > 0 ? "warning" : "success"}
+              negativeIsBetter
+            />
           </div>
           <DataTable
             data={vatRows}

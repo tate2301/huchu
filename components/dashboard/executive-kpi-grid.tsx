@@ -1,10 +1,9 @@
 "use client";
 
-import { NumberChart } from "@rtcamp/frappe-ui-react";
 import type { ExecutiveKpiCard } from "@/lib/api";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { StatusState } from "@/components/shared/status-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 
 type ExecutiveKpiGridProps = {
   items?: ExecutiveKpiCard[];
@@ -83,54 +82,23 @@ export function ExecutiveKpiGrid({
       {!isLoading && !isError && items && items.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => {
-            const delta = typeof item.delta === "number" ? item.delta : 0;
             const deltaLabel = formatDelta(item);
             const valueLabel = formatKpiValue(item);
-            const numberConfig = buildNumberMetricConfig({
-              title: item.label,
-              value: item.value,
-              delta: typeof item.delta === "number" ? item.delta : undefined,
-            });
-            const deltaClassName =
-              delta > 0
-                ? "text-ink-green-2"
-                : delta < 0
-                  ? "text-ink-red-3"
-                  : "text-ink-gray-6";
-            const deltaArrow = delta > 0 ? "\u2191" : delta < 0 ? "\u2193" : "\u2192";
 
             return (
-              <div
+              <FrappeStatCard
                 key={item.id}
-                className="rounded-md border border-border/60 bg-card/70"
-              >
-                <NumberChart
-                  config={numberConfig}
-                  title={
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-ink-gray-5">
-                        {item.label}
-                      </span>
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        {formatModuleLabel(item.module)}
-                      </span>
-                    </div>
-                  }
-                  subtitle={() => (
-                    <div className="flex-1 flex-shrink-0 truncate font-mono text-[24px] font-semibold leading-10 text-ink-gray-6">
-                      {valueLabel}
-                    </div>
-                  )}
-                  delta={() =>
-                    deltaLabel ? (
-                      <div className={`flex items-center gap-1 text-xs font-medium ${deltaClassName}`}>
-                        <span>{deltaArrow}</span>
-                        <span className="font-mono tabular-nums">{deltaLabel}</span>
-                      </div>
-                    ) : null
-                  }
-                />
-              </div>
+                label={item.label}
+                value={item.value}
+                valueLabel={valueLabel}
+                detail={deltaLabel ? `Trend ${deltaLabel}` : undefined}
+                delta={typeof item.delta === "number" ? item.delta : undefined}
+                titleAdornment={
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {formatModuleLabel(item.module)}
+                  </span>
+                }
+              />
             );
           })}
         </div>
