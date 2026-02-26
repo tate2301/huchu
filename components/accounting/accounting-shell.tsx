@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
-import { ACCOUNTING_TABS, type AccountingTab } from "@/lib/accounting/tab-config";
+import { ACCOUNTING_CATEGORIES, ACCOUNTING_TABS, type AccountingTab } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,21 @@ export function AccountingShell({
     () => filterAccountingTabsByFeatures(ACCOUNTING_TABS, enabledFeatures),
     [enabledFeatures],
   );
+  const activeCategoryId = useMemo(() => {
+    const active = visibleTabs.find((tab) => tab.id === activeTab);
+    return active?.categoryId ?? visibleTabs[0]?.categoryId ?? "hub";
+  }, [activeTab, visibleTabs]);
+  const visibleCategories = useMemo(
+    () =>
+      ACCOUNTING_CATEGORIES.filter((category) =>
+        visibleTabs.some((tab) => tab.categoryId === category.id),
+      ).sort((a, b) => a.order - b.order),
+    [visibleTabs],
+  );
+  const visibleTabsForActiveCategory = useMemo(
+    () => visibleTabs.filter((tab) => tab.categoryId === activeCategoryId),
+    [activeCategoryId, visibleTabs],
+  );
 
   return (
     <div className="w-full space-y-6">
@@ -46,10 +61,36 @@ export function AccountingShell({
       />
 
       <nav
-        aria-label="Accounting navigation"
+        aria-label="Accounting category navigation"
         className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
       >
-        {visibleTabs.map((tab) => {
+        {visibleCategories.map((category) => {
+          const categoryTab = visibleTabs.find((tab) => tab.categoryId === category.id);
+          if (!categoryTab) return null;
+          const isActive = activeCategoryId === category.id;
+          return (
+            <Link
+              key={category.id}
+              href={categoryTab.href}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <category.icon className="size-5" />
+              <span className="ml-2">{category.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <nav
+        aria-label="Accounting section navigation"
+        className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
+      >
+        {visibleTabsForActiveCategory.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <Link

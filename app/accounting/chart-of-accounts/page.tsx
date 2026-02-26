@@ -37,11 +37,14 @@ export default function ChartOfAccountsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<ChartOfAccountRecord | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [nodeTypeFilter, setNodeTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [formState, setFormState] = useState({
     code: "",
     name: "",
     type: "ASSET",
+    nodeType: "LEDGER",
+    parentAccountId: "",
     category: "",
     description: "",
     isActive: true,
@@ -70,11 +73,24 @@ export default function ChartOfAccountsPage() {
   const filteredAccounts = useMemo(() => {
     return accounts.filter((account) => {
       if (typeFilter !== "all" && account.type !== typeFilter) return false;
+      if (nodeTypeFilter !== "all" && account.nodeType !== nodeTypeFilter) return false;
       if (statusFilter === "active" && !account.isActive) return false;
       if (statusFilter === "inactive" && account.isActive) return false;
       return true;
     });
-  }, [accounts, statusFilter, typeFilter]);
+  }, [accounts, nodeTypeFilter, statusFilter, typeFilter]);
+
+  const parentOptions = useMemo(() => {
+    return accounts
+      .filter(
+        (account) =>
+          account.isActive &&
+          account.nodeType === "GROUP" &&
+          account.type === formState.type &&
+          (!editingAccount || account.id !== editingAccount.id),
+      )
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [accounts, editingAccount, formState.type]);
 
   const columns: ColumnDef<ChartOfAccountRecord>[] = [
     {
@@ -101,6 +117,28 @@ export default function ChartOfAccountsPage() {
       size: 160,
       minSize: 160,
       maxSize: 160},
+    {
+      id: "nodeType",
+      header: "Node",
+      cell: ({ row }) => (
+        <Badge variant={row.original.nodeType === "GROUP" ? "secondary" : "outline"}>
+          {row.original.nodeType ?? "LEDGER"}
+        </Badge>
+      ),
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
+    {
+      id: "parent",
+      header: "Parent",
+      cell: ({ row }) => {
+        if (!row.original.parentAccountId) return "-";
+        const parent = accounts.find((account) => account.id === row.original.parentAccountId);
+        return parent ? `${parent.code} - ${parent.name}` : row.original.parentAccountId;
+      },
+      size: 200,
+      minSize: 180,
+      maxSize: 260},
     {
       id: "category",
       header: "Category",
@@ -225,6 +263,8 @@ export default function ChartOfAccountsPage() {
       code: "",
       name: "",
       type: "ASSET",
+      nodeType: "LEDGER",
+      parentAccountId: "",
       category: "",
       description: "",
       isActive: true,
@@ -238,6 +278,8 @@ export default function ChartOfAccountsPage() {
       code: account.code,
       name: account.name,
       type: account.type,
+      nodeType: account.nodeType ?? "LEDGER",
+      parentAccountId: account.parentAccountId ?? "",
       category: account.category ?? "",
       description: account.description ?? "",
       isActive: account.isActive,
@@ -279,6 +321,8 @@ export default function ChartOfAccountsPage() {
     const payload: Record<string, unknown> = {
       name: formState.name.trim(),
       type: formState.type,
+      nodeType: formState.nodeType,
+      parentAccountId: formState.parentAccountId || null,
       isActive: formState.isActive,
     };
 
@@ -349,6 +393,16 @@ export default function ChartOfAccountsPage() {
                 <SelectItem value="all">All Statuses</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={nodeTypeFilter} onValueChange={setNodeTypeFilter}>
+              <SelectTrigger size="sm" className="h-8 w-[160px]">
+                <SelectValue placeholder="Filter node" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Nodes</SelectItem>
+                <SelectItem value="GROUP">Group</SelectItem>
+                <SelectItem value="LEDGER">Ledger</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         }
         emptyState={isLoading ? "Loading accounts..." : "No accounts found."}
@@ -394,7 +448,7 @@ export default function ChartOfAccountsPage() {
                 <Select
                   value={formState.type}
                   onValueChange={(value) =>
-                    setFormState((prev) => ({ ...prev, type: value }))
+                    setFormState((prev) => ({ ...prev, type: value, parentAccountId: "" }))
                   }
                 >
                   <SelectTrigger className="w-full">
@@ -406,6 +460,23 @@ export default function ChartOfAccountsPage() {
                         {type}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Node Type *</label>
+                <Select
+                  value={formState.nodeType}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({ ...prev, nodeType: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select node type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LEDGER">Ledger</SelectItem>
+                    <SelectItem value="GROUP">Group</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -426,6 +497,27 @@ export default function ChartOfAccountsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Parent Account</label>
+              <Select
+                value={formState.parentAccountId || "none"}
+                onValueChange={(value) =>
+                  setFormState((prev) => ({ ...prev, parentAccountId: value === "none" ? "" : value }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="No parent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No parent</SelectItem>
+                  {parentOptions.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.code} - {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="block text-sm font-semibold mb-2">Category</label>

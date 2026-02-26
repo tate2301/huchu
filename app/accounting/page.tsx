@@ -226,6 +226,13 @@ export default function AccountingOverviewPage() {
             href: "/accounting/tax?view=vat-summary",
             tag: "Tax",
           },
+          {
+            id: "vat-returns",
+            label: "VAT Returns",
+            description: "Draft, review, finalize, and file VAT returns.",
+            href: "/accounting/tax?view=vat-returns",
+            tag: "Compliance",
+          },
         ],
       },
       {
@@ -252,6 +259,13 @@ export default function AccountingOverviewPage() {
             href: "/accounting/purchases?view=payments",
             tag: "AP",
           },
+          {
+            id: "payment-ledger",
+            label: "Payment Ledger",
+            description: "Unified AR/AP ledger movements for allocations and aging.",
+            href: "/accounting/financial-reports",
+            tag: "Ledger",
+          },
         ],
       },
       {
@@ -267,7 +281,7 @@ export default function AccountingOverviewPage() {
           {
             id: "periods",
             label: "Accounting Periods",
-            description: "Period control and lock management.",
+            description: "Period control, freeze date, opening balances, and close vouchers.",
             href: "/accounting/periods",
             tag: "Master",
           },

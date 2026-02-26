@@ -39,6 +39,43 @@ function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boole
   return subscriptionActive ? "ACTIVE" : "SUBSCRIPTION_INACTIVE";
 }
 
+function stripControlChars(value: string): string {
+  return Array.from(value)
+    .filter((char) => {
+      const codePoint = char.codePointAt(0);
+      if (codePoint === undefined) {
+        return false;
+      }
+      return codePoint >= 32 && codePoint !== 127;
+    })
+    .join("");
+}
+
+function buildDevPasswordFallbackCandidates(rawPassword: string): string[] {
+  const trimmedPassword = rawPassword.trim();
+  const noControlChars = stripControlChars(rawPassword);
+  const noControlCharsTrimmed = noControlChars.trim();
+
+  const candidates = [
+    rawPassword,
+    trimmedPassword,
+    noControlChars,
+    noControlCharsTrimmed,
+    `${rawPassword} `,
+    ` ${rawPassword}`,
+    `${trimmedPassword} `,
+    ` ${trimmedPassword}`,
+    `${rawPassword}\n`,
+    `${rawPassword}\r`,
+    `${rawPassword}\r\n`,
+    `${trimmedPassword}\n`,
+    `${trimmedPassword}\r`,
+    `${trimmedPassword}\r\n`,
+  ];
+
+  return Array.from(new Set(candidates.filter(Boolean)));
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
@@ -49,6 +86,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials, req) {
+        const exposeCredentialDebugReason = process.env.NODE_ENV !== "production";
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
 
@@ -90,22 +128,48 @@ export const authOptions: NextAuthOptions = {
             role: true,
             companyId: true,
             isActive: true,
-            image: true
+            image: true,
+            updatedAt: true,
           }
         });
 
-        if (!user || !user.password) {
-          throw new Error("Invalid credentials");
+        if (!user) {
+          throw new Error(exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "Invalid credentials");
+        }
+
+        if (!user.password) {
+          throw new Error(exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "Invalid credentials");
         }
 
         if (!user.isActive) {
           throw new Error("Account is inactive");
         }
 
-        const isCorrectPassword = await bcrypt.compare(password, user.password);
+        const passwordCandidates = exposeCredentialDebugReason
+          ? buildDevPasswordFallbackCandidates(password)
+          : [password];
+
+        let isCorrectPassword = false;
+        let matchedCandidate: string | null = null;
+        for (const candidate of passwordCandidates) {
+          if (await bcrypt.compare(candidate, user.password)) {
+            isCorrectPassword = true;
+            matchedCandidate = candidate;
+            break;
+          }
+        }
 
         if (!isCorrectPassword) {
-          throw new Error("Invalid credentials");
+          throw new Error(exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "Invalid credentials");
+        }
+
+        if (exposeCredentialDebugReason && matchedCandidate !== password) {
+          // Self-heal legacy local hashes that were saved with hidden whitespace/control chars.
+          const canonicalPasswordHash = await bcrypt.hash(password, 12);
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { password: canonicalPasswordHash },
+          });
         }
 
         const loginEnabled = await hasFeature(user.companyId, "core.auth.login");

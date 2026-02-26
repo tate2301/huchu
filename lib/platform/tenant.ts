@@ -57,8 +57,47 @@ function normalizeHostHeaderValue(value: NullableString): string {
 }
 
 function stripPort(host: string): string {
-  const index = host.indexOf(":");
-  return index === -1 ? host : host.slice(0, index);
+  const trimmed = host.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.startsWith("[")) {
+    const closingBracketIndex = trimmed.indexOf("]");
+    if (closingBracketIndex === -1) {
+      return trimmed;
+    }
+    return trimmed.slice(0, closingBracketIndex + 1);
+  }
+
+  const firstColonIndex = trimmed.indexOf(":");
+  if (firstColonIndex === -1) {
+    return trimmed;
+  }
+
+  const lastColonIndex = trimmed.lastIndexOf(":");
+  if (firstColonIndex !== lastColonIndex) {
+    return trimmed;
+  }
+
+  return trimmed.slice(0, lastColonIndex);
+}
+
+function isLoopbackHostname(hostname: string | null): boolean {
+  if (!hostname) {
+    return false;
+  }
+
+  const normalizedHostname = hostname.trim().toLowerCase();
+
+  return (
+    normalizedHostname === "localhost" ||
+    normalizedHostname.endsWith(".localhost") ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1" ||
+    normalizedHostname === "[::1]"
+  );
 }
 
 function parseRootHosts(value: NullableString): string[] {
@@ -103,7 +142,7 @@ export function getPlatformHostContext(hostHeader: NullableString): PlatformHost
   const rootDomain = normalizeHostValue(process.env.PLATFORM_ROOT_DOMAIN);
   const rootHosts = parseRootHosts(process.env.PLATFORM_ROOT_HOSTS);
   const hasHostConfig = Boolean(rootDomain || rootHosts.length > 0);
-  const strictTenantEnforcement = Boolean(rootDomain);
+  const strictTenantEnforcement = Boolean(rootDomain) && !isLoopbackHostname(hostname);
 
   const centralHosts = new Set<string>();
 

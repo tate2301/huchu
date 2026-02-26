@@ -60,6 +60,15 @@ export async function ensureAccountingDefaults(companyId: string): Promise<Boots
     select: { id: true, code: true },
   });
   const accountByCode = new Map(accounts.map((account) => [account.code, account.id]));
+  const retainedEarningsAccountId = accountByCode.get("3000");
+  if (retainedEarningsAccountId) {
+    await prisma.accountingSettings.update({
+      where: { companyId },
+      data: {
+        retainedEarningsAccountId,
+      },
+    });
+  }
 
   const existingRules = await prisma.postingRule.findMany({
     where: { companyId },

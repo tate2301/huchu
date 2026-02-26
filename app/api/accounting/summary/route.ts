@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
       openBills,
       pendingIntegrationEvents,
       failedIntegrationEvents,
+      pendingVatReturns,
+      pendingFiscalReceipts,
+      settings,
     ] = await Promise.all([
       prisma.chartOfAccount.count({ where: { companyId } }),
       prisma.accountingPeriod.count({ where: { companyId, status: "OPEN" } }),
@@ -38,6 +41,22 @@ export async function GET(request: NextRequest) {
           status: "FAILED",
         },
       }),
+      prisma.vatReturn.count({
+        where: {
+          companyId,
+          status: { in: ["DRAFT", "REVIEWED", "FINALIZED"] },
+        },
+      }),
+      prisma.fiscalReceipt.count({
+        where: {
+          companyId,
+          status: { in: ["PENDING", "FAILED"] },
+        },
+      }),
+      prisma.accountingSettings.findUnique({
+        where: { companyId },
+        select: { freezeBeforeDate: true, retainedEarningsAccountId: true },
+      }),
     ]);
 
     return successResponse({
@@ -49,6 +68,10 @@ export async function GET(request: NextRequest) {
       openBills,
       pendingIntegrationEvents,
       failedIntegrationEvents,
+      pendingVatReturns,
+      pendingFiscalReceipts,
+      freezeBeforeDate: settings?.freezeBeforeDate ?? null,
+      retainedEarningsAccountId: settings?.retainedEarningsAccountId ?? null,
     });
   } catch (error) {
     console.error("[API] GET /api/accounting/summary error:", error);

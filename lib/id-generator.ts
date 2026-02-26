@@ -9,6 +9,8 @@ export type ReservableIdEntity =
   | "CHART_OF_ACCOUNT"
   | "COST_CENTER"
   | "TAX_CODE"
+  | "TAX_CATEGORY"
+  | "TAX_TEMPLATE"
   | "FIXED_ASSET"
   | "INVENTORY_ITEM"
   | "STOCK_LOCATION"
@@ -34,6 +36,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   CHART_OF_ACCOUNT: { prefix: "ACC", requiresSiteId: false },
   COST_CENTER: { prefix: "CCTR", requiresSiteId: false },
   TAX_CODE: { prefix: "TAX", requiresSiteId: false },
+  TAX_CATEGORY: { prefix: "TCAT", requiresSiteId: false },
+  TAX_TEMPLATE: { prefix: "TTMP", requiresSiteId: false },
   FIXED_ASSET: { prefix: "AST", requiresSiteId: false },
   INVENTORY_ITEM: { prefix: "INV", requiresSiteId: true },
   STOCK_LOCATION: { prefix: "LOC", requiresSiteId: true },
@@ -141,6 +145,20 @@ async function findEntityMaxExistingCode(
     }
     case "TAX_CODE": {
       const records = await db.taxCode.findMany({
+        where: { companyId },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "TAX_CATEGORY": {
+      const records = await db.taxCategory.findMany({
+        where: { companyId },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "TAX_TEMPLATE": {
+      const records = await db.taxTemplate.findMany({
         where: { companyId },
         select: { code: true },
       });

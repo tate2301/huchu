@@ -69,6 +69,9 @@ model Company {
   journalEntries       JournalEntry[]
   postingRules         PostingRule[]
   taxCodes             TaxCode[]
+  taxCategories        TaxCategory[]
+  taxTemplates         TaxTemplate[]
+  taxRules             TaxRule[]
   customers            Customer[]
   vendors              Vendor[]
   salesInvoices        SalesInvoice[]
@@ -82,7 +85,11 @@ model Company {
   bankAccounts         BankAccount[]
   bankTransactions     BankTransaction[]
   bankReconciliations  BankReconciliation[]
+  paymentLedgerEntries PaymentLedgerEntry[]
   vatReturnSummaries   VatReturnSummary[]
+  vatReturns           VatReturn[]
+  periodCloseVouchers  PeriodCloseVoucher[]
+  openingBalanceImports OpeningBalanceImport[]
   fixedAssets          FixedAsset[]
   budgets              Budget[]
   budgetLines          BudgetLine[]
@@ -2213,6 +2220,29 @@ enum ReconciliationStatus {
   VOIDED
 }
 
+enum VatReturnStatus {
+  DRAFT
+  REVIEWED
+  FINALIZED
+  FILED
+  VOIDED
+}
+
+enum PaymentLedgerAccountType {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum PaymentLedgerEntryStatus {
+  POSTED
+  VOIDED
+}
+
+enum AccountNodeType {
+  GROUP
+  LEDGER
+}
+
 model AccountingSettings {
   id                   String   @id @default(uuid())
   companyId            String   @unique
@@ -2228,6 +2258,8 @@ model AccountingSettings {
   email                String?
   defaultTaxCodeId     String?
   defaultBankAccountId String?
+  freezeBeforeDate     DateTime?
+  retainedEarningsAccountId String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -2242,6 +2274,10 @@ model ChartOfAccount {
   code          String
   name          String
   type          AccountType
+  nodeType      AccountNodeType @default(LEDGER)
+  parentAccountId String?
+  hierarchyPath String?
+  level         Int        @default(0)
   category      String?
   description   String?
   isActive      Boolean    @default(true)
@@ -2250,12 +2286,16 @@ model ChartOfAccount {
   updatedAt     DateTime   @updatedAt
 
   company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parentAccount  ChartOfAccount?   @relation("ChartOfAccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts  ChartOfAccount[]  @relation("ChartOfAccountHierarchy")
   journalLines   JournalLine[]
   postingLines   PostingRuleLine[]
   budgetLines    BudgetLine[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
+  @@index([companyId, nodeType])
+  @@index([companyId, parentAccountId])
 }
 
 model AccountingPeriod {
@@ -2272,6 +2312,7 @@ model AccountingPeriod {
   company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   closedBy User?          @relation("AccountingPeriodClosedBy", fields: [closedById], references: [id])
   journals JournalEntry[]
+  closeVouchers PeriodCloseVoucher[]
 
   @@index([companyId, startDate, endDate])
 }
@@ -2415,6 +2456,10 @@ model TaxCode {
   name        String
   rate        Float    @default(0)
   type        String   @default("VAT") // VAT, WITHHOLDING, OTHER
+  appliesTo   String   @default("BOTH") // SALES, PURCHASE, BOTH
+  vat7OutputBox String?
+  vat7InputBox String?
+  scheduleType String   @default("NONE") // NONE, FX, RTGS, WITHHOLDING
   effectiveFrom DateTime?
   effectiveTo   DateTime?
   isActive    Boolean  @default(true)
@@ -2427,6 +2472,7 @@ model TaxCode {
   creditNoteLines CreditNoteLine[]
   debitNoteLines DebitNoteLine[]
   postingLines PostingRuleLine[]
+  templateLines TaxTemplateLine[]
   defaultForSettings AccountingSettings[] @relation("DefaultTaxCode")
 
   @@unique([companyId, code])
@@ -2434,9 +2480,87 @@ model TaxCode {
   @@index([companyId, code, effectiveFrom, effectiveTo])
 }
 
+model TaxCategory {
+  id            String   @id @default(uuid())
+  companyId     String
+  code          String
+  name          String
+  scope         String   @default("BOTH") // CUSTOMER, VENDOR, BOTH
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers Customer[]
+  vendors   Vendor[]
+  rules     TaxRule[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model TaxTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   TaxTemplateLine[]
+  rules   TaxRule[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model TaxTemplateLine {
+  id          String   @id @default(uuid())
+  templateId  String
+  taxCodeId   String
+  sortOrder   Int      @default(0)
+  appliesTo   String   @default("BOTH") // SALES, PURCHASE, BOTH
+  isDefault   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  template TaxTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  taxCode  TaxCode     @relation(fields: [taxCodeId], references: [id])
+
+  @@index([templateId, sortOrder])
+  @@index([taxCodeId])
+}
+
+model TaxRule {
+  id            String   @id @default(uuid())
+  companyId     String
+  name          String
+  appliesTo     String   @default("BOTH") // SALES, PURCHASE, BOTH
+  priority      Int      @default(100)
+  taxCategoryId String?
+  templateId    String
+  currency      String?
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id])
+  template    TaxTemplate  @relation(fields: [templateId], references: [id])
+
+  @@index([companyId, isActive, priority])
+  @@index([companyId, appliesTo, currency])
+}
+
 model Customer {
   id          String   @id @default(uuid())
   companyId   String
+  taxCategoryId String?
   name        String
   contactName String?
   phone       String?
@@ -2448,8 +2572,9 @@ model Customer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoices SalesInvoice[]
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id])
+  invoices    SalesInvoice[]
 
   @@index([companyId, isActive])
 }
@@ -2457,6 +2582,7 @@ model Customer {
 model Vendor {
   id          String   @id @default(uuid())
   companyId   String
+  taxCategoryId String?
   name        String
   contactName String?
   phone       String?
@@ -2468,8 +2594,9 @@ model Vendor {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bills   PurchaseBill[]
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id])
+  bills       PurchaseBill[]
 
   @@index([companyId, isActive])
 }
@@ -2751,6 +2878,35 @@ model PurchaseWriteOff {
   @@index([companyId, billId])
 }
 
+model PaymentLedgerEntry {
+  id               String                   @id @default(uuid())
+  companyId        String
+  sourceType       AccountingSourceType
+  sourceId         String
+  entryDate        DateTime
+  accountType      PaymentLedgerAccountType
+  partyType        String
+  partyId          String?
+  invoiceId        String?
+  billId           String?
+  amount           Float
+  debit            Float                    @default(0)
+  credit           Float                    @default(0)
+  currency         String                   @default("USD")
+  description      String?
+  journalEntryId   String?
+  status           PaymentLedgerEntryStatus @default(POSTED)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sourceType, sourceId])
+  @@index([companyId, accountType, entryDate])
+  @@index([companyId, partyType, partyId, entryDate])
+  @@index([companyId, invoiceId, billId])
+}
+
 model BankAccount {
   id             String   @id @default(uuid())
   companyId      String
@@ -2854,6 +3010,96 @@ model VatReturnSummary {
   @@index([companyId, periodStart, periodEnd])
 }
 
+model VatReturn {
+  id              String         @id @default(uuid())
+  companyId       String
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          VatReturnStatus @default(DRAFT)
+  filingCategory  String?
+  returnDueDate   DateTime?
+  paymentDueDate  DateTime?
+  outputTax       Float          @default(0)
+  inputTax        Float          @default(0)
+  adjustmentsTax  Float          @default(0)
+  netTax          Float          @default(0)
+  vat7BoxesJson   String?
+  schedulesJson   String?
+  referenceNumber String?
+  notes           String?
+  preparedById    String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  finalizedById   String?
+  finalizedAt     DateTime?
+  filedById       String?
+  filedAt         DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   VatReturnLine[]
+
+  @@unique([companyId, periodStart, periodEnd])
+  @@index([companyId, status, periodStart, periodEnd])
+}
+
+model VatReturnLine {
+  id            String   @id @default(uuid())
+  vatReturnId   String
+  taxCodeId     String?
+  code          String
+  name          String
+  rate          Float    @default(0)
+  taxableAmount Float    @default(0)
+  outputTax     Float    @default(0)
+  inputTax      Float    @default(0)
+  adjustments   Float    @default(0)
+  netTax        Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vatReturn VatReturn @relation(fields: [vatReturnId], references: [id], onDelete: Cascade)
+
+  @@index([vatReturnId])
+}
+
+model OpeningBalanceImport {
+  id               String   @id @default(uuid())
+  companyId        String
+  effectiveDate    DateTime
+  sourceReference  String?
+  notes            String?
+  totalDebit       Float    @default(0)
+  totalCredit      Float    @default(0)
+  journalEntryId   String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, effectiveDate])
+}
+
+model PeriodCloseVoucher {
+  id              String   @id @default(uuid())
+  companyId       String
+  periodId        String
+  closingDate     DateTime
+  retainedEarningsAccountId String
+  netResult       Float    @default(0)
+  journalEntryId  String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period  AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, periodId])
+  @@index([companyId, closingDate])
+}
+
 enum DepreciationMethod {
   STRAIGHT_LINE
 }
@@ -2954,7 +3200,12 @@ model FiscalisationProviderConfig {
   username    String?
   password    String?
   apiToken    String?
+  authType    String?
   deviceId    String?
+  timeoutMs   Int?
+  retryPolicyJson String?
+  certificateRef String?
+  webhookSecretRef String?
   metadataJson String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -2977,7 +3228,12 @@ model FiscalReceipt {
   qrCodeData    String?
   signature     String?
   providerKey   String?
+  providerReference String?
+  requestIdempotencyKey String?
   rawResponseJson String?
+  attemptCount  Int      @default(0)
+  nextRetryAt   DateTime?
+  lastSyncedAt  DateTime?
   lastError     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

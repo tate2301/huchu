@@ -30,6 +30,12 @@ function getAuthErrorMessage(rawError: string) {
     case "CredentialsSignin":
     case "Invalid credentials":
       return "Invalid email or password.";
+    case "AUTH_EMAIL_NOT_FOUND":
+      return "No account found for this email in the current database.";
+    case "AUTH_PASSWORD_NOT_SET":
+      return "This account has no password set. Reset the password and try again.";
+    case "AUTH_PASSWORD_MISMATCH":
+      return "Password mismatch for this account.";
     default:
       return rawError;
   }

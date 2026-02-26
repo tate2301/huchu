@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
+import { computeVatReturnSnapshot } from "@/lib/accounting/vat-return";
 
 function parseDateParam(value: string | null) {
   if (!value) return null;
@@ -122,11 +123,22 @@ export async function GET(request: NextRequest) {
       { outputTax: 0, inputTax: 0, netTax: 0 },
     );
 
+    const enhanced =
+      startDate && endDate
+        ? await computeVatReturnSnapshot({
+            companyId: session.user.companyId,
+            periodStart: startDate,
+            periodEnd: endDate,
+          })
+        : null;
+
     return successResponse({
       startDate: startDate ? startDate.toISOString() : null,
       endDate: endDate ? endDate.toISOString() : null,
       rows,
       totals,
+      vat7Boxes: enhanced?.vat7Boxes ?? null,
+      schedules: enhanced?.schedules ?? null,
     });
   } catch (error) {
     console.error("[API] GET /api/accounting/reports/vat-summary error:", error);
