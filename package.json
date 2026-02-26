@@ -21,6 +21,7 @@
     "platform:accounting-backfill-events": "tsx scripts/platform/accounting-backfill-events.ts",
     "backfill:gold-valuations": "tsx scripts/backfill-gold-valuations.ts",
     "backfill:gold-accounting-usd": "tsx scripts/backfill-gold-accounting-usd.ts",
+    "worker:pdf": "tsx scripts/pdf-worker.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
     "db:push": "prisma db push"
@@ -59,6 +60,7 @@
     "next": "16.1.1",
     "next-auth": "^4.24.13",
     "pg": "^8.16.3",
+    "playwright": "^1.53.2",
     "prisma": "^7.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

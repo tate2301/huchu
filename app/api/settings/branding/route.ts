@@ -19,11 +19,38 @@ const updateBrandingSchema = z
     secondaryColor: z.string().trim().nullable().optional(),
     accentColor: z.string().trim().nullable().optional(),
     fontFamilyKey: z.enum(FONT_KEY_VALUES as [string, ...string[]]).nullable().optional(),
+    logoUrl: z.string().trim().max(500).nullable().optional(),
+    secondaryLogoUrl: z.string().trim().max(500).nullable().optional(),
+    signatureUrl: z.string().trim().max(500).nullable().optional(),
+    stampUrl: z.string().trim().max(500).nullable().optional(),
+    legalName: z.string().trim().max(150).nullable().optional(),
+    tradingName: z.string().trim().max(150).nullable().optional(),
+    registrationNumber: z.string().trim().max(100).nullable().optional(),
+    vatNumber: z.string().trim().max(100).nullable().optional(),
+    taxNumber: z.string().trim().max(100).nullable().optional(),
+    email: z.string().trim().max(120).nullable().optional(),
+    phone: z.string().trim().max(60).nullable().optional(),
+    website: z.string().trim().max(200).nullable().optional(),
+    physicalAddress: z.string().trim().max(300).nullable().optional(),
+    postalAddress: z.string().trim().max(300).nullable().optional(),
+    bankName: z.string().trim().max(150).nullable().optional(),
+    bankAccountName: z.string().trim().max(150).nullable().optional(),
+    bankAccountNumber: z.string().trim().max(100).nullable().optional(),
+    bankSwiftCode: z.string().trim().max(60).nullable().optional(),
+    bankIban: z.string().trim().max(60).nullable().optional(),
+    defaultFooterText: z.string().trim().max(500).nullable().optional(),
+    legalDisclaimer: z.string().trim().max(1000).nullable().optional(),
+    paymentTerms: z.string().trim().max(1000).nullable().optional(),
+    documentLocale: z.string().trim().max(30).nullable().optional(),
+    dateFormat: z.string().trim().max(40).nullable().optional(),
+    timeFormat: z.string().trim().max(40).nullable().optional(),
+    numberFormat: z.string().trim().max(40).nullable().optional(),
+    currencyDisplayMode: z.string().trim().max(40).nullable().optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, { message: "No fields provided" });
 
-function ensureSuperAdmin(sessionRole: string) {
-  return sessionRole === "SUPERADMIN";
+function ensureBrandingManager(sessionRole: string) {
+  return sessionRole === "SUPERADMIN" || sessionRole === "MANAGER";
 }
 
 export async function GET(request: NextRequest) {
@@ -32,8 +59,8 @@ export async function GET(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!ensureSuperAdmin(session.user.role)) {
-      return errorResponse("Only SUPERADMIN can access branding settings", 403);
+    if (!ensureBrandingManager(session.user.role)) {
+      return errorResponse("Only SUPERADMIN and MANAGER can access branding settings", 403);
     }
 
     const featureKeys = getBrandingFeatureKeys();
@@ -55,6 +82,33 @@ export async function GET(request: NextRequest) {
           secondaryColor: true,
           accentColor: true,
           fontFamilyKey: true,
+          logoUrl: true,
+          secondaryLogoUrl: true,
+          signatureUrl: true,
+          stampUrl: true,
+          legalName: true,
+          tradingName: true,
+          registrationNumber: true,
+          vatNumber: true,
+          taxNumber: true,
+          email: true,
+          phone: true,
+          website: true,
+          physicalAddress: true,
+          postalAddress: true,
+          bankName: true,
+          bankAccountName: true,
+          bankAccountNumber: true,
+          bankSwiftCode: true,
+          bankIban: true,
+          defaultFooterText: true,
+          legalDisclaimer: true,
+          paymentTerms: true,
+          documentLocale: true,
+          dateFormat: true,
+          timeFormat: true,
+          numberFormat: true,
+          currencyDisplayMode: true,
           updatedAt: true,
         },
       }),
@@ -114,8 +168,8 @@ export async function PUT(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!ensureSuperAdmin(session.user.role)) {
-      return errorResponse("Only SUPERADMIN can update branding settings", 403);
+    if (!ensureBrandingManager(session.user.role)) {
+      return errorResponse("Only SUPERADMIN and MANAGER can update branding settings", 403);
     }
 
     const featureKeys = getBrandingFeatureKeys();
@@ -164,6 +218,33 @@ export async function PUT(request: NextRequest) {
         ...(primaryColor !== undefined ? { primaryColor } : {}),
         ...(secondaryColor !== undefined ? { secondaryColor } : {}),
         ...(accentColor !== undefined ? { accentColor } : {}),
+        ...(validated.logoUrl !== undefined ? { logoUrl: validated.logoUrl } : {}),
+        ...(validated.secondaryLogoUrl !== undefined ? { secondaryLogoUrl: validated.secondaryLogoUrl } : {}),
+        ...(validated.signatureUrl !== undefined ? { signatureUrl: validated.signatureUrl } : {}),
+        ...(validated.stampUrl !== undefined ? { stampUrl: validated.stampUrl } : {}),
+        ...(validated.legalName !== undefined ? { legalName: validated.legalName } : {}),
+        ...(validated.tradingName !== undefined ? { tradingName: validated.tradingName } : {}),
+        ...(validated.registrationNumber !== undefined ? { registrationNumber: validated.registrationNumber } : {}),
+        ...(validated.vatNumber !== undefined ? { vatNumber: validated.vatNumber } : {}),
+        ...(validated.taxNumber !== undefined ? { taxNumber: validated.taxNumber } : {}),
+        ...(validated.email !== undefined ? { email: validated.email } : {}),
+        ...(validated.phone !== undefined ? { phone: validated.phone } : {}),
+        ...(validated.website !== undefined ? { website: validated.website } : {}),
+        ...(validated.physicalAddress !== undefined ? { physicalAddress: validated.physicalAddress } : {}),
+        ...(validated.postalAddress !== undefined ? { postalAddress: validated.postalAddress } : {}),
+        ...(validated.bankName !== undefined ? { bankName: validated.bankName } : {}),
+        ...(validated.bankAccountName !== undefined ? { bankAccountName: validated.bankAccountName } : {}),
+        ...(validated.bankAccountNumber !== undefined ? { bankAccountNumber: validated.bankAccountNumber } : {}),
+        ...(validated.bankSwiftCode !== undefined ? { bankSwiftCode: validated.bankSwiftCode } : {}),
+        ...(validated.bankIban !== undefined ? { bankIban: validated.bankIban } : {}),
+        ...(validated.defaultFooterText !== undefined ? { defaultFooterText: validated.defaultFooterText } : {}),
+        ...(validated.legalDisclaimer !== undefined ? { legalDisclaimer: validated.legalDisclaimer } : {}),
+        ...(validated.paymentTerms !== undefined ? { paymentTerms: validated.paymentTerms } : {}),
+        ...(validated.documentLocale !== undefined ? { documentLocale: validated.documentLocale } : {}),
+        ...(validated.dateFormat !== undefined ? { dateFormat: validated.dateFormat } : {}),
+        ...(validated.timeFormat !== undefined ? { timeFormat: validated.timeFormat } : {}),
+        ...(validated.numberFormat !== undefined ? { numberFormat: validated.numberFormat } : {}),
+        ...(validated.currencyDisplayMode !== undefined ? { currencyDisplayMode: validated.currencyDisplayMode } : {}),
       },
       create: {
         companyId: session.user.companyId,
@@ -172,6 +253,33 @@ export async function PUT(request: NextRequest) {
         primaryColor: primaryColor ?? null,
         secondaryColor: secondaryColor ?? null,
         accentColor: accentColor ?? null,
+        logoUrl: validated.logoUrl ?? null,
+        secondaryLogoUrl: validated.secondaryLogoUrl ?? null,
+        signatureUrl: validated.signatureUrl ?? null,
+        stampUrl: validated.stampUrl ?? null,
+        legalName: validated.legalName ?? null,
+        tradingName: validated.tradingName ?? null,
+        registrationNumber: validated.registrationNumber ?? null,
+        vatNumber: validated.vatNumber ?? null,
+        taxNumber: validated.taxNumber ?? null,
+        email: validated.email ?? null,
+        phone: validated.phone ?? null,
+        website: validated.website ?? null,
+        physicalAddress: validated.physicalAddress ?? null,
+        postalAddress: validated.postalAddress ?? null,
+        bankName: validated.bankName ?? null,
+        bankAccountName: validated.bankAccountName ?? null,
+        bankAccountNumber: validated.bankAccountNumber ?? null,
+        bankSwiftCode: validated.bankSwiftCode ?? null,
+        bankIban: validated.bankIban ?? null,
+        defaultFooterText: validated.defaultFooterText ?? null,
+        legalDisclaimer: validated.legalDisclaimer ?? null,
+        paymentTerms: validated.paymentTerms ?? null,
+        documentLocale: validated.documentLocale ?? null,
+        dateFormat: validated.dateFormat ?? null,
+        timeFormat: validated.timeFormat ?? null,
+        numberFormat: validated.numberFormat ?? null,
+        currencyDisplayMode: validated.currencyDisplayMode ?? null,
       },
     });
 

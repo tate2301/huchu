@@ -75,6 +75,7 @@ model Company {
   customers            Customer[]
   vendors              Vendor[]
   salesInvoices        SalesInvoice[]
+  salesQuotations      SalesQuotation[]
   salesReceipts        SalesReceipt[]
   creditNotes          CreditNote[]
   salesWriteOffs       SalesWriteOff[]
@@ -98,6 +99,9 @@ model Company {
   fiscalProviderConfigs FiscalisationProviderConfig[]
   fiscalReceipts       FiscalReceipt[]
   accountingIntegrationEvents AccountingIntegrationEvent[]
+  documentTemplates    DocumentTemplate[]
+  documentRenderJobs   DocumentRenderJob[]
+  documentArtifacts    DocumentArtifact[]
   idSequences          IdSequence[]
   goldPurchases        GoldPurchase[]
   goldPrices          GoldPrice[]
@@ -346,6 +350,33 @@ model CompanyBranding {
   secondaryColor String?
   accentColor   String?
   fontFamilyKey String?
+  logoUrl       String?
+  secondaryLogoUrl String?
+  signatureUrl  String?
+  stampUrl      String?
+  legalName     String?
+  tradingName   String?
+  registrationNumber String?
+  vatNumber     String?
+  taxNumber     String?
+  email         String?
+  phone         String?
+  website       String?
+  physicalAddress String?
+  postalAddress String?
+  bankName      String?
+  bankAccountName String?
+  bankAccountNumber String?
+  bankSwiftCode String?
+  bankIban      String?
+  defaultFooterText String?
+  legalDisclaimer String?
+  paymentTerms  String?
+  documentLocale String?
+  dateFormat    String?
+  timeFormat    String?
+  numberFormat  String?
+  currencyDisplayMode String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -694,6 +725,8 @@ model User {
   closedAccountingPeriods       AccountingPeriod[]          @relation("AccountingPeriodClosedBy")
   createdSalesInvoices          SalesInvoice[]              @relation("SalesInvoiceCreatedBy")
   issuedSalesInvoices           SalesInvoice[]              @relation("SalesInvoiceIssuedBy")
+  createdSalesQuotations        SalesQuotation[]            @relation("SalesQuotationCreatedBy")
+  issuedSalesQuotations         SalesQuotation[]            @relation("SalesQuotationIssuedBy")
   createdSalesReceipts          SalesReceipt[]              @relation("SalesReceiptCreatedBy")
   createdCreditNotes            CreditNote[]                @relation("CreditNoteCreatedBy")
   issuedCreditNotes             CreditNote[]                @relation("CreditNoteIssuedBy")
@@ -2183,6 +2216,14 @@ enum InvoiceStatus {
   VOIDED
 }
 
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  VOIDED
+}
+
 enum BillStatus {
   DRAFT
   RECEIVED
@@ -2218,6 +2259,39 @@ enum ReconciliationStatus {
   OPEN
   CLOSED
   VOIDED
+}
+
+enum DocumentType {
+  REPORT_TABLE
+  DASHBOARD_PACK
+  SALES_INVOICE
+  SALES_QUOTATION
+  SALES_RECEIPT
+  GENERIC_RECORD
+}
+
+enum ExportTargetType {
+  LIST
+  RECORD
+  DASHBOARD
+}
+
+enum TemplateScope {
+  SYSTEM
+  COMPANY
+}
+
+enum RenderMode {
+  SYNC
+  ASYNC
+}
+
+enum RenderStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
 }
 
 enum VatReturnStatus {
@@ -2468,6 +2542,7 @@ model TaxCode {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoiceLines SalesInvoiceLine[]
+  quotationLines SalesQuotationLine[]
   billLines PurchaseBillLine[]
   creditNoteLines CreditNoteLine[]
   debitNoteLines DebitNoteLine[]
@@ -2575,6 +2650,7 @@ model Customer {
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id])
   invoices    SalesInvoice[]
+  quotations  SalesQuotation[]
 
   @@index([companyId, isActive])
 }
@@ -2655,6 +2731,53 @@ model SalesInvoiceLine {
   taxCode TaxCode?     @relation(fields: [taxCodeId], references: [id])
 
   @@index([invoiceId])
+}
+
+model SalesQuotation {
+  id              String          @id @default(uuid())
+  companyId       String
+  customerId      String
+  quotationNumber String
+  quotationDate   DateTime
+  validUntil      DateTime?
+  status          QuotationStatus @default(DRAFT)
+  currency        String          @default("USD")
+  subTotal        Float           @default(0)
+  taxTotal        Float           @default(0)
+  total           Float           @default(0)
+  notes           String?
+  createdById     String?
+  issuedById      String?
+  issuedAt        DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer             @relation(fields: [customerId], references: [id])
+  lines       SalesQuotationLine[]
+  createdBy   User?                @relation("SalesQuotationCreatedBy", fields: [createdById], references: [id])
+  issuedBy    User?                @relation("SalesQuotationIssuedBy", fields: [issuedById], references: [id])
+
+  @@unique([companyId, quotationNumber])
+  @@index([companyId, status])
+}
+
+model SalesQuotationLine {
+  id          String   @id @default(uuid())
+  quotationId String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  quotation SalesQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  taxCode   TaxCode?       @relation(fields: [taxCodeId], references: [id])
+
+  @@index([quotationId])
 }
 
 model SalesReceipt {
@@ -3243,6 +3366,103 @@ model FiscalReceipt {
 
   @@unique([invoiceId])
   @@index([companyId, status])
+}
+
+model DocumentTemplate {
+  id            String           @id @default(uuid())
+  companyId     String?
+  scope         TemplateScope    @default(SYSTEM)
+  documentType  DocumentType
+  targetType    ExportTargetType @default(RECORD)
+  sourceKey     String
+  name          String
+  description   String?
+  isDefault     Boolean          @default(false)
+  isActive      Boolean          @default(true)
+  createdById   String?
+  updatedById   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  company    Company?                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  versions   DocumentTemplateVersion[]
+  renderJobs DocumentRenderJob[]
+
+  @@index([companyId, documentType, targetType, sourceKey, isActive])
+  @@index([scope, documentType, targetType, sourceKey, isDefault])
+}
+
+model DocumentTemplateVersion {
+  id           String   @id @default(uuid())
+  templateId   String
+  version      Int
+  schemaJson   String
+  checksum     String?
+  isPublished  Boolean  @default(false)
+  publishedAt  DateTime?
+  publishedById String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+
+  template   DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  renderJobs DocumentRenderJob[]
+
+  @@unique([templateId, version])
+  @@index([templateId, isPublished, createdAt])
+}
+
+model DocumentRenderJob {
+  id                String           @id @default(uuid())
+  companyId         String
+  templateId        String?
+  templateVersionId String?
+  documentType      DocumentType
+  targetType        ExportTargetType
+  sourceKey         String
+  sourceEntityId    String?
+  renderMode        RenderMode       @default(SYNC)
+  status            RenderStatus     @default(QUEUED)
+  payloadJson       String
+  filtersJson       String?
+  idempotencyKey    String?
+  requestedById     String?
+  attemptCount      Int              @default(0)
+  maxAttempts       Int              @default(5)
+  queuedAt          DateTime         @default(now())
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  nextRetryAt       DateTime?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template        DocumentTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateVersion DocumentTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: SetNull)
+  artifact        DocumentArtifact?        @relation("RenderJobArtifact")
+
+  @@index([companyId, status, queuedAt])
+  @@index([status, nextRetryAt])
+  @@index([companyId, idempotencyKey])
+}
+
+model DocumentArtifact {
+  id        String   @id @default(uuid())
+  jobId     String   @unique
+  companyId String
+  mimeType  String
+  fileName  String
+  blobUrl   String
+  byteSize  Int
+  sha256    String?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  job     DocumentRenderJob @relation("RenderJobArtifact", fields: [jobId], references: [id], onDelete: Cascade)
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
 }
 
 // ============================================
