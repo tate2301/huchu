@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { defaultTemplateSchema } from "@/lib/documents/template-schema";
+import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1).max(120),
@@ -18,6 +19,7 @@ const createTemplateSchema = z.object({
   ]),
   targetType: z.enum(["LIST", "RECORD", "DASHBOARD"]),
   cloneFromTemplateId: z.string().uuid().optional(),
+  cloneFromSystemDefault: z.boolean().optional(),
   setDefault: z.boolean().optional(),
 });
 
@@ -91,8 +93,38 @@ export async function POST(request: NextRequest) {
         })
       : null;
 
-    const schemaJson =
-      cloneSource?.versions[0]?.schemaJson ?? JSON.stringify(defaultTemplateSchema);
+    const systemDefaultSource =
+      input.cloneFromSystemDefault && !cloneSource
+        ? await prisma.documentTemplate.findFirst({
+            where: {
+              scope: "SYSTEM",
+              companyId: null,
+              sourceKey: input.sourceKey,
+              documentType: input.documentType,
+              targetType: input.targetType,
+              isDefault: true,
+              isActive: true,
+            },
+            include: {
+              versions: {
+                orderBy: [{ isPublished: "desc" }, { version: "desc" }],
+                take: 1,
+                select: { schemaJson: true },
+              },
+            },
+            orderBy: [{ updatedAt: "desc" }],
+          })
+        : null;
+
+    const catalogFallback = resolveCatalogTemplateEntry({
+      sourceKey: input.sourceKey,
+      documentType: input.documentType,
+      targetType: input.targetType,
+    });
+
+    const schemaJson = cloneSource?.versions[0]?.schemaJson
+      ?? systemDefaultSource?.versions[0]?.schemaJson
+      ?? (catalogFallback ? JSON.stringify(catalogFallback.schema) : JSON.stringify(defaultTemplateSchema));
 
     const created = await prisma.$transaction(async (tx) => {
       if (input.setDefault) {

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { defaultTemplateSchema, parseTemplateSchema, type DocumentTemplateSchema } from "@/lib/documents/template-schema";
+import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
 
 export type TemplateResolutionInput = {
   companyId: string;
@@ -19,6 +20,73 @@ export type TemplateResolution = {
 function chooseVersion(versions: Array<{ id: string; schemaJson: string; isPublished: boolean }>) {
   const published = versions.find((version) => version.isPublished);
   return published ?? versions[0] ?? null;
+}
+
+async function findDefaultTemplate(input: {
+  companyId: string;
+  documentType: TemplateResolutionInput["documentType"];
+  targetType: TemplateResolutionInput["targetType"];
+  sourceKey: string;
+}) {
+  const whereBase = {
+    documentType: input.documentType,
+    targetType: input.targetType,
+    isDefault: true,
+    isActive: true,
+  } as const;
+
+  const companyDefault = await prisma.documentTemplate.findFirst({
+    where: {
+      ...whereBase,
+      companyId: input.companyId,
+      sourceKey: input.sourceKey,
+    },
+    include: {
+      versions: {
+        orderBy: [{ isPublished: "desc" }, { version: "desc" }],
+        select: { id: true, schemaJson: true, isPublished: true },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+  });
+  if (companyDefault) return companyDefault;
+
+  const systemExact = await prisma.documentTemplate.findFirst({
+    where: {
+      ...whereBase,
+      scope: "SYSTEM",
+      companyId: null,
+      sourceKey: input.sourceKey,
+    },
+    include: {
+      versions: {
+        orderBy: [{ isPublished: "desc" }, { version: "desc" }],
+        select: { id: true, schemaJson: true, isPublished: true },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+  });
+  if (systemExact) return systemExact;
+
+  if (!input.sourceKey.startsWith("ui.table.")) {
+    return null;
+  }
+
+  return prisma.documentTemplate.findFirst({
+    where: {
+      ...whereBase,
+      scope: "SYSTEM",
+      companyId: null,
+      sourceKey: "ui.table.*",
+    },
+    include: {
+      versions: {
+        orderBy: [{ isPublished: "desc" }, { version: "desc" }],
+        select: { id: true, schemaJson: true, isPublished: true },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+  });
 }
 
 export async function resolveTemplate(input: TemplateResolutionInput): Promise<TemplateResolution> {
@@ -69,46 +137,26 @@ export async function resolveTemplate(input: TemplateResolutionInput): Promise<T
     }
   }
 
-  const [companyDefault, systemDefault] = await Promise.all([
-    prisma.documentTemplate.findFirst({
-      where: {
-        companyId: input.companyId,
-        documentType: input.documentType,
-        targetType: input.targetType,
-        sourceKey: input.sourceKey,
-        isDefault: true,
-        isActive: true,
-      },
-      include: {
-        versions: {
-          orderBy: [{ isPublished: "desc" }, { version: "desc" }],
-          select: { id: true, schemaJson: true, isPublished: true },
-        },
-      },
-      orderBy: [{ updatedAt: "desc" }],
-    }),
-    prisma.documentTemplate.findFirst({
-      where: {
-        scope: "SYSTEM",
-        companyId: null,
-        documentType: input.documentType,
-        targetType: input.targetType,
-        sourceKey: input.sourceKey,
-        isDefault: true,
-        isActive: true,
-      },
-      include: {
-        versions: {
-          orderBy: [{ isPublished: "desc" }, { version: "desc" }],
-          select: { id: true, schemaJson: true, isPublished: true },
-        },
-      },
-      orderBy: [{ updatedAt: "desc" }],
-    }),
-  ]);
-
-  const selected = companyDefault ?? systemDefault;
+  const selected = await findDefaultTemplate({
+    companyId: input.companyId,
+    documentType: input.documentType,
+    targetType: input.targetType,
+    sourceKey: input.sourceKey,
+  });
   if (!selected) {
+    const catalogFallback = resolveCatalogTemplateEntry({
+      sourceKey: input.sourceKey,
+      documentType: input.documentType,
+      targetType: input.targetType,
+    });
+    if (catalogFallback) {
+      return {
+        templateId: null,
+        templateVersionId: null,
+        templateSchema: catalogFallback.schema,
+      };
+    }
+
     return {
       templateId: null,
       templateVersionId: null,
