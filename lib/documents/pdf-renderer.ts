@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import type { Browser } from "puppeteer-core";
 import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
 
@@ -35,9 +36,38 @@ function findLocalChromiumExecutable(): string | null {
   return null;
 }
 
+function findSparticuzBinDirectories(): string[] {
+  const candidates: string[] = [];
+  const direct = join(process.cwd(), "node_modules", "@sparticuz", "chromium", "bin");
+  if (existsSync(direct)) {
+    candidates.push(direct);
+  }
+
+  const pnpmRoot = join(process.cwd(), "node_modules", ".pnpm");
+  if (existsSync(pnpmRoot)) {
+    for (const entry of readdirSync(pnpmRoot)) {
+      if (!entry.startsWith("@sparticuz+chromium@")) continue;
+      const candidate = join(
+        pnpmRoot,
+        entry,
+        "node_modules",
+        "@sparticuz",
+        "chromium",
+        "bin",
+      );
+      if (existsSync(candidate)) {
+        candidates.push(candidate);
+      }
+    }
+  }
+
+  return Array.from(new Set(candidates));
+}
+
 async function launchBrowser(): Promise<Browser> {
   const chromium = (await import("@sparticuz/chromium")).default;
   const puppeteer = await import("puppeteer-core");
+  const errors: string[] = [];
 
   const launch = async (executablePath: string) =>
     puppeteer.launch({
@@ -49,25 +79,52 @@ async function launchBrowser(): Promise<Browser> {
 
   const explicitExecutable = process.env.CHROME_EXECUTABLE_PATH?.trim();
   if (explicitExecutable) {
-    return launch(explicitExecutable);
+    try {
+      return await launch(explicitExecutable);
+    } catch (error) {
+      errors.push(
+        `CHROME_EXECUTABLE_PATH launch failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   try {
     const serverlessExecutable = await chromium.executablePath();
     if (serverlessExecutable) {
-      return launch(serverlessExecutable);
+      return await launch(serverlessExecutable);
     }
-  } catch {
-    // Fall through to local executable detection.
+  } catch (error) {
+    errors.push(
+      `@sparticuz/chromium default executablePath failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  for (const binDir of findSparticuzBinDirectories()) {
+    try {
+      const serverlessExecutable = await chromium.executablePath(binDir);
+      if (serverlessExecutable) {
+        return await launch(serverlessExecutable);
+      }
+    } catch (error) {
+      errors.push(
+        `@sparticuz/chromium executablePath('${binDir}') failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   const localExecutable = findLocalChromiumExecutable();
   if (localExecutable) {
-    return launch(localExecutable);
+    try {
+      return await launch(localExecutable);
+    } catch (error) {
+      errors.push(
+        `Local Chromium launch failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   throw new Error(
-    "No Chromium executable found. Configure CHROME_EXECUTABLE_PATH for local runtime, or deploy with @sparticuz/chromium support.",
+    `No Chromium executable found. ${errors.join(" | ")}`,
   );
 }
 
