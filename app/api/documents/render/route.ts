@@ -1,11 +1,22 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, validateSession } from "@/lib/api-utils";
-import { enqueueDocumentRenderJob, renderDocumentSync } from "@/lib/documents/service";
+import {
+  enqueueDocumentRenderJob,
+  processDocumentRenderJobsBatch,
+  renderDocumentSync,
+} from "@/lib/documents/service";
 import { hasFeature } from "@/lib/platform/features";
 import type { DocumentRenderRequest } from "@/lib/documents/service";
 
 export const runtime = "nodejs";
+
+function parseInlineBatchLimit() {
+  const configured = Number(process.env.PDF_INLINE_BATCH_LIMIT ?? 2);
+  if (!Number.isFinite(configured)) return 2;
+  return Math.max(1, Math.min(10, Math.floor(configured)));
+}
 
 function resolveFeatureKey(sourceKey: string): string | null {
   if (sourceKey === "reports.shift") return "reports.shift";
@@ -51,6 +62,15 @@ export async function POST(request: NextRequest) {
 
     const queued = await enqueueDocumentRenderJob(session.user.companyId, session.user.id, typedInput);
     if (queued.mode === "ASYNC") {
+      const inlineLimit = parseInlineBatchLimit();
+      after(async () => {
+        try {
+          await processDocumentRenderJobsBatch(inlineLimit);
+        } catch (error) {
+          console.error("[API] inline async render dispatch error:", error);
+        }
+      });
+
       return NextResponse.json({
         mode: "ASYNC",
         jobId: queued.jobId,

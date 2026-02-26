@@ -305,3 +305,26 @@ export async function processNextDocumentRenderJob() {
 
   return processDocumentRenderJob(candidate.id);
 }
+
+export async function processDocumentRenderJobsBatch(limitInput: number) {
+  const limit = Math.max(1, Math.min(25, Math.floor(limitInput)));
+  const results = [];
+
+  for (let index = 0; index < limit; index += 1) {
+    const result = await processNextDocumentRenderJob();
+    results.push(result);
+    if (!result.processed) break;
+  }
+
+  const processedCount = results.filter((row) => row.processed).length;
+  const failedCount = results.filter((row) => "status" in row && row.status === "FAILED").length;
+  const last = results.at(-1);
+
+  return {
+    limit,
+    processedCount,
+    failedCount,
+    stopReason: last && !last.processed && "reason" in last ? last.reason : null,
+    results,
+  };
+}
