@@ -104,32 +104,6 @@ export async function POST(
       return errorResponse("One or more selected employees are invalid or inactive", 400)
     }
 
-    const existingMembershipsInOtherGroups = await prisma.shiftGroupMember.findMany({
-      where: {
-        employeeId: { in: uniqueEmployeeIds },
-        shiftGroupId: { not: id },
-        isActive: true,
-        shiftGroup: { companyId: session.user.companyId },
-      },
-      include: {
-        employee: { select: { id: true, name: true, employeeId: true } },
-        shiftGroup: { select: { id: true, name: true } },
-      },
-    })
-    if (existingMembershipsInOtherGroups.length > 0) {
-      return errorResponse(
-        "One or more employees already belong to another active shift group",
-        409,
-        existingMembershipsInOtherGroups.map((membership) => ({
-          employeeId: membership.employee.id,
-          employeeName: membership.employee.name,
-          employeeCode: membership.employee.employeeId,
-          groupId: membership.shiftGroup.id,
-          groupName: membership.shiftGroup.name,
-        })),
-      )
-    }
-
     await prisma.$transaction(async (tx) => {
       for (const employeeId of uniqueEmployeeIds) {
         const existingMembership = await tx.shiftGroupMember.findUnique({
@@ -168,4 +142,3 @@ export async function POST(
     return errorResponse("Failed to add shift group members")
   }
 }
-

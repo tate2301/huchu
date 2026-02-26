@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 import {
@@ -14,6 +15,7 @@ const updateShiftGroupSchema = z.object({
   code: z.string().trim().max(40).nullable().optional(),
   siteId: z.string().uuid().optional(),
   leaderEmployeeId: z.string().uuid().optional(),
+  memberIds: z.array(z.string().uuid()).optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -76,11 +78,19 @@ export async function PATCH(
 
     const existing = await prisma.shiftGroup.findUnique({
       where: { id },
-      include: { members: { where: { isActive: true }, select: { employeeId: true } } },
+      include: { members: { select: { id: true, employeeId: true, isActive: true } } },
     })
     if (!existing || existing.companyId !== session.user.companyId) {
       return errorResponse("Shift group not found", 404)
     }
+
+    const nextLeaderEmployeeId = validated.leaderEmployeeId ?? existing.leaderEmployeeId
+    const requestedMemberIds = validated.memberIds
+      ? Array.from(new Set(validated.memberIds))
+      : null
+    const nextMemberIds = requestedMemberIds
+      ? Array.from(new Set([...requestedMemberIds, nextLeaderEmployeeId]))
+      : null
 
     if (validated.siteId) {
       const site = await prisma.site.findUnique({
@@ -105,6 +115,21 @@ export async function PATCH(
       }
     }
 
+    if (nextMemberIds && nextMemberIds.length > 0) {
+      const employees = await prisma.employee.findMany({
+        where: {
+          id: { in: nextMemberIds },
+          companyId: session.user.companyId,
+          isActive: true,
+        },
+        select: { id: true },
+      })
+      if (employees.length !== nextMemberIds.length) {
+        return errorResponse("One or more selected members are invalid or inactive", 400)
+      }
+
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const group = await tx.shiftGroup.update({
         where: { id },
@@ -117,7 +142,47 @@ export async function PATCH(
         },
       })
 
-      if (validated.leaderEmployeeId) {
+      if (nextMemberIds) {
+        const targetIds = new Set(nextMemberIds)
+        const existingMemberships = await tx.shiftGroupMember.findMany({
+          where: { shiftGroupId: id },
+          select: { id: true, employeeId: true, isActive: true },
+        })
+        const existingByEmployeeId = new Map(
+          existingMemberships.map((membership) => [membership.employeeId, membership]),
+        )
+
+        for (const employeeId of nextMemberIds) {
+          const existingMembership = existingByEmployeeId.get(employeeId)
+          if (existingMembership) {
+            if (!existingMembership.isActive) {
+              await tx.shiftGroupMember.update({
+                where: { id: existingMembership.id },
+                data: { isActive: true, leftAt: null },
+              })
+            }
+            continue
+          }
+          await tx.shiftGroupMember.create({
+            data: {
+              shiftGroupId: id,
+              employeeId,
+              isActive: true,
+            },
+          })
+        }
+
+        const membershipsToDeactivate = existingMemberships
+          .filter((membership) => membership.isActive && !targetIds.has(membership.employeeId))
+          .map((membership) => membership.id)
+
+        if (membershipsToDeactivate.length > 0) {
+          await tx.shiftGroupMember.updateMany({
+            where: { id: { in: membershipsToDeactivate } },
+            data: { isActive: false, leftAt: new Date() },
+          })
+        }
+      } else if (validated.leaderEmployeeId) {
         const existingMember = await tx.shiftGroupMember.findUnique({
           where: {
             shiftGroupId_employeeId: {
@@ -149,6 +214,13 @@ export async function PATCH(
         }
       }
 
+      if (validated.isActive === false) {
+        await tx.shiftGroupMember.updateMany({
+          where: { shiftGroupId: id, isActive: true },
+          data: { isActive: false, leftAt: new Date() },
+        })
+      }
+
       return tx.shiftGroup.findUnique({
         where: { id: group.id },
         include: {
@@ -170,6 +242,18 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(",")
+        : ""
+      if (target.includes("companyId") && target.includes("name")) {
+        return errorResponse("Shift group name already exists", 409)
+      }
+      return errorResponse("Shift group data conflicts with an existing record", 409)
     }
     console.error("[API] PATCH /api/hr/shift-groups/[id] error:", error)
     return errorResponse("Failed to update shift group")
@@ -214,4 +298,3 @@ export async function DELETE(
     return errorResponse("Failed to archive shift group")
   }
 }
-

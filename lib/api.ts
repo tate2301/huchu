@@ -1352,6 +1352,7 @@ export async function updateShiftGroup(
     code?: string | null;
     siteId?: string;
     leaderEmployeeId?: string;
+    memberIds?: string[];
     isActive?: boolean;
   },
 ) {

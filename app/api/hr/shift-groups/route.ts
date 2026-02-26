@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 import {
@@ -121,31 +122,6 @@ export async function POST(request: NextRequest) {
         return errorResponse("One or more selected members are invalid or inactive", 400)
       }
 
-      const existingActiveMemberships = await prisma.shiftGroupMember.findMany({
-        where: {
-          employeeId: { in: memberIds },
-          isActive: true,
-          shiftGroup: { companyId: session.user.companyId },
-        },
-        include: {
-          employee: { select: { id: true, name: true, employeeId: true } },
-          shiftGroup: { select: { id: true, name: true } },
-        },
-      })
-
-      if (existingActiveMemberships.length > 0) {
-        return errorResponse(
-          "One or more employees already belong to another active shift group",
-          409,
-          existingActiveMemberships.map((membership) => ({
-            employeeId: membership.employee.id,
-            employeeName: membership.employee.name,
-            employeeCode: membership.employee.employeeId,
-            groupId: membership.shiftGroup.id,
-            groupName: membership.shiftGroup.name,
-          })),
-        )
-      }
     }
 
     const created = await prisma.$transaction(async (tx) => {
@@ -191,8 +167,19 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
     }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(",")
+        : ""
+      if (target.includes("companyId") && target.includes("name")) {
+        return errorResponse("Shift group name already exists", 409)
+      }
+      return errorResponse("Shift group data conflicts with an existing record", 409)
+    }
     console.error("[API] POST /api/hr/shift-groups error:", error)
     return errorResponse("Failed to create shift group")
   }
 }
-
