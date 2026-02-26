@@ -8,6 +8,8 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
+import { InsightDonutCard } from "@/components/charts/insight-donut-card";
+import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +35,13 @@ import { ArrowRight, Plus, RefreshCcw } from "@/lib/icons";
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+const OVERVIEW_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
 export default function AccountingOverviewPage() {
   const queryClient = useQueryClient();
@@ -105,41 +114,80 @@ export default function AccountingOverviewPage() {
     },
   });
 
-  const charts = useMemo(() => {
-    const positionData = [
-      { label: "Open AR", value: receivablesSummary?.kpis.openBalance ?? 0 },
-      { label: "Open AP", value: payablesSummary?.kpis.openBalance ?? 0 },
-      { label: "Net Income", value: financialSummary?.kpis.netIncome ?? 0 },
-      { label: "Net Cash", value: financialSummary?.kpis.netCash ?? 0 },
+  const chartData = useMemo(() => {
+    const position = [
+      { metric: "Open AR", amount: receivablesSummary?.kpis.openBalance ?? 0 },
+      { metric: "Open AP", amount: payablesSummary?.kpis.openBalance ?? 0 },
+      { metric: "Net Income", amount: financialSummary?.kpis.netIncome ?? 0 },
+      { metric: "Net Cash", amount: financialSummary?.kpis.netCash ?? 0 },
     ];
-    const flowData = [
-      { label: "Invoiced", value: receivablesSummary?.kpis.issuedInvoiceValue ?? 0 },
-      { label: "Collected", value: receivablesSummary?.kpis.collectedAmount ?? 0 },
-      { label: "Billed", value: payablesSummary?.kpis.receivedBillValue ?? 0 },
-      { label: "Paid", value: payablesSummary?.kpis.paidAmount ?? 0 },
+    const positionBreakdown = position.map((item) => ({
+      label: item.metric,
+      value: Math.abs(item.amount),
+    }));
+    const flow = [
+      {
+        phase: "Documented",
+        receivables: receivablesSummary?.kpis.issuedInvoiceValue ?? 0,
+        payables: payablesSummary?.kpis.receivedBillValue ?? 0,
+      },
+      {
+        phase: "Settled",
+        receivables: receivablesSummary?.kpis.collectedAmount ?? 0,
+        payables: payablesSummary?.kpis.paidAmount ?? 0,
+      },
+      {
+        phase: "Adjustments",
+        receivables: receivablesSummary?.kpis.creditNoteAmount ?? 0,
+        payables: payablesSummary?.kpis.debitNoteAmount ?? 0,
+      },
     ];
+    const trendByDate = new Map<string, { date: string; receivables: number; payables: number; net: number }>();
+    (receivablesSummary?.charts.collectionsTrend ?? []).forEach((item) => {
+      const existing = trendByDate.get(item.date);
+      trendByDate.set(item.date, {
+        date: item.date,
+        receivables: item.collected,
+        payables: existing?.payables ?? 0,
+        net: 0,
+      });
+    });
+    (payablesSummary?.charts.paymentsTrend ?? []).forEach((item) => {
+      const existing = trendByDate.get(item.date);
+      trendByDate.set(item.date, {
+        date: item.date,
+        receivables: existing?.receivables ?? 0,
+        payables: item.paid,
+        net: 0,
+      });
+    });
+    const cashRace = Array.from(trendByDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((item) => ({
+        ...item,
+        net: item.receivables - item.payables,
+      }));
 
-    return {
-      position: buildAxisChartConfig({
-        data: positionData,
-        title: "Overall Position",
-        subtitle: "Cross-domain accounting position for selected filters.",
-        xAxisKey: "label",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "value", type: "bar" }],
-      }),
-      flow: buildAxisChartConfig({
-        data: flowData,
-        title: "Flow Comparison",
-        subtitle: "Receivables and payables movement comparison.",
-        xAxisKey: "label",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "value", type: "bar" }],
-      }),
-    };
+    return { positionBreakdown, flow, cashRace };
   }, [financialSummary, payablesSummary, receivablesSummary]);
+
+  const flowChartConfig = useMemo(
+    () =>
+      buildAxisChartConfig({
+        data: chartData.flow,
+        title: "Flow Ladder",
+        subtitle: "Frappe block compares AR/AP movement by lifecycle phase.",
+        xAxisKey: "phase",
+        xAxisType: "category",
+        yAxisTitle: "Amount",
+        colors: ["hsl(var(--chart-2))", "hsl(var(--chart-4))"],
+        series: [
+          { name: "receivables", type: "bar" },
+          { name: "payables", type: "bar" },
+        ],
+      }),
+    [chartData.flow],
+  );
 
   const groupedLinks = useMemo<HubLinkGroup[]>(
     () => [
@@ -450,9 +498,37 @@ export default function AccountingOverviewPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <FrappeChartShell>{loading ? null : <AxisChart config={charts.position} />}</FrappeChartShell>
-        <FrappeChartShell>{loading ? null : <AxisChart config={charts.flow} />}</FrappeChartShell>
+        <FrappeChartShell className="rounded-xl">
+          {loading ? null : <AxisChart config={flowChartConfig} />}
+        </FrappeChartShell>
+        <InsightDonutCard
+          title="Position Composition"
+          subtitle="Relative weight of AR, AP, net income, and net cash."
+          data={
+            loading
+              ? []
+              : chartData.positionBreakdown.map((item, index) => ({
+                  label: item.label,
+                  value: item.value,
+                  color: OVERVIEW_COLORS[index % OVERVIEW_COLORS.length],
+                }))
+          }
+          valueFormatter={formatCurrency}
+        />
       </div>
+      <TradingViewChartCard
+        title="Cash Race"
+        subtitle="TradingView-style line race: collections versus supplier payments, with net spread."
+        data={loading ? [] : chartData.cashRace}
+        xKey="date"
+        xAxisType="time"
+        series={[
+          { key: "receivables", label: "Collections", type: "line", color: "hsl(var(--chart-2))" },
+          { key: "payables", label: "Payments", type: "line", color: "hsl(var(--chart-4))" },
+          { key: "net", label: "Net Spread", type: "area", color: "hsl(var(--chart-1))" },
+        ]}
+        valueFormatter={formatCurrency}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <GroupedLinkList groups={groupedLinks} />

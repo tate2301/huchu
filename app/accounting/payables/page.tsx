@@ -5,9 +5,11 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AxisChart } from "@rtcamp/frappe-ui-react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
+import { InsightDonutCard } from "@/components/charts/insight-donut-card";
+import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,12 +23,19 @@ import {
 } from "@/components/ui/select";
 import { fetchPayablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { buildAxisChartConfig, buildTimeSeriesChartConfig } from "@/lib/charts/frappe-config-builders";
+import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
 import { Plus } from "@/lib/icons";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+const STATUS_COLORS: Record<string, string> = {
+  DRAFT: "hsl(var(--chart-5))",
+  RECEIVED: "hsl(var(--chart-4))",
+  PAID: "hsl(var(--chart-2))",
+  VOIDED: "hsl(var(--chart-1))",
+};
 
 export default function PayablesHomePage() {
   const [startDate, setStartDate] = useState("");
@@ -52,53 +61,37 @@ export default function PayablesHomePage() {
       }),
   });
 
-  const chartConfigs = useMemo(() => {
-    const agingData = (summary?.charts.aging ?? []).map((item) => ({
+  const chartData = useMemo(() => {
+    const aging = (summary?.charts.aging ?? []).map((item) => ({
       bucket: item.bucket,
       amount: item.amount,
     }));
-    const statusData = (summary?.charts.statusBreakdown ?? []).map((item) => ({
+    const status = (summary?.charts.statusBreakdown ?? []).map((item) => ({
       status: item.status,
       count: item.count,
     }));
-    const trendData = (summary?.charts.paymentsTrend ?? []).map((item) => ({
+    const trend = (summary?.charts.paymentsTrend ?? []).map((item) => ({
       date: item.date,
       billed: item.billed,
       paid: item.paid,
     }));
 
-    return {
-      aging: buildAxisChartConfig({
-        data: agingData,
-        title: "AP Aging Position",
-        subtitle: "Outstanding payables by aging bucket.",
+    return { aging, status, trend };
+  }, [summary]);
+
+  const agingChartConfig = useMemo(
+    () =>
+      buildAxisChartConfig({
+        data: chartData.aging,
+        title: "AP Aging Heatmap",
+        subtitle: "Frappe block view for liability bucket scanning.",
         xAxisKey: "bucket",
         xAxisType: "category",
         yAxisTitle: "Amount",
         series: [{ name: "amount", type: "bar" }],
       }),
-      status: buildAxisChartConfig({
-        data: statusData,
-        title: "Bill Status Mix",
-        subtitle: "Count of bills by status.",
-        xAxisKey: "status",
-        xAxisType: "category",
-        yAxisTitle: "Count",
-        series: [{ name: "count", type: "bar" }],
-      }),
-      trend: buildTimeSeriesChartConfig({
-        data: trendData,
-        title: "Billed vs Paid",
-        subtitle: "Daily billed amounts against payments.",
-        xAxisKey: "date",
-        yAxisTitle: "Amount",
-        series: [
-          { name: "billed", type: "bar" },
-          { name: "paid", type: "line", lineWidth: 2 },
-        ],
-      }),
-    };
-  }, [summary]);
+    [chartData.aging],
+  );
 
   const groups = useMemo<HubLinkGroup[]>(
     () => [
@@ -260,10 +253,36 @@ export default function PayablesHomePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.aging} />}</FrappeChartShell>
-        <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.status} />}</FrappeChartShell>
+        <FrappeChartShell className="rounded-xl">
+          {isLoading ? null : <AxisChart config={agingChartConfig} />}
+        </FrappeChartShell>
+        <InsightDonutCard
+          title="Bill Status Distribution"
+          subtitle="Share of bill volume by lifecycle state."
+          data={
+            isLoading
+              ? []
+              : chartData.status.map((item) => ({
+                  label: item.status,
+                  value: item.count,
+                  color: STATUS_COLORS[item.status] ?? "hsl(var(--chart-3))",
+                }))
+          }
+          valueFormatter={(value) => value.toLocaleString()}
+        />
       </div>
-      <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.trend} />}</FrappeChartShell>
+      <TradingViewChartCard
+        title="Payables Settlement Momentum"
+        subtitle="TradingView-style trend for billed versus paid value."
+        data={isLoading ? [] : chartData.trend}
+        xKey="date"
+        xAxisType="time"
+        series={[
+          { key: "billed", label: "Billed", type: "area", color: "hsl(var(--chart-4))" },
+          { key: "paid", label: "Paid", type: "line", color: "hsl(var(--chart-2))" },
+        ]}
+        valueFormatter={formatCurrency}
+      />
 
       <GroupedLinkList groups={groups} />
     </AccountingShell>

@@ -23,6 +23,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const validated = updateSchema.parse(body);
 
+    if (validated.status === "VOIDED" && session.user.role !== "SUPERADMIN") {
+      return errorResponse("Only superadmin can cancel an invoice", 403);
+    }
+
     const existing = await prisma.salesInvoice.findUnique({
       where: { id },
       include: { lines: true },

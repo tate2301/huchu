@@ -475,6 +475,9 @@ export default function HumanResourcesPage() {
       {
         id: "employee",
         header: "Employee",
+        meta: {
+          exportValue: (row: EmployeeSummary) => `${row.name} (${row.employeeId})`,
+        },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <Image
@@ -519,6 +522,11 @@ export default function HumanResourcesPage() {
       {
         id: "position",
         header: "Position",
+        meta: {
+          exportValue: (row: EmployeeSummary) =>
+            employeePositions.find((position) => position.value === row.position)?.label ??
+            row.position,
+        },
         cell: ({ row }) =>
           employeePositions.find((position) => position.value === row.original.position)?.label ??
           row.original.position,
@@ -528,6 +536,15 @@ export default function HumanResourcesPage() {
       {
         id: "org",
         header: "Org",
+        meta: {
+          exportValue: (row: EmployeeSummary) => {
+            const department = row.department
+              ? `${row.department.code} - ${row.department.name}`
+              : "No department";
+            const grade = row.grade ? `${row.grade.code} - ${row.grade.name}` : "No grade";
+            return `${department} | ${grade}`;
+          },
+        },
         cell: ({ row }) => (
           <div>
             <div className="font-semibold">
@@ -548,6 +565,16 @@ export default function HumanResourcesPage() {
       {
         id: "employment",
         header: "Employment",
+        meta: {
+          exportValue: (row: EmployeeSummary) => {
+            const employment =
+              employmentTypes.find((type) => type.value === row.employmentType)?.label ??
+              row.employmentType;
+            const hireDate = row.hireDate ? String(row.hireDate).slice(0, 10) : "-";
+            const currency = row.defaultCurrency ?? "USD";
+            return `${employment} | Hire: ${hireDate} | Currency: ${currency}`;
+          },
+        },
         cell: ({ row }) => (
           <div>
             <div className="font-semibold">
@@ -568,6 +595,10 @@ export default function HumanResourcesPage() {
       {
         id: "nextOfKin",
         header: "Next of Kin",
+        meta: {
+          exportValue: (row: EmployeeSummary) =>
+            `${row.nextOfKinName || "-"} (${row.nextOfKinPhone || "-"})`,
+        },
         cell: ({ row }) => (
           <div>
             <div className="font-semibold">{row.original.nextOfKinName}</div>
@@ -610,6 +641,9 @@ export default function HumanResourcesPage() {
       {
         id: "status",
         header: "Status",
+        meta: {
+          exportValue: (row: EmployeeSummary) => (row.isActive ? "Active" : "Inactive"),
+        },
         cell: ({ row }) => (
           <Badge variant={row.original.isActive ? "default" : "destructive"}>
             {row.original.isActive ? "Active" : "Inactive"}
@@ -1082,4 +1116,3 @@ export default function HumanResourcesPage() {
     </HrShell>
   )
 }
-

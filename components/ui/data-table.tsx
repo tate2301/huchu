@@ -3,6 +3,8 @@
 import * as React from "react";
 import {
   type ColumnDef,
+  type ColumnDefBase,
+  type VisibilityState,
   type PaginationState,
   type Row,
   type RowSelectionState,
@@ -18,6 +20,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -265,6 +274,38 @@ function deriveHeaderLabel(value: unknown, fallback: string): string {
   return fallback;
 }
 
+function isActionColumnHeader(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return value.trim().toLowerCase() === "actions";
+}
+
+function isActionColumnDefinition<TData, TValue>(
+  columnDef: ColumnDef<TData, TValue>,
+  id: string,
+): boolean {
+  const normalizedId = id.trim().toLowerCase();
+  if (normalizedId === "actions" || normalizedId === "action") return true;
+  return isActionColumnHeader((columnDef as { header?: unknown }).header);
+}
+
+function getNestedValue(source: unknown, path: string): unknown {
+  if (!path.trim()) return undefined;
+  const segments = path.split(".").filter(Boolean);
+  let current: unknown = source;
+
+  for (const segment of segments) {
+    if (!current || typeof current !== "object") return undefined;
+    const next = (current as Record<string, unknown>)[segment];
+    current = next;
+  }
+
+  return current;
+}
+
+type ExportMeta<TData> = {
+  exportValue?: (row: TData) => unknown;
+};
+
 function toTitleCase(value: string) {
   return value
     .split("-")
@@ -316,6 +357,7 @@ export function DataTable<TData, TValue>({
   const [searchDraft, setSearchDraft] = React.useState(queryState?.search ?? "");
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelectionState, setRowSelectionState] = React.useState<RowSelectionState>({});
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: 25,
@@ -411,6 +453,7 @@ export function DataTable<TData, TValue>({
       sorting: sortingEnabled ? sorting : [],
       globalFilter: useClientGlobalFilter ? effectiveGlobalFilter : undefined,
       rowSelection: rowSelectionState,
+      columnVisibility,
       pagination: {
         pageIndex: toPageIndex(page),
         pageSize,
@@ -445,6 +488,7 @@ export function DataTable<TData, TValue>({
         }
       : undefined,
     onRowSelectionChange: setRowSelectionState,
+    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: (updater) => {
       const next = typeof updater === "function" ? updater({ pageIndex: toPageIndex(page), pageSize }) : updater;
       onQueryStateChange?.({ page: toPage(next.pageIndex), pageSize: next.pageSize });
@@ -471,6 +515,7 @@ export function DataTable<TData, TValue>({
   const exportColumns = React.useMemo(() => {
     return table
       .getVisibleLeafColumns()
+      .filter((column) => !isActionColumnDefinition(column.columnDef, column.id))
       .map((column) => {
         const columnDef = column.columnDef as {
           accessorKey?: string;
@@ -482,14 +527,48 @@ export function DataTable<TData, TValue>({
             : null;
         const key = accessorKey ?? column.id;
         if (!key) return null;
+        const label = deriveHeaderLabel(columnDef.header, accessorKey ?? column.id);
+        if (!label.trim()) return null;
         return {
           id: column.id,
           key,
-          label: deriveHeaderLabel(columnDef.header, accessorKey ?? column.id),
+          label,
         };
       })
       .filter((column): column is { id: string; key: string; label: string } => Boolean(column));
   }, [table]);
+
+  const resolveExportValue = React.useCallback(
+    (row: Row<TData>, column: { id: string; key: string }) => {
+      const tableValue = row.getValue(column.id);
+      if (tableValue !== undefined) return tableValue;
+
+      const columnDef = row
+        .getAllCells()
+        .find((cell) => cell.column.id === column.id)?.column
+        .columnDef as (ColumnDefBase<TData, unknown> & {
+        accessorKey?: string;
+        meta?: ExportMeta<TData>;
+      }) | null;
+
+      const metaValue = columnDef?.meta?.exportValue?.(row.original);
+      if (metaValue !== undefined) return metaValue;
+
+      if (columnDef?.accessorKey) {
+        const accessorValue = getNestedValue(row.original, columnDef.accessorKey);
+        if (accessorValue !== undefined) return accessorValue;
+      }
+
+      const idValue = getNestedValue(row.original, column.id);
+      if (idValue !== undefined) return idValue;
+
+      const keyValue = getNestedValue(row.original, column.key);
+      if (keyValue !== undefined) return keyValue;
+
+      return "";
+    },
+    [],
+  );
   const exportRows = React.useMemo(() => {
     const rows = serverPagination
       ? table.getRowModel().rows
@@ -497,11 +576,31 @@ export function DataTable<TData, TValue>({
     return rows.map((row) => {
       const values: Record<string, unknown> = {};
       for (const column of exportColumns) {
-        values[column.key] = normalizeExportCellValue(row.getValue(column.id));
+        values[column.key] = normalizeExportCellValue(resolveExportValue(row, column));
       }
       return values;
     });
-  }, [exportColumns, serverPagination, table]);
+  }, [exportColumns, resolveExportValue, serverPagination, table]);
+
+  const toggleableColumns = React.useMemo(
+    () =>
+      table
+        .getAllLeafColumns()
+        .filter((column) => column.getCanHide())
+        .filter((column) => !isActionColumnDefinition(column.columnDef, column.id))
+        .map((column) => {
+          const columnDef = column.columnDef as { accessorKey?: string; header?: unknown };
+          const fallback = columnDef.accessorKey ?? column.id;
+          return {
+            id: column.id,
+            label: deriveHeaderLabel(columnDef.header, fallback),
+            column,
+          };
+        })
+        .filter((entry) => entry.label.trim().length > 0)
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [table],
+  );
   const inferredSourceKey = React.useMemo(
     () => inferSourceKeyFromPath(clientPathname),
     [clientPathname],
@@ -610,7 +709,8 @@ export function DataTable<TData, TValue>({
   );
 
   const showToolbarPagination = paginationEnabled;
-  const showTopToolbar = globalFilterEnabled || Boolean(toolbar) || exportEnabled;
+  const showTopToolbar =
+    globalFilterEnabled || Boolean(toolbar) || exportEnabled || toggleableColumns.length > 0;
   const showBottomPagination = showToolbarPagination;
 
   const totalPages = serverPagination
@@ -738,6 +838,27 @@ export function DataTable<TData, TValue>({
           ) : null}
 
           {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
+          {toggleableColumns.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" variant="outline">
+                  Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel>Show / Hide Columns</DropdownMenuLabel>
+                {toggleableColumns.map((entry) => (
+                  <DropdownMenuCheckboxItem
+                    key={entry.id}
+                    checked={entry.column.getIsVisible()}
+                    onCheckedChange={(checked) => entry.column.toggleVisibility(Boolean(checked))}
+                  >
+                    {entry.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           {exportEnabled ? (
             <div className="ml-auto flex items-center gap-2">
               <Button
