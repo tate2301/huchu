@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
@@ -50,7 +51,7 @@ import {
   fetchTaxCodes,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { Download, Plus, Trash2, XCircle } from "@/lib/icons";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -63,11 +64,14 @@ type InvoiceLineForm = {
 };
 
 export default function AccountingSalesPage() {
+  const { data: session } = useSession();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
   const [activeView, setActiveView] = useState<
     "customers" | "invoices" | "receipts" | "credit-notes" | "write-offs" | "aging" | "statements"
   >("customers");
@@ -372,17 +376,48 @@ export default function AccountingSalesPage() {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const printUrl = `/api/accounting/sales/invoices/${row.original.id}/pdf`;
+              const nextWindow = window.open(printUrl, "_blank", "noopener,noreferrer");
+              if (!nextWindow) {
+                window.location.assign(printUrl);
+              }
+            }}
+          >
+            <Download className="mr-1 size-4" />
+            PDF
+          </Button>
           {row.original.status === "DRAFT" ? (
             <Button size="sm" onClick={() => issueMutation.mutate(row.original.id)}>
               Issue Invoice
             </Button>
           ) : null}
+          {isSuperAdmin && row.original.status !== "VOIDED" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const confirmed = window.confirm(
+                  `Cancel invoice ${row.original.invoiceNumber}? This marks it as VOIDED and reverses posted accounting entries.`,
+                );
+                if (!confirmed) return;
+                cancelInvoiceMutation.mutate(row.original.id);
+              }}
+              disabled={cancelInvoiceMutation.isPending}
+            >
+              <XCircle className="mr-1 size-4" />
+              Cancel
+            </Button>
+          ) : null}
         </div>
       ),
-      size: 108,
-      minSize: 108,
-      maxSize: 108},
+      size: 300,
+      minSize: 220,
+      maxSize: 420},
   ];
 
   const receiptColumns = useMemo<ColumnDef<SalesReceiptRecord>[]>(
@@ -483,54 +518,81 @@ export default function AccountingSalesPage() {
     [],
   );
 
-  const writeOffColumns = useMemo<ColumnDef<SalesWriteOffRecord>[]>(
-    () => [
-      {
-        id: "date",
-        header: "Date",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {format(new Date(row.original.createdAt), "yyyy-MM-dd")}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "invoice",
-        header: "Invoice",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-mono">{row.original.invoice?.invoiceNumber ?? "-"}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.invoice?.customer?.name ?? ""}
-            </div>
+  const writeOffColumns: ColumnDef<SalesWriteOffRecord>[] = [
+    {
+      id: "date",
+      header: "Date",
+      cell: ({ row }) => (
+        <NumericCell align="left">
+          {format(new Date(row.original.createdAt), "yyyy-MM-dd")}
+        </NumericCell>
+      ),
+      size: 128,
+      minSize: 128,
+      maxSize: 128},
+    {
+      id: "invoice",
+      header: "Invoice",
+      cell: ({ row }) => (
+        <div>
+          <div className="font-mono">{row.original.invoice?.invoiceNumber ?? "-"}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.invoice?.customer?.name ?? ""}
           </div>
-        ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        id: "amount",
-        header: "Amount",
-        cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === "POSTED" ? "secondary" : "outline"}>
-            {row.original.status}
-          </Badge>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-    ],
-    [],
-  );
+        </div>
+      ),
+      size: 280,
+      minSize: 220,
+      maxSize: 420},
+    {
+      id: "amount",
+      header: "Amount",
+      cell: ({ row }) => <NumericCell>{row.original.amount.toFixed(2)}</NumericCell>,
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
+    {
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={row.original.status === "POSTED" ? "secondary" : "outline"}>
+          {row.original.status}
+        </Badge>
+      ),
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
+  ];
+
+  if (isSuperAdmin) {
+    writeOffColumns.push({
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+            onClick={() => {
+              const confirmed = window.confirm(
+                `Delete write-off record for invoice ${row.original.invoice?.invoiceNumber ?? "-"}? This also removes linked journal and ledger postings.`,
+              );
+              if (!confirmed) return;
+              deleteWriteOffMutation.mutate(row.original.id);
+            }}
+            disabled={deleteWriteOffMutation.isPending}
+          >
+            <Trash2 className="mr-1 size-4" />
+            Delete
+          </Button>
+        </div>
+      ),
+      size: 140,
+      minSize: 140,
+      maxSize: 160,
+    });
+  }
 
   const agingColumns = useMemo<ColumnDef<AgingRow>[]>(
     () => [
@@ -727,6 +789,29 @@ export default function AccountingSalesPage() {
     },
   });
 
+  const cancelInvoiceMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/accounting/sales/invoices/${id}` as const, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "VOIDED" }),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Invoice cancelled",
+        description: "The invoice has been marked as VOIDED.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "sales", "invoices"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to cancel invoice",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   const createReceiptMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
       fetchJson("/api/accounting/sales/receipts", {
@@ -813,6 +898,29 @@ export default function AccountingSalesPage() {
     onError: (err) => {
       toast({
         title: "Unable to record write-off",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteWriteOffMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/accounting/sales/write-offs/${id}` as const, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Write-off deleted",
+        description: "Bad debt write-off record and linked postings were deleted.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "sales", "write-offs"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "sales", "invoices"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to delete write-off",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });

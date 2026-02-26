@@ -5,9 +5,11 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AxisChart } from "@rtcamp/frappe-ui-react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
+import { InsightDonutCard } from "@/components/charts/insight-donut-card";
+import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +28,14 @@ import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+const DONUT_PALETTE = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
 export default function FinancialReportsHomePage() {
   const [startDate, setStartDate] = useState("");
@@ -51,63 +61,52 @@ export default function FinancialReportsHomePage() {
       }),
   });
 
-  const chartConfigs = useMemo(() => {
-    const pnlData = (summary?.charts.pnlBreakdown ?? []).map((item) => ({
+  const chartData = useMemo(() => {
+    const pnl = (summary?.charts.pnlBreakdown ?? []).map((item) => ({
       label: item.label,
       amount: item.amount,
     }));
-    const balanceData = (summary?.charts.balanceComposition ?? []).map((item) => ({
+    const balance = (summary?.charts.balanceComposition ?? []).map((item) => ({
       label: item.label,
       amount: item.amount,
     }));
-    const cashFlowData = (summary?.charts.cashFlowComposition ?? []).map((item) => ({
+    const cash = (summary?.charts.cashFlowComposition ?? []).map((item) => ({
       label: item.label,
       amount: item.amount,
     }));
-    const typeData = (summary?.charts.accountTypeBreakdown ?? []).map((item) => ({
+    const cashRunRate = cash.reduce<Array<{ label: string; amount: number; cumulative: number }>>(
+      (acc, item) => {
+        const previous = acc.at(-1)?.cumulative ?? 0;
+        acc.push({
+          label: item.label,
+          amount: item.amount,
+          cumulative: previous + item.amount,
+        });
+        return acc;
+      },
+      [],
+    );
+    const types = (summary?.charts.accountTypeBreakdown ?? []).map((item) => ({
       label: item.type,
       amount: item.amount,
     }));
 
-    return {
-      pnl: buildAxisChartConfig({
-        data: pnlData,
-        title: "Profit and Loss Position",
-        subtitle: "Income, expenses, and net income.",
-        xAxisKey: "label",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "amount", type: "bar" }],
-      }),
-      balance: buildAxisChartConfig({
-        data: balanceData,
-        title: "Balance Sheet Composition",
-        subtitle: "Assets, liabilities, and equity.",
-        xAxisKey: "label",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "amount", type: "bar" }],
-      }),
-      cash: buildAxisChartConfig({
-        data: cashFlowData,
-        title: "Cash Flow Components",
-        subtitle: "Operating, investing, financing, and net cash.",
-        xAxisKey: "label",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "amount", type: "bar" }],
-      }),
-      types: buildAxisChartConfig({
-        data: typeData,
-        title: "Trial Balance by Account Type",
-        subtitle: "Absolute balance concentration by account type.",
-        xAxisKey: "label",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "amount", type: "bar" }],
-      }),
-    };
+    return { pnl, balance, cash, cashRunRate, types };
   }, [summary]);
+
+  const pnlChartConfig = useMemo(
+    () =>
+      buildAxisChartConfig({
+        data: chartData.pnl,
+        title: "Profit and Loss Composition",
+        subtitle: "Frappe block emphasizes category-to-value comparison.",
+        xAxisKey: "label",
+        xAxisType: "category",
+        yAxisTitle: "Amount",
+        series: [{ name: "amount", type: "bar" }],
+      }),
+    [chartData.pnl],
+  );
 
   const groups = useMemo<HubLinkGroup[]>(
     () => [
@@ -264,10 +263,48 @@ export default function FinancialReportsHomePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.pnl} />}</FrappeChartShell>
-        <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.balance} />}</FrappeChartShell>
-        <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.cash} />}</FrappeChartShell>
-        <FrappeChartShell>{isLoading ? null : <AxisChart config={chartConfigs.types} />}</FrappeChartShell>
+        <FrappeChartShell className="rounded-xl">
+          {isLoading ? null : <AxisChart config={pnlChartConfig} />}
+        </FrappeChartShell>
+        <InsightDonutCard
+          title="Balance Sheet Composition"
+          subtitle="Proportional split between assets, liabilities, and equity."
+          data={
+            isLoading
+              ? []
+              : chartData.balance.map((item, index) => ({
+                  label: item.label,
+                  value: Math.abs(item.amount),
+                  color: DONUT_PALETTE[index % DONUT_PALETTE.length],
+                }))
+          }
+          valueFormatter={formatCurrency}
+        />
+        <TradingViewChartCard
+          title="Cash Flow Momentum"
+          subtitle="Component values with a cumulative run-rate overlay."
+          data={isLoading ? [] : chartData.cashRunRate}
+          xKey="label"
+          series={[
+            { key: "amount", label: "Component", type: "bar", color: "hsl(var(--chart-2))" },
+            { key: "cumulative", label: "Cumulative", type: "line", color: "hsl(var(--chart-1))" },
+          ]}
+          valueFormatter={formatCurrency}
+        />
+        <InsightDonutCard
+          title="Trial Balance by Account Type"
+          subtitle="Absolute balance concentration by account type."
+          data={
+            isLoading
+              ? []
+              : chartData.types.map((item, index) => ({
+                  label: item.label,
+                  value: Math.abs(item.amount),
+                  color: DONUT_PALETTE[index % DONUT_PALETTE.length],
+                }))
+          }
+          valueFormatter={formatCurrency}
+        />
       </div>
 
       <GroupedLinkList groups={groups} />
