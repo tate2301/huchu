@@ -33,6 +33,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  inferSourceKeyFromPath,
+  runDocumentExport,
+  type DocumentExportFormat,
+} from "@/lib/documents/export-client";
 import { ChevronDown, ChevronRight } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +87,18 @@ type DataTableFeatures = {
   sorting?: boolean;
   globalFilter?: boolean;
   pagination?: boolean;
+};
+
+type DataTableExportConfig = {
+  enabled?: boolean;
+  sourceKey?: string;
+  title?: string;
+  subtitle?: string;
+  fileName?: string;
+  filters?: Record<string, string>;
+  mode?: "SYNC" | "ASYNC";
+  templateId?: string;
+  templateVersionId?: string;
 };
 
 type DataTableSearchBehavior = "submit" | "instant";
@@ -152,6 +169,7 @@ export type DataTableProps<TData, TValue> = {
   rowSelection?: DataTableRowSelectionConfig<TData>;
   features?: DataTableFeatures;
   expansion?: DataTableExpansionConfig<TData>;
+  exportConfig?: DataTableExportConfig;
 };
 
 function toPageIndex(page: number) {
@@ -217,6 +235,44 @@ function getColumnWidthStyle<TData, TValue>(
   };
 }
 
+function normalizeExportCellValue(value: unknown): string | number | boolean {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeExportCellValue(item))
+      .join(", ");
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function deriveHeaderLabel(value: unknown, fallback: string): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return fallback;
+}
+
+function toTitleCase(value: string) {
+  return value
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export function DataTable<TData, TValue>({
   data,
   columns,
@@ -245,6 +301,7 @@ export function DataTable<TData, TValue>({
   rowSelection,
   features,
   expansion,
+  exportConfig,
 }: DataTableProps<TData, TValue>) {
   const sortingEnabled = features?.sorting ?? true;
   const globalFilterEnabled = features?.globalFilter ?? true;
@@ -263,6 +320,9 @@ export function DataTable<TData, TValue>({
     pageIndex: 0,
     pageSize: 25,
   });
+  const [clientPathname, setClientPathname] = React.useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = React.useState<DocumentExportFormat | null>(null);
+  const [exportStatusMessage, setExportStatusMessage] = React.useState<string | null>(null);
   const [expandedRowIdsState, setExpandedRowIdsState] = React.useState<string[]>(
     expansion?.defaultExpandedRowIds ?? [],
   );
@@ -308,6 +368,11 @@ export function DataTable<TData, TValue>({
   }, []);
 
   React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    setClientPathname(window.location.pathname);
+  }, []);
+
+  React.useEffect(() => {
     const nextSearch = queryState?.search;
     if (nextSearch !== undefined) {
       setGlobalFilter((prev) => (prev === nextSearch ? prev : nextSearch));
@@ -339,7 +404,6 @@ export function DataTable<TData, TValue>({
     searchDraft,
   ]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -403,8 +467,150 @@ export function DataTable<TData, TValue>({
     rowSelection?.onSelectionChange?.(selectedRows);
   }, [rowSelection, selectedRows]);
 
+  const exportEnabled = exportConfig?.enabled ?? true;
+  const exportColumns = React.useMemo(() => {
+    return table
+      .getVisibleLeafColumns()
+      .map((column) => {
+        const columnDef = column.columnDef as {
+          accessorKey?: string;
+          header?: unknown;
+        };
+        const accessorKey =
+          typeof columnDef.accessorKey === "string"
+            ? columnDef.accessorKey
+            : null;
+        const key = accessorKey ?? column.id;
+        if (!key) return null;
+        return {
+          id: column.id,
+          key,
+          label: deriveHeaderLabel(columnDef.header, accessorKey ?? column.id),
+        };
+      })
+      .filter((column): column is { id: string; key: string; label: string } => Boolean(column));
+  }, [table]);
+  const exportRows = React.useMemo(() => {
+    const rows = serverPagination
+      ? table.getRowModel().rows
+      : table.getPrePaginationRowModel().rows;
+    return rows.map((row) => {
+      const values: Record<string, unknown> = {};
+      for (const column of exportColumns) {
+        values[column.key] = normalizeExportCellValue(row.getValue(column.id));
+      }
+      return values;
+    });
+  }, [exportColumns, serverPagination, table]);
+  const inferredSourceKey = React.useMemo(
+    () => inferSourceKeyFromPath(clientPathname),
+    [clientPathname],
+  );
+  const inferredTitle = React.useMemo(() => {
+    const segment = (clientPathname ?? "/")
+      .split("/")
+      .filter(Boolean)
+      .at(-1);
+    return segment ? `${toTitleCase(segment)} Export` : "Table Export";
+  }, [clientPathname]);
+  const exportSourceKey = exportConfig?.sourceKey ?? inferredSourceKey;
+  const exportFileName = exportConfig?.fileName ?? exportSourceKey.replace(/\./g, "-");
+  const exportDisabled = exportRows.length === 0 || exportColumns.length === 0;
+  const hasAnyExportFilters =
+    Boolean(queryState?.search?.trim()) ||
+    Boolean(exportConfig?.filters && Object.keys(exportConfig.filters).length > 0);
+  const exportMeta = React.useMemo(() => {
+    const details: Array<{ label: string; value: string }> = [
+      { label: "Rows", value: String(exportRows.length) },
+    ];
+    if (queryState?.search?.trim()) {
+      details.push({ label: "Search", value: queryState.search.trim() });
+    }
+    if (exportConfig?.filters) {
+      for (const [key, value] of Object.entries(exportConfig.filters)) {
+        if (value.trim()) {
+          details.push({
+            label: toTitleCase(key.replace(/[^a-zA-Z0-9]+/g, "-")),
+            value,
+          });
+        }
+      }
+    }
+    return details;
+  }, [exportConfig?.filters, exportRows.length, queryState?.search]);
+  const handleExport = React.useCallback(
+    async (format: DocumentExportFormat) => {
+      if (exportingFormat) return;
+      setExportingFormat(format);
+      setExportStatusMessage(
+        format === "pdf" ? "Preparing PDF export..." : "Preparing CSV export...",
+      );
+      try {
+        await runDocumentExport(
+          {
+            sourceKey: exportSourceKey,
+            format,
+            filters: exportConfig?.filters,
+            templateId: exportConfig?.templateId,
+            templateVersionId: exportConfig?.templateVersionId,
+            mode: exportConfig?.mode,
+            idempotencyKey: `${exportSourceKey}:${format}:${JSON.stringify(exportConfig?.filters ?? {})}:${JSON.stringify(queryState ?? {})}`,
+            payload: {
+              title: exportConfig?.title ?? inferredTitle,
+              subtitle:
+                exportConfig?.subtitle ??
+                (hasAnyExportFilters ? "Filtered data export" : "Full table export"),
+              fileName: exportFileName,
+              meta: exportMeta,
+              list: {
+                columns: exportColumns.map((column) => ({
+                  key: column.key,
+                  label: column.label,
+                })),
+                rows: exportRows,
+              },
+            },
+          },
+          {
+            onStatus: (status) => {
+              if (status === "requesting") setExportStatusMessage("Sending export request...");
+              if (status === "queued") setExportStatusMessage("Export queued. Processing...");
+              if (status === "processing") setExportStatusMessage("Rendering export...");
+              if (status === "ready") setExportStatusMessage("Export ready. Downloading...");
+              if (status === "downloading") setExportStatusMessage("Downloading file...");
+              if (status === "done") setExportStatusMessage("Export complete.");
+            },
+          },
+        );
+      } catch (error) {
+        setExportStatusMessage(
+          error instanceof Error ? error.message : "Export failed",
+        );
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [
+      exportColumns,
+      exportConfig?.filters,
+      exportConfig?.mode,
+      exportConfig?.subtitle,
+      exportConfig?.templateId,
+      exportConfig?.templateVersionId,
+      exportConfig?.title,
+      exportFileName,
+      exportMeta,
+      exportRows,
+      exportSourceKey,
+      exportingFormat,
+      hasAnyExportFilters,
+      inferredTitle,
+      queryState,
+    ],
+  );
+
   const showToolbarPagination = paginationEnabled;
-  const showTopToolbar = globalFilterEnabled || Boolean(toolbar);
+  const showTopToolbar = globalFilterEnabled || Boolean(toolbar) || exportEnabled;
   const showBottomPagination = showToolbarPagination;
 
   const totalPages = serverPagination
@@ -532,8 +738,34 @@ export function DataTable<TData, TValue>({
           ) : null}
 
           {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
+          {exportEnabled ? (
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleExport("csv")}
+                disabled={exportDisabled || Boolean(exportingFormat)}
+              >
+                {exportingFormat === "csv" ? "Exporting CSV..." : "Export CSV"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => handleExport("pdf")}
+                disabled={exportDisabled || Boolean(exportingFormat)}
+              >
+                {exportingFormat === "pdf" ? "Exporting PDF..." : "Export PDF"}
+              </Button>
+            </div>
+          ) : null}
 
         </div>
+      ) : null}
+      {exportEnabled && exportStatusMessage ? (
+        <p className="px-[var(--content-gutter-x)] py-1 text-xs text-muted-foreground">
+          {exportStatusMessage}
+        </p>
       ) : null}
 
       <div

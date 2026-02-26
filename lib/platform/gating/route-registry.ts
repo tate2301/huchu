@@ -4,6 +4,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/login", featureKey: "core.auth.login" },
   { scope: "page", prefix: "/help", featureKey: "core.help.quick-tips" },
   { scope: "page", prefix: "/settings/branding", featureKey: "core.branding.manage" },
+  { scope: "page", prefix: "/settings/templates", featureKey: "core.branding.manage" },
 
   { scope: "page", prefix: "/cctv/live", featureKey: "cctv.live" },
   { scope: "page", prefix: "/cctv/cameras", featureKey: "cctv.cameras" },
