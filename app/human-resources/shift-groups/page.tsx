@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckIcon, Pencil, Plus, Trash2 } from "@/lib/icons"
+import { CheckIcon, ChevronDown, Pencil, Plus, Trash2 } from "@/lib/icons"
 
 import { EmployeeAvatar } from "@/components/shared/employee-avatar"
 import { HrShell } from "@/components/human-resources/hr-shell"
@@ -19,6 +19,13 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -33,7 +40,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { VerticalDataViews } from "@/components/ui/vertical-data-views"
 import {
-  archiveShiftGroup,
   createShiftGroup,
   createShiftGroupSchedule,
   deleteShiftGroupSchedule,
@@ -42,6 +48,7 @@ import {
   fetchShiftGroups,
   fetchShiftGroupSchedules,
   fetchSites,
+  permanentlyDeleteShiftGroup,
   updateShiftGroup,
   type EmployeeSummary,
   type ShiftGroupRecord,
@@ -414,15 +421,33 @@ export default function HrShiftGroupsPage() {
     },
   })
 
-  const archiveGroupMutation = useMutation({
-    mutationFn: (id: string) => archiveShiftGroup(id),
+  const setGroupStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      updateShiftGroup(id, { isActive }),
+    onSuccess: (_data, variables) => {
+      toast({
+        title: variables.isActive ? "Shift group re-enabled" : "Shift group disabled",
+        variant: "success",
+      })
+      queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
+    },
+    onError: (error, variables) =>
+      toast({
+        title: variables.isActive ? "Unable to re-enable shift group" : "Unable to disable shift group",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  })
+
+  const permanentlyDeleteGroupMutation = useMutation({
+    mutationFn: (id: string) => permanentlyDeleteShiftGroup(id),
     onSuccess: () => {
-      toast({ title: "Shift group archived", variant: "success" })
+      toast({ title: "Shift group permanently deleted", variant: "success" })
       queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
     },
     onError: (error) =>
       toast({
-        title: "Unable to archive shift group",
+        title: "Unable to permanently delete shift group",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -470,6 +495,29 @@ export default function HrShiftGroupsPage() {
         variant: "destructive",
       }),
   })
+
+  const handleSetGroupStatus = useCallback(
+    (group: ShiftGroupRecord, isActive: boolean) => {
+      const actionLabel = isActive ? "re-enable" : "disable"
+      const confirmed = window.confirm(
+        `Are you sure you want to ${actionLabel} "${group.name}"?`,
+      )
+      if (!confirmed) return
+      setGroupStatusMutation.mutate({ id: group.id, isActive })
+    },
+    [setGroupStatusMutation],
+  )
+
+  const handlePermanentlyDeleteGroup = useCallback(
+    (group: ShiftGroupRecord) => {
+      const confirmed = window.confirm(
+        `Permanently delete "${group.name}"? This cannot be undone.`,
+      )
+      if (!confirmed) return
+      permanentlyDeleteGroupMutation.mutate(group.id)
+    },
+    [permanentlyDeleteGroupMutation],
+  )
 
   const groupsColumns = useMemo<ColumnDef<ShiftGroupRecord>[]>(
     () => [
@@ -532,34 +580,66 @@ export default function HrShiftGroupsPage() {
         id: "actions",
         header: "",
         cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={groupSheetLoading || updateGroupMutation.isPending || createGroupMutation.isPending}
-              onClick={() => void openEditGroupSheet(row.original.id)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={!row.original.isActive || archiveGroupMutation.isPending}
-              onClick={() => archiveGroupMutation.mutate(row.original.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    groupSheetLoading ||
+                    updateGroupMutation.isPending ||
+                    createGroupMutation.isPending ||
+                    setGroupStatusMutation.isPending ||
+                    permanentlyDeleteGroupMutation.isPending
+                  }
+                >
+                  Actions
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void openEditGroupSheet(row.original.id)}>
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleSetGroupStatus(row.original, true)}
+                  disabled={row.original.isActive}
+                >
+                  Re-enable
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleSetGroupStatus(row.original, false)}
+                  disabled={!row.original.isActive}
+                >
+                  Disable
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => handlePermanentlyDeleteGroup(row.original)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Permanently delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
-        size: 156,
-        minSize: 156,
-        maxSize: 156},
+        size: 176,
+        minSize: 176,
+        maxSize: 176},
     ],
     [
-      archiveGroupMutation,
       createGroupMutation.isPending,
+      handlePermanentlyDeleteGroup,
+      handleSetGroupStatus,
       groupSheetLoading,
       openEditGroupSheet,
+      permanentlyDeleteGroupMutation.isPending,
+      setGroupStatusMutation.isPending,
       updateGroupMutation.isPending,
     ],
   )

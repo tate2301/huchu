@@ -127,7 +127,6 @@ export async function PATCH(
       if (employees.length !== nextMemberIds.length) {
         return errorResponse("One or more selected members are invalid or inactive", 400)
       }
-
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -214,13 +213,6 @@ export async function PATCH(
         }
       }
 
-      if (validated.isActive === false) {
-        await tx.shiftGroupMember.updateMany({
-          where: { shiftGroupId: id, isActive: true },
-          data: { isActive: false, leftAt: new Date() },
-        })
-      }
-
       return tx.shiftGroup.findUnique({
         where: { id: group.id },
         include: {
@@ -270,9 +262,11 @@ export async function DELETE(
     const { session } = sessionResult
 
     if (!ensureApproverRole(session)) {
-      return errorResponse("Insufficient permissions to archive shift groups", 403)
+      return errorResponse("Insufficient permissions to manage shift groups", 403)
     }
 
+    const { searchParams } = new URL(request.url)
+    const permanent = searchParams.get("permanent") === "true"
     const { id } = await params
     const existing = await prisma.shiftGroup.findUnique({
       where: { id },
@@ -282,19 +276,28 @@ export async function DELETE(
       return errorResponse("Shift group not found", 404)
     }
 
+    if (permanent) {
+      await prisma.shiftGroup.delete({ where: { id } })
+      return successResponse({ success: true, deleted: true })
+    }
+
     await prisma.shiftGroup.update({
       where: { id },
       data: { isActive: false },
     })
 
-    await prisma.shiftGroupMember.updateMany({
-      where: { shiftGroupId: id, isActive: true },
-      data: { isActive: false, leftAt: new Date() },
-    })
-
     return successResponse({ success: true, archived: true })
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      return errorResponse(
+        "Cannot permanently delete this shift group because linked records exist",
+        409,
+      )
+    }
     console.error("[API] DELETE /api/hr/shift-groups/[id] error:", error)
-    return errorResponse("Failed to archive shift group")
+    return errorResponse("Failed to manage shift group")
   }
 }

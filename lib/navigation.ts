@@ -30,6 +30,7 @@ import {
   Server,
   Scale,
   UserRound,
+  Users,
   UserCheck,
   Video,
   Wallet,
@@ -152,6 +153,11 @@ export const navSections: NavSection[] = [
     description: "Employee records and attendance roster",
     items: [
       { href: "/human-resources", icon: ManageAccounts, label: "Employees" },
+      {
+        href: "/human-resources/shift-groups",
+        icon: Users,
+        label: "Shift Groups",
+      },
       {
         href: "/human-resources/incidents",
         icon: ShieldCheck,

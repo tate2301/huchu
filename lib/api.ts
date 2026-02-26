@@ -1371,6 +1371,15 @@ export async function archiveShiftGroup(id: string) {
   );
 }
 
+export async function permanentlyDeleteShiftGroup(id: string) {
+  return fetchJson<{ success: boolean; deleted?: boolean }>(
+    `/api/hr/shift-groups/${id}?permanent=true`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export async function fetchShiftGroupMembers(
   groupId: string,
   params: { active?: boolean } = {},
