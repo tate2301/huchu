@@ -111,6 +111,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/settings/branding/domain/verify", featureKey: "core.branding.custom-domain" },
   { scope: "api", prefix: "/api/settings/branding/domain", featureKey: "core.branding.custom-domain" },
   { scope: "api", prefix: "/api/settings/branding", featureKey: "core.branding.manage" },
+  { scope: "api", prefix: "/api/document-templates", featureKey: "core.branding.manage" },
 
   { scope: "api", prefix: "/api/users/create", featureKey: "admin.user-management.create" },
   { scope: "api", prefix: "/api/users/status", featureKey: "admin.user-management.status" },
@@ -184,6 +185,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/accounting/closing", featureKey: "accounting.periods" },
   { scope: "api", prefix: "/api/accounting/payment-ledger", featureKey: "accounting.core" },
   { scope: "api", prefix: "/api/accounting/sales", featureKey: "accounting.ar" },
+  { scope: "api", prefix: "/api/accounting/sales/quotations", featureKey: "accounting.ar" },
   { scope: "api", prefix: "/api/accounting/purchases", featureKey: "accounting.ap" },
   { scope: "api", prefix: "/api/accounting/banking", featureKey: "accounting.banking" },
   { scope: "api", prefix: "/api/accounting/assets", featureKey: "accounting.fixed-assets" },
