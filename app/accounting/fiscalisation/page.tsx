@@ -24,10 +24,15 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 type FiscalisationFormState = {
   providerKey: string;
   apiBaseUrl: string;
+  authType: string;
   username: string;
   password: string;
   apiToken: string;
   deviceId: string;
+  timeoutMs: string;
+  retryPolicyJson: string;
+  certificateRef: string;
+  webhookSecretRef: string;
   metadataJson: string;
   legalName: string;
   tradingName: string;
@@ -59,10 +64,15 @@ export default function FiscalisationPage() {
     () => ({
       providerKey: configData?.provider?.providerKey ?? "ZIMRA_FDMS",
       apiBaseUrl: configData?.provider?.apiBaseUrl ?? "",
+      authType: configData?.provider?.authType ?? "",
       username: configData?.provider?.username ?? "",
       password: configData?.provider?.password ?? "",
       apiToken: configData?.provider?.apiToken ?? "",
       deviceId: configData?.provider?.deviceId ?? "",
+      timeoutMs: configData?.provider?.timeoutMs ? String(configData.provider.timeoutMs) : "",
+      retryPolicyJson: configData?.provider?.retryPolicyJson ?? "",
+      certificateRef: configData?.provider?.certificateRef ?? "",
+      webhookSecretRef: configData?.provider?.webhookSecretRef ?? "",
       metadataJson: configData?.provider?.metadataJson ?? "",
       legalName: configData?.settings?.legalName ?? "",
       tradingName: configData?.settings?.tradingName ?? "",
@@ -79,6 +89,22 @@ export default function FiscalisationPage() {
 
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
   const hasActiveProvider = Boolean(configData?.provider?.isActive);
+  const syncMutation = useMutation({
+    mutationFn: async (receiptId: string) =>
+      fetchJson(`/api/accounting/fiscalisation/receipts/${receiptId}/sync` as const, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounting", "fiscalisation", "receipts"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to sync receipt",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
 
   const columns = useMemo<ColumnDef<FiscalReceiptRecord>[]>(
     () => [
@@ -123,8 +149,37 @@ export default function FiscalisationPage() {
         size: 128,
         minSize: 128,
         maxSize: 128},
+      {
+        id: "synced",
+        header: "Last Synced",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {row.original.lastSyncedAt ? format(new Date(row.original.lastSyncedAt), "yyyy-MM-dd HH:mm") : "-"}
+          </NumericCell>
+        ),
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => syncMutation.mutate(row.original.id)}
+              disabled={syncMutation.isPending}
+            >
+              Sync
+            </Button>
+          </div>
+        ),
+        size: 96,
+        minSize: 96,
+        maxSize: 96},
     ],
-    [],
+    [syncMutation],
   );
 
   const saveConfigMutation = useMutation({
@@ -174,7 +229,27 @@ export default function FiscalisationPage() {
       });
     },
   });
-
+  const replayMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson("/api/accounting/fiscalisation/replay", {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Replay triggered",
+        description: "Eligible pending/failed receipts are re-queued.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "fiscalisation", "receipts"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to replay receipts",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
   const handleSaveConfig = (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -190,10 +265,15 @@ export default function FiscalisationPage() {
     saveConfigMutation.mutate({
       providerKey: formState.providerKey.trim(),
       apiBaseUrl: formState.apiBaseUrl.trim() || undefined,
+      authType: formState.authType.trim() || undefined,
       username: formState.username.trim() || undefined,
       password: formState.password.trim() || undefined,
       apiToken: formState.apiToken.trim() || undefined,
       deviceId: formState.deviceId.trim() || undefined,
+      timeoutMs: formState.timeoutMs.trim() ? Number(formState.timeoutMs) : undefined,
+      retryPolicyJson: formState.retryPolicyJson.trim() || undefined,
+      certificateRef: formState.certificateRef.trim() || undefined,
+      webhookSecretRef: formState.webhookSecretRef.trim() || undefined,
       metadataJson: formState.metadataJson.trim() || undefined,
       supplier: {
         legalName: formState.legalName.trim() || undefined,
@@ -277,6 +357,30 @@ export default function FiscalisationPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
+                    <label className="block text-sm font-semibold mb-2">Auth Type</label>
+                    <Input
+                      value={formState.authType}
+                      onChange={(event) =>
+                        setDraft((prev) => ({ ...prev, authType: event.target.value }))
+                      }
+                      placeholder="BEARER / BASIC / TOKEN"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Timeout (ms)</label>
+                    <Input
+                      type="number"
+                      min="1000"
+                      value={formState.timeoutMs}
+                      onChange={(event) =>
+                        setDraft((prev) => ({ ...prev, timeoutMs: event.target.value }))
+                      }
+                      placeholder="20000"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
                     <label className="block text-sm font-semibold mb-2">Username</label>
                     <Input
                       value={formState.username}
@@ -315,6 +419,38 @@ export default function FiscalisationPage() {
                       }
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Certificate Ref</label>
+                    <Input
+                      value={formState.certificateRef}
+                      onChange={(event) =>
+                        setDraft((prev) => ({ ...prev, certificateRef: event.target.value }))
+                      }
+                      placeholder="env:FDMS_CERT_BUNDLE_JSON"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Webhook Secret Ref</label>
+                    <Input
+                      value={formState.webhookSecretRef}
+                      onChange={(event) =>
+                        setDraft((prev) => ({ ...prev, webhookSecretRef: event.target.value }))
+                      }
+                      placeholder="env:FDMS_WEBHOOK_SECRET"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Retry Policy JSON</label>
+                  <Input
+                    value={formState.retryPolicyJson}
+                    onChange={(event) =>
+                      setDraft((prev) => ({ ...prev, retryPolicyJson: event.target.value }))
+                    }
+                    placeholder='{"baseDelayMs":300000,"maxDelayMs":86400000}'
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-2">Metadata JSON</label>
@@ -440,6 +576,16 @@ export default function FiscalisationPage() {
             searchPlaceholder="Search fiscal receipts"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => replayMutation.mutate()}
+                disabled={replayMutation.isPending}
+              >
+                Replay Failed/Pending
+              </Button>
+            }
             emptyState={isLoading ? "Loading receipts..." : "No fiscal receipts found."}
           />
         </div>

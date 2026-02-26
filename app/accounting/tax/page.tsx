@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -31,10 +32,17 @@ import { useToast } from "@/components/ui/use-toast";
 import {
   type AccountingPeriodRecord,
   type TaxCodeRecord,
+  type VatReturnRecord,
   type VatSummaryRow,
+  createVatReturnDraft,
+  fetchVatReturns,
+  fileVatReturn,
+  finalizeVatReturn,
   fetchAccountingPeriods,
   fetchTaxCodes,
   fetchVatSummary,
+  refreshVatReturn,
+  reviewVatReturn,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
@@ -42,19 +50,34 @@ import { useReservedId } from "@/hooks/use-reserved-id";
 
 export default function TaxSetupPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const initialViewParam = searchParams.get("view");
+  const initialView =
+    initialViewParam === "vat-summary" || initialViewParam === "vat-returns"
+      ? initialViewParam
+      : "codes";
   const queryClient = useQueryClient();
-  const [activeView, setActiveView] = useState<"codes" | "vat-summary">("codes");
+  const [activeView, setActiveView] = useState<"codes" | "vat-summary" | "vat-returns">(
+    initialView,
+  );
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState({
     code: "",
     name: "",
     rate: "",
     type: "VAT",
+    appliesTo: "BOTH",
+    vat7OutputBox: "",
+    vat7InputBox: "",
+    scheduleType: "NONE",
     isActive: true,
   });
   const [summaryPeriodId, setSummaryPeriodId] = useState("");
   const [summaryStartDate, setSummaryStartDate] = useState("");
   const [summaryEndDate, setSummaryEndDate] = useState("");
+  const [vatReturnPeriodId, setVatReturnPeriodId] = useState("");
+  const [vatReturnAdjustmentsTax, setVatReturnAdjustmentsTax] = useState("");
+  const [vatReturnFilingCategory, setVatReturnFilingCategory] = useState("GENERAL");
   const {
     reservedId,
     isReserving,
@@ -88,6 +111,39 @@ export default function TaxSetupPage() {
       }),
     enabled: activeView === "vat-summary",
   });
+  const {
+    data: vatReturnsData,
+    isLoading: vatReturnsLoading,
+    error: vatReturnsError,
+  } = useQuery({
+    queryKey: ["accounting", "vat-returns"],
+    queryFn: () => fetchVatReturns({ limit: 200 }),
+    enabled: activeView === "vat-returns",
+  });
+  const actionMutation = useMutation({
+    mutationFn: async (input: { action: "review" | "refresh" | "finalize" | "file"; vatReturnId: string }) => {
+      if (input.action === "review") return reviewVatReturn(input.vatReturnId);
+      if (input.action === "refresh") return refreshVatReturn(input.vatReturnId);
+      if (input.action === "finalize") return finalizeVatReturn(input.vatReturnId);
+      return fileVatReturn(input.vatReturnId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounting", "vat-returns"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "vat-summary"] });
+      toast({
+        title: "VAT return updated",
+        description: "VAT return status changed successfully.",
+        variant: "success",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to update VAT return",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
 
   const columns = useMemo<ColumnDef<TaxCodeRecord>[]>(
     () => [
@@ -116,6 +172,13 @@ export default function TaxSetupPage() {
         id: "type",
         header: "Type",
         accessorKey: "type",
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "appliesTo",
+        header: "Applies To",
+        accessorKey: "appliesTo",
         size: 280,
         minSize: 220,
         maxSize: 420},
@@ -181,10 +244,124 @@ export default function TaxSetupPage() {
     ],
     [],
   );
+  const vatReturnColumns = useMemo<ColumnDef<VatReturnRecord>[]>(
+    () => [
+      {
+        id: "period",
+        header: "Period",
+        cell: ({ row }) => (
+          <span className="font-mono">
+            {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
+            {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge
+            variant={row.original.status === "FILED" ? "secondary" : "outline"}
+            className="font-mono"
+          >
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "dueDates",
+        header: "Due Dates",
+        cell: ({ row }) => (
+          <div className="text-xs">
+            <div className="font-mono">
+              Return: {row.original.returnDueDate ? format(new Date(row.original.returnDueDate), "yyyy-MM-dd") : "-"}
+            </div>
+            <div className="font-mono">
+              Payment: {row.original.paymentDueDate ? format(new Date(row.original.paymentDueDate), "yyyy-MM-dd") : "-"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "outputTax",
+        header: "Output Tax",
+        cell: ({ row }) => <NumericCell>{row.original.outputTax.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "inputTax",
+        header: "Input Tax",
+        cell: ({ row }) => <NumericCell>{row.original.inputTax.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "payableRefundable",
+        header: "Payable / Refundable",
+        cell: ({ row }) => {
+          const boxes = row.original.vat7Boxes ?? {};
+          const payable = Number(boxes.vatPayable ?? 0);
+          const refundable = Number(boxes.vatRefundable ?? 0);
+          return (
+            <div className="text-right font-mono text-xs">
+              <div>Payable: {payable.toFixed(2)}</div>
+              <div>Refund: {refundable.toFixed(2)}</div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const vatReturn = row.original;
+          return (
+            <div className="flex items-center justify-end gap-2">
+              {vatReturn.status === "DRAFT" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => actionMutation.mutate({ action: "review", vatReturnId: vatReturn.id })}
+                >
+                  Review
+                </Button>
+              ) : null}
+              {vatReturn.status === "REVIEWED" ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      actionMutation.mutate({ action: "refresh", vatReturnId: vatReturn.id })
+                    }
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => actionMutation.mutate({ action: "finalize", vatReturnId: vatReturn.id })}
+                  >
+                    Finalize
+                  </Button>
+                </>
+              ) : null}
+              {vatReturn.status === "FINALIZED" ? (
+                <Button
+                  size="sm"
+                  onClick={() => actionMutation.mutate({ action: "file", vatReturnId: vatReturn.id })}
+                >
+                  Mark Filed
+                </Button>
+              ) : null}
+            </div>
+          );
+        },
+      },
+    ],
+    [actionMutation],
+  );
 
   const periods = periodsData?.data ?? [];
   const vatRows = vatSummary?.rows ?? [];
   const vatTotals = vatSummary?.totals ?? { outputTax: 0, inputTax: 0, netTax: 0 };
+  const vatReturns = vatReturnsData?.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
@@ -199,7 +376,17 @@ export default function TaxSetupPage() {
         variant: "success",
       });
       setFormOpen(false);
-      setFormState({ code: "", name: "", rate: "", type: "VAT", isActive: true });
+      setFormState({
+        code: "",
+        name: "",
+        rate: "",
+        type: "VAT",
+        appliesTo: "BOTH",
+        vat7OutputBox: "",
+        vat7InputBox: "",
+        scheduleType: "NONE",
+        isActive: true,
+      });
       queryClient.invalidateQueries({ queryKey: ["accounting", "tax"] });
     },
     onError: (err) => {
@@ -210,7 +397,37 @@ export default function TaxSetupPage() {
       });
     },
   });
-
+  const createVatReturnMutation = useMutation({
+    mutationFn: async () => {
+      if (!vatReturnPeriodId) {
+        throw new Error("Select a period to generate a VAT return.");
+      }
+      const period = periods.find((item) => item.id === vatReturnPeriodId);
+      if (!period || period.status !== "OPEN") {
+        throw new Error("VAT return drafts can only be created for OPEN periods.");
+      }
+      return createVatReturnDraft({
+        periodId: vatReturnPeriodId,
+        adjustmentsTax: vatReturnAdjustmentsTax ? Number(vatReturnAdjustmentsTax) : undefined,
+        filingCategory: vatReturnFilingCategory,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "VAT return draft created",
+        description: "VAT return draft has been generated for the selected period.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "vat-returns"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to create VAT return draft",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -237,6 +454,10 @@ export default function TaxSetupPage() {
       name: formState.name.trim(),
       rate: Number(formState.rate),
       type: formState.type,
+      appliesTo: formState.appliesTo,
+      vat7OutputBox: formState.vat7OutputBox || undefined,
+      vat7InputBox: formState.vat7InputBox || undefined,
+      scheduleType: formState.scheduleType,
       isActive: formState.isActive,
     });
   };
@@ -271,10 +492,10 @@ export default function TaxSetupPage() {
         </Button>
       }
     >
-      {(error || vatSummaryError) ? (
+      {(error || vatSummaryError || vatReturnsError) ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load tax codes</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error || vatSummaryError)}</AlertDescription>
+          <AlertDescription>{getApiErrorMessage(error || vatSummaryError || vatReturnsError)}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -282,9 +503,10 @@ export default function TaxSetupPage() {
         items={[
           { id: "codes", label: "Tax Codes", count: taxCodes?.length ?? 0 },
           { id: "vat-summary", label: "VAT Summary", count: vatRows.length },
+          { id: "vat-returns", label: "VAT Returns", count: vatReturns.length },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "codes" | "vat-summary")}
+        onValueChange={(value) => setActiveView(value as "codes" | "vat-summary" | "vat-returns")}
         railLabel="Tax Views"
       >
         <div className={activeView === "codes" ? "space-y-3" : "hidden"}>
@@ -359,6 +581,61 @@ export default function TaxSetupPage() {
             emptyState={vatSummaryLoading ? "Loading VAT summary..." : "No VAT summary data."}
           />
         </div>
+        <div className={activeView === "vat-returns" ? "space-y-3" : "hidden"}>
+          <DataTable
+            data={vatReturns}
+            columns={vatReturnColumns}
+            groupBy="status"
+            searchPlaceholder="Search VAT returns"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            toolbar={
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={vatReturnPeriodId} onValueChange={setVatReturnPeriodId}>
+                  <SelectTrigger size="sm" className="h-8 w-[220px]">
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Select period</SelectItem>
+                    {periods.map((period: AccountingPeriodRecord) => (
+                      <SelectItem key={period.id} value={period.id}>
+                        {format(new Date(period.startDate), "yyyy-MM-dd")} to{" "}
+                        {format(new Date(period.endDate), "yyyy-MM-dd")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min="-999999999"
+                  step="0.01"
+                  value={vatReturnAdjustmentsTax}
+                  onChange={(event) => setVatReturnAdjustmentsTax(event.target.value)}
+                  placeholder="Adjustments tax"
+                  className="h-8 w-[180px] text-right font-mono"
+                />
+                <Select value={vatReturnFilingCategory} onValueChange={setVatReturnFilingCategory}>
+                  <SelectTrigger size="sm" className="h-8 w-[180px]">
+                    <SelectValue placeholder="Filing category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GENERAL">General</SelectItem>
+                    <SelectItem value="CATEGORY_A">Category A</SelectItem>
+                    <SelectItem value="CATEGORY_C">Category C</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  onClick={() => createVatReturnMutation.mutate()}
+                  disabled={createVatReturnMutation.isPending || !vatReturnPeriodId}
+                >
+                  Create Draft
+                </Button>
+              </div>
+            }
+            emptyState={vatReturnsLoading ? "Loading VAT returns..." : "No VAT returns found."}
+          />
+        </div>
       </VerticalDataViews>
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
@@ -408,6 +685,67 @@ export default function TaxSetupPage() {
                   value={formState.type}
                   onChange={(event) => setFormState((prev) => ({ ...prev, type: event.target.value }))}
                   placeholder="VAT"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Applies To</label>
+                <Select
+                  value={formState.appliesTo}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({ ...prev, appliesTo: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Applies to" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BOTH">Both</SelectItem>
+                    <SelectItem value="SALES">Sales</SelectItem>
+                    <SelectItem value="PURCHASE">Purchase</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Schedule Type</label>
+                <Select
+                  value={formState.scheduleType}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({ ...prev, scheduleType: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Schedule type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="FX">Foreign Currency</SelectItem>
+                    <SelectItem value="RTGS">RTGS</SelectItem>
+                    <SelectItem value="WITHHOLDING">Withholding</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">VAT-7 Output Box</label>
+                <Input
+                  value={formState.vat7OutputBox}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, vat7OutputBox: event.target.value }))
+                  }
+                  placeholder="outputStandardRatedTax"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">VAT-7 Input Box</label>
+                <Input
+                  value={formState.vat7InputBox}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, vat7InputBox: event.target.value }))
+                  }
+                  placeholder="inputDomesticTax"
                 />
               </div>
             </div>

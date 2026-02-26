@@ -1,11 +1,27 @@
 import { useEffect } from "react";
 
+function stripControlChars(input: string): string {
+  return Array.from(input)
+    .filter((char) => {
+      const codePoint = char.codePointAt(0);
+      if (codePoint === undefined) {
+        return false;
+      }
+      return codePoint >= 32 && codePoint !== 127;
+    })
+    .join("");
+}
+
 export function applyTextInput(current: string, input: string, key: { backspace?: boolean; delete?: boolean }) {
-  if (key.backspace || key.delete) return current.slice(0, -1);
+  if (key.backspace || key.delete) {
+    return Array.from(current).slice(0, -1).join("");
+  }
   if (!input) return current;
-  const code = input.charCodeAt(0);
-  if (Number.isNaN(code) || code < 32 || code === 127) return current;
-  return `${current}${input}`;
+
+  const sanitizedChunk = stripControlChars(input);
+  if (!sanitizedChunk) return current;
+
+  return `${current}${sanitizedChunk}`;
 }
 
 export function useInputLock(setInputLocked: ((locked: boolean) => void) | undefined, locked: boolean) {

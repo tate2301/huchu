@@ -6,6 +6,7 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 import { hasFeature } from "@/lib/platform/features";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
+import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 
 const invoiceSchema = z.object({
   customerId: z.string().uuid(),
@@ -118,7 +119,21 @@ export async function POST(request: NextRequest) {
 
     const invoiceNumber = await generateUniqueInvoiceNumber();
 
-    const taxCodeIds = validated.lines
+    const resolvedTemplate = await resolveDefaultTaxTemplate({
+      companyId: session.user.companyId,
+      appliesTo: "SALES",
+      partyType: "CUSTOMER",
+      partyId: validated.customerId,
+      documentDate: new Date(validated.invoiceDate),
+      currency: validated.currency ?? "USD",
+    });
+
+    const linesWithResolvedTaxCode = validated.lines.map((line) => ({
+      ...line,
+      taxCodeId: line.taxCodeId ?? resolvedTemplate.defaultTaxCodeId ?? undefined,
+    }));
+
+    const taxCodeIds = linesWithResolvedTaxCode
       .map((line) => line.taxCodeId)
       .filter((value): value is string => Boolean(value));
 
@@ -139,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     const taxById = new Map(taxCodes.map((tax) => [tax.id, tax.rate]));
 
-    const computedLines = validated.lines.map((line) => {
+    const computedLines = linesWithResolvedTaxCode.map((line) => {
       const taxRate = line.taxRate ?? taxById.get(line.taxCodeId ?? "") ?? 0;
       const lineNet = line.quantity * line.unitPrice;
       const taxAmount = (lineNet * taxRate) / 100;

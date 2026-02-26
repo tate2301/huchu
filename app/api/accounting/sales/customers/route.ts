@@ -11,6 +11,7 @@ const customerSchema = z.object({
   address: z.string().max(300).optional(),
   taxNumber: z.string().max(100).optional(),
   vatNumber: z.string().max(100).optional(),
+  taxCategoryId: z.string().uuid().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
         address: validated.address,
         taxNumber: validated.taxNumber,
         vatNumber: validated.vatNumber,
+        taxCategoryId: validated.taxCategoryId ?? null,
         isActive: validated.isActive ?? true,
       },
     });

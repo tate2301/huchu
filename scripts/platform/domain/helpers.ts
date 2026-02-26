@@ -33,6 +33,20 @@ export function normalizeEnum<T extends string>(value: string, label: string, al
   return normalized as T;
 }
 
+export function normalizePasswordInput(password: string, label = "password"): string {
+  const strippedControls = Array.from(String(password || ""))
+    .filter((char) => {
+      const codePoint = char.codePointAt(0);
+      return codePoint !== undefined && codePoint >= 32 && codePoint !== 127;
+    })
+    .join("");
+  const normalized = strippedControls.trim();
+  if (normalized.length < 8) {
+    throw new Error(`${label} must be at least 8 characters.`);
+  }
+  return normalized;
+}
+
 export function toErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
   if (message.includes("not found")) return "NOT_FOUND";

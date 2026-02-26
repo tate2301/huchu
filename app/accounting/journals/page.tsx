@@ -59,6 +59,7 @@ export default function JournalsPage() {
   const [entryDate, setEntryDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [description, setDescription] = useState("");
   const [entryStatus, setEntryStatus] = useState<(typeof statusOptions)[number]>("DRAFT");
+  const [periodOverrideReason, setPeriodOverrideReason] = useState("");
   const [lines, setLines] = useState<JournalLineForm[]>([
     { accountId: "", debit: "", credit: "", memo: "", costCenterId: "" },
     { accountId: "", debit: "", credit: "", memo: "", costCenterId: "" },
@@ -178,7 +179,18 @@ export default function JournalsPage() {
       cell: ({ row }) => (
         <div className="flex justify-end">
           {row.original.status === "DRAFT" ? (
-            <Button size="sm" onClick={() => postMutation.mutate(row.original.id)}>
+            <Button
+              size="sm"
+              onClick={() => {
+                const reason = window.prompt(
+                  "Override reason (required only when period/freeze rules block posting). Leave blank if not needed.",
+                );
+                postMutation.mutate({
+                  id: row.original.id,
+                  periodOverrideReason: reason?.trim() || undefined,
+                });
+              }}
+            >
               Post Entry
             </Button>
           ) : null}
@@ -215,9 +227,12 @@ export default function JournalsPage() {
   });
 
   const postMutation = useMutation({
-    mutationFn: async (id: string) =>
-      fetchJson(`/api/accounting/journals/${id}/post` as const, {
+    mutationFn: async (input: { id: string; periodOverrideReason?: string }) =>
+      fetchJson(`/api/accounting/journals/${input.id}/post` as const, {
         method: "POST",
+        body: JSON.stringify({
+          periodOverrideReason: input.periodOverrideReason,
+        }),
       }),
     onSuccess: () => {
       toast({
@@ -240,6 +255,7 @@ export default function JournalsPage() {
     setEntryDate(format(new Date(), "yyyy-MM-dd"));
     setDescription("");
     setEntryStatus("DRAFT");
+    setPeriodOverrideReason("");
     setLines([
       { accountId: "", debit: "", credit: "", memo: "", costCenterId: "" },
       { accountId: "", debit: "", credit: "", memo: "", costCenterId: "" },
@@ -311,6 +327,8 @@ export default function JournalsPage() {
       entryDate,
       description: description.trim(),
       status: entryStatus,
+      periodOverrideReason:
+        entryStatus === "POSTED" ? periodOverrideReason.trim() || undefined : undefined,
       lines: preparedLines,
     });
   };
@@ -505,6 +523,16 @@ export default function JournalsPage() {
                 required
               />
             </div>
+            {entryStatus === "POSTED" ? (
+              <div>
+                <label className="block text-sm font-semibold mb-2">Override Reason (if required)</label>
+                <Input
+                  value={periodOverrideReason}
+                  onChange={(event) => setPeriodOverrideReason(event.target.value)}
+                  placeholder="Reason for posting in frozen/closed period"
+                />
+              </div>
+            ) : null}
 
             <AccountingEditableListView
               title="Entry Lines"

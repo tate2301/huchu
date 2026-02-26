@@ -1,7 +1,6 @@
 import {
   AlertCircle,
   ArrowDownward,
-  ArrowRightLeft,
   ArrowUpward,
   BarChart3,
   Building2,
@@ -35,33 +34,32 @@ import {
   Video,
   Wallet,
   Payments,
-  QrCode,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons"
-import { hasRole, type UserRole } from "@/lib/roles"
+} from "@/lib/icons";
+import { hasRole, type UserRole } from "@/lib/roles";
 
 export type NavItem = {
-  href: string
-  label: string
-  icon: LucideIcon
-  roles?: UserRole[]
-}
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  roles?: UserRole[];
+};
 
 export type NavSection = {
-  id: string
-  title: string
-  description?: string
-  items: NavItem[]
-}
+  id: string;
+  title: string;
+  description?: string;
+  items: NavItem[];
+};
 
 export type QuickAction = {
-  href: string
-  label: string
-  description: string
-  icon: LucideIcon
-  roles?: UserRole[]
-}
+  href: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  roles?: UserRole[];
+};
 
 export const navSections: NavSection[] = [
   {
@@ -105,12 +103,28 @@ export const navSections: NavSection[] = [
       { href: "/reports/shift", icon: EventNote, label: "Shift Reports" },
       { href: "/reports/attendance", icon: Checklist, label: "Attendance" },
       { href: "/reports/plant", icon: TableRows, label: "Plant Reports" },
-      { href: "/reports/stores-movements", icon: History, label: "Stock Movements" },
+      {
+        href: "/reports/stores-movements",
+        icon: History,
+        label: "Stock Movements",
+      },
       { href: "/reports/fuel-ledger", icon: Fuel, label: "Fuel Ledger" },
-      { href: "/reports/maintenance-work-orders", icon: Wrench, label: "Work Orders" },
-      { href: "/reports/maintenance-equipment", icon: Package, label: "Equipment Service" },
+      {
+        href: "/reports/maintenance-work-orders",
+        icon: Wrench,
+        label: "Work Orders",
+      },
+      {
+        href: "/reports/maintenance-equipment",
+        icon: Package,
+        label: "Equipment Service",
+      },
       { href: "/reports/gold-chain", icon: ChartLine, label: "Gold Chain" },
-      { href: "/reports/gold-receipts", icon: ReceiptLong, label: "Gold Receipts" },
+      {
+        href: "/reports/gold-receipts",
+        icon: ReceiptLong,
+        label: "Gold Receipts",
+      },
       { href: "/reports/audit-trails", icon: FileCheck, label: "Audit Trails" },
       {
         href: "/reports/downtime",
@@ -134,7 +148,7 @@ export const navSections: NavSection[] = [
   },
   {
     id: "hr",
-    title: "People",
+    title: "Human Resources",
     description: "Employee records and attendance roster",
     items: [
       { href: "/human-resources", icon: ManageAccounts, label: "Employees" },
@@ -169,7 +183,11 @@ export const navSections: NavSection[] = [
         icon: Checklist,
         label: "Payroll Runs",
       },
-      { href: "/human-resources/disbursements", icon: Wallet, label: "Disbursements" },
+      {
+        href: "/human-resources/disbursements",
+        icon: Wallet,
+        label: "Disbursements",
+      },
       {
         href: "/human-resources/approvals",
         icon: FileCheck,
@@ -179,19 +197,31 @@ export const navSections: NavSection[] = [
   },
   {
     id: "maintenance",
-    title: "Maintenance",
+    title: "Assets",
     description: "Equipment, work orders, scheduling",
     items: [
       { href: "/maintenance", icon: Dashboard, label: "Dashboard" },
-      { href: "/maintenance/equipment", icon: Wrench, label: "Equipment Register" },
-      { href: "/maintenance/work-orders", icon: Checklist, label: "Work Orders" },
-      { href: "/maintenance/breakdown", icon: ReportProblem, label: "Log Breakdown" },
+      {
+        href: "/maintenance/equipment",
+        icon: Wrench,
+        label: "Equipment Register",
+      },
+      {
+        href: "/maintenance/work-orders",
+        icon: Checklist,
+        label: "Work Orders",
+      },
+      {
+        href: "/maintenance/breakdown",
+        icon: ReportProblem,
+        label: "Log Breakdown",
+      },
       { href: "/maintenance/schedule", icon: Calendar, label: "PM Schedule" },
     ],
   },
   {
     id: "stores",
-    title: "Stock & Fuel",
+    title: "Stock",
     description: "Inventory and fuel control",
     items: [
       { href: "/stores/dashboard", icon: Dashboard, label: "Dashboard" },
@@ -208,10 +238,26 @@ export const navSections: NavSection[] = [
     description: "Simple daily gold tasks",
     items: [
       { href: "/gold", icon: Coins, label: "Gold Home" },
-      { href: "/gold/intake/pours/new", icon: Dataset, label: "Log Gold Output" },
-      { href: "/gold/intake/purchases/new", icon: Payments, label: "Record Purchase" },
-      { href: "/gold/transit/dispatches/new", icon: LocalShipping, label: "Record Dispatch" },
-      { href: "/gold/settlement/receipts/new", icon: ReceiptLong, label: "Record Receipt" },
+      {
+        href: "/gold/intake/pours/new",
+        icon: Dataset,
+        label: "Log Gold Output",
+      },
+      {
+        href: "/gold/intake/purchases/new",
+        icon: Payments,
+        label: "Record Purchase",
+      },
+      {
+        href: "/gold/transit/dispatches/new",
+        icon: LocalShipping,
+        label: "Record Dispatch",
+      },
+      {
+        href: "/gold/settlement/receipts/new",
+        icon: ReceiptLong,
+        label: "Record Receipt",
+      },
       { href: "/gold/exceptions", icon: ReportProblem, label: "Problems" },
       { href: "/reports/gold-chain", icon: ChartLine, label: "Reports" },
     ],
@@ -313,7 +359,7 @@ export const navSections: NavSection[] = [
       },
     ],
   },
-]
+];
 
 const quickActions: QuickAction[] = [
   {
@@ -354,7 +400,7 @@ const quickActions: QuickAction[] = [
     icon: Payments,
     roles: ["SUPERADMIN", "MANAGER"],
   },
-]
+];
 
 export function getNavSectionsForRole(role: string | null | undefined) {
   return navSections
@@ -364,11 +410,11 @@ export function getNavSectionsForRole(role: string | null | undefined) {
         item.roles ? hasRole(role, item.roles) : true,
       ),
     }))
-    .filter((section) => section.items.length > 0)
+    .filter((section) => section.items.length > 0);
 }
 
 export function getQuickActionsForRole(role: string | null | undefined) {
   return quickActions.filter((action) =>
     action.roles ? hasRole(role, action.roles) : true,
-  )
+  );
 }

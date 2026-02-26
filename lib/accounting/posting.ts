@@ -4,6 +4,8 @@ import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
+import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger";
+import { ensureLedgerAccountIds } from "@/lib/accounting/chart-of-accounts";
 
 const BALANCE_TOLERANCE = 0.01;
 const BASE_RETRY_DELAY_MINUTES = 5;
@@ -169,6 +171,12 @@ export async function createJournalEntryFromSource(context: PostingContext): Pro
       });
       if (existing) {
         await markIntegrationEventPosted(integrationEvent.id, existing.id);
+        await syncPaymentLedgerEntryForSource({
+          companyId: context.companyId,
+          sourceType: context.sourceType,
+          sourceId: context.sourceId,
+          journalEntryId: existing.id,
+        });
         return { entryId: existing.id, skipped: true };
       }
     }
@@ -186,6 +194,16 @@ export async function createJournalEntryFromSource(context: PostingContext): Pro
       const error = `Posting rule missing for source type ${context.sourceType}`;
       await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
       return { error, code: "POSTING_RULE_MISSING" };
+    }
+
+    const nonLedgerAccounts = await ensureLedgerAccountIds(
+      context.companyId,
+      rule.lines.map((line) => line.accountId),
+    );
+    if (nonLedgerAccounts.length > 0) {
+      const error = "Posting rule contains inactive or non-ledger accounts";
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
+      return { error, code: "POSTING_RULE_INVALID_ACCOUNTS" };
     }
 
     const lines = rule.lines.map((line) => {
@@ -258,6 +276,12 @@ export async function createJournalEntryFromSource(context: PostingContext): Pro
     });
 
     await markIntegrationEventPosted(integrationEvent.id, entry.id);
+    await syncPaymentLedgerEntryForSource({
+      companyId: context.companyId,
+      sourceType: context.sourceType,
+      sourceId: context.sourceId,
+      journalEntryId: entry.id,
+    });
     return { entryId: entry.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown posting failure";

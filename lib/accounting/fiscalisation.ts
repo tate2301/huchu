@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { issueWithFdmsConnector, syncWithFdmsConnector } from "@/lib/accounting/fdms-connector";
 
 export type FiscalValidationResult = {
   ok: boolean;
@@ -59,44 +60,62 @@ export async function validateFiscalInvoice(companyId: string, invoiceId: string
   return { ok: missing.length === 0, missing };
 }
 
+export async function markFiscalReceiptResult(input: {
+  receiptId: string;
+  status: "SUCCESS" | "FAILED" | "VOIDED" | "PENDING";
+  fiscalNumber?: string | null;
+  providerReference?: string | null;
+  qrCodeData?: string | null;
+  signature?: string | null;
+  rawResponseJson?: string | null;
+  error?: string | null;
+  nextRetryAt?: Date | null;
+}) {
+  const updated = await prisma.fiscalReceipt.update({
+    where: { id: input.receiptId },
+    data: {
+      status: input.status,
+      fiscalNumber: input.fiscalNumber ?? undefined,
+      qrCodeData: input.qrCodeData ?? undefined,
+      signature: input.signature ?? undefined,
+      rawResponseJson: input.rawResponseJson ?? undefined,
+      lastError: input.error ?? undefined,
+      providerReference: input.providerReference ?? input.fiscalNumber ?? undefined,
+      nextRetryAt: input.nextRetryAt ?? undefined,
+      lastSyncedAt: new Date(),
+      issuedAt: input.status === "SUCCESS" ? new Date() : undefined,
+    },
+  });
+
+  if (updated.invoiceId) {
+    await prisma.salesInvoice.update({
+      where: { id: updated.invoiceId },
+      data: {
+        fiscalStatus: updated.status,
+      },
+    });
+  }
+
+  return updated;
+}
+
 export async function issueFiscalReceipt(companyId: string, invoiceId: string, actorId: string) {
   void actorId;
+  const idempotencyKey = `${companyId}:${invoiceId}`;
   const validation = await validateFiscalInvoice(companyId, invoiceId);
   if (!validation.ok) {
     return { status: "FAILED", error: `Missing fiscal fields: ${validation.missing.join(", ")}` };
   }
 
-  const invoice = await prisma.salesInvoice.findUnique({
-    where: { id: invoiceId },
-    include: {
-      customer: true,
-      lines: true,
-    },
-  });
-
-  if (!invoice) {
-    return { status: "FAILED", error: "Invoice not found" };
-  }
-
-  const provider = await prisma.fiscalisationProviderConfig.findFirst({
-    where: { companyId, isActive: true },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  if (!provider) {
-    return { status: "FAILED", error: "Missing fiscalisation provider configuration" };
-  }
-
-  const payload = {
-    invoiceNumber: invoice.invoiceNumber,
-    invoiceDate: invoice.invoiceDate,
-    currency: invoice.currency,
-    totals: {
-      subTotal: invoice.subTotal,
-      taxTotal: invoice.taxTotal,
-      total: invoice.total,
-    },
-    supplier: await prisma.accountingSettings.findUnique({
+  const [invoice, supplier, provider] = await Promise.all([
+    prisma.salesInvoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        customer: true,
+        lines: true,
+      },
+    }),
+    prisma.accountingSettings.findUnique({
       where: { companyId },
       select: {
         legalName: true,
@@ -108,6 +127,41 @@ export async function issueFiscalReceipt(companyId: string, invoiceId: string, a
         email: true,
       },
     }),
+    prisma.fiscalisationProviderConfig.findFirst({
+      where: { companyId, isActive: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
+
+  if (!invoice) {
+    return { status: "FAILED", error: "Invoice not found" };
+  }
+  if (!provider) {
+    return { status: "FAILED", error: "Missing fiscalisation provider configuration" };
+  }
+
+  const existing = await prisma.fiscalReceipt.findUnique({
+    where: { invoiceId },
+  });
+  if (existing?.status === "SUCCESS") {
+    return {
+      status: "SUCCESS",
+      receiptId: existing.id,
+      providerKey: existing.providerKey ?? provider.providerKey,
+      fiscalNumber: existing.fiscalNumber ?? null,
+    };
+  }
+
+  const payload = {
+    invoiceNumber: invoice.invoiceNumber,
+    invoiceDate: invoice.invoiceDate,
+    currency: invoice.currency,
+    totals: {
+      subTotal: invoice.subTotal,
+      taxTotal: invoice.taxTotal,
+      total: invoice.total,
+    },
+    supplier,
     customer: {
       name: invoice.customer?.name ?? null,
       taxNumber: invoice.customer?.taxNumber ?? null,
@@ -126,19 +180,40 @@ export async function issueFiscalReceipt(companyId: string, invoiceId: string, a
     })),
   };
 
-  const receipt = await prisma.fiscalReceipt.create({
-    data: {
-      companyId,
-      invoiceId,
-      status: "PENDING",
-      providerKey: provider.providerKey,
-      rawResponseJson: JSON.stringify({
-        status: "PENDING",
-        providerKey: provider.providerKey,
-        request: payload,
-      }),
-    },
-  });
+  const receipt = existing
+    ? await prisma.fiscalReceipt.update({
+        where: { id: existing.id },
+        data: {
+          status: "PENDING",
+          providerKey: provider.providerKey,
+          requestIdempotencyKey: idempotencyKey,
+          rawResponseJson: JSON.stringify({
+            status: "PENDING",
+            providerKey: provider.providerKey,
+            request: payload,
+          }),
+          attemptCount: { increment: 1 },
+          nextRetryAt: null,
+          lastError: null,
+          lastSyncedAt: new Date(),
+        },
+      })
+    : await prisma.fiscalReceipt.create({
+        data: {
+          companyId,
+          invoiceId,
+          status: "PENDING",
+          providerKey: provider.providerKey,
+          requestIdempotencyKey: idempotencyKey,
+          rawResponseJson: JSON.stringify({
+            status: "PENDING",
+            providerKey: provider.providerKey,
+            request: payload,
+          }),
+          attemptCount: 1,
+          lastSyncedAt: new Date(),
+        },
+      });
 
   await prisma.salesInvoice.update({
     where: { id: invoiceId },
@@ -147,39 +222,91 @@ export async function issueFiscalReceipt(companyId: string, invoiceId: string, a
     },
   });
 
-  return { status: "PENDING", receiptId: receipt.id, providerKey: provider.providerKey };
+  try {
+    const connectorResult = await issueWithFdmsConnector({
+      provider,
+      payload: { idempotencyKey, payload },
+      attemptCount: receipt.attemptCount,
+    });
+
+    const updated = await markFiscalReceiptResult({
+      receiptId: receipt.id,
+      status: connectorResult.status,
+      fiscalNumber: connectorResult.fiscalNumber,
+      providerReference: connectorResult.providerReference,
+      qrCodeData: connectorResult.qrCodeData,
+      signature: connectorResult.signature,
+      rawResponseJson: connectorResult.rawResponseJson,
+      error: connectorResult.error,
+      nextRetryAt: connectorResult.nextRetryAt,
+    });
+
+    return {
+      status: updated.status,
+      receiptId: updated.id,
+      providerKey: updated.providerKey,
+      fiscalNumber: updated.fiscalNumber,
+      providerReference: updated.providerReference,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown FDMS connector error";
+    const updated = await markFiscalReceiptResult({
+      receiptId: receipt.id,
+      status: "FAILED",
+      rawResponseJson: JSON.stringify({ error: message }),
+      error: message,
+      nextRetryAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+
+    return {
+      status: updated.status,
+      receiptId: updated.id,
+      providerKey: updated.providerKey,
+      error: message,
+    };
+  }
 }
 
-export async function markFiscalReceiptResult(input: {
-  receiptId: string;
-  status: "SUCCESS" | "FAILED" | "VOIDED";
-  fiscalNumber?: string | null;
-  qrCodeData?: string | null;
-  signature?: string | null;
-  rawResponseJson?: string | null;
-  error?: string | null;
-}) {
-  const updated = await prisma.fiscalReceipt.update({
-    where: { id: input.receiptId },
-    data: {
-      status: input.status,
-      fiscalNumber: input.fiscalNumber ?? undefined,
-      qrCodeData: input.qrCodeData ?? undefined,
-      signature: input.signature ?? undefined,
-      rawResponseJson: input.rawResponseJson ?? undefined,
-      lastError: input.error ?? undefined,
-      issuedAt: input.status === "SUCCESS" ? new Date() : undefined,
-    },
+export async function syncFiscalReceiptStatus(companyId: string, receiptId: string) {
+  const receipt = await prisma.fiscalReceipt.findUnique({
+    where: { id: receiptId },
   });
-
-  if (updated.invoiceId) {
-    await prisma.salesInvoice.update({
-      where: { id: updated.invoiceId },
-      data: {
-        fiscalStatus: updated.status,
-      },
-    });
+  if (!receipt || receipt.companyId !== companyId) {
+    throw new Error("Fiscal receipt not found");
   }
 
-  return updated;
+  const provider = await prisma.fiscalisationProviderConfig.findFirst({
+    where: {
+      companyId,
+      isActive: true,
+      ...(receipt.providerKey ? { providerKey: receipt.providerKey } : {}),
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!provider) {
+    throw new Error("Active fiscalisation provider configuration not found");
+  }
+
+  const reference = receipt.providerReference ?? receipt.fiscalNumber ?? receipt.receiptNumber;
+  if (!reference) {
+    throw new Error("Receipt has no provider reference for sync");
+  }
+
+  const syncResult = await syncWithFdmsConnector({
+    provider,
+    providerReference: reference,
+    attemptCount: receipt.attemptCount,
+  });
+
+  return markFiscalReceiptResult({
+    receiptId,
+    status: syncResult.status,
+    fiscalNumber: syncResult.fiscalNumber,
+    providerReference: syncResult.providerReference,
+    qrCodeData: syncResult.qrCodeData,
+    signature: syncResult.signature,
+    rawResponseJson: syncResult.rawResponseJson,
+    error: syncResult.error,
+    nextRetryAt: syncResult.nextRetryAt,
+  });
 }

@@ -20,7 +20,7 @@ import {
   type UserSummary,
 } from "../types";
 import { appendAuditEvent } from "./audit-ledger";
-import { formatDate, normalizeEmail, normalizeEnum } from "./helpers";
+import { formatDate, normalizeEmail, normalizeEnum, normalizePasswordInput } from "./helpers";
 
 function normalizeManagedRole(role: string): UserManagementRole {
   return normalizeEnum(role, "role", USER_MANAGEMENT_ROLES);
@@ -136,13 +136,13 @@ export async function createUser(input: CreateUserInput): Promise<UserCreateResu
   const email = normalizeEmail(input.email);
   const name = String(input.name || "").trim();
   if (!name) throw new Error("User name cannot be empty.");
-  if (String(input.password || "").length < 8) throw new Error("Password must be at least 8 characters.");
+  const normalizedPassword = normalizePasswordInput(input.password, "Password");
   const role = normalizeManagedRole(input.role || "CLERK");
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) throw new Error(`User already exists for email: ${email}`);
 
-  const password = await bcrypt.hash(input.password, 12);
+  const password = await bcrypt.hash(normalizedPassword, 12);
   const user = await prisma.user.create({
     data: {
       companyId: input.companyId,
@@ -246,7 +246,7 @@ export async function setUserStatus(input: SetUserStatusInput & { isActive: bool
 }
 
 export async function resetUserPassword(input: ResetUserPasswordInput): Promise<UserResetPasswordResult> {
-  if (String(input.newPassword || "").length < 8) throw new Error("New password must be at least 8 characters.");
+  const normalizedPassword = normalizePasswordInput(input.newPassword, "New password");
 
   const user = await prisma.user.findUnique({
     where: { id: input.userId },
@@ -263,7 +263,7 @@ export async function resetUserPassword(input: ResetUserPasswordInput): Promise<
   assertManagedLifecycleTarget({ role: user.role, email: user.email });
   await assertHasActiveSuperadmin(user.companyId);
 
-  const password = await bcrypt.hash(input.newPassword, 12);
+  const password = await bcrypt.hash(normalizedPassword, 12);
   const updated = await prisma.user.update({
     where: { id: input.userId },
     data: { password },

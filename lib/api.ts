@@ -2260,6 +2260,10 @@ export type AccountingSummary = {
   openBills: number;
   pendingIntegrationEvents?: number;
   failedIntegrationEvents?: number;
+  pendingVatReturns?: number;
+  pendingFiscalReceipts?: number;
+  freezeBeforeDate?: string | null;
+  retainedEarningsAccountId?: string | null;
 };
 
 export type ChartOfAccountRecord = {
@@ -2268,6 +2272,10 @@ export type ChartOfAccountRecord = {
   code: string;
   name: string;
   type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  nodeType?: "GROUP" | "LEDGER";
+  parentAccountId?: string | null;
+  hierarchyPath?: string | null;
+  level?: number;
   category?: string | null;
   description?: string | null;
   isActive: boolean;
@@ -2337,14 +2345,70 @@ export type TaxCodeRecord = {
   name: string;
   rate: number;
   type: string;
+  appliesTo?: string;
+  vat7OutputBox?: string | null;
+  vat7InputBox?: string | null;
+  scheduleType?: string;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
 
+export type TaxCategoryRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  scope: "CUSTOMER" | "VENDOR" | "BOTH";
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TaxTemplateLineRecord = {
+  id: string;
+  templateId: string;
+  taxCodeId: string;
+  sortOrder: number;
+  appliesTo: "SALES" | "PURCHASE" | "BOTH";
+  isDefault: boolean;
+  taxCode?: TaxCodeRecord;
+};
+
+export type TaxTemplateRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lines?: TaxTemplateLineRecord[];
+};
+
+export type TaxRuleRecord = {
+  id: string;
+  companyId: string;
+  name: string;
+  appliesTo: "SALES" | "PURCHASE" | "BOTH";
+  priority: number;
+  taxCategoryId?: string | null;
+  templateId: string;
+  currency?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  taxCategory?: { id: string; code: string; name: string } | null;
+  template?: { id: string; code: string; name: string } | null;
+};
+
 export type CustomerRecord = {
   id: string;
   companyId: string;
+  taxCategoryId?: string | null;
   name: string;
   contactName?: string | null;
   phone?: string | null;
@@ -2360,6 +2424,7 @@ export type CustomerRecord = {
 export type VendorRecord = {
   id: string;
   companyId: string;
+  taxCategoryId?: string | null;
   name: string;
   contactName?: string | null;
   phone?: string | null;
@@ -2640,7 +2705,12 @@ export type FiscalReceiptRecord = {
   qrCodeData?: string | null;
   signature?: string | null;
   providerKey?: string | null;
+  providerReference?: string | null;
+  requestIdempotencyKey?: string | null;
   rawResponseJson?: string | null;
+  attemptCount?: number;
+  nextRetryAt?: string | null;
+  lastSyncedAt?: string | null;
   lastError?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -2656,6 +2726,8 @@ export type AccountingSettingsRecord = {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  freezeBeforeDate?: string | null;
+  retainedEarningsAccountId?: string | null;
 };
 
 export type FiscalisationProviderRecord = {
@@ -2666,7 +2738,12 @@ export type FiscalisationProviderRecord = {
   username?: string | null;
   password?: string | null;
   apiToken?: string | null;
+  authType?: string | null;
   deviceId?: string | null;
+  timeoutMs?: number | null;
+  retryPolicyJson?: string | null;
+  certificateRef?: string | null;
+  webhookSecretRef?: string | null;
   metadataJson?: string | null;
   isActive: boolean;
 };
@@ -2681,6 +2758,9 @@ export type TrialBalanceRow = {
   code: string;
   name: string;
   type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  nodeType?: "GROUP" | "LEDGER";
+  parentAccountId?: string | null;
+  level?: number;
   category?: string | null;
   openingDebit: number;
   openingCredit: number;
@@ -2690,6 +2770,28 @@ export type TrialBalanceRow = {
   closingDebit: number;
   closingCredit: number;
   total: number;
+};
+
+export type GeneralLedgerRow = {
+  id: string;
+  debit: number;
+  credit: number;
+  memo?: string | null;
+  createdAt: string;
+  account: {
+    id: string;
+    code: string;
+    name: string;
+    type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  };
+  entry: {
+    id: string;
+    entryNumber: number;
+    entryDate: string;
+    description: string;
+    sourceType: string;
+    sourceId?: string | null;
+  };
 };
 
 export type TrialBalanceReport = {
@@ -2774,6 +2876,75 @@ export type VatSummaryReport = {
   endDate: string | null;
   rows: VatSummaryRow[];
   totals: { outputTax: number; inputTax: number; netTax: number };
+  vat7Boxes?: Record<string, number> | null;
+  schedules?: Record<string, unknown> | null;
+};
+
+export type VatReturnLineRecord = {
+  id: string;
+  vatReturnId: string;
+  taxCodeId?: string | null;
+  code: string;
+  name: string;
+  rate: number;
+  taxableAmount: number;
+  outputTax: number;
+  inputTax: number;
+  adjustments: number;
+  netTax: number;
+};
+
+export type VatReturnRecord = {
+  id: string;
+  companyId: string;
+  periodStart: string;
+  periodEnd: string;
+  status: "DRAFT" | "REVIEWED" | "FINALIZED" | "FILED" | "VOIDED";
+  filingCategory?: string | null;
+  returnDueDate?: string | null;
+  paymentDueDate?: string | null;
+  outputTax: number;
+  inputTax: number;
+  adjustmentsTax: number;
+  netTax: number;
+  vat7BoxesJson?: string | null;
+  schedulesJson?: string | null;
+  vat7Boxes?: Record<string, number> | null;
+  schedules?: Record<string, unknown> | null;
+  referenceNumber?: string | null;
+  notes?: string | null;
+  preparedById?: string | null;
+  reviewedById?: string | null;
+  reviewedAt?: string | null;
+  finalizedById?: string | null;
+  finalizedAt?: string | null;
+  filedById?: string | null;
+  filedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines?: VatReturnLineRecord[];
+};
+
+export type PaymentLedgerRecord = {
+  id: string;
+  companyId: string;
+  sourceType: string;
+  sourceId: string;
+  entryDate: string;
+  accountType: "RECEIVABLE" | "PAYABLE";
+  partyType: "CUSTOMER" | "VENDOR";
+  partyId?: string | null;
+  invoiceId?: string | null;
+  billId?: string | null;
+  amount: number;
+  debit: number;
+  credit: number;
+  currency: string;
+  description?: string | null;
+  journalEntryId?: string | null;
+  status: "POSTED" | "VOIDED";
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AccountingHubMeta = {
@@ -2846,6 +3017,8 @@ export async function fetchChartOfAccounts(
   params: {
     search?: string;
     type?: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+    nodeType?: "GROUP" | "LEDGER";
+    parentAccountId?: string;
     active?: boolean;
     page?: number;
     limit?: number;
@@ -2881,6 +3054,18 @@ export async function fetchPostingRules() {
 
 export async function fetchTaxCodes() {
   return fetchJson<TaxCodeRecord[]>("/api/accounting/tax");
+}
+
+export async function fetchTaxCategories() {
+  return fetchJson<TaxCategoryRecord[]>("/api/accounting/tax/categories");
+}
+
+export async function fetchTaxTemplates() {
+  return fetchJson<TaxTemplateRecord[]>("/api/accounting/tax/templates");
+}
+
+export async function fetchTaxRules() {
+  return fetchJson<TaxRuleRecord[]>("/api/accounting/tax/rules");
 }
 
 export async function fetchCustomers(
@@ -3048,6 +3233,18 @@ export async function fetchCashFlowReport(params: {
   return fetchJson<CashFlowReport>(`/api/accounting/reports/cash-flow${query}`);
 }
 
+export async function fetchGeneralLedger(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+  accountId?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<GeneralLedgerRow>>(`/api/accounting/reports/general-ledger${query}`);
+}
+
 export async function fetchReceivablesHubSummary(params: {
   startDate?: string;
   endDate?: string;
@@ -3110,6 +3307,111 @@ export async function fetchVatSummary(params: {
 }) {
   const query = buildQuery(params);
   return fetchJson<VatSummaryReport>(`/api/accounting/reports/vat-summary${query}`);
+}
+
+export async function fetchVatReturns(
+  params: {
+    status?: "DRAFT" | "REVIEWED" | "FINALIZED" | "FILED" | "VOIDED";
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<VatReturnRecord>>(`/api/accounting/vat-returns${query}`);
+}
+
+export async function createVatReturnDraft(input: {
+  periodId?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  notes?: string;
+  adjustmentsTax?: number;
+  filingCategory?: string;
+}) {
+  return fetchJson<VatReturnRecord>("/api/accounting/vat-returns", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function reviewVatReturn(vatReturnId: string) {
+  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}/review`, {
+    method: "POST",
+  });
+}
+
+export async function finalizeVatReturn(vatReturnId: string) {
+  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}/finalize`, {
+    method: "POST",
+  });
+}
+
+export async function fileVatReturn(vatReturnId: string, input?: { referenceNumber?: string; notes?: string }) {
+  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}/file`, {
+    method: "POST",
+    body: JSON.stringify(input ?? {}),
+  });
+}
+
+export async function refreshVatReturn(
+  vatReturnId: string,
+  input?: { notes?: string; adjustmentsTax?: number },
+) {
+  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input ?? {}),
+  });
+}
+
+export async function fetchPaymentLedger(
+  params: {
+    accountType?: "RECEIVABLE" | "PAYABLE";
+    partyType?: "CUSTOMER" | "VENDOR";
+    partyId?: string;
+    status?: "POSTED" | "VOIDED";
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PaymentLedgerRecord>>(`/api/accounting/payment-ledger${query}`);
+}
+
+export async function importOpeningBalances(input: {
+  effectiveDate: string;
+  sourceReference?: string;
+  notes?: string;
+  lines: Array<{
+    accountId: string;
+    debit?: number;
+    credit?: number;
+    memo?: string;
+    costCenterId?: string;
+  }>;
+}) {
+  return fetchJson("/api/accounting/closing/opening-balances", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function setAccountingFreezeDate(freezeBeforeDate: string | null) {
+  return fetchJson("/api/accounting/closing/freeze", {
+    method: "POST",
+    body: JSON.stringify({ freezeBeforeDate }),
+  });
+}
+
+export async function closeAccountingPeriod(input: {
+  periodId: string;
+  retainedEarningsAccountId?: string;
+  closingDate?: string;
+  notes?: string;
+}) {
+  return fetchJson("/api/accounting/closing/period-close", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 // ============================================

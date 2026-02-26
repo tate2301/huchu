@@ -157,6 +157,20 @@ function normalizeEmail(email: string, label = "email"): string {
   return normalized;
 }
 
+function normalizePasswordInput(password: string, label = "Password"): string {
+  const strippedControls = Array.from(String(password || ""))
+    .filter((char) => {
+      const codePoint = char.codePointAt(0);
+      return codePoint !== undefined && codePoint >= 32 && codePoint !== 127;
+    })
+    .join("");
+  const normalized = strippedControls.trim();
+  if (normalized.length < 8) {
+    throw new Error(`${label} must be at least 8 characters.`);
+  }
+  return normalized;
+}
+
 function normalizeEnum<T extends string>(value: string, label: string, allowed: readonly T[]): T {
   const normalized = value.trim().toUpperCase();
   if (!allowed.includes(normalized as T)) {
@@ -380,7 +394,7 @@ async function provisionOrganization(input: ProvisionOrganizationInput): Promise
   const adminEmail = normalizeEmail(input.adminEmail, "admin email");
   const adminName = String(input.adminName || "").trim();
   if (!adminName) throw new Error("Admin name cannot be empty.");
-  if (String(input.adminPassword || "").length < 8) throw new Error("Admin password must be at least 8 characters.");
+  const normalizedAdminPassword = normalizePasswordInput(input.adminPassword, "Admin password");
 
   const existingSlug = await prisma.company.findUnique({ where: { slug }, select: { id: true } });
   if (existingSlug) throw new Error(`Slug already exists: ${slug}`);
@@ -388,7 +402,7 @@ async function provisionOrganization(input: ProvisionOrganizationInput): Promise
   if (existingEmail) throw new Error(`User email already exists: ${adminEmail}`);
 
   const plan = await ensureDefaultPlan();
-  const passwordHash = await bcrypt.hash(input.adminPassword, 12);
+  const passwordHash = await bcrypt.hash(normalizedAdminPassword, 12);
 
   const result = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
@@ -1288,12 +1302,12 @@ async function createAdmin(input: CreateAdminInput): Promise<AdminCreateResult> 
   const name = String(input.name || "").trim();
   if (!name) throw new Error("Admin name cannot be empty.");
   const role = normalizeEnum(input.role || "SUPERADMIN", "role", ADMIN_ROLES);
-  if (String(input.password || "").length < 8) throw new Error("Password must be at least 8 characters.");
+  const normalizedPassword = normalizePasswordInput(input.password, "Password");
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) throw new Error(`User already exists for email: ${email}`);
 
-  const password = await bcrypt.hash(input.password, 12);
+  const password = await bcrypt.hash(normalizedPassword, 12);
   const user = await prisma.user.create({
     data: { companyId: input.companyId, email, name, password, role, isActive: true },
     select: { id: true, companyId: true, email: true, name: true, role: true, isActive: true, createdAt: true },
@@ -1371,7 +1385,7 @@ async function setAdminStatus(input: SetAdminStatusInput & { isActive: boolean }
 }
 
 async function resetAdminPassword(input: ResetAdminPasswordInput): Promise<AdminResetPasswordResult> {
-  if (String(input.newPassword || "").length < 8) throw new Error("New password must be at least 8 characters.");
+  const normalizedPassword = normalizePasswordInput(input.newPassword, "New password");
   const user = await prisma.user.findUnique({
     where: { id: input.userId },
     select: { id: true, email: true, role: true, companyId: true, company: { select: { name: true } } },
@@ -1379,7 +1393,7 @@ async function resetAdminPassword(input: ResetAdminPasswordInput): Promise<Admin
   if (!user) throw new Error(`Admin user not found for id: ${input.userId}`);
   if (!ADMIN_ROLES.includes(user.role as AdminRole)) throw new Error(`User ${user.email} has role ${user.role}, not admin role.`);
 
-  const password = await bcrypt.hash(input.newPassword, 12);
+  const password = await bcrypt.hash(normalizedPassword, 12);
   const updated = await prisma.user.update({ where: { id: input.userId }, data: { password }, select: { updatedAt: true } });
 
   const audit = await appendAuditEvent({

@@ -51,8 +51,38 @@ export async function resolvePostingPeriod(input: {
 
   const settings = await prisma.accountingSettings.findUnique({
     where: { companyId: input.companyId },
-    select: { periodLockPolicy: true },
+    select: { periodLockPolicy: true, freezeBeforeDate: true },
   });
+
+  if (settings?.freezeBeforeDate && input.entryDate <= settings.freezeBeforeDate) {
+    if (!hasRole(input.actorRole, ["SUPERADMIN", "MANAGER"])) {
+      return {
+        allowed: false,
+        period,
+        requiresOverride: false,
+        code: "PERIOD_OVERRIDE_FORBIDDEN",
+        message: `Posting date is frozen through ${settings.freezeBeforeDate.toISOString().slice(0, 10)}.`,
+      };
+    }
+
+    const freezeReason = normalizedOverrideReason(input.overrideReason);
+    if (!freezeReason) {
+      return {
+        allowed: false,
+        period,
+        requiresOverride: true,
+        code: "PERIOD_OVERRIDE_REASON_REQUIRED",
+        message: "Override reason is required for freeze-date posting.",
+      };
+    }
+
+    return {
+      allowed: true,
+      period,
+      requiresOverride: true,
+      overrideReason: freezeReason,
+    };
+  }
 
   const policy = resolvePeriodLockPolicy(settings?.periodLockPolicy);
   if (policy === "SOFT_WARN") {

@@ -3,11 +3,14 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { validateParentAccount } from "@/lib/accounting/chart-of-accounts";
 
 const accountSchema = z.object({
   code: z.string().min(1).max(20).optional(),
   name: z.string().min(1).max(200),
   type: z.enum(["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"]),
+  nodeType: z.enum(["GROUP", "LEDGER"]).optional(),
+  parentAccountId: z.string().uuid().nullable().optional(),
   category: z.string().max(100).optional(),
   description: z.string().max(500).optional(),
   isActive: z.boolean().optional(),
@@ -23,6 +26,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")?.trim();
     const type = searchParams.get("type");
     const active = searchParams.get("active");
+    const nodeType = searchParams.get("nodeType");
+    const parentAccountId = searchParams.get("parentAccountId");
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -36,6 +41,8 @@ export async function GET(request: NextRequest) {
       ];
     }
     if (type) where.type = type;
+    if (nodeType) where.nodeType = nodeType;
+    if (parentAccountId) where.parentAccountId = parentAccountId;
     if (active !== null) where.isActive = active === "true";
 
     const [accounts, total] = await Promise.all([
@@ -78,12 +85,24 @@ export async function POST(request: NextRequest) {
       return errorResponse("Account code already exists", 409);
     }
 
+    const parentMeta = validated.parentAccountId
+      ? await validateParentAccount({
+          companyId: session.user.companyId,
+          parentAccountId: validated.parentAccountId,
+          accountType: validated.type,
+        })
+      : null;
+
     const account = await prisma.chartOfAccount.create({
       data: {
         companyId: session.user.companyId,
         code,
         name: validated.name,
         type: validated.type,
+        nodeType: validated.nodeType ?? "LEDGER",
+        parentAccountId: validated.parentAccountId,
+        hierarchyPath: parentMeta?.hierarchyPath ?? null,
+        level: parentMeta?.level ?? 0,
         category: validated.category,
         description: validated.description,
         isActive: validated.isActive ?? true,

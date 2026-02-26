@@ -61,6 +61,62 @@ export async function ensurePeriodForDate(companyId: string, date: Date): Promis
   });
 }
 
+export async function getGeneralLedger(input: {
+  companyId: string;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  accountId?: string | null;
+  periodId?: string | null;
+  skip?: number;
+  take?: number;
+}) {
+  const entryWhere: Record<string, unknown> = {
+    companyId: input.companyId,
+    status: "POSTED",
+    ...(input.periodId ? { periodId: input.periodId } : {}),
+    ...(input.startDate || input.endDate
+      ? {
+          entryDate: {
+            ...(input.startDate ? { gte: input.startDate } : null),
+            ...(input.endDate ? { lte: input.endDate } : null),
+          },
+        }
+      : {}),
+  };
+
+  const where: Record<string, unknown> = {
+    ...(input.accountId ? { accountId: input.accountId } : {}),
+    entry: entryWhere,
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.journalLine.findMany({
+      where,
+      include: {
+        entry: {
+          select: {
+            id: true,
+            entryNumber: true,
+            entryDate: true,
+            description: true,
+            sourceType: true,
+            sourceId: true,
+          },
+        },
+        account: {
+          select: { id: true, code: true, name: true, type: true },
+        },
+      },
+      orderBy: [{ entry: { entryDate: "desc" } }, { createdAt: "desc" }],
+      skip: input.skip ?? 0,
+      take: input.take ?? 100,
+    }),
+    prisma.journalLine.count({ where }),
+  ]);
+
+  return { rows, total };
+}
+
 export async function getTrialBalance(input: {
   companyId: string;
   periodId?: string | null;
@@ -145,43 +201,95 @@ export async function getTrialBalance(input: {
     ]),
   );
 
-  const accountIds = Array.from(new Set([...openingByAccount.keys(), ...periodByAccount.keys()]));
   const accounts = await prisma.chartOfAccount.findMany({
-    where: { id: { in: accountIds } },
+    where: { companyId: input.companyId, isActive: true },
+    orderBy: [{ code: "asc" }],
   });
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
 
-  const rows = accountIds.map((accountId) => {
-    const account = accountMap.get(accountId);
-    const opening = openingByAccount.get(accountId) ?? { debit: 0, credit: 0 };
-    const period = periodByAccount.get(accountId) ?? { debit: 0, credit: 0 };
+  const sourceMetrics = new Map(
+    accounts.map((account) => {
+      const opening = openingByAccount.get(account.id) ?? { debit: 0, credit: 0 };
+      const period = periodByAccount.get(account.id) ?? { debit: 0, credit: 0 };
+      return [
+        account.id,
+        {
+          openingDebit: toMoney(opening.debit),
+          openingCredit: toMoney(opening.credit),
+          debit: toMoney(period.debit),
+          credit: toMoney(period.credit),
+        },
+      ];
+    }),
+  );
 
-    const openingBalance = opening.debit - opening.credit;
+  const aggregatedMetrics = new Map(
+    Array.from(sourceMetrics.entries()).map(([accountId, metrics]) => [accountId, { ...metrics }]),
+  );
+
+  for (const account of accounts) {
+    const own = sourceMetrics.get(account.id);
+    if (!own) continue;
+    if (
+      own.openingDebit === 0 &&
+      own.openingCredit === 0 &&
+      own.debit === 0 &&
+      own.credit === 0
+    ) {
+      continue;
+    }
+
+    let parentId = account.parentAccountId;
+    while (parentId) {
+      const parentAgg = aggregatedMetrics.get(parentId);
+      if (!parentAgg) break;
+      parentAgg.openingDebit = toMoney(parentAgg.openingDebit + own.openingDebit);
+      parentAgg.openingCredit = toMoney(parentAgg.openingCredit + own.openingCredit);
+      parentAgg.debit = toMoney(parentAgg.debit + own.debit);
+      parentAgg.credit = toMoney(parentAgg.credit + own.credit);
+      parentId = accountMap.get(parentId)?.parentAccountId ?? null;
+    }
+  }
+
+  const rows = accounts.map((account) => {
+    const metrics = aggregatedMetrics.get(account.id) ?? {
+      openingDebit: 0,
+      openingCredit: 0,
+      debit: 0,
+      credit: 0,
+    };
+
+    const openingBalance = metrics.openingDebit - metrics.openingCredit;
     const openingDebit = openingBalance >= 0 ? openingBalance : 0;
     const openingCredit = openingBalance < 0 ? Math.abs(openingBalance) : 0;
 
-    const closingBalance = openingBalance + period.debit - period.credit;
+    const closingBalance = openingBalance + metrics.debit - metrics.credit;
     const closingDebit = closingBalance >= 0 ? closingBalance : 0;
     const closingCredit = closingBalance < 0 ? Math.abs(closingBalance) : 0;
 
     return {
-      accountId,
-      code: account?.code ?? "",
-      name: account?.name ?? "Unknown",
-      type: account?.type ?? "ASSET",
-      category: account?.category ?? null,
+      accountId: account.id,
+      code: account.code,
+      name: account.name,
+      type: account.type,
+      nodeType: account.nodeType,
+      parentAccountId: account.parentAccountId,
+      level: account.level,
+      category: account.category ?? null,
       openingDebit,
       openingCredit,
-      debit: period.debit,
-      credit: period.credit,
-      balance: period.debit - period.credit,
+      debit: metrics.debit,
+      credit: metrics.credit,
+      balance: metrics.debit - metrics.credit,
       closingDebit,
       closingCredit,
       total: closingDebit + closingCredit,
     };
   });
 
-  const totals = rows.reduce(
+  const totals = rows
+    .filter((row) => row.nodeType !== "GROUP")
+    .reduce(
     (acc, row) => ({
       openingDebit: acc.openingDebit + row.openingDebit,
       openingCredit: acc.openingCredit + row.openingCredit,

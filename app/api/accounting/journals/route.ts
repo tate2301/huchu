@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getNextEntryNumber, ensurePeriodForDate, toMoney } from "@/lib/accounting/ledger";
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { findForeignAccountIds, findForeignCostCenterIds } from "@/lib/accounting/ownership";
+import { ensureLedgerAccountIds } from "@/lib/accounting/chart-of-accounts";
 
 const journalSchema = z.object({
   entryDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -113,6 +114,16 @@ export async function POST(request: NextRequest) {
     if (foreignAccountIds.length > 0) {
       return errorResponse("One or more journal accounts are invalid for this company", 400, {
         accountIds: foreignAccountIds,
+      });
+    }
+
+    const nonLedgerAccountIds = await ensureLedgerAccountIds(
+      session.user.companyId,
+      validated.lines.map((line) => line.accountId),
+    );
+    if (nonLedgerAccountIds.length > 0) {
+      return errorResponse("Journal lines must post only to active LEDGER accounts", 400, {
+        accountIds: nonLedgerAccountIds,
       });
     }
 
