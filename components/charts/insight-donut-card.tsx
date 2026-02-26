@@ -83,7 +83,7 @@ export function InsightDonutCard({
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => valueFormatter(Number(value))}
+                    formatter={(value) => valueFormatter(Number(value))}
                     contentStyle={{
                       borderRadius: 8,
                       border: "1px solid hsl(var(--border))",
