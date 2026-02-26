@@ -1,13 +1,12 @@
 "use client";
 
-import { NumberChart } from "@rtcamp/frappe-ui-react";
 import type { ExecutiveModuleStatus, ExecutiveModuleSummary } from "@/lib/api";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { AlertTriangle, CheckCircle2, Minus, ReportProblem } from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { cn } from "@/lib/utils";
 
 type ExecutiveSummaryBarProps = {
@@ -65,26 +64,7 @@ function SummaryStatCard({
   value: number;
   detail?: string;
 }) {
-  const metricConfig = buildNumberMetricConfig({
-    title: label,
-    value,
-  });
-
-  return (
-    <div className="rounded-md border border-border/60 bg-card/70">
-      <NumberChart
-        config={metricConfig}
-        subtitle={() => (
-          <div className="flex flex-col gap-1">
-            <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-              {value.toLocaleString()}
-            </div>
-            {detail ? <div className="text-xs text-muted-foreground">{detail}</div> : null}
-          </div>
-        )}
-      />
-    </div>
-  );
+  return <FrappeStatCard label={label} value={value} valueLabel={value.toLocaleString()} detail={detail} />;
 }
 
 export function ExecutiveSummaryBar({

@@ -16,6 +16,7 @@ import {
 import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1449,38 +1450,27 @@ export function MaintenanceContent({
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2 pt-4 sm:grid-cols-2">
-                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Upcoming PM (90 days)
-                    </p>
-                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
-                      {upcomingMaintenance.length}
-                    </p>
-                  </div>
-                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Next Service Due
-                    </p>
-                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
-                      {nextPmDue !== null ? `${nextPmDue}d` : "None"}
-                    </p>
-                  </div>
-                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Open Work Orders
-                    </p>
-                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
-                      {openWorkOrders}
-                    </p>
-                  </div>
-                  <div className="surface-framed rounded-lg bg-[var(--surface-subtle)] p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Open Ratio
-                    </p>
-                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
-                      {openWorkOrderPercent}%
-                    </p>
-                  </div>
+                  <FrappeStatCard
+                    label="Upcoming PM (90 days)"
+                    value={upcomingMaintenance.length}
+                    valueLabel={upcomingMaintenance.length.toLocaleString()}
+                  />
+                  <FrappeStatCard
+                    label="Next Service Due"
+                    value={nextPmDue ?? 0}
+                    valueLabel={nextPmDue !== null ? `${nextPmDue}d` : "None"}
+                  />
+                  <FrappeStatCard
+                    label="Open Work Orders"
+                    value={openWorkOrders}
+                    valueLabel={openWorkOrders.toLocaleString()}
+                  />
+                  <FrappeStatCard
+                    label="Open Ratio"
+                    value={openWorkOrderPercent}
+                    valueLabel={`${openWorkOrderPercent}%`}
+                    negativeIsBetter
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -2262,34 +2252,22 @@ export function MaintenanceContent({
                 </Button>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <Card className="border-dashed">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">
-                      Open Work Orders
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Awaiting technician action
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-semibold">
-                      {openWorkOrders}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-dashed">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">
-                      Equipment Down
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Currently out of service
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-semibold">{downCount}</div>
-                  </CardContent>
-                </Card>
+                <FrappeStatCard
+                  label="Open Work Orders"
+                  value={openWorkOrders}
+                  valueLabel={openWorkOrders.toLocaleString()}
+                  detail="Awaiting technician action"
+                  className="border-dashed"
+                />
+                <FrappeStatCard
+                  label="Equipment Down"
+                  value={downCount}
+                  valueLabel={downCount.toLocaleString()}
+                  detail="Currently out of service"
+                  className="border-dashed"
+                  tone={downCount > 0 ? "warning" : "success"}
+                  negativeIsBetter
+                />
               </div>
             </CardContent>
           </Card>

@@ -1,15 +1,14 @@
 "use client";
 
 import type { ExecutiveHighlight } from "@/lib/api";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { AlertTriangle, CheckCircle2, Minus, ReportProblem } from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -39,7 +38,6 @@ function getToneMeta(tone: ExecutiveHighlight["tone"]) {
     return {
       label: "Critical",
       badgeVariant: "danger" as const,
-      markerClassName: "bg-[var(--status-error-border)]",
       icon: AlertTriangle,
     };
   }
@@ -47,7 +45,6 @@ function getToneMeta(tone: ExecutiveHighlight["tone"]) {
     return {
       label: "Watch",
       badgeVariant: "warning" as const,
-      markerClassName: "bg-[var(--status-warning-border)]",
       icon: ReportProblem,
     };
   }
@@ -55,14 +52,12 @@ function getToneMeta(tone: ExecutiveHighlight["tone"]) {
     return {
       label: "Positive",
       badgeVariant: "success" as const,
-      markerClassName: "bg-[var(--status-success-border)]",
       icon: CheckCircle2,
     };
   }
   return {
     label: "Neutral",
     badgeVariant: "info" as const,
-    markerClassName: "bg-[var(--status-info-border)]",
     icon: Minus,
   };
 }
@@ -70,18 +65,24 @@ function getToneMeta(tone: ExecutiveHighlight["tone"]) {
 function HighlightStatCard({ item }: { item: ExecutiveHighlight }) {
   const toneMeta = getToneMeta(item.tone ?? "neutral");
   const ToneIcon = toneMeta.icon;
+  const numericValue = typeof item.value === "number" && Number.isFinite(item.value) ? item.value : 0;
+  const tone =
+    toneMeta.badgeVariant === "danger"
+      ? "danger"
+      : toneMeta.badgeVariant === "warning"
+        ? "warning"
+        : toneMeta.badgeVariant === "success"
+          ? "success"
+          : "neutral";
 
   return (
-    <div className="surface-framed rounded-md bg-muted/50 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={`h-2.5 w-2.5 shrink-0 rounded-full ${toneMeta.markerClassName}`}
-          />
-          <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {item.title}
-          </p>
-        </div>
+    <FrappeStatCard
+      label={item.title}
+      value={numericValue}
+      valueLabel={formatHighlightValue(item) ?? "n/a"}
+      detail={`Tone: ${toneMeta.label}`}
+      tone={tone}
+      titleAdornment={
         <Badge
           variant={toneMeta.badgeVariant}
           className={cn(
@@ -91,11 +92,8 @@ function HighlightStatCard({ item }: { item: ExecutiveHighlight }) {
           <ToneIcon className="h-3 w-3" />
           {toneMeta.label}
         </Badge>
-      </div>
-      <p className="mt-2 font-mono text-xl font-semibold tabular-nums">
-        {formatHighlightValue(item) ?? "n/a"}
-      </p>
-    </div>
+      }
+    />
   );
 }
 

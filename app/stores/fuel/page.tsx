@@ -3,6 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusState } from "@/components/shared/status-state";
@@ -171,35 +172,27 @@ export default function StoresFuelPage() {
             {inventoryLoading ? (
               <Skeleton className="h-16 w-full" />
             ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Current Fuel Stock
-                  </p>
-                  <p className="text-3xl font-bold text-orange-600">
-                    {fuelStock} {fuelUnit}
-                  </p>
-                  {fuelItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      No fuel items configured
-                    </p>
-                  ) : fuelBelowMin ? (
-                    <p className="text-sm text-red-600 mt-1">
-                      Below minimum level ({fuelMin} {fuelUnit})
-                    </p>
-                  ) : null}
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Variance</p>
-                  <p
-                    className={`text-xl font-semibold ${
-                      fuelVariance < 0 ? "text-red-600" : "text-emerald-600"
-                    }`}
-                  >
-                    {fuelVariance >= 0 ? "+" : ""}
-                    {fuelVariance} {fuelUnit}
-                  </p>
-                </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <FrappeStatCard
+                  label="Current Fuel Stock"
+                  value={fuelStock}
+                  valueLabel={`${fuelStock.toLocaleString()} ${fuelUnit}`}
+                  detail={
+                    fuelItems.length === 0
+                      ? "No fuel items configured"
+                      : fuelBelowMin
+                        ? `Below minimum level (${fuelMin.toLocaleString()} ${fuelUnit})`
+                        : "Within minimum threshold"
+                  }
+                  tone={fuelBelowMin ? "warning" : "success"}
+                />
+                <FrappeStatCard
+                  label="Fuel Variance"
+                  value={fuelVariance}
+                  valueLabel={`${fuelVariance >= 0 ? "+" : ""}${fuelVariance.toLocaleString()} ${fuelUnit}`}
+                  detail={`Minimum target ${fuelMin.toLocaleString()} ${fuelUnit}`}
+                  tone={fuelVariance < 0 ? "danger" : "success"}
+                />
               </div>
             )}
           </div>

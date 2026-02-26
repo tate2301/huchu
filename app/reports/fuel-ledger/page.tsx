@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
 import { PageHeading } from "@/components/layout/page-heading";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,35 +119,25 @@ export default function FuelLedgerReportPage() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Fuel Items</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {stockLoading ? <Skeleton className="h-8 w-16" /> : fuelItems.length}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Current Fuel Stock</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {stockLoading ? <Skeleton className="h-8 w-28" /> : totalFuelStock.toFixed(2)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Against Minimum</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {stockLoading ? <Skeleton className="h-8 w-28" /> : (
-              <span className={totalFuelStock < totalFuelMin ? "text-destructive" : ""}>
-                {totalFuelStock - totalFuelMin >= 0 ? "+" : ""}
-                {(totalFuelStock - totalFuelMin).toFixed(2)}
-              </span>
-            )}
-          </CardContent>
-        </Card>
+        <FrappeStatCard
+          label="Fuel Items"
+          value={fuelItems.length}
+          valueLabel={fuelItems.length.toLocaleString()}
+          loading={stockLoading}
+        />
+        <FrappeStatCard
+          label="Current Fuel Stock"
+          value={totalFuelStock}
+          valueLabel={totalFuelStock.toFixed(2)}
+          loading={stockLoading}
+        />
+        <FrappeStatCard
+          label="Against Minimum"
+          value={totalFuelStock - totalFuelMin}
+          valueLabel={`${totalFuelStock - totalFuelMin >= 0 ? "+" : ""}${(totalFuelStock - totalFuelMin).toFixed(2)}`}
+          tone={totalFuelStock < totalFuelMin ? "warning" : "success"}
+          loading={stockLoading}
+        />
       </div>
 
       <Card>

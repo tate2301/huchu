@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import type { ExecutiveModuleSummary, ExecutiveSummaryMetric } from "@/lib/api";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import {
   ArrowRight,
   BarChart3,
@@ -219,10 +220,11 @@ export function ExecutiveModuleMatrix({
               </CardHeader>
 
               <CardContent className="space-y-2.5 pt-2">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{summary.primaryMetric.label}</p>
-                  <p className="mt-1 break-words font-mono text-xl font-semibold tabular-nums">{formatMetric(summary.primaryMetric)}</p>
-                </div>
+                <FrappeStatCard
+                  label={summary.primaryMetric.label}
+                  value={summary.primaryMetric.value}
+                  valueLabel={formatMetric(summary.primaryMetric)}
+                />
 
                 {summary.secondaryMetric || summary.tertiaryMetric ? (
                   <div className="space-y-1.5 rounded-md bg-muted/45 p-2">

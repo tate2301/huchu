@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { NumberChart } from "@rtcamp/frappe-ui-react";
 import { StoresShell } from "@/components/stores/stores-shell";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildNumberMetricConfig } from "@/lib/charts/frappe-config-builders";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -51,30 +50,17 @@ function MetricTile({
   loading?: boolean;
   negativeIsBetter?: boolean;
 }) {
-  const metricConfig = buildNumberMetricConfig({
-    title: label,
-    value: valueNumber,
-    negativeIsBetter,
-  });
-
   return (
-    <div className={`rounded-md border border-border/60 ${metricToneClass[tone]}`}>
-      {loading ? (
-        <Skeleton className="h-[140px] w-full" />
-      ) : (
-        <NumberChart
-          config={metricConfig}
-          subtitle={() => (
-            <div className="flex flex-col gap-1">
-              <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                {valueLabel}
-              </div>
-              {detail ? <p className="text-xs text-muted-foreground">{detail}</p> : null}
-            </div>
-          )}
-        />
-      )}
-    </div>
+    <FrappeStatCard
+      label={label}
+      value={valueNumber}
+      valueLabel={valueLabel}
+      detail={detail}
+      tone={tone}
+      loading={loading}
+      negativeIsBetter={negativeIsBetter}
+      className={metricToneClass[tone]}
+    />
   );
 }
 
@@ -376,36 +362,13 @@ export default function StoresDashboardPage() {
               {inventoryLoading ? (
                 <Skeleton className="h-28 w-full" />
               ) : (
-                <div className="surface-framed space-y-3 rounded-lg bg-[var(--surface-subtle)] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Fuel</p>
-                      <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
-                        {fuelStock.toLocaleString()} {fuelUnit}
-                      </p>
-                    </div>
-                    <Badge variant={fuelBelowMin ? "warning" : "success"}>
-                      {fuelBelowMin ? "Below Minimum" : "Within Target"}
-                    </Badge>
-                  </div>
-                  <div>
-                    <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Coverage</span>
-                      <span className="font-mono tabular-nums">{fuelCoveragePercent}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-background">
-                      <div
-                        className={fuelBelowMin ? "h-2 rounded-full bg-amber-500" : "h-2 rounded-full bg-emerald-500"}
-                        style={{ width: `${fuelCoveragePercent}%` }}
-                      />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Minimum target: <span className="font-mono tabular-nums">{fuelMin.toLocaleString()} {fuelUnit}</span>
-                    {" | "}
-                    Variance: <span className="font-mono tabular-nums">{fuelVariance >= 0 ? "+" : ""}{fuelVariance.toLocaleString()} {fuelUnit}</span>
-                  </p>
-                </div>
+                <FrappeStatCard
+                  label="Fuel Coverage"
+                  value={fuelCoveragePercent}
+                  valueLabel={`${fuelCoveragePercent}%`}
+                  detail={`Current ${fuelStock.toLocaleString()} ${fuelUnit} | Min ${fuelMin.toLocaleString()} ${fuelUnit} | Variance ${fuelVariance >= 0 ? "+" : ""}${fuelVariance.toLocaleString()} ${fuelUnit}`}
+                  tone={fuelBelowMin ? "warning" : "success"}
+                />
               )}
             </CardContent>
           </Card>
