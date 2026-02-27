@@ -161,12 +161,12 @@ export function StudentProfileContent({ studentId }: { studentId: string }) {
       {
         id: "room",
         header: "Room",
-        cell: ({ row }) => row.original.room?.name ?? "-",
+        cell: ({ row }) => row.original.room?.code ?? "-",
       },
       {
         id: "bed",
         header: "Bed",
-        cell: ({ row }) => row.original.bed?.name ?? "-",
+        cell: ({ row }) => row.original.bed?.code ?? "-",
       },
       {
         id: "status",
