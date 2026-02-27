@@ -700,7 +700,7 @@ export function ThriftDashboardContent() {
               >
                 <option value="">Select an item</option>
                 {catalogItems
-                  .filter((item) => item.status === "available" || item.status === "reserved")
+                  .filter((item) => item.status === "available")
                   .map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.itemName} — {formatMoney(item.price)}

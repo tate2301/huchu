@@ -81,7 +81,7 @@ export default withAuth(
 
     if (hostContext.portalSubdomain && !isApiRequest) {
       const portalPath = PORTAL_SUBDOMAIN_MAP[hostContext.portalSubdomain];
-      if (portalPath && (pathname === "/" || !pathname.startsWith("/portal"))) {
+      if (portalPath && pathname !== portalPath && !pathname.startsWith(portalPath + "/")) {
         const rewriteUrl = request.nextUrl.clone();
         rewriteUrl.pathname = portalPath;
         return NextResponse.rewrite(rewriteUrl);
