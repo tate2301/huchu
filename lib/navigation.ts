@@ -260,6 +260,8 @@ export const navSections: NavSection[] = [
     items: [
       { href: "/schools", icon: Building2, label: "Dashboard" },
       { href: "/schools/students", icon: Users, label: "Students" },
+      { href: "/schools/classes", icon: TableRows, label: "Classes" },
+      { href: "/schools/subjects", icon: FileCheck, label: "Subjects" },
       { href: "/schools/admissions", icon: EventNote, label: "Admissions" },
       { href: "/schools/attendance", icon: UserCheck, label: "Attendance" },
       { href: "/schools/boarding", icon: Home, label: "Boarding" },
