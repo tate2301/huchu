@@ -25,6 +25,8 @@ type LineItem = {
   unitPrice: string;
   taxCodeId: string;
   taxRate: string;
+  debit: string;
+  credit: string;
 };
 
 type TaxOption = {
@@ -99,6 +101,34 @@ export function AccountingLineItemsListView({
       renderCell: ({ row }: { row: LineItem }) => (
         <span className="font-mono">{Number(row.taxRate || 0).toFixed(2)}</span>
       ),
+    },
+    {
+      key: "debit",
+      label: "Debit",
+      width: "120px",
+      align: "right" as const,
+      renderCell: ({ row }: { row: LineItem }) => (
+        <span className="font-mono">{Number(row.debit || 0).toFixed(2)}</span>
+      ),
+    },
+    {
+      key: "credit",
+      label: "Credit",
+      width: "120px",
+      align: "right" as const,
+      renderCell: ({ row }: { row: LineItem }) => (
+        <span className="font-mono">{Number(row.credit || 0).toFixed(2)}</span>
+      ),
+    },
+    {
+      key: "balance",
+      label: "Balance",
+      width: "120px",
+      align: "right" as const,
+      renderCell: ({ row }: { row: LineItem }) => {
+        const balance = Number(row.debit || 0) - Number(row.credit || 0);
+        return <span className="font-mono">{balance.toFixed(2)}</span>;
+      },
     },
     {
       key: "actions",
@@ -201,6 +231,32 @@ export function AccountingLineItemsListView({
                     value={activeLine.taxRate}
                     onChange={(event) => onChangeLine(editIndex as number, "taxRate", event.target.value)}
                     className="text-right font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">Debit</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={activeLine.debit}
+                    onChange={(event) => onChangeLine(editIndex as number, "debit", event.target.value)}
+                    className="text-right font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">Credit</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={activeLine.credit}
+                    onChange={(event) => onChangeLine(editIndex as number, "credit", event.target.value)}
+                    className="text-right font-mono"
+                    placeholder="0.00"
                   />
                 </div>
               </div>
