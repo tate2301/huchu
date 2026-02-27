@@ -78,8 +78,10 @@ Applied page set:
 1. Dedicated role models for `PARENT`, `STUDENT`, `TEACHER` in auth/user management (currently scoped through existing roles and data links).
 2. Teacher assignment model (`SchoolTeacherProfile`, class-subject ownership) for strict teacher-only result sheet ownership.
 3. Publish window model (`SchoolPublishWindow`) and UI controls for release governance.
-4. Fees and finance workflows (invoicing/receipts/waivers/write-offs) with accounting event emissions.
-5. Boarding leave request lifecycle and movement logs (`CHECK_OUT`/`CHECK_IN`) not yet implemented in Phase 2.
+4. Boarding leave request lifecycle and movement logs (`CHECK_OUT`/`CHECK_IN`) not yet implemented in Phase 2.
+
+Completed immediately after Phase 2:
+1. Fees and finance workflows (invoicing/receipts/waivers/write-offs) with accounting event emissions were delivered in `feat/schools-fees-phase3-v1`.
 
 ## QA Checklist for Phase 2
 1. Tenancy checks: confirm every API query includes `companyId`.

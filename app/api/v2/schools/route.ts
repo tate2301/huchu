@@ -9,13 +9,27 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
 
     const companyId = session.user.companyId;
-    const [students, guardians, enrollments, boardingAllocations, resultSheets] =
+    const [
+      students,
+      guardians,
+      enrollments,
+      boardingAllocations,
+      resultSheets,
+      feeStructures,
+      feeInvoices,
+      feeReceipts,
+      feeWaivers,
+    ] =
       await Promise.all([
         prisma.schoolStudent.count({ where: { companyId } }),
         prisma.schoolGuardian.count({ where: { companyId } }),
         prisma.schoolEnrollment.count({ where: { companyId } }),
         prisma.schoolBoardingAllocation.count({ where: { companyId } }),
         prisma.schoolResultSheet.count({ where: { companyId } }),
+        prisma.schoolFeeStructure.count({ where: { companyId } }),
+        prisma.schoolFeeInvoice.count({ where: { companyId } }),
+        prisma.schoolFeeReceipt.count({ where: { companyId } }),
+        prisma.schoolFeeWaiver.count({ where: { companyId } }),
       ]);
 
     const counts = {
@@ -24,6 +38,10 @@ export async function GET(request: NextRequest) {
       enrollments,
       boardingAllocations,
       resultSheets,
+      feeStructures,
+      feeInvoices,
+      feeReceipts,
+      feeWaivers,
     };
 
     return successResponse({
@@ -39,6 +57,10 @@ export async function GET(request: NextRequest) {
           { id: "enrollments", name: String(enrollments) },
           { id: "boarding-allocations", name: String(boardingAllocations) },
           { id: "result-sheets", name: String(resultSheets) },
+          { id: "fee-structures", name: String(feeStructures) },
+          { id: "fee-invoices", name: String(feeInvoices) },
+          { id: "fee-receipts", name: String(feeReceipts) },
+          { id: "fee-waivers", name: String(feeWaivers) },
         ],
       },
     });

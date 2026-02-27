@@ -103,10 +103,12 @@ export async function handleParentPortalGet(request: NextRequest) {
         children: [],
         results: [],
         boarding: [],
+        fees: [],
         summary: {
           linkedChildren: 0,
           publishedResultLines: 0,
           activeBoardingAllocations: 0,
+          outstandingBalance: 0,
           hasLinkedGuardian: false,
         },
       });
@@ -160,7 +162,10 @@ export async function handleParentPortalGet(request: NextRequest) {
     });
 
     const studentIds = links.map((link) => link.studentId);
-    const [resultLines, boardingAllocations] = await Promise.all([
+    const financeEnabledStudentIds = links
+      .filter((link) => link.canReceiveFinancials)
+      .map((link) => link.studentId);
+    const [resultLines, boardingAllocations, feeInvoices] = await Promise.all([
       studentIds.length > 0
         ? prisma.schoolResultLine.findMany({
             where: {
@@ -216,6 +221,28 @@ export async function handleParentPortalGet(request: NextRequest) {
             take: 60,
           })
         : Promise.resolve([]),
+      financeEnabledStudentIds.length > 0
+        ? prisma.schoolFeeInvoice.findMany({
+            where: {
+              companyId,
+              studentId: { in: financeEnabledStudentIds },
+              status: { in: ["ISSUED", "PART_PAID", "PAID", "WRITEOFF", "VOIDED"] },
+            },
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  studentNo: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+              term: { select: { id: true, code: true, name: true } },
+            },
+            orderBy: [{ issueDate: "desc" }, { createdAt: "desc" }],
+            take: 120,
+          })
+        : Promise.resolve([]),
     ]);
 
     return buildPortalEnvelope("portal-parent", companyId, {
@@ -230,12 +257,17 @@ export async function handleParentPortalGet(request: NextRequest) {
       })),
       results: resultLines,
       boarding: boardingAllocations,
+      fees: feeInvoices,
       summary: {
         linkedChildren: links.length,
         publishedResultLines: resultLines.length,
         activeBoardingAllocations: boardingAllocations.filter(
           (allocation) => allocation.status === "ACTIVE",
         ).length,
+        outstandingBalance: feeInvoices.reduce(
+          (sum, invoice) => sum + Math.max(invoice.balanceAmount, 0),
+          0,
+        ),
         hasLinkedGuardian: true,
       },
     });
@@ -298,16 +330,18 @@ export async function handleStudentPortalGet(request: NextRequest) {
         guardians: [],
         boarding: [],
         results: [],
+        fees: [],
         summary: {
           hasLinkedStudent: false,
           enrollmentRecords: 0,
           publishedResultLines: 0,
           activeBoardingAllocations: 0,
+          outstandingBalance: 0,
         },
       });
     }
 
-    const [enrollments, guardianLinks, boardingAllocations, resultLines] =
+    const [enrollments, guardianLinks, boardingAllocations, resultLines, feeInvoices] =
       await Promise.all([
         prisma.schoolEnrollment.findMany({
           where: { companyId, studentId: student.id },
@@ -367,6 +401,18 @@ export async function handleStudentPortalGet(request: NextRequest) {
           orderBy: [{ updatedAt: "desc" }],
           take: 120,
         }),
+        prisma.schoolFeeInvoice.findMany({
+          where: {
+            companyId,
+            studentId: student.id,
+            status: { in: ["ISSUED", "PART_PAID", "PAID", "WRITEOFF", "VOIDED"] },
+          },
+          include: {
+            term: { select: { id: true, code: true, name: true } },
+          },
+          orderBy: [{ issueDate: "desc" }, { createdAt: "desc" }],
+          take: 120,
+        }),
       ]);
 
     return buildPortalEnvelope("portal-student", companyId, {
@@ -375,6 +421,7 @@ export async function handleStudentPortalGet(request: NextRequest) {
       guardians: guardianLinks,
       boarding: boardingAllocations,
       results: resultLines,
+      fees: feeInvoices,
       summary: {
         hasLinkedStudent: true,
         enrollmentRecords: enrollments.length,
@@ -382,6 +429,10 @@ export async function handleStudentPortalGet(request: NextRequest) {
         activeBoardingAllocations: boardingAllocations.filter(
           (allocation) => allocation.status === "ACTIVE",
         ).length,
+        outstandingBalance: feeInvoices.reduce(
+          (sum, invoice) => sum + Math.max(invoice.balanceAmount, 0),
+          0,
+        ),
       },
     });
   } catch (error) {

@@ -13,15 +13,17 @@
 ## Completed Slices
 1. `feat/platform-expansion-foundation-v1`
 2. `feat/schools-core-phase1-v1`
+3. `feat/schools-portals-phase2-v1`
+4. `feat/schools-fees-phase3-v1`
 
 ## Current Slice
-1. Branch: `feat/schools-portals-phase2-v1`
-2. Objective: convert Schools and portal routes from scaffold to working API + UI flows.
+1. Branch: `feat/schools-governance-phase4-v1`
+2. Objective: deliver Schools governance controls for teacher ownership and publish governance (`SchoolTeacherProfile`, `SchoolClassSubject`, `SchoolPublishWindow`) and enforce teacher portal scoping from assignments.
 3. Core outputs:
-- Real portal APIs: `/api/v2/portal/{parent,student,teacher}`
-- Schools-prefixed aliases: `/api/v2/schools/portal/{parent,student,teacher}`
-- Activated schools data APIs: `/api/v2/schools/boarding`, `/api/v2/schools/results`
-- Real data-table surfaces on `/schools`, `/schools/boarding`, `/schools/results`, `/portal/*`
+- Teacher profile and class-subject assignment APIs with tenant-safe guards
+- Publish-window APIs and status controls for results release governance
+- Teacher portal reads and actions scoped by assignment ownership
+- Schools dashboard governance metrics for assignment and publish-window coverage
 
 ## Invariants (Never Drift)
 1. Keep one runtime and strict tenant partition by `companyId`.
@@ -31,7 +33,6 @@
 5. Finance-impacting flows must publish deterministic accounting events.
 
 ## Next Planned Slices
-1. Schools fees lifecycle (invoice, receipt, allocation, waiver, write-off, statements, accounting events).
-2. Schools teacher assignment and publish-window controls (`SchoolTeacherProfile`, `SchoolPublishWindow`) to tighten portal scoping.
-3. Car sales phase 1 domain model and lead-to-deal APIs.
-4. Thrift phase 1 intake/grading/lot lifecycle and POS transaction object.
+1. Car sales phase 1 domain model and lead-to-deal APIs.
+2. Thrift phase 1 intake/grading/lot lifecycle and POS transaction object.
+3. Cross-pack POS/outbox hardening for offline capture and reconciliation safety.

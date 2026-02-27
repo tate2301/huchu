@@ -86,10 +86,30 @@ export type ParentPortalData = {
       lastName: string;
     };
   }>;
+  fees: Array<{
+    id: string;
+    invoiceNo: string;
+    status: string;
+    issueDate: string;
+    dueDate: string;
+    totalAmount: number;
+    paidAmount: number;
+    waivedAmount: number;
+    writeOffAmount: number;
+    balanceAmount: number;
+    student: {
+      id: string;
+      studentNo: string;
+      firstName: string;
+      lastName: string;
+    };
+    term: { id: string; code: string; name: string };
+  }>;
   summary: {
     linkedChildren: number;
     publishedResultLines: number;
     activeBoardingAllocations: number;
+    outstandingBalance: number;
     hasLinkedGuardian: boolean;
   };
 };
@@ -156,11 +176,25 @@ export type StudentPortalData = {
       class: { id: string; code: string; name: string };
     };
   }>;
+  fees: Array<{
+    id: string;
+    invoiceNo: string;
+    status: string;
+    issueDate: string;
+    dueDate: string;
+    totalAmount: number;
+    paidAmount: number;
+    waivedAmount: number;
+    writeOffAmount: number;
+    balanceAmount: number;
+    term: { id: string; code: string; name: string };
+  }>;
   summary: {
     hasLinkedStudent: boolean;
     enrollmentRecords: number;
     publishedResultLines: number;
     activeBoardingAllocations: number;
+    outstandingBalance: number;
   };
 };
 

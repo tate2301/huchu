@@ -17,6 +17,8 @@ export type ReservableIdEntity =
   | "STOCK_MOVEMENT"
   | "SCHOOL_STUDENT"
   | "SCHOOL_GUARDIAN"
+  | "SCHOOL_FEE_INVOICE"
+  | "SCHOOL_FEE_RECEIPT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE";
@@ -46,6 +48,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   STOCK_MOVEMENT: { prefix: "MOV", requiresSiteId: false },
   SCHOOL_STUDENT: { prefix: "STU", requiresSiteId: false },
   SCHOOL_GUARDIAN: { prefix: "GDN", requiresSiteId: false },
+  SCHOOL_FEE_INVOICE: { prefix: "SFI", requiresSiteId: false },
+  SCHOOL_FEE_RECEIPT: { prefix: "SFR", requiresSiteId: false },
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
@@ -211,6 +215,20 @@ async function findEntityMaxExistingCode(
         select: { guardianNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.guardianNo), prefix);
+    }
+    case "SCHOOL_FEE_INVOICE": {
+      const records = await db.schoolFeeInvoice.findMany({
+        where: { companyId },
+        select: { invoiceNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.invoiceNo), prefix);
+    }
+    case "SCHOOL_FEE_RECEIPT": {
+      const records = await db.schoolFeeReceipt.findMany({
+        where: { companyId },
+        select: { receiptNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
     }
     case "GOLD_POUR": {
       const records = await db.goldPour.findMany({

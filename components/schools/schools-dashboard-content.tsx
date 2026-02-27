@@ -33,6 +33,10 @@ export function SchoolsDashboardContent() {
         value: query.data.counts.boardingAllocations,
       },
       { id: "resultSheets", metric: "Result Sheets", value: query.data.counts.resultSheets },
+      { id: "feeStructures", metric: "Fee Structures", value: query.data.counts.feeStructures },
+      { id: "feeInvoices", metric: "Fee Invoices", value: query.data.counts.feeInvoices },
+      { id: "feeReceipts", metric: "Fee Receipts", value: query.data.counts.feeReceipts },
+      { id: "feeWaivers", metric: "Fee Waivers", value: query.data.counts.feeWaivers },
     ];
   }, [query.data]);
 
