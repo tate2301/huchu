@@ -2,13 +2,23 @@
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchAutosDeals,
   fetchAutosInventory,
@@ -62,8 +72,129 @@ function dealStatusBadge(status: AutosDeal["status"]) {
   return <Badge variant="destructive">{status}</Badge>;
 }
 
+const initialLeadForm = { firstName: "", lastName: "", phone: "", email: "", source: "" };
+const initialVehicleForm = { make: "", model: "", year: "", color: "", mileage: "", askingPrice: "" };
+const initialDealForm = { vehicleId: "", leadId: "", salePrice: "" };
+
 export function CarSalesContent() {
   const [activeView, setActiveView] = useState<CarSalesView>("leads");
+  const queryClient = useQueryClient();
+
+  // Lead dialog state
+  const [leadDialogOpen, setLeadDialogOpen] = useState(false);
+  const [leadForm, setLeadForm] = useState(initialLeadForm);
+
+  // Vehicle dialog state
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
+  const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
+
+  // Deal dialog state
+  const [dealDialogOpen, setDealDialogOpen] = useState(false);
+  const [dealForm, setDealForm] = useState(initialDealForm);
+
+  // Mutations
+  const createLeadMutation = useMutation({
+    mutationFn: async (payload: typeof leadForm) =>
+      fetchJson("/api/v2/autos/leads", {
+        method: "POST",
+        body: JSON.stringify({
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          phone: payload.phone,
+          email: payload.email || undefined,
+          source: payload.source || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["autos", "leads", "dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["autos", "summary"] });
+      setLeadForm(initialLeadForm);
+      setLeadDialogOpen(false);
+    },
+  });
+
+  const createVehicleMutation = useMutation({
+    mutationFn: async (payload: typeof vehicleForm) =>
+      fetchJson("/api/v2/autos/inventory", {
+        method: "POST",
+        body: JSON.stringify({
+          make: payload.make,
+          model: payload.model,
+          year: Number(payload.year),
+          color: payload.color || undefined,
+          mileage: payload.mileage ? Number(payload.mileage) : undefined,
+          askingPrice: payload.askingPrice ? Number(payload.askingPrice) : undefined,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["autos", "inventory", "dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["autos", "summary"] });
+      setVehicleForm(initialVehicleForm);
+      setVehicleDialogOpen(false);
+    },
+  });
+
+  const createDealMutation = useMutation({
+    mutationFn: async (payload: typeof dealForm) =>
+      fetchJson("/api/v2/autos/deals", {
+        method: "POST",
+        body: JSON.stringify({
+          vehicleId: payload.vehicleId,
+          leadId: payload.leadId,
+          salePrice: payload.salePrice ? Number(payload.salePrice) : undefined,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["autos", "deals", "dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["autos", "summary"] });
+      setDealForm(initialDealForm);
+      setDealDialogOpen(false);
+    },
+  });
+
+  // Dialog open/close handlers
+  const handleLeadDialogOpenChange = (open: boolean) => {
+    setLeadDialogOpen(open);
+    if (!open) {
+      setLeadForm(initialLeadForm);
+      createLeadMutation.reset();
+    }
+  };
+
+  const handleVehicleDialogOpenChange = (open: boolean) => {
+    setVehicleDialogOpen(open);
+    if (!open) {
+      setVehicleForm(initialVehicleForm);
+      createVehicleMutation.reset();
+    }
+  };
+
+  const handleDealDialogOpenChange = (open: boolean) => {
+    setDealDialogOpen(open);
+    if (!open) {
+      setDealForm(initialDealForm);
+      createDealMutation.reset();
+    }
+  };
+
+  // Form submit handlers
+  const handleLeadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadForm.firstName || !leadForm.lastName || !leadForm.phone) return;
+    createLeadMutation.mutate(leadForm);
+  };
+
+  const handleVehicleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vehicleForm.make || !vehicleForm.model || !vehicleForm.year) return;
+    createVehicleMutation.mutate(vehicleForm);
+  };
+
+  const handleDealSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dealForm.vehicleId || !dealForm.leadId) return;
+    createDealMutation.mutate(dealForm);
+  };
 
   const summaryQuery = useQuery({
     queryKey: ["autos", "summary"],
@@ -309,7 +440,10 @@ export function CarSalesContent() {
         railLabel="Car Sales Views"
       >
         <div className={activeView === "leads" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Lead Pipeline</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-section-title">Lead Pipeline</h2>
+            <Button size="sm" onClick={() => setLeadDialogOpen(true)}>Add Lead</Button>
+          </div>
           <DataTable
             data={leads}
             columns={leadsColumns}
@@ -321,7 +455,10 @@ export function CarSalesContent() {
         </div>
 
         <div className={activeView === "inventory" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Vehicle Inventory</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-section-title">Vehicle Inventory</h2>
+            <Button size="sm" onClick={() => setVehicleDialogOpen(true)}>Add Vehicle</Button>
+          </div>
           <DataTable
             data={inventory}
             columns={inventoryColumns}
@@ -335,7 +472,10 @@ export function CarSalesContent() {
         </div>
 
         <div className={activeView === "deals" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Deals</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-section-title">Deals</h2>
+            <Button size="sm" onClick={() => setDealDialogOpen(true)}>Add Deal</Button>
+          </div>
           <DataTable
             data={deals}
             columns={dealsColumns}
@@ -346,6 +486,224 @@ export function CarSalesContent() {
           />
         </div>
       </VerticalDataViews>
+
+      {/* Add Lead Dialog */}
+      <Dialog open={leadDialogOpen} onOpenChange={handleLeadDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Lead</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleLeadSubmit} className="space-y-4">
+            {createLeadMutation.error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{getApiErrorMessage(createLeadMutation.error)}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="lead-firstName">First Name *</Label>
+              <Input
+                id="lead-firstName"
+                value={leadForm.firstName}
+                onChange={(e) => setLeadForm((f) => ({ ...f, firstName: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lead-lastName">Last Name *</Label>
+              <Input
+                id="lead-lastName"
+                value={leadForm.lastName}
+                onChange={(e) => setLeadForm((f) => ({ ...f, lastName: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lead-phone">Phone *</Label>
+              <Input
+                id="lead-phone"
+                value={leadForm.phone}
+                onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lead-email">Email</Label>
+              <Input
+                id="lead-email"
+                type="email"
+                value={leadForm.email}
+                onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lead-source">Source</Label>
+              <Input
+                id="lead-source"
+                value={leadForm.source}
+                onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleLeadDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createLeadMutation.isPending}>
+                {createLeadMutation.isPending ? "Creating..." : "Create Lead"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Vehicle Dialog */}
+      <Dialog open={vehicleDialogOpen} onOpenChange={handleVehicleDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Vehicle</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleVehicleSubmit} className="space-y-4">
+            {createVehicleMutation.error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{getApiErrorMessage(createVehicleMutation.error)}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-make">Make *</Label>
+              <Input
+                id="vehicle-make"
+                value={vehicleForm.make}
+                onChange={(e) => setVehicleForm((f) => ({ ...f, make: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-model">Model *</Label>
+              <Input
+                id="vehicle-model"
+                value={vehicleForm.model}
+                onChange={(e) => setVehicleForm((f) => ({ ...f, model: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-year">Year *</Label>
+              <Input
+                id="vehicle-year"
+                type="number"
+                value={vehicleForm.year}
+                onChange={(e) => setVehicleForm((f) => ({ ...f, year: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-color">Color</Label>
+              <Input
+                id="vehicle-color"
+                value={vehicleForm.color}
+                onChange={(e) => setVehicleForm((f) => ({ ...f, color: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-mileage">Mileage</Label>
+              <Input
+                id="vehicle-mileage"
+                type="number"
+                value={vehicleForm.mileage}
+                onChange={(e) => setVehicleForm((f) => ({ ...f, mileage: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-askingPrice">Asking Price</Label>
+              <Input
+                id="vehicle-askingPrice"
+                type="number"
+                step="0.01"
+                value={vehicleForm.askingPrice}
+                onChange={(e) => setVehicleForm((f) => ({ ...f, askingPrice: e.target.value }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleVehicleDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createVehicleMutation.isPending}>
+                {createVehicleMutation.isPending ? "Creating..." : "Create Vehicle"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Deal Dialog */}
+      <Dialog open={dealDialogOpen} onOpenChange={handleDealDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Deal</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleDealSubmit} className="space-y-4">
+            {createDealMutation.error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{getApiErrorMessage(createDealMutation.error)}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="deal-vehicleId">Vehicle *</Label>
+              <select
+                id="deal-vehicleId"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={dealForm.vehicleId}
+                onChange={(e) => setDealForm((f) => ({ ...f, vehicleId: e.target.value }))}
+                required
+              >
+                <option value="">Select a vehicle</option>
+                {inventory.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.stockNo} — {v.make} {v.model} ({v.year})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deal-leadId">Lead *</Label>
+              <select
+                id="deal-leadId"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={dealForm.leadId}
+                onChange={(e) => setDealForm((f) => ({ ...f, leadId: e.target.value }))}
+                required
+              >
+                <option value="">Select a lead</option>
+                {leads.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.leadNo} — {l.customerName} / {l.phone}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deal-salePrice">Sale Price</Label>
+              <Input
+                id="deal-salePrice"
+                type="number"
+                step="0.01"
+                value={dealForm.salePrice}
+                onChange={(e) => setDealForm((f) => ({ ...f, salePrice: e.target.value }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleDealDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createDealMutation.isPending}>
+                {createDealMutation.isPending ? "Creating..." : "Create Deal"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
