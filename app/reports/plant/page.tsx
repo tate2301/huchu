@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
-import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -21,15 +22,20 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchPlantReports, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchPlantReports, fetchSites, type PlantReport } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 
 export default function PlantReportHistoryPage() {
+  const { data: session } = useSession();
   const { toast } = useToast();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const createdId = searchParams.get("createdId");
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
   const [listSiteId, setListSiteId] = useState(searchParams.get("siteId") ?? "all");
   const [listStartDate, setListStartDate] = useState(
     searchParams.get("startDate") ?? format(subDays(new Date(), 6), "yyyy-MM-dd"),
@@ -76,12 +82,39 @@ export default function PlantReportHistoryPage() {
   });
 
   const plantReportRecords = useMemo(() => plantReportsData?.data ?? [], [plantReportsData]);
+
+  const deletePlantReportMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson<{ success: boolean; deleted?: boolean }>(`/api/plant-reports/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast({ title: "Plant report deleted", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["plant-reports"] });
+    },
+    onError: (error) =>
+      toast({
+        title: "Unable to delete plant report",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const handleDeletePlantReport = useCallback((record: PlantReport) => {
+    const confirmed = window.confirm(
+      `Delete plant report for ${format(new Date(record.date), "yyyy-MM-dd")}?`,
+    );
+    if (!confirmed) return;
+    deletePlantReportMutation.mutate(record.id);
+  }, [deletePlantReportMutation]);
+
   const activeListSiteName =
     listSiteId === "all"
       ? "All sites"
       : sites?.find((site) => site.id === listSiteId)?.name ?? "Selected site";
-  const columns = useMemo<ColumnDef<(typeof plantReportRecords)[number]>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<PlantReport>[]>(
+    () => {
+      const baseColumns: ColumnDef<PlantReport>[] = [
       {
         id: "date",
         header: "Date",
@@ -136,8 +169,41 @@ export default function PlantReportHistoryPage() {
         size: 160,
         minSize: 160,
         maxSize: 160},
-    ],
-    [createdId],
+      ];
+
+      if (isSuperAdmin) {
+        baseColumns.push({
+          id: "actions",
+          header: "",
+          cell: ({ row }) => (
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/plant-report?editId=${row.original.id}`)}
+                disabled={deletePlantReportMutation.isPending}
+              >
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleDeletePlantReport(row.original)}
+                disabled={deletePlantReportMutation.isPending}
+              >
+                Delete
+              </Button>
+            </div>
+          ),
+          size: 160,
+          minSize: 160,
+          maxSize: 160,
+        });
+      }
+
+      return baseColumns;
+    },
+    [createdId, isSuperAdmin, deletePlantReportMutation.isPending, handleDeletePlantReport, router],
   );
 
   const handleExport = async (format: DocumentExportFormat) => {
@@ -160,9 +226,11 @@ export default function PlantReportHistoryPage() {
   return (
     <div className="w-full space-y-6">
       <PageActions>
-        <Button size="sm" asChild variant="outline">
-          <Link href="/plant-report">New Plant Report</Link>
-        </Button>
+        {isSuperAdmin ? (
+          <Button size="sm" asChild variant="outline">
+            <Link href="/plant-report">New Plant Report</Link>
+          </Button>
+        ) : null}
         <ExportMenu
           variant="outline"
           size="sm"
@@ -173,6 +241,14 @@ export default function PlantReportHistoryPage() {
 
       <PageHeading title="Plant Reports" description="Review submitted plant reports" />
       <RecordSavedBanner entityLabel="plant report" />
+      {!isSuperAdmin ? (
+        <Alert>
+          <AlertTitle>Read-only access</AlertTitle>
+          <AlertDescription>
+            Only SUPERADMIN can create, edit, or delete plant reports for backfilling.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {(sitesError || plantReportsError) && (
         <Alert variant="destructive">
@@ -299,4 +375,3 @@ export default function PlantReportHistoryPage() {
     </div>
   );
 }
-

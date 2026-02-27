@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
-import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -21,15 +22,20 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchShiftReports, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchShiftReports, fetchSites, type ShiftReportSummary } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 
 export default function ShiftReportHistoryPage() {
+  const { data: session } = useSession();
   const { toast } = useToast();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const createdId = searchParams.get("createdId");
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
   const [listSiteId, setListSiteId] = useState(searchParams.get("siteId") ?? "all");
   const [listStartDate, setListStartDate] = useState(
     searchParams.get("startDate") ?? format(subDays(new Date(), 6), "yyyy-MM-dd"),
@@ -80,12 +86,39 @@ export default function ShiftReportHistoryPage() {
   });
 
   const shiftReportRecords = useMemo(() => shiftReportsData?.data ?? [], [shiftReportsData]);
+
+  const deleteShiftReportMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson<{ success: boolean; deleted?: boolean }>(`/api/shift-reports/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast({ title: "Shift report deleted", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["shift-reports"] });
+    },
+    onError: (error) =>
+      toast({
+        title: "Unable to delete shift report",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const handleDeleteShiftReport = useCallback((record: ShiftReportSummary) => {
+    const confirmed = window.confirm(
+      `Delete shift report for ${format(new Date(record.date), "yyyy-MM-dd")} (${record.shift})?`,
+    );
+    if (!confirmed) return;
+    deleteShiftReportMutation.mutate(record.id);
+  }, [deleteShiftReportMutation]);
+
   const activeListSiteName =
     listSiteId === "all"
       ? "All sites"
       : sites?.find((site) => site.id === listSiteId)?.name ?? "Selected site";
-  const columns = useMemo<ColumnDef<(typeof shiftReportRecords)[number]>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<ShiftReportSummary>[]>(
+    () => {
+      const baseColumns: ColumnDef<ShiftReportSummary>[] = [
       {
         id: "date",
         header: "Date",
@@ -135,8 +168,41 @@ export default function ShiftReportHistoryPage() {
         size: 120,
         minSize: 120,
         maxSize: 120},
-    ],
-    [createdId],
+      ];
+
+      if (isSuperAdmin) {
+        baseColumns.push({
+          id: "actions",
+          header: "",
+          cell: ({ row }) => (
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/shift-report?editId=${row.original.id}`)}
+                disabled={deleteShiftReportMutation.isPending}
+              >
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleDeleteShiftReport(row.original)}
+                disabled={deleteShiftReportMutation.isPending}
+              >
+                Delete
+              </Button>
+            </div>
+          ),
+          size: 160,
+          minSize: 160,
+          maxSize: 160,
+        });
+      }
+
+      return baseColumns;
+    },
+    [createdId, isSuperAdmin, deleteShiftReportMutation.isPending, handleDeleteShiftReport, router],
   );
 
   const handleExport = async (format: DocumentExportFormat) => {
@@ -159,9 +225,11 @@ export default function ShiftReportHistoryPage() {
   return (
     <div className="w-full space-y-6">
       <PageActions>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/shift-report">New Shift Report</Link>
-        </Button>
+        {isSuperAdmin ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href="/shift-report">New Shift Report</Link>
+          </Button>
+        ) : null}
         <ExportMenu
           variant="outline"
           size="sm"
@@ -172,6 +240,14 @@ export default function ShiftReportHistoryPage() {
 
       <PageHeading title="Shift Reports" description="Review submitted shift reports" />
       <RecordSavedBanner entityLabel="shift report" />
+      {!isSuperAdmin ? (
+        <Alert>
+          <AlertTitle>Read-only access</AlertTitle>
+          <AlertDescription>
+            Only SUPERADMIN can create, edit, or delete shift reports for backfilling.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {(sitesError || shiftReportsError) && (
         <Alert variant="destructive">
@@ -298,4 +374,3 @@ export default function ShiftReportHistoryPage() {
     </div>
   );
 }
-

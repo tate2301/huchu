@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, errorResponse, successResponse } from '@/lib/api-utils';
+import { validateSession, errorResponse, hasRole, successResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 
 // GET - Get single shift report
@@ -56,6 +56,10 @@ export async function PATCH(
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+
+    if (!hasRole(session, ["SUPERADMIN"])) {
+      return errorResponse("Only SUPERADMIN can update shift reports.", 403);
+    }
 
     const body = await request.json();
     const { action, ...data } = body;
@@ -130,11 +134,6 @@ export async function PATCH(
       return successResponse(updated);
     }
 
-    // Regular update (only if draft)
-    if (existing.status !== 'DRAFT') {
-      return errorResponse('Cannot edit a submitted report', 400);
-    }
-
     const updated = await prisma.shiftReport.update({
       where: { id },
       data,
@@ -157,6 +156,10 @@ export async function DELETE(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
+    if (!hasRole(session, ["SUPERADMIN"])) {
+      return errorResponse("Only SUPERADMIN can delete shift reports.", 403);
+    }
+
     const { id } = await params;
 
     const existing = await prisma.shiftReport.findUnique({
@@ -170,10 +173,6 @@ export async function DELETE(
 
     if (existing.site.companyId !== session.user.companyId) {
       return errorResponse('Forbidden', 403);
-    }
-
-    if (existing.status !== 'DRAFT') {
-      return errorResponse('Can only delete draft reports', 400);
     }
 
     await prisma.shiftReport.delete({

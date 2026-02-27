@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Save, Send, Trash2, UserCheck, UserX } from "@/lib/icons";
 
@@ -49,9 +50,12 @@ type CrewStatusState = {
 };
 
 export default function AttendancePage() {
+  const { data: session, status: sessionStatus } = useSession();
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -66,6 +70,7 @@ export default function AttendancePage() {
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
+    enabled: isSuperAdmin,
   });
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
 
@@ -81,7 +86,7 @@ export default function AttendancePage() {
         active: true,
         limit: 300,
       }),
-    enabled: Boolean(activeSiteId),
+    enabled: Boolean(activeSiteId && isSuperAdmin),
   });
   const shiftGroups = useMemo(() => shiftGroupsData?.data ?? [], [shiftGroupsData]);
 
@@ -94,7 +99,7 @@ export default function AttendancePage() {
         shift: formData.shift,
         limit: 10,
       }),
-    enabled: Boolean(activeSiteId && formData.date && formData.shift),
+    enabled: Boolean(activeSiteId && formData.date && formData.shift && isSuperAdmin),
   });
 
   const scheduledShiftGroupId = scheduleData?.data?.[0]?.shiftGroupId ?? "";
@@ -112,7 +117,7 @@ export default function AttendancePage() {
   } = useQuery({
     queryKey: ["shift-group-members", effectiveShiftGroupId],
     queryFn: () => fetchShiftGroupMembers(effectiveShiftGroupId, { active: true }),
-    enabled: Boolean(effectiveShiftGroupId),
+    enabled: Boolean(effectiveShiftGroupId && isSuperAdmin),
   });
 
   const baseWorkers = useMemo<CrewWorker[]>(
@@ -146,7 +151,7 @@ export default function AttendancePage() {
   const { data: workerSearchData } = useQuery({
     queryKey: ["employees", "attendance", "search", workerSearch],
     queryFn: () => fetchEmployees({ active: true, search: workerSearch.trim(), limit: 12 }),
-    enabled: workerSearch.trim().length >= 2,
+    enabled: isSuperAdmin && workerSearch.trim().length >= 2,
   });
   const workerSearchResults = useMemo(() => workerSearchData?.data ?? [], [workerSearchData]);
 
@@ -276,6 +281,34 @@ export default function AttendancePage() {
 
   const loading = sitesLoading || groupMembersLoading;
   const error = sitesError || shiftGroupsError || groupMembersError || attendanceMutation.error;
+
+  if (sessionStatus === "loading") {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
+        <StatusState variant="loading" title="Checking access" description="Please wait..." />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageActions>
+          <Button size="sm" asChild variant="outline">
+            <Link href="/reports/attendance">View Attendance Records</Link>
+          </Button>
+        </PageActions>
+        <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
+        <Alert variant="destructive">
+          <AlertTitle>Restricted access</AlertTitle>
+          <AlertDescription>
+            Only SUPERADMIN can create or backfill attendance records.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">

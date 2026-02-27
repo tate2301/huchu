@@ -76,9 +76,24 @@ export const navSections: NavSection[] = [
     title: "Quick Actions",
     description: "Daily forms and stock tasks",
     items: [
-      { href: "/shift-report", icon: NoteAdd, label: "Submit Shift Report" },
-      { href: "/attendance", icon: UserCheck, label: "Mark Attendance" },
-      { href: "/plant-report", icon: Factory, label: "Submit Plant Report" },
+      {
+        href: "/shift-report",
+        icon: NoteAdd,
+        label: "Submit Shift Report",
+        roles: ["SUPERADMIN"],
+      },
+      {
+        href: "/attendance",
+        icon: UserCheck,
+        label: "Mark Attendance",
+        roles: ["SUPERADMIN"],
+      },
+      {
+        href: "/plant-report",
+        icon: Factory,
+        label: "Submit Plant Report",
+        roles: ["SUPERADMIN"],
+      },
       { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
       { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
       {

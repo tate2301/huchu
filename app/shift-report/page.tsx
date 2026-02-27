@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Save, Send } from "@/lib/icons";
 
@@ -33,10 +34,33 @@ const toNumber = (value: string) => {
   return Number.isNaN(parsed) ? undefined : parsed;
 };
 
+type ShiftReportDetail = {
+  id: string;
+  date: string;
+  shift: string;
+  siteId: string;
+  shiftGroupId?: string | null;
+  groupLeaderId: string;
+  crewCount: number;
+  workType: string;
+  outputTonnes?: number | null;
+  outputTrips?: number | null;
+  outputWheelbarrows?: number | null;
+  metresAdvanced?: number | null;
+  hasIncident: boolean;
+  incidentNotes?: string | null;
+  handoverNotes?: string | null;
+};
+
 export default function ShiftReportPage() {
+  const { data: session, status: sessionStatus } = useSession();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const editId = searchParams.get("editId");
+  const isEditMode = Boolean(editId);
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     shift: "SHIFT-1",
@@ -53,6 +77,44 @@ export default function ShiftReportPage() {
     incidentNotes: "",
     handoverNotes: "",
   });
+  const [hasLoadedEditRecord, setHasLoadedEditRecord] = useState(false);
+
+  const {
+    data: editingReport,
+    isLoading: editingReportLoading,
+    error: editingReportError,
+  } = useQuery({
+    queryKey: ["shift-report-detail", editId],
+    queryFn: () => fetchJson<ShiftReportDetail>(`/api/shift-reports/${editId}`),
+    enabled: Boolean(isSuperAdmin && editId),
+  });
+
+  useEffect(() => {
+    if (!editingReport || hasLoadedEditRecord) return;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate edit form defaults once after async fetch.
+    setFormData({
+      date: editingReport.date.slice(0, 10),
+      shift: editingReport.shift,
+      siteId: editingReport.siteId,
+      shiftGroupId: editingReport.shiftGroupId ?? "",
+      groupLeaderId: editingReport.groupLeaderId,
+      crewCount: String(editingReport.crewCount),
+      workType: editingReport.workType,
+      outputTonnes: editingReport.outputTonnes != null ? String(editingReport.outputTonnes) : "",
+      outputTrips: editingReport.outputTrips != null ? String(editingReport.outputTrips) : "",
+      outputWheelbarrows:
+        editingReport.outputWheelbarrows != null
+          ? String(editingReport.outputWheelbarrows)
+          : "",
+      metresAdvanced:
+        editingReport.metresAdvanced != null ? String(editingReport.metresAdvanced) : "",
+      hasIncident: Boolean(editingReport.hasIncident),
+      incidentNotes: editingReport.incidentNotes ?? "",
+      handoverNotes: editingReport.handoverNotes ?? "",
+    });
+    setHasLoadedEditRecord(true);
+  }, [editingReport, hasLoadedEditRecord]);
 
   const {
     data: sites,
@@ -61,6 +123,7 @@ export default function ShiftReportPage() {
   } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
+    enabled: isSuperAdmin,
   });
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
 
@@ -76,7 +139,7 @@ export default function ShiftReportPage() {
         active: true,
         limit: 300,
       }),
-    enabled: Boolean(activeSiteId),
+    enabled: Boolean(activeSiteId && isSuperAdmin),
   });
   const shiftGroups = useMemo(() => shiftGroupsData?.data ?? [], [shiftGroupsData]);
 
@@ -89,7 +152,7 @@ export default function ShiftReportPage() {
         shift: formData.shift,
         limit: 10,
       }),
-    enabled: Boolean(activeSiteId && formData.date && formData.shift),
+    enabled: Boolean(activeSiteId && formData.date && formData.shift && isSuperAdmin),
   });
 
   const scheduledShiftGroupId = scheduleData?.data?.[0]?.shiftGroupId ?? "";
@@ -123,14 +186,19 @@ export default function ShiftReportPage() {
 
   const shiftReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id: string; createdAt?: string }>("/api/shift-reports", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
+      isEditMode && editId
+        ? fetchJson<{ id: string; updatedAt?: string }>(`/api/shift-reports/${editId}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : fetchJson<{ id: string; createdAt?: string }>("/api/shift-reports", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          }),
     onSuccess: (report, variables) => {
       toast({
-        title: "Shift report submitted",
-        description: "Report saved and ready for review.",
+        title: isEditMode ? "Shift report updated" : "Shift report submitted",
+        description: isEditMode ? "Backfill update has been saved." : "Report saved and ready for review.",
         variant: "success",
       });
       localStorage.removeItem("shiftReportDraft");
@@ -139,8 +207,9 @@ export default function ShiftReportPage() {
       const destination = buildSavedRecordRedirect(
         "/reports/shift",
         {
-          createdId: report.id,
-          createdAt: report.createdAt ?? reportDate,
+          createdId: isEditMode && editId ? editId : report.id,
+          createdAt:
+            ("createdAt" in report && report.createdAt) || reportDate,
           source: "shift-report",
         },
         {
@@ -153,7 +222,7 @@ export default function ShiftReportPage() {
     },
     onError: (error) => {
       toast({
-        title: "Unable to submit report",
+        title: isEditMode ? "Unable to update report" : "Unable to submit report",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -209,6 +278,7 @@ export default function ShiftReportPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (showEditLoading) return;
 
     if (!activeSiteId || !effectiveShiftGroupId) {
       toast({
@@ -239,7 +309,54 @@ export default function ShiftReportPage() {
     shiftReportMutation.mutate(payload);
   };
 
-  const error = sitesError || shiftGroupsError || shiftReportMutation.error;
+  const error =
+    sitesError || shiftGroupsError || editingReportError || shiftReportMutation.error;
+  const showEditLoading = isEditMode && editingReportLoading && !hasLoadedEditRecord;
+
+  if (sessionStatus === "loading") {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageActions>
+          <Button size="sm" asChild variant="outline">
+            <Link href="/reports/shift">View Submitted Reports</Link>
+          </Button>
+        </PageActions>
+        <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
+        <Alert variant="destructive">
+          <AlertTitle>Restricted access</AlertTitle>
+          <AlertDescription>
+            Only SUPERADMIN can create or backfill shift reports.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isEditMode && editingReportError && !hasLoadedEditRecord) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageActions>
+          <Button size="sm" asChild variant="outline">
+            <Link href="/reports/shift">Back to Shift Reports</Link>
+          </Button>
+        </PageActions>
+        <PageHeading title="Edit Shift Report" description="Backfill and correct an existing shift report" />
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load report</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(editingReportError)}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -249,7 +366,14 @@ export default function ShiftReportPage() {
         </Button>
       </PageActions>
 
-      <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
+      <PageHeading
+        title={isEditMode ? "Edit Shift Report" : "Shift Report"}
+        description={
+          isEditMode
+            ? "Backfill and correct an existing shift report"
+            : "Quick 2-minute daily entry"
+        }
+      />
       <PageIntro
         title="Complete this shift report in 3 steps"
         purpose="Step 1: select shift details. Step 2: capture output. Step 3: submit and view the saved report in history."
@@ -259,32 +383,42 @@ export default function ShiftReportPage() {
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Unable to submit report</AlertTitle>
+          <AlertTitle>{isEditMode ? "Unable to update report" : "Unable to submit report"}</AlertTitle>
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
       )}
 
+      {showEditLoading ? <Skeleton className="h-24 w-full" /> : null}
+
       <FormShell
-        title="Shift Entry Form"
+        title={isEditMode ? "Shift Backfill Form" : "Shift Entry Form"}
         description="Capture shift details, output, and handover notes."
         onSubmit={handleSubmit}
         formClassName="space-y-6"
-        requiredHint="Fields marked * are required. Submitting redirects to Shift Reports with this record highlighted."
+        requiredHint={
+          isEditMode
+            ? "Fields marked * are required. Saving updates this existing report."
+            : "Fields marked * are required. Submitting redirects to Shift Reports with this record highlighted."
+        }
         actions={
           <>
             <Button
               type="button"
               variant="outline"
               onClick={handleSaveDraft}
-              disabled={shiftReportMutation.isPending}
+              disabled={shiftReportMutation.isPending || showEditLoading}
               className="flex-1 sm:flex-none"
             >
               <Save className="mr-2 h-4 w-4" />
               Save Draft
             </Button>
-            <Button type="submit" disabled={shiftReportMutation.isPending} className="flex-1 sm:flex-none">
+            <Button
+              type="submit"
+              disabled={shiftReportMutation.isPending || showEditLoading}
+              className="flex-1 sm:flex-none"
+            >
               <Send className="mr-2 h-4 w-4" />
-              Submit Report
+              {isEditMode ? "Update Report" : "Submit Report"}
             </Button>
           </>
         }

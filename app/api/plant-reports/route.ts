@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, hasRole, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -91,6 +91,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+
+    if (!hasRole(session, ["SUPERADMIN"])) {
+      return errorResponse("Only SUPERADMIN can create plant reports.", 403);
+    }
 
     const body = await request.json();
     const validated = plantReportSchema.parse(body);

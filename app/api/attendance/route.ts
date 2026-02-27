@@ -3,6 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
+  hasRole,
   getPaginationParams,
   paginationResponse,
 } from '@/lib/api-utils';
@@ -128,6 +129,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+
+    if (!hasRole(session, ["SUPERADMIN"])) {
+      return errorResponse("Only SUPERADMIN can create attendance records.", 403);
+    }
 
     const body = await request.json();
     const validated = attendanceSchema.parse(body);

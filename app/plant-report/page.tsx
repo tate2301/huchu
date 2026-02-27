@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Save, Send } from "@/lib/icons";
 
@@ -37,10 +38,35 @@ type DowntimeEvent = {
   notes: string;
 };
 
+type PlantReportDetail = {
+  id: string;
+  date: string;
+  siteId: string;
+  tonnesFed?: number | null;
+  tonnesProcessed?: number | null;
+  runHours?: number | null;
+  dieselUsed?: number | null;
+  grindingMedia?: number | null;
+  reagentsUsed?: number | null;
+  waterUsed?: number | null;
+  goldRecovered?: number | null;
+  notes?: string | null;
+  downtimeEvents?: Array<{
+    downtimeCodeId: string;
+    durationHours: number;
+    notes?: string | null;
+  }>;
+};
+
 export default function PlantReportPage() {
+  const { data: session, status: sessionStatus } = useSession();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const editId = searchParams.get("editId");
+  const isEditMode = Boolean(editId);
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     siteId: searchParams.get("siteId") ?? "",
@@ -56,10 +82,53 @@ export default function PlantReportPage() {
   });
 
   const [downtimeEvents, setDowntimeEvents] = useState<DowntimeEvent[]>([]);
+  const [hasLoadedEditRecord, setHasLoadedEditRecord] = useState(false);
+
+  const {
+    data: editingReport,
+    isLoading: editingReportLoading,
+    error: editingReportError,
+  } = useQuery({
+    queryKey: ["plant-report-detail", editId],
+    queryFn: () => fetchJson<PlantReportDetail>(`/api/plant-reports/${editId}`),
+    enabled: Boolean(isSuperAdmin && editId),
+  });
+
+  useEffect(() => {
+    if (!editingReport || hasLoadedEditRecord) return;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate edit form defaults once after async fetch.
+    setFormData({
+      date: editingReport.date.slice(0, 10),
+      siteId: editingReport.siteId,
+      tonnesFed: editingReport.tonnesFed != null ? String(editingReport.tonnesFed) : "",
+      tonnesProcessed:
+        editingReport.tonnesProcessed != null ? String(editingReport.tonnesProcessed) : "",
+      runHours: editingReport.runHours != null ? String(editingReport.runHours) : "",
+      dieselUsed: editingReport.dieselUsed != null ? String(editingReport.dieselUsed) : "",
+      grindingMedia:
+        editingReport.grindingMedia != null ? String(editingReport.grindingMedia) : "",
+      reagentsUsed: editingReport.reagentsUsed != null ? String(editingReport.reagentsUsed) : "",
+      waterUsed: editingReport.waterUsed != null ? String(editingReport.waterUsed) : "",
+      goldRecovered:
+        editingReport.goldRecovered != null ? String(editingReport.goldRecovered) : "",
+      notes: editingReport.notes ?? "",
+    });
+
+    setDowntimeEvents(
+      (editingReport.downtimeEvents ?? []).map((event) => ({
+        downtimeCodeId: event.downtimeCodeId,
+        durationHours: String(event.durationHours),
+        notes: event.notes ?? "",
+      })),
+    );
+    setHasLoadedEditRecord(true);
+  }, [editingReport, hasLoadedEditRecord]);
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
+    enabled: isSuperAdmin,
   });
 
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
@@ -71,19 +140,24 @@ export default function PlantReportPage() {
   } = useQuery({
     queryKey: ["downtime-codes", activeSiteId],
     queryFn: () => fetchDowntimeCodes({ siteId: activeSiteId, active: true }),
-    enabled: !!activeSiteId,
+    enabled: Boolean(isSuperAdmin && activeSiteId),
   });
 
   const plantReportMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      fetchJson<{ id: string; createdAt?: string }>("/api/plant-reports", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
+      isEditMode && editId
+        ? fetchJson<{ id: string; updatedAt?: string }>(`/api/plant-reports/${editId}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : fetchJson<{ id: string; createdAt?: string }>("/api/plant-reports", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          }),
     onSuccess: (report, variables) => {
       toast({
-        title: "Plant report submitted",
-        description: "Production report saved successfully.",
+        title: isEditMode ? "Plant report updated" : "Plant report submitted",
+        description: isEditMode ? "Backfill update has been saved." : "Production report saved successfully.",
         variant: "success",
       });
       localStorage.removeItem("plantReportDraft");
@@ -92,8 +166,9 @@ export default function PlantReportPage() {
       const destination = buildSavedRecordRedirect(
         "/reports/plant",
         {
-          createdId: report.id,
-          createdAt: report.createdAt ?? reportDate,
+          createdId: isEditMode && editId ? editId : report.id,
+          createdAt:
+            ("createdAt" in report && report.createdAt) || reportDate,
           source: "plant-report",
         },
         {
@@ -106,7 +181,7 @@ export default function PlantReportPage() {
     },
     onError: (error) => {
       toast({
-        title: "Unable to submit report",
+        title: isEditMode ? "Unable to update report" : "Unable to submit report",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -153,6 +228,7 @@ export default function PlantReportPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (showEditLoading) return;
 
     if (!activeSiteId) {
       toast({
@@ -190,7 +266,54 @@ export default function PlantReportPage() {
   };
 
   const totalDowntime = downtimeEvents.reduce((sum, event) => sum + (parseFloat(event.durationHours) || 0), 0);
-  const error = sitesError || downtimeError || plantReportMutation.error;
+  const error =
+    sitesError || downtimeError || editingReportError || plantReportMutation.error;
+  const showEditLoading = isEditMode && editingReportLoading && !hasLoadedEditRecord;
+
+  if (sessionStatus === "loading") {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageActions>
+          <Button size="sm" asChild variant="outline">
+            <Link href="/reports/plant">View Plant Reports</Link>
+          </Button>
+        </PageActions>
+        <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+        <Alert variant="destructive">
+          <AlertTitle>Restricted access</AlertTitle>
+          <AlertDescription>
+            Only SUPERADMIN can create or backfill plant reports.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isEditMode && editingReportError && !hasLoadedEditRecord) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <PageActions>
+          <Button size="sm" asChild variant="outline">
+            <Link href="/reports/plant">Back to Plant Reports</Link>
+          </Button>
+        </PageActions>
+        <PageHeading title="Edit Plant Report" description="Backfill and correct an existing plant report" />
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load report</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(editingReportError)}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -200,7 +323,14 @@ export default function PlantReportPage() {
         </Button>
       </PageActions>
 
-      <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+      <PageHeading
+        title={isEditMode ? "Edit Plant Report" : "Plant Report"}
+        description={
+          isEditMode
+            ? "Backfill and correct an existing plant report"
+            : "Processing and consumables tracking"
+        }
+      />
       <PageIntro
         title="Complete this plant report in 3 steps"
         purpose="Step 1: capture site and production values. Step 2: add downtime and consumables. Step 3: submit and review in history."
@@ -210,26 +340,42 @@ export default function PlantReportPage() {
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Unable to submit report</AlertTitle>
+          <AlertTitle>{isEditMode ? "Unable to update report" : "Unable to submit report"}</AlertTitle>
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
       )}
 
+      {showEditLoading ? <Skeleton className="h-24 w-full" /> : null}
+
       <FormShell
-        title="Plant Entry Form"
+        title={isEditMode ? "Plant Backfill Form" : "Plant Entry Form"}
         description="Capture production, consumables, and downtime details for this site."
         onSubmit={handleSubmit}
         formClassName="space-y-6"
-        requiredHint="Date and site are required. Submitting redirects to Plant Reports with this entry highlighted."
+        requiredHint={
+          isEditMode
+            ? "Date and site are required. Saving updates this existing report."
+            : "Date and site are required. Submitting redirects to Plant Reports with this entry highlighted."
+        }
         actions={
           <>
-            <Button type="button" variant="outline" onClick={handleSaveDraft} className="flex-1 sm:flex-none">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSaveDraft}
+              disabled={plantReportMutation.isPending || showEditLoading}
+              className="flex-1 sm:flex-none"
+            >
               <Save className="mr-2 h-4 w-4" />
               Save Draft
             </Button>
-            <Button type="submit" disabled={plantReportMutation.isPending} className="flex-1 sm:flex-none">
+            <Button
+              type="submit"
+              disabled={plantReportMutation.isPending || showEditLoading}
+              className="flex-1 sm:flex-none"
+            >
               <Send className="mr-2 h-4 w-4" />
-              Submit Report
+              {isEditMode ? "Update Report" : "Submit Report"}
             </Button>
           </>
         }
