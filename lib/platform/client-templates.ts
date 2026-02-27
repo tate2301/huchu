@@ -8,6 +8,7 @@ export interface ClientBundleTemplateDefinition {
   recommendedTierCode: string;
   bundleCodes: string[];
   featureKeys: string[];
+  disabledFeatureKeys?: string[];
   includeAllFeatures?: boolean;
 }
 
@@ -51,6 +52,36 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     featureKeys: [],
   },
   {
+    code: "TEMPLATE_SCHOOLS",
+    label: "School Operations",
+    description: "Starter setup for student, admissions, and school portal workflows.",
+    targetClients: ["Schools", "Training institutions", "Education operators"],
+    recommendedTierCode: "BASIC",
+    bundleCodes: ["ADDON_SCHOOLS_SUITE", "ADDON_PORTAL_SUITE"],
+    featureKeys: [],
+    disabledFeatureKeys: ["autos.core", "thrift.core"],
+  },
+  {
+    code: "TEMPLATE_CAR_SALES",
+    label: "Car Sales",
+    description: "Starter setup for vehicle inventory, leads, deals, and portal touchpoints.",
+    targetClients: ["Car dealerships", "Vehicle traders", "Auto sales operators"],
+    recommendedTierCode: "BASIC",
+    bundleCodes: ["ADDON_AUTOS_SUITE", "ADDON_PORTAL_SUITE"],
+    featureKeys: [],
+    disabledFeatureKeys: ["schools.core", "thrift.core"],
+  },
+  {
+    code: "TEMPLATE_THRIFT",
+    label: "Thrift Retail",
+    description: "Starter setup for thrift intake, catalog, checkout, and portal touchpoints.",
+    targetClients: ["Thrift stores", "Second-hand retail", "Resale marketplaces"],
+    recommendedTierCode: "BASIC",
+    bundleCodes: ["ADDON_THRIFT_SUITE", "ADDON_PORTAL_SUITE"],
+    featureKeys: [],
+    disabledFeatureKeys: ["schools.core", "autos.core"],
+  },
+  {
     code: "TEMPLATE_ALL_FEATURES",
     label: "All Features",
     description: "Enable every feature in the platform catalog.",
@@ -65,6 +96,12 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
 const TEMPLATE_ALIASES: Record<string, string> = {
   BASE: "TEMPLATE_CORE_STARTER",
   GOLD: "TEMPLATE_GOLD_MINE",
+  SCHOOL: "TEMPLATE_SCHOOLS",
+  SCHOOLS: "TEMPLATE_SCHOOLS",
+  AUTOS: "TEMPLATE_CAR_SALES",
+  "CAR-SALES": "TEMPLATE_CAR_SALES",
+  CAR_SALES: "TEMPLATE_CAR_SALES",
+  THRIFT: "TEMPLATE_THRIFT",
   FULL: "TEMPLATE_ALL_FEATURES",
   ALL: "TEMPLATE_ALL_FEATURES",
 };
@@ -119,17 +156,42 @@ function collectFeaturesFromBundles(bundleCodes: string[]): string[] {
   return keys.map(toCanonicalFeatureKey);
 }
 
+function uniqueFeatureKeys(featureKeys: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const key of featureKeys.map(toCanonicalFeatureKey)) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+export function getClientTemplateDisabledFeatureKeys(code: string | null | undefined): string[] {
+  const template = getClientTemplateDefinition(code);
+  if (!template) return [];
+  return uniqueFeatureKeys(template.disabledFeatureKeys ?? []);
+}
+
 export function getClientTemplateFeatureKeys(code: string | null | undefined, tierCodeOverride?: string | null): string[] {
   const template = getClientTemplateDefinition(code);
   if (!template) return [];
+  const disabledFeatureKeys = new Set(getClientTemplateDisabledFeatureKeys(template.code));
+
   if (template.includeAllFeatures) {
-    return FEATURE_CATALOG.map((feature) => feature.key);
+    return FEATURE_CATALOG.map((feature) => feature.key).filter((featureKey) => !disabledFeatureKeys.has(featureKey));
   }
 
   const tierCode = normalizeCode(tierCodeOverride || template.recommendedTierCode);
   const keys = new Set<string>();
-  for (const key of collectFeaturesFromTier(tierCode)) keys.add(key);
-  for (const key of collectFeaturesFromBundles(getClientTemplateBundleCodes(template.code))) keys.add(key);
-  for (const key of template.featureKeys.map(toCanonicalFeatureKey)) keys.add(key);
+  for (const key of collectFeaturesFromTier(tierCode)) {
+    if (!disabledFeatureKeys.has(key)) keys.add(key);
+  }
+  for (const key of collectFeaturesFromBundles(getClientTemplateBundleCodes(template.code))) {
+    if (!disabledFeatureKeys.has(key)) keys.add(key);
+  }
+  for (const key of template.featureKeys.map(toCanonicalFeatureKey)) {
+    if (!disabledFeatureKeys.has(key)) keys.add(key);
+  }
   return [...keys];
 }

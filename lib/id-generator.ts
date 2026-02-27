@@ -15,6 +15,14 @@ export type ReservableIdEntity =
   | "INVENTORY_ITEM"
   | "STOCK_LOCATION"
   | "STOCK_MOVEMENT"
+  | "SCHOOL_STUDENT"
+  | "SCHOOL_GUARDIAN"
+  | "SCHOOL_FEE_INVOICE"
+  | "SCHOOL_FEE_RECEIPT"
+  | "CAR_SALES_LEAD"
+  | "CAR_SALES_VEHICLE"
+  | "CAR_SALES_DEAL"
+  | "CAR_SALES_PAYMENT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE";
@@ -42,6 +50,14 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   INVENTORY_ITEM: { prefix: "INV", requiresSiteId: true },
   STOCK_LOCATION: { prefix: "LOC", requiresSiteId: true },
   STOCK_MOVEMENT: { prefix: "MOV", requiresSiteId: false },
+  SCHOOL_STUDENT: { prefix: "STU", requiresSiteId: false },
+  SCHOOL_GUARDIAN: { prefix: "GDN", requiresSiteId: false },
+  SCHOOL_FEE_INVOICE: { prefix: "SFI", requiresSiteId: false },
+  SCHOOL_FEE_RECEIPT: { prefix: "SFR", requiresSiteId: false },
+  CAR_SALES_LEAD: { prefix: "LEAD", requiresSiteId: false },
+  CAR_SALES_VEHICLE: { prefix: "CAR", requiresSiteId: false },
+  CAR_SALES_DEAL: { prefix: "DEAL", requiresSiteId: false },
+  CAR_SALES_PAYMENT: { prefix: "PAY", requiresSiteId: false },
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
@@ -193,6 +209,62 @@ async function findEntityMaxExistingCode(
         select: { referenceId: true },
       });
       return extractMaxFromCodes(records.map((record) => record.referenceId), prefix);
+    }
+    case "SCHOOL_STUDENT": {
+      const records = await db.schoolStudent.findMany({
+        where: { companyId },
+        select: { studentNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.studentNo), prefix);
+    }
+    case "SCHOOL_GUARDIAN": {
+      const records = await db.schoolGuardian.findMany({
+        where: { companyId },
+        select: { guardianNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.guardianNo), prefix);
+    }
+    case "SCHOOL_FEE_INVOICE": {
+      const records = await db.schoolFeeInvoice.findMany({
+        where: { companyId },
+        select: { invoiceNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.invoiceNo), prefix);
+    }
+    case "SCHOOL_FEE_RECEIPT": {
+      const records = await db.schoolFeeReceipt.findMany({
+        where: { companyId },
+        select: { receiptNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
+    }
+    case "CAR_SALES_LEAD": {
+      const records = await db.carSalesLead.findMany({
+        where: { companyId },
+        select: { leadNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.leadNo), prefix);
+    }
+    case "CAR_SALES_VEHICLE": {
+      const records = await db.carSalesVehicle.findMany({
+        where: { companyId },
+        select: { stockNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.stockNo), prefix);
+    }
+    case "CAR_SALES_DEAL": {
+      const records = await db.carSalesDeal.findMany({
+        where: { companyId },
+        select: { dealNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.dealNo), prefix);
+    }
+    case "CAR_SALES_PAYMENT": {
+      const records = await db.carSalesPayment.findMany({
+        where: { companyId },
+        select: { paymentNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.paymentNo), prefix);
     }
     case "GOLD_POUR": {
       const records = await db.goldPour.findMany({

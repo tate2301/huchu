@@ -64,6 +64,10 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 | `ADDON_ACCOUNTING_CORE` | Accounting Core | 250 | 30 |
 | `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 350 | 40 |
 | `ADDON_ZIMRA_FISCAL` | ZIMRA Tax & Fiscalisation | 120 | 15 |
+| `ADDON_SCHOOLS_SUITE` | Schools Suite (Placeholder) | 0 | 0 |
+| `ADDON_AUTOS_SUITE` | Auto Sales Suite (Placeholder) | 0 | 0 |
+| `ADDON_THRIFT_SUITE` | Thrift Suite (Placeholder) | 0 | 0 |
+| `ADDON_PORTAL_SUITE` | Client Portal Suite (Placeholder) | 0 | 0 |
 
 ### Bundle Feature Mapping
 
@@ -160,6 +164,41 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `accounting.tax`
 - `accounting.zimra.fiscalisation`
 
+`ADDON_SCHOOLS_SUITE`
+
+- `schools.core`
+- `schools.admissions`
+- `schools.students`
+- `schools.attendance`
+- `schools.fees`
+- `schools.boarding`
+- `schools.results`
+- `schools.portal.parent`
+- `schools.portal.student`
+- `schools.portal.teacher`
+
+`ADDON_AUTOS_SUITE`
+
+- `autos.core`
+- `autos.inventory`
+- `autos.leads`
+- `autos.deals`
+- `autos.financing`
+
+`ADDON_THRIFT_SUITE`
+
+- `thrift.core`
+- `thrift.intake`
+- `thrift.catalog`
+- `thrift.checkout`
+
+`ADDON_PORTAL_SUITE`
+
+- `portal.core`
+- `portal.schools`
+- `portal.autos`
+- `portal.thrift`
+
 ### Bundle Behavior in TUI
 
 - Enabling an add-on now auto-enables feature flags for every feature in that bundle.
@@ -178,7 +217,12 @@ Current templates:
 - `TEMPLATE_GOLD_MINE` (`ENTERPRISE`)
 - `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` (`STANDARD`) - HR + CCTV + stock + fuel oriented
 - `TEMPLATE_TECH_WORKSHOP` (`STANDARD`) - stock + maintenance + HR/payroll depth
+- `TEMPLATE_SCHOOLS` (`BASIC`) - schools + portal placeholder starter
+- `TEMPLATE_CAR_SALES` (`BASIC`) - car sales + portal placeholder starter
+- `TEMPLATE_THRIFT` (`BASIC`) - thrift + portal placeholder starter
 - `TEMPLATE_ALL_FEATURES` (`ENTERPRISE`) - enables all catalog features
+
+Templates now support `disabledFeatureKeys` to explicitly remove selected features from the template enable-set.
 
 Template aliases accepted in provisioning:
 
