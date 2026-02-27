@@ -235,6 +235,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
 
   { scope: "api", prefix: "/api/schools/admissions", featureKey: "schools.admissions" },
   { scope: "api", prefix: "/api/schools/students", featureKey: "schools.students" },
+  { scope: "api", prefix: "/api/schools/guardians", featureKey: "schools.students" },
+  { scope: "api", prefix: "/api/schools/enrollments", featureKey: "schools.admissions" },
   { scope: "api", prefix: "/api/schools/attendance", featureKey: "schools.attendance" },
   { scope: "api", prefix: "/api/schools/fees", featureKey: "schools.fees" },
   { scope: "api", prefix: "/api/schools/boarding", featureKey: "schools.boarding" },
@@ -245,6 +247,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/schools", featureKey: "schools.core" },
   { scope: "api", prefix: "/api/v2/schools/admissions", featureKey: "schools.admissions" },
   { scope: "api", prefix: "/api/v2/schools/students", featureKey: "schools.students" },
+  { scope: "api", prefix: "/api/v2/schools/guardians", featureKey: "schools.students" },
+  { scope: "api", prefix: "/api/v2/schools/enrollments", featureKey: "schools.admissions" },
   { scope: "api", prefix: "/api/v2/schools/attendance", featureKey: "schools.attendance" },
   { scope: "api", prefix: "/api/v2/schools/fees", featureKey: "schools.fees" },
   { scope: "api", prefix: "/api/v2/schools/boarding", featureKey: "schools.boarding" },

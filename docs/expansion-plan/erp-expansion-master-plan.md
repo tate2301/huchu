@@ -244,3 +244,9 @@ Required QA evidence per pack:
 2. Any new finance-impacting source event requires accounting-map update in same PR.
 3. Deferred scope requires dependency ID, owner role, target wave, and interim control.
 4. Stop-ship conditions from risk register override timeline commitments.
+
+## 13. Implementation Progress Log
+| Date | Branch | Slice | Status | Notes |
+| --- | --- | --- | --- | --- |
+| 2026-02-27 | `feat/platform-expansion-foundation-v1` | Wave 0 base scaffolding | Completed | Feature catalog/bundles, route gating, templates, portal/module route scaffolds, expansion spec docs. |
+| 2026-02-27 | `feat/schools-core-phase1-v1` | Wave 1 Schools core backend (increment 1) | In Progress | Prisma models for schools core + boarding/results state + `/api/v2/schools/*` CRUD/workflow endpoints. |
