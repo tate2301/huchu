@@ -15,15 +15,15 @@
 2. `feat/schools-core-phase1-v1`
 3. `feat/schools-portals-phase2-v1`
 4. `feat/schools-fees-phase3-v1`
+5. `feat/schools-governance-phase4-v1`
 
 ## Current Slice
-1. Branch: `feat/schools-governance-phase4-v1`
-2. Objective: deliver Schools governance controls for teacher ownership and publish governance (`SchoolTeacherProfile`, `SchoolClassSubject`, `SchoolPublishWindow`) and enforce teacher portal scoping from assignments.
+1. Branch: `feat/car-sales-core-phase1-v1`
+2. Objective: start Car Sales pack core domain and lead-to-deal workflow for Zimbabwe-focused operations, gated under autos/car-sales features.
 3. Core outputs:
-- Teacher profile and class-subject assignment APIs with tenant-safe guards
-- Publish-window APIs and status controls for results release governance
-- Teacher portal reads and actions scoped by assignment ownership
-- Schools dashboard governance metrics for assignment and publish-window coverage
+- Car sales lead, customer, vehicle, and deal models with strict tenant partitioning
+- Lead pipeline and deal progression APIs with finance-ready contract fields
+- Car sales dashboard and baseline sales/inventory workflow UI views
 
 ## Invariants (Never Drift)
 1. Keep one runtime and strict tenant partition by `companyId`.
@@ -33,6 +33,6 @@
 5. Finance-impacting flows must publish deterministic accounting events.
 
 ## Next Planned Slices
-1. Car sales phase 1 domain model and lead-to-deal APIs.
-2. Thrift phase 1 intake/grading/lot lifecycle and POS transaction object.
-3. Cross-pack POS/outbox hardening for offline capture and reconciliation safety.
+1. Thrift phase 1 intake/grading/lot lifecycle and POS transaction object.
+2. Cross-pack POS/outbox hardening for offline capture and reconciliation safety.
+3. Schools boarding leave/check-in/check-out lifecycle.

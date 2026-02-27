@@ -218,6 +218,20 @@ export type TeacherPortalData = {
   resource: "portal-teacher";
   companyId: string;
   data: TeacherPortalRecord[];
+  teacherProfile: {
+    id: string;
+    userId: string;
+    employeeCode: string;
+    department: string | null;
+    isClassTeacher: boolean;
+    isHod: boolean;
+    isActive: boolean;
+  } | null;
+  assignmentSummary: {
+    assignments: number;
+    uniqueClasses: number;
+    uniqueTerms: number;
+  };
   pagination: {
     page: number;
     limit: number;

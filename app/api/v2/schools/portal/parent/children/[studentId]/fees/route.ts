@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { isPrivilegedRole } from "@/lib/schools/governance-v2";
 
 type RouteParams = { params: Promise<{ studentId: string }> };
-
-const privilegedRoles = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
-
-function isPrivilegedRole(role?: string | null) {
-  return role ? privilegedRoles.has(role.toUpperCase()) : false;
-}
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -40,6 +35,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
       if (!guardian) {
         return errorResponse("Guardian context not found", 404);
+      }
+      if (guardianId && guardianId !== guardian.id) {
+        return errorResponse("Cannot query fees for a different guardian context", 403);
       }
 
       const link = await prisma.schoolStudentGuardian.findFirst({

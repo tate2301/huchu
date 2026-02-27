@@ -26,6 +26,11 @@ export type SchoolsDashboardData = {
     enrollments: number;
     boardingAllocations: number;
     resultSheets: number;
+    resultModerationActions: number;
+    teacherProfiles: number;
+    subjects: number;
+    classSubjects: number;
+    publishWindows: number;
     feeStructures: number;
     feeInvoices: number;
     feeReceipts: number;
@@ -103,6 +108,16 @@ export type SchoolsResultsData = {
     _count: { lines: number };
     stats: { averageScore: number | null; linesCount: number };
   }>;
+  publishWindows: Array<{
+    id: string;
+    status: "SCHEDULED" | "OPEN" | "CLOSED";
+    openAt: string;
+    closeAt: string;
+    notes: string | null;
+    term: { id: string; code: string; name: string };
+    class: { id: string; code: string; name: string } | null;
+    stream: { id: string; code: string; name: string } | null;
+  }>;
   pagination: {
     page: number;
     limit: number;
@@ -117,6 +132,9 @@ export type SchoolsResultsData = {
     hodApprovedSheets: number;
     hodRejectedSheets: number;
     publishedSheets: number;
+    openPublishWindows: number;
+    scheduledPublishWindows: number;
+    closedPublishWindows: number;
   };
 };
 

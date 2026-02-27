@@ -117,6 +117,11 @@ model Company {
   schoolBoardingAllocations SchoolBoardingAllocation[]
   schoolResultSheets   SchoolResultSheet[]
   schoolResultLines    SchoolResultLine[]
+  schoolResultModerationActions SchoolResultModerationAction[]
+  schoolTeacherProfiles SchoolTeacherProfile[]
+  schoolSubjects       SchoolSubject[]
+  schoolClassSubjects  SchoolClassSubject[]
+  schoolPublishWindows SchoolPublishWindow[]
   schoolFeeStructures  SchoolFeeStructure[]
   schoolFeeStructureLines SchoolFeeStructureLine[]
   schoolFeeInvoices    SchoolFeeInvoice[]
@@ -765,6 +770,8 @@ model User {
   notificationPreference        UserNotificationPreference?
   webPushSubscriptions          WebPushSubscription[]
   featureFlags                  UserFeatureFlag[]
+  schoolTeacherProfiles         SchoolTeacherProfile[]
+  schoolResultModerationActions SchoolResultModerationAction[] @relation("SchoolResultModerationActionActor")
   accounts                      Account[] // For NextAuth
   sessions                      Session[] // For NextAuth
 
@@ -3671,6 +3678,20 @@ enum SchoolResultSheetStatus {
   PUBLISHED
 }
 
+enum SchoolPublishWindowStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+}
+
+enum SchoolResultModerationActionType {
+  SUBMIT
+  REQUEST_CHANGES
+  HOD_APPROVE
+  PUBLISH
+  UNPUBLISH
+}
+
 enum SchoolBoardingAllocationStatus {
   ACTIVE
   TRANSFERRED
@@ -3758,6 +3779,8 @@ model SchoolTerm {
   enrollments  SchoolEnrollment[]
   boardingAllocations SchoolBoardingAllocation[]
   resultSheets SchoolResultSheet[]
+  classSubjects SchoolClassSubject[]
+  publishWindows SchoolPublishWindow[]
   feeStructures SchoolFeeStructure[]
   feeInvoices  SchoolFeeInvoice[]
   feeWaivers   SchoolFeeWaiver[]
@@ -3785,6 +3808,8 @@ model SchoolClass {
   students     SchoolStudent[]
   enrollments  SchoolEnrollment[]
   resultSheets SchoolResultSheet[]
+  classSubjects SchoolClassSubject[]
+  publishWindows SchoolPublishWindow[]
   feeStructures SchoolFeeStructure[]
 
   @@unique([companyId, code])
@@ -3809,9 +3834,74 @@ model SchoolStream {
   students    SchoolStudent[]
   enrollments SchoolEnrollment[]
   resultSheets SchoolResultSheet[]
+  classSubjects SchoolClassSubject[]
+  publishWindows SchoolPublishWindow[]
 
   @@unique([companyId, classId, code])
   @@index([companyId])
+}
+
+model SchoolTeacherProfile {
+  id             String   @id @default(uuid())
+  companyId      String
+  userId         String
+  employeeCode   String
+  department     String?
+  isClassTeacher Boolean  @default(false)
+  isHod          Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments  SchoolClassSubject[]
+
+  @@unique([companyId, userId])
+  @@unique([companyId, employeeCode])
+  @@index([companyId, isActive])
+}
+
+model SchoolSubject {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  isCore    Boolean  @default(true)
+  passMark  Float    @default(50)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  classSubjects SchoolClassSubject[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model SchoolClassSubject {
+  id               String   @id @default(uuid())
+  companyId        String
+  termId           String
+  classId          String
+  streamId         String?
+  subjectId        String
+  teacherProfileId String
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company        Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  term           SchoolTerm           @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class          SchoolClass          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  stream         SchoolStream?        @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  subject        SchoolSubject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacherProfile SchoolTeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, termId, classId, streamId, subjectId])
+  @@index([companyId, teacherProfileId, isActive])
+  @@index([companyId, termId, classId, streamId])
 }
 
 model SchoolStudent {
@@ -4020,9 +4110,53 @@ model SchoolResultSheet {
   class   SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
   stream  SchoolStream? @relation(fields: [streamId], references: [id], onDelete: SetNull)
   lines   SchoolResultLine[]
+  moderationActions SchoolResultModerationAction[]
 
   @@index([companyId, status])
   @@index([termId, classId])
+}
+
+model SchoolResultModerationAction {
+  id          String                          @id @default(uuid())
+  companyId   String
+  sheetId     String
+  actionType  SchoolResultModerationActionType
+  fromStatus  SchoolResultSheetStatus
+  toStatus    SchoolResultSheetStatus
+  actorUserId String
+  comment     String?
+  actedAt     DateTime                        @default(now())
+  createdAt   DateTime                        @default(now())
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sheet   SchoolResultSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  actor   User              @relation("SchoolResultModerationActionActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, sheetId, actedAt])
+  @@index([companyId, actorUserId])
+}
+
+model SchoolPublishWindow {
+  id        String                  @id @default(uuid())
+  companyId String
+  termId    String
+  classId   String?
+  streamId  String?
+  openAt    DateTime
+  closeAt   DateTime
+  status    SchoolPublishWindowStatus @default(SCHEDULED)
+  notes     String?
+  createdById String?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  term    SchoolTerm    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class   SchoolClass?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+  stream  SchoolStream? @relation(fields: [streamId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, termId, status, openAt, closeAt])
+  @@index([companyId, classId, streamId])
 }
 
 model SchoolResultLine {
