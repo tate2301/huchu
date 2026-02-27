@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
 
     let termId = validated.termId ?? null;
     if (!termId) {
+      // Default to the current active term; termId is optional on SchoolClass
+      // so the class is still created if no active term exists.
       const activeTerm = await prisma.schoolTerm.findFirst({
         where: { companyId, isActive: true },
         select: { id: true },
