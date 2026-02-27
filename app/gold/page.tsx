@@ -102,6 +102,8 @@ export default function GoldPage() {
     start.setDate(start.getDate() - 30);
     return start.toISOString().slice(0, 10);
   }, []);
+  const normalizeShiftLabel = (value: string) =>
+    value.trim().replace(/\s+/g, " ").toUpperCase();
 
   const {
     data: poursData,
@@ -138,10 +140,13 @@ export default function GoldPage() {
       fetchShiftReports({ startDate: attendanceStart, limit: 200 }),
   });
 
-  useQuery({
+  const {
+    data: shiftAllocationsData,
+    isLoading: shiftAllocationsLoading,
+  } = useQuery({
     queryKey: ["gold-shift-allocations", attendanceStart],
     queryFn: () =>
-      fetchGoldShiftAllocations({ startDate: attendanceStart, limit: 200 }),
+      fetchGoldShiftAllocations({ startDate: attendanceStart, limit: 500 }),
   });
 
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
@@ -154,6 +159,10 @@ export default function GoldPage() {
   const shiftReports = useMemo(
     () => shiftReportsData?.data ?? [],
     [shiftReportsData],
+  );
+  const shiftAllocations = useMemo(
+    () => shiftAllocationsData?.data ?? [],
+    [shiftAllocationsData],
   );
 
   const dispatchByPourId = useMemo(() => {
@@ -171,6 +180,16 @@ export default function GoldPage() {
     });
     return map;
   }, [receipts]);
+
+  const recordedAllocationKeys = useMemo(() => {
+    const keys = new Set<string>();
+    shiftAllocations.forEach((allocation) => {
+      const date = new Date(allocation.date).toISOString().slice(0, 10);
+      const key = `${date}|${normalizeShiftLabel(allocation.shift)}|${allocation.siteId}`;
+      keys.add(key);
+    });
+    return keys;
+  }, [shiftAllocations]);
 
   const pendingSettlementDispatches = useMemo(
     () =>
@@ -217,13 +236,14 @@ export default function GoldPage() {
     const grouped = new Map<string, AttendanceShiftSummary>();
     attendanceRecords.forEach((record) => {
       const date = new Date(record.date).toISOString().slice(0, 10);
-      const key = `${date}|${record.shift}|${record.site.id}`;
+      const normalizedShift = normalizeShiftLabel(record.shift);
+      const key = `${date}|${normalizedShift}|${record.site.id}`;
       const existing =
         grouped.get(key) ??
         ({
           key,
           date,
-          shift: record.shift,
+          shift: normalizedShift,
           siteId: record.site.id,
           siteName: record.site.name,
           siteCode: record.site.code,
@@ -251,10 +271,11 @@ export default function GoldPage() {
       grouped.set(key, existing);
     });
 
-    return Array.from(grouped.values()).sort((a, b) =>
-      b.date.localeCompare(a.date),
-    );
-  }, [attendanceRecords]);
+    return Array.from(grouped.values())
+      .filter((shift) => shift.presentCount > 0)
+      .filter((shift) => !recordedAllocationKeys.has(shift.key))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [attendanceRecords, recordedAllocationKeys]);
 
   const shiftReportsByKey = useMemo(() => {
     const map = new Map<
@@ -263,7 +284,7 @@ export default function GoldPage() {
     >();
     shiftReports.forEach((report) => {
       const date = new Date(report.date).toISOString().slice(0, 10);
-      const key = `${date}|${report.shift}|${report.siteId}`;
+      const key = `${date}|${normalizeShiftLabel(report.shift)}|${report.siteId}`;
       map.set(key, {
         id: report.id,
         status: report.status,
@@ -539,6 +560,7 @@ export default function GoldPage() {
         onOpenChange={setShiftModalOpen}
         attendanceShifts={attendanceShifts}
         attendanceLoading={attendanceLoading}
+        allocationsLoading={shiftAllocationsLoading}
         shiftReportsByKey={shiftReportsByKey}
         shiftReportsLoading={shiftReportsLoading}
         isSubmitting={createShiftAllocationMutation.isPending}

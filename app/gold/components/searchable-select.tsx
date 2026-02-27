@@ -49,7 +49,8 @@ export function SearchableSelect({
       const labelMatch = option.label.toLowerCase().includes(normalized);
       const descriptionMatch = option.description?.toLowerCase().includes(normalized);
       const metaMatch = option.meta?.toLowerCase().includes(normalized);
-      return labelMatch || descriptionMatch || metaMatch;
+      const disabledReasonMatch = option.disabledReason?.toLowerCase().includes(normalized);
+      return labelMatch || descriptionMatch || metaMatch || disabledReasonMatch;
     });
   }, [options, query]);
 
@@ -94,8 +95,10 @@ export function SearchableSelect({
                     <CommandItem
                       key={option.value}
                       value={`${option.label} ${option.description ?? ""} ${option.meta ?? ""}`}
+                      disabled={option.disabled}
                       onMouseDown={(event) => event.preventDefault()}
                       onSelect={() => {
+                        if (option.disabled) return;
                         onValueChange(option.value);
                         setOpen(false);
                         setQuery("");
@@ -123,6 +126,11 @@ export function SearchableSelect({
                         {option.description ? (
                           <div className="truncate text-xs text-muted-foreground">
                             {option.description}
+                          </div>
+                        ) : null}
+                        {option.disabledReason ? (
+                          <div className="truncate text-xs text-destructive">
+                            {option.disabledReason}
                           </div>
                         ) : null}
                       </div>

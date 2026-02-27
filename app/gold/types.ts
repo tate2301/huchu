@@ -27,6 +27,8 @@ export type SearchableOption = {
   meta?: string;
   avatarUrl?: string;
   badgeVariant?: "default" | "secondary" | "destructive" | "outline";
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
 export type WorkerPayout = {

@@ -55,6 +55,7 @@ export function ShiftAllocationModal({
   onOpenChange,
   attendanceShifts,
   attendanceLoading,
+  allocationsLoading,
   shiftReportsByKey,
   shiftReportsLoading,
   isSubmitting,
@@ -65,6 +66,7 @@ export function ShiftAllocationModal({
   onOpenChange: (open: boolean) => void;
   attendanceShifts: AttendanceShiftSummary[];
   attendanceLoading: boolean;
+  allocationsLoading: boolean;
   shiftReportsByKey: Map<
     string,
     { id: string; status: string; crewCount: number }
@@ -138,13 +140,18 @@ export function ShiftAllocationModal({
   const shiftOptions = useMemo(() => {
     return attendanceShifts.map((shift) => {
       const report = shiftReportsByKey.get(shift.key);
-      const reportMeta = report ? `Report: ${report.status}` : "Report missing";
+      const reportMissing = !report;
+      const reportMeta = report ? `Report: ${report.status}` : "Shift report missing";
       return {
         value: shift.key,
         label: `${shift.date} - ${shift.shift} - ${shift.siteName}`,
         description: `Present ${shift.presentCount} / Crew ${shift.totalCrew}`,
         meta: reportMeta,
         badgeVariant: report ? "secondary" : "destructive",
+        disabled: reportMissing,
+        disabledReason: reportMissing
+          ? "Cannot select this shift until a shift report is submitted."
+          : undefined,
       } satisfies SearchableOption;
     });
   }, [attendanceShifts, shiftReportsByKey]);
@@ -271,11 +278,11 @@ export function ShiftAllocationModal({
           onSubmit={handleSubmit}
           className="max-h-[80vh] overflow-y-auto px-6 py-6"
         >
-          {(attendanceLoading || shiftReportsLoading) && (
+          {(attendanceLoading || allocationsLoading || shiftReportsLoading) && (
             <Alert className="mb-4">
               <AlertTitle>Loading shift context</AlertTitle>
               <AlertDescription>
-                Pulling attendance register and shift report records.
+                Pulling attendance register, recorded outputs, and shift report records.
               </AlertDescription>
             </Alert>
           )}
@@ -309,6 +316,7 @@ export function ShiftAllocationModal({
                   placeholder="Search by date, shift, or site"
                   searchPlaceholder="Search shifts..."
                   onValueChange={setSelectedShiftKey}
+                  disabled={attendanceLoading || allocationsLoading || shiftReportsLoading}
                   onAddOption={() => {
                     handleDialogOpenChange(false);
                     router.push("/attendance");
@@ -367,12 +375,14 @@ export function ShiftAllocationModal({
                   </div>
                 ) : null}
 
-                {!selectedShift && !attendanceLoading ? (
+                {!selectedShift &&
+                !attendanceLoading &&
+                !allocationsLoading &&
+                !shiftReportsLoading ? (
                   <Alert>
-                    <AlertTitle>No attendance shifts found</AlertTitle>
+                    <AlertTitle>No eligible attendance shifts found</AlertTitle>
                     <AlertDescription>
-                      Attendance is required before recording shift gold
-                      allocation.
+                      Only eligible attendance with present workers and no prior output is shown.
                     </AlertDescription>
                   </Alert>
                 ) : null}
