@@ -16,14 +16,15 @@
 3. `feat/schools-portals-phase2-v1`
 4. `feat/schools-fees-phase3-v1`
 5. `feat/schools-governance-phase4-v1`
+6. `feat/car-sales-core-phase1-v1`
 
 ## Current Slice
-1. Branch: `feat/car-sales-core-phase1-v1`
-2. Objective: start Car Sales pack core domain and lead-to-deal workflow for Zimbabwe-focused operations, gated under autos/car-sales features.
+1. Branch: `feat/thrift-core-phase1-v1`
+2. Objective: start Thrift pack operational core with intake/grading/lot lifecycle and POS sale object foundations.
 3. Core outputs:
-- Car sales lead, customer, vehicle, and deal models with strict tenant partitioning
-- Lead pipeline and deal progression APIs with finance-ready contract fields
-- Car sales dashboard and baseline sales/inventory workflow UI views
+- Thrift intake/grading/lot core models with tenant-safe status workflows
+- POS-oriented thrift sales transaction API surface
+- Thrift dashboard and first operational UI views
 
 ## Invariants (Never Drift)
 1. Keep one runtime and strict tenant partition by `companyId`.
@@ -33,6 +34,6 @@
 5. Finance-impacting flows must publish deterministic accounting events.
 
 ## Next Planned Slices
-1. Thrift phase 1 intake/grading/lot lifecycle and POS transaction object.
-2. Cross-pack POS/outbox hardening for offline capture and reconciliation safety.
-3. Schools boarding leave/check-in/check-out lifecycle.
+1. Cross-pack POS/outbox hardening for offline capture and reconciliation safety.
+2. Schools boarding leave/check-in/check-out lifecycle.
+3. Car sales delivery workflow and accounting integration events.
