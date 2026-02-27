@@ -59,6 +59,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/accounting/fiscalisation", featureKey: "accounting.zimra.fiscalisation" },
   { scope: "page", prefix: "/accounting", featureKey: "accounting.core" },
 
+  { scope: "page", prefix: "/schools/documents", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/admissions", featureKey: "schools.admissions" },
   { scope: "page", prefix: "/schools/students", featureKey: "schools.students" },
   { scope: "page", prefix: "/schools/attendance", featureKey: "schools.attendance" },
@@ -85,8 +86,11 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/thrift/intake", featureKey: "thrift.intake" },
   { scope: "page", prefix: "/thrift/catalog", featureKey: "thrift.catalog" },
   { scope: "page", prefix: "/thrift/checkout", featureKey: "thrift.checkout" },
+  { scope: "page", prefix: "/thrift/sales", featureKey: "thrift.checkout" },
+  { scope: "page", prefix: "/thrift/pos", featureKey: "thrift.checkout" },
   { scope: "page", prefix: "/thrift", featureKey: "thrift.core" },
 
+  { scope: "page", prefix: "/portal/pos", featureKey: "thrift.checkout" },
   { scope: "page", prefix: "/portal/parent", featureKey: "schools.portal.parent" },
   { scope: "page", prefix: "/portal/student", featureKey: "schools.portal.student" },
   { scope: "page", prefix: "/portal/teacher", featureKey: "schools.portal.teacher" },
