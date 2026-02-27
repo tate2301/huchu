@@ -106,13 +106,13 @@ export function TradingViewChartCard({
                       </linearGradient>
                     ))}
                 </defs>
-                <CartesianGrid stroke="hsl(var(--border) / 0.5)" strokeDasharray="4 4" vertical={false} />
+                <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="4 6" vertical={false} />
                 <XAxis
                   dataKey={xKey}
                   axisLine={false}
                   tickLine={false}
                   minTickGap={24}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-text)", fontSize: 11 }}
                   tickFormatter={(value) => {
                     if (xAxisType !== "time") return String(value);
                     const parsed = new Date(String(value));
@@ -125,7 +125,7 @@ export function TradingViewChartCard({
                   axisLine={false}
                   tickLine={false}
                   width={72}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-text)", fontSize: 11 }}
                   tickFormatter={(value) => valueFormatter(Number(value))}
                 />
                 {hasRightAxis ? (
@@ -135,16 +135,16 @@ export function TradingViewChartCard({
                     axisLine={false}
                     tickLine={false}
                     width={72}
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    tick={{ fill: "var(--chart-text)", fontSize: 11 }}
                     tickFormatter={(value) => valueFormatter(Number(value))}
                   />
                 ) : null}
                 <Tooltip
-                  cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "4 4" }}
+                  cursor={{ stroke: "var(--chart-text)", strokeDasharray: "4 6" }}
                   content={({ active, payload, label }) => {
                     if (!active || !payload || payload.length === 0) return null;
                     return (
-                      <div className="rounded-md border border-border/70 bg-background/95 px-3 py-2 shadow-md backdrop-blur">
+                      <div className="rounded-lg border border-border bg-surface-base px-3 py-2.5 shadow-[var(--shadow-popover)]">
                         <div className="mb-1 text-xs font-medium text-muted-foreground">{String(label)}</div>
                         <div className="space-y-1">
                           {payload.map((entry) => {
