@@ -24,8 +24,8 @@ export function Navbar() {
   const successHint = getSuccessHint(pathname)
 
   return (
-    <header className="sticky top-0 z-20 h-[3.75rem] max-h-[3.75rem] bg-[var(--surface-overlay)] shadow-[inset_0_-1px_0_0_var(--edge-subtle)] backdrop-blur-md">
-      <div className="content-shell flex h-[3.75rem] items-center gap-3">
+    <header className="sticky top-0 z-20 h-14 max-h-14 bg-[var(--surface-overlay)] shadow-[inset_0_-1px_0_0_var(--edge-subtle)] backdrop-blur-md">
+      <div className="content-shell flex h-14 items-center gap-3">
         <SidebarTrigger />
         <Separator orientation="vertical" className="hidden h-6 md:block" />
         <div className="min-w-0">
