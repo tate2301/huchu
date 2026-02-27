@@ -110,6 +110,8 @@ export function TeacherPortalContent() {
   );
 
   const summary = query.data?.summary;
+  const assignmentSummary = query.data?.assignmentSummary;
+  const teacherProfile = query.data?.teacherProfile;
 
   return (
     <div className="space-y-4">
@@ -120,7 +122,16 @@ export function TeacherPortalContent() {
         </Alert>
       ) : null}
 
-      <section className="section-shell grid gap-2 md:grid-cols-5">
+      {!query.isLoading && !teacherProfile ? (
+        <Alert>
+          <AlertTitle>No teacher profile linked</AlertTitle>
+          <AlertDescription>
+            Your account is not linked to an active teacher profile yet, so no result-sheet data is available.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <section className="section-shell grid gap-2 md:grid-cols-8">
         <div>
           <h2 className="text-sm font-semibold">Draft</h2>
           <p className="font-mono tabular-nums">{summary?.draftSheets ?? 0}</p>
@@ -140,6 +151,18 @@ export function TeacherPortalContent() {
         <div>
           <h2 className="text-sm font-semibold">Published</h2>
           <p className="font-mono tabular-nums">{summary?.publishedSheets ?? 0}</p>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold">Assignments</h2>
+          <p className="font-mono tabular-nums">{assignmentSummary?.assignments ?? 0}</p>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold">Assigned Classes</h2>
+          <p className="font-mono tabular-nums">{assignmentSummary?.uniqueClasses ?? 0}</p>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold">Assigned Terms</h2>
+          <p className="font-mono tabular-nums">{assignmentSummary?.uniqueTerms ?? 0}</p>
         </div>
       </section>
 

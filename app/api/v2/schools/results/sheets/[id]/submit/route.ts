@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import {
+  canTeacherAccessResultSheet,
+  isPrivilegedRole,
+  writeModerationAction,
+} from "@/lib/schools/governance-v2";
 
 export async function POST(
   request: NextRequest,
@@ -14,7 +19,14 @@ export async function POST(
 
     const existing = await prisma.schoolResultSheet.findUnique({
       where: { id },
-      select: { id: true, companyId: true, status: true },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        termId: true,
+        classId: true,
+        streamId: true,
+      },
     });
     if (!existing || existing.companyId !== session.user.companyId) {
       return errorResponse("Result sheet not found", 404);
@@ -24,6 +36,20 @@ export async function POST(
         "Only draft or HOD-rejected result sheets can be submitted",
         400,
       );
+    }
+    if (!isPrivilegedRole(session.user.role)) {
+      const hasAccess = await canTeacherAccessResultSheet(
+        session.user.companyId,
+        session.user.id,
+        {
+          termId: existing.termId,
+          classId: existing.classId,
+          streamId: existing.streamId,
+        },
+      );
+      if (!hasAccess) {
+        return errorResponse("You are not assigned to this class/stream result sheet", 403);
+      }
     }
 
     const updated = await prisma.schoolResultSheet.update({
@@ -39,6 +65,15 @@ export async function POST(
         stream: { select: { id: true, code: true, name: true } },
         _count: { select: { lines: true } },
       },
+    });
+
+    await writeModerationAction({
+      companyId: session.user.companyId,
+      sheetId: existing.id,
+      actorUserId: session.user.id,
+      actionType: "SUBMIT",
+      fromStatus: existing.status,
+      toStatus: "SUBMITTED",
     });
 
     return successResponse(updated);

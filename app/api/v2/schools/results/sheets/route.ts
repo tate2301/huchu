@@ -10,6 +10,12 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { isUniqueConstraintError, schoolResultSheetStatusSchema } from "../../_helpers";
+import {
+  buildAssignedResultSheetWhere,
+  getTeacherAssignments,
+  getTeacherProfile,
+  isPrivilegedRole,
+} from "@/lib/schools/governance-v2";
 
 const resultSheetQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
@@ -73,6 +79,35 @@ export async function GET(request: NextRequest) {
     if (query.classId) where.classId = query.classId;
     if (query.streamId) where.streamId = query.streamId;
     if (query.status) where.status = query.status;
+
+    if (!isPrivilegedRole(session.user.role)) {
+      const profile = await getTeacherProfile(session.user.companyId, session.user.id);
+      if (!profile) {
+        return successResponse(paginationResponse([], 0, page, limit));
+      }
+      const assignments = await getTeacherAssignments(session.user.companyId, profile.id, {
+        ...(query.termId ? { termId: query.termId } : {}),
+        ...(query.classId ? { classId: query.classId } : {}),
+        ...(query.streamId ? { streamId: query.streamId } : {}),
+      });
+      const assignmentScope = buildAssignedResultSheetWhere(
+        assignments.map((assignment) => ({
+          termId: assignment.termId,
+          classId: assignment.classId,
+          streamId: assignment.streamId,
+        })),
+      );
+      if (!assignmentScope) {
+        return successResponse(paginationResponse([], 0, page, limit));
+      }
+      if (!where.AND) {
+        where.AND = [assignmentScope];
+      } else if (Array.isArray(where.AND)) {
+        where.AND = [...where.AND, assignmentScope];
+      } else {
+        where.AND = [where.AND, assignmentScope];
+      }
+    }
 
     const include = query.includeLines
       ? ({
@@ -148,6 +183,26 @@ export async function POST(request: NextRequest) {
     }
     if (stream && stream.classId !== validated.classId) {
       return errorResponse("Stream does not belong to the selected class", 400);
+    }
+    if (!isPrivilegedRole(session.user.role)) {
+      const profile = await getTeacherProfile(companyId, session.user.id);
+      if (!profile) {
+        return errorResponse("Active teacher profile is required to create result sheets", 403);
+      }
+      const assignment = await prisma.schoolClassSubject.findFirst({
+        where: {
+          companyId,
+          teacherProfileId: profile.id,
+          isActive: true,
+          termId: validated.termId,
+          classId: validated.classId,
+          OR: [{ streamId: null }, { streamId: validated.streamId ?? null }],
+        },
+        select: { id: true },
+      });
+      if (!assignment) {
+        return errorResponse("You are not assigned to this class/stream for the selected term", 403);
+      }
     }
 
     const lines = validated.lines ?? [];

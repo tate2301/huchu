@@ -9,12 +9,12 @@ import {
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-
-const privilegedRoles = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
-
-function isPrivilegedRole(role?: string | null) {
-  return role ? privilegedRoles.has(role.toUpperCase()) : false;
-}
+import {
+  buildAssignedResultSheetWhere,
+  getTeacherAssignments,
+  getTeacherProfile,
+  isPrivilegedRole,
+} from "@/lib/schools/governance-v2";
 
 const parentPortalQuerySchema = z.object({
   guardianId: z.string().uuid().optional(),
@@ -61,9 +61,26 @@ export async function handleParentPortalGet(request: NextRequest) {
     const companyId = session.user.companyId;
     const role = session.user.role;
 
+    const privileged = isPrivilegedRole(role);
+    if (!privileged && !session.user.email) {
+      return buildPortalEnvelope("portal-parent", companyId, {
+        guardian: null,
+        children: [],
+        results: [],
+        boarding: [],
+        fees: [],
+        summary: {
+          linkedChildren: 0,
+          publishedResultLines: 0,
+          activeBoardingAllocations: 0,
+          outstandingBalance: 0,
+          hasLinkedGuardian: false,
+        },
+      });
+    }
     const guardianLookupWhere: Prisma.SchoolGuardianWhereInput = {
       companyId,
-      ...(query.guardianId
+      ...(query.guardianId && privileged
         ? { id: query.guardianId }
         : session.user.email
           ? { email: { equals: session.user.email, mode: "insensitive" } }
@@ -82,7 +99,7 @@ export async function handleParentPortalGet(request: NextRequest) {
       },
     });
 
-    if (!guardian && !query.guardianId && isPrivilegedRole(role)) {
+    if (!guardian && !query.guardianId && privileged) {
       guardian = await prisma.schoolGuardian.findFirst({
         where: { companyId },
         orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
@@ -162,15 +179,18 @@ export async function handleParentPortalGet(request: NextRequest) {
     });
 
     const studentIds = links.map((link) => link.studentId);
+    const academicEnabledStudentIds = links
+      .filter((link) => link.canReceiveAcademicResults)
+      .map((link) => link.studentId);
     const financeEnabledStudentIds = links
       .filter((link) => link.canReceiveFinancials)
       .map((link) => link.studentId);
     const [resultLines, boardingAllocations, feeInvoices] = await Promise.all([
-      studentIds.length > 0
+      academicEnabledStudentIds.length > 0
         ? prisma.schoolResultLine.findMany({
             where: {
               companyId,
-              studentId: { in: studentIds },
+              studentId: { in: academicEnabledStudentIds },
               sheet: { status: "PUBLISHED" },
             },
             include: {
@@ -286,6 +306,7 @@ export async function handleStudentPortalGet(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
+    const privileged = isPrivilegedRole(session.user.role);
 
     const { searchParams } = new URL(request.url);
     const query = studentPortalQuerySchema.parse({
@@ -294,13 +315,16 @@ export async function handleStudentPortalGet(request: NextRequest) {
     });
 
     const emailPrefix = session.user.email?.split("@")[0]?.trim() ?? null;
+    if (!privileged && (query.studentId || query.studentNo)) {
+      return errorResponse("Student portal does not allow overriding self scope", 403);
+    }
 
     let student = await prisma.schoolStudent.findFirst({
       where: {
         companyId,
-        ...(query.studentId
+        ...(privileged && query.studentId
           ? { id: query.studentId }
-          : query.studentNo
+          : privileged && query.studentNo
             ? { studentNo: query.studentNo.toUpperCase() }
             : emailPrefix
               ? { studentNo: emailPrefix.toUpperCase() }
@@ -312,7 +336,7 @@ export async function handleStudentPortalGet(request: NextRequest) {
       },
     });
 
-    if (!student && isPrivilegedRole(session.user.role)) {
+    if (!student && privileged) {
       student = await prisma.schoolStudent.findFirst({
         where: { companyId },
         include: {
@@ -444,27 +468,16 @@ export async function handleStudentPortalGet(request: NextRequest) {
   }
 }
 
-function applyTeacherScope(
-  where: Prisma.SchoolResultSheetWhereInput,
-  userId: string,
-) {
-  where.OR = [
-    { submittedById: userId },
-    { hodApprovedById: userId },
-    { publishedById: userId },
-  ];
-}
-
 async function fetchTeacherStatusCount(
   companyId: string,
   status: SchoolResultSheetStatus,
-  userId: string,
-  role: string,
+  assignmentScope: Prisma.SchoolResultSheetWhereInput | null,
 ) {
-  const where: Prisma.SchoolResultSheetWhereInput = { companyId, status };
-  if (!isPrivilegedRole(role)) {
-    applyTeacherScope(where, userId);
-  }
+  const where: Prisma.SchoolResultSheetWhereInput = {
+    companyId,
+    status,
+    ...(assignmentScope ? { AND: [assignmentScope] } : {}),
+  };
   return prisma.schoolResultSheet.count({ where });
 }
 
@@ -500,15 +513,54 @@ export async function handleTeacherPortalGet(request: NextRequest) {
       ];
     }
 
-    if (!isPrivilegedRole(session.user.role)) {
-      const scopedWhere: Prisma.SchoolResultSheetWhereInput = {};
-      applyTeacherScope(scopedWhere, session.user.id);
+    const privileged = isPrivilegedRole(session.user.role);
+    const teacherProfile = privileged
+      ? null
+      : await getTeacherProfile(companyId, session.user.id);
+    const assignments =
+      !privileged && teacherProfile
+        ? await getTeacherAssignments(companyId, teacherProfile.id, {
+            ...(query.termId ? { termId: query.termId } : {}),
+            ...(query.classId ? { classId: query.classId } : {}),
+          })
+        : [];
+
+    const assignmentScope = !privileged
+      ? buildAssignedResultSheetWhere(
+          assignments.map((assignment) => ({
+            termId: assignment.termId,
+            classId: assignment.classId,
+            streamId: assignment.streamId,
+          })),
+        )
+      : null;
+
+    if (!privileged) {
+      if (!teacherProfile || !assignmentScope) {
+        const empty = paginationResponse([], 0, page, limit);
+        return buildPortalEnvelope("portal-teacher", companyId, {
+          ...empty,
+          teacherProfile,
+          assignmentSummary: {
+            assignments: 0,
+            uniqueClasses: 0,
+            uniqueTerms: 0,
+          },
+          summary: {
+            draftSheets: 0,
+            submittedSheets: 0,
+            hodRejectedSheets: 0,
+            hodApprovedSheets: 0,
+            publishedSheets: 0,
+          },
+        });
+      }
       if (!where.AND) {
-        where.AND = [scopedWhere];
+        where.AND = [assignmentScope];
       } else if (Array.isArray(where.AND)) {
-        where.AND = [...where.AND, scopedWhere];
+        where.AND = [...where.AND, assignmentScope];
       } else {
-        where.AND = [where.AND, scopedWhere];
+        where.AND = [where.AND, assignmentScope];
       }
     }
 
@@ -554,32 +606,27 @@ export async function handleTeacherPortalGet(request: NextRequest) {
       fetchTeacherStatusCount(
         companyId,
         "DRAFT",
-        session.user.id,
-        session.user.role,
+        assignmentScope,
       ),
       fetchTeacherStatusCount(
         companyId,
         "SUBMITTED",
-        session.user.id,
-        session.user.role,
+        assignmentScope,
       ),
       fetchTeacherStatusCount(
         companyId,
         "HOD_REJECTED",
-        session.user.id,
-        session.user.role,
+        assignmentScope,
       ),
       fetchTeacherStatusCount(
         companyId,
         "HOD_APPROVED",
-        session.user.id,
-        session.user.role,
+        assignmentScope,
       ),
       fetchTeacherStatusCount(
         companyId,
         "PUBLISHED",
-        session.user.id,
-        session.user.role,
+        assignmentScope,
       ),
     ]);
 
@@ -598,6 +645,13 @@ export async function handleTeacherPortalGet(request: NextRequest) {
 
     return buildPortalEnvelope("portal-teacher", companyId, {
       ...paged,
+      teacherProfile,
+      assignmentSummary: {
+        assignments: assignments.length,
+        uniqueClasses: new Set(assignments.map((assignment) => assignment.classId))
+          .size,
+        uniqueTerms: new Set(assignments.map((assignment) => assignment.termId)).size,
+      },
       summary: {
         draftSheets: queueCounts[0],
         submittedSheets: queueCounts[1],

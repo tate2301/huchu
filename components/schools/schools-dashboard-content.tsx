@@ -33,6 +33,27 @@ export function SchoolsDashboardContent() {
         value: query.data.counts.boardingAllocations,
       },
       { id: "resultSheets", metric: "Result Sheets", value: query.data.counts.resultSheets },
+      {
+        id: "resultModerationActions",
+        metric: "Result Moderation Actions",
+        value: query.data.counts.resultModerationActions,
+      },
+      {
+        id: "teacherProfiles",
+        metric: "Teacher Profiles",
+        value: query.data.counts.teacherProfiles,
+      },
+      { id: "subjects", metric: "Subjects", value: query.data.counts.subjects },
+      {
+        id: "classSubjects",
+        metric: "Class-Subject Assignments",
+        value: query.data.counts.classSubjects,
+      },
+      {
+        id: "publishWindows",
+        metric: "Publish Windows",
+        value: query.data.counts.publishWindows,
+      },
       { id: "feeStructures", metric: "Fee Structures", value: query.data.counts.feeStructures },
       { id: "feeInvoices", metric: "Fee Invoices", value: query.data.counts.feeInvoices },
       { id: "feeReceipts", metric: "Fee Receipts", value: query.data.counts.feeReceipts },

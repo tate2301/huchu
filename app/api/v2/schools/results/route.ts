@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const [sheets, total, countsByStatus] = await Promise.all([
+    const [sheets, total, countsByStatus, publishWindows] = await Promise.all([
       prisma.schoolResultSheet.findMany({
         where,
         include: {
@@ -69,6 +69,16 @@ export async function GET(request: NextRequest) {
         by: ["status"],
         where: { companyId },
         _count: { _all: true },
+      }),
+      prisma.schoolPublishWindow.findMany({
+        where: { companyId },
+        include: {
+          term: { select: { id: true, code: true, name: true } },
+          class: { select: { id: true, code: true, name: true } },
+          stream: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: [{ openAt: "desc" }, { createdAt: "desc" }],
+        take: 120,
       }),
     ]);
 
@@ -113,6 +123,7 @@ export async function GET(request: NextRequest) {
         resource: "schools-results",
         companyId,
         ...paged,
+        publishWindows,
         summary: {
           totalSheets: countsByStatus.reduce(
             (sum, row) => sum + row._count._all,
@@ -133,6 +144,13 @@ export async function GET(request: NextRequest) {
           publishedSheets:
             countsByStatus.find((row) => row.status === "PUBLISHED")?._count
               ._all ?? 0,
+          openPublishWindows: publishWindows.filter((row) => row.status === "OPEN")
+            .length,
+          scheduledPublishWindows: publishWindows.filter(
+            (row) => row.status === "SCHEDULED",
+          ).length,
+          closedPublishWindows: publishWindows.filter((row) => row.status === "CLOSED")
+            .length,
         },
       },
     });

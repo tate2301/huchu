@@ -14,7 +14,9 @@ import {
   type SchoolsResultsData,
 } from "@/lib/schools/schools-v2";
 
-type ResultsView = "moderation" | "all" | "published";
+type ResultsView = "moderation" | "all" | "published" | "windows";
+type ResultsPublishWindow = SchoolsResultsData["publishWindows"][number];
+type ResultsTableRow = SchoolsResultsData["data"][number];
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -51,8 +53,12 @@ export function SchoolsResultsContent() {
     () => allRows.filter((row) => row.status === "PUBLISHED"),
     [allRows],
   );
+  const publishWindowRows = useMemo(
+    () => query.data?.publishWindows ?? [],
+    [query.data],
+  );
 
-  const columns = useMemo<ColumnDef<SchoolsResultsData["data"][number]>[]>(
+  const columns = useMemo<ColumnDef<ResultsTableRow>[]>(
     () => [
       {
         id: "updated",
@@ -101,6 +107,48 @@ export function SchoolsResultsContent() {
     ],
     [],
   );
+  const publishWindowColumns = useMemo<ColumnDef<ResultsPublishWindow>[]>(
+    () => [
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          if (row.original.status === "OPEN") return <Badge variant="secondary">Open</Badge>;
+          if (row.original.status === "SCHEDULED") return <Badge variant="outline">Scheduled</Badge>;
+          return <Badge variant="destructive">Closed</Badge>;
+        },
+      },
+      {
+        id: "scope",
+        header: "Scope",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.term.name}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.class?.name ?? "All Classes"}
+              {row.original.stream ? ` / ${row.original.stream.name}` : ""}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "openAt",
+        header: "Open",
+        cell: ({ row }) => <NumericCell>{formatDate(row.original.openAt)}</NumericCell>,
+      },
+      {
+        id: "closeAt",
+        header: "Close",
+        cell: ({ row }) => <NumericCell>{formatDate(row.original.closeAt)}</NumericCell>,
+      },
+      {
+        id: "notes",
+        header: "Notes",
+        cell: ({ row }) => row.original.notes || "-",
+      },
+    ],
+    [],
+  );
 
   const summary = query.data?.summary;
 
@@ -113,7 +161,7 @@ export function SchoolsResultsContent() {
         </Alert>
       ) : null}
 
-      <section className="section-shell grid gap-2 md:grid-cols-5">
+      <section className="section-shell grid gap-2 md:grid-cols-8">
         <div>
           <h2 className="text-sm font-semibold">Draft</h2>
           <p className="font-mono tabular-nums">{summary?.draftSheets ?? 0}</p>
@@ -134,6 +182,20 @@ export function SchoolsResultsContent() {
           <h2 className="text-sm font-semibold">Published</h2>
           <p className="font-mono tabular-nums">{summary?.publishedSheets ?? 0}</p>
         </div>
+        <div>
+          <h2 className="text-sm font-semibold">Windows Open</h2>
+          <p className="font-mono tabular-nums">{summary?.openPublishWindows ?? 0}</p>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold">Windows Scheduled</h2>
+          <p className="font-mono tabular-nums">
+            {summary?.scheduledPublishWindows ?? 0}
+          </p>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold">Windows Closed</h2>
+          <p className="font-mono tabular-nums">{summary?.closedPublishWindows ?? 0}</p>
+        </div>
       </section>
 
       <VerticalDataViews
@@ -141,6 +203,7 @@ export function SchoolsResultsContent() {
           { id: "moderation", label: "Moderation Queue", count: moderationRows.length },
           { id: "all", label: "All Sheets", count: allRows.length },
           { id: "published", label: "Published", count: publishedRows.length },
+          { id: "windows", label: "Publish Windows", count: publishWindowRows.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as ResultsView)}
@@ -179,6 +242,18 @@ export function SchoolsResultsContent() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={query.isLoading ? "Loading published sheets..." : "No published sheets yet."}
+          />
+        </div>
+
+        <div className={activeView === "windows" ? "space-y-2" : "hidden"}>
+          <h2 className="text-section-title">Publish Windows</h2>
+          <DataTable
+            data={publishWindowRows}
+            columns={publishWindowColumns}
+            searchPlaceholder="Search publish windows"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={query.isLoading ? "Loading publish windows..." : "No publish windows configured."}
           />
         </div>
       </VerticalDataViews>
