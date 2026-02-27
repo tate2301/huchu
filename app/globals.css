@@ -4,6 +4,9 @@
 
 @source "../node_modules/@rtcamp/frappe-ui-react/dist";
 
+/* Import Inter font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @custom-variant dark (&:is(.dark *));
 
 .material-symbols-rounded {
@@ -78,7 +81,7 @@
         "Liberation Mono",
         "Courier New",
         monospace;
-    --font-family: "SS Huchu", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-family: "Inter", "SS Huchu", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --color-surface-canvas: var(--surface-canvas);
     --color-surface-base: var(--surface-base);
     --color-surface-raised: var(--surface-raised);
@@ -173,161 +176,190 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 :root {
-    --radius: 0.8rem;
+    /* Warm paper design system - extracted from screenshots */
+    --radius: 0.5rem;
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
     --radius-pill: 9999px;
     --icon-size-xs: 0.75rem;
     --icon-size-sm: 0.9375rem;
     --icon-size-md: 1.125rem;
     --icon-size-lg: 1.25rem;
     --icon-size-xl: 1.5rem;
-    --content-gutter-x: clamp(0.9rem, 1.9vw, 1.45rem);
-    --section-gutter-x: 0.9rem;
-    --table-gutter-x: 0.65rem;
-    --table-row-min-h: 0rem;
-    --table-head-min-h: 0rem;
+    --content-gutter-x: 1.5rem;
+    --section-gutter-x: 1.5rem;
+    --table-gutter-x: 0.75rem;
+    --table-row-min-h: 3rem;
+    --table-head-min-h: 2.5rem;
     --control-height-sm: 2rem;
     --control-height-md: 2.25rem;
-    --surface-app: #f3f6fb;
-    --surface-panel: #ffffff;
-    --surface-elevated: #ffffff;
-    --surface-soft: #eef3fb;
-    --surface-canvas: #f6f8fc;
-    --surface-base: #ffffff;
-    --surface-raised: #ffffff;
-    --surface-muted: #eef2f8;
-    --surface-subtle: #f8faff;
-    --surface-overlay: rgb(244 248 255 / 86%);
-    --text-strong: #0f172a;
-    --text-body: #1f2937;
-    --text-muted: #5f6b82;
+    /* Warm paper canvas + surfaces */
+    --surface-app: #FCFCF4;
+    --surface-panel: #FFFFFF;
+    --surface-elevated: #FFFFFF;
+    --surface-soft: #F7F7F2;
+    --surface-canvas: #FCFCF4;
+    --surface-base: #FFFFFF;
+    --surface-raised: #FFFFFF;
+    --surface-muted: #F7F7F2;
+    --surface-subtle: #FAFAF7;
+    --surface-overlay: rgb(252 252 244 / 86%);
+    /* Text hierarchy */
+    --text-strong: #111111;
+    --text-body: #111111;
+    --text-muted: #6B6B6B;
+    --text-subtle: #9A9A93;
     --text-inverse: #ffffff;
-    --text-danger: #b42318;
-    --action-primary-bg: #2f5cf3;
+    --text-danger: #EC442C;
+    /* Primary actions */
+    --action-primary-bg: #4C64D4;
     --action-primary-fg: #ffffff;
-    --action-primary-hover: #2449d6;
-    --action-secondary-bg: #e8eeff;
-    --action-secondary-fg: #223a8f;
-    --action-secondary-hover: #dbe5ff;
+    --action-primary-hover: #3F57C8;
+    --action-primary-pressed: #344BB3;
+    --action-secondary-bg: #EEF0FF;
+    --action-secondary-fg: #4C64D4;
+    --action-secondary-hover: #E3E7FF;
     --action-outline-bg: #ffffff;
-    --action-outline-hover-bg: #f8faff;
-    --edge-subtle: rgb(15 23 42 / 0.08);
-    --edge-default: rgb(15 23 42 / 0.14);
-    --edge-strong: rgb(15 23 42 / 0.22);
+    --action-outline-hover-bg: #F7F7F2;
+    /* Light borders - very subtle */
+    --edge-subtle: #E6E6E0;
+    --edge-default: #E6E6E0;
+    --edge-strong: #DADAD3;
     --edge-neutral-rest: var(--edge-default);
     --edge-neutral-hover: var(--edge-strong);
-    --edge-neutral-pressed: rgb(15 23 42 / 0.28);
-    --edge-neutral-focus: rgb(47 92 243 / 0.44);
+    --edge-neutral-pressed: #CFCFC6;
+    --edge-neutral-focus: rgb(76 100 212 / 0.25);
     --edge-outline-sharp:
         inset 0 0 0 1px var(--edge-neutral-rest);
     --edge-outline-sharp-hover:
         inset 0 0 0 1px var(--edge-neutral-hover);
     --surface-frame-shadow:
-        inset 0 0 0 1px rgb(15 23 42 / 0.08),
-        0 1px 1px rgb(15 23 42 / 0.02);
+        inset 0 0 0 1px var(--edge-default),
+        0 1px 2px rgb(17 17 17 / 0.02);
     --surface-frame-shadow-hover:
-        inset 0 0 0 1px rgb(15 23 42 / 0.14),
-        0 3px 10px rgb(15 23 42 / 0.05);
+        inset 0 0 0 1px var(--edge-strong),
+        0 2px 6px rgb(17 17 17 / 0.04);
     --action-outline-border: transparent;
     --action-outline-border-hover: transparent;
     --action-outline-shadow: var(--edge-outline-sharp);
     --action-outline-shadow-hover: var(--edge-outline-sharp-hover);
-    --action-destructive-bg: #dc3d43;
+    --action-destructive-bg: #EC442C;
     --action-destructive-fg: #ffffff;
-    --action-disabled-bg: #e8ecf6;
-    --action-disabled-fg: #8a94a8;
-    --status-success-bg: #eaf9f1;
-    --status-success-border: #35ba78;
-    --status-success-text: #07643f;
-    --status-warning-bg: #fff5e5;
-    --status-warning-border: #eaad45;
-    --status-warning-text: #8f5d02;
-    --status-error-bg: #fff0f2;
-    --status-error-border: #f08080;
-    --status-error-text: #b42318;
-    --status-info-bg: #edf3ff;
-    --status-info-border: #5e8cff;
-    --status-info-text: #1c4499;
-    --badge-shadow:
-        inset 0 0 0 1px rgb(15 23 42 / 0.04);
-    --badge-neutral-bg: #eef2f8;
-    --badge-neutral-text: #334155;
-    --badge-brand-bg: #e8eeff;
-    --badge-brand-text: #223a8f;
-    --badge-info-bg: #edf3ff;
-    --badge-info-text: #1c4499;
-    --badge-success-bg: #eaf9f1;
-    --badge-success-text: #07643f;
-    --badge-warning-bg: #fff5e5;
-    --badge-warning-text: #8f5d02;
-    --badge-danger-bg: #fff0f2;
-    --badge-danger-text: #b42318;
+    --action-disabled-bg: #F3F3EF;
+    --action-disabled-fg: #9A9A93;
+    /* Status colors - semantic naming */
+    --status-success-bg: #EAF7F1;
+    --status-success-border: #2CA47C;
+    --status-success-text: #2CA47C;
+    --status-warning-bg: #FDF1E8;
+    --status-warning-border: #F46414;
+    --status-warning-text: #F46414;
+    --status-error-bg: #FDEBE7;
+    --status-error-border: #EC442C;
+    --status-error-text: #EC442C;
+    --status-info-bg: #EEF0FF;
+    --status-info-border: #4C64D4;
+    --status-info-text: #4C64D4;
+    --status-progress-bg: #FFF6D6;
+    --status-progress-border: #FCB414;
+    --status-progress-text: #FCB414;
+    --status-pending-bg: #F3F3EF;
+    --status-pending-border: #CFCFC6;
+    --status-pending-text: #9A9A93;
+    --status-inactive-bg: #F7F7F2;
+    --status-inactive-border: #DADAD3;
+    --status-inactive-text: #9A9A93;
+    /* Badge styling - minimal */
+    --badge-shadow: none;
+    --badge-neutral-bg: #F7F7F2;
+    --badge-neutral-text: #6B6B6B;
+    --badge-brand-bg: #EEF0FF;
+    --badge-brand-text: #4C64D4;
+    --badge-info-bg: #EEF0FF;
+    --badge-info-text: #4C64D4;
+    --badge-success-bg: #EAF7F1;
+    --badge-success-text: #2CA47C;
+    --badge-warning-bg: #FDF1E8;
+    --badge-warning-text: #F46414;
+    --badge-danger-bg: #FDEBE7;
+    --badge-danger-text: #EC442C;
+    /* Button styling - minimal shadows */
     --button-shadow-rest:
-        inset 0 0 0 1px rgb(15 23 42 / 0.08),
-        0 1px 1px rgb(15 23 42 / 0.03);
+        inset 0 0 0 1px var(--edge-default);
     --button-shadow-hover:
-        inset 0 0 0 1px rgb(15 23 42 / 0.14),
-        0 3px 8px rgb(15 23 42 / 0.06);
+        inset 0 0 0 1px var(--edge-strong),
+        0 2px 4px rgb(17 17 17 / 0.04);
     --button-shadow-pressed:
-        inset 0 0 0 1px rgb(15 23 42 / 0.16),
-        0 1px 2px rgb(15 23 42 / 0.04);
-    --button-ghost-hover-bg: #eaf0fb;
-    --button-ghost-active-bg: #e2eaf8;
+        inset 0 0 0 1px var(--edge-strong);
+    --button-ghost-hover-bg: #F7F7F2;
+    --button-ghost-active-bg: #F3F3EF;
+    /* Card styling - light borders */
     --card-shadow-rest:
-        inset 0 0 0 1px rgb(15 23 42 / 0.07),
-        0 2px 8px rgb(15 23 42 / 0.04);
-    --card-divider: rgb(15 23 42 / 0.09);
-    --table-toolbar-bg: rgb(248 251 255 / 86%);
-    --table-toolbar-border: rgb(15 23 42 / 0.1);
-    --table-header-bg: rgb(244 248 255 / 95%);
-    --table-header-text: #334155;
-    --table-divider: rgb(15 23 42 / 0.1);
+        inset 0 0 0 1px var(--edge-default);
+    --card-divider: var(--edge-default);
+    /* Table styling - grid-light */
+    --table-toolbar-bg: rgb(252 252 244 / 86%);
+    --table-toolbar-border: var(--edge-default);
+    --table-header-bg: #FCFCF4;
+    --table-header-text: #6B6B6B;
+    --table-divider: var(--edge-default);
     --table-row-bg: #ffffff;
-    --table-row-bg-alt: #fbfdff;
-    --table-row-hover-bg: #f2f6ff;
-    --table-row-selected-bg: #e8efff;
-    --datatable-toolbar-bg: rgb(247 251 255 / 90%);
-    --datatable-toolbar-border: rgb(15 23 42 / 0.1);
-    --datatable-expanded-bg: #f8fbff;
-    --datatable-empty-bg: #fbfdff;
-    --focus-ring: #2f5cf3;
-    --focus-ring-offset: #f5f8ff;
+    --table-row-bg-alt: #FAFAF7;
+    --table-row-hover-bg: #F7F7F2;
+    --table-row-selected-bg: #EEF0FF;
+    --datatable-toolbar-bg: rgb(252 252 244 / 90%);
+    --datatable-toolbar-border: var(--edge-default);
+    --datatable-expanded-bg: #FAFAF7;
+    --datatable-empty-bg: #FAFAF7;
+    /* Focus ring */
+    --focus-ring: #4C64D4;
+    --focus-ring-offset: #FCFCF4;
+    /* Typography - Inter-based scale */
     --type-display-size: 2rem;
-    --type-display-line: 2.5rem;
+    --type-display-line: 2.4rem;
     --type-display-weight: 700;
-    --type-page-title-size: 1.5rem;
-    --type-page-title-line: 2rem;
+    --type-page-title-size: 2rem;
+    --type-page-title-line: 2.4rem;
     --type-page-title-weight: 700;
-    --type-section-title-size: 1.125rem;
+    --type-section-title-size: 1.25rem;
     --type-section-title-line: 1.5rem;
     --type-section-title-weight: 700;
-    --type-body-size: 0.9rem;
-    --type-body-line: 1.42rem;
+    --type-body-size: 0.875rem;
+    --type-body-line: 1.27rem;
     --type-body-weight: 400;
     --type-field-label-size: 0.8125rem;
     --type-field-label-line: 1.125rem;
     --type-field-label-weight: 600;
-    --type-field-help-size: 0.8125rem;
-    --type-field-help-line: 1.2rem;
+    --type-field-help-size: 0.75rem;
+    --type-field-help-line: 1rem;
     --type-field-help-weight: 400;
-    --type-table-text-size: 0.84rem;
-    --type-table-text-line: 1.3rem;
+    --type-table-text-size: 0.875rem;
+    --type-table-text-line: 1.27rem;
     --type-table-text-weight: 500;
+    --type-table-header-size: 0.75rem;
+    --type-table-header-line: 1rem;
+    --type-table-header-weight: 600;
     --type-caption-size: 0.75rem;
     --type-caption-line: 1rem;
     --type-caption-weight: 500;
+    /* Elevation - minimal, only for popovers */
     --elevation-0: none;
     --elevation-1:
-        inset 0 0 0 1px rgb(15 23 42 / 0.1),
-        0 1px 1px rgb(15 23 42 / 0.02);
+        inset 0 0 0 1px var(--edge-default);
     --elevation-2:
-        inset 0 0 0 1px rgb(15 23 42 / 0.16),
-        0 4px 10px rgb(15 23 42 / 0.05);
+        inset 0 0 0 1px var(--edge-default),
+        0 2px 6px rgb(17 17 17 / 0.04);
     --elevation-3:
-        inset 0 0 0 1px rgb(15 23 42 / 0.16),
-        0 12px 22px rgb(15 23 42 / 0.08);
+        0 12px 24px -12px rgba(17, 17, 17, 0.18),
+        0 2px 6px rgba(17, 17, 17, 0.06);
     --elevation-4:
-        inset 0 0 0 1px rgb(15 23 42 / 0.2),
-        0 18px 32px rgb(15 23 42 / 0.12);
+        0 16px 32px -16px rgba(17, 17, 17, 0.22),
+        0 4px 8px rgba(17, 17, 17, 0.08);
+    /* Popover shadow (menus, dropdowns) */
+    --shadow-popover: 0 12px 24px -12px rgba(17, 17, 17, 0.18), 0 2px 6px rgba(17, 17, 17, 0.06);
+    /* Motion system */
     --motion-duration-instant: 90ms;
     --motion-duration-fast: 160ms;
     --motion-duration-base: 240ms;
@@ -354,27 +386,34 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --accent: var(--surface-muted);
     --accent-foreground: var(--text-strong);
     --destructive: var(--action-destructive-bg);
-    --border: #d7deec;
-    --input: #d7deec;
+    --border: var(--edge-default);
+    --input: var(--edge-default);
     --ring: var(--focus-ring);
-    /* Data visualization palette mapped for contrast on light surfaces */
-    --chart-1: #2f5cf3;
-    --chart-2: #0e9384;
-    --chart-3: #f59e0b;
-    --chart-4: #f97316;
-    --chart-5: #0ea5e9;
-    --sidebar: #f8faff;
+    /* Chart colors - status-based palette */
+    --chart-1: #4C64D4;
+    --chart-2: #2CA47C;
+    --chart-3: #F46414;
+    --chart-4: #EC442C;
+    --chart-5: #FCB414;
+    --chart-passing: #2CA47C;
+    --chart-failing: #EC442C;
+    --chart-need-changes: #F46414;
+    --chart-in-review: #4C64D4;
+    --chart-in-progress: #FCB414;
+    --chart-pending: #9A9A93;
+    --chart-inactive: #9A9A93;
+    --chart-grid: var(--edge-default);
+    --chart-text: var(--text-muted);
+    --sidebar: #FCFCF4;
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: #edf2ff;
+    --sidebar-accent: #F7F7F2;
     --sidebar-accent-foreground: var(--text-body);
-    --sidebar-border: #dce4f2;
+    --sidebar-border: var(--edge-default);
     --sidebar-ring: var(--focus-ring);
-    --app-canvas-wash:
-        radial-gradient(920px 560px at -8% -12%, rgb(47 92 243 / 0.1), transparent 60%),
-        radial-gradient(720px 520px at 110% -18%, rgb(17 151 204 / 0.08), transparent 55%),
-        linear-gradient(180deg, #f8faff 0%, #f4f7fc 100%);
+    /* Warm paper gradient - subtle */
+    --app-canvas-wash: linear-gradient(180deg, #FCFCF4 0%, #F7F7F2 100%);
 }
 
 .dark {
@@ -578,6 +617,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         font-size: var(--type-table-text-size);
         line-height: var(--type-table-text-line);
         font-weight: var(--type-table-text-weight);
+    }
+    .text-table-header {
+        font-size: var(--type-table-header-size);
+        line-height: var(--type-table-header-line);
+        font-weight: var(--type-table-header-weight);
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        color: var(--table-header-text);
     }
     .text-body-base {
         font-size: var(--type-body-size);
