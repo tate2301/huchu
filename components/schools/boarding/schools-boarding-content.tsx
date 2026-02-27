@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -59,14 +60,17 @@ export function SchoolsBoardingContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div>
+          <Link
+            href={`/schools/students/${row.original.student.id}`}
+            className="text-primary hover:underline"
+          >
             <div className="font-medium">
               {row.original.student.firstName} {row.original.student.lastName}
             </div>
             <div className="text-xs text-muted-foreground font-mono">
               {row.original.student.studentNo}
             </div>
-          </div>
+          </Link>
         ),
       },
       {
@@ -74,7 +78,12 @@ export function SchoolsBoardingContent() {
         header: "Hostel / Room / Bed",
         cell: ({ row }) => (
           <div>
-            <div>{row.original.hostel.name}</div>
+            <Link
+              href={`/schools/boarding/${row.original.hostel.id}`}
+              className="text-primary hover:underline"
+            >
+              {row.original.hostel.name}
+            </Link>
             <div className="text-xs text-muted-foreground font-mono">
               {row.original.room?.code ?? "-"} / {row.original.bed?.code ?? "-"}
             </div>
@@ -119,7 +128,12 @@ export function SchoolsBoardingContent() {
         header: "Hostel",
         cell: ({ row }) => (
           <div>
-            <div className="font-medium">{row.original.name}</div>
+            <Link
+              href={`/schools/boarding/${row.original.id}`}
+              className="font-medium text-primary hover:underline"
+            >
+              {row.original.name}
+            </Link>
             <div className="text-xs text-muted-foreground">{row.original.genderPolicy}</div>
           </div>
         ),
@@ -161,14 +175,17 @@ export function SchoolsBoardingContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div>
+          <Link
+            href={`/schools/students/${row.original.student.id}`}
+            className="text-primary hover:underline"
+          >
             <div className="font-medium">
               {row.original.student.firstName} {row.original.student.lastName}
             </div>
             <div className="text-xs text-muted-foreground font-mono">
               {row.original.student.studentNo}
             </div>
-          </div>
+          </Link>
         ),
       },
       {

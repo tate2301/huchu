@@ -303,3 +303,50 @@ export async function fetchSchoolsSubjects(params: {
   );
   return response.data;
 }
+
+export type HostelDetail = {
+  id: string;
+  code: string;
+  name: string;
+  genderPolicy: string;
+  capacity: number | null;
+  isActive: boolean;
+  rooms: Array<{
+    id: string;
+    code: string;
+    floor: string | null;
+    capacity: number | null;
+    isActive: boolean;
+    beds: Array<{
+      id: string;
+      code: string;
+      status: string;
+      isActive: boolean;
+    }>;
+    _count: { beds: number; allocations: number };
+  }>;
+  allocations: Array<{
+    id: string;
+    status: string;
+    startDate: string;
+    endDate: string | null;
+    student: {
+      id: string;
+      studentNo: string;
+      firstName: string;
+      lastName: string;
+      status: string;
+    };
+    room: { id: string; code: string } | null;
+    bed: { id: string; code: string } | null;
+    term: { id: string; code: string; name: string } | null;
+  }>;
+  _count: { rooms: number; beds: number; allocations: number };
+};
+
+export async function fetchHostelDetail(hostelId: string) {
+  const response = await fetchJson<ApiResponse<HostelDetail>>(
+    `/api/v2/schools/boarding/hostels/${hostelId}`,
+  );
+  return response.data;
+}
