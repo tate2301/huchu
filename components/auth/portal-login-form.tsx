@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "@/lib/icons";
 
@@ -110,9 +111,7 @@ export function PortalLoginForm({
               )}
 
               <div className="space-y-2">
-                <label htmlFor="portal-email" className="text-sm font-semibold">
-                  Email
-                </label>
+                <Label htmlFor="portal-email">Email</Label>
                 <Input
                   id="portal-email"
                   type="email"
@@ -125,9 +124,7 @@ export function PortalLoginForm({
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="portal-password" className="text-sm font-semibold">
-                  Password
-                </label>
+                <Label htmlFor="portal-password">Password</Label>
                 <Input
                   id="portal-password"
                   type="password"
