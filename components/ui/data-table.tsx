@@ -688,7 +688,7 @@ export function DataTable<TData, TValue>({
   const includeTotals = exportConfig?.includeTotals ?? true;
   const exportTotals = React.useMemo(() => {
     if (!includeTotals || baseExportRows.length === 0 || exportColumns.length === 0) {
-      return [] as Array<{ label: string; value: string }>;
+      return [] as Array<{ key: string; label: string; value: string }>;
     }
 
     return exportColumns
