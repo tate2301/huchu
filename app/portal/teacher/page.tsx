@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TeacherPortalContent } from "@/components/schools/portal/teacher-portal-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function TeacherPortalPage() {
@@ -11,16 +11,12 @@ export default async function TeacherPortalPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeading title="Teacher Portal" description="Portal scaffold" />
-      <Card>
-        <CardHeader>
-          <CardTitle>Teacher portal scaffold</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          This route is gated and ready for teacher portal feature wiring.
-        </CardContent>
-      </Card>
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <PageHeading
+        title="Teacher Portal"
+        description="Moderation queue, sheet progress, and published result visibility."
+      />
+      <TeacherPortalContent />
     </div>
   );
 }
