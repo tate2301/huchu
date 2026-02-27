@@ -62,6 +62,8 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/schools/documents", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/admissions", featureKey: "schools.admissions" },
   { scope: "page", prefix: "/schools/students", featureKey: "schools.students" },
+  { scope: "page", prefix: "/schools/classes", featureKey: "schools.core" },
+  { scope: "page", prefix: "/schools/subjects", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/attendance", featureKey: "schools.attendance" },
   { scope: "page", prefix: "/schools/fees", featureKey: "schools.fees" },
   { scope: "page", prefix: "/schools/boarding", featureKey: "schools.boarding" },

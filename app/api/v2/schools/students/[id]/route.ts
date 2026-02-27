@@ -52,8 +52,8 @@ export async function GET(
         boardingAllocations: {
           include: {
             hostel: { select: { id: true, code: true, name: true } },
-            room: { select: { id: true, code: true, name: true } },
-            bed: { select: { id: true, code: true, name: true } },
+            room: { select: { id: true, code: true, floor: true } },
+            bed: { select: { id: true, code: true, status: true } },
           },
           orderBy: { startDate: "desc" },
         },
