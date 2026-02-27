@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SchoolsResultsContent } from "@/components/schools/results/schools-results-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsResultsPage() {
@@ -11,19 +11,12 @@ export default async function SchoolsResultsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Schools Results"
-        description="Continuous assessment, exams, moderation, and publish scaffold"
+        description="Moderation workflow and publish-readiness visibility."
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Results engine scaffold</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          This route is gated and ready for teacher, HOD, and admin moderation workflows.
-        </CardContent>
-      </Card>
+      <SchoolsResultsContent />
     </div>
   );
 }

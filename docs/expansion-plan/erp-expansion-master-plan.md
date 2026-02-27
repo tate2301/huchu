@@ -249,4 +249,5 @@ Required QA evidence per pack:
 | Date | Branch | Slice | Status | Notes |
 | --- | --- | --- | --- | --- |
 | 2026-02-27 | `feat/platform-expansion-foundation-v1` | Wave 0 base scaffolding | Completed | Feature catalog/bundles, route gating, templates, portal/module route scaffolds, expansion spec docs. |
-| 2026-02-27 | `feat/schools-core-phase1-v1` | Wave 1 Schools core backend (increment 1) | In Progress | Prisma models for schools core + boarding/results state + `/api/v2/schools/*` CRUD/workflow endpoints. |
+| 2026-02-27 | `feat/schools-core-phase1-v1` | Wave 1 Schools core backend (increment 1) | Completed | Prisma models for schools core + boarding/results state + `/api/v2/schools/*` CRUD/workflow endpoints. PR: #33 |
+| 2026-02-27 | `feat/schools-portals-phase2-v1` | Wave 1 Schools portals + module UI/API activation (increment 2) | In Progress | Real `/api/v2/portal/*` payloads, `/api/v2/schools/portal/*` aliases, schools dashboard/boarding/results data views, and portal table UX aligned with playbook. |

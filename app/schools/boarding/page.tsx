@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SchoolsBoardingContent } from "@/components/schools/boarding/schools-boarding-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsBoardingPage() {
@@ -11,19 +11,12 @@ export default async function SchoolsBoardingPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Schools Boarding"
-        description="Hostels, beds, leave/outing, and warden workflow scaffold"
+        description="Hostels, allocations, and occupancy oversight."
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Boarding operations scaffold</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          This route is gated and ready for hostel, bed-allocation, and leave workflows.
-        </CardContent>
-      </Card>
+      <SchoolsBoardingContent />
     </div>
   );
 }
