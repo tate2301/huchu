@@ -239,6 +239,21 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    id: "ventures",
+    title: "Ventures",
+    description: "Line-of-business module scaffolds",
+    items: [
+      { href: "/schools", icon: Building2, label: "Schools" },
+      { href: "/schools/boarding", icon: Home, label: "Schools Boarding" },
+      { href: "/schools/results", icon: FileCheck, label: "Schools Results" },
+      { href: "/car-sales", icon: LocalShipping, label: "Car Sales" },
+      { href: "/thrift", icon: Wallet, label: "Thrift" },
+      { href: "/portal/parent", icon: Users, label: "Parent Portal" },
+      { href: "/portal/student", icon: UserRound, label: "Student Portal" },
+      { href: "/portal/teacher", icon: ManageAccounts, label: "Teacher Portal" },
+    ],
+  },
+  {
     id: "gold",
     title: "Gold Control",
     description: "Simple daily gold tasks",
