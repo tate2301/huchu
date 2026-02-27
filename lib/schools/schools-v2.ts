@@ -26,6 +26,10 @@ export type SchoolsDashboardData = {
     enrollments: number;
     boardingAllocations: number;
     resultSheets: number;
+    feeStructures: number;
+    feeInvoices: number;
+    feeReceipts: number;
+    feeWaivers: number;
   };
   count: number;
   records: Array<{ id: string; name: string }>;

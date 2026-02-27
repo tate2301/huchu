@@ -11,7 +11,7 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchStudentPortalData, type StudentPortalData } from "@/lib/schools/portal-v2";
 
-type StudentPortalView = "enrollments" | "results" | "boarding" | "guardians";
+type StudentPortalView = "enrollments" | "results" | "boarding" | "guardians" | "fees";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -45,6 +45,7 @@ export function StudentPortalContent() {
   const resultsRows = useMemo(() => query.data?.results ?? [], [query.data]);
   const boardingRows = useMemo(() => query.data?.boarding ?? [], [query.data]);
   const guardiansRows = useMemo(() => query.data?.guardians ?? [], [query.data]);
+  const feesRows = useMemo(() => query.data?.fees ?? [], [query.data]);
 
   const enrollmentColumns = useMemo<
     ColumnDef<StudentPortalData["enrollments"][number]>[]
@@ -209,6 +210,59 @@ export function StudentPortalContent() {
     [],
   );
 
+  const feesColumns = useMemo<ColumnDef<StudentPortalData["fees"][number]>[]>(
+    () => [
+      {
+        id: "invoiceNo",
+        header: "Invoice No",
+        cell: ({ row }) => <NumericCell align="left">{row.original.invoiceNo}</NumericCell>,
+      },
+      {
+        id: "term",
+        header: "Term",
+        cell: ({ row }) => row.original.term.name,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.original.status === "PART_PAID" || row.original.status === "ISSUED"
+                ? "secondary"
+                : row.original.status === "VOIDED"
+                  ? "destructive"
+                  : "outline"
+            }
+          >
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "totalAmount",
+        header: "Total",
+        cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "paidAmount",
+        header: "Paid",
+        cell: ({ row }) => <NumericCell>{row.original.paidAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "balanceAmount",
+        header: "Outstanding",
+        cell: ({ row }) => <NumericCell>{row.original.balanceAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "dueDate",
+        header: "Due Date",
+        cell: ({ row }) => <NumericCell>{formatDate(row.original.dueDate)}</NumericCell>,
+      },
+    ],
+    [],
+  );
+
   const student = query.data?.student;
   const summary = query.data?.summary;
 
@@ -221,7 +275,7 @@ export function StudentPortalContent() {
         </Alert>
       ) : null}
 
-      <section className="section-shell grid gap-2 md:grid-cols-4">
+      <section className="section-shell grid gap-2 md:grid-cols-5">
         <div>
           <h2 className="text-sm font-semibold">Student</h2>
           <p className="text-sm text-muted-foreground">
@@ -242,6 +296,10 @@ export function StudentPortalContent() {
           <h2 className="text-sm font-semibold">Active Boarding</h2>
           <p className="font-mono tabular-nums">{summary?.activeBoardingAllocations ?? 0}</p>
         </div>
+        <div>
+          <h2 className="text-sm font-semibold">Outstanding Fees</h2>
+          <p className="font-mono tabular-nums">{(summary?.outstandingBalance ?? 0).toFixed(2)}</p>
+        </div>
       </section>
 
       <VerticalDataViews
@@ -250,6 +308,7 @@ export function StudentPortalContent() {
           { id: "results", label: "Results", count: resultsRows.length },
           { id: "boarding", label: "Boarding", count: boardingRows.length },
           { id: "guardians", label: "Guardians", count: guardiansRows.length },
+          { id: "fees", label: "Fees", count: feesRows.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as StudentPortalView)}
@@ -302,6 +361,18 @@ export function StudentPortalContent() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={query.isLoading ? "Loading guardians..." : "No guardians available."}
+          />
+        </div>
+
+        <div className={activeView === "fees" ? "space-y-2" : "hidden"}>
+          <h2 className="text-section-title">Fees and Balances</h2>
+          <DataTable
+            data={feesRows}
+            columns={feesColumns}
+            searchPlaceholder="Search fee invoices"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={query.isLoading ? "Loading fees..." : "No fee invoices available."}
           />
         </div>
       </VerticalDataViews>

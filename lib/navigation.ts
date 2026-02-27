@@ -246,6 +246,7 @@ export const navSections: NavSection[] = [
       { href: "/schools", icon: Building2, label: "Schools" },
       { href: "/schools/boarding", icon: Home, label: "Schools Boarding" },
       { href: "/schools/results", icon: FileCheck, label: "Schools Results" },
+      { href: "/schools/fees", icon: ReceiptLong, label: "School Fees" },
       { href: "/car-sales", icon: LocalShipping, label: "Car Sales" },
       { href: "/thrift", icon: Wallet, label: "Thrift" },
       { href: "/portal/parent", icon: Users, label: "Parent Portal" },

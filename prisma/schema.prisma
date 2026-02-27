@@ -117,6 +117,13 @@ model Company {
   schoolBoardingAllocations SchoolBoardingAllocation[]
   schoolResultSheets   SchoolResultSheet[]
   schoolResultLines    SchoolResultLine[]
+  schoolFeeStructures  SchoolFeeStructure[]
+  schoolFeeStructureLines SchoolFeeStructureLine[]
+  schoolFeeInvoices    SchoolFeeInvoice[]
+  schoolFeeInvoiceLines SchoolFeeInvoiceLine[]
+  schoolFeeReceipts    SchoolFeeReceipt[]
+  schoolFeeReceiptAllocations SchoolFeeReceiptAllocation[]
+  schoolFeeWaivers     SchoolFeeWaiver[]
   goldPurchases        GoldPurchase[]
   goldPrices          GoldPrice[]
 
@@ -3670,6 +3677,49 @@ enum SchoolBoardingAllocationStatus {
   ENDED
 }
 
+enum SchoolFeeStructureStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum SchoolFeeInvoiceStatus {
+  DRAFT
+  ISSUED
+  PART_PAID
+  PAID
+  VOIDED
+  WRITEOFF
+}
+
+enum SchoolFeeReceiptStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+enum SchoolFeePaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  MOBILE_MONEY
+}
+
+enum SchoolFeeWaiverType {
+  SCHOLARSHIP
+  DISCOUNT
+  HARDSHIP
+  OTHER
+}
+
+enum SchoolFeeWaiverStatus {
+  DRAFT
+  APPROVED
+  APPLIED
+  REJECTED
+  REVERSED
+}
+
 model SchoolAcademicYear {
   id        String   @id @default(uuid())
   companyId String
@@ -3708,6 +3758,9 @@ model SchoolTerm {
   enrollments  SchoolEnrollment[]
   boardingAllocations SchoolBoardingAllocation[]
   resultSheets SchoolResultSheet[]
+  feeStructures SchoolFeeStructure[]
+  feeInvoices  SchoolFeeInvoice[]
+  feeWaivers   SchoolFeeWaiver[]
 
   @@unique([companyId, academicYearId, code])
   @@index([companyId, isActive])
@@ -3732,6 +3785,7 @@ model SchoolClass {
   students     SchoolStudent[]
   enrollments  SchoolEnrollment[]
   resultSheets SchoolResultSheet[]
+  feeStructures SchoolFeeStructure[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -3784,6 +3838,9 @@ model SchoolStudent {
   enrollments    SchoolEnrollment[]
   boardingAllocations SchoolBoardingAllocation[]
   resultLines    SchoolResultLine[]
+  feeInvoices    SchoolFeeInvoice[]
+  feeReceipts    SchoolFeeReceipt[]
+  feeWaivers     SchoolFeeWaiver[]
 
   @@unique([companyId, studentNo])
   @@unique([companyId, admissionNo])
@@ -3986,6 +4043,179 @@ model SchoolResultLine {
 
   @@unique([companyId, sheetId, studentId, subjectCode])
   @@index([companyId, studentId])
+}
+
+model SchoolFeeStructure {
+  id        String                 @id @default(uuid())
+  companyId String
+  termId    String
+  classId   String
+  name      String
+  currency  String                 @default("USD")
+  status    SchoolFeeStructureStatus @default(DRAFT)
+  notes     String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  term     SchoolTerm           @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class    SchoolClass          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  lines    SchoolFeeStructureLine[]
+  invoices SchoolFeeInvoice[]
+
+  @@index([companyId, status])
+  @@unique([companyId, termId, classId, name])
+}
+
+model SchoolFeeStructureLine {
+  id             String   @id @default(uuid())
+  companyId      String
+  feeStructureId String
+  feeCode        String
+  description    String
+  amount         Float
+  isMandatory    Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feeStructure SchoolFeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, feeStructureId, feeCode])
+  @@index([companyId, feeCode])
+}
+
+model SchoolFeeInvoice {
+  id              String               @id @default(uuid())
+  companyId       String
+  invoiceNo       String
+  studentId       String
+  termId          String
+  feeStructureId  String?
+  issueDate       DateTime
+  dueDate         DateTime
+  status          SchoolFeeInvoiceStatus @default(DRAFT)
+  subTotal        Float                @default(0)
+  taxTotal        Float                @default(0)
+  totalAmount     Float                @default(0)
+  paidAmount      Float                @default(0)
+  waivedAmount    Float                @default(0)
+  writeOffAmount  Float                @default(0)
+  balanceAmount   Float                @default(0)
+  notes           String?
+  issuedById      String?
+  issuedAt        DateTime?
+  createdById     String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  company         Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student         SchoolStudent           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term            SchoolTerm              @relation(fields: [termId], references: [id], onDelete: Cascade)
+  feeStructure    SchoolFeeStructure?     @relation(fields: [feeStructureId], references: [id], onDelete: SetNull)
+  lines           SchoolFeeInvoiceLine[]
+  receiptAllocations SchoolFeeReceiptAllocation[]
+  waivers         SchoolFeeWaiver[]
+
+  @@unique([companyId, invoiceNo])
+  @@index([companyId, status])
+  @@index([studentId, termId])
+}
+
+model SchoolFeeInvoiceLine {
+  id          String   @id @default(uuid())
+  companyId   String
+  invoiceId   String
+  feeCode     String
+  description String
+  quantity    Float    @default(1)
+  unitAmount  Float
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice SchoolFeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, feeCode])
+  @@index([invoiceId])
+}
+
+model SchoolFeeReceipt {
+  id               String                 @id @default(uuid())
+  companyId        String
+  receiptNo        String
+  studentId        String
+  receiptDate      DateTime
+  paymentMethod    SchoolFeePaymentMethod
+  reference        String?
+  amountReceived   Float
+  amountAllocated  Float                  @default(0)
+  amountUnallocated Float                 @default(0)
+  status           SchoolFeeReceiptStatus @default(DRAFT)
+  notes            String?
+  postedById       String?
+  postedAt         DateTime?
+  voidedById       String?
+  voidedAt         DateTime?
+  createdById      String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  company     Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student     SchoolStudent              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  allocations SchoolFeeReceiptAllocation[]
+
+  @@unique([companyId, receiptNo])
+  @@index([companyId, status])
+  @@index([studentId, receiptDate])
+}
+
+model SchoolFeeReceiptAllocation {
+  id              String   @id @default(uuid())
+  companyId       String
+  receiptId       String
+  invoiceId       String
+  allocatedAmount Float
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  receipt SchoolFeeReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  invoice SchoolFeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, receiptId, invoiceId])
+  @@index([invoiceId])
+}
+
+model SchoolFeeWaiver {
+  id           String                @id @default(uuid())
+  companyId    String
+  studentId    String
+  termId       String
+  invoiceId    String?
+  waiverType   SchoolFeeWaiverType
+  reason       String?
+  amount       Float
+  status       SchoolFeeWaiverStatus @default(DRAFT)
+  approvedById String?
+  approvedAt   DateTime?
+  appliedById  String?
+  appliedAt    DateTime?
+  createdById  String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student SchoolStudent     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term    SchoolTerm        @relation(fields: [termId], references: [id], onDelete: Cascade)
+  invoice SchoolFeeInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([studentId, termId])
 }
 
 // ============================================

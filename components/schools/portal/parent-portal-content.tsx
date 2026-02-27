@@ -11,7 +11,7 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchParentPortalData, type ParentPortalData } from "@/lib/schools/portal-v2";
 
-type ParentPortalView = "children" | "results" | "boarding";
+type ParentPortalView = "children" | "results" | "boarding" | "fees";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -52,6 +52,7 @@ export function ParentPortalContent() {
   const childrenRows = useMemo(() => query.data?.children ?? [], [query.data]);
   const resultsRows = useMemo(() => query.data?.results ?? [], [query.data]);
   const boardingRows = useMemo(() => query.data?.boarding ?? [], [query.data]);
+  const feesRows = useMemo(() => query.data?.fees ?? [], [query.data]);
 
   const childrenColumns = useMemo<
     ColumnDef<ParentPortalData["children"][number]>[]
@@ -228,6 +229,65 @@ export function ParentPortalContent() {
     [],
   );
 
+  const feesColumns = useMemo<ColumnDef<ParentPortalData["fees"][number]>[]>(
+    () => [
+      {
+        id: "invoiceNo",
+        header: "Invoice No",
+        cell: ({ row }) => <NumericCell align="left">{row.original.invoiceNo}</NumericCell>,
+      },
+      {
+        id: "student",
+        header: "Student",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">
+              {row.original.student.firstName} {row.original.student.lastName}
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">
+              {row.original.student.studentNo}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "term",
+        header: "Term",
+        cell: ({ row }) => row.original.term.name,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "PART_PAID" || row.original.status === "ISSUED" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "totalAmount",
+        header: "Total",
+        cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "paidAmount",
+        header: "Paid",
+        cell: ({ row }) => <NumericCell>{row.original.paidAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "balanceAmount",
+        header: "Outstanding",
+        cell: ({ row }) => <NumericCell>{row.original.balanceAmount.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "dueDate",
+        header: "Due Date",
+        cell: ({ row }) => <NumericCell>{formatDate(row.original.dueDate)}</NumericCell>,
+      },
+    ],
+    [],
+  );
+
   const guardian = query.data?.guardian;
   const summary = query.data?.summary;
 
@@ -240,7 +300,7 @@ export function ParentPortalContent() {
         </Alert>
       ) : null}
 
-      <section className="section-shell grid gap-2 md:grid-cols-4">
+      <section className="section-shell grid gap-2 md:grid-cols-5">
         <div>
           <h2 className="text-sm font-semibold">Linked Guardian</h2>
           <p className="text-sm text-muted-foreground">
@@ -263,6 +323,10 @@ export function ParentPortalContent() {
             {summary?.activeBoardingAllocations ?? 0}
           </p>
         </div>
+        <div>
+          <h2 className="text-sm font-semibold">Outstanding Fees</h2>
+          <p className="font-mono tabular-nums">{(summary?.outstandingBalance ?? 0).toFixed(2)}</p>
+        </div>
       </section>
 
       <VerticalDataViews
@@ -270,6 +334,7 @@ export function ParentPortalContent() {
           { id: "children", label: "Children", count: childrenRows.length },
           { id: "results", label: "Published Results", count: resultsRows.length },
           { id: "boarding", label: "Boarding", count: boardingRows.length },
+          { id: "fees", label: "Fees", count: feesRows.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as ParentPortalView)}
@@ -310,6 +375,18 @@ export function ParentPortalContent() {
             emptyState={
               query.isLoading ? "Loading boarding allocations..." : "No boarding records available."
             }
+          />
+        </div>
+
+        <div className={activeView === "fees" ? "space-y-2" : "hidden"}>
+          <h2 className="text-section-title">Fees and Balances</h2>
+          <DataTable
+            data={feesRows}
+            columns={feesColumns}
+            searchPlaceholder="Search fee invoices"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={query.isLoading ? "Loading fees..." : "No fee invoices available."}
           />
         </div>
       </VerticalDataViews>
