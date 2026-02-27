@@ -10,11 +10,13 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
+  fetchSchoolsBoardingLeaveRequests,
   fetchSchoolsBoardingData,
+  type SchoolsBoardingLeaveRequestData,
   type SchoolsBoardingData,
 } from "@/lib/schools/schools-v2";
 
-type BoardingView = "allocations" | "hostels";
+type BoardingView = "allocations" | "hostels" | "leaveRequests";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -37,9 +39,17 @@ export function SchoolsBoardingContent() {
     queryKey: ["schools", "boarding", "dashboard"],
     queryFn: () => fetchSchoolsBoardingData({ page: 1, limit: 200 }),
   });
+  const leaveRequestsQuery = useQuery({
+    queryKey: ["schools", "boarding", "leave-requests"],
+    queryFn: () => fetchSchoolsBoardingLeaveRequests({ page: 1, limit: 200 }),
+  });
 
   const allocationsRows = useMemo(() => query.data?.data ?? [], [query.data]);
   const hostelsRows = useMemo(() => query.data?.hostels ?? [], [query.data]);
+  const leaveRequestRows = useMemo(
+    () => leaveRequestsQuery.data?.data ?? [],
+    [leaveRequestsQuery.data],
+  );
 
   const allocationColumns = useMemo<
     ColumnDef<SchoolsBoardingData["data"][number]>[]
@@ -143,14 +153,88 @@ export function SchoolsBoardingContent() {
     [],
   );
 
+  const leaveRequestColumns = useMemo<
+    ColumnDef<SchoolsBoardingLeaveRequestData["data"][number]>[]
+  >(
+    () => [
+      {
+        id: "student",
+        header: "Student",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">
+              {row.original.student.firstName} {row.original.student.lastName}
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">
+              {row.original.student.studentNo}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "requestType",
+        header: "Type",
+        cell: ({ row }) => (
+          <Badge variant={row.original.requestType === "LEAVE" ? "secondary" : "outline"}>
+            {row.original.requestType}
+          </Badge>
+        ),
+      },
+      {
+        id: "window",
+        header: "Window",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono text-xs">{formatDate(row.original.startDateTime)}</div>
+            <div className="font-mono text-xs text-muted-foreground">
+              {formatDate(row.original.endDateTime)}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "destination",
+        header: "Destination",
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.destination}</div>
+            <div className="text-xs text-muted-foreground">{row.original.guardianContact}</div>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          if (row.original.status === "APPROVED" || row.original.status === "CHECKED_IN") {
+            return <Badge variant="secondary">{row.original.status}</Badge>;
+          }
+          if (row.original.status === "REJECTED" || row.original.status === "CANCELED") {
+            return <Badge variant="destructive">{row.original.status}</Badge>;
+          }
+          return <Badge variant="outline">{row.original.status}</Badge>;
+        },
+      },
+      {
+        id: "logs",
+        header: "Movement Logs",
+        cell: ({ row }) => <NumericCell>{row.original.movementLogs.length}</NumericCell>,
+      },
+    ],
+    [],
+  );
+
   const summary = query.data?.summary;
+  const hasError = query.error || leaveRequestsQuery.error;
 
   return (
     <div className="space-y-4">
-      {query.error ? (
+      {hasError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load boarding data</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(query.error || leaveRequestsQuery.error)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -181,6 +265,11 @@ export function SchoolsBoardingContent() {
         items={[
           { id: "allocations", label: "Allocations", count: allocationsRows.length },
           { id: "hostels", label: "Hostels", count: hostelsRows.length },
+          {
+            id: "leaveRequests",
+            label: "Leave / Outing Requests",
+            count: leaveRequestRows.length,
+          },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as BoardingView)}
@@ -206,6 +295,21 @@ export function SchoolsBoardingContent() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={query.isLoading ? "Loading hostels..." : "No hostels available."}
+          />
+        </div>
+        <div className={activeView === "leaveRequests" ? "space-y-2" : "hidden"}>
+          <h2 className="text-section-title">Leave and Outing Workflow</h2>
+          <DataTable
+            data={leaveRequestRows}
+            columns={leaveRequestColumns}
+            searchPlaceholder="Search leave requests"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={
+              leaveRequestsQuery.isLoading
+                ? "Loading leave requests..."
+                : "No leave requests available."
+            }
           />
         </div>
       </VerticalDataViews>

@@ -48,6 +48,17 @@ export type ParentPortalData = {
       }>;
     };
   }>;
+  attendance: Array<{
+    studentId: string;
+    studentNo: string;
+    studentName: string;
+    studentStatus: string;
+    className: string | null;
+    streamName: string | null;
+    activeEnrollment: boolean;
+    activeTermName: string | null;
+    isBoarding: boolean;
+  }>;
   results: Array<{
     id: string;
     studentId: string;
@@ -105,11 +116,24 @@ export type ParentPortalData = {
     };
     term: { id: string; code: string; name: string };
   }>;
+  notices: Array<{
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    severity: string;
+    createdAt: string;
+    expiresAt: string | null;
+    isRead: boolean;
+    viewPath: string | null;
+  }>;
   summary: {
     linkedChildren: number;
+    attendanceProfiles: number;
     publishedResultLines: number;
     activeBoardingAllocations: number;
     outstandingBalance: number;
+    unreadNotices: number;
     hasLinkedGuardian: boolean;
   };
 };
@@ -151,6 +175,17 @@ export type StudentPortalData = {
       email: string | null;
     };
   }>;
+  attendance: Array<{
+    studentId: string;
+    studentNo: string;
+    studentName: string;
+    studentStatus: string;
+    className: string | null;
+    streamName: string | null;
+    isBoarding: boolean;
+    activeEnrollment: boolean;
+    enrollmentRecords: number;
+  }>;
   boarding: Array<{
     id: string;
     status: string;
@@ -189,12 +224,24 @@ export type StudentPortalData = {
     balanceAmount: number;
     term: { id: string; code: string; name: string };
   }>;
+  notices: Array<{
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    severity: string;
+    createdAt: string;
+    expiresAt: string | null;
+    isRead: boolean;
+    viewPath: string | null;
+  }>;
   summary: {
     hasLinkedStudent: boolean;
     enrollmentRecords: number;
     publishedResultLines: number;
     activeBoardingAllocations: number;
     outstandingBalance: number;
+    unreadNotices: number;
   };
 };
 
@@ -227,6 +274,17 @@ export type TeacherPortalData = {
     isHod: boolean;
     isActive: boolean;
   } | null;
+  notices: Array<{
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    severity: string;
+    createdAt: string;
+    expiresAt: string | null;
+    isRead: boolean;
+    viewPath: string | null;
+  }>;
   assignmentSummary: {
     assignments: number;
     uniqueClasses: number;
@@ -245,6 +303,7 @@ export type TeacherPortalData = {
     hodRejectedSheets: number;
     hodApprovedSheets: number;
     publishedSheets: number;
+    unreadNotices: number;
   };
 };
 

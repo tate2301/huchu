@@ -14,7 +14,7 @@ import {
   type TeacherPortalRecord,
 } from "@/lib/schools/portal-v2";
 
-type TeacherPortalView = "queue" | "my-sheets" | "published";
+type TeacherPortalView = "queue" | "my-sheets" | "published" | "notices";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -40,6 +40,7 @@ export function TeacherPortalContent() {
   });
 
   const records = useMemo(() => query.data?.data ?? [], [query.data]);
+  const noticesRows = useMemo(() => query.data?.notices ?? [], [query.data]);
 
   const moderationQueueRows = useMemo(
     () =>
@@ -109,6 +110,58 @@ export function TeacherPortalContent() {
     [],
   );
 
+  const noticesColumns = useMemo<ColumnDef<(typeof noticesRows)[number]>[]>(
+    () => [
+      {
+        id: "createdAt",
+        header: "Date",
+        cell: ({ row }) => <NumericCell>{formatDate(row.original.createdAt)}</NumericCell>,
+      },
+      {
+        id: "title",
+        header: "Notice",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.title}</div>
+            <div className="text-xs text-muted-foreground">{row.original.summary}</div>
+          </div>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        cell: ({ row }) => <NumericCell align="left">{row.original.type}</NumericCell>,
+      },
+      {
+        id: "severity",
+        header: "Severity",
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.original.severity === "CRITICAL"
+                ? "destructive"
+                : row.original.severity === "WARNING"
+                  ? "secondary"
+                  : "outline"
+            }
+          >
+            {row.original.severity}
+          </Badge>
+        ),
+      },
+      {
+        id: "isRead",
+        header: "Read",
+        cell: ({ row }) => (
+          <Badge variant={row.original.isRead ? "outline" : "secondary"}>
+            {row.original.isRead ? "Read" : "Unread"}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
   const summary = query.data?.summary;
   const assignmentSummary = query.data?.assignmentSummary;
   const teacherProfile = query.data?.teacherProfile;
@@ -131,7 +184,7 @@ export function TeacherPortalContent() {
         </Alert>
       ) : null}
 
-      <section className="section-shell grid gap-2 md:grid-cols-8">
+      <section className="section-shell grid gap-2 md:grid-cols-9">
         <div>
           <h2 className="text-sm font-semibold">Draft</h2>
           <p className="font-mono tabular-nums">{summary?.draftSheets ?? 0}</p>
@@ -164,6 +217,10 @@ export function TeacherPortalContent() {
           <h2 className="text-sm font-semibold">Assigned Terms</h2>
           <p className="font-mono tabular-nums">{assignmentSummary?.uniqueTerms ?? 0}</p>
         </div>
+        <div>
+          <h2 className="text-sm font-semibold">Unread Notices</h2>
+          <p className="font-mono tabular-nums">{summary?.unreadNotices ?? 0}</p>
+        </div>
       </section>
 
       <VerticalDataViews
@@ -171,6 +228,7 @@ export function TeacherPortalContent() {
           { id: "queue", label: "Moderation Queue", count: moderationQueueRows.length },
           { id: "my-sheets", label: "My Sheets", count: mySheetsRows.length },
           { id: "published", label: "Published", count: publishedRows.length },
+          { id: "notices", label: "Notices", count: noticesRows.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as TeacherPortalView)}
@@ -209,6 +267,18 @@ export function TeacherPortalContent() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={query.isLoading ? "Loading published sheets..." : "No published sheets yet."}
+          />
+        </div>
+
+        <div className={activeView === "notices" ? "space-y-2" : "hidden"}>
+          <h2 className="text-section-title">Portal Notices</h2>
+          <DataTable
+            data={noticesRows}
+            columns={noticesColumns}
+            searchPlaceholder="Search notices"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={query.isLoading ? "Loading notices..." : "No notices available."}
           />
         </div>
       </VerticalDataViews>

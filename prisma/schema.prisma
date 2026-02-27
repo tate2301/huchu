@@ -115,6 +115,8 @@ model Company {
   schoolHostelRooms    SchoolHostelRoom[]
   schoolHostelBeds     SchoolHostelBed[]
   schoolBoardingAllocations SchoolBoardingAllocation[]
+  schoolLeaveRequests  SchoolLeaveRequest[]
+  schoolBoardingMovementLogs SchoolBoardingMovementLog[]
   schoolResultSheets   SchoolResultSheet[]
   schoolResultLines    SchoolResultLine[]
   schoolResultModerationActions SchoolResultModerationAction[]
@@ -776,6 +778,11 @@ model User {
   featureFlags                  UserFeatureFlag[]
   schoolTeacherProfiles         SchoolTeacherProfile[]
   schoolResultModerationActions SchoolResultModerationAction[] @relation("SchoolResultModerationActionActor")
+  schoolLeaveRequestsApproved   SchoolLeaveRequest[] @relation("SchoolLeaveRequestApprovedBy")
+  schoolLeaveRequestsCheckedOut SchoolLeaveRequest[] @relation("SchoolLeaveRequestCheckedOutBy")
+  schoolLeaveRequestsCheckedIn  SchoolLeaveRequest[] @relation("SchoolLeaveRequestCheckedInBy")
+  schoolLeaveRequestsCreated    SchoolLeaveRequest[] @relation("SchoolLeaveRequestCreatedBy")
+  schoolBoardingMovementsRecorded SchoolBoardingMovementLog[] @relation("SchoolBoardingMovementRecordedBy")
   carSalesAssignedLeads         CarSalesLead[]       @relation("CarSalesLeadAssignedTo")
   carSalesDeals                 CarSalesDeal[]       @relation("CarSalesDealSalesperson")
   carSalesPaymentsReceived      CarSalesPayment[]    @relation("CarSalesPaymentReceivedBy")
@@ -3705,6 +3712,28 @@ enum SchoolBoardingAllocationStatus {
   ENDED
 }
 
+enum SchoolLeaveRequestType {
+  LEAVE
+  OUTING
+}
+
+enum SchoolLeaveRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  CHECKED_OUT
+  CHECKED_IN
+  REJECTED
+  CANCELED
+}
+
+enum SchoolBoardingMovementType {
+  CHECK_OUT
+  CHECK_IN
+  TRANSFER
+  BED_RELEASE
+}
+
 enum SchoolFeeStructureStatus {
   DRAFT
   ACTIVE
@@ -3791,6 +3820,7 @@ model SchoolTerm {
   feeStructures SchoolFeeStructure[]
   feeInvoices  SchoolFeeInvoice[]
   feeWaivers   SchoolFeeWaiver[]
+  leaveRequests SchoolLeaveRequest[]
 
   @@unique([companyId, academicYearId, code])
   @@index([companyId, isActive])
@@ -3934,6 +3964,8 @@ model SchoolStudent {
   guardianLinks  SchoolStudentGuardian[]
   enrollments    SchoolEnrollment[]
   boardingAllocations SchoolBoardingAllocation[]
+  leaveRequests SchoolLeaveRequest[]
+  boardingMovementLogs SchoolBoardingMovementLog[]
   resultLines    SchoolResultLine[]
   feeInvoices    SchoolFeeInvoice[]
   feeReceipts    SchoolFeeReceipt[]
@@ -4090,9 +4122,69 @@ model SchoolBoardingAllocation {
   hostel  SchoolHostel  @relation(fields: [hostelId], references: [id], onDelete: Cascade)
   room    SchoolHostelRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
   bed     SchoolHostelBed?  @relation(fields: [bedId], references: [id], onDelete: SetNull)
+  leaveRequests SchoolLeaveRequest[]
 
   @@index([companyId, status])
   @@index([studentId, termId])
+}
+
+model SchoolLeaveRequest {
+  id            String                  @id @default(uuid())
+  companyId     String
+  studentId     String
+  allocationId  String
+  termId        String?
+  requestType   SchoolLeaveRequestType
+  startDateTime DateTime
+  endDateTime   DateTime
+  destination   String
+  guardianContact String
+  status        SchoolLeaveRequestStatus @default(DRAFT)
+  reason        String?
+  approvedById  String?
+  approvedAt    DateTime?
+  checkedOutById String?
+  checkedOutAt  DateTime?
+  checkedInById String?
+  checkedInAt   DateTime?
+  createdById   String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student       SchoolStudent            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  allocation    SchoolBoardingAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  term          SchoolTerm?              @relation(fields: [termId], references: [id], onDelete: SetNull)
+  approvedBy    User?                    @relation("SchoolLeaveRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  checkedOutBy  User?                    @relation("SchoolLeaveRequestCheckedOutBy", fields: [checkedOutById], references: [id], onDelete: SetNull)
+  checkedInBy   User?                    @relation("SchoolLeaveRequestCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  createdBy     User?                    @relation("SchoolLeaveRequestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  movementLogs  SchoolBoardingMovementLog[]
+
+  @@index([companyId, status, startDateTime])
+  @@index([companyId, studentId, createdAt])
+  @@index([companyId, allocationId, status])
+}
+
+model SchoolBoardingMovementLog {
+  id            String                    @id @default(uuid())
+  companyId     String
+  leaveRequestId String
+  studentId     String
+  movementType  SchoolBoardingMovementType
+  recordedById  String
+  recordedAt    DateTime                  @default(now())
+  notes         String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  company       Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leaveRequest  SchoolLeaveRequest        @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  student       SchoolStudent             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedBy    User                      @relation("SchoolBoardingMovementRecordedBy", fields: [recordedById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, leaveRequestId, recordedAt])
+  @@index([companyId, studentId, recordedAt])
 }
 
 model SchoolResultSheet {

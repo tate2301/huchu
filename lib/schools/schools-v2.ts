@@ -90,6 +90,62 @@ export type SchoolsBoardingData = {
   };
 };
 
+export type SchoolsBoardingLeaveRequestData = {
+  data: Array<{
+    id: string;
+    requestType: "LEAVE" | "OUTING";
+    status:
+      | "DRAFT"
+      | "SUBMITTED"
+      | "APPROVED"
+      | "CHECKED_OUT"
+      | "CHECKED_IN"
+      | "REJECTED"
+      | "CANCELED";
+    startDateTime: string;
+    endDateTime: string;
+    destination: string;
+    guardianContact: string;
+    reason: string | null;
+    approvedAt: string | null;
+    checkedOutAt: string | null;
+    checkedInAt: string | null;
+    student: {
+      id: string;
+      studentNo: string;
+      firstName: string;
+      lastName: string;
+      status: string;
+      isBoarding: boolean;
+    };
+    term: { id: string; code: string; name: string; isActive: boolean } | null;
+    allocation: {
+      id: string;
+      termId: string;
+      status: string;
+      startDate: string;
+      endDate: string | null;
+      hostel: { id: string; code: string; name: string };
+      room: { id: string; code: string } | null;
+      bed: { id: string; code: string; status: string } | null;
+    };
+    movementLogs: Array<{
+      id: string;
+      movementType: "CHECK_OUT" | "CHECK_IN" | "TRANSFER" | "BED_RELEASE";
+      recordedAt: string;
+      notes: string | null;
+      recordedBy: { id: string; name: string; email: string };
+    }>;
+  }>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+    hasMore: boolean;
+  };
+};
+
 export type SchoolsResultsData = {
   resource: "schools-results";
   companyId: string;
@@ -170,6 +226,29 @@ export async function fetchSchoolsResultsData(params: {
   const query = buildQuery(params);
   const response = await fetchJson<ApiResponse<SchoolsResultsData>>(
     `/api/v2/schools/results${query}`,
+  );
+  return response.data;
+}
+
+export async function fetchSchoolsBoardingLeaveRequests(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  studentId?: string;
+  allocationId?: string;
+  status?:
+    | "DRAFT"
+    | "SUBMITTED"
+    | "APPROVED"
+    | "CHECKED_OUT"
+    | "CHECKED_IN"
+    | "REJECTED"
+    | "CANCELED";
+  requestType?: "LEAVE" | "OUTING";
+} = {}) {
+  const query = buildQuery(params);
+  const response = await fetchJson<ApiResponse<SchoolsBoardingLeaveRequestData>>(
+    `/api/v2/schools/boarding/leave-requests${query}`,
   );
   return response.data;
 }

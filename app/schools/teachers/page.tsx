@@ -1,10 +1,10 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/layout/page-heading";
-import { CarSalesLeadsContent } from "@/components/car-sales/leads/car-sales-leads-content";
+import { SchoolsTeachersContent } from "@/components/schools/teachers/schools-teachers-content";
 import { authOptions } from "@/lib/auth";
 
-export default async function CarSalesLeadsPage() {
+export default async function SchoolsTeachersPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     redirect("/login");
@@ -13,10 +13,10 @@ export default async function CarSalesLeadsPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Car Sales Leads"
-        description="Lead capture, qualification, and assignment pipeline."
+        title="Teachers"
+        description="Teacher profiles, subjects, and assignment governance."
       />
-      <CarSalesLeadsContent />
+      <SchoolsTeachersContent />
     </div>
   );
 }

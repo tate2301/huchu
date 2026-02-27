@@ -106,6 +106,26 @@ export type AutosDeal = {
   updatedAt: string;
 };
 
+export type AutosPayment = {
+  id: string;
+  paymentNo: string;
+  paymentDate: string;
+  paymentMethod: "CASH" | "BANK_TRANSFER" | "CARD" | "MOBILE_MONEY";
+  status: "POSTED" | "VOIDED" | "REFUNDED";
+  amount: number;
+  reference: string | null;
+  deal: {
+    id: string;
+    dealNo: string;
+    customerName: string;
+    status: string;
+    netAmount: number;
+    paidAmount: number;
+    balanceAmount: number;
+  };
+  receivedBy: { id: string; name: string; email: string } | null;
+};
+
 export async function fetchAutosSummary() {
   const response = await fetchJson<ApiResponse<AutosSummaryData>>("/api/v2/autos");
   return response.data;
@@ -148,6 +168,20 @@ export async function fetchAutosDeals(params: {
   const query = buildQuery(params);
   const response = await fetchJson<ApiResponse<PaginatedResponse<AutosDeal>>>(
     `/api/v2/autos/deals${query}`,
+  );
+  return response.data;
+}
+
+export async function fetchAutosPayments(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  dealId?: string;
+} = {}) {
+  const query = buildQuery(params);
+  const response = await fetchJson<ApiResponse<PaginatedResponse<AutosPayment>>>(
+    `/api/v2/autos/financing${query}`,
   );
   return response.data;
 }

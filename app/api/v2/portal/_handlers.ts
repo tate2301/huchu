@@ -46,6 +46,70 @@ function buildPortalEnvelope<T>(resource: string, companyId: string, payload: T)
   });
 }
 
+type PortalNoticeRecord = {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+  severity: string;
+  createdAt: Date;
+  expiresAt: Date | null;
+  isRead: boolean;
+  viewPath: string | null;
+};
+
+function parseViewPath(payloadJson?: string | null) {
+  if (!payloadJson) return null;
+  try {
+    const parsed = JSON.parse(payloadJson) as Record<string, unknown>;
+    return typeof parsed.viewPath === "string" ? parsed.viewPath : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPortalNotices(companyId: string, userId: string) {
+  const now = new Date();
+  const rows = await prisma.notificationRecipient.findMany({
+    where: {
+      userId,
+      isArchived: false,
+      notification: {
+        companyId,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+    },
+    include: {
+      notification: {
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          summary: true,
+          severity: true,
+          payloadJson: true,
+          createdAt: true,
+          expiresAt: true,
+        },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take: 60,
+  });
+
+  return rows.map<PortalNoticeRecord>((row) => ({
+    id: row.notification.id,
+    type: row.notification.type,
+    title: row.notification.title,
+    summary: row.notification.summary,
+    severity: row.notification.severity,
+    createdAt: row.notification.createdAt,
+    expiresAt: row.notification.expiresAt,
+    isRead: row.isRead,
+    viewPath: parseViewPath(row.notification.payloadJson),
+  }));
+}
+
 export async function handleParentPortalGet(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
@@ -60,20 +124,25 @@ export async function handleParentPortalGet(request: NextRequest) {
 
     const companyId = session.user.companyId;
     const role = session.user.role;
+    const notices = await fetchPortalNotices(companyId, session.user.id);
 
     const privileged = isPrivilegedRole(role);
     if (!privileged && !session.user.email) {
       return buildPortalEnvelope("portal-parent", companyId, {
         guardian: null,
         children: [],
+        attendance: [],
         results: [],
         boarding: [],
         fees: [],
+        notices,
         summary: {
           linkedChildren: 0,
+          attendanceProfiles: 0,
           publishedResultLines: 0,
           activeBoardingAllocations: 0,
           outstandingBalance: 0,
+          unreadNotices: notices.filter((notice) => !notice.isRead).length,
           hasLinkedGuardian: false,
         },
       });
@@ -118,14 +187,18 @@ export async function handleParentPortalGet(request: NextRequest) {
       return buildPortalEnvelope("portal-parent", companyId, {
         guardian: null,
         children: [],
+        attendance: [],
         results: [],
         boarding: [],
         fees: [],
+        notices,
         summary: {
           linkedChildren: 0,
+          attendanceProfiles: 0,
           publishedResultLines: 0,
           activeBoardingAllocations: 0,
           outstandingBalance: 0,
+          unreadNotices: notices.filter((notice) => !notice.isRead).length,
           hasLinkedGuardian: false,
         },
       });
@@ -265,6 +338,21 @@ export async function handleParentPortalGet(request: NextRequest) {
         : Promise.resolve([]),
     ]);
 
+    const attendance = links.map((link) => {
+      const activeEnrollment = link.student.enrollments[0] ?? null;
+      return {
+        studentId: link.student.id,
+        studentNo: link.student.studentNo,
+        studentName: `${link.student.firstName} ${link.student.lastName}`,
+        studentStatus: link.student.status,
+        className: link.student.currentClass?.name ?? null,
+        streamName: link.student.currentStream?.name ?? null,
+        activeEnrollment: Boolean(activeEnrollment),
+        activeTermName: activeEnrollment?.term.name ?? null,
+        isBoarding: link.student.isBoarding,
+      };
+    });
+
     return buildPortalEnvelope("portal-parent", companyId, {
       guardian,
       children: links.map((link) => ({
@@ -275,11 +363,14 @@ export async function handleParentPortalGet(request: NextRequest) {
         canReceiveAcademicResults: link.canReceiveAcademicResults,
         student: link.student,
       })),
+      attendance,
       results: resultLines,
       boarding: boardingAllocations,
       fees: feeInvoices,
+      notices,
       summary: {
         linkedChildren: links.length,
+        attendanceProfiles: attendance.length,
         publishedResultLines: resultLines.length,
         activeBoardingAllocations: boardingAllocations.filter(
           (allocation) => allocation.status === "ACTIVE",
@@ -288,6 +379,7 @@ export async function handleParentPortalGet(request: NextRequest) {
           (sum, invoice) => sum + Math.max(invoice.balanceAmount, 0),
           0,
         ),
+        unreadNotices: notices.filter((notice) => !notice.isRead).length,
         hasLinkedGuardian: true,
       },
     });
@@ -306,6 +398,7 @@ export async function handleStudentPortalGet(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
+    const notices = await fetchPortalNotices(companyId, session.user.id);
     const privileged = isPrivilegedRole(session.user.role);
 
     const { searchParams } = new URL(request.url);
@@ -352,15 +445,18 @@ export async function handleStudentPortalGet(request: NextRequest) {
         student: null,
         enrollments: [],
         guardians: [],
+        attendance: [],
         boarding: [],
         results: [],
         fees: [],
+        notices,
         summary: {
           hasLinkedStudent: false,
           enrollmentRecords: 0,
           publishedResultLines: 0,
           activeBoardingAllocations: 0,
           outstandingBalance: 0,
+          unreadNotices: notices.filter((notice) => !notice.isRead).length,
         },
       });
     }
@@ -439,13 +535,29 @@ export async function handleStudentPortalGet(request: NextRequest) {
         }),
       ]);
 
+    const attendance = [
+      {
+        studentId: student.id,
+        studentNo: student.studentNo,
+        studentName: `${student.firstName} ${student.lastName}`,
+        studentStatus: student.status,
+        className: student.currentClass?.name ?? null,
+        streamName: student.currentStream?.name ?? null,
+        isBoarding: student.isBoarding,
+        activeEnrollment: enrollments.some((row) => row.status === "ACTIVE"),
+        enrollmentRecords: enrollments.length,
+      },
+    ];
+
     return buildPortalEnvelope("portal-student", companyId, {
       student,
       enrollments,
       guardians: guardianLinks,
+      attendance,
       boarding: boardingAllocations,
       results: resultLines,
       fees: feeInvoices,
+      notices,
       summary: {
         hasLinkedStudent: true,
         enrollmentRecords: enrollments.length,
@@ -457,6 +569,7 @@ export async function handleStudentPortalGet(request: NextRequest) {
           (sum, invoice) => sum + Math.max(invoice.balanceAmount, 0),
           0,
         ),
+        unreadNotices: notices.filter((notice) => !notice.isRead).length,
       },
     });
   } catch (error) {
@@ -487,6 +600,7 @@ export async function handleTeacherPortalGet(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
+    const notices = await fetchPortalNotices(companyId, session.user.id);
 
     const { searchParams } = new URL(request.url);
     const { page, limit, skip } = getPaginationParams(request);
@@ -541,6 +655,7 @@ export async function handleTeacherPortalGet(request: NextRequest) {
         return buildPortalEnvelope("portal-teacher", companyId, {
           ...empty,
           teacherProfile,
+          notices,
           assignmentSummary: {
             assignments: 0,
             uniqueClasses: 0,
@@ -552,6 +667,7 @@ export async function handleTeacherPortalGet(request: NextRequest) {
             hodRejectedSheets: 0,
             hodApprovedSheets: 0,
             publishedSheets: 0,
+            unreadNotices: notices.filter((notice) => !notice.isRead).length,
           },
         });
       }
@@ -646,6 +762,7 @@ export async function handleTeacherPortalGet(request: NextRequest) {
     return buildPortalEnvelope("portal-teacher", companyId, {
       ...paged,
       teacherProfile,
+      notices,
       assignmentSummary: {
         assignments: assignments.length,
         uniqueClasses: new Set(assignments.map((assignment) => assignment.classId))
@@ -658,6 +775,7 @@ export async function handleTeacherPortalGet(request: NextRequest) {
         hodRejectedSheets: queueCounts[2],
         hodApprovedSheets: queueCounts[3],
         publishedSheets: queueCounts[4],
+        unreadNotices: notices.filter((notice) => !notice.isRead).length,
       },
     });
   } catch (error) {

@@ -22,6 +22,18 @@ export const schoolBoardingAllocationStatusSchema = z.enum([
   "ENDED",
 ]);
 
+export const schoolLeaveRequestTypeSchema = z.enum(["LEAVE", "OUTING"]);
+
+export const schoolLeaveRequestStatusSchema = z.enum([
+  "DRAFT",
+  "SUBMITTED",
+  "APPROVED",
+  "CHECKED_OUT",
+  "CHECKED_IN",
+  "REJECTED",
+  "CANCELED",
+]);
+
 export const schoolResultSheetStatusSchema = z.enum([
   "DRAFT",
   "SUBMITTED",
@@ -64,4 +76,3 @@ export function isUniqueConstraintError(error: unknown) {
     error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
   );
 }
-
