@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CarSalesContent } from "@/components/car-sales/car-sales-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function CarSalesPage() {
@@ -11,16 +11,12 @@ export default async function CarSalesPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeading title="Car Sales" description="Module scaffold" />
-      <Card>
-        <CardHeader>
-          <CardTitle>Car sales module scaffold</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          This route is gated and ready for car sales feature wiring.
-        </CardContent>
-      </Card>
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <PageHeading
+        title="Car Sales"
+        description="Lead pipeline, vehicle inventory, deals, and payment readiness."
+      />
+      <CarSalesContent />
     </div>
   );
 }

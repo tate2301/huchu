@@ -19,6 +19,10 @@ export type ReservableIdEntity =
   | "SCHOOL_GUARDIAN"
   | "SCHOOL_FEE_INVOICE"
   | "SCHOOL_FEE_RECEIPT"
+  | "CAR_SALES_LEAD"
+  | "CAR_SALES_VEHICLE"
+  | "CAR_SALES_DEAL"
+  | "CAR_SALES_PAYMENT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE";
@@ -50,6 +54,10 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   SCHOOL_GUARDIAN: { prefix: "GDN", requiresSiteId: false },
   SCHOOL_FEE_INVOICE: { prefix: "SFI", requiresSiteId: false },
   SCHOOL_FEE_RECEIPT: { prefix: "SFR", requiresSiteId: false },
+  CAR_SALES_LEAD: { prefix: "LEAD", requiresSiteId: false },
+  CAR_SALES_VEHICLE: { prefix: "CAR", requiresSiteId: false },
+  CAR_SALES_DEAL: { prefix: "DEAL", requiresSiteId: false },
+  CAR_SALES_PAYMENT: { prefix: "PAY", requiresSiteId: false },
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
@@ -229,6 +237,34 @@ async function findEntityMaxExistingCode(
         select: { receiptNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
+    }
+    case "CAR_SALES_LEAD": {
+      const records = await db.carSalesLead.findMany({
+        where: { companyId },
+        select: { leadNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.leadNo), prefix);
+    }
+    case "CAR_SALES_VEHICLE": {
+      const records = await db.carSalesVehicle.findMany({
+        where: { companyId },
+        select: { stockNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.stockNo), prefix);
+    }
+    case "CAR_SALES_DEAL": {
+      const records = await db.carSalesDeal.findMany({
+        where: { companyId },
+        select: { dealNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.dealNo), prefix);
+    }
+    case "CAR_SALES_PAYMENT": {
+      const records = await db.carSalesPayment.findMany({
+        where: { companyId },
+        select: { paymentNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.paymentNo), prefix);
     }
     case "GOLD_POUR": {
       const records = await db.goldPour.findMany({
