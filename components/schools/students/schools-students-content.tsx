@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,11 +18,20 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  fetchSchoolsClasses,
   fetchSchoolsGuardians,
   fetchSchoolsStudents,
+  type SchoolsClassRecord,
   type SchoolsGuardianRecord,
   type SchoolsStudentRecord,
 } from "@/lib/schools/admin-v2";
@@ -48,6 +58,9 @@ export function SchoolsStudentsContent() {
 
   const [guardianDialogOpen, setGuardianDialogOpen] = useState(false);
   const [guardianForm, setGuardianForm] = useState(initialGuardianForm);
+
+  const [classFilter, setClassFilter] = useState<string>("");
+  const [streamFilter, setStreamFilter] = useState<string>("");
 
   const createStudentMutation = useMutation({
     mutationFn: async (payload: typeof studentForm) =>
@@ -115,12 +128,22 @@ export function SchoolsStudentsContent() {
   };
 
   const studentsQuery = useQuery({
-    queryKey: ["schools", "students", "directory"],
-    queryFn: () => fetchSchoolsStudents({ page: 1, limit: 200 }),
+    queryKey: ["schools", "students", "directory", classFilter, streamFilter],
+    queryFn: () =>
+      fetchSchoolsStudents({
+        page: 1,
+        limit: 200,
+        classId: classFilter || undefined,
+        streamId: streamFilter || undefined,
+      }),
   });
   const guardiansQuery = useQuery({
     queryKey: ["schools", "guardians", "directory"],
     queryFn: () => fetchSchoolsGuardians({ page: 1, limit: 200 }),
+  });
+  const classesQuery = useQuery({
+    queryKey: ["schools", "classes", "list"],
+    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 100 }),
   });
 
   const students = useMemo(
@@ -140,6 +163,18 @@ export function SchoolsStudentsContent() {
     [guardiansQuery.data],
   );
 
+  const classes = useMemo<SchoolsClassRecord[]>(() => {
+    const raw = classesQuery.data;
+    if (!raw) return [];
+    return Array.isArray(raw) ? raw : raw.data ?? [];
+  }, [classesQuery.data]);
+
+  const filteredStreams = useMemo(() => {
+    if (!classFilter) return [];
+    const cls = classes.find((c) => c.id === classFilter);
+    return cls?.streams ?? [];
+  }, [classFilter, classes]);
+
   const studentColumns = useMemo<ColumnDef<SchoolsStudentRecord>[]>(
     () => [
       {
@@ -148,7 +183,10 @@ export function SchoolsStudentsContent() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              {row.original.studentNo} - {row.original.firstName} {row.original.lastName}
+              {row.original.studentNo} -{" "}
+              <Link href={`/schools/students/${row.original.id}`} className="hover:underline">
+                {row.original.firstName} {row.original.lastName}
+              </Link>
             </div>
             <div className="text-xs text-muted-foreground">
               Admission: {row.original.admissionNo || "-"}
@@ -161,7 +199,13 @@ export function SchoolsStudentsContent() {
         header: "Class / Stream",
         cell: ({ row }) => (
           <span>
-            {row.original.currentClass?.name ?? "-"}
+            {row.original.currentClass ? (
+              <Link href={`/schools/classes/${row.original.currentClass.id}`} className="hover:underline">
+                {row.original.currentClass.name}
+              </Link>
+            ) : (
+              "-"
+            )}
             {row.original.currentStream ? ` / ${row.original.currentStream.name}` : ""}
           </span>
         ),
@@ -252,6 +296,45 @@ export function SchoolsStudentsContent() {
             <Button size="sm" onClick={() => setStudentDialogOpen(true)}>
               Add Student
             </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select
+              value={classFilter}
+              onValueChange={(value) => {
+                setClassFilter(value === "all" ? "" : value);
+                setStreamFilter("");
+              }}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filter by Class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {classFilter && filteredStreams.length > 0 && (
+              <Select
+                value={streamFilter}
+                onValueChange={(value) => setStreamFilter(value === "all" ? "" : value)}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Filter by Stream" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Streams</SelectItem>
+                  {filteredStreams.map((stream) => (
+                    <SelectItem key={stream.id} value={stream.id}>
+                      {stream.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <DataTable
             data={students}
