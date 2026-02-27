@@ -1,0 +1,52 @@
+{
+  "name": "huchu-erp-theme",
+  "version": "1.0.0",
+  "mode": "light-first",
+  "palette": {
+    "canvas": "#FCFBFA",
+    "surface": "#FFFFFF",
+    "border": "#E7E4E3",
+    "textPrimary": "#111111",
+    "textSecondary": "#5B5B5B",
+    "muted": "#7A7A7A",
+    "primary": "#4C66D4"
+  },
+  "status": {
+    "success": "#24866A",
+    "danger": "#D24133",
+    "warning": "#F08D1A",
+    "inProgress": "#F7B01B",
+    "inReview": "#4D6FC2",
+    "pending": "#C8C3BF",
+    "inactive": "#9B9692"
+  },
+  "semantic": {
+    "background": "{palette.canvas}",
+    "card": "{palette.surface}",
+    "borderDefault": "{palette.border}",
+    "textStrong": "{palette.textPrimary}",
+    "textBody": "{palette.textPrimary}",
+    "textMuted": "{palette.muted}",
+    "focusRing": "{palette.primary}",
+    "primaryActionBg": "{palette.primary}",
+    "primaryActionFg": "#FFFFFF"
+  },
+  "charts": {
+    "palette": [
+      "{palette.primary}",
+      "{status.success}",
+      "{status.warning}",
+      "{status.danger}",
+      "{status.inProgress}"
+    ],
+    "statusMap": {
+      "passing": "{status.success}",
+      "failing": "{status.danger}",
+      "needChanges": "{status.warning}",
+      "inReview": "{status.inReview}",
+      "inProgress": "{status.inProgress}",
+      "pending": "{status.pending}",
+      "inactive": "{status.inactive}"
+    }
+  }
+}

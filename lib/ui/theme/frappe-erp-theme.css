@@ -1,0 +1,85 @@
+:where([data-theme="erp"], .frappe-erp-theme) {
+  --font-family-sans: "SS Huchu", "Inter", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  --color-white: #FFFFFF;
+  --color-gray-50: #FCFBFA;
+  --color-gray-100: #F7F6F5;
+  --color-gray-200: #EFEDEB;
+  --color-gray-300: #E7E4E3;
+  --color-gray-400: #D5D2CF;
+  --color-gray-500: #C1BDBA;
+  --color-gray-600: #9B9692;
+  --color-gray-700: #7A7A7A;
+  --color-gray-800: #5B5B5B;
+  --color-gray-900: #111111;
+
+  --color-red-50: #FBEDEA;
+  --color-red-100: #F7D8D3;
+  --color-red-200: #F0BBB4;
+  --color-red-300: #E89D94;
+  --color-red-400: #DF7C71;
+  --color-red-500: #D24133;
+  --color-red-600: #B7392D;
+  --color-red-700: #9A3126;
+  --color-red-800: #7D281F;
+
+  --color-green-50: #E9F4F1;
+  --color-green-100: #D7EDE6;
+  --color-green-300: #9DCEBE;
+  --color-green-400: #67AE95;
+  --color-green-500: #24866A;
+  --color-green-600: #1E7058;
+
+  --color-amber-50: #FDF3E5;
+  --color-amber-100: #FAE5C1;
+  --color-amber-300: #F4C880;
+  --color-amber-400: #F2AF45;
+  --color-amber-500: #F08D1A;
+  --color-amber-600: #D87610;
+
+  --color-blue-50: #EDF1FB;
+  --color-blue-100: #DDE5F9;
+  --color-blue-300: #A8BBEE;
+  --color-blue-400: #7391E4;
+  --color-blue-500: #4C66D4;
+  --color-blue-600: #3F58C8;
+
+  --color-orange-100: #FCE6CD;
+  --color-orange-400: #F5B679;
+  --color-orange-600: #D8832E;
+  --color-violet-100: #E5E8F9;
+  --color-violet-600: #4D6FC2;
+  --color-purple-100: #EBE9F7;
+  --color-purple-600: #6E59B6;
+  --color-yellow-100: #FEF5CC;
+  --color-teal-100: #D8EEE8;
+  --color-teal-600: #2F8A72;
+  --color-cyan-100: #DFF0F2;
+  --color-cyan-500: #3A93A3;
+  --color-cyan-600: #2E7B89;
+  --color-pink-100: #F6E3EA;
+  --color-pink-500: #BD5B7A;
+  --color-pink-600: #9E4A66;
+
+  --color-ink-gray-9: var(--erp-text-primary, #111111);
+  --color-ink-gray-8: var(--erp-text-secondary, #5B5B5B);
+  --color-ink-gray-6: var(--erp-text-muted, #7A7A7A);
+  --color-ink-blue-2: var(--erp-primary, #4C66D4);
+  --color-ink-green-2: var(--erp-success, #24866A);
+  --color-ink-red-3: var(--erp-danger, #D24133);
+  --color-ink-amber-2: var(--erp-warning, #F08D1A);
+
+  --color-surface-white: var(--erp-surface, #FFFFFF);
+  --color-surface-gray-1: #F7F6F5;
+  --color-surface-gray-2: #F1F0EF;
+  --color-surface-gray-3: var(--erp-border, #E7E4E3);
+  --color-surface-cards: var(--erp-surface, #FFFFFF);
+  --color-surface-modal: var(--erp-surface, #FFFFFF);
+  --color-surface-menu-bar: var(--erp-canvas, #FCFBFA);
+
+  --color-outline-gray-1: var(--erp-border, #E7E4E3);
+  --color-outline-gray-2: #D8D4D2;
+  --color-outline-blue-1: var(--erp-in-review, #4D6FC2);
+  --color-outline-green-1: var(--erp-success, #24866A);
+  --color-outline-red-1: var(--erp-danger, #D24133);
+  --color-outline-amber-1: var(--erp-warning, #F08D1A);
+}

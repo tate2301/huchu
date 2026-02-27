@@ -2,15 +2,8 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Detail Page with Right Panel
- * Extracted from design spec - Two-column layout for detail views
- *
- * Structure:
- * - Main content: 680-760px fluid
- * - Right panel: 320-360px, sticky
- * - Right panel sections: Details → CTA block → Evidence → Integrations
- *
- * Usage pattern: Object detail + actions + context
+ * Detail page shell with desktop right rail.
+ * Main content stays fluid while the rail remains sticky.
  */
 
 interface DetailPageShellProps {
@@ -24,7 +17,7 @@ export function DetailPageShell({
 }: DetailPageShellProps) {
   return (
     <div className={cn("content-shell py-6", className)}>
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         {children}
       </div>
     </div>
@@ -40,11 +33,7 @@ export function DetailMainContent({
   children,
   className,
 }: DetailMainContentProps) {
-  return (
-    <div className={cn("flex flex-col gap-6 min-w-0", className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn("min-w-0 space-y-6", className)}>{children}</div>;
 }
 
 interface DetailRightPanelProps {
@@ -59,7 +48,7 @@ export function DetailRightPanel({
   return (
     <aside
       className={cn(
-        "hidden lg:flex flex-col gap-6",
+        "hidden flex-col gap-6 lg:flex",
         "lg:sticky lg:top-[calc(3.5rem+1.5rem)] lg:self-start",
         "lg:max-h-[calc(100vh-3.5rem-3rem)]",
         "overflow-y-auto",
@@ -77,9 +66,7 @@ interface DetailHeaderProps {
 }
 
 export function DetailHeader({ children, className }: DetailHeaderProps) {
-  return (
-    <div className={cn("flex flex-col gap-1", className)}>{children}</div>
-  );
+  return <div className={cn("flex flex-col gap-1", className)}>{children}</div>;
 }
 
 interface DetailTitleProps {
@@ -88,11 +75,7 @@ interface DetailTitleProps {
 }
 
 export function DetailTitle({ children, className }: DetailTitleProps) {
-  return (
-    <h1 className={cn("text-page-title text-foreground", className)}>
-      {children}
-    </h1>
-  );
+  return <h1 className={cn("text-page-title text-foreground", className)}>{children}</h1>;
 }
 
 interface DetailMetaProps {
@@ -102,7 +85,7 @@ interface DetailMetaProps {
 
 export function DetailMeta({ children, className }: DetailMetaProps) {
   return (
-    <div className={cn("flex items-center gap-3 text-sm text-muted", className)}>
+    <div className={cn("flex items-center gap-3 text-sm text-muted-foreground", className)}>
       {children}
     </div>
   );
@@ -117,7 +100,7 @@ export function DetailSection({ children, className }: DetailSectionProps) {
   return (
     <section
       className={cn(
-        "bg-surface-base rounded-lg border border-border p-6",
+        "rounded-lg border border-[var(--edge-subtle)] bg-card p-6 text-card-foreground shadow-[var(--card-shadow-rest)]",
         className
       )}
     >
@@ -140,7 +123,7 @@ export function DetailSectionHeader({
   return (
     <div
       className={cn(
-        "flex items-center justify-between mb-4 pb-3 border-b border-card-divider",
+        "mb-4 flex items-center justify-between border-b border-[var(--card-divider)] pb-3",
         className
       )}
     >
@@ -162,11 +145,7 @@ export function DetailSectionContent({
   return <div className={cn("space-y-4", className)}>{children}</div>;
 }
 
-/**
- * Right Panel CTA Block
- * Call-to-action section in the right panel
- * Shows requirements, progress, and primary action
- */
+/** CTA section for the right rail. */
 
 interface DetailCTABlockProps {
   title: string;
@@ -192,12 +171,12 @@ export function DetailCTABlock({
   return (
     <div
       className={cn(
-        "bg-surface-base rounded-lg border border-border p-6 space-y-4",
+        "space-y-4 rounded-lg border border-[var(--edge-subtle)] bg-card p-6 text-card-foreground shadow-[var(--card-shadow-rest)]",
         className
       )}
     >
       <div>
-        <h3 className="text-section-title text-foreground mb-1">{title}</h3>
+        <h3 className="mb-1 text-section-title text-foreground">{title}</h3>
         {description && (
           <p className="text-sm text-muted-foreground">{description}</p>
         )}
@@ -211,7 +190,7 @@ export function DetailCTABlock({
               {progress.current} / {progress.total}
             </span>
           </div>
-          <div className="h-2 bg-surface-muted rounded-full overflow-hidden">
+          <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
             <div
               className="h-full bg-primary transition-all duration-300"
               style={{ width: `${(progress.current / progress.total) * 100}%` }}
@@ -227,10 +206,7 @@ export function DetailCTABlock({
   );
 }
 
-/**
- * Detail Field Row
- * Label + value row for the right panel details section
- */
+/** Label/value row for right-rail detail blocks. */
 
 interface DetailFieldRowProps {
   label: string;
@@ -245,8 +221,8 @@ export function DetailFieldRow({
 }: DetailFieldRowProps) {
   return (
     <div className={cn("flex items-start justify-between gap-4", className)}>
-      <dt className="text-sm text-muted-foreground min-w-[100px]">{label}</dt>
-      <dd className="text-sm text-foreground font-medium text-right">{value}</dd>
+      <dt className="min-w-[100px] text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-right text-sm font-medium text-foreground">{value}</dd>
     </div>
   );
 }

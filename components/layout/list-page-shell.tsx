@@ -106,7 +106,7 @@ export function ListPageToolbar({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 justify-between content-shell py-3 bg-table-toolbar-bg border-y border-table-toolbar-border sticky top-[3.5rem] z-10 backdrop-blur-sm",
+        "sticky z-[15] flex min-h-[3rem] items-center justify-between gap-2 border-y border-[var(--table-toolbar-border)] bg-[var(--table-toolbar-bg)] py-2.5 supports-[backdrop-filter]:backdrop-blur-sm content-shell top-[calc(var(--app-header-height,3.5rem)+0.25rem)]",
         className
       )}
     >
@@ -159,7 +159,7 @@ export function BulkActionBar({
       className={cn(
         "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
         "flex items-center gap-4 px-6 py-3",
-        "bg-surface-base border border-border rounded-full",
+        "rounded-full border border-[var(--edge-subtle)] bg-[var(--surface-base)]",
         "shadow-[var(--elevation-3)]",
         className
       )}

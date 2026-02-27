@@ -96,13 +96,13 @@ function TablePaginationControls({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-none bg-[var(--table-toolbar-bg)] px-[var(--content-gutter-x)] py-1",
+        "flex flex-wrap items-center gap-x-2 gap-y-2 border-y border-[var(--table-toolbar-border)] bg-[var(--table-toolbar-bg)] px-[var(--content-gutter-x)] py-2",
         edgeToEdge && "table-edge-to-edge",
         className,
       )}
     >
       {mode === "paginated" ? (
-        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-2 text-xs text-muted-foreground">
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
@@ -111,7 +111,7 @@ function TablePaginationControls({
               setPage(1);
             }}
           >
-            <SelectTrigger size="sm" className="h-8 w-[88px] bg-[var(--surface-base)]">
+            <SelectTrigger size="sm" className="h-8 w-[88px] bg-[var(--surface-base)] shadow-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -122,7 +122,7 @@ function TablePaginationControls({
               ))}
             </SelectContent>
           </Select>
-          <span>
+          <span className="font-mono tabular-nums">
             Page {page} of {pageCount}
           </span>
           <Button
@@ -312,7 +312,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
 
     return (
       <TableContext.Provider value={contextValue}>
-        <div className="space-y-0">
+        <div className="space-y-0 bg-[var(--surface-base)]">
           {shouldRenderTopControls ? (
             <TablePaginationControls
               rowCount={rowCount}
@@ -329,7 +329,10 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
           ) : null}
 
           <div
-            className={cn("table-rail", edgeToEdge && "table-edge-to-edge")}
+            className={cn(
+              "table-rail bg-[var(--surface-base)] shadow-[inset_0_0_0_1px_var(--table-divider)]",
+              edgeToEdge && "table-edge-to-edge",
+            )}
             data-tablet-scrollable={tabletScrollable ? "true" : "false"}
             data-tablet-sticky-first-column={tabletStickyFirstColumn ? "true" : "false"}
             style={
@@ -384,16 +387,16 @@ const TableHeader = React.forwardRef<
   const stickyHeaderOffset = tableContext?.stickyHeaderOffset ?? 0;
 
   return (
-    <thead
-      ref={ref}
-      data-slot="table-header"
-      className={cn(
-        "[&_tr]:bg-surface-gray-2 [&_tr]:text-ink-gray-5 [&_tr]:border-b [&_tr]:border-[var(--table-divider)] [&_th]:border-b [&_th]:border-[var(--table-divider)] [&_th:first-child]:rounded-l-md [&_th:last-child]:rounded-r-md",
-        stickyHeader &&
-        "sticky z-20 supports-[backdrop-filter]:backdrop-blur",
-        className,
-      )}
-      style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
+      <thead
+        ref={ref}
+        data-slot="table-header"
+        className={cn(
+          "bg-[var(--table-header-bg)] [&_tr]:bg-[var(--table-header-bg)] [&_tr]:text-[var(--table-header-text)] [&_tr]:shadow-[inset_0_-1px_0_0_var(--table-divider)]",
+          stickyHeader &&
+          "sticky z-20 supports-[backdrop-filter]:backdrop-blur-sm",
+          className,
+        )}
+        style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
       {...props}
     />
   );
@@ -429,7 +432,7 @@ const TableBody = React.forwardRef<
       ref={ref}
       data-slot="table-body"
       className={cn(
-        "[&_tr:last-child]:border-0 [&_tr]:bg-[var(--table-row-bg)] [&_tr:nth-child(even)]:bg-[var(--table-row-bg-alt)] [&_tr:hover]:bg-[var(--table-row-hover-bg)] [&_tr[data-state=selected]]:bg-[var(--table-row-selected-bg)]",
+        "[&_tr:last-child]:border-0 [&_tr]:bg-[var(--table-row-bg)] [&_tr:nth-child(even)]:bg-[var(--table-row-bg-alt)] [&_tr:hover]:bg-[var(--table-row-hover-bg)] [&_tr[data-state=selected]]:bg-[var(--table-row-selected-bg)] [&_tr[data-state=selected]]:shadow-[inset_3px_0_0_0_var(--action-primary-bg)] [&_tr[data-state=selected]:hover]:bg-[var(--table-row-selected-bg)]",
         className,
       )}
       {...props}
@@ -474,7 +477,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-head"
       className={cn(
-        "h-[var(--table-head-min-h)] border border-[var(--table-divider)] bg-surface-gray-2 px-2 py-2 text-left align-middle text-sm font-medium [&:has([role=checkbox])]:pr-0",
+        "h-[var(--table-head-min-h)] border-b border-[var(--table-divider)] bg-[var(--table-header-bg)] px-[var(--table-gutter-x)] py-2 text-left align-middle text-table-header [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -489,7 +492,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-cell"
       className={cn(
-        "min-h-[var(--table-row-min-h)] border border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-table-cell [&:has([role=checkbox])]:pr-0",
+        "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-table-cell [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

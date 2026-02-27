@@ -1002,7 +1002,7 @@ export function DataTable<TData, TValue>({
       {showTopToolbar ? (
         <div
           className={cn(
-            "flex flex-wrap items-center gap-2 bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-1.5",
+            "flex min-h-[2.75rem] flex-wrap items-center gap-x-2 gap-y-2 border-y border-[var(--datatable-toolbar-border)] bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-2 supports-[backdrop-filter]:backdrop-blur-sm",
             edgeToEdge && "table-edge-to-edge",
           )}
         >
@@ -1026,7 +1026,7 @@ export function DataTable<TData, TValue>({
                   }
                 }}
                 placeholder={searchPlaceholder}
-                className="h-[var(--control-height-sm)] min-w-0 flex-1 bg-[var(--surface-elevated)] sm:w-[260px] sm:flex-none"
+                className="h-[var(--control-height-sm)] min-w-0 flex-1 bg-[var(--surface-elevated)] shadow-none sm:w-[260px] sm:flex-none"
               />
               <Button type="submit" size="sm" className="min-w-[78px]">
                 {searchSubmitLabel}
@@ -1034,7 +1034,7 @@ export function DataTable<TData, TValue>({
             </form>
           ) : null}
 
-          {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
+          {toolbar ? <div className="flex min-w-0 flex-wrap items-center gap-2">{toolbar}</div> : null}
           {toggleableColumns.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1077,7 +1077,11 @@ export function DataTable<TData, TValue>({
       ) : null}
 
       <div
-        className={cn(maxBodyHeight ? "overflow-auto" : undefined, tableContainerClassName)}
+        className={cn(
+          "bg-[var(--surface-base)]",
+          maxBodyHeight ? "overflow-auto" : undefined,
+          tableContainerClassName,
+        )}
         style={maxBodyHeight ? { maxHeight: maxBodyHeight } : undefined}
       >
         <Table
@@ -1133,7 +1137,10 @@ export function DataTable<TData, TValue>({
                     <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
                       {rowSelectionEnabled ? (
                         <TableCell
-                          className="w-11 px-2 align-top"
+                          className={cn(
+                            "w-11 px-2 align-top",
+                            row.getIsSelected() && "bg-[var(--table-row-selected-bg)]",
+                          )}
                           style={{ width: 44, minWidth: 44, maxWidth: 44 }}
                         >
                           <SelectionCheckbox
@@ -1241,7 +1248,7 @@ export function DataTable<TData, TValue>({
       {showBottomPagination ? (
         <div
           className={cn(
-            "flex flex-wrap items-center justify-end gap-2 bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-1 text-xs text-muted-foreground",
+            "flex min-h-[2.75rem] flex-wrap items-center justify-end gap-x-2 gap-y-2 border-y border-[var(--datatable-toolbar-border)] bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-2 text-xs text-muted-foreground supports-[backdrop-filter]:backdrop-blur-sm",
             edgeToEdge && "table-edge-to-edge",
           )}
         >
@@ -1260,7 +1267,7 @@ export function DataTable<TData, TValue>({
               <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
-          <span>
+          <span className="font-mono tabular-nums">
             Page {Math.max(page, 1)} of {Math.max(totalPages, 1)}
           </span>
           <Button

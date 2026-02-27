@@ -116,7 +116,7 @@ export function HrShell({
 
       <nav
         aria-label="Human resources navigation"
-        className="flex w-full flex-wrap justify-start gap-1 rounded-xl bg-[var(--surface-subtle)] p-1.5 shadow-[var(--surface-frame-shadow)]"
+        className="flex w-full flex-wrap justify-start gap-1 border-b border-[var(--edge-subtle)] pb-1"
       >
         {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.id
@@ -126,11 +126,11 @@ export function HrShell({
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-[color,background-color,box-shadow]",
+                "inline-flex items-center justify-center whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive
-                  ? "bg-[var(--surface-panel)] text-foreground shadow-[var(--surface-frame-shadow)]"
-                  : "text-muted-foreground hover:bg-[var(--surface-soft)] hover:text-foreground",
+                  ? "border-[var(--action-primary-bg)] text-[var(--action-primary-bg)]"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <tab.icon className="h-4 w-4" />

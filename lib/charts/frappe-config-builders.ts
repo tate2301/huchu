@@ -5,6 +5,7 @@ import type {
 
 type AxisSeriesConfig = AxisChartConfig["series"][number];
 type AxisKeyType = AxisChartConfig["xAxis"]["type"];
+type AxisChartEchartOptions = NonNullable<AxisChartConfig["echartOptions"]>;
 
 type BuildAxisChartConfigInput = {
   data: Record<string, unknown>[];
@@ -34,6 +35,106 @@ type BuildNumberMetricConfigInput = {
   deltaSuffix?: string;
   negativeIsBetter?: boolean;
 };
+
+function toOptionRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
+function mergeAxisEchartOptions(
+  defaults: AxisChartEchartOptions,
+  overrides?: AxisChartConfig["echartOptions"],
+): AxisChartEchartOptions {
+  if (!overrides) return defaults;
+
+  return {
+    ...defaults,
+    ...overrides,
+    grid: {
+      ...toOptionRecord(defaults.grid),
+      ...toOptionRecord(overrides.grid),
+    },
+    xAxis: {
+      ...toOptionRecord(defaults.xAxis),
+      ...toOptionRecord(overrides.xAxis),
+    },
+    yAxis: {
+      ...toOptionRecord(defaults.yAxis),
+      ...toOptionRecord(overrides.yAxis),
+    },
+    tooltip: {
+      ...toOptionRecord(defaults.tooltip),
+      ...toOptionRecord(overrides.tooltip),
+    },
+  };
+}
+
+export function buildDefaultErpChartOptions(
+  overrides?: AxisChartConfig["echartOptions"],
+): AxisChartConfig["echartOptions"] {
+  const defaults: AxisChartEchartOptions = {
+    grid: {
+      left: 16,
+      right: 16,
+      top: 28,
+      bottom: 16,
+      containLabel: true,
+    },
+    xAxis: {
+      axisTick: {
+        show: false,
+      },
+      axisLine: {
+        lineStyle: {
+          color: "var(--chart-grid)",
+        },
+      },
+      axisLabel: {
+        color: "var(--chart-text)",
+        fontSize: 11,
+        margin: 10,
+      },
+      splitLine: {
+        show: false,
+      },
+    },
+    yAxis: {
+      axisTick: {
+        show: false,
+      },
+      axisLine: {
+        show: false,
+      },
+      axisLabel: {
+        color: "var(--chart-text)",
+        fontSize: 11,
+      },
+      splitLine: {
+        show: true,
+        lineStyle: {
+          color: "var(--chart-grid)",
+          type: "dashed",
+          width: 1,
+        },
+      },
+    },
+    tooltip: {
+      backgroundColor: "var(--surface-base)",
+      borderColor: "var(--edge-default)",
+      borderWidth: 1,
+      padding: 10,
+      textStyle: {
+        color: "var(--text-body)",
+        fontSize: 12,
+      },
+      extraCssText: "border-radius: 10px; box-shadow: var(--shadow-popover);",
+    },
+  };
+
+  return mergeAxisEchartOptions(defaults, overrides);
+}
 
 export function buildAxisChartConfig({
   data,
@@ -75,7 +176,7 @@ export function buildAxisChartConfig({
     series,
     stacked,
     swapXY,
-    echartOptions,
+    echartOptions: buildDefaultErpChartOptions(echartOptions),
   };
 }
 
@@ -113,4 +214,3 @@ export function buildNumberMetricConfig({
     negativeIsBetter,
   };
 }
-

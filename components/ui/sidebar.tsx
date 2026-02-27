@@ -20,9 +20,9 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
-const SIDEBAR_WIDTH_ICON = "3.5rem";
-const SIDEBAR_WIDTH_MOBILE = "20rem";
+const SIDEBAR_WIDTH = "16.5rem";
+const SIDEBAR_WIDTH_ICON = "3.25rem";
+const SIDEBAR_WIDTH_MOBILE = "17.5rem";
 
 type SidebarContextValue = {
   state: "expanded" | "collapsed";

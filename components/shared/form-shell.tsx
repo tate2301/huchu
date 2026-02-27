@@ -17,6 +17,12 @@ type FormShellProps = {
   className?: string;
   formClassName?: string;
   contentClassName?: string;
+  mainClassName?: string;
+  rightRailClassName?: string;
+  rightRailMeta?: ReactNode;
+  rightRailStatus?: ReactNode;
+  rightRailAttachments?: ReactNode;
+  actionPanelClassName?: string;
 };
 
 export function FormShell({
@@ -31,6 +37,12 @@ export function FormShell({
   className,
   formClassName,
   contentClassName,
+  mainClassName,
+  rightRailClassName,
+  rightRailMeta,
+  rightRailStatus,
+  rightRailAttachments,
+  actionPanelClassName,
 }: FormShellProps) {
   return (
     <Card className={className}>
@@ -39,21 +51,48 @@ export function FormShell({
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className={contentClassName}>
-        <form className={cn("space-y-4", formClassName)} onSubmit={onSubmit} noValidate>
-          {errors?.length ? (
-            <Alert variant="destructive">
-              <AlertTitle>{errorTitle}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc space-y-1 pl-5">
-                  {errors.map((error, index) => (
-                    <li key={`${error}-${index}`}>{error}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          {children}
-          <PrimaryActionBar hint={requiredHint}>{actions}</PrimaryActionBar>
+        <form
+          className={cn(
+            "grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6",
+          )}
+          onSubmit={onSubmit}
+          noValidate
+        >
+          <div className={cn("min-w-0 space-y-4", formClassName, mainClassName)}>
+            {errors?.length ? (
+              <Alert variant="destructive">
+                <AlertTitle>{errorTitle}</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc space-y-1 pl-5">
+                    {errors.map((error, index) => (
+                      <li key={`${error}-${index}`}>{error}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {children}
+          </div>
+
+          <aside
+            className={cn(
+              "space-y-4 lg:sticky lg:top-[calc(3.5rem+1.5rem)] lg:self-start",
+              rightRailClassName,
+            )}
+          >
+            <PrimaryActionBar
+              hint={requiredHint}
+              className={cn(
+                "lg:sticky lg:top-0 lg:rounded-lg lg:border lg:border-[var(--edge-subtle)] lg:bg-card lg:px-4 lg:py-4",
+                actionPanelClassName,
+              )}
+            >
+              {actions}
+            </PrimaryActionBar>
+            {rightRailMeta}
+            {rightRailStatus}
+            {rightRailAttachments}
+          </aside>
         </form>
       </CardContent>
     </Card>

@@ -15,11 +15,15 @@ export function FrappeChartShell({
   chartClassName,
 }: FrappeChartShellProps) {
   return (
-    <div className={cn("w-full rounded-md border border-border/60 bg-card/70 p-2", className)}>
-      <div className={cn("h-[320px] w-full min-w-0", chartClassName)}>
+    <div
+      className={cn(
+        "w-full overflow-hidden rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-3 shadow-[var(--elevation-1)]",
+        className,
+      )}
+    >
+      <div className={cn("h-[320px] w-full min-h-[320px] min-w-0", chartClassName)}>
         {children}
       </div>
     </div>
   );
 }
-

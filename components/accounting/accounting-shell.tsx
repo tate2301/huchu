@@ -62,7 +62,7 @@ export function AccountingShell({
 
       <nav
         aria-label="Accounting category navigation"
-        className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
+        className="flex w-full flex-wrap justify-start gap-2 border-b border-[var(--edge-subtle)] pb-1"
       >
         {visibleCategories.map((category) => {
           const categoryTab = visibleTabs.find((tab) => tab.categoryId === category.id);
@@ -74,9 +74,11 @@ export function AccountingShell({
               href={categoryTab.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors",
+                "inline-flex items-center justify-center whitespace-nowrap border-b-2 px-3 py-1.5 text-sm font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                isActive
+                  ? "border-[var(--action-primary-bg)] text-[var(--action-primary-bg)]"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <category.icon className="size-5" />
@@ -88,7 +90,7 @@ export function AccountingShell({
 
       <nav
         aria-label="Accounting section navigation"
-        className="flex w-full flex-wrap justify-start gap-2 bg-transparent p-0 pb-1 shadow-[inset_0_-1px_0_0_var(--edge-neutral-rest)]"
+        className="flex w-full flex-wrap justify-start gap-2 border-b border-[var(--edge-subtle)] pb-1"
       >
         {visibleTabsForActiveCategory.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -98,9 +100,11 @@ export function AccountingShell({
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors",
+                "inline-flex items-center justify-center whitespace-nowrap border-b-2 px-3 py-1.5 text-sm font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                isActive
+                  ? "border-[var(--action-primary-bg)] text-[var(--action-primary-bg)]"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <tab.icon className="size-5" />

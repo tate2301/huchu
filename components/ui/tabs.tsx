@@ -14,7 +14,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-center rounded-xl border-0 bg-muted p-1 text-muted-foreground shadow-[var(--edge-outline-sharp)]",
+      "inline-flex h-9 items-center justify-center rounded-xl border border-[var(--edge-default)] bg-muted p-0.5 text-muted-foreground shadow-none",
       className,
     )}
     {...props}
@@ -24,15 +24,18 @@ TabsList.displayName = TabsPrimitive.List.displayName;
 
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger> & {
+    asChild?: boolean;
+  }
+>(({ className, asChild, ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
+    asChild={asChild}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] [&_.material-symbols-rounded]:shrink-0",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      "inline-flex h-8 items-center justify-center whitespace-nowrap rounded-[10px] border border-transparent px-3 text-sm font-medium transition-[background-color,color,border-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] [&_.material-symbols-rounded]:shrink-0",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--focus-ring-offset)]",
       "disabled:pointer-events-none disabled:opacity-50",
-      "data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-[var(--surface-frame-shadow)]",
+      "data-[state=active]:border-[var(--edge-default)] data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-none",
       className,
     )}
     {...props}
@@ -47,7 +50,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      "mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--focus-ring-offset)]",
       className,
     )}
     {...props}
