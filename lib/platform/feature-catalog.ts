@@ -10,6 +10,10 @@ export type FeatureDomain =
   | "maintenance"
   | "compliance"
   | "cctv"
+  | "schools"
+  | "autos"
+  | "thrift"
+  | "portal"
   | "reports"
   | "admin";
 
@@ -125,6 +129,33 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "cctv.playback", name: "CCTV Playback", description: "Playback search and review.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 18 }),
   f({ key: "cctv.access-logs", name: "CCTV Access Logs", description: "Access logs for CCTV usage.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 10 }),
   f({ key: "cctv.streaming-control", name: "CCTV Streaming Control", description: "Streaming session APIs and stream-token flows.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 18 }),
+
+  f({ key: "schools.core", name: "Schools Core", description: "Schools module landing and shared setup.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.admissions", name: "School Admissions", description: "Admissions workflows and enrollment intake.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.students", name: "Student Directory", description: "Student profile management and directory browsing.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.attendance", name: "School Attendance", description: "Attendance capture and attendance tracking for students.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.fees", name: "School Fees", description: "Fees setup, invoicing, and fee collection tracking.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.boarding", name: "School Boarding", description: "Boarding operations including hostels, beds, and leave/outing workflows.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.results", name: "School Results", description: "Continuous assessments, exams, moderation, and report card publishing.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.portal.parent", name: "Parent Portal", description: "Parent portal access for student progress and finance visibility.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.portal.student", name: "Student Portal", description: "Student portal access for own timetable, attendance, and results.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.portal.teacher", name: "Teacher Portal", description: "Teacher portal access for registers, marks, and moderation tasks.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+
+  f({ key: "autos.core", name: "Auto Sales Core", description: "Auto sales module landing and shared setup.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "autos.inventory", name: "Vehicle Inventory", description: "Vehicle stock catalog and inventory lifecycle.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "autos.leads", name: "Sales Leads", description: "Lead capture and pipeline management for car sales.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "autos.deals", name: "Deals", description: "Deal progression and close-out workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "autos.financing", name: "Financing", description: "Vehicle financing and installment workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+
+  f({ key: "thrift.core", name: "Thrift Core", description: "Thrift module landing and shared setup.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.intake", name: "Item Intake", description: "Intake and receiving workflows for thrift stock.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.catalog", name: "Thrift Catalog", description: "Cataloging and merchandising for thrift items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.checkout", name: "Thrift Checkout", description: "Point-of-sale and checkout workflows for thrift items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+
+  f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "portal.autos", name: "Auto Sales Portal", description: "Auto sales-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "portal.thrift", name: "Thrift Portal", description: "Thrift-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "reports.dashboard", name: "Reports Dashboard", description: "Top-level reports dashboard.", domain: "reports", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "reports.shift", name: "Shift Reports", description: "Shift reports analytics pages.", domain: "reports", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
@@ -289,6 +320,65 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     monthlyPrice: 120,
     additionalSiteMonthlyPrice: 15,
     features: ["accounting.tax", "accounting.zimra.fiscalisation"],
+  },
+  {
+    code: "ADDON_SCHOOLS_SUITE",
+    name: "Schools Suite",
+    description: "Placeholder bundle for school operations and administration.",
+    monthlyPrice: 0,
+    additionalSiteMonthlyPrice: 0,
+    features: [
+      "schools.core",
+      "schools.admissions",
+      "schools.students",
+      "schools.attendance",
+      "schools.fees",
+      "schools.boarding",
+      "schools.results",
+      "schools.portal.parent",
+      "schools.portal.student",
+      "schools.portal.teacher",
+    ],
+  },
+  {
+    code: "ADDON_AUTOS_SUITE",
+    name: "Auto Sales Suite",
+    description: "Placeholder bundle for car sales operations.",
+    monthlyPrice: 0,
+    additionalSiteMonthlyPrice: 0,
+    features: [
+      "autos.core",
+      "autos.inventory",
+      "autos.leads",
+      "autos.deals",
+      "autos.financing",
+    ],
+  },
+  {
+    code: "ADDON_THRIFT_SUITE",
+    name: "Thrift Suite",
+    description: "Placeholder bundle for thrift inventory and checkout flows.",
+    monthlyPrice: 0,
+    additionalSiteMonthlyPrice: 0,
+    features: [
+      "thrift.core",
+      "thrift.intake",
+      "thrift.catalog",
+      "thrift.checkout",
+    ],
+  },
+  {
+    code: "ADDON_PORTAL_SUITE",
+    name: "Client Portal Suite",
+    description: "Placeholder bundle for external portal capabilities across modules.",
+    monthlyPrice: 0,
+    additionalSiteMonthlyPrice: 0,
+    features: [
+      "portal.core",
+      "portal.schools",
+      "portal.autos",
+      "portal.thrift",
+    ],
   },
 ];
 
