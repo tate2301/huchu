@@ -47,7 +47,7 @@ export function InsightDonutCard({
         className,
       )}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(47,92,243,0.16),transparent_58%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(76,100,212,0.16),transparent_58%)]" />
       <div className="relative">
         <div className="border-b border-border/60 px-4 py-3">
           <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
