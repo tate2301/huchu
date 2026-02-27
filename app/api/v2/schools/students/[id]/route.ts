@@ -78,6 +78,20 @@ export async function GET(
             feeInvoices: true,
           },
         },
+        feeInvoices: {
+          select: {
+            id: true,
+            invoiceNo: true,
+            totalAmount: true,
+            paidAmount: true,
+            balanceAmount: true,
+            status: true,
+            issueDate: true,
+            dueDate: true,
+            term: { select: { id: true, code: true, name: true } },
+          },
+          orderBy: { issueDate: "desc" },
+        },
       },
     });
 
@@ -85,23 +99,7 @@ export async function GET(
       return errorResponse("Student not found", 404);
     }
 
-    const feeInvoices = await prisma.schoolFeeInvoice.findMany({
-      where: { studentId: id, companyId: session.user.companyId },
-      select: {
-        id: true,
-        invoiceNo: true,
-        totalAmount: true,
-        paidAmount: true,
-        balanceAmount: true,
-        status: true,
-        issueDate: true,
-        dueDate: true,
-        term: { select: { id: true, code: true, name: true } },
-      },
-      orderBy: { issueDate: "desc" },
-    });
-
-    return successResponse({ ...student, feeInvoices });
+    return successResponse(student);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);

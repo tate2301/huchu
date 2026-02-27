@@ -296,7 +296,7 @@ export function StudentProfileContent({ studentId }: { studentId: string }) {
                 <Card key={stat.label}>
                   <CardContent className="py-4">
                     <div className="text-xs text-muted-foreground">{stat.label}</div>
-                    <div className="text-2xl font-semibold font-mono">{stat.value}</div>
+                    <div className="text-2xl font-mono">{stat.value}</div>
                   </CardContent>
                 </Card>
               ))}
