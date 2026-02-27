@@ -19,6 +19,7 @@ const leaveRequestQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
   studentId: z.string().uuid().optional(),
   allocationId: z.string().uuid().optional(),
+  hostelId: z.string().uuid().optional(),
   status: schoolLeaveRequestStatusSchema.optional(),
   requestType: schoolLeaveRequestTypeSchema.optional(),
 });
@@ -91,6 +92,7 @@ export async function GET(request: NextRequest) {
       search: searchParams.get("search") ?? undefined,
       studentId: searchParams.get("studentId") ?? undefined,
       allocationId: searchParams.get("allocationId") ?? undefined,
+      hostelId: searchParams.get("hostelId") ?? undefined,
       status: searchParams.get("status") ?? undefined,
       requestType: searchParams.get("requestType") ?? undefined,
     });
@@ -100,6 +102,9 @@ export async function GET(request: NextRequest) {
     };
     if (query.studentId) where.studentId = query.studentId;
     if (query.allocationId) where.allocationId = query.allocationId;
+    if (query.hostelId) {
+      where.allocation = { ...((where.allocation ?? {}) as object), hostelId: query.hostelId };
+    }
     if (query.status) where.status = query.status;
     if (query.requestType) where.requestType = query.requestType;
     if (query.search) {

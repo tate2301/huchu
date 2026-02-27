@@ -5,6 +5,14 @@ type RequestHeadersLike = Headers | Record<string, HeaderRecordValue>;
 const TENANT_SLUG_PATTERN = /^[a-z0-9-]+$/;
 const ACTIVE_TENANT_STATUS = "ACTIVE";
 
+const PORTAL_SUBDOMAIN_MAP: Record<string, string> = {
+  students: "/portal/student",
+  guardian: "/portal/parent",
+  pos: "/portal/pos",
+};
+
+export { PORTAL_SUBDOMAIN_MAP };
+
 export type TenantContext = {
   companyId: string;
   companyName: string | null;
@@ -21,6 +29,7 @@ export type PlatformHostContext = {
   host: string | null;
   hostname: string | null;
   tenantSlug: string | null;
+  portalSubdomain: string | null;
   isCentralHost: boolean;
   isTenantHost: boolean;
   hasHostConfig: boolean;
@@ -111,28 +120,50 @@ function parseRootHosts(value: NullableString): string[] {
     .filter(Boolean);
 }
 
-function getTenantSlugForHost(hostname: string | null, rootDomain: string | null): string | null {
+function getPortalAndTenantForHost(
+  hostname: string | null,
+  rootDomain: string | null,
+): { tenantSlug: string | null; portalSubdomain: string | null } {
   if (!hostname || !rootDomain) {
-    return null;
+    return { tenantSlug: null, portalSubdomain: null };
   }
 
   if (hostname === rootDomain) {
-    return null;
+    return { tenantSlug: null, portalSubdomain: null };
   }
 
   const suffix = `.${rootDomain}`;
   if (!hostname.endsWith(suffix)) {
-    return null;
+    return { tenantSlug: null, portalSubdomain: null };
   }
 
-  const tenantPrefix = hostname.slice(0, -suffix.length);
-  const tenantSlug = tenantPrefix.split(".")[0]?.trim().toLowerCase() ?? "";
+  const prefix = hostname.slice(0, -suffix.length);
+  const segments = prefix.split(".");
 
+  if (segments.length === 1) {
+    const slug = segments[0]?.trim().toLowerCase() ?? "";
+    if (!slug || !TENANT_SLUG_PATTERN.test(slug)) {
+      return { tenantSlug: null, portalSubdomain: null };
+    }
+    if (slug in PORTAL_SUBDOMAIN_MAP) {
+      return { tenantSlug: null, portalSubdomain: slug };
+    }
+    return { tenantSlug: slug, portalSubdomain: null };
+  }
+
+  if (segments.length === 2) {
+    const first = segments[0]?.trim().toLowerCase() ?? "";
+    const second = segments[1]?.trim().toLowerCase() ?? "";
+    if (first in PORTAL_SUBDOMAIN_MAP && second && TENANT_SLUG_PATTERN.test(second)) {
+      return { tenantSlug: second, portalSubdomain: first };
+    }
+  }
+
+  const tenantSlug = segments[0]?.trim().toLowerCase() ?? "";
   if (!tenantSlug || !TENANT_SLUG_PATTERN.test(tenantSlug)) {
-    return null;
+    return { tenantSlug: null, portalSubdomain: null };
   }
-
-  return tenantSlug;
+  return { tenantSlug, portalSubdomain: null };
 }
 
 export function getPlatformHostContext(hostHeader: NullableString): PlatformHostContext {
@@ -161,12 +192,13 @@ export function getPlatformHostContext(hostHeader: NullableString): PlatformHost
       (hostname !== null && centralHosts.has(hostname)))
   );
 
-  const tenantSlug = getTenantSlugForHost(hostname, rootDomain || null);
+  const { tenantSlug, portalSubdomain } = getPortalAndTenantForHost(hostname, rootDomain || null);
 
   return {
     host: host || null,
     hostname,
     tenantSlug,
+    portalSubdomain,
     isCentralHost,
     isTenantHost: Boolean(tenantSlug),
     hasHostConfig,

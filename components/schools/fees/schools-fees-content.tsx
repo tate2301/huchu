@@ -2,13 +2,23 @@
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchSchoolFeeInvoices,
   fetchSchoolFeeReceipts,
@@ -22,6 +32,9 @@ import {
 } from "@/lib/schools/fees-v2";
 
 type FeesView = "structures" | "invoices" | "receipts" | "waivers";
+
+const initialInvoiceForm = { studentId: "", termId: "", description: "", amount: "" };
+const initialReceiptForm = { invoiceId: "", amount: "", method: "", reference: "" };
 
 function money(value: number) {
   return value.toFixed(2);
@@ -65,6 +78,79 @@ function structureStatusBadge(status: SchoolFeeStructureRecord["status"]) {
 
 export function SchoolsFeesContent() {
   const [activeView, setActiveView] = useState<FeesView>("invoices");
+  const queryClient = useQueryClient();
+
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState(initialInvoiceForm);
+
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptForm, setReceiptForm] = useState(initialReceiptForm);
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async (payload: typeof invoiceForm) =>
+      fetchJson("/api/v2/schools/fees/invoices", {
+        method: "POST",
+        body: JSON.stringify({
+          studentId: payload.studentId,
+          termId: payload.termId,
+          description: payload.description || undefined,
+          amount: parseFloat(payload.amount) || 0,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "summary"] });
+      setInvoiceForm(initialInvoiceForm);
+      setInvoiceDialogOpen(false);
+    },
+  });
+
+  const createReceiptMutation = useMutation({
+    mutationFn: async (payload: typeof receiptForm) =>
+      fetchJson("/api/v2/schools/fees/receipts", {
+        method: "POST",
+        body: JSON.stringify({
+          invoiceId: payload.invoiceId,
+          amount: parseFloat(payload.amount) || 0,
+          method: payload.method,
+          reference: payload.reference || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "summary"] });
+      setReceiptForm(initialReceiptForm);
+      setReceiptDialogOpen(false);
+    },
+  });
+
+  const handleInvoiceDialogOpenChange = (open: boolean) => {
+    setInvoiceDialogOpen(open);
+    if (!open) {
+      setInvoiceForm(initialInvoiceForm);
+      createInvoiceMutation.reset();
+    }
+  };
+
+  const handleReceiptDialogOpenChange = (open: boolean) => {
+    setReceiptDialogOpen(open);
+    if (!open) {
+      setReceiptForm(initialReceiptForm);
+      createReceiptMutation.reset();
+    }
+  };
+
+  const handleInvoiceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceForm.studentId || !invoiceForm.termId || !invoiceForm.amount) return;
+    createInvoiceMutation.mutate(invoiceForm);
+  };
+
+  const handleReceiptSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receiptForm.invoiceId || !receiptForm.amount || !receiptForm.method) return;
+    createReceiptMutation.mutate(receiptForm);
+  };
 
   const summaryQuery = useQuery({
     queryKey: ["schools", "fees", "summary"],
@@ -355,7 +441,12 @@ export function SchoolsFeesContent() {
         railLabel="Fee Views"
       >
         <div className={activeView === "invoices" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Fee Invoices</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-section-title">Fee Invoices</h2>
+            <Button size="sm" onClick={() => setInvoiceDialogOpen(true)}>
+              Create Invoice
+            </Button>
+          </div>
           <DataTable
             data={invoices}
             columns={invoiceColumns}
@@ -367,7 +458,12 @@ export function SchoolsFeesContent() {
         </div>
 
         <div className={activeView === "receipts" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Fee Receipts</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-section-title">Fee Receipts</h2>
+            <Button size="sm" onClick={() => setReceiptDialogOpen(true)}>
+              Record Receipt
+            </Button>
+          </div>
           <DataTable
             data={receipts}
             columns={receiptColumns}
@@ -402,6 +498,155 @@ export function SchoolsFeesContent() {
           />
         </div>
       </VerticalDataViews>
+
+      {/* Create Invoice Dialog */}
+      <Dialog open={invoiceDialogOpen} onOpenChange={handleInvoiceDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+            <DialogDescription>Enter the invoice details below.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleInvoiceSubmit} className="space-y-4">
+            {createInvoiceMutation.error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{getApiErrorMessage(createInvoiceMutation.error)}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="space-y-2">
+              <label htmlFor="invoice-studentId" className="text-sm font-medium">
+                Student ID <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="invoice-studentId"
+                value={invoiceForm.studentId}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, studentId: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="invoice-termId" className="text-sm font-medium">
+                Term ID <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="invoice-termId"
+                value={invoiceForm.termId}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, termId: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="invoice-description" className="text-sm font-medium">
+                Description
+              </label>
+              <Input
+                id="invoice-description"
+                value={invoiceForm.description}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="invoice-amount" className="text-sm font-medium">
+                Amount <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="invoice-amount"
+                type="number"
+                step="0.01"
+                value={invoiceForm.amount}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, amount: e.target.value }))}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleInvoiceDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createInvoiceMutation.isPending}>
+                {createInvoiceMutation.isPending ? "Saving…" : "Create Invoice"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Receipt Dialog */}
+      <Dialog open={receiptDialogOpen} onOpenChange={handleReceiptDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Receipt</DialogTitle>
+            <DialogDescription>Enter the receipt details below.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleReceiptSubmit} className="space-y-4">
+            {createReceiptMutation.error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{getApiErrorMessage(createReceiptMutation.error)}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="space-y-2">
+              <label htmlFor="receipt-invoiceId" className="text-sm font-medium">
+                Invoice ID <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="receipt-invoiceId"
+                value={receiptForm.invoiceId}
+                onChange={(e) => setReceiptForm((f) => ({ ...f, invoiceId: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="receipt-amount" className="text-sm font-medium">
+                Amount <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="receipt-amount"
+                type="number"
+                step="0.01"
+                value={receiptForm.amount}
+                onChange={(e) => setReceiptForm((f) => ({ ...f, amount: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="receipt-method" className="text-sm font-medium">
+                Payment Method <span className="text-destructive">*</span>
+              </label>
+              <select
+                id="receipt-method"
+                value={receiptForm.method}
+                onChange={(e) => setReceiptForm((f) => ({ ...f, method: e.target.value }))}
+                required
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">Select method</option>
+                <option value="CASH">Cash</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="CARD">Card</option>
+                <option value="MOBILE_MONEY">Mobile Money</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="receipt-reference" className="text-sm font-medium">
+                Reference
+              </label>
+              <Input
+                id="receipt-reference"
+                value={receiptForm.reference}
+                onChange={(e) => setReceiptForm((f) => ({ ...f, reference: e.target.value }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleReceiptDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createReceiptMutation.isPending}>
+                {createReceiptMutation.isPending ? "Saving…" : "Record Receipt"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

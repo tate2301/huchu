@@ -98,6 +98,33 @@ export type SchoolsAttendanceRosterData = {
   };
 };
 
+export type SchoolsClassRecord = {
+  id: string;
+  code: string;
+  name: string;
+  level: number | null;
+  capacity: number | null;
+  streams?: { id: string; code: string; name: string; capacity: number | null }[];
+  _count: { streams: number; students: number };
+};
+
+export type SchoolsStreamRecord = {
+  id: string;
+  code: string;
+  name: string;
+  capacity: number | null;
+};
+
+export type SchoolsSubjectRecord = {
+  id: string;
+  code: string;
+  name: string;
+  isCore: boolean;
+  passMark: number;
+  isActive: boolean;
+  _count: { classSubjects: number };
+};
+
 export type TeacherProfileRecord = {
   id: string;
   employeeCode: string;
@@ -229,6 +256,12 @@ export async function fetchTeacherSubjects(params: {
   return response.data;
 }
 
+export async function fetchStudentProfile(studentId: string) {
+  // Profile response shape is dynamic (includes nested relations)
+  type StudentProfileResponse = Record<string, unknown>;
+  return fetchJson<StudentProfileResponse>(`/api/v2/schools/students/${studentId}`);
+}
+
 export async function fetchTeacherAssignments(params: {
   page?: number;
   limit?: number;
@@ -242,6 +275,78 @@ export async function fetchTeacherAssignments(params: {
   const query = buildQuery(params);
   const response = await fetchJson<ApiResponse<Paginated<TeacherAssignmentRecord>>>(
     `/api/v2/schools/teachers/assignments${query}`,
+  );
+  return response.data;
+}
+
+export async function fetchSchoolsClasses(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+} = {}) {
+  const query = buildQuery(params);
+  const response = await fetchJson<ApiResponse<Paginated<SchoolsClassRecord>>>(
+    `/api/v2/schools/classes${query}`,
+  );
+  return response.data;
+}
+
+export async function fetchSchoolsSubjects(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+} = {}) {
+  const query = buildQuery(params);
+  const response = await fetchJson<ApiResponse<Paginated<SchoolsSubjectRecord>>>(
+    `/api/v2/schools/subjects${query}`,
+  );
+  return response.data;
+}
+
+export type HostelDetail = {
+  id: string;
+  code: string;
+  name: string;
+  genderPolicy: string;
+  capacity: number | null;
+  isActive: boolean;
+  rooms: Array<{
+    id: string;
+    code: string;
+    floor: string | null;
+    capacity: number | null;
+    isActive: boolean;
+    beds: Array<{
+      id: string;
+      code: string;
+      status: string;
+      isActive: boolean;
+    }>;
+    _count: { beds: number; allocations: number };
+  }>;
+  allocations: Array<{
+    id: string;
+    status: string;
+    startDate: string;
+    endDate: string | null;
+    student: {
+      id: string;
+      studentNo: string;
+      firstName: string;
+      lastName: string;
+      status: string;
+    };
+    room: { id: string; code: string } | null;
+    bed: { id: string; code: string } | null;
+    term: { id: string; code: string; name: string } | null;
+  }>;
+  _count: { rooms: number; beds: number; allocations: number };
+};
+
+export async function fetchHostelDetail(hostelId: string) {
+  const response = await fetchJson<ApiResponse<HostelDetail>>(
+    `/api/v2/schools/boarding/hostels/${hostelId}`,
   );
   return response.data;
 }

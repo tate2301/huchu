@@ -78,7 +78,10 @@ const sectionIcons: Record<string, LucideIcon> = {
   maintenance: Wrench,
   hr: ManageAccounts,
   cctv: Video,
-  management: Dashboard,
+  settings: Dashboard,
+  schools: Building2,
+  "car-sales": Package,
+  thrift: Coins,
 };
 
 function getSectionIcon(section: NavSection) {
@@ -125,7 +128,10 @@ export function AppSidebar() {
       "gold",
       "stores",
       "maintenance",
-      "management",
+      "schools",
+      "car-sales",
+      "thrift",
+      "settings",
       "reporting",
       "cctv",
     ];
