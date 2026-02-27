@@ -6,6 +6,7 @@ import { StoresShell } from "@/components/stores/stores-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Card,
   CardContent,
@@ -44,8 +45,9 @@ import {
   type InventoryItem,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
-import { Download, Plus, QrCode } from "@/lib/icons";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
+import { Plus, QrCode } from "@/lib/icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -768,22 +770,19 @@ export default function StoresInventoryPage() {
                 <Plus className="h-4 w-4 mr-2" />
                 Add Item
               </Button>
-              <Button
+              <ExportMenu
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  if (inventoryPdfRef.current) {
-                    exportElementToPdf(
-                      inventoryPdfRef.current,
-                      `inventory-${activeSiteId || "all-sites"}.pdf`,
-                    );
-                  }
+                onExport={(format: DocumentExportFormat) => {
+                  if (!inventoryPdfRef.current) return;
+                  return exportElementToDocument(
+                    inventoryPdfRef.current,
+                    `inventory-${activeSiteId || "all-sites"}.${format}`,
+                    format,
+                  );
                 }}
                 disabled={inventoryLoading || inventoryItems.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </Button>
+              />
             </div>
           </div>
         </CardHeader>

@@ -10,7 +10,6 @@ import {
   Shield,
   Radio,
   Mic,
-  Download,
   Pencil,
   Trash2,
 } from "@/lib/icons"
@@ -19,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ExportMenu } from "@/components/ui/export-menu"
 import { PdfTemplate } from "@/components/pdf/pdf-template"
 import {
   Select,
@@ -32,7 +32,8 @@ import { StatusState } from "@/components/shared/status-state"
 import { PageIntro } from "@/components/shared/page-intro"
 import { fetchCameras, Site } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
-import { exportElementToPdf } from "@/lib/pdf"
+import { type DocumentExportFormat } from "@/lib/documents/export-client"
+import { exportElementToDocument } from "@/lib/pdf"
 import { useToast } from "@/components/ui/use-toast"
 
 interface CamerasViewProps {
@@ -201,22 +202,19 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
               </Button>
             )}
 
-            <Button
+            <ExportMenu
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (camerasPdfRef.current) {
-                  exportElementToPdf(
-                    camerasPdfRef.current,
-                    `cctv-cameras-${selectedSiteId || "all-sites"}.pdf`,
-                  )
-                }
-              }}
               disabled={exportDisabled}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export PDF
-            </Button>
+              onExport={(format: DocumentExportFormat) => {
+                if (!camerasPdfRef.current) return
+                return exportElementToDocument(
+                  camerasPdfRef.current,
+                  `cctv-cameras-${selectedSiteId || "all-sites"}.${format}`,
+                  format,
+                )
+              }}
+            />
           </div>
           {!isLoading ? (
             <p className="mt-4 text-xs text-muted-foreground" role="status" aria-live="polite">

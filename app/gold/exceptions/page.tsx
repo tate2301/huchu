@@ -6,7 +6,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Download } from "@/lib/icons";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -14,10 +13,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import {
   fetchGoldCorrections,
   fetchGoldDispatches,
@@ -302,21 +303,21 @@ export default function GoldExceptionsPage() {
       description="Fix missing records and review corrections"
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button
+          <ExportMenu
             variant="outline"
             size="sm"
-            onClick={() => {
+            label="Export Issues"
+            className="[&_svg]:mr-0"
+            onExport={(format: DocumentExportFormat) => {
               if (!exceptionPdfRef.current) return;
-              exportElementToPdf(
+              return exportElementToDocument(
                 exceptionPdfRef.current,
-                `gold-exceptions-${new Date().toISOString().slice(0, 10)}.pdf`,
+                `gold-exceptions-${new Date().toISOString().slice(0, 10)}.${format}`,
+                format,
               );
             }}
             disabled={exportDisabled}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export Issues Snapshot
-          </Button>
+          />
           {canOpenDispatches ? (
             <Button asChild variant="outline" size="sm">
               <Link href={goldRoutes.transit.dispatches}>View Dispatches</Link>

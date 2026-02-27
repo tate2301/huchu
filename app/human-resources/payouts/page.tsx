@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,8 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import type { EmployeePayment } from "@/lib/api";
 
 type ShiftWorkerPayout = {
@@ -325,11 +327,12 @@ export default function HrPayoutsPage() {
     router.push(`/human-resources/payroll/gold?allocationId=${group.allocationId}`);
   };
 
-  const handleExportPdf = () => {
+  const handleExport = async (format: DocumentExportFormat) => {
     if (!payoutPdfRef.current) return;
-    exportElementToPdf(
+    await exportElementToDocument(
       payoutPdfRef.current,
-      `gold-payouts-shift-grouped-${payoutWindowWeeks}-weeks.pdf`,
+      `gold-payouts-shift-grouped-${payoutWindowWeeks}-weeks.${format}`,
+      format,
     );
   };
 
@@ -618,16 +621,21 @@ export default function HrPayoutsPage() {
                     <SelectItem value="4">4 weeks</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
+                <ExportMenu
                   variant="outline"
                   size="sm"
                   className="h-8"
-                  onClick={handleExportPdf}
+                  onExport={(format) => {
+                    void handleExport(format).catch((error) => {
+                      toast({
+                        title: `${format.toUpperCase()} export failed`,
+                        description: getApiErrorMessage(error),
+                        variant: "destructive",
+                      });
+                    });
+                  }}
                   disabled={payoutGroups.length === 0}
-                >
-                  Export PDF
-                </Button>
+                />
                 {allocationIdFilter ? (
                   <Badge variant="neutral">Focused: {allocationIdFilter}</Badge>
                 ) : null}
@@ -798,4 +806,3 @@ export default function HrPayoutsPage() {
     </HrShell>
   );
 }
-

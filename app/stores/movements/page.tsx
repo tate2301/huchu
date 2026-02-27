@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -10,6 +10,7 @@ import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,8 @@ import {
 } from "@/components/ui/select";
 import { fetchSites, fetchStockMovements, type StockMovement } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import {
   Table,
   TableBody,
@@ -66,6 +69,7 @@ const movementVariant = (type: string) => {
 };
 
 export default function StoresMovementsPage() {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
   const createdId = searchParams.get("createdId");
   const [siteId, setSiteId] = useState(searchParams.get("siteId") ?? "");
@@ -167,6 +171,21 @@ export default function StoresMovementsPage() {
             <Link href="/stores/receive">Record Receipt</Link>
           </Button>
         }
+        actions={
+          <ExportMenu
+            variant="outline"
+            size="sm"
+            disabled={movementsLoading || filteredMovements.length === 0}
+            onExport={(format: DocumentExportFormat) => {
+              if (!exportRef.current) return;
+              return exportElementToDocument(
+                exportRef.current,
+                `stores-movements-${new Date().toISOString().slice(0, 10)}.${format}`,
+                format,
+              );
+            }}
+          />
+        }
         filters={
           <div className="grid gap-3 md:grid-cols-3">
             <div>
@@ -222,7 +241,7 @@ export default function StoresMovementsPage() {
           </div>
         }
       >
-        <div className="overflow-x-auto">
+        <div ref={exportRef} className="overflow-x-auto">
           <Table className="w-full">
             <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow>

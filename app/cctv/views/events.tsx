@@ -2,12 +2,13 @@
 
 import { useMemo, useRef, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { AlertCircle, CheckCircle, Clock, Download } from "@/lib/icons"
+import { AlertCircle, CheckCircle, Clock } from "@/lib/icons"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ExportMenu } from "@/components/ui/export-menu"
 import { PdfTemplate } from "@/components/pdf/pdf-template"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -24,7 +25,8 @@ import { StatusState } from "@/components/shared/status-state"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchCCTVEvents, Site } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
-import { exportElementToPdf } from "@/lib/pdf"
+import { type DocumentExportFormat } from "@/lib/documents/export-client"
+import { exportElementToDocument } from "@/lib/pdf"
 
 interface EventsViewProps {
   sites: Site[]
@@ -248,22 +250,19 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
               </Button>
             )}
 
-            <Button
+            <ExportMenu
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (eventsPdfRef.current) {
-                  exportElementToPdf(
-                    eventsPdfRef.current,
-                    `cctv-events-${new Date().toISOString().slice(0, 10)}.pdf`,
-                  )
-                }
-              }}
               disabled={exportDisabled}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export PDF
-            </Button>
+              onExport={(format: DocumentExportFormat) => {
+                if (!eventsPdfRef.current) return
+                return exportElementToDocument(
+                  eventsPdfRef.current,
+                  `cctv-events-${new Date().toISOString().slice(0, 10)}.${format}`,
+                  format,
+                )
+              }}
+            />
           </div>
           {!isLoading ? (
             <p className="mt-4 text-xs text-muted-foreground" role="status" aria-live="polite">

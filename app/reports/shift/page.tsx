@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchShiftReports, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 
 export default function ShiftReportHistoryPage() {
   const { toast } = useToast();
@@ -137,16 +139,17 @@ export default function ShiftReportHistoryPage() {
     [createdId],
   );
 
-  const handleExport = async () => {
+  const handleExport = async (format: DocumentExportFormat) => {
     if (!shiftReportPdfRef.current) return;
     try {
-      await exportElementToPdf(
+      await exportElementToDocument(
         shiftReportPdfRef.current,
-        `shift-reports-${listStartDate}-to-${listEndDate}.pdf`,
+        `shift-reports-${listStartDate}-to-${listEndDate}.${format}`,
+        format,
       );
     } catch (error) {
       toast({
-        title: "PDF export failed",
+        title: `${format.toUpperCase()} export failed`,
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -159,15 +162,12 @@ export default function ShiftReportHistoryPage() {
         <Button asChild size="sm" variant="outline">
           <Link href="/shift-report">New Shift Report</Link>
         </Button>
-        <Button
-          type="button"
+        <ExportMenu
           variant="outline"
           size="sm"
-          onClick={handleExport}
+          onExport={handleExport}
           disabled={shiftReportsLoading || shiftReportRecords.length === 0}
-        >
-          Export PDF
-        </Button>
+        />
       </PageActions>
 
       <PageHeading title="Shift Reports" description="Review submitted shift reports" />
@@ -298,5 +298,4 @@ export default function ShiftReportHistoryPage() {
     </div>
   );
 }
-
 

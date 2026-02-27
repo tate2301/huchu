@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchPlantReports, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 
 export default function PlantReportHistoryPage() {
   const { toast } = useToast();
@@ -138,16 +140,17 @@ export default function PlantReportHistoryPage() {
     [createdId],
   );
 
-  const handleExport = async () => {
+  const handleExport = async (format: DocumentExportFormat) => {
     if (!plantReportPdfRef.current) return;
     try {
-      await exportElementToPdf(
+      await exportElementToDocument(
         plantReportPdfRef.current,
-        `plant-reports-${listStartDate}-to-${listEndDate}.pdf`,
+        `plant-reports-${listStartDate}-to-${listEndDate}.${format}`,
+        format,
       );
     } catch (error) {
       toast({
-        title: "PDF export failed",
+        title: `${format.toUpperCase()} export failed`,
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -160,15 +163,12 @@ export default function PlantReportHistoryPage() {
         <Button size="sm" asChild variant="outline">
           <Link href="/plant-report">New Plant Report</Link>
         </Button>
-        <Button
-          type="button"
+        <ExportMenu
           variant="outline"
           size="sm"
-          onClick={handleExport}
+          onExport={handleExport}
           disabled={plantReportsLoading || plantReportRecords.length === 0}
-        >
-          Export PDF
-        </Button>
+        />
       </PageActions>
 
       <PageHeading title="Plant Reports" description="Review submitted plant reports" />
@@ -299,5 +299,4 @@ export default function PlantReportHistoryPage() {
     </div>
   );
 }
-
 

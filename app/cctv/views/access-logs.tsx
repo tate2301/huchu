@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Camera, Site, fetchCCTVAccessLogs } from "@/lib/api";
@@ -9,9 +9,12 @@ import { PageIntro } from "@/components/shared/page-intro";
 import { StatusState } from "@/components/shared/status-state";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 
 type AccessLogsViewProps = {
   sites: Site[];
@@ -19,6 +22,7 @@ type AccessLogsViewProps = {
 };
 
 export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const [siteId, setSiteId] = useState<string>("");
   const [cameraId, setCameraId] = useState<string>("");
   const [accessType, setAccessType] = useState<string>("");
@@ -155,11 +159,28 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Log Entries</CardTitle>
-            <CardDescription>{logs.length} access event(s) in this view.</CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle>Log Entries</CardTitle>
+                <CardDescription>{logs.length} access event(s) in this view.</CardDescription>
+              </div>
+              <ExportMenu
+                variant="outline"
+                size="sm"
+                disabled={logs.length === 0}
+                onExport={(format: DocumentExportFormat) => {
+                  if (!exportRef.current) return;
+                  return exportElementToDocument(
+                    exportRef.current,
+                    `cctv-access-logs-${new Date().toISOString().slice(0, 10)}.${format}`,
+                    format,
+                  );
+                }}
+              />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div ref={exportRef} className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>

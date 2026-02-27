@@ -691,7 +691,6 @@ export default function TemplateSettingsPage() {
         searchSubmitLabel="Search"
         tableClassName="text-sm"
         noResultsText={templatesQuery.isLoading ? "Loading templates..." : "No templates found."}
-        exportConfig={{ enabled: false }}
         toolbar={
           <>
             <Badge variant="outline">{templates.length} Templates</Badge>

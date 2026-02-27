@@ -7,7 +7,7 @@ import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusState } from "@/components/shared/status-state";
-import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Card,
   CardContent,
@@ -18,8 +18,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
-import { Download, Fuel } from "@/lib/icons";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
+import { Fuel } from "@/lib/icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ParsedNotes = {
@@ -149,22 +150,19 @@ export default function StoresFuelPage() {
                 Diesel receipts and issues with running balance
               </CardDescription>
             </div>
-            <Button
+            <ExportMenu
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (fuelPdfRef.current) {
-                  exportElementToPdf(
-                    fuelPdfRef.current,
-                    `fuel-ledger-${new Date().toISOString().slice(0, 10)}.pdf`,
-                  );
-                }
+              onExport={(format: DocumentExportFormat) => {
+                if (!fuelPdfRef.current) return;
+                return exportElementToDocument(
+                  fuelPdfRef.current,
+                  `fuel-ledger-${new Date().toISOString().slice(0, 10)}.${format}`,
+                  format,
+                );
               }}
               disabled={movementsLoading || ledgerRows.length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
+            />
           </div>
         </CardHeader>
         <CardContent>

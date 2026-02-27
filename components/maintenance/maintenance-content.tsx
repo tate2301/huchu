@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { differenceInMinutes, format } from "date-fns";
 import {
-  Download,
   Pencil,
   Plus,
   QrCode,
@@ -19,6 +18,7 @@ import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Card,
   CardContent,
@@ -54,7 +54,8 @@ import {
   fetchWorkOrders,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import { EmployeePosition } from "@prisma/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useReservedId } from "@/hooks/use-reserved-id";
@@ -1445,22 +1446,19 @@ export function MaintenanceContent({
                     <Plus className="h-4 w-4 mr-2" />
                     Add Equipment
                   </Button>
-                  <Button
+                  <ExportMenu
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (equipmentPdfRef.current) {
-                        exportElementToPdf(
-                          equipmentPdfRef.current,
-                          `maintenance-equipment-${activeSiteId || "all-sites"}.pdf`,
-                        );
-                      }
+                    onExport={(format: DocumentExportFormat) => {
+                      if (!equipmentPdfRef.current) return;
+                      return exportElementToDocument(
+                        equipmentPdfRef.current,
+                        `maintenance-equipment-${activeSiteId || "all-sites"}.${format}`,
+                        format,
+                      );
                     }}
                     disabled={equipmentExportDisabled}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </Button>
+                  />
                 </div>
               </div>
             </CardHeader>
@@ -1997,22 +1995,19 @@ export function MaintenanceContent({
                       </Select>
                     )}
                   </div>
-                  <Button
+                  <ExportMenu
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (workOrdersPdfRef.current) {
-                        exportElementToPdf(
-                          workOrdersPdfRef.current,
-                          `maintenance-work-orders-${activeSiteId || "all-sites"}.pdf`,
-                        );
-                      }
+                    onExport={(format: DocumentExportFormat) => {
+                      if (!workOrdersPdfRef.current) return;
+                      return exportElementToDocument(
+                        workOrdersPdfRef.current,
+                        `maintenance-work-orders-${activeSiteId || "all-sites"}.${format}`,
+                        format,
+                      );
                     }}
                     disabled={workOrdersExportDisabled}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </Button>
+                  />
                 </div>
               </div>
             </CardHeader>
@@ -2271,22 +2266,19 @@ export function MaintenanceContent({
                       </Select>
                     )}
                   </div>
-                  <Button
+                  <ExportMenu
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (schedulePdfRef.current) {
-                        exportElementToPdf(
-                          schedulePdfRef.current,
-                          `maintenance-schedule-${activeSiteId || "all-sites"}.pdf`,
-                        );
-                      }
+                    onExport={(format: DocumentExportFormat) => {
+                      if (!schedulePdfRef.current) return;
+                      return exportElementToDocument(
+                        schedulePdfRef.current,
+                        `maintenance-schedule-${activeSiteId || "all-sites"}.${format}`,
+                        format,
+                      );
                     }}
                     disabled={scheduleExportDisabled}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </Button>
+                  />
                 </div>
               </div>
             </CardHeader>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -25,6 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import {
   Table,
   TableBody,
@@ -49,6 +52,7 @@ const parseNotes = (raw?: string | null) => {
 };
 
 export default function StoresMovementsReportPage() {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const [siteId, setSiteId] = useState("all");
   const [movementType, setMovementType] = useState("all");
   const [search, setSearch] = useState("");
@@ -198,10 +202,27 @@ export default function StoresMovementsReportPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Records</CardTitle>
-          <CardDescription>
-            {filteredRows.length} movement records
-          </CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle>Records</CardTitle>
+              <CardDescription>
+                {filteredRows.length} movement records
+              </CardDescription>
+            </div>
+            <ExportMenu
+              variant="outline"
+              size="sm"
+              disabled={isLoading || filteredRows.length === 0}
+              onExport={(format: DocumentExportFormat) => {
+                if (!exportRef.current) return;
+                return exportElementToDocument(
+                  exportRef.current,
+                  `report-stores-movements-${startDate}-to-${endDate}.${format}`,
+                  format,
+                );
+              }}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -211,7 +232,7 @@ export default function StoresMovementsReportPage() {
               No movement records found for the current filters.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div ref={exportRef} className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
@@ -277,7 +298,7 @@ export default function StoresMovementsReportPage() {
                         className="max-w-76 truncate p-3"
                         title={parseNotes(row.notes)}
                       >
-                        max-w-9 {parseNotes(row.notes) || "-"}
+                        {parseNotes(row.notes) || "-"}
                       </TableCell>
                     </TableRow>
                   ))}

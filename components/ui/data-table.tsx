@@ -19,6 +19,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -105,6 +106,8 @@ type DataTableExportConfig = {
   subtitle?: string;
   fileName?: string;
   filters?: Record<string, string>;
+  formats?: DocumentExportFormat[];
+  includeTotals?: boolean;
   mode?: "SYNC" | "ASYNC";
   templateId?: string;
   templateVersionId?: string;
@@ -314,6 +317,102 @@ function toTitleCase(value: string) {
     .join(" ");
 }
 
+function normalizeDocumentTitle(value: string | null | undefined) {
+  const normalized = (value ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  const pipeParts = normalized
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (pipeParts.length > 1) {
+    const candidate = pipeParts[0];
+    if (candidate) return candidate;
+  }
+
+  const dashParts = normalized
+    .split(" - ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (dashParts.length > 1) {
+    const candidate = dashParts[0];
+    if (candidate) return candidate;
+  }
+
+  return normalized;
+}
+
+function inferTitleFromPath(pathname: string | null | undefined) {
+  const segments = (pathname ?? "/")
+    .split("/")
+    .filter(Boolean)
+    .filter((segment) => !/^[0-9a-f-]{8,}$/i.test(segment));
+
+  if (segments.length === 0) return "Table Export";
+
+  const title = segments
+    .slice(-2)
+    .map((segment) => toTitleCase(segment))
+    .join(" / ");
+
+  return title || "Table Export";
+}
+
+function isLikelyIdentifierColumn(label: string) {
+  return /\b(id|code|ref|reference)\b/i.test(label);
+}
+
+function isLikelyDateColumn(label: string) {
+  return /\b(date|time|timestamp|created|updated)\b/i.test(label);
+}
+
+function isLikelyMoneyColumn(label: string) {
+  return /\b(amount|value|price|cost|balance|total|net|gross|usd|eur|zar|zwl)\b/i.test(
+    label,
+  );
+}
+
+function parseNumericExportValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return { value, decimals: Number.isInteger(value) ? 0 : 2, currency: "" };
+  }
+
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/\d{4}-\d{2}-\d{2}/.test(trimmed) || /\d{1,2}:\d{2}/.test(trimmed)) return null;
+
+  const negative = /^\(.*\)$/.test(trimmed);
+  const currencyMatch = trimmed.match(/[$€£¥]/);
+  const currency = currencyMatch?.[0] ?? "";
+  const normalized = trimmed
+    .replace(/[,$€£¥\s]/g, "")
+    .replace(/[()]/g, "")
+    .replace(/[^0-9.\-]/g, "");
+
+  if (!normalized || normalized === "-" || normalized === ".") return null;
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed)) return null;
+
+  const decimalPart = normalized.split(".")[1];
+  const decimals = decimalPart ? Math.min(decimalPart.length, 4) : 0;
+
+  return {
+    value: negative ? -parsed : parsed,
+    decimals,
+    currency,
+  };
+}
+
+function formatTotalValue(value: number, decimals: number, currency: string) {
+  const precision = Math.max(0, Math.min(4, decimals));
+  const formatted = value.toLocaleString(undefined, {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
+  return `${currency}${formatted}`;
+}
+
 export function DataTable<TData, TValue>({
   data,
   columns,
@@ -363,6 +462,8 @@ export function DataTable<TData, TValue>({
     pageSize: 25,
   });
   const [clientPathname, setClientPathname] = React.useState<string | null>(null);
+  const [clientDocumentTitle, setClientDocumentTitle] = React.useState<string | null>(null);
+  const [clientHeadingTitle, setClientHeadingTitle] = React.useState<string | null>(null);
   const [exportingFormat, setExportingFormat] = React.useState<DocumentExportFormat | null>(null);
   const [exportStatusMessage, setExportStatusMessage] = React.useState<string | null>(null);
   const [expandedRowIdsState, setExpandedRowIdsState] = React.useState<string[]>(
@@ -412,6 +513,9 @@ export function DataTable<TData, TValue>({
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     setClientPathname(window.location.pathname);
+    setClientDocumentTitle(document.title ?? null);
+    const heading = document.querySelector("main h1, h1");
+    setClientHeadingTitle(heading?.textContent ?? null);
   }, []);
 
   React.useEffect(() => {
@@ -569,7 +673,7 @@ export function DataTable<TData, TValue>({
     },
     [],
   );
-  const exportRows = React.useMemo(() => {
+  const baseExportRows = React.useMemo(() => {
     const rows = serverPagination
       ? table.getRowModel().rows
       : table.getPrePaginationRowModel().rows;
@@ -581,6 +685,75 @@ export function DataTable<TData, TValue>({
       return values;
     });
   }, [exportColumns, resolveExportValue, serverPagination, table]);
+  const includeTotals = exportConfig?.includeTotals ?? true;
+  const exportTotals = React.useMemo(() => {
+    if (!includeTotals || baseExportRows.length === 0 || exportColumns.length === 0) {
+      return [] as Array<{ label: string; value: string }>;
+    }
+
+    return exportColumns
+      .map((column) => {
+        const normalizedLabel = `${column.label} ${column.key}`.toLowerCase();
+        if (isLikelyIdentifierColumn(normalizedLabel) || isLikelyDateColumn(normalizedLabel)) {
+          return null;
+        }
+
+        const nonEmptyValues = baseExportRows
+          .map((row) => row[column.key])
+          .filter((value) => {
+            if (value === null || value === undefined) return false;
+            if (typeof value === "string") return value.trim().length > 0;
+            return true;
+          });
+
+        if (nonEmptyValues.length < 2) return null;
+
+        const numericValues = nonEmptyValues
+          .map((value) => parseNumericExportValue(value))
+          .filter((value): value is { value: number; decimals: number; currency: string } =>
+            Boolean(value),
+          );
+
+        if (numericValues.length < 2) return null;
+        if (numericValues.length / nonEmptyValues.length < 0.6) return null;
+
+        const total = numericValues.reduce((sum, value) => sum + value.value, 0);
+        const hasCurrency = numericValues.some((value) => value.currency);
+        const currency = numericValues.find((value) => value.currency)?.currency ?? "";
+        const decimals = hasCurrency || isLikelyMoneyColumn(normalizedLabel)
+          ? 2
+          : Math.min(3, Math.max(...numericValues.map((value) => value.decimals)));
+        const formatted = formatTotalValue(total, decimals, currency);
+
+        return {
+          key: column.key,
+          label: `Total ${column.label}`,
+          value: formatted,
+        };
+      })
+      .filter((value): value is { key: string; label: string; value: string } => Boolean(value));
+  }, [baseExportRows, exportColumns, includeTotals]);
+  const exportRows = React.useMemo(() => {
+    if (!includeTotals || exportTotals.length === 0 || exportColumns.length === 0) {
+      return baseExportRows;
+    }
+
+    const totalsRow: Record<string, unknown> = {};
+    for (const column of exportColumns) {
+      totalsRow[column.key] = "";
+    }
+
+    const firstColumnKey = exportColumns[0]?.key;
+    if (firstColumnKey) {
+      totalsRow[firstColumnKey] = "Total";
+    }
+
+    for (const total of exportTotals) {
+      totalsRow[total.key] = total.value;
+    }
+
+    return [...baseExportRows, totalsRow];
+  }, [baseExportRows, exportColumns, exportTotals, includeTotals]);
 
   const toggleableColumns = React.useMemo(
     () =>
@@ -606,21 +779,26 @@ export function DataTable<TData, TValue>({
     [clientPathname],
   );
   const inferredTitle = React.useMemo(() => {
-    const segment = (clientPathname ?? "/")
-      .split("/")
-      .filter(Boolean)
-      .at(-1);
-    return segment ? `${toTitleCase(segment)} Export` : "Table Export";
-  }, [clientPathname]);
+    const headingTitle = normalizeDocumentTitle(clientHeadingTitle);
+    if (headingTitle) return headingTitle;
+
+    const documentTitle = normalizeDocumentTitle(clientDocumentTitle);
+    if (documentTitle) return documentTitle;
+
+    return inferTitleFromPath(clientPathname);
+  }, [clientDocumentTitle, clientHeadingTitle, clientPathname]);
   const exportSourceKey = exportConfig?.sourceKey ?? inferredSourceKey;
   const exportFileName = exportConfig?.fileName ?? exportSourceKey.replace(/\./g, "-");
-  const exportDisabled = exportRows.length === 0 || exportColumns.length === 0;
+  const exportDisabled = baseExportRows.length === 0 || exportColumns.length === 0;
+  const exportFormats = exportConfig?.formats?.length
+    ? exportConfig.formats
+    : (["pdf", "csv"] as DocumentExportFormat[]);
   const hasAnyExportFilters =
     Boolean(queryState?.search?.trim()) ||
     Boolean(exportConfig?.filters && Object.keys(exportConfig.filters).length > 0);
   const exportMeta = React.useMemo(() => {
     const details: Array<{ label: string; value: string }> = [
-      { label: "Rows", value: String(exportRows.length) },
+      { label: "Rows", value: String(baseExportRows.length) },
     ];
     if (queryState?.search?.trim()) {
       details.push({ label: "Search", value: queryState.search.trim() });
@@ -635,8 +813,9 @@ export function DataTable<TData, TValue>({
         }
       }
     }
+    details.push(...exportTotals.map((item) => ({ label: item.label, value: item.value })));
     return details;
-  }, [exportConfig?.filters, exportRows.length, queryState?.search]);
+  }, [baseExportRows.length, exportConfig?.filters, exportTotals, queryState?.search]);
   const handleExport = React.useCallback(
     async (format: DocumentExportFormat) => {
       if (exportingFormat) return;
@@ -796,6 +975,24 @@ export function DataTable<TData, TValue>({
   );
 
   const renderedRows = table.getRowModel().rows;
+  const primaryDataColumn = React.useMemo(
+    () =>
+      table
+        .getVisibleLeafColumns()
+        .find((column) => !isActionColumnDefinition(column.columnDef, column.id)),
+    [table],
+  );
+  const primaryColumnMaxWidth = React.useMemo(() => {
+    const sizing = primaryDataColumn?.columnDef as
+      | { maxSize?: number; size?: number; minSize?: number }
+      | undefined;
+    return (
+      sizing?.maxSize ??
+      sizing?.size ??
+      sizing?.minSize ??
+      220
+    );
+  }, [primaryDataColumn]);
   const visibleColumnCount = table.getVisibleLeafColumns().length;
   const totalColumnCount =
     visibleColumnCount + (expansionEnabled ? 1 : 0) + (rowSelectionEnabled ? 1 : 0);
@@ -861,23 +1058,13 @@ export function DataTable<TData, TValue>({
           ) : null}
           {exportEnabled ? (
             <div className="ml-auto flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => handleExport("csv")}
-                disabled={exportDisabled || Boolean(exportingFormat)}
-              >
-                {exportingFormat === "csv" ? "Exporting CSV..." : "Export CSV"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => handleExport("pdf")}
-                disabled={exportDisabled || Boolean(exportingFormat)}
-              >
-                {exportingFormat === "pdf" ? "Exporting PDF..." : "Export PDF"}
-              </Button>
+              <ExportMenu
+                label="Export"
+                formats={exportFormats}
+                disabled={exportDisabled}
+                exportingFormat={exportingFormat}
+                onExport={handleExport}
+              />
             </div>
           ) : null}
 
@@ -979,12 +1166,48 @@ export function DataTable<TData, TValue>({
                         </TableCell>
                       ) : null}
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          style={getColumnWidthStyle(cell.column.columnDef)}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
+                        (() => {
+                          const columnDef = cell.column.columnDef as {
+                            accessorKey?: string;
+                            header?: unknown;
+                          };
+                          const columnLabel = deriveHeaderLabel(
+                            columnDef.header,
+                            columnDef.accessorKey ?? cell.column.id,
+                          );
+                          const semanticKey =
+                            `${cell.column.id} ${columnDef.accessorKey ?? ""} ${columnLabel}`.toLowerCase();
+                          const isActionCell = isActionColumnDefinition(
+                            cell.column.columnDef,
+                            cell.column.id,
+                          );
+                          const usesPrimaryWidth =
+                            cell.column.id === primaryDataColumn?.id ||
+                            isLikelyIdentifierColumn(semanticKey) ||
+                            isLikelyDateColumn(semanticKey);
+
+                          return (
+                            <TableCell
+                              key={cell.id}
+                              style={getColumnWidthStyle(cell.column.columnDef)}
+                            >
+                              {isActionCell ? (
+                                flexRender(cell.column.columnDef.cell, cell.getContext())
+                              ) : (
+                                <div
+                                  className="block w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap [&>*]:inline [&>*]:max-w-full [&>*]:overflow-hidden [&>*]:text-ellipsis [&>*]:whitespace-nowrap [&>*+*]:ml-1"
+                                  style={{
+                                    maxWidth: usesPrimaryWidth
+                                      ? `${primaryColumnMaxWidth}px`
+                                      : "320px",
+                                  }}
+                                >
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </div>
+                              )}
+                            </TableCell>
+                          );
+                        })()
                       ))}
                     </TableRow>
                     {expansionEnabled && isExpanded ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
@@ -8,13 +8,17 @@ import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchEquipment, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function MaintenanceEquipmentReportPage() {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const [siteId, setSiteId] = useState("all");
   const [nowTimestamp] = useState<number>(() => Date.now());
 
@@ -106,8 +110,25 @@ export default function MaintenanceEquipmentReportPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Records</CardTitle>
-          <CardDescription>{displayRows.length} equipment records</CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle>Records</CardTitle>
+              <CardDescription>{displayRows.length} equipment records</CardDescription>
+            </div>
+            <ExportMenu
+              variant="outline"
+              size="sm"
+              disabled={isLoading || displayRows.length === 0}
+              onExport={(format: DocumentExportFormat) => {
+                if (!exportRef.current) return;
+                return exportElementToDocument(
+                  exportRef.current,
+                  `report-maintenance-equipment-${siteId || "all"}.${format}`,
+                  format,
+                );
+              }}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -115,7 +136,7 @@ export default function MaintenanceEquipmentReportPage() {
           ) : displayRows.length === 0 ? (
             <div className="text-sm text-muted-foreground">No equipment records found.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <div ref={exportRef} className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>

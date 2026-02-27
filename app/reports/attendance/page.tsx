@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchAttendance, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 
 export default function AttendanceHistoryPage() {
   const { toast } = useToast();
@@ -170,16 +172,17 @@ export default function AttendanceHistoryPage() {
     [batchDate, batchShift, batchSiteId, createdId],
   );
 
-  const handleExport = async () => {
+  const handleExport = async (format: DocumentExportFormat) => {
     if (!attendancePdfRef.current) return;
     try {
-      await exportElementToPdf(
+      await exportElementToDocument(
         attendancePdfRef.current,
-        `attendance-${listStartDate}-to-${listEndDate}.pdf`,
+        `attendance-${listStartDate}-to-${listEndDate}.${format}`,
+        format,
       );
     } catch (error) {
       toast({
-        title: "PDF export failed",
+        title: `${format.toUpperCase()} export failed`,
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -192,15 +195,12 @@ export default function AttendanceHistoryPage() {
         <Button size="sm" asChild variant="outline">
           <Link href="/attendance">New Attendance Entry</Link>
         </Button>
-        <Button
-          type="button"
+        <ExportMenu
           variant="outline"
           size="sm"
-          onClick={handleExport}
+          onExport={handleExport}
           disabled={attendanceListLoading || attendanceRecords.length === 0}
-        >
-          Export PDF
-        </Button>
+        />
       </PageActions>
 
       <PageHeading title="Attendance Records" description="Review submitted attendance entries" />
@@ -334,5 +334,4 @@ export default function AttendanceHistoryPage() {
     </div>
   );
 }
-
 

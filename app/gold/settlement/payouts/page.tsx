@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,8 @@ import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { exportElementToPdf } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
@@ -463,21 +465,19 @@ export default function GoldSettlementPayoutsPage() {
                   <SelectItem value="4">4 weeks</SelectItem>
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
+              <ExportMenu
                 variant="outline"
                 size="sm"
-                onClick={() => {
+                disabled={isLoading || shiftPayouts.length === 0}
+                onExport={(format: DocumentExportFormat) => {
                   if (!payoutTableRef.current) return;
-                  exportElementToPdf(
+                  return exportElementToDocument(
                     payoutTableRef.current,
-                    `gold-shift-payouts-${payoutWindowWeeks}-weeks.pdf`,
+                    `gold-shift-payouts-${payoutWindowWeeks}-weeks.${format}`,
+                    format,
                   );
                 }}
-                disabled={isLoading || shiftPayouts.length === 0}
-              >
-                Export PDF
-              </Button>
+              />
             </div>
           }
           emptyState={isLoading ? "Loading payout schedule..." : "No shift payouts recorded for this window."}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
@@ -9,14 +9,18 @@ import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInventoryItems, fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { type DocumentExportFormat } from "@/lib/documents/export-client";
+import { exportElementToDocument } from "@/lib/pdf";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function FuelLedgerReportPage() {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const [siteId, setSiteId] = useState("all");
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 6), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -142,8 +146,25 @@ export default function FuelLedgerReportPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Fuel Movements</CardTitle>
-          <CardDescription>{filteredMovements.length} movement records</CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle>Fuel Movements</CardTitle>
+              <CardDescription>{filteredMovements.length} movement records</CardDescription>
+            </div>
+            <ExportMenu
+              variant="outline"
+              size="sm"
+              disabled={movementLoading || filteredMovements.length === 0}
+              onExport={(format: DocumentExportFormat) => {
+                if (!exportRef.current) return;
+                return exportElementToDocument(
+                  exportRef.current,
+                  `report-fuel-ledger-${startDate}-to-${endDate}.${format}`,
+                  format,
+                );
+              }}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {movementLoading ? (
@@ -151,7 +172,7 @@ export default function FuelLedgerReportPage() {
           ) : filteredMovements.length === 0 ? (
             <div className="text-sm text-muted-foreground">No fuel movements for the selected filters.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <div ref={exportRef} className="overflow-x-auto">
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted">
                   <TableRow>
