@@ -81,10 +81,17 @@ export default withAuth(
 
     if (hostContext.portalSubdomain && !isApiRequest) {
       const portalPath = PORTAL_SUBDOMAIN_MAP[hostContext.portalSubdomain];
-      if (portalPath && pathname !== portalPath && !pathname.startsWith(portalPath + "/")) {
-        const rewriteUrl = request.nextUrl.clone();
-        rewriteUrl.pathname = portalPath;
-        return NextResponse.rewrite(rewriteUrl);
+      if (portalPath) {
+        if (pathname === LOGIN_PATH) {
+          const rewriteUrl = request.nextUrl.clone();
+          rewriteUrl.pathname = portalPath + "/login";
+          return NextResponse.rewrite(rewriteUrl);
+        }
+        if (pathname !== portalPath && !pathname.startsWith(portalPath + "/")) {
+          const rewriteUrl = request.nextUrl.clone();
+          rewriteUrl.pathname = portalPath;
+          return NextResponse.rewrite(rewriteUrl);
+        }
       }
     }
 

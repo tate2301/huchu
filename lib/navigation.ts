@@ -383,9 +383,9 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    id: "management",
-    title: "Management",
-    description: "Dashboards and management modules",
+    id: "settings",
+    title: "Settings",
+    description: "Organisation settings and administration",
     items: [
       {
         href: "/dashboard",

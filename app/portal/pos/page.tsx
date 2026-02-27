@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
 export default async function PosPortalPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
-    redirect("/login");
+    redirect("/portal/pos/login");
   }
 
   return (

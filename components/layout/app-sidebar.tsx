@@ -78,7 +78,7 @@ const sectionIcons: Record<string, LucideIcon> = {
   maintenance: Wrench,
   hr: ManageAccounts,
   cctv: Video,
-  management: Dashboard,
+  settings: Dashboard,
   schools: Building2,
   "car-sales": Package,
   thrift: Coins,
@@ -131,7 +131,7 @@ export function AppSidebar() {
       "schools",
       "car-sales",
       "thrift",
-      "management",
+      "settings",
       "reporting",
       "cctv",
     ];
