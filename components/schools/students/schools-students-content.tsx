@@ -124,11 +124,19 @@ export function SchoolsStudentsContent() {
   });
 
   const students = useMemo(
-    () => studentsQuery.data?.data ?? [],
+    () => {
+      const raw = studentsQuery.data;
+      if (!raw) return [];
+      return Array.isArray(raw) ? raw : raw.data ?? [];
+    },
     [studentsQuery.data],
   );
   const guardians = useMemo(
-    () => guardiansQuery.data?.data ?? [],
+    () => {
+      const raw = guardiansQuery.data;
+      if (!raw) return [];
+      return Array.isArray(raw) ? raw : raw.data ?? [];
+    },
     [guardiansQuery.data],
   );
 
