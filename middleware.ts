@@ -6,6 +6,7 @@ import {
   getPlatformHostContext,
   isAllowedHost,
   isTenantStatusActive,
+  PORTAL_SUBDOMAIN_MAP,
 } from "@/lib/platform/tenant";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 
@@ -77,6 +78,15 @@ export default withAuth(
     const hostContext = getPlatformHostContext(hostHeader);
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
+
+    if (hostContext.portalSubdomain && !isApiRequest) {
+      const portalPath = PORTAL_SUBDOMAIN_MAP[hostContext.portalSubdomain];
+      if (portalPath && (pathname === "/" || !pathname.startsWith("/portal"))) {
+        const rewriteUrl = request.nextUrl.clone();
+        rewriteUrl.pathname = portalPath;
+        return NextResponse.rewrite(rewriteUrl);
+      }
+    }
 
     if (pathname === LOGIN_PATH) {
       if (!hostContext.strictTenantEnforcement) {
