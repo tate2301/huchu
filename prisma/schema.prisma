@@ -2791,6 +2791,8 @@ model SalesInvoiceLine {
   taxRate     Float    @default(0)
   taxAmount   Float    @default(0)
   lineTotal   Float    @default(0)
+  debit       Float?
+  credit      Float?
   createdAt   DateTime @default(now())
 
   invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -2975,6 +2977,8 @@ model PurchaseBillLine {
   taxRate     Float    @default(0)
   taxAmount   Float    @default(0)
   lineTotal   Float    @default(0)
+  debit       Float?
+  credit      Float?
   createdAt   DateTime @default(now())
 
   bill    PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)

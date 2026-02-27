@@ -21,6 +21,8 @@ const billSchema = z.object({
         unitPrice: z.number().min(0),
         taxCodeId: z.string().uuid().optional(),
         taxRate: z.number().min(0).max(100).optional(),
+        debit: z.number().min(0).optional(),
+        credit: z.number().min(0).optional(),
       }),
     )
     .min(1),
@@ -164,6 +166,8 @@ export async function POST(request: NextRequest) {
         taxRate,
         taxAmount,
         lineTotal: total,
+        debit: line.debit,
+        credit: line.credit,
       };
     });
 

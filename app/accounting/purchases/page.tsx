@@ -60,6 +60,8 @@ type BillLineForm = {
   unitPrice: string;
   taxCodeId: string;
   taxRate: string;
+  debit: string;
+  credit: string;
 };
 
 export default function AccountingPurchasesPage() {
@@ -103,7 +105,7 @@ export default function AccountingPurchasesPage() {
   });
 
   const [billLines, setBillLines] = useState<BillLineForm[]>([
-    { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" },
+    { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "", debit: "", credit: "" },
   ]);
 
   const [paymentForm, setPaymentForm] = useState({
@@ -122,7 +124,7 @@ export default function AccountingPurchasesPage() {
     issueNow: "ISSUED",
   });
   const [debitNoteLines, setDebitNoteLines] = useState<BillLineForm[]>([
-    { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" },
+    { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "", debit: "", credit: "" },
   ]);
   const [writeOffForm, setWriteOffForm] = useState({
     billId: "",
@@ -683,7 +685,7 @@ export default function AccountingPurchasesPage() {
         notes: "",
         receiveNow: "DRAFT",
       });
-      setBillLines([{ description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" }]);
+      setBillLines([{ description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "", debit: "", credit: "" }]);
       queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "bills"] });
     },
     onError: (err) => {
@@ -771,7 +773,7 @@ export default function AccountingPurchasesPage() {
         reason: "",
         issueNow: "ISSUED",
       });
-      setDebitNoteLines([{ description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" }]);
+      setDebitNoteLines([{ description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "", debit: "", credit: "" }]);
       queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "debit-notes"] });
       queryClient.invalidateQueries({ queryKey: ["accounting", "purchases", "bills"] });
     },
@@ -831,7 +833,7 @@ export default function AccountingPurchasesPage() {
   const addBillLine = () => {
     setBillLines((prev) => [
       ...prev,
-      { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" },
+      { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "", debit: "", credit: "" },
     ]);
   };
 
@@ -861,7 +863,7 @@ export default function AccountingPurchasesPage() {
   const addDebitNoteLine = () => {
     setDebitNoteLines((prev) => [
       ...prev,
-      { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "" },
+      { description: "", quantity: "1", unitPrice: "", taxCodeId: "", taxRate: "", debit: "", credit: "" },
     ]);
   };
 
@@ -912,6 +914,8 @@ export default function AccountingPurchasesPage() {
         unitPrice: Number(line.unitPrice) || 0,
         taxCodeId: line.taxCodeId || undefined,
         taxRate: line.taxRate ? Number(line.taxRate) : undefined,
+        debit: line.debit ? Number(line.debit) : undefined,
+        credit: line.credit ? Number(line.credit) : undefined,
       }))
       .filter((line) => line.description && line.quantity > 0);
 
@@ -976,6 +980,8 @@ export default function AccountingPurchasesPage() {
         unitPrice: Number(line.unitPrice) || 0,
         taxCodeId: line.taxCodeId || undefined,
         taxRate: line.taxRate ? Number(line.taxRate) : undefined,
+        debit: line.debit ? Number(line.debit) : undefined,
+        credit: line.credit ? Number(line.credit) : undefined,
       }))
       .filter((line) => line.description && line.quantity > 0);
 
