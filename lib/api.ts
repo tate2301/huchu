@@ -699,12 +699,32 @@ export type GoldPour = {
   pourBarId: string;
   pourDate: string;
   sourceType?: "PRODUCTION" | "PURCHASE_PUBLIC";
+  createdAt: string;
   grossWeight: number;
   goldPriceUsdPerGram?: number | null;
   valuationDate?: string | null;
   valueUsd?: number | null;
   estimatedPurity?: number | null;
   storageLocation: string;
+  shiftLeaderName?: string | null;
+  expenseWeightTotal?: number | null;
+  workerSplitWeight?: number | null;
+  companySplitWeight?: number | null;
+  companyTotalWeight?: number | null;
+  expenseBreakdown?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  goldShiftAllocation?: {
+    id: string;
+    totalWeight: number;
+    netWeight: number;
+    workerShareWeight: number;
+    companyShareWeight: number;
+    expenses: Array<{ id: string; type: string; weight: number }>;
+    shiftReport?: {
+      id: string;
+      groupLeader?: { name: string } | null;
+    } | null;
+  } | null;
   site: { name: string; code: string };
   witness1?: { name: string } | null;
   witness2?: { name: string } | null;
@@ -759,11 +779,18 @@ export type BuyerReceipt = {
     id?: string;
     batchId?: string;
     batchCode?: string;
+    createdAt?: string;
     pourBarId: string;
     grossWeight: number;
     goldPriceUsdPerGram?: number | null;
     valueUsd?: number | null;
     pourDate: string;
+    shiftLeaderName?: string | null;
+    expenseWeightTotal?: number | null;
+    workerSplitWeight?: number | null;
+    companySplitWeight?: number | null;
+    companyTotalWeight?: number | null;
+    createdBy?: { id: string; name: string } | null;
     site: { name: string; code: string };
   };
   goldDispatch?: {
@@ -776,11 +803,18 @@ export type BuyerReceipt = {
       id?: string;
       batchId?: string;
       batchCode?: string;
+      createdAt?: string;
       pourBarId: string;
       grossWeight: number;
       goldPriceUsdPerGram?: number | null;
       valueUsd?: number | null;
       pourDate: string;
+      shiftLeaderName?: string | null;
+      expenseWeightTotal?: number | null;
+      workerSplitWeight?: number | null;
+      companySplitWeight?: number | null;
+      companyTotalWeight?: number | null;
+      createdBy?: { id: string; name: string } | null;
       site: { name: string; code: string };
     };
   } | null;
@@ -893,6 +927,15 @@ export type GoldPriceRecord = {
   priceUsdPerGram: number;
   note?: string | null;
   createdById: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GoldExpenseType = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -2160,6 +2203,50 @@ export async function updateGoldPrice(
     method: "PATCH",
     body: JSON.stringify(input),
   });
+}
+
+export async function fetchGoldExpenseTypes(
+  params: { active?: boolean | "all"; search?: string } = {},
+) {
+  const query = buildQuery(params);
+  const response = await fetchJson<{ expenseTypes: GoldExpenseType[] }>(
+    `/api/gold/expense-types${query}`,
+  );
+  return response.expenseTypes;
+}
+
+export async function createGoldExpenseType(input: {
+  name: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<GoldExpenseType>("/api/gold/expense-types", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateGoldExpenseType(
+  id: string,
+  input: {
+    name?: string;
+    sortOrder?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<GoldExpenseType>(`/api/gold/expense-types/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteGoldExpenseType(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(
+    `/api/gold/expense-types/${id}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function fetchPermits(

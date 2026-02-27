@@ -27,7 +27,7 @@ const shiftLabelSchema = z
   .transform(normalizeShiftLabel)
 
 const expenseSchema = z.object({
-  type: z.string().min(1).max(100),
+  type: z.string().trim().min(1).max(100),
   weight: z.number().min(0.0001),
 })
 
@@ -215,6 +215,26 @@ export async function POST(request: NextRequest) {
       return errorResponse("No present workers found for this shift", 400)
     }
 
+    const requestedExpenseTypes = Array.from(
+      new Set((validated.expenses ?? []).map((expense) => expense.type.trim().toLowerCase())),
+    )
+    if (requestedExpenseTypes.length > 0) {
+      const configuredExpenseTypes = await prisma.goldExpenseType.findMany({
+        where: {
+          companyId: session.user.companyId,
+          isActive: true,
+        },
+        select: { name: true },
+      })
+      const configuredTypeSet = new Set(
+        configuredExpenseTypes.map((expenseType) => expenseType.name.trim().toLowerCase()),
+      )
+      const invalidTypes = requestedExpenseTypes.filter((type) => !configuredTypeSet.has(type))
+      if (invalidTypes.length > 0) {
+        return errorResponse("Invalid expense type. Update gold expense types in master data.", 400)
+      }
+    }
+
     const expenseTotal = (validated.expenses ?? []).reduce(
       (sum, expense) => sum + expense.weight,
       0,
@@ -304,7 +324,7 @@ export async function POST(request: NextRequest) {
           createdById: session.user.id,
           expenses: {
             create: (validated.expenses ?? []).map((expense) => ({
-              type: expense.type,
+              type: expense.type.trim(),
               weight: expense.weight,
             })),
           },
@@ -368,14 +388,16 @@ export async function POST(request: NextRequest) {
             siteId: validated.siteId,
             pourBarId: batchCode,
             pourDate: start,
-            grossWeight: netWeight,
+            grossWeight: validated.totalWeight,
             goldPriceUsdPerGram,
             valuationDate,
-            valueUsd: netWeightValueUsd,
+            valueUsd: totalWeightValueUsd,
             witness1Id: primaryWitnessId,
             witness2Id: secondaryWitnessId,
             storageLocation: "Shift Vault",
             notes: `${AUTO_BATCH_NOTE_PREFIX}${allocation.id}`,
+            createdById: session.user.id,
+            goldShiftAllocationId: allocation.id,
           },
           select: { id: true, pourBarId: true },
         })

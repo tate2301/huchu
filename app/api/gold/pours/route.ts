@@ -44,6 +44,23 @@ export async function GET(request: NextRequest) {
           site: { select: { name: true, code: true } },
           witness1: { select: { name: true } },
           witness2: { select: { name: true } },
+          createdBy: { select: { id: true, name: true } },
+          goldShiftAllocation: {
+            select: {
+              id: true,
+              totalWeight: true,
+              netWeight: true,
+              workerShareWeight: true,
+              companyShareWeight: true,
+              expenses: { select: { id: true, type: true, weight: true } },
+              shiftReport: {
+                select: {
+                  id: true,
+                  groupLeader: { select: { name: true } },
+                },
+              },
+            },
+          },
         },
         orderBy: { pourDate: 'desc' },
         skip,
@@ -52,11 +69,38 @@ export async function GET(request: NextRequest) {
       prisma.goldPour.count({ where }),
     ]);
 
-    const normalizedPours = pours.map((pour) => ({
-      ...pour,
-      batchId: pour.id,
-      batchCode: pour.pourBarId,
-    }));
+    const normalizedPours = pours.map((pour) => {
+      const expenseWeightTotal = pour.goldShiftAllocation
+        ? pour.goldShiftAllocation.expenses.reduce(
+            (sum, expense) => sum + expense.weight,
+            0,
+          )
+        : null;
+      const workerSplitWeight = pour.goldShiftAllocation?.workerShareWeight ?? null;
+      const companySplitWeight = pour.goldShiftAllocation?.companyShareWeight ?? null;
+      const companyTotalWeight =
+        companySplitWeight !== null && expenseWeightTotal !== null
+          ? companySplitWeight + expenseWeightTotal
+          : null;
+      const expenseBreakdown = pour.goldShiftAllocation
+        ? pour.goldShiftAllocation.expenses
+            .map((expense) => `${expense.type} ${expense.weight.toFixed(3)} g`)
+            .join(", ")
+        : "";
+
+      return {
+        ...pour,
+        batchId: pour.id,
+        batchCode: pour.pourBarId,
+        shiftLeaderName:
+          pour.goldShiftAllocation?.shiftReport?.groupLeader?.name ?? null,
+        expenseWeightTotal,
+        workerSplitWeight,
+        companySplitWeight,
+        companyTotalWeight,
+        expenseBreakdown,
+      };
+    });
 
     return successResponse(paginationResponse(normalizedPours, total, page, limit));
   } catch (error) {
@@ -151,11 +195,13 @@ export async function POST(request: NextRequest) {
         storageLocation: validated.storageLocation,
         estimatedPurity: validated.estimatedPurity,
         notes: validated.notes,
+        createdById: session.user.id,
       },
       include: {
         site: { select: { name: true, code: true } },
         witness1: { select: { name: true } },
         witness2: { select: { name: true } },
+        createdBy: { select: { id: true, name: true } },
       },
     });
 

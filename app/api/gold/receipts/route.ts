@@ -38,10 +38,28 @@ const receiptInclude = {
     select: {
       id: true,
       pourBarId: true,
+      createdAt: true,
       grossWeight: true,
       goldPriceUsdPerGram: true,
       valueUsd: true,
       pourDate: true,
+      createdBy: { select: { id: true, name: true } },
+      goldShiftAllocation: {
+        select: {
+          id: true,
+          totalWeight: true,
+          netWeight: true,
+          workerShareWeight: true,
+          companyShareWeight: true,
+          expenses: { select: { id: true, type: true, weight: true } },
+          shiftReport: {
+            select: {
+              id: true,
+              groupLeader: { select: { name: true } },
+            },
+          },
+        },
+      },
       site: { select: { name: true, code: true } },
     },
   },
@@ -51,10 +69,28 @@ const receiptInclude = {
         select: {
           id: true,
           pourBarId: true,
+          createdAt: true,
           grossWeight: true,
           goldPriceUsdPerGram: true,
           valueUsd: true,
           pourDate: true,
+          createdBy: { select: { id: true, name: true } },
+          goldShiftAllocation: {
+            select: {
+              id: true,
+              totalWeight: true,
+              netWeight: true,
+              workerShareWeight: true,
+              companyShareWeight: true,
+              expenses: { select: { id: true, type: true, weight: true } },
+              shiftReport: {
+                select: {
+                  id: true,
+                  groupLeader: { select: { name: true } },
+                },
+              },
+            },
+          },
           site: { select: { name: true, code: true } },
         },
       },
@@ -62,11 +98,38 @@ const receiptInclude = {
   },
 } as const
 
-function toBatchRef<T extends { id: string; pourBarId: string }>(goldPour: T) {
+type BatchReference = {
+  id: string
+  pourBarId: string
+  goldShiftAllocation?: {
+    workerShareWeight: number
+    companyShareWeight: number
+    expenses: Array<{ weight: number }>
+    shiftReport?: { groupLeader?: { name: string } | null } | null
+  } | null
+}
+
+function toBatchRef<T extends BatchReference>(goldPour: T) {
+  const expenseWeightTotal = goldPour.goldShiftAllocation
+    ? goldPour.goldShiftAllocation.expenses.reduce((sum, expense) => sum + expense.weight, 0)
+    : null
+  const workerSplitWeight = goldPour.goldShiftAllocation?.workerShareWeight ?? null
+  const companySplitWeight = goldPour.goldShiftAllocation?.companyShareWeight ?? null
+  const companyTotalWeight =
+    companySplitWeight !== null && expenseWeightTotal !== null
+      ? companySplitWeight + expenseWeightTotal
+      : null
+
   return {
     ...goldPour,
     batchId: goldPour.id,
     batchCode: goldPour.pourBarId,
+    expenseWeightTotal,
+    workerSplitWeight,
+    companySplitWeight,
+    companyTotalWeight,
+    shiftLeaderName:
+      goldPour.goldShiftAllocation?.shiftReport?.groupLeader?.name ?? null,
   }
 }
 

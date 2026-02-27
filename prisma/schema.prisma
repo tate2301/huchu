@@ -137,6 +137,7 @@ model Company {
   carSalesPayments     CarSalesPayment[]
   goldPurchases        GoldPurchase[]
   goldPrices          GoldPrice[]
+  goldExpenseTypes    GoldExpenseType[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -718,6 +719,7 @@ model User {
   submittedGoldShiftAllocations GoldShiftAllocation[]       @relation("GoldShiftAllocationSubmittedBy")
   approvedGoldShiftAllocations  GoldShiftAllocation[]       @relation("GoldShiftAllocationApprovedBy")
   createdGoldPurchases          GoldPurchase[]              @relation("GoldPurchaseCreatedBy")
+  createdGoldPours              GoldPour[]                  @relation("GoldPourRecordedBy")
   stockMovements                StockMovement[]
   inspections                   Inspection[]
   trainingRecords               TrainingRecord[]
@@ -1837,12 +1839,29 @@ model GoldPrice {
   @@index([companyId, effectiveDate])
 }
 
+model GoldExpenseType {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
 model GoldPour {
   id              String   @id @default(uuid())
   pourBarId       String   @unique
   pourDate        DateTime
   siteId          String
   sourceType      GoldLotSource @default(PRODUCTION)
+  createdById     String?
+  goldShiftAllocationId String?
   grossWeight     Float
   estimatedPurity Float?
   witness1Id      String
@@ -1861,12 +1880,16 @@ model GoldPour {
   site       Site           @relation(fields: [siteId], references: [id])
   witness1   Employee       @relation("Witness1", fields: [witness1Id], references: [id])
   witness2   Employee       @relation("Witness2", fields: [witness2Id], references: [id])
+  createdBy  User?          @relation("GoldPourRecordedBy", fields: [createdById], references: [id])
+  goldShiftAllocation GoldShiftAllocation? @relation(fields: [goldShiftAllocationId], references: [id])
   purchase   GoldPurchase?
   dispatches GoldDispatch[]
   receipts   BuyerReceipt[]
 
   @@index([siteId])
   @@index([pourDate])
+  @@index([createdById])
+  @@index([goldShiftAllocationId])
 }
 
 enum GoldLotSource {
@@ -2010,6 +2033,7 @@ model GoldShiftAllocation {
   approvedBy   User?                  @relation("GoldShiftAllocationApprovedBy", fields: [approvedById], references: [id])
   expenses     GoldShiftExpense[]
   workerShares GoldShiftWorkerShare[]
+  pours        GoldPour[]
 
   @@unique([siteId, date, shift])
   @@index([siteId, date])

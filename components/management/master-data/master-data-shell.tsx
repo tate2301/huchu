@@ -14,7 +14,8 @@ export type MasterDataTab =
   | "job-grades"
   | "sites"
   | "sections"
-  | "downtime-codes";
+  | "downtime-codes"
+  | "gold-expense-types";
 
 type TabItem = {
   id: MasterDataTab;
@@ -32,6 +33,11 @@ const tabItems: TabItem[] = [
     id: "downtime-codes",
     label: "Downtime Codes",
     href: "/management/master-data/operations/downtime-codes",
+  },
+  {
+    id: "gold-expense-types",
+    label: "Gold Expense Types",
+    href: "/management/master-data/operations/gold-expense-types",
   },
 ];
 

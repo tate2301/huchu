@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
+import {
+  fetchGoldExpenseTypes,
+  type GoldExpenseType,
+} from "@/lib/api";
 import {
   Building2,
   FileCheck,
@@ -78,26 +90,38 @@ export function ShiftAllocationModal({
   >();
   const [totalWeight, setTotalWeight] = useState("");
   const [expenses, setExpenses] = useState<ShiftExpenseInput[]>([
-    { id: "expense-1", type: "Diesel", weight: "" },
-  ]);
-  const [expenseTypes, setExpenseTypes] = useState<string[]>([
-    "Diesel",
-    "Transport",
-    "Grinding Media",
-    "Security",
-    "Food",
-    "Supplies",
-    "Other",
+    { id: "expense-1", type: "", weight: "" },
   ]);
   const [payCycleWeeks, setPayCycleWeeks] = useState("2");
   const [manualSplitEnabled, setManualSplitEnabled] = useState(false);
   const [workerShareOverride, setWorkerShareOverride] = useState("");
   const [splitOverrideReason, setSplitOverrideReason] = useState("");
+  const splitOverrideReasonOptions = [
+    "Morale adjustment",
+    "Safety adjustment",
+    "Performance incentive",
+    "Disciplinary adjustment",
+    "Management directive",
+  ];
+
+  const {
+    data: expenseTypesData,
+    isLoading: expenseTypesLoading,
+  } = useQuery({
+    queryKey: ["gold-expense-types", "active"],
+    queryFn: () => fetchGoldExpenseTypes({ active: true }),
+    enabled: open,
+  });
+
+  const expenseTypes = useMemo<GoldExpenseType[]>(
+    () => expenseTypesData ?? [],
+    [expenseTypesData],
+  );
 
   const resetForm = () => {
     setSelectedShiftKey(undefined);
     setTotalWeight("");
-    setExpenses([{ id: "expense-1", type: "Diesel", weight: "" }]);
+    setExpenses([{ id: "expense-1", type: "", weight: "" }]);
     setPayCycleWeeks("2");
     setManualSplitEnabled(false);
     setWorkerShareOverride("");
@@ -135,11 +159,13 @@ export function ShiftAllocationModal({
   const expenseTypeOptions = useMemo(
     () =>
       expenseTypes.map((type) => ({
-        value: type,
-        label: type,
+        value: type.name,
+        label: type.name,
       })),
     [expenseTypes],
   );
+  const resolveExpenseType = (type: string) =>
+    type.trim() || expenseTypeOptions[0]?.value || "";
 
   const totalWeightValue = Number(totalWeight || 0);
   const expenseTotal = expenses.reduce((sum, expense) => {
@@ -166,6 +192,7 @@ export function ShiftAllocationModal({
   const canSubmit =
     !!selectedShift &&
     hasReport &&
+    expenseTypeOptions.length > 0 &&
     totalWeightValue > 0 &&
     presentCount > 0 &&
     netWeight > 0 &&
@@ -179,7 +206,7 @@ export function ShiftAllocationModal({
       ...prev,
       {
         id: `expense-${prev.length + 1}`,
-        type: expenseTypes[0] ?? "Other",
+        type: expenseTypeOptions[0]?.value ?? "",
         weight: "",
       },
     ]);
@@ -200,14 +227,6 @@ export function ShiftAllocationModal({
     setExpenses((prev) => prev.filter((expense) => expense.id !== id));
   };
 
-  const handleAddExpenseType = (query: string) => {
-    const name = query.trim();
-    if (!name) return;
-    if (expenseTypes.some((type) => type.toLowerCase() === name.toLowerCase()))
-      return;
-    setExpenseTypes((prev) => [...prev, name]);
-  };
-
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedShift) return;
@@ -218,9 +237,12 @@ export function ShiftAllocationModal({
       siteId: selectedShift.siteId,
       totalWeight: totalWeightValue,
       expenses: expenses
-        .filter((expense) => Number(expense.weight || 0) > 0)
+        .filter(
+          (expense) =>
+            Number(expense.weight || 0) > 0 && resolveExpenseType(expense.type).length > 0,
+        )
         .map((expense) => ({
-          type: expense.type,
+          type: resolveExpenseType(expense.type),
           weight: Number(expense.weight || 0),
         })),
       splitMode: manualSplitEnabled ? "OVERRIDE_WORKER_WEIGHT" : "DEFAULT_50_50",
@@ -455,11 +477,30 @@ export function ShiftAllocationModal({
                       variant="outline"
                       size="sm"
                       onClick={handleAddExpense}
+                      disabled={expenseTypeOptions.length === 0}
                     >
                       <Plus className="h-4 w-4" />
                       Add expense
                     </Button>
                   </div>
+
+                  {expenseTypesLoading ? (
+                    <Alert>
+                      <AlertTitle>Loading expense types</AlertTitle>
+                      <AlertDescription>
+                        Fetching configured gold expense types from master data.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {!expenseTypesLoading && expenseTypeOptions.length === 0 ? (
+                    <Alert variant="destructive">
+                      <AlertTitle>No active expense types configured</AlertTitle>
+                      <AlertDescription>
+                        Add at least one active expense type under Master Data before recording shift output.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
 
                   <div className="space-y-3">
                     {expenses.map((expense) => (
@@ -469,22 +510,14 @@ export function ShiftAllocationModal({
                       >
                         <SearchableSelect
                           label="Expense type"
-                          value={expense.type}
+                          value={resolveExpenseType(expense.type)}
                           options={expenseTypeOptions}
                           placeholder="Select expense type"
                           searchPlaceholder="Search expense types..."
                           onValueChange={(value) =>
                             handleExpenseChange(expense.id, { type: value })
                           }
-                          onAddOption={(query) => {
-                            handleAddExpenseType(query);
-                            if (query.trim()) {
-                              handleExpenseChange(expense.id, {
-                                type: query.trim(),
-                              });
-                            }
-                          }}
-                          addLabel="Add expense type"
+                          disabled={expenseTypeOptions.length === 0}
                         />
                         <div>
                           <label className="block text-sm font-semibold mb-2">
@@ -562,13 +595,21 @@ export function ShiftAllocationModal({
                         <label className="mb-2 block text-sm font-semibold">
                           Override reason
                         </label>
-                        <Input
+                        <Select
                           value={splitOverrideReason}
-                          onChange={(event) =>
-                            setSplitOverrideReason(event.target.value)
-                          }
-                          placeholder="Reason for morale adjustment"
-                        />
+                          onValueChange={setSplitOverrideReason}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select override reason" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {splitOverrideReasonOptions.map((reason) => (
+                              <SelectItem key={reason} value={reason}>
+                                {reason}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   ) : null}

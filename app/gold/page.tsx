@@ -13,6 +13,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -24,6 +30,7 @@ import {
   fetchShiftReports,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ChevronDown } from "@/lib/icons";
 import { goldRoutes } from "@/app/gold/routes";
 import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
 import type { AttendanceShiftSummary } from "@/app/gold/types";
@@ -35,6 +42,11 @@ type GoldChainRow = {
   site: string;
   date: string;
   grossWeight: number;
+  expenseGold: number;
+  workerSplit: number;
+  companySplit: number;
+  companyTotal: number;
+  expenseBreakdown: string;
   valueUsd: number;
   status: "Complete" | "Dispatched" | "Waiting for dispatch";
 };
@@ -68,6 +80,22 @@ export default function GoldPage() {
     () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.payouts, enabledFeatures),
     [enabledFeatures],
   );
+  const secondaryActions = useMemo(() => {
+    const actions: Array<{ label: string; href: string }> = [];
+    if (canRecordBatch) {
+      actions.push({ label: "Record Batch", href: goldRoutes.intake.create });
+    }
+    if (canRecordPurchase) {
+      actions.push({ label: "Record Purchase", href: goldRoutes.intake.createPurchase });
+    }
+    if (canRecordDispatch) {
+      actions.push({ label: "Record Dispatch", href: goldRoutes.transit.create });
+    }
+    if (canRecordSale) {
+      actions.push({ label: "Record Sale", href: goldRoutes.settlement.create });
+    }
+    return actions;
+  }, [canRecordBatch, canRecordDispatch, canRecordPurchase, canRecordSale]);
 
   const attendanceStart = useMemo(() => {
     const start = new Date();
@@ -172,6 +200,13 @@ export default function GoldPage() {
           site: pour.site.code,
           date: pour.pourDate,
           grossWeight: pour.grossWeight,
+          expenseGold: pour.expenseWeightTotal ?? 0,
+          workerSplit: pour.workerSplitWeight ?? 0,
+          companySplit: pour.companySplitWeight ?? 0,
+          companyTotal:
+            pour.companyTotalWeight ??
+            ((pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0)),
+          expenseBreakdown: pour.expenseBreakdown?.trim() || "-",
           valueUsd: pour.valueUsd ?? 0,
           status,
         };
@@ -310,21 +345,64 @@ export default function GoldPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "grossWeight",
-        header: "Gross Weight",
+        header: "Gross Weight (Recorded)",
         cell: ({ row }) => <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>,
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
+      {
+        id: "expenseGold",
+        header: "Expense Gold",
+        cell: ({ row }) => <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>,
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+      {
+        id: "workerSplit",
+        header: "Worker Split",
+        cell: ({ row }) => <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>,
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+      {
+        id: "companySplit",
+        header: "Company Split",
+        cell: ({ row }) => <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>,
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+      {
+        id: "companyTotal",
+        header: "Company Total",
+        cell: ({ row }) => <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>,
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+      {
+        id: "expenseBreakdown",
+        header: "Expense Breakdown",
+        accessorKey: "expenseBreakdown",
+        size: 220,
+        minSize: 200,
+        maxSize: 320,
+      },
       {
         id: "valueUsd",
         header: "Value (USD)",
         cell: ({ row }) => <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>,
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "status",
         header: "Status",
@@ -343,7 +421,8 @@ export default function GoldPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
@@ -353,30 +432,52 @@ export default function GoldPage() {
       activeTab="home"
       actions={
         <div className="flex flex-wrap gap-2">
-          {canRecordBatch ? (
-            <Button asChild size="sm">
-              <Link href={goldRoutes.intake.create}>Record Batch</Link>
-            </Button>
-          ) : null}
-          {canRecordPurchase ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={goldRoutes.intake.createPurchase}>Record Purchase</Link>
-            </Button>
-          ) : null}
-          {canRecordDispatch ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={goldRoutes.transit.create}>Record Dispatch</Link>
-            </Button>
-          ) : null}
-          {canRecordSale ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={goldRoutes.settlement.create}>Record Sale</Link>
-            </Button>
-          ) : null}
           {canRecordShiftOutput ? (
-            <Button size="sm" variant="outline" onClick={() => setShiftModalOpen(true)}>
-              Record Shift Output
-            </Button>
+            <div className="inline-flex">
+              <Button
+                size="sm"
+                onClick={() => setShiftModalOpen(true)}
+                className={secondaryActions.length > 0 ? "rounded-r-none" : undefined}
+              >
+                Record Shift Output
+              </Button>
+              {secondaryActions.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                      aria-label="More gold actions"
+                    >
+                      <ChevronDown className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {secondaryActions.map((action) => (
+                      <DropdownMenuItem key={action.href} asChild>
+                        <Link href={action.href}>{action.label}</Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </div>
+          ) : secondaryActions.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">
+                  Actions
+                  <ChevronDown className="ml-1 size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {secondaryActions.map((action) => (
+                  <DropdownMenuItem key={action.href} asChild>
+                    <Link href={action.href}>{action.label}</Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </div>
       }

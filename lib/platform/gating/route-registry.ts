@@ -116,6 +116,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/master-data/operations/sites", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/master-data/operations/sections", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/master-data/operations/downtime-codes", featureKey: "maintenance.breakdowns" },
+  { scope: "page", prefix: "/management/master-data/operations/gold-expense-types", featureKey: "gold.payouts" },
   { scope: "page", prefix: "/management/master-data", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/users", featureKey: "admin.user-management.directory" },
   { scope: "page", prefix: "/user-management/create", featureKey: "admin.user-management.create" },
@@ -193,6 +194,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/purchases", featureKey: "gold.intake.pours" },
   { scope: "api", prefix: "/api/gold/corrections", featureKey: "gold.reconciliation" },
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
+  { scope: "api", prefix: "/api/gold/expense-types", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },

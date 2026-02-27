@@ -113,6 +113,31 @@ export default function GoldIntakePoursPage() {
         minSize: 120,
         maxSize: 120},
       {
+        id: "shiftLeader",
+        header: "Shift Leader",
+        cell: ({ row }) => row.original.shiftLeaderName ?? "-",
+        size: 180,
+        minSize: 160,
+        maxSize: 240},
+      {
+        id: "recordedBy",
+        header: "Recorded By",
+        cell: ({ row }) => row.original.createdBy?.name ?? "-",
+        size: 180,
+        minSize: 160,
+        maxSize: 240},
+      {
+        id: "recordedAt",
+        header: "Recorded At",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.createdAt).toLocaleString()}
+          </NumericCell>
+        ),
+        size: 128,
+        minSize: 128,
+        maxSize: 160},
+      {
         id: "valueUsd",
         header: "Value",
         cell: ({ row }) => (

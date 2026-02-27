@@ -28,6 +28,11 @@ const coreManagers = [
     description: "Downtime reason code reference data for plant reporting.",
     href: "/management/master-data/operations/downtime-codes",
   },
+  {
+    title: "Gold Expense Types",
+    description: "Expense type reference data for gold shift output.",
+    href: "/management/master-data/operations/gold-expense-types",
+  },
 ];
 
 const existingManagers = [

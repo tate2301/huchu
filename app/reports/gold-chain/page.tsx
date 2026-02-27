@@ -31,7 +31,16 @@ type GoldChainReportRow = {
   pourDate: string;
   pourBarId: string;
   site: string;
+  sourceType: string;
   grossWeight: number;
+  expenseGold: number;
+  workerSplit: number;
+  companySplit: number;
+  companyTotal: number;
+  expenseBreakdown: string;
+  shiftLeader: string;
+  recordedBy: string;
+  recordedAt: string;
   valueUsd: number;
   dispatchDate?: string;
   receiptDate?: string;
@@ -99,7 +108,18 @@ export default function GoldChainReportPage() {
             pourDate: pour.pourDate,
             pourBarId: pour.pourBarId,
             site: pour.site.name,
+            sourceType: pour.sourceType === "PURCHASE_PUBLIC" ? "Purchase" : "Production",
             grossWeight: pour.grossWeight,
+            expenseGold: pour.expenseWeightTotal ?? 0,
+            workerSplit: pour.workerSplitWeight ?? 0,
+            companySplit: pour.companySplitWeight ?? 0,
+            companyTotal:
+              pour.companyTotalWeight ??
+              ((pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0)),
+            expenseBreakdown: pour.expenseBreakdown?.trim() || "-",
+            shiftLeader: pour.shiftLeaderName ?? "-",
+            recordedBy: pour.createdBy?.name ?? "-",
+            recordedAt: pour.createdAt,
             valueUsd:
               pour.valueUsd ??
               receipt?.paidValueUsd ??
@@ -145,14 +165,89 @@ export default function GoldChainReportPage() {
         minSize: 220,
         maxSize: 420},
       {
+        id: "sourceType",
+        header: "Source",
+        accessorKey: "sourceType",
+        size: 100,
+        minSize: 100,
+        maxSize: 120},
+      {
         id: "grossWeight",
-        header: "Weight",
+        header: "Gross Weight (Recorded)",
         cell: ({ row }) => (
           <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>
         ),
         size: 120,
         minSize: 120,
         maxSize: 120},
+      {
+        id: "expenseGold",
+        header: "Expense Gold",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "workerSplit",
+        header: "Worker Split",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "companySplit",
+        header: "Company Split",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "companyTotal",
+        header: "Company Total",
+        cell: ({ row }) => (
+          <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120},
+      {
+        id: "expenseBreakdown",
+        header: "Expense Breakdown",
+        accessorKey: "expenseBreakdown",
+        size: 220,
+        minSize: 200,
+        maxSize: 320},
+      {
+        id: "shiftLeader",
+        header: "Shift Leader",
+        accessorKey: "shiftLeader",
+        size: 180,
+        minSize: 160,
+        maxSize: 240},
+      {
+        id: "recordedBy",
+        header: "Recorded By",
+        accessorKey: "recordedBy",
+        size: 180,
+        minSize: 160,
+        maxSize: 240},
+      {
+        id: "recordedAt",
+        header: "Recorded At",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.recordedAt), "MMM d, yyyy HH:mm")}
+          </NumericCell>
+        ),
+        size: 148,
+        minSize: 148,
+        maxSize: 180},
       {
         id: "valueUsd",
         header: "Value (USD)",
@@ -243,7 +338,7 @@ export default function GoldChainReportPage() {
         <DataTable
           data={rows}
           columns={columns}
-          searchPlaceholder="Search by bar ID, site, or status"
+          searchPlaceholder="Search by bar ID, site, source, shift leader, recorder, or status"
           searchSubmitLabel="Search"
           tableClassName="text-sm"
           pagination={{ enabled: true }}
