@@ -30,7 +30,7 @@ export interface PortalContext {
 /**
  * Route access rules for portal users
  */
-const PORTAL_ROUTE_MAP: Record<PortalRole, string[]> = {
+const PORTAL_ROUTE_MAP: Record<NonNullable<PortalRole>, string[]> = {
   PARENT: ["/portal/parent"],
   STUDENT: ["/portal/student"],
   TEACHER: ["/portal/teacher"],
@@ -165,7 +165,7 @@ export interface PortalNavItem {
 }
 
 export function getPortalNavigation(role: PortalRole): PortalNavItem[] {
-  const navigation: Record<PortalRole, PortalNavItem[]> = {
+  const navigation: Record<NonNullable<PortalRole>, PortalNavItem[]> = {
     PARENT: [
       { href: "/portal/parent", label: "Dashboard" },
       { href: "/portal/parent/students", label: "My Children" },

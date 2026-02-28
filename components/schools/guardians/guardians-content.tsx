@@ -74,7 +74,7 @@ export function GuardiansContent() {
 
   return (
     <DataTable
-      data={guardiansQuery.data?.items ?? []}
+      data={guardiansQuery.data?.data ?? []}
       columns={columns}
       searchPlaceholder="Search guardians"
       searchSubmitLabel="Search"

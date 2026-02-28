@@ -1,2 +1,2 @@
-export { GET } from "../../../../schools/portal/parent/children/route";
+export { GET } from "../../../schools/portal/parent/children/route";
 

@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       );
       const filename = `${query.reportType}-report-${new Date().toISOString().slice(0, 10)}.pdf`;
 
-      return new NextResponse(pdf, {
+      return new NextResponse(new Uint8Array(pdf), {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${filename}"`,

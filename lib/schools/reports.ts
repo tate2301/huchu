@@ -87,11 +87,12 @@ export async function generateCollectionsReport(
   if (termId) {
     where.termId = termId;
   }
-  if (startDate) {
+  if (startDate && endDate) {
+    where.issueDate = { gte: startDate, lte: endDate };
+  } else if (startDate) {
     where.issueDate = { gte: startDate };
-  }
-  if (endDate) {
-    where.issueDate = { ...where.issueDate, lte: endDate };
+  } else if (endDate) {
+    where.issueDate = { lte: endDate };
   }
 
   // Fetch invoices with term information
@@ -101,7 +102,7 @@ export async function generateCollectionsReport(
       id: true,
       termId: true,
       totalAmount: true,
-      amountPaid: true,
+      paidAmount: true,
       issueDate: true,
       term: {
         select: {
@@ -118,23 +119,23 @@ export async function generateCollectionsReport(
   // Fetch receipts for the same period
   const receiptWhere: Prisma.SchoolFeeReceiptWhereInput = {
     companyId,
-    status: { in: ["POSTED", "CLEARED"] },
+    status: { in: ["POSTED"] },
   };
   if (termId) {
     receiptWhere.allocations = { some: { invoice: { termId } } };
   }
-  if (startDate) {
+  if (startDate && endDate) {
+    receiptWhere.receiptDate = { gte: startDate, lte: endDate };
+  } else if (startDate) {
     receiptWhere.receiptDate = { gte: startDate };
-  }
-  if (endDate) {
-    receiptWhere.receiptDate = { ...receiptWhere.receiptDate, lte: endDate };
+  } else if (endDate) {
+    receiptWhere.receiptDate = { lte: endDate };
   }
 
   const receipts = await prisma.schoolFeeReceipt.findMany({
     where: receiptWhere,
     select: {
       id: true,
-      amount: true,
       allocations: {
         select: {
           invoice: {
@@ -166,7 +167,7 @@ export async function generateCollectionsReport(
 
     const row = termMap.get(termKey)!;
     row.invoiced += Number(invoice.totalAmount);
-    row.collected += Number(invoice.amountPaid);
+    row.collected += Number(invoice.paidAmount);
   }
 
   // Add receipt counts per term
@@ -206,7 +207,7 @@ export async function generateArrearsAgingReport(
   const where: Prisma.SchoolFeeInvoiceWhereInput = {
     companyId,
     status: { in: ["ISSUED", "PART_PAID"] },
-    outstandingAmount: { gt: 0 },
+    balanceAmount: { gt: 0 },
   };
 
   if (termId) {
@@ -221,7 +222,7 @@ export async function generateArrearsAgingReport(
       studentId: true,
       termId: true,
       dueDate: true,
-      outstandingAmount: true,
+      balanceAmount: true,
       student: {
         select: {
           id: true,
@@ -279,7 +280,7 @@ export async function generateArrearsAgingReport(
     }
 
     const row = studentMap.get(studentKey)!;
-    const outstanding = Number(invoice.outstandingAmount);
+    const outstanding = Number(invoice.balanceAmount);
     row.totalOutstanding += outstanding;
 
     // Calculate days overdue
@@ -329,11 +330,12 @@ export async function generateEnrollmentStatsReport(
   if (termId) {
     termWhere.id = termId;
   }
-  if (startDate) {
+  if (startDate && endDate) {
+    termWhere.startDate = { gte: startDate, lte: endDate };
+  } else if (startDate) {
     termWhere.startDate = { gte: startDate };
-  }
-  if (endDate) {
-    termWhere.startDate = { ...termWhere.startDate, lte: endDate };
+  } else if (endDate) {
+    termWhere.startDate = { lte: endDate };
   }
 
   // Fetch terms
@@ -382,7 +384,7 @@ export async function generateEnrollmentStatsReport(
     let maleCount = 0;
     let femaleCount = 0;
 
-    const classCountMap = new Map<string, { id: string; name: string; count: number }>();
+    const classCountMap = new Map<string, { classId: string; className: string; count: number }>();
 
     for (const enrollment of enrollments) {
       if (enrollment.student.isBoarding) {
@@ -397,8 +399,8 @@ export async function generateEnrollmentStatsReport(
       const classKey = enrollment.classId;
       if (!classCountMap.has(classKey)) {
         classCountMap.set(classKey, {
-          id: enrollment.class.id,
-          name: enrollment.class.name,
+          classId: enrollment.class.id,
+          className: enrollment.class.name,
           count: 0,
         });
       }
