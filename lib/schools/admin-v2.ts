@@ -268,6 +268,12 @@ export async function fetchTeacherProfile(teacherId: string) {
   return fetchJson<TeacherProfileResponse>(`/api/v2/schools/teachers/${teacherId}`);
 }
 
+export async function fetchGuardianProfile(guardianId: string) {
+  // Profile response shape is dynamic (includes nested relations)
+  type GuardianProfileResponse = Record<string, unknown>;
+  return fetchJson<GuardianProfileResponse>(`/api/v2/schools/guardians/${guardianId}`);
+}
+
 export async function fetchTeacherAssignments(params: {
   page?: number;
   limit?: number;
