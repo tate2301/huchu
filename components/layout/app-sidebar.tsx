@@ -83,6 +83,7 @@ const sectionIcons: Record<string, LucideIcon> = {
   "car-sales": Package,
   thrift: Coins,
 };
+const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "thrift"]);
 
 function getSectionIcon(section: NavSection) {
   return sectionIcons[section.id] ?? section.items[0]?.icon ?? Home;
@@ -264,6 +265,36 @@ export function AppSidebar() {
     );
   };
 
+  const renderFlatSection = (section: (typeof orderedSections)[number]) => {
+    return (
+      <SidebarGroup key={section.id} className="space-y-1">
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {section.items.map((item) => {
+              const isActive = hasActiveHref(item.href, pathname, view);
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    size="sm"
+                    isActive={isActive}
+                    tooltip={item.label}
+                    className="h-8 text-[12.5px]"
+                  >
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  };
+
   return (
     <Sidebar collapsible="icon" variant="inset" className="sticky top-0">
       <SidebarHeader className="pb-2">
@@ -401,7 +432,11 @@ export function AppSidebar() {
         {orderedSections.length > 0 ? (
           <SidebarGroup className="mb-0.5">
             <SidebarGroupContent className="mt-0">
-              {orderedSections.map((section) => renderSection(section))}
+              {orderedSections.map((section) =>
+                FLAT_SECTION_IDS.has(section.id)
+                  ? renderFlatSection(section)
+                  : renderSection(section),
+              )}
             </SidebarGroupContent>
           </SidebarGroup>
         ) : null}

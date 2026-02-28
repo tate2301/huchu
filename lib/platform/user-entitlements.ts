@@ -37,6 +37,125 @@ const CLERK_TEMPLATE_ALLOW = new Set([
   "core.notifications.center",
 ]);
 
+const SCHOOL_SHARED_ALLOW_PREFIXES = [
+  "core.auth.",
+  "core.help.",
+  "core.notifications.",
+  "core.multitenancy.",
+  "schools.",
+  "portal.",
+] as const;
+
+const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
+  MANAGER: null,
+  CLERK: null,
+  SCHOOL_ADMIN: SCHOOL_SHARED_ALLOW_PREFIXES,
+  REGISTRAR: SCHOOL_SHARED_ALLOW_PREFIXES,
+  BURSAR: [
+    ...SCHOOL_SHARED_ALLOW_PREFIXES,
+    "accounting.core",
+    "accounting.ar",
+    "accounting.banking",
+    "accounting.tax",
+    "accounting.zimra.",
+  ],
+  TEACHER: [
+    ...SCHOOL_SHARED_ALLOW_PREFIXES,
+    "schools.attendance",
+    "schools.results",
+    "schools.portal.teacher",
+  ],
+  PARENT: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "schools.portal.parent",
+    "portal.",
+  ],
+  STUDENT: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "schools.portal.student",
+    "portal.",
+  ],
+  AUTO_MANAGER: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "autos.",
+    "portal.autos",
+  ],
+  SALES_EXEC: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "autos.leads",
+    "autos.deals",
+    "portal.autos",
+  ],
+  FINANCE_OFFICER: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "autos.deals",
+    "autos.financing",
+    "accounting.core",
+    "accounting.ar",
+    "accounting.banking",
+    "accounting.tax",
+    "portal.autos",
+  ],
+  SHOP_MANAGER: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "thrift.",
+    "portal.thrift",
+  ],
+  CASHIER: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "thrift.checkout",
+    "thrift.catalog",
+    "portal.thrift",
+  ],
+  STOCK_CLERK: [
+    "core.auth.",
+    "core.help.",
+    "core.notifications.",
+    "core.multitenancy.",
+    "thrift.intake",
+    "thrift.catalog",
+    "portal.thrift",
+  ],
+};
+
+const MANAGED_USER_ROLES = new Set([
+  "MANAGER",
+  "CLERK",
+  "SCHOOL_ADMIN",
+  "REGISTRAR",
+  "BURSAR",
+  "TEACHER",
+  "PARENT",
+  "STUDENT",
+  "AUTO_MANAGER",
+  "SALES_EXEC",
+  "FINANCE_OFFICER",
+  "SHOP_MANAGER",
+  "CASHIER",
+  "STOCK_CLERK",
+]);
+
 const CATALOG_BY_KEY = new Map(
   FEATURE_CATALOG.map((feature) => [normalizeFeatureKey(feature.key), feature]),
 );
@@ -48,7 +167,21 @@ const CATALOG_DEFAULTS = new Map(
   ]),
 );
 
-export type ManagedUserRole = "MANAGER" | "CLERK";
+export type ManagedUserRole =
+  | "MANAGER"
+  | "CLERK"
+  | "SCHOOL_ADMIN"
+  | "REGISTRAR"
+  | "BURSAR"
+  | "TEACHER"
+  | "PARENT"
+  | "STUDENT"
+  | "AUTO_MANAGER"
+  | "SALES_EXEC"
+  | "FINANCE_OFFICER"
+  | "SHOP_MANAGER"
+  | "CASHIER"
+  | "STOCK_CLERK";
 export type ManagedUserFeatureBlockedReason =
   | "COMPANY_DISABLED"
   | "TEMPLATE_BLOCKED";
@@ -71,7 +204,14 @@ function normalizeFeatureKey(value: string): string {
 }
 
 function isManagedUserRole(role: string): role is ManagedUserRole {
-  return role === "MANAGER" || role === "CLERK";
+  return MANAGED_USER_ROLES.has(role.trim().toUpperCase());
+}
+
+function featureMatchesAnyPrefix(
+  featureKey: string,
+  prefixes: readonly string[],
+): boolean {
+  return prefixes.some((prefix) => featureKey.startsWith(prefix));
 }
 
 function isCompanyFeatureEnabled(featureKey: string, companyMap: FeatureMap): boolean {
@@ -109,6 +249,11 @@ export function isTemplateAllowedForRole(role: string, featureKey: string): bool
 
   if (normalizedRole === "CLERK") {
     return CLERK_TEMPLATE_ALLOW.has(normalizedFeatureKey);
+  }
+
+  const allowPrefixes = ROLE_PREFIX_ALLOWLIST[normalizedRole];
+  if (allowPrefixes) {
+    return featureMatchesAnyPrefix(normalizedFeatureKey, allowPrefixes);
   }
 
   return true;

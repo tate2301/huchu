@@ -12,7 +12,7 @@ export default async function ThriftSalesPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Thrift Sales" description="View and record sales transactions." />
+      <PageHeading title="Shop Sales" description="View and record sales transactions." />
       <ThriftDashboardContent />
     </div>
   );

@@ -12,7 +12,7 @@ export default async function ThriftIntakePage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Thrift Intake" description="Receive donated and purchased items." />
+      <PageHeading title="Shop Intake" description="Receive and register sellable items." />
       <ThriftDashboardContent />
     </div>
   );

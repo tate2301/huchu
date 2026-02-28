@@ -12,7 +12,10 @@ export default async function SchoolsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Schools" description="Operations and portal readiness dashboard." />
+      <PageHeading
+        title="School Management System"
+        description="Operations, academics, boarding, finance, and portal readiness dashboard."
+      />
       <SchoolsDashboardContent />
     </div>
   );

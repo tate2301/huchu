@@ -13,8 +13,8 @@ export default async function PosPortalPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Point of Sale"
-        description="Process sales, view catalog, and manage transactions."
+        title="Smart Shop POS"
+        description="Process checkout, monitor shifts, and reconcile takings."
       />
       <PosPortalContent />
     </div>

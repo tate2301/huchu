@@ -403,7 +403,7 @@ export function ThriftDashboardContent() {
     <div className="space-y-4">
       {hasError ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to load thrift store data</AlertTitle>
+          <AlertTitle>Unable to load smart shop data</AlertTitle>
           <AlertDescription>
             {getApiErrorMessage(intakeQuery.error || catalogQuery.error || salesQuery.error)}
           </AlertDescription>
@@ -418,7 +418,7 @@ export function ThriftDashboardContent() {
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as ThriftView)}
-        railLabel="Thrift Store Views"
+        railLabel="Smart Shop Views"
       >
         {/* Intake View */}
         <div className={activeView === "intake" ? "space-y-2" : "hidden"}>

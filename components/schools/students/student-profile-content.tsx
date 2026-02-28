@@ -13,12 +13,12 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchStudentProfile } from "@/lib/schools/admin-v2";
 
 type ProfileView =
-  | "overview"
-  | "enrollments"
-  | "results"
-  | "fees"
-  | "attendance"
-  | "boarding";
+  | "identity"
+  | "finance"
+  | "academics"
+  | "boarding"
+  | "documents"
+  | "audit";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -45,7 +45,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 export function StudentProfileContent({ studentId }: { studentId: string }) {
-  const [activeView, setActiveView] = useState<ProfileView>("overview");
+  const [activeView, setActiveView] = useState<ProfileView>("identity");
 
   const profileQuery = useQuery({
     queryKey: ["schools", "students", "profile", studentId],
@@ -205,19 +205,19 @@ export function StudentProfileContent({ studentId }: { studentId: string }) {
   return (
     <VerticalDataViews
       items={[
-        { id: "overview", label: "Overview" },
-        { id: "enrollments", label: "Enrollments", count: counts.enrollments },
-        { id: "results", label: "Results", count: counts.resultLines },
-        { id: "fees", label: "Fees", count: counts.feeInvoices },
-        { id: "attendance", label: "Attendance" },
+        { id: "identity", label: "Identity" },
+        { id: "finance", label: "Finance", count: counts.feeInvoices },
+        { id: "academics", label: "Academics", count: counts.enrollments },
         { id: "boarding", label: "Boarding", count: counts.boardingAllocations },
+        { id: "documents", label: "Documents" },
+        { id: "audit", label: "Audit" },
       ]}
       value={activeView}
       onValueChange={(value) => setActiveView(value as ProfileView)}
-      railLabel="Profile"
+      railLabel="Student"
     >
-      {/* Overview */}
-      <div className={activeView === "overview" ? "space-y-4" : "hidden"}>
+      {/* Identity */}
+      <div className={activeView === "identity" ? "space-y-4" : "hidden"}>
         {student ? (
           <>
             <Card>
@@ -307,42 +307,8 @@ export function StudentProfileContent({ studentId }: { studentId: string }) {
         )}
       </div>
 
-      {/* Enrollments */}
-      <div className={activeView === "enrollments" ? "space-y-2" : "hidden"}>
-        <h2 className="text-section-title">Enrollment History</h2>
-        <DataTable
-          data={student?.enrollments ?? []}
-          columns={enrollmentColumns}
-          searchPlaceholder="Search enrollments"
-          searchSubmitLabel="Search"
-          pagination={{ enabled: true }}
-          emptyState={
-            profileQuery.isLoading
-              ? "Loading enrollments..."
-              : "No enrollment records found."
-          }
-        />
-      </div>
-
-      {/* Results */}
-      <div className={activeView === "results" ? "space-y-2" : "hidden"}>
-        <h2 className="text-section-title">Result Lines</h2>
-        <DataTable
-          data={student?.resultLines ?? []}
-          columns={resultColumns}
-          searchPlaceholder="Search results"
-          searchSubmitLabel="Search"
-          pagination={{ enabled: true }}
-          emptyState={
-            profileQuery.isLoading
-              ? "Loading results..."
-              : "No result records found."
-          }
-        />
-      </div>
-
-      {/* Fees */}
-      <div className={activeView === "fees" ? "space-y-2" : "hidden"}>
+      {/* Finance */}
+      <div className={activeView === "finance" ? "space-y-2" : "hidden"}>
         <h2 className="text-section-title">Fee Invoices</h2>
         <DataTable
           data={student?.feeInvoices ?? []}
@@ -358,12 +324,46 @@ export function StudentProfileContent({ studentId }: { studentId: string }) {
         />
       </div>
 
-      {/* Attendance */}
-      <div className={activeView === "attendance" ? "space-y-2" : "hidden"}>
-        <h2 className="text-section-title">Attendance</h2>
-        <p className="text-sm text-muted-foreground">
-          Attendance records will appear here.
-        </p>
+      {/* Academics */}
+      <div className={activeView === "academics" ? "space-y-4" : "hidden"}>
+        <div className="space-y-2">
+          <h2 className="text-section-title">Enrollment History</h2>
+          <DataTable
+            data={student?.enrollments ?? []}
+            columns={enrollmentColumns}
+            searchPlaceholder="Search enrollments"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={
+              profileQuery.isLoading
+                ? "Loading enrollments..."
+                : "No enrollment records found."
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-section-title">Results</h2>
+          <DataTable
+            data={student?.resultLines ?? []}
+            columns={resultColumns}
+            searchPlaceholder="Search results"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={
+              profileQuery.isLoading
+                ? "Loading results..."
+                : "No result records found."
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-section-title">Attendance</h2>
+          <p className="text-sm text-muted-foreground">
+            Attendance records will appear here.
+          </p>
+        </div>
       </div>
 
       {/* Boarding */}
@@ -381,6 +381,22 @@ export function StudentProfileContent({ studentId }: { studentId: string }) {
               : "No boarding allocations found."
           }
         />
+      </div>
+
+      {/* Documents */}
+      <div className={activeView === "documents" ? "space-y-2" : "hidden"}>
+        <h2 className="text-section-title">Documents</h2>
+        <p className="text-sm text-muted-foreground">
+          Document management will appear here.
+        </p>
+      </div>
+
+      {/* Audit */}
+      <div className={activeView === "audit" ? "space-y-2" : "hidden"}>
+        <h2 className="text-section-title">Audit Timeline</h2>
+        <p className="text-sm text-muted-foreground">
+          All changes to this student record will appear here.
+        </p>
       </div>
     </VerticalDataViews>
   );

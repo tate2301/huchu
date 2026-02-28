@@ -1,7 +1,13 @@
 import type { Prisma, SchoolResultSheetStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-const privilegedRoles = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
+const privilegedRoles = new Set([
+  "SUPERADMIN",
+  "MANAGER",
+  "SCHOOL_ADMIN",
+  "REGISTRAR",
+  "BURSAR",
+]);
 
 export function isPrivilegedRole(role?: string | null) {
   return role ? privilegedRoles.has(role.toUpperCase()) : false;
