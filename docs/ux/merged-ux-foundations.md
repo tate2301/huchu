@@ -26,6 +26,7 @@ This document merges the warm paper design tokens/principles with the Platform U
 - **Progressive disclosure**: Expandable parent rows for parent-child workflows; lazy-load children; hide invalid actions instead of disabling.
 - **Warm paper visual language**: Soft canvas, thin borders/shadows, no hover lifts on core data surfaces; status chips use dot+label with semantic colors.
 - **Workflow discipline**: Render only valid next actions; lock approved/closed periods; payroll and posting flows remain period-driven and idempotent.
+- **ERP-grade robustness**: Every action leaves an audit trail; destructive or irreversible actions require confirmation and reference to the underlying document/event. Permission checks run server-side in addition to UI gating.
 
 ## Layout and Component Contracts
 - **Page anatomy**: Page header (title/description/actions) → section header (title/description/actions) → single primary surface.
@@ -36,6 +37,19 @@ This document merges the warm paper design tokens/principles with the Platform U
 - **Buttons/inputs**: Default 36px height; rounded to token radius; use primary/secondary/destructive tokens; keep icon-label spacing consistent.
 - **Charts**: Dashed grid (4px dash/6px gap), semantic color mapping, minimal stroke weight, chart cards use 1px border and 12px radius.
 
+## Forms, Validation, and Audit
+- **Field governance**: Required fields clearly marked; inline validation with server round-trip on submit to prevent stale data or permission violations.
+- **Draft vs submitted**: Support draft/save-as-you-go for complex forms; submission locks fields and triggers posting/approval flows.
+- **Attachments and evidence**: Uniform attachment control with file type limits and virus scan hook; audit stamps (created by/on, last modified by/on, submitted by/on).
+- **Multi-step flows**: Use progressive disclosure and section anchors rather than wizard steps; persist draft state between sessions where possible.
+- **History**: Change logs per record with before/after values and actor, mirroring ERPNext audit trails.
+
+## Data Integrity & Background Jobs
+- **Idempotency**: API endpoints and posting actions accept idempotency keys; UI retries must not double-submit.
+- **Background processing**: Long-running exports, bulk operations, or postings enqueue jobs with visible status and completion toasts; users can navigate away safely.
+- **Concurrency**: Last-write-wins prevented via etags/version fields; conflicting edits surface a rebase prompt (reload with user’s edits preserved when possible).
+- **Reconciliation**: Surfaces for failed sync/posting with replay controls; users see per-row status for imports/exports.
+
 ## Compliance Checklist (Merged)
 1. Warm paper tokens applied (colors/typography/radii/shadows) with CSS variables—no hard-coded colors.
 2. One primary table per view; multi-table contexts use vertical tabs with unified controls row.
@@ -44,3 +58,4 @@ This document merges the warm paper design tokens/principles with the Platform U
 5. Actions reflect valid workflow states only; progressive disclosure via expandable parent rows or modals/sheets.
 6. Layouts respect section/content gutters and card/popover radii; charts follow dashed-grid theme and semantic colors.
 7. Icon sizing follows shared tokens; visual language remains soft (light borders, thin shadows, no hover lifts).
+8. Forms carry draft/submit states, inline + server validation, and attachment/audit stamps; background jobs and idempotency prevent double work.
