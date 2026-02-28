@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/layout/page-heading";
-import { SchoolsReportsContent } from "@/components/schools/reports/schools-reports-content";
+import { SchoolsReportsEnhancedContent } from "@/components/schools/reports/schools-reports-enhanced-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsReportsPage() {
@@ -14,9 +14,9 @@ export default async function SchoolsReportsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="School Reports"
-        description="Operational school KPIs across academics, attendance, boarding, and finance."
+        description="Comprehensive analytics across collections, arrears, enrollment, and boarding occupancy."
       />
-      <SchoolsReportsContent />
+      <SchoolsReportsEnhancedContent />
     </div>
   );
 }
