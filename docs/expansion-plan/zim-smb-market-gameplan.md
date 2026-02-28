@@ -35,3 +35,40 @@
 2) Deliver Schools Fees Pack + parent portal MVP; arrears dashboards + overpayment credits.
 3) Deliver Retail/Thrift POS (mobile-first) + unique-item inventory and shift close.
 4) Expand ecosystem: partner enablement kit, payments/messaging connectors, analytics pack.
+
+## Detailed Build & Delivery Plan (verbose, no stone unturned)
+### Cross-cutting foundations (Week 0–1)
+- Document lifecycle enforcement: shared service to gate transitions, emit reversal docs, block deletes on posted state.
+- Posting engine extensions: unify GL/AR/AP/stock/compliance event writers with idempotent source keys, retries, DLQ, and audit log entries; add hooks for non-accounting sources (teacher→employee sync, POS sale→inventory/shift/accounting).
+- Role modes + feature flags: expand route registry + nav gating so portals are isolated shells; toggle Accountant mode to reveal journals/recon/closing tools.
+- Onboarding wizard: CoA template selection/import, opening balances, tax profiles, numbering series, period lock schedule.
+
+### Schools Pack (fees-first, Week 1–3)
+- Data: student/guardian/teacher/HOD entities, enrollment per term, fee structures per grade/term with optional components (boarding/transport/levies), overpayment credit bucket.
+- Workflows: bulk invoicing per term, receipts with allocation rules, credit/overpayment carry-forward, refunds/waivers, statements and arrears dashboards (list + detail with filters).
+- Portals: parent portal (balances, statements, receipts, notices); teacher portal for attendance/marks capture; student portal for timetable/results/fees; HOD workflows piggyback on teacher profile with extra actions.
+- Academics (optional wave after fees): subjects/assessments/templates, moderation chain, publish windows with fee-threshold gate.
+- Boarding (optional wave): hostels→rooms→beds (code fields), allocations per term, leave/outing logs, roll calls.
+- UX: list/detail shells with tabs (Identity, Finance, Academics, Boarding, Documents, Audit); full-bleed tables; font-mono numerics.
+
+### Retail/Thrift POS Pack (Week 3–5)
+- Inventory: unique-item (serialized) intake with donor/owner, condition, category, initial price, barcode tag; markdown rules (time-based price drops).
+- POS portal: Frappe-style panes/tabs (catalog/search, cart, customer, payments, shift/reconciliation, returns), mobile-first controls, barcode + quick-add, offline-safe state cues.
+- Payments/tenders: cash/card/mobile money; change logic; over/short tracking.
+- Shift close: opening float, takings by tender, variance, cash-up export; link to posting engine.
+- Consignment (optional add-on): consignor records, split rules, payout batches, statements, disputes.
+
+### Auto Pack hardening (Week 5–6)
+- Detail pages: leads, customers, vehicles, deals, payments, deliveries with tabs (Overview, Financials, Documents, Approvals, Audit).
+- Workflows: lead qualification, vehicle costing/pricing floors, deal status transitions with approval gates, payment posting, delivery checklist.
+- Reporting: funnel, stock aging, margin, salesperson performance (reuse DataTable + chart patterns).
+
+### Platform polish and ecosystem (Week 6–7)
+- Messaging connectors (SMS/WhatsApp abstraction) for notices/receipts.
+- Compliance outputs: fiscal/audit export hooks in posting engine.
+- Partner toolkit: template library, onboarding scripts/checklists, demo tenant presets.
+
+### Quality, rollout, and guardrails
+- Lint + targeted smoke tests per module; seed data for demo flows (schools term fees, thrift items, POS shift).
+- Tenancy and authorization checks on every new API; feature-flag bundles per pack; portal isolation (no main dashboard for portal roles).
+- Immutable behavior validation: reversal documents instead of destructive edits; period locks honored across modules.
