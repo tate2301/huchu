@@ -13,7 +13,7 @@ export default async function CarSalesPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Car Sales"
+        title="Auto Sales"
         description="Lead pipeline, vehicle inventory, deals, and payment readiness."
       />
       <CarSalesContent />

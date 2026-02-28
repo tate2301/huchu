@@ -131,6 +131,8 @@ model Company {
   schoolFeeReceipts    SchoolFeeReceipt[]
   schoolFeeReceiptAllocations SchoolFeeReceiptAllocation[]
   schoolFeeWaivers     SchoolFeeWaiver[]
+  schoolAttendanceSessions SchoolAttendanceSession[]
+  schoolAttendanceSessionLines SchoolAttendanceSessionLine[]
   carSalesLeads        CarSalesLead[]
   carSalesVehicles     CarSalesVehicle[]
   carSalesDeals        CarSalesDeal[]
@@ -693,6 +695,18 @@ enum UserRole {
   SUPERADMIN
   MANAGER
   CLERK
+  SCHOOL_ADMIN
+  REGISTRAR
+  BURSAR
+  TEACHER
+  PARENT
+  STUDENT
+  AUTO_MANAGER
+  SALES_EXEC
+  FINANCE_OFFICER
+  SHOP_MANAGER
+  CASHIER
+  STOCK_CLERK
 }
 
 model User {
@@ -3805,6 +3819,19 @@ enum SchoolFeeWaiverStatus {
   REVERSED
 }
 
+enum SchoolAttendanceSessionStatus {
+  DRAFT
+  SUBMITTED
+  LOCKED
+}
+
+enum SchoolAttendanceEntryStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
 model SchoolAcademicYear {
   id        String   @id @default(uuid())
   companyId String
@@ -3995,6 +4022,7 @@ model SchoolStudent {
   leaveRequests SchoolLeaveRequest[]
   boardingMovementLogs SchoolBoardingMovementLog[]
   resultLines    SchoolResultLine[]
+  attendanceSessionLines SchoolAttendanceSessionLine[]
   feeInvoices    SchoolFeeInvoice[]
   feeReceipts    SchoolFeeReceipt[]
   feeWaivers     SchoolFeeWaiver[]
@@ -4477,6 +4505,50 @@ model SchoolFeeWaiver {
 
   @@index([companyId, status])
   @@index([studentId, termId])
+}
+
+model SchoolAttendanceSession {
+  id              String                       @id @default(uuid())
+  companyId       String
+  termId          String
+  classId         String
+  streamId        String?
+  attendanceDate  DateTime                     @db.Date
+  status          SchoolAttendanceSessionStatus @default(DRAFT)
+  notes           String?
+  submittedAt     DateTime?
+  lockedAt        DateTime?
+  createdByUserId String
+  submittedByUserId String?
+  lockedByUserId  String?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+
+  company         Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines           SchoolAttendanceSessionLine[]
+
+  @@unique([companyId, termId, classId, streamId, attendanceDate])
+  @@index([companyId, attendanceDate])
+  @@index([companyId, termId, classId, streamId])
+}
+
+model SchoolAttendanceSessionLine {
+  id         String                    @id @default(uuid())
+  companyId  String
+  sessionId  String
+  studentId  String
+  status     SchoolAttendanceEntryStatus
+  remarks    String?
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session    SchoolAttendanceSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student    SchoolStudent             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([companyId, studentId])
+  @@index([companyId, sessionId])
 }
 
 enum CarSalesLeadStatus {

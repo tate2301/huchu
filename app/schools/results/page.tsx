@@ -13,8 +13,8 @@ export default async function SchoolsResultsPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Schools Results"
-        description="Moderation workflow and publish-readiness visibility."
+        title="Results and Publishing"
+        description="Moderation workflow, publish windows, and published outcomes."
       />
       <SchoolsResultsContent />
     </div>

@@ -13,7 +13,7 @@ export default async function CarSalesInventoryPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Car Sales Inventory"
+        title="Auto Inventory"
         description="Vehicle stock, listing value, and approval floor tracking."
       />
       <CarSalesInventoryContent />

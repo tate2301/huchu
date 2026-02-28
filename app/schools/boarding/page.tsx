@@ -13,8 +13,8 @@ export default async function SchoolsBoardingPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Schools Boarding"
-        description="Hostels, allocations, and occupancy oversight."
+        title="Boarding Management"
+        description="Hostels, allocations, leave workflow, and occupancy oversight."
       />
       <SchoolsBoardingContent />
     </div>

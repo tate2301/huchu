@@ -12,7 +12,7 @@ export default async function ThriftCatalogPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Thrift Catalog" description="Browse and manage catalog items." />
+      <PageHeading title="Shop Catalog" description="Browse and manage catalog items." />
       <ThriftDashboardContent />
     </div>
   );

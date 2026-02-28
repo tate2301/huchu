@@ -33,8 +33,16 @@ function sheetStatusBadge(status: SchoolsResultsData["data"][number]["status"]) 
   return <Badge variant="outline">Published</Badge>;
 }
 
-export function SchoolsResultsContent() {
-  const [activeView, setActiveView] = useState<ResultsView>("moderation");
+type SchoolsResultsContentProps = {
+  initialView?: ResultsView;
+  allowedViews?: ResultsView[];
+};
+
+export function SchoolsResultsContent({
+  initialView = "moderation",
+  allowedViews,
+}: SchoolsResultsContentProps = {}) {
+  const [activeView, setActiveView] = useState<ResultsView>(initialView);
 
   const query = useQuery({
     queryKey: ["schools", "results", "dashboard"],
@@ -57,6 +65,16 @@ export function SchoolsResultsContent() {
     () => query.data?.publishWindows ?? [],
     [query.data],
   );
+  const visibleViews = useMemo<ResultsView[]>(
+    () =>
+      allowedViews && allowedViews.length > 0
+        ? allowedViews
+        : ["moderation", "all", "published", "windows"],
+    [allowedViews],
+  );
+  const resolvedActiveView = visibleViews.includes(activeView)
+    ? activeView
+    : visibleViews[0] ?? "moderation";
 
   const columns = useMemo<ColumnDef<ResultsTableRow>[]>(
     () => [
@@ -199,17 +217,41 @@ export function SchoolsResultsContent() {
       </section>
 
       <VerticalDataViews
-        items={[
-          { id: "moderation", label: "Moderation Queue", count: moderationRows.length },
-          { id: "all", label: "All Sheets", count: allRows.length },
-          { id: "published", label: "Published", count: publishedRows.length },
-          { id: "windows", label: "Publish Windows", count: publishWindowRows.length },
-        ]}
-        value={activeView}
+        items={visibleViews.map((viewId) => {
+          if (viewId === "moderation") {
+            return {
+              id: viewId,
+              label: "Moderation Queue",
+              count: moderationRows.length,
+            };
+          }
+          if (viewId === "all") {
+            return { id: viewId, label: "All Sheets", count: allRows.length };
+          }
+          if (viewId === "published") {
+            return {
+              id: viewId,
+              label: "Published",
+              count: publishedRows.length,
+            };
+          }
+          return {
+            id: viewId,
+            label: "Publish Windows",
+            count: publishWindowRows.length,
+          };
+        })}
+        value={resolvedActiveView}
         onValueChange={(value) => setActiveView(value as ResultsView)}
         railLabel="Results Views"
       >
-        <div className={activeView === "moderation" ? "space-y-2" : "hidden"}>
+        <div
+          className={
+            resolvedActiveView === "moderation" && visibleViews.includes("moderation")
+              ? "space-y-2"
+              : "hidden"
+          }
+        >
           <h2 className="text-section-title">Moderation Queue</h2>
           <DataTable
             data={moderationRows}
@@ -221,7 +263,13 @@ export function SchoolsResultsContent() {
           />
         </div>
 
-        <div className={activeView === "all" ? "space-y-2" : "hidden"}>
+        <div
+          className={
+            resolvedActiveView === "all" && visibleViews.includes("all")
+              ? "space-y-2"
+              : "hidden"
+          }
+        >
           <h2 className="text-section-title">All Result Sheets</h2>
           <DataTable
             data={allRows}
@@ -233,7 +281,13 @@ export function SchoolsResultsContent() {
           />
         </div>
 
-        <div className={activeView === "published" ? "space-y-2" : "hidden"}>
+        <div
+          className={
+            resolvedActiveView === "published" && visibleViews.includes("published")
+              ? "space-y-2"
+              : "hidden"
+          }
+        >
           <h2 className="text-section-title">Published Sheets</h2>
           <DataTable
             data={publishedRows}
@@ -245,7 +299,13 @@ export function SchoolsResultsContent() {
           />
         </div>
 
-        <div className={activeView === "windows" ? "space-y-2" : "hidden"}>
+        <div
+          className={
+            resolvedActiveView === "windows" && visibleViews.includes("windows")
+              ? "space-y-2"
+              : "hidden"
+          }
+        >
           <h2 className="text-section-title">Publish Windows</h2>
           <DataTable
             data={publishWindowRows}

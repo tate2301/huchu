@@ -1,4 +1,20 @@
-export const ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const
+export const ROLES = [
+  "SUPERADMIN",
+  "MANAGER",
+  "CLERK",
+  "SCHOOL_ADMIN",
+  "REGISTRAR",
+  "BURSAR",
+  "TEACHER",
+  "PARENT",
+  "STUDENT",
+  "AUTO_MANAGER",
+  "SALES_EXEC",
+  "FINANCE_OFFICER",
+  "SHOP_MANAGER",
+  "CASHIER",
+  "STOCK_CLERK",
+] as const
 
 export type UserRole = (typeof ROLES)[number]
 

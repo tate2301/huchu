@@ -148,15 +148,15 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "autos.deals", name: "Deals", description: "Deal progression and close-out workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "autos.financing", name: "Financing", description: "Vehicle financing and installment workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
-  f({ key: "thrift.core", name: "Thrift Core", description: "Thrift module landing and shared setup.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "thrift.intake", name: "Item Intake", description: "Intake and receiving workflows for thrift stock.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "thrift.catalog", name: "Thrift Catalog", description: "Cataloging and merchandising for thrift items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "thrift.checkout", name: "Thrift Checkout", description: "Point-of-sale and checkout workflows for thrift items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.core", name: "Smart Shop Core", description: "Shop module landing and shared setup.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.intake", name: "Shop Intake", description: "Intake and receiving workflows for shop stock.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.catalog", name: "Shop Catalog", description: "Cataloging and merchandising for shop items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "thrift.checkout", name: "Shop Checkout", description: "Point-of-sale and checkout workflows for shop items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.autos", name: "Auto Sales Portal", description: "Auto sales-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "portal.thrift", name: "Thrift Portal", description: "Thrift-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "portal.thrift", name: "Shop Portal", description: "Smart Shop-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "reports.dashboard", name: "Reports Dashboard", description: "Top-level reports dashboard.", domain: "reports", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "reports.shift", name: "Shift Reports", description: "Shift reports analytics pages.", domain: "reports", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
@@ -358,8 +358,8 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_THRIFT_SUITE",
-    name: "Thrift Suite",
-    description: "Placeholder bundle for thrift inventory and checkout flows.",
+    name: "Smart Shop Suite",
+    description: "Placeholder bundle for smart shop inventory and checkout flows.",
     monthlyPrice: 0,
     additionalSiteMonthlyPrice: 0,
     features: [
