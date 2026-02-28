@@ -808,7 +808,7 @@ export async function emitIncidentNotification(
         previousStatus: input.previousStatus ?? null,
         siteName: input.incident.site?.name ?? null,
         siteCode: input.incident.site?.code ?? null,
-        viewPath: `/compliance?tab=incidents&createdId=${input.incident.id}`,
+        viewPath: `/compliance/incidents?createdId=${input.incident.id}`,
       },
       entityType: NotificationEntityType.INCIDENT,
       entityId: input.incident.id,
@@ -877,7 +877,7 @@ export async function emitPermitRiskNotification(
         expiryDate: input.permit.expiryDate.toISOString(),
         siteName: input.permit.site?.name ?? null,
         siteCode: input.permit.site?.code ?? null,
-        viewPath: `/compliance?tab=permits&createdId=${input.permit.id}`,
+        viewPath: `/compliance/permits?createdId=${input.permit.id}`,
       },
       entityType: NotificationEntityType.PERMIT,
       entityId: input.permit.id,
@@ -969,8 +969,8 @@ function defaultViewPath(entityType?: NotificationEntityType | null, entityId?: 
   if (entityType === "GOLD_SHIFT_ALLOCATION") return `/human-resources/payouts?allocationId=${entityId}`
   if (entityType === "DISCIPLINARY_ACTION") return `/human-resources/incidents?disciplinaryId=${entityId}`
   if (entityType === "HR_INCIDENT") return `/human-resources/incidents?incidentId=${entityId}`
-  if (entityType === "INCIDENT") return `/compliance?tab=incidents&createdId=${entityId}`
-  if (entityType === "PERMIT") return `/compliance?tab=permits&createdId=${entityId}`
+  if (entityType === "INCIDENT") return `/compliance/incidents?createdId=${entityId}`
+  if (entityType === "PERMIT") return `/compliance/permits?createdId=${entityId}`
   if (entityType === "WORK_ORDER") return `/maintenance/work-orders?workOrderId=${entityId}`
   return undefined
 }

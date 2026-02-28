@@ -86,7 +86,6 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
 
   const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "permits");
     params.set("createdId", id);
     params.set("source", "permit");
     if (createdAt) {
@@ -94,7 +93,7 @@ export function PermitsTab({ createdId }: { createdId: string | null }) {
     } else {
       params.delete("createdAt");
     }
-    router.push(`/compliance?${params.toString()}`);
+    router.push(`/compliance/permits?${params.toString()}`);
   };
 
   const saveMutation = useMutation({

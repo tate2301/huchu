@@ -1,5 +1,5 @@
-import { UserManagementConsole } from "@/components/user-management/user-management-console";
+import { redirect } from "next/navigation";
 
 export default function UserManagementCreatePage() {
-  return <UserManagementConsole mode="create" />;
+  redirect("/management/users/create");
 }

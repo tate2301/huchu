@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,16 @@ import {
   type ManagedUserRole,
 } from "@/lib/user-management-api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown } from "@/lib/icons";
+import {
+  ArrowRightLeft,
+  CheckCircle2,
+  ChevronDown,
+  type LucideIcon,
+  ManageAccounts,
+  Plus,
+  ShieldCheck,
+  UserX,
+} from "@/lib/icons";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 
 export type UserManagementMode =
@@ -487,68 +496,112 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           header: "Actions",
           cell: ({ row }) => {
             const managedRole = toManagedRole(row.original.role);
+            const rowActions: Array<{
+              key: string;
+              label: string;
+              icon: LucideIcon;
+              onClick: () => void;
+            }> = [];
+
+            if (actionsVisible.status) {
+              rowActions.push({
+                key: "status",
+                label: row.original.isActive ? "Deactivate" : "Activate",
+                icon: row.original.isActive ? UserX : CheckCircle2,
+                onClick: () =>
+                  setStatusTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    isActive: !row.original.isActive,
+                  }),
+              });
+            }
+
+            if (actionsVisible.password) {
+              rowActions.push({
+                key: "password",
+                label: "Reset Password",
+                icon: ManageAccounts,
+                onClick: () =>
+                  setPasswordTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    newPassword: "",
+                  }),
+              });
+            }
+
+            if (actionsVisible.role) {
+              rowActions.push({
+                key: "role",
+                label: "Change Role",
+                icon: ArrowRightLeft,
+                onClick: () =>
+                  setRoleTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    role: row.original.role === "MANAGER" ? "CLERK" : "MANAGER",
+                  }),
+              });
+            }
+
+            if (actionsVisible.featureAccess && managedRole) {
+              rowActions.push({
+                key: "feature",
+                label: "Feature Access",
+                icon: ShieldCheck,
+                onClick: () =>
+                  setFeatureTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    role: managedRole,
+                  }),
+              });
+            }
+
+            if (rowActions.length === 0) {
+              return null;
+            }
+
+            const [primaryAction, ...moreActions] = rowActions;
+            const PrimaryIcon = primaryAction.icon;
+
             return (
-              <div className="flex flex-wrap justify-end gap-2">
-                {actionsVisible.status ? (
+              <div className="flex justify-end">
+                <div className="inline-flex items-center overflow-hidden rounded-[10px] border border-[var(--edge-subtle)] bg-background shadow-[var(--surface-frame-shadow)]">
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setStatusTarget({
-                        userId: row.original.id,
-                        userEmail: row.original.email,
-                        isActive: !row.original.isActive,
-                      })}
+                    variant="ghost"
+                    className="rounded-none border-r border-[var(--edge-subtle)] px-3"
+                    onClick={primaryAction.onClick}
                   >
-                    {row.original.isActive ? "Deactivate" : "Activate"}
+                    <PrimaryIcon className="mr-1.5 h-4 w-4" />
+                    {primaryAction.label}
                   </Button>
-                ) : null}
-                {actionsVisible.password ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setPasswordTarget({
-                        userId: row.original.id,
-                        userEmail: row.original.email,
-                        newPassword: "",
-                      })}
-                  >
-                    Reset Password
-                  </Button>
-                ) : null}
-                {actionsVisible.role ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setRoleTarget({
-                        userId: row.original.id,
-                        userEmail: row.original.email,
-                        role: row.original.role === "MANAGER" ? "CLERK" : "MANAGER",
-                      })}
-                  >
-                    Change Role
-                  </Button>
-                ) : null}
-                {actionsVisible.featureAccess && managedRole ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setFeatureTarget({
-                        userId: row.original.id,
-                        userEmail: row.original.email,
-                        role: managedRole,
-                      })}
-                  >
-                    Feature Access
-                  </Button>
-                ) : null}
+
+                  {moreActions.length > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" size="sm" variant="ghost" className="rounded-none px-2.5">
+                          <ChevronDown className="h-4 w-4" />
+                          <span className="sr-only">More user actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {moreActions.map((action) => {
+                          const ActionIcon = action.icon;
+                          return (
+                            <DropdownMenuItem key={action.key} onClick={action.onClick}>
+                              <ActionIcon className="h-4 w-4" />
+                              <span>{action.label}</span>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </div>
               </div>
             );
           },
@@ -565,11 +618,81 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
   );
 
   const heading = modeMeta[mode];
+  const openFeatureAccessFromFirstManagedUser = React.useCallback(() => {
+    const firstManagedUser = users.find((user) => toManagedRole(user.role));
+    const managedRole = toManagedRole(firstManagedUser?.role);
+    if (!firstManagedUser || !managedRole) return;
+    setFeatureTarget({
+      userId: firstManagedUser.id,
+      userEmail: firstManagedUser.email,
+      role: managedRole,
+    });
+  }, [users]);
+
+  const showHeaderActions = canMutate && (mode === "directory" || mode === "create");
+  const headerActions = showHeaderActions ? (
+    <div className="inline-flex items-center overflow-hidden rounded-[10px] border border-[var(--edge-subtle)] bg-background shadow-[var(--surface-frame-shadow)]">
+      <Button type="button" className="rounded-none border-r border-[var(--edge-subtle)] px-3" onClick={() => setCreateOpen(true)}>
+        <Plus className="mr-1.5 h-4 w-4" />
+        New User
+      </Button>
+      {mode === "directory" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" className="rounded-none px-3">
+              More
+              <ChevronDown className="ml-1.5 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() =>
+                setStatusTarget({
+                  userId: "",
+                  userEmail: "",
+                  isActive: true,
+                })}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Set Status</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                setPasswordTarget({
+                  userId: "",
+                  userEmail: "",
+                  newPassword: "",
+                })}
+            >
+              <ManageAccounts className="h-4 w-4" />
+              <span>Reset Password</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                setRoleTarget({
+                  userId: "",
+                  userEmail: "",
+                  role: "CLERK",
+                })}
+            >
+              <ArrowRightLeft className="h-4 w-4" />
+              <span>Change Role</span>
+            </DropdownMenuItem>
+            {actionsVisible.featureAccess ? (
+              <DropdownMenuItem disabled={users.length === 0} onClick={openFeatureAccessFromFirstManagedUser}>
+                <ShieldCheck className="h-4 w-4" />
+                <span>Manage Feature Access</span>
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
+  ) : null;
 
   if (!canView) {
     return (
-      <div className="space-y-6">
-        <PageHeading title={heading.title} description={heading.description} />
+      <ManagementShell area="users" title={heading.title} description={heading.description}>
         <Alert variant="destructive">
           <AlertTitle>Access restricted</AlertTitle>
           <AlertDescription>
@@ -578,14 +701,12 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
               : "Only SUPERADMIN can access this user-management action route."}
           </AlertDescription>
         </Alert>
-      </div>
+      </ManagementShell>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeading title={heading.title} description={heading.description} />
-
+    <ManagementShell area="users" title={heading.title} description={heading.description} actions={headerActions}>
       {!canMutate ? (
         <Alert>
           <AlertTitle>Read-only mode for your role</AlertTitle>
@@ -671,88 +792,6 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                   <SelectItem value="INACTIVE">Inactive</SelectItem>
                 </SelectContent>
               </Select>
-
-              {canMutate && mode === "directory" ? (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    New User
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button type="button" size="sm" variant="outline">
-                        More Actions
-                        <ChevronDown className="ml-1.5 h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() =>
-                          setStatusTarget({
-                            userId: "",
-                            userEmail: "",
-                            isActive: true,
-                          })}
-                      >
-                        Set Status
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          setPasswordTarget({
-                            userId: "",
-                            userEmail: "",
-                            newPassword: "",
-                          })}
-                      >
-                        Reset Password
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          setRoleTarget({
-                            userId: "",
-                            userEmail: "",
-                            role: "CLERK",
-                          })}
-                      >
-                        Change Role
-                      </DropdownMenuItem>
-                      {actionsVisible.featureAccess ? (
-                        <DropdownMenuItem
-                          disabled={users.length === 0}
-                          onClick={() => {
-                            const firstManagedUser = users.find((user) =>
-                              toManagedRole(user.role),
-                            );
-                            const managedRole = toManagedRole(
-                              firstManagedUser?.role,
-                            );
-                            if (!firstManagedUser || !managedRole) return;
-                            setFeatureTarget({
-                              userId: firstManagedUser.id,
-                              userEmail: firstManagedUser.email,
-                              role: managedRole,
-                            });
-                          }}
-                        >
-                          Manage Feature Access
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </>
-              ) : null}
-              {canMutate && mode === "create" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setCreateOpen(true)}
-                >
-                  New User
-                </Button>
-              ) : null}
             </>
           }
         />
@@ -1200,6 +1239,6 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ManagementShell>
   );
 }

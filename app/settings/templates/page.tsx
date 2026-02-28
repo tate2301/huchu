@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PageHeading } from "@/components/layout/page-heading";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -662,11 +662,16 @@ export default function TemplateSettingsPage() {
     ];
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
-        title="Document Templates"
-        description="Manage branded export templates with dialog-based create and edit flows."
-      />
+    <ManagementShell
+      area="document-templates"
+      title="Document Templates"
+      description="Manage branded export templates with dialog-based create and edit flows."
+      actions={
+        <Button type="button" onClick={() => openCreateDialog()}>
+          New Template
+        </Button>
+      }
+    >
 
       {templatesQuery.error ? (
         <Alert variant="destructive">
@@ -694,9 +699,6 @@ export default function TemplateSettingsPage() {
         toolbar={
           <>
             <Badge variant="outline">{templates.length} Templates</Badge>
-            <Button type="button" size="sm" onClick={() => openCreateDialog()}>
-              New Template
-            </Button>
           </>
         }
       />
@@ -998,6 +1000,6 @@ export default function TemplateSettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ManagementShell>
   );
 }

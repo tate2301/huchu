@@ -92,7 +92,6 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
 
   const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "incidents");
     params.set("createdId", id);
     params.set("source", "incident");
     if (createdAt) {
@@ -100,7 +99,7 @@ export function IncidentsTab({ createdId }: { createdId: string | null }) {
     } else {
       params.delete("createdAt");
     }
-    router.push(`/compliance?${params.toString()}`);
+    router.push(`/compliance/incidents?${params.toString()}`);
   };
 
   const saveMutation = useMutation({

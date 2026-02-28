@@ -1,5 +1,5 @@
-import { UserManagementConsole } from "@/components/user-management/user-management-console";
+import { redirect } from "next/navigation";
 
 export default function UserManagementPasswordResetPage() {
-  return <UserManagementConsole mode="password-reset" />;
+  redirect("/management/users/password-reset");
 }

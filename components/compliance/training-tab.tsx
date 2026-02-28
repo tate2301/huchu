@@ -79,7 +79,6 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
 
   const pushSaved = (id: string, createdAt?: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "training");
     params.set("createdId", id);
     params.set("source", "training");
     if (createdAt) {
@@ -87,7 +86,7 @@ export function TrainingTab({ createdId }: { createdId: string | null }) {
     } else {
       params.delete("createdAt");
     }
-    router.push(`/compliance?${params.toString()}`);
+    router.push(`/compliance/training?${params.toString()}`);
   };
 
   const saveMutation = useMutation({
