@@ -291,26 +291,77 @@ export function getBrandingCssVariables(branding: EffectiveBranding): Record<str
   const accent = branding.colors.accent;
 
   return {
+    // Font family
     "--font-sans": branding.fontFamily,
     "--font-family": branding.fontFamily,
+
+    // Action colors (primary button)
     "--action-primary-bg": primary,
     "--action-primary-hover": mixColors(primary, "#000000", 0.12),
     "--action-primary-fg": getContrastTextColor(primary),
     "--action-secondary-bg": secondary,
-    "--action-secondary-hover": mixColors(secondary, "#000000", 0.06),
+    "--action-secondary-hover": mixColors(primary, "#000000", 0.06),
     "--action-secondary-fg": getContrastTextColor(secondary),
     "--focus-ring": mixColors(primary, "#ffffff", 0.16),
+
+    // Base colors (shadcn compatibility)
     "--primary": primary,
     "--primary-foreground": getContrastTextColor(primary),
     "--secondary": secondary,
     "--secondary-foreground": getContrastTextColor(secondary),
     "--accent": accent,
     "--accent-foreground": getContrastTextColor(accent),
+
+    // Sidebar colors
     "--sidebar-primary": primary,
     "--sidebar-primary-foreground": getContrastTextColor(primary),
+
+    // Surface colors (warm paper aesthetic)
+    "--surface-canvas": "#FCFCF4",
+    "--surface-base": "#FFFFFF",
+    "--surface-raised": "#FFFFFF",
+    "--surface-muted": "#F7F7F2",
+    "--surface-subtle": "#F3F3EF",
+
+    // Border colors
+    "--border": "#E6E6E0",
+    "--border-strong": "#DADAD3",
+
+    // Text colors
+    "--text-strong": "#111111",
+    "--text-body": "#111111",
+    "--text-muted": "#6B6B6B",
+    "--text-subtle": "#9A9A93",
+    "--text-inverse": "#FFFFFF",
+
+    // Status colors
+    "--status-success-bg": "#EAF7F1",
+    "--status-success-text": "#2CA47C",
+    "--status-warning-bg": "#FDF1E8",
+    "--status-warning-text": "#F46414",
+    "--status-error-bg": "#FDEBE7",
+    "--status-error-text": "#EC442C",
+
+    // Chart colors (status-based)
+    "--chart-grid": "#E6E6E0",
+    "--chart-text": "#6B6B6B",
+    "--chart-passing": "#2CA47C",
+    "--chart-failing": "#EC442C",
+    "--chart-need-changes": "#F46414",
+    "--chart-in-review": primary,
+    "--chart-in-progress": "#FCB414",
+    "--chart-pending": "#CFCFC6",
+    "--chart-inactive": "#9A9A93",
+
+    // Chart palette (generic)
     "--chart-1": primary,
     "--chart-2": mixColors(primary, "#ffffff", 0.22),
     "--chart-3": mixColors(primary, "#000000", 0.18),
+    "--chart-4": "#2CA47C",
+    "--chart-5": "#FCB414",
+
+    // Shadow
+    "--shadow-popover": "0 12px 24px -12px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.06)",
   };
 }
 

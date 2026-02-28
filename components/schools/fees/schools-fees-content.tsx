@@ -30,6 +30,7 @@ import {
   type SchoolFeeStructureRecord,
   type SchoolFeeWaiverRecord,
 } from "@/lib/schools/fees-v2";
+import { BulkGenerateInvoicesDialog } from "./bulk-generate-invoices-dialog";
 
 type FeesView = "structures" | "invoices" | "receipts" | "waivers";
 
@@ -82,6 +83,8 @@ export function SchoolsFeesContent() {
 
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState(initialInvoiceForm);
+
+  const [bulkGenerateDialogOpen, setBulkGenerateDialogOpen] = useState(false);
 
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptForm, setReceiptForm] = useState(initialReceiptForm);
@@ -443,9 +446,18 @@ export function SchoolsFeesContent() {
         <div className={activeView === "invoices" ? "space-y-2" : "hidden"}>
           <div className="flex items-center justify-between">
             <h2 className="text-section-title">Fee Invoices</h2>
-            <Button size="sm" onClick={() => setInvoiceDialogOpen(true)}>
-              Create Invoice
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setBulkGenerateDialogOpen(true)}
+              >
+                Bulk Generate
+              </Button>
+              <Button size="sm" onClick={() => setInvoiceDialogOpen(true)}>
+                Create Invoice
+              </Button>
+            </div>
           </div>
           <DataTable
             data={invoices}
@@ -647,6 +659,11 @@ export function SchoolsFeesContent() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <BulkGenerateInvoicesDialog
+        open={bulkGenerateDialogOpen}
+        onOpenChange={setBulkGenerateDialogOpen}
+      />
     </div>
   );
 }

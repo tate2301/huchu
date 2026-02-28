@@ -161,6 +161,41 @@ export async function fetchSchoolFeeInvoices(params: {
   );
 }
 
+export async function bulkGenerateInvoices(params: {
+  termId: string;
+  classId?: string;
+  streamId?: string;
+  feeStructureId: string;
+  issueDate: string;
+  dueDate: string;
+  issueNow?: boolean;
+  notes?: string;
+  skipExisting?: boolean;
+}) {
+  return fetchJson<{
+    success: boolean;
+    data: {
+      success: true;
+      message: string;
+      created: number;
+      skipped: number;
+      errors: Array<{ studentId: string; studentNo: string; error: string }>;
+      summary: {
+        totalEligible: number;
+        feeStructure: {
+          id: string;
+          name: string;
+          class: string;
+          term: string;
+        };
+      };
+    };
+  }>("/api/v2/schools/fees/invoices/bulk-generate", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
 export async function fetchSchoolFeeReceipts(params: {
   page?: number;
   limit?: number;
