@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
 export default async function TeacherPortalPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
-    redirect("/login");
+    redirect("/portal/teacher/login");
   }
 
   return (

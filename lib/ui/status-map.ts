@@ -1,7 +1,7 @@
 export const CANONICAL_UI_STATUSES = [
   "passing",
   "failing",
-  "needs_changes",
+  "need_changes",
   "in_review",
   "in_progress",
   "pending",
@@ -58,9 +58,9 @@ const STATUS_PRESENTATION: Record<CanonicalUiStatus, UiStatusPresentation> = {
       text: "status-error-text",
     },
   },
-  needs_changes: {
-    status: "needs_changes",
-    label: "Needs changes",
+  need_changes: {
+    status: "need_changes",
+    label: "Need changes",
     tone: "warning",
     tokens: {
       bg: "status-warning-bg",
@@ -132,15 +132,18 @@ const DIRECT_STATUS_ALIASES: Record<string, CanonicalUiStatus> = {
   blocked: "failing",
   invalid: "failing",
 
-  needs_changes: "needs_changes",
-  need_changes: "needs_changes",
-  need_change: "needs_changes",
-  needs_change: "needs_changes",
-  changes_requested: "needs_changes",
-  revision_requested: "needs_changes",
-  revisions_requested: "needs_changes",
-  needs_revision: "needs_changes",
-  rework: "needs_changes",
+  need_changes: "need_changes",
+  need_change: "need_changes",
+  needchanges: "need_changes",
+  needs_changes: "need_changes",
+  needs_change: "need_changes",
+  needschanges: "need_changes",
+  changes_requested: "need_changes",
+  change_requested: "need_changes",
+  revision_requested: "need_changes",
+  revisions_requested: "need_changes",
+  needs_revision: "need_changes",
+  rework: "need_changes",
 
   in_review: "in_review",
   review: "in_review",
@@ -179,6 +182,8 @@ const DIRECT_STATUS_ALIASES: Record<string, CanonicalUiStatus> = {
   closed: "inactive",
   void: "inactive",
   off: "inactive",
+  ignored: "inactive",
+  ignore: "inactive",
 };
 
 function normalizeStatusKey(rawStatus: string): string {
@@ -211,11 +216,14 @@ export function normalizeUiStatus(
   if (normalizedKey.includes("inactive") || normalizedKey.includes("archive")) {
     return "inactive";
   }
+  if (normalizedKey.includes("ignore")) {
+    return "inactive";
+  }
   if (normalizedKey.includes("fail") || normalizedKey.includes("error")) {
     return "failing";
   }
   if (normalizedKey.includes("change") || normalizedKey.includes("rework")) {
-    return "needs_changes";
+    return "need_changes";
   }
   if (
     normalizedKey.includes("pass") ||
@@ -234,4 +242,3 @@ export function getUiStatusPresentation(
   const status = normalizeUiStatus(rawStatus);
   return STATUS_PRESENTATION[status];
 }
-

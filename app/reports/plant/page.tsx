@@ -15,11 +15,20 @@ import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableQueryState,
+} from "@/components/ui/data-table";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchPlantReports, fetchSites, type PlantReport } from "@/lib/api";
@@ -36,9 +45,12 @@ export default function PlantReportHistoryPage() {
   const createdId = searchParams.get("createdId");
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
   const isSuperAdmin = sessionRole === "SUPERADMIN";
-  const [listSiteId, setListSiteId] = useState(searchParams.get("siteId") ?? "all");
+  const [listSiteId, setListSiteId] = useState(
+    searchParams.get("siteId") ?? "all",
+  );
   const [listStartDate, setListStartDate] = useState(
-    searchParams.get("startDate") ?? format(subDays(new Date(), 6), "yyyy-MM-dd"),
+    searchParams.get("startDate") ??
+      format(subDays(new Date(), 6), "yyyy-MM-dd"),
   );
   const [listEndDate, setListEndDate] = useState(
     searchParams.get("endDate") ?? format(new Date(), "yyyy-MM-dd"),
@@ -51,7 +63,11 @@ export default function PlantReportHistoryPage() {
   });
   const plantReportPdfRef = useRef<HTMLDivElement>(null);
 
-  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+  const {
+    data: sites,
+    isLoading: sitesLoading,
+    error: sitesError,
+  } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
   });
@@ -81,13 +97,19 @@ export default function PlantReportHistoryPage() {
     enabled: !!listStartDate && !!listEndDate,
   });
 
-  const plantReportRecords = useMemo(() => plantReportsData?.data ?? [], [plantReportsData]);
+  const plantReportRecords = useMemo(
+    () => plantReportsData?.data ?? [],
+    [plantReportsData],
+  );
 
   const deletePlantReportMutation = useMutation({
     mutationFn: (id: string) =>
-      fetchJson<{ success: boolean; deleted?: boolean }>(`/api/plant-reports/${id}`, {
-        method: "DELETE",
-      }),
+      fetchJson<{ success: boolean; deleted?: boolean }>(
+        `/api/plant-reports/${id}`,
+        {
+          method: "DELETE",
+        },
+      ),
     onSuccess: () => {
       toast({ title: "Plant report deleted", variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["plant-reports"] });
@@ -100,111 +122,150 @@ export default function PlantReportHistoryPage() {
       }),
   });
 
-  const handleDeletePlantReport = useCallback((record: PlantReport) => {
-    const confirmed = window.confirm(
-      `Delete plant report for ${format(new Date(record.date), "yyyy-MM-dd")}?`,
-    );
-    if (!confirmed) return;
-    deletePlantReportMutation.mutate(record.id);
-  }, [deletePlantReportMutation]);
+  const handleDeletePlantReport = useCallback(
+    (record: PlantReport) => {
+      const confirmed = window.confirm(
+        `Delete plant report for ${format(new Date(record.date), "yyyy-MM-dd")}?`,
+      );
+      if (!confirmed) return;
+      deletePlantReportMutation.mutate(record.id);
+    },
+    [deletePlantReportMutation],
+  );
 
   const activeListSiteName =
     listSiteId === "all"
       ? "All sites"
-      : sites?.find((site) => site.id === listSiteId)?.name ?? "Selected site";
-  const columns = useMemo<ColumnDef<PlantReport>[]>(
-    () => {
-      const baseColumns: ColumnDef<PlantReport>[] = [
+      : (sites?.find((site) => site.id === listSiteId)?.name ??
+        "Selected site");
+  const columns = useMemo<ColumnDef<PlantReport>[]>(() => {
+    const baseColumns: ColumnDef<PlantReport>[] = [
       {
         id: "date",
         header: "Date",
         accessorFn: (row) => row.date,
         cell: ({ row }) => (
           <div>
-            <NumericCell align="left">{format(new Date(row.original.date), "MMM d, yyyy")}</NumericCell>
-            {createdId === row.original.id ? <Badge variant="secondary">Saved</Badge> : null}
+            <NumericCell align="left">
+              {format(new Date(row.original.date), "MMM d, yyyy")}
+            </NumericCell>
+            {createdId === row.original.id ? (
+              <Badge variant="secondary">Saved</Badge>
+            ) : null}
           </div>
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
-      { id: "site", header: "Site", accessorFn: (row) => row.site?.name ?? "", cell: ({ row }) => row.original.site?.name ?? "-" ,
+        maxSize: 128,
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorFn: (row) => row.site?.name ?? "",
+        cell: ({ row }) => row.original.site?.name ?? "-",
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "tonnes",
         header: "Tonnes Processed",
         accessorFn: (row) => row.tonnesProcessed ?? 0,
-        cell: ({ row }) => <NumericCell>{(row.original.tonnesProcessed ?? 0).toFixed(1)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>
+            {(row.original.tonnesProcessed ?? 0).toFixed(1)}
+          </NumericCell>
+        ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "runHours",
         header: "Run Hours",
         accessorFn: (row) => row.runHours ?? 0,
-        cell: ({ row }) => <NumericCell>{(row.original.runHours ?? 0).toFixed(1)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{(row.original.runHours ?? 0).toFixed(1)}</NumericCell>
+        ),
         size: 88,
         minSize: 88,
-        maxSize: 88},
+        maxSize: 88,
+      },
       {
         id: "goldRecovered",
         header: "Gold Recovered",
         accessorFn: (row) => row.goldRecovered ?? 0,
-        cell: ({ row }) => <NumericCell>{(row.original.goldRecovered ?? 0).toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>
+            {(row.original.goldRecovered ?? 0).toFixed(2)}
+          </NumericCell>
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "downtime",
         header: "Downtime",
         accessorFn: (row) =>
-          row.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0,
+          row.downtimeEvents?.reduce(
+            (sum, event) => sum + event.durationHours,
+            0,
+          ) ?? 0,
         cell: ({ row }) => {
           const downtimeHours =
-            row.original.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0;
+            row.original.downtimeEvents?.reduce(
+              (sum, event) => sum + event.durationHours,
+              0,
+            ) ?? 0;
           return <NumericCell>{downtimeHours.toFixed(1)}h</NumericCell>;
         },
         size: 160,
         minSize: 160,
-        maxSize: 160},
-      ];
+        maxSize: 160,
+      },
+    ];
 
-      if (isSuperAdmin) {
-        baseColumns.push({
-          id: "actions",
-          header: "",
-          cell: ({ row }) => (
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.push(`/plant-report?editId=${row.original.id}`)}
-                disabled={deletePlantReportMutation.isPending}
-              >
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => handleDeletePlantReport(row.original)}
-                disabled={deletePlantReportMutation.isPending}
-              >
-                Delete
-              </Button>
-            </div>
-          ),
-          size: 160,
-          minSize: 160,
-          maxSize: 160,
-        });
-      }
+    if (isSuperAdmin) {
+      baseColumns.push({
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                router.push(`/plant-report?editId=${row.original.id}`)
+              }
+              disabled={deletePlantReportMutation.isPending}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => handleDeletePlantReport(row.original)}
+              disabled={deletePlantReportMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      });
+    }
 
-      return baseColumns;
-    },
-    [createdId, isSuperAdmin, deletePlantReportMutation.isPending, handleDeletePlantReport, router],
-  );
+    return baseColumns;
+  }, [
+    createdId,
+    isSuperAdmin,
+    deletePlantReportMutation.isPending,
+    handleDeletePlantReport,
+    router,
+  ]);
 
   const handleExport = async (format: DocumentExportFormat) => {
     if (!plantReportPdfRef.current) return;
@@ -239,13 +300,17 @@ export default function PlantReportHistoryPage() {
         />
       </PageActions>
 
-      <PageHeading title="Plant Reports" description="Review submitted plant reports" />
+      <PageHeading
+        title="Plant Reports"
+        description="Review submitted plant reports"
+      />
       <RecordSavedBanner entityLabel="plant report" />
       {!isSuperAdmin ? (
         <Alert>
           <AlertTitle>Read-only access</AlertTitle>
           <AlertDescription>
-            Only SUPERADMIN can create, edit, or delete plant reports for backfilling.
+            Only SUPERADMIN can create, edit, or delete plant reports for
+            backfilling.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -253,25 +318,35 @@ export default function PlantReportHistoryPage() {
       {(sitesError || plantReportsError) && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load plant reports</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(sitesError || plantReportsError)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(sitesError || plantReportsError)}
+          </AlertDescription>
         </Alert>
       )}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
-          <h2 className="text-section-title text-foreground font-bold tracking-tight">Submitted Reports</h2>
-          <p className="text-sm text-muted-foreground">Filter by site and date range.</p>
+        <header className="space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Submitted Reports
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Filter by site and date range.
+          </p>
         </header>
         {plantReportsLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : plantReportRecords.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No plant reports for this range.</div>
+          <div className="text-sm text-muted-foreground">
+            No plant reports for this range.
+          </div>
         ) : (
           <DataTable
             data={plantReportRecords}
             columns={columns}
             queryState={queryState}
-            onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+            onQueryStateChange={(next) =>
+              setQueryState((prev) => ({ ...prev, ...next }))
+            }
             searchPlaceholder="Search site, shift, status"
             searchSubmitLabel="Search"
             tableClassName="text-sm"
@@ -338,7 +413,10 @@ export default function PlantReportHistoryPage() {
             subtitle={`${listStartDate} to ${listEndDate}`}
             meta={[
               { label: "Site", value: activeListSiteName },
-              { label: "Total reports", value: String(plantReportRecords.length) },
+              {
+                label: "Total reports",
+                value: String(plantReportRecords.length),
+              },
             ]}
           >
             <table className="w-full text-xs">
@@ -355,14 +433,25 @@ export default function PlantReportHistoryPage() {
               <tbody>
                 {plantReportRecords.map((report) => {
                   const downtimeHours =
-                    report.downtimeEvents?.reduce((sum, event) => sum + event.durationHours, 0) ?? 0;
+                    report.downtimeEvents?.reduce(
+                      (sum, event) => sum + event.durationHours,
+                      0,
+                    ) ?? 0;
                   return (
                     <tr key={report.id} className="border-b border-gray-100">
-                      <td className="py-2">{format(new Date(report.date), "MMM d, yyyy")}</td>
+                      <td className="py-2">
+                        {format(new Date(report.date), "MMM d, yyyy")}
+                      </td>
                       <td className="py-2">{report.site?.name}</td>
-                      <td className="py-2">{(report.tonnesProcessed ?? 0).toFixed(1)}</td>
-                      <td className="py-2">{(report.runHours ?? 0).toFixed(1)}</td>
-                      <td className="py-2">{(report.goldRecovered ?? 0).toFixed(2)}</td>
+                      <td className="py-2">
+                        {(report.tonnesProcessed ?? 0).toFixed(1)}
+                      </td>
+                      <td className="py-2">
+                        {(report.runHours ?? 0).toFixed(1)}
+                      </td>
+                      <td className="py-2">
+                        {(report.goldRecovered ?? 0).toFixed(2)}
+                      </td>
                       <td className="py-2">{downtimeHours.toFixed(1)}h</td>
                     </tr>
                   );

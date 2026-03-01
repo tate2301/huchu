@@ -70,7 +70,8 @@ export default function GoldPricesPage() {
     onSuccess: () => {
       toast({
         title: "Gold price added",
-        description: "New effective price is now available for snapshot valuation.",
+        description:
+          "New effective price is now available for snapshot valuation.",
         variant: "success",
       });
       setCreateOpen(false);
@@ -96,7 +97,8 @@ export default function GoldPricesPage() {
     onSuccess: () => {
       toast({
         title: "Gold price updated",
-        description: "Future valuation snapshots will use the updated effective rate.",
+        description:
+          "Future valuation snapshots will use the updated effective rate.",
         variant: "success",
       });
       setEditing(null);
@@ -129,7 +131,9 @@ export default function GoldPricesPage() {
       {
         id: "priceUsdPerGram",
         header: "USD / g",
-        cell: ({ row }) => <NumericCell>${row.original.priceUsdPerGram.toFixed(4)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>${row.original.priceUsdPerGram.toFixed(4)}</NumericCell>
+        ),
         size: 160,
         minSize: 160,
         maxSize: 160,
@@ -200,7 +204,9 @@ export default function GoldPricesPage() {
       }}
     >
       <div>
-        <label className="mb-2 block text-sm font-semibold">Effective Date</label>
+        <label className="mb-2 block text-sm font-semibold">
+          Effective Date
+        </label>
         <Input
           type="date"
           value={form.effectiveDate}
@@ -210,14 +216,19 @@ export default function GoldPricesPage() {
         />
       </div>
       <div>
-        <label className="mb-2 block text-sm font-semibold">Price (USD per gram)</label>
+        <label className="mb-2 block text-sm font-semibold">
+          Price (USD per gram)
+        </label>
         <Input
           type="number"
           min="0"
           step="0.0001"
           value={form.priceUsdPerGram}
           onChange={(event) =>
-            setForm((prev) => ({ ...prev, priceUsdPerGram: event.target.value }))
+            setForm((prev) => ({
+              ...prev,
+              priceUsdPerGram: event.target.value,
+            }))
           }
         />
       </div>
@@ -226,7 +237,9 @@ export default function GoldPricesPage() {
         <Textarea
           rows={3}
           value={form.note}
-          onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, note: event.target.value }))
+          }
           placeholder="Optional context for this rate."
         />
       </div>
@@ -272,19 +285,17 @@ export default function GoldPricesPage() {
         </Button>
       }
     >
-      <PageIntro
-        title="Gold Pricing"
-        purpose="Maintain effective gold rates for immutable historical valuation snapshots."
-        nextStep="Add rates by effective date before recording new gold batches or payouts."
-      />
-
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load gold prices</AlertTitle>
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
       ) : null}
-
+      <div>
+        <p className="text-section-title font-bold tracking-tight">
+          Gold Price Board
+        </p>
+      </div>
       <DataTable
         data={rows}
         columns={columns}
@@ -292,7 +303,9 @@ export default function GoldPricesPage() {
         searchSubmitLabel="Search"
         tableClassName="text-sm"
         pagination={{ enabled: true }}
-        emptyState={isLoading ? "Loading gold prices..." : "No gold prices configured."}
+        emptyState={
+          isLoading ? "Loading gold prices..." : "No gold prices configured."
+        }
       />
 
       <Dialog
@@ -306,9 +319,12 @@ export default function GoldPricesPage() {
       >
         <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Gold Price" : "Add Gold Price"}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Edit Gold Price" : "Add Gold Price"}
+            </DialogTitle>
             <DialogDescription>
-              This effective rate is used for all future valuation snapshots on matching dates.
+              This effective rate is used for all future valuation snapshots on
+              matching dates.
             </DialogDescription>
           </DialogHeader>
           {formBody}

@@ -11,8 +11,9 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthRoute = pathname === "/login";
+  const isPortalRoute = pathname.startsWith("/portal/");
 
-  if (isAuthRoute) {
+  if (isAuthRoute || isPortalRoute) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
 

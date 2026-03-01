@@ -74,7 +74,7 @@ export default function GoldReceiptsReportPage() {
           companySplit: batch.companySplitWeight ?? 0,
           companyTotal:
             batch.companyTotalWeight ??
-            ((batch.companySplitWeight ?? 0) + (batch.expenseWeightTotal ?? 0)),
+            (batch.companySplitWeight ?? 0) + (batch.expenseWeightTotal ?? 0),
           shiftLeader: batch.shiftLeaderName ?? "-",
           recordedBy: batch.createdBy?.name ?? "-",
           recordedAt: batch.createdAt ?? null,
@@ -114,7 +114,9 @@ export default function GoldReceiptsReportPage() {
         id: "receiptNumber",
         header: "Receipt No.",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.receiptNumber}</span>
+          <span className="font-mono font-semibold">
+            {row.original.receiptNumber}
+          </span>
         ),
         size: 112,
         minSize: 112,
@@ -123,7 +125,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "pourBarId",
         header: "Batch ID",
-        cell: ({ row }) => <span className="font-mono">{row.original.pourBarId}</span>,
+        cell: ({ row }) => (
+          <span className="font-mono">{row.original.pourBarId}</span>
+        ),
         size: 112,
         minSize: 112,
         maxSize: 160,
@@ -139,7 +143,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "grossWeight",
         header: "Gross Weight",
-        cell: ({ row }) => <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 140,
@@ -147,7 +153,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "expenseGold",
         header: "Expense Gold",
-        cell: ({ row }) => <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 140,
@@ -155,7 +163,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "workerSplit",
         header: "Worker Split",
-        cell: ({ row }) => <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 140,
@@ -163,7 +173,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "companySplit",
         header: "Company Split",
-        cell: ({ row }) => <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 140,
@@ -171,7 +183,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "companyTotal",
         header: "Company Total",
-        cell: ({ row }) => <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 140,
@@ -233,7 +247,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "paidValueUsd",
         header: "Paid (USD)",
-        cell: ({ row }) => <NumericCell>${row.original.paidValueUsd.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>${row.original.paidValueUsd.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 140,
@@ -241,7 +257,9 @@ export default function GoldReceiptsReportPage() {
       {
         id: "paymentMethod",
         header: "Method",
-        cell: ({ row }) => <Badge variant="secondary">{row.original.paymentMethod}</Badge>,
+        cell: ({ row }) => (
+          <Badge variant="secondary">{row.original.paymentMethod}</Badge>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 180,
@@ -266,7 +284,8 @@ export default function GoldReceiptsReportPage() {
         id: "assayResult",
         header: "Assay %",
         cell: ({ row }) =>
-          row.original.assayResult !== null && row.original.assayResult !== undefined
+          row.original.assayResult !== null &&
+          row.original.assayResult !== undefined
             ? `${row.original.assayResult.toFixed(2)}%`
             : "-",
         size: 100,
@@ -294,7 +313,7 @@ export default function GoldReceiptsReportPage() {
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Receipt Records
           </h2>
@@ -324,7 +343,11 @@ export default function GoldReceiptsReportPage() {
               </SelectContent>
             </Select>
           }
-          emptyState={isLoading ? "Loading receipt records..." : "No receipt records found."}
+          emptyState={
+            isLoading
+              ? "Loading receipt records..."
+              : "No receipt records found."
+          }
         />
       </section>
     </div>

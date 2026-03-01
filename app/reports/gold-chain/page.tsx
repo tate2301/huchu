@@ -56,15 +56,27 @@ export default function GoldChainReportPage() {
     queryFn: fetchSites,
   });
 
-  const { data: poursData, error: poursError, isLoading: poursLoading } = useQuery({
+  const {
+    data: poursData,
+    error: poursError,
+    isLoading: poursLoading,
+  } = useQuery({
     queryKey: ["gold-pours", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldPours({ siteId: activeSiteId, limit: 500 }),
   });
-  const { data: dispatchesData, error: dispatchesError, isLoading: dispatchesLoading } = useQuery({
+  const {
+    data: dispatchesData,
+    error: dispatchesError,
+    isLoading: dispatchesLoading,
+  } = useQuery({
     queryKey: ["gold-dispatches", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldDispatches({ siteId: activeSiteId, limit: 500 }),
   });
-  const { data: receiptsData, error: receiptsError, isLoading: receiptsLoading } = useQuery({
+  const {
+    data: receiptsData,
+    error: receiptsError,
+    isLoading: receiptsLoading,
+  } = useQuery({
     queryKey: ["gold-receipts", "report-chain", activeSiteId ?? "all"],
     queryFn: () => fetchGoldReceipts({ siteId: activeSiteId, limit: 500 }),
   });
@@ -74,9 +86,15 @@ export default function GoldChainReportPage() {
   });
 
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
+  const dispatches = useMemo(
+    () => dispatchesData?.data ?? [],
+    [dispatchesData],
+  );
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
-  const corrections = useMemo(() => correctionsData?.data ?? [], [correctionsData]);
+  const corrections = useMemo(
+    () => correctionsData?.data ?? [],
+    [correctionsData],
+  );
 
   const dispatchByPour = useMemo(() => {
     const map = new Map<string, (typeof dispatches)[number]>();
@@ -108,14 +126,15 @@ export default function GoldChainReportPage() {
             pourDate: pour.pourDate,
             pourBarId: pour.pourBarId,
             site: pour.site.name,
-            sourceType: pour.sourceType === "PURCHASE_PUBLIC" ? "Purchase" : "Production",
+            sourceType:
+              pour.sourceType === "PURCHASE_PUBLIC" ? "Purchase" : "Production",
             grossWeight: pour.grossWeight,
             expenseGold: pour.expenseWeightTotal ?? 0,
             workerSplit: pour.workerSplitWeight ?? 0,
             companySplit: pour.companySplitWeight ?? 0,
             companyTotal:
               pour.companyTotalWeight ??
-              ((pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0)),
+              (pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0),
             expenseBreakdown: pour.expenseBreakdown?.trim() || "-",
             shiftLeader: pour.shiftLeaderName ?? "-",
             recordedBy: pour.createdBy?.name ?? "-",
@@ -147,30 +166,36 @@ export default function GoldChainReportPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "pourBarId",
         header: "Bar ID",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.pourBarId}</span>
+          <span className="font-mono font-semibold">
+            {row.original.pourBarId}
+          </span>
         ),
         size: 112,
         minSize: 112,
-        maxSize: 112},
+        maxSize: 112,
+      },
       {
         id: "site",
         header: "Site",
         accessorKey: "site",
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "sourceType",
         header: "Source",
         accessorKey: "sourceType",
         size: 100,
         minSize: 100,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "grossWeight",
         header: "Gross Weight (Recorded)",
@@ -179,7 +204,8 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "expenseGold",
         header: "Expense Gold",
@@ -188,7 +214,8 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "workerSplit",
         header: "Worker Split",
@@ -197,7 +224,8 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "companySplit",
         header: "Company Split",
@@ -206,7 +234,8 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "companyTotal",
         header: "Company Total",
@@ -215,28 +244,32 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "expenseBreakdown",
         header: "Expense Breakdown",
         accessorKey: "expenseBreakdown",
         size: 220,
         minSize: 200,
-        maxSize: 320},
+        maxSize: 320,
+      },
       {
         id: "shiftLeader",
         header: "Shift Leader",
         accessorKey: "shiftLeader",
         size: 180,
         minSize: 160,
-        maxSize: 240},
+        maxSize: 240,
+      },
       {
         id: "recordedBy",
         header: "Recorded By",
         accessorKey: "recordedBy",
         size: 180,
         minSize: 160,
-        maxSize: 240},
+        maxSize: 240,
+      },
       {
         id: "recordedAt",
         header: "Recorded At",
@@ -247,7 +280,8 @@ export default function GoldChainReportPage() {
         ),
         size: 148,
         minSize: 148,
-        maxSize: 180},
+        maxSize: 180,
+      },
       {
         id: "valueUsd",
         header: "Value (USD)",
@@ -256,7 +290,8 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "dispatchDate",
         header: "Dispatch Date",
@@ -270,7 +305,8 @@ export default function GoldChainReportPage() {
           ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "receiptDate",
         header: "Receipt Date",
@@ -284,7 +320,8 @@ export default function GoldChainReportPage() {
           ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "status",
         header: "Status",
@@ -303,22 +340,22 @@ export default function GoldChainReportPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
 
   const pageError =
-    sitesError || poursError || dispatchesError || receiptsError || correctionsError;
+    sitesError ||
+    poursError ||
+    dispatchesError ||
+    receiptsError ||
+    correctionsError;
   const isLoading = poursLoading || dispatchesLoading || receiptsLoading;
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading
-        title="Gold Chain"
-        description="Pour to dispatch to receipt traceability"
-      />
-
       {pageError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load gold records</AlertTitle>
@@ -327,7 +364,7 @@ export default function GoldChainReportPage() {
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Chain Records
           </h2>
@@ -357,7 +394,9 @@ export default function GoldChainReportPage() {
               </SelectContent>
             </Select>
           }
-          emptyState={isLoading ? "Loading chain records..." : "No gold records found."}
+          emptyState={
+            isLoading ? "Loading chain records..." : "No gold records found."
+          }
         />
       </section>
     </div>

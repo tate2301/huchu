@@ -30,23 +30,61 @@ const allocationSchema = z.object({
   allocatedAmount: z.number().finite().positive(),
 });
 
+const dateInputSchema = z
+  .string()
+  .datetime()
+  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/));
+
+const paymentMethodSchema = z.enum([
+  "CASH",
+  "BANK_TRANSFER",
+  "CARD",
+  "MOBILE_MONEY",
+]);
+
 const createSchema = z.object({
   receiptNo: z.string().trim().min(1).max(40).optional(),
-  studentId: z.string().uuid(),
-  receiptDate: z
-    .string()
-    .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "CARD", "MOBILE_MONEY"]),
+  studentId: z.string().uuid().optional(),
+  receiptDate: dateInputSchema.optional(),
+  paymentMethod: paymentMethodSchema.optional(),
+  method: z.string().trim().min(1).max(40).optional(),
   reference: z.string().trim().max(120).nullable().optional(),
-  amountReceived: z.number().finite().positive(),
+  amountReceived: z.number().finite().positive().optional(),
+  amount: z.number().finite().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
   postNow: z.boolean().optional(),
   allocations: z.array(allocationSchema).optional(),
+  invoiceId: z.string().uuid().optional(),
 });
 
 function toMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizePaymentMethod(
+  value: string,
+): z.infer<typeof paymentMethodSchema> | null {
+  const canonical = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const condensed = canonical.replace(/_/g, "");
+
+  if (canonical === "CASH" || condensed === "CASH") return "CASH";
+  if (
+    canonical === "BANK_TRANSFER" ||
+    condensed === "BANKTRANSFER" ||
+    canonical === "BANK" ||
+    canonical === "TRANSFER"
+  ) {
+    return "BANK_TRANSFER";
+  }
+  if (canonical === "CARD" || condensed === "CARD") return "CARD";
+  if (
+    canonical === "MOBILE_MONEY" ||
+    condensed === "MOBILEMONEY" ||
+    canonical === "MOMO"
+  ) {
+    return "MOBILE_MONEY";
+  }
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -145,15 +183,106 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = createSchema.parse(body);
-    const allocations = validated.allocations ?? [];
+    const isLegacyDerivedFlow =
+      validated.invoiceId !== undefined ||
+      validated.amount !== undefined ||
+      validated.method !== undefined;
 
-    const receiptDate = new Date(validated.receiptDate);
+    if (!isLegacyDerivedFlow) {
+      if (!validated.studentId) return errorResponse("studentId is required", 400);
+      if (!validated.receiptDate) return errorResponse("receiptDate is required", 400);
+      if (!validated.paymentMethod) return errorResponse("paymentMethod is required", 400);
+      if (validated.amountReceived === undefined) {
+        return errorResponse("amountReceived is required", 400);
+      }
+    }
+
+    if (
+      validated.amountReceived !== undefined &&
+      validated.amount !== undefined &&
+      Math.abs(validated.amountReceived - validated.amount) > 0.009
+    ) {
+      return errorResponse("amount and amountReceived do not match", 400);
+    }
+
+    const amountReceived = validated.amountReceived ?? validated.amount;
+    if (amountReceived === undefined || amountReceived <= 0) {
+      return errorResponse("Amount received must be greater than zero", 400);
+    }
+
+    const legacyPaymentMethod = validated.method
+      ? normalizePaymentMethod(validated.method)
+      : null;
+    if (validated.method && !legacyPaymentMethod && !validated.paymentMethod) {
+      return errorResponse("Invalid payment method", 400);
+    }
+    if (
+      validated.paymentMethod &&
+      legacyPaymentMethod &&
+      validated.paymentMethod !== legacyPaymentMethod
+    ) {
+      return errorResponse("paymentMethod and method do not match", 400);
+    }
+    const paymentMethod = validated.paymentMethod ?? legacyPaymentMethod;
+    if (!paymentMethod) return errorResponse("paymentMethod is required", 400);
+
+    const receiptDateInput =
+      validated.receiptDate ??
+      (isLegacyDerivedFlow ? new Date().toISOString() : undefined);
+    if (!receiptDateInput) return errorResponse("receiptDate is required", 400);
+
+    const receiptDate = new Date(receiptDateInput);
     if (Number.isNaN(receiptDate.getTime())) {
       return errorResponse("Invalid receipt date", 400);
     }
 
+    const allocations =
+      validated.allocations && validated.allocations.length > 0
+        ? validated.allocations
+        : validated.invoiceId
+          ? [{ invoiceId: validated.invoiceId, allocatedAmount: amountReceived }]
+          : [];
+
+    const invoiceIds = allocations.map((allocation) => allocation.invoiceId);
+    if (invoiceIds.length > 0 && new Set(invoiceIds).size !== invoiceIds.length) {
+      return errorResponse("Duplicate invoice allocations are not allowed", 400);
+    }
+
+    const invoices =
+      invoiceIds.length > 0
+        ? await prisma.schoolFeeInvoice.findMany({
+            where: {
+              companyId,
+              id: { in: invoiceIds },
+            },
+            select: {
+              id: true,
+              studentId: true,
+              status: true,
+              balanceAmount: true,
+            },
+          })
+        : [];
+    if (invoices.length !== invoiceIds.length) {
+      return errorResponse("One or more allocated invoices are invalid", 400);
+    }
+    const invoiceMap = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+
+    let studentId = validated.studentId;
+    if (!studentId && invoices.length > 0) {
+      const allocationStudentIds = new Set(invoices.map((invoice) => invoice.studentId));
+      if (allocationStudentIds.size !== 1) {
+        return errorResponse(
+          "Cannot derive student from allocations spanning multiple students",
+          400,
+        );
+      }
+      studentId = invoices[0].studentId;
+    }
+    if (!studentId) return errorResponse("studentId is required", 400);
+
     const student = await prisma.schoolStudent.findFirst({
-      where: { id: validated.studentId, companyId },
+      where: { id: studentId, companyId },
       select: { id: true, studentNo: true },
     });
     if (!student) return errorResponse("Invalid student for this company", 400);
@@ -161,36 +290,17 @@ export async function POST(request: NextRequest) {
     const receiptAllocationSum = toMoney(
       allocations.reduce((sum, item) => sum + item.allocatedAmount, 0),
     );
-    if (receiptAllocationSum - validated.amountReceived > 0.009) {
+    if (receiptAllocationSum - amountReceived > 0.009) {
       return errorResponse("Total allocation exceeds amount received", 400);
     }
 
     if (allocations.length > 0) {
-      const invoiceIds = allocations.map((allocation) => allocation.invoiceId);
-      if (new Set(invoiceIds).size !== invoiceIds.length) {
-        return errorResponse("Duplicate invoice allocations are not allowed", 400);
-      }
-
-      const invoices = await prisma.schoolFeeInvoice.findMany({
-        where: {
-          companyId,
-          id: { in: invoiceIds },
-          studentId: validated.studentId,
-        },
-        select: {
-          id: true,
-          status: true,
-          balanceAmount: true,
-        },
-      });
-      if (invoices.length !== invoiceIds.length) {
-        return errorResponse("One or more allocated invoices are invalid", 400);
-      }
-
-      const invoiceMap = new Map(invoices.map((invoice) => [invoice.id, invoice]));
       for (const allocation of allocations) {
         const invoice = invoiceMap.get(allocation.invoiceId);
         if (!invoice) return errorResponse("Allocated invoice is invalid", 400);
+        if (invoice.studentId !== studentId) {
+          return errorResponse("One or more allocated invoices are invalid", 400);
+        }
         if (invoice.status === "VOIDED" || invoice.status === "WRITEOFF") {
           return errorResponse("Cannot allocate against voided or written-off invoice", 400);
         }
@@ -219,13 +329,13 @@ export async function POST(request: NextRequest) {
         data: {
           companyId,
           receiptNo,
-          studentId: validated.studentId,
+          studentId,
           receiptDate,
-          paymentMethod: validated.paymentMethod,
+          paymentMethod,
           reference: validated.reference ?? null,
-          amountReceived: toMoney(validated.amountReceived),
+          amountReceived: toMoney(amountReceived),
           amountAllocated: receiptAllocationSum,
-          amountUnallocated: toMoney(validated.amountReceived - receiptAllocationSum),
+          amountUnallocated: toMoney(amountReceived - receiptAllocationSum),
           status: validated.postNow === false ? "DRAFT" : "POSTED",
           notes: validated.notes ?? null,
           createdById: session.user.id,

@@ -36,19 +36,20 @@ const createLineSchema = z.object({
   taxRate: z.number().finite().min(0).max(100).optional(),
 });
 
+const dateInputSchema = z
+  .string()
+  .datetime()
+  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/));
+
 const createSchema = z.object({
   invoiceNo: z.string().trim().min(1).max(40).optional(),
   studentId: z.string().uuid(),
   termId: z.string().uuid(),
   feeStructureId: z.string().uuid().optional(),
-  issueDate: z
-    .string()
-    .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  dueDate: z
-    .string()
-    .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  issueDate: dateInputSchema.optional(),
+  dueDate: dateInputSchema.optional(),
+  description: z.string().trim().max(240).optional(),
+  amount: z.number().finite().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
   issueNow: z.boolean().optional(),
   lines: z.array(createLineSchema).optional(),
@@ -170,9 +171,27 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = createSchema.parse(body);
+    const isLegacyDerivedFlow =
+      validated.amount !== undefined || validated.description !== undefined;
 
-    const issueDate = parseDate(validated.issueDate);
-    const dueDate = parseDate(validated.dueDate);
+    if (!isLegacyDerivedFlow && (!validated.issueDate || !validated.dueDate)) {
+      return errorResponse("issueDate and dueDate are required", 400);
+    }
+
+    const issueDateInput =
+      validated.issueDate ??
+      (isLegacyDerivedFlow ? new Date().toISOString() : undefined);
+    const dueDateInput =
+      validated.dueDate ??
+      validated.issueDate ??
+      (isLegacyDerivedFlow ? new Date().toISOString() : undefined);
+
+    if (!issueDateInput || !dueDateInput) {
+      return errorResponse("issueDate and dueDate are required", 400);
+    }
+
+    const issueDate = parseDate(issueDateInput);
+    const dueDate = parseDate(dueDateInput);
     if (Number.isNaN(issueDate.getTime()) || Number.isNaN(dueDate.getTime())) {
       return errorResponse("Invalid issue or due date", 400);
     }
@@ -211,9 +230,24 @@ export async function POST(request: NextRequest) {
       return errorResponse("Fee structure class does not match student current class", 400);
     }
 
+    const hasManualLines = Boolean(validated.lines && validated.lines.length > 0);
+    const useDerivedLineFlow =
+      isLegacyDerivedFlow && !hasManualLines && !validated.feeStructureId;
+
+    if (useDerivedLineFlow) {
+      if (validated.amount === undefined || validated.amount <= 0) {
+        return errorResponse(
+          "Amount must be greater than zero for invoice quick-create",
+          400,
+        );
+      }
+    }
+
+    const derivedLineDescription = validated.description?.trim() || "School fee";
+
     const sourceLines =
-      validated.lines && validated.lines.length > 0
-        ? validated.lines.map((line) => ({
+      hasManualLines
+        ? validated.lines!.map((line) => ({
             feeCode: line.feeCode.toUpperCase(),
             description: line.description,
             quantity: line.quantity ?? 1,
@@ -226,7 +260,18 @@ export async function POST(request: NextRequest) {
             quantity: 1,
             unitAmount: line.amount,
             taxRate: 0,
-          })) ?? [];
+          })) ??
+          (useDerivedLineFlow
+            ? [
+                {
+                  feeCode: "MANUAL",
+                  description: derivedLineDescription,
+                  quantity: 1,
+                  unitAmount: validated.amount!,
+                  taxRate: 0,
+                },
+              ]
+            : []);
 
     if (sourceLines.length === 0) {
       return errorResponse(

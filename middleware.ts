@@ -12,6 +12,12 @@ import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/pla
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
+const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos"] as const;
+const PORTAL_HOME_BY_ROLE = {
+  PARENT: "/portal/parent",
+  STUDENT: "/portal/student",
+  TEACHER: "/portal/teacher",
+} as const;
 
 type PlatformToken = {
   companyId?: string;
@@ -19,6 +25,7 @@ type PlatformToken = {
   tenantStatus?: string;
   enabledFeatures?: string[];
   allowedHosts?: string[];
+  role?: string;
 };
 
 function redirectToAccessBlocked(request: NextRequestWithAuth) {
@@ -54,6 +61,33 @@ function getRootDomain() {
   return process.env.PLATFORM_ROOT_DOMAIN?.trim().toLowerCase() || null;
 }
 
+function isPathWithinRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function getPortalBasePathForPathname(pathname: string) {
+  return PORTAL_BASE_PATHS.find((portalPath) => isPathWithinRoute(pathname, portalPath)) ?? null;
+}
+
+function getPortalHomeForRole(role: string | undefined | null) {
+  if (!role) {
+    return null;
+  }
+
+  if (role === "PARENT" || role === "STUDENT" || role === "TEACHER") {
+    return PORTAL_HOME_BY_ROLE[role];
+  }
+
+  return null;
+}
+
+function redirectToPath(request: NextRequestWithAuth, pathname: string) {
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = pathname;
+  redirectUrl.search = "";
+  return NextResponse.redirect(redirectUrl);
+}
+
 function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string) {
   const rootDomain = getRootDomain();
   if (!rootDomain) {
@@ -78,6 +112,31 @@ export default withAuth(
     const hostContext = getPlatformHostContext(hostHeader);
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
+    const portalBasePath = getPortalBasePathForPathname(pathname);
+    const portalHomeForRole = getPortalHomeForRole(token?.role);
+
+    if (!isApiRequest && portalBasePath && !token) {
+      const portalLoginPath = `${portalBasePath}/login`;
+      if (!isPathWithinRoute(pathname, portalLoginPath)) {
+        return redirectToPath(request, portalLoginPath);
+      }
+    }
+
+    if (!isApiRequest && portalHomeForRole) {
+      const ownPortalLoginPath = `${portalHomeForRole}/login`;
+
+      if (isPathWithinRoute(pathname, ownPortalLoginPath)) {
+        return redirectToPath(request, portalHomeForRole);
+      }
+
+      if (!isPathWithinRoute(pathname, portalHomeForRole)) {
+        return redirectToPath(request, portalHomeForRole);
+      }
+    }
+
+    if (!isApiRequest && portalBasePath && pathname === `${portalBasePath}/login`) {
+      return NextResponse.next();
+    }
 
     if (hostContext.portalSubdomain && !isApiRequest) {
       const portalPath = PORTAL_SUBDOMAIN_MAP[hostContext.portalSubdomain];
@@ -171,6 +230,11 @@ export default withAuth(
         if (pathname === LOGIN_PATH || pathname === ACCESS_BLOCKED_PATH) {
           return true;
         }
+
+        if (getPortalBasePathForPathname(pathname)) {
+          return true;
+        }
+
         return !!token;
       },
     },

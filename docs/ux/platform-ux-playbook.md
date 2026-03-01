@@ -1,132 +1,142 @@
-# Platform UX Playbook
+# Platform UX Playbook (Canonical)
 
-## Purpose
-This playbook defines the default UX system for the platform, starting with HR and Compliance.
-It is optimized for low cognitive load, fast operations, and a clean Stripe-like visual style.
+## Scope and Precedence
+This document is the canonical UX and UI source of truth for the platform.
+When any UX guidance conflicts with other docs, this playbook wins.
 
-## Mandatory Principles
+## Warm Paper Foundation Tokens
 
-1. Show one table per view.
-2. Use progressive disclosure for workflows and details.
-3. Hide invalid actions instead of disabling them.
-4. Keep structure predictable across modules.
-5. Use clear standalone section titles, never numbered "Step 1/2/3" labels.
+### Colors
+- `--surface-canvas`: `#FCFCF4` (warm paper canvas)
+- `--surface-base`: `#FFFFFF` (primary panels)
+- `--surface-muted`: `#F7F7F2` (subtle grouped areas)
+- `--border`: `#E6E6E0` (light structural edges)
+- `--text-strong`: `#111111`
+- `--text-body`: `#111111`
+- `--text-muted`: `#6B6B6B`
+- `--text-subtle`: `#9A9A93`
+- `--action-primary-bg`: `#4C64D4`
+- `--action-secondary-bg`: `#EEF0FF`
+- `--action-destructive-bg`: `#EC442C`
 
-## Page Anatomy
+### Typography
+- Family: `SS Huchu`, `Inter`, and system fallbacks.
+- Page title: `32/700`
+- Section title: `20/700`
+- Body: `14/400`
+- Label: `13/600`
+- Table header: `12/600`, uppercase
+- Table cell: `14/500`
+- Caption: `12/500`
+- Use strict 3-tier heading hierarchy: page title, section title, label/subsection.
+- Numeric and time content must use `font-mono` and should be right-aligned unless context requires otherwise.
 
-1. Page header:
-- Tier 1 title (largest and boldest heading).
-- Optional single-line description.
-- Optional global actions on the right.
+### Spacing
+- Base grid: 8px rhythm (`4, 8, 12, 16, 20, 24, 32, 40, 48`).
+- Content and section gutters: `24px`.
+- Data table internal rhythm: `12px`.
 
-2. Section header:
-- Tier 2 title.
-- Optional short description.
-- Section-local actions.
+### Radii
+- Small: `6px`
+- Default controls: `8px`
+- Card or popover: `12px`
+- Extra large: `16px`
+- Pill: `9999px`
 
-3. Content:
-- Single primary data surface per section.
-- Avoid stacking multiple unrelated data tables in the same viewport.
+### Shadows
+- Use minimal elevation.
+- Primary data surfaces use border-first separation and no heavy shadow.
+- Floating overlays only: `0 12px 24px -12px rgba(17,17,17,0.18), 0 2px 6px rgba(17,17,17,0.06)`.
 
-## Multi-Table Contexts
+## Core Layout Rules
+- One table per active view is mandatory.
+- Multi-table contexts must use a left vertical tab rail.
+- Only the active vertical tab panel may render a table.
+- Preserve search, filter, and pagination state per tab.
+- Vertical rail labels must be visually subordinate to section titles.
+- Do not add subtitles under vertical rail headings.
 
-When a page has multiple data contexts:
+## Unified DataTable Controls Row
+- Controls must be a single row.
+- Left group: search input plus explicit submit action.
+- Middle group: filters.
+- Right group: rows-per-page and pagination controls.
+- All controls in the row must share the same control height.
+- Do not split filters into a separate card or a detached toolbar.
 
-1. Use a left vertical tab rail.
-2. Show exactly one table in the active panel.
-3. Preserve search/filter/pagination state per tab.
-4. Vertical rail headings are context labels and must render one level smaller than section headings.
-5. Vertical rail headings and tab labels must be high contrast.
-6. Do not use subtitles under the vertical rail heading.
+## Shell Patterns
 
-## Table and Data Rules
+### List Shell
+- Header row with title and primary action.
+- Optional context tabs/segments directly above the DataTable.
+- One primary full-bleed table surface.
 
-1. Full-bleed data tables:
-- Do not wrap primary tables inside cards.
-- Tables align to page content edges.
+### Detail Shell (Right Panel)
+- Two-column layout.
+- Main content on the left.
+- Sticky right panel (`320-360px`) for requirement context, next actions, evidence, and integrations.
 
-2. Controls row (single row):
-- Left: search input + explicit submit button.
-- Middle: filters.
-- Right: rows-per-page + pagination controls.
-- All controls must share height.
-- Filters belong in the same DataTable controls row, not in a separate card above the table.
+### Settings Shell
+- Left settings navigation rail and single active settings panel.
+- Prefer grouped sections with clear headings over long unstructured forms.
+- Keep destructive actions isolated at the end of a section with explicit confirmation.
 
-3. Numeric readability:
-- Numeric columns must use `font-mono`.
-- Includes money, rates, quantities, IDs, counts, and timestamps.
-- Numeric columns should be right-aligned unless context requires otherwise.
+## Workflow Action Rules
+- Render only valid next actions.
+- Hide invalid actions; do not show disabled invalid actions.
+- When useful, show requirement context near the action area:
+  - pattern: "To continue, complete: [requirement 1], [requirement 2]".
+- Use modal or sheet for confirmations, approvals, and edits requiring focused context.
 
-4. Embedded parent-child rows:
-- For parent-child workflows, keep users in one table by using expandable parent rows.
-- Expanded child data may be fetched lazily on first expand and cached for quick revisit.
-- Child rows should be grouped by workflow stage when statuses represent stages (for example `Pending` vs `Archived`).
-- Use single-open-row expansion by default on operational tables to minimize scan noise.
+## Status Vocabulary (Canonical)
+Use these labels exactly across tables, filters, legends, exports, and chips:
+- `Passing`
+- `Failing`
+- `Need changes`
+- `In review`
+- `In progress`
+- `Pending`
+- `Inactive`
 
-## Typography Hierarchy
+`Ignored` is not a workflow status. It is only a chart rendering variant.
 
-Use strict 3-tier heading scale:
+## Chart System Defaults
+- Gridlines: dashed (`4px` dash, `6px` gap), low-contrast.
+- Axis labels: muted and compact (`11-12px`).
+- Keep stroke weights light and visual noise low.
+- Apply canonical status color mapping:
+  - Passing: `#2CA47C`
+  - Failing: `#EC442C`
+  - Need changes: `#F46414`
+  - In review: `#4C64D4`
+  - In progress: `#FCB414`
+  - Pending: `#9A9A93`
+  - Inactive: `#9A9A93`
+- Render `Ignored` data with hatch pattern over inactive gray.
 
-1. Tier 1: page title.
-2. Tier 2: section title.
-3. Tier 3: labels/subsection headings.
+## List to Detail Context Preservation
+- Opening detail from a list must preserve list context:
+  - active tab
+  - search text
+  - filters
+  - sort
+  - pagination
+  - scroll position where possible
+- Returning from detail should restore the prior list state without forcing users to rebuild context.
 
-Do not introduce one-off heading sizes.
-
-Tabbed-shell override:
-
-1. When a page already sits under a visible tab rail, reduce page title prominence by one level.
-2. Keep section titles stronger than context labels (rail labels, micro-headings, helper blocks).
-
-## Icon System
-
-1. Use shared icon sizing tokens globally (`--icon-size-*`) instead of per-screen ad-hoc sizes.
-2. Keep icons optically aligned with text baseline; avoid vertical drift between labels and action icons.
-3. In dense navigation surfaces (sidebar, dropdowns), use compact icon sizing and consistent left padding rhythm.
-4. In buttons and actionable controls, keep icon + label spacing consistent and avoid one-off overrides.
-
-## Workflow UX Rules
-
-1. Render only valid next actions for a row state.
-2. Once submitted/approved/paid, remove stale create/edit/submit controls.
-3. Collapse or hide workflow steps without prerequisites.
-4. Use modal/sheet for details, edits, and approvals context.
-5. Payroll run generation is period-driven: user selects a period, then confirms generation in a modal.
-6. Approved/closed periods are locked for run generation.
-7. Payroll screens should default to:
-- `Periods` table.
-- `Pending Runs` table.
-- Optional `Archived Runs` table.
-
-## Visual Style (Stripe-Clean)
-
-1. Use a soft near-white app canvas.
-2. Use thin sharp shadows as boundary language.
-3. Avoid visible hard borders on primary interactive surfaces.
-4. Avoid hover lift transforms on core data surfaces.
-
-## Component Contracts
-
-1. `DataTable`:
-- Single integrated controls row.
-- Search submit behavior by default.
-- Optional expandable parent rows with lazy child content rendering.
-
-2. `VerticalDataViews`:
-- Standard one-table-per-view container with left rail tabs.
-
-3. `NumericCell`:
-- Standard wrapper for mono numeric content.
+## Bulk Action Bar Standards
+- Bulk action bar appears only when one or more rows are selected.
+- Placement: sticky bottom overlay that does not block primary table scan.
+- Must include selected count, allowed bulk actions, and a clear selection action.
+- Bulk actions must honor the same valid-action rule as row actions.
 
 ## Compliance Checklist
-
-A page is compliant when:
-
-1. One table is visible per active view.
-2. Multi-table pages use vertical tabs.
-3. Controls row is unified and aligned.
-4. Primary table is full-bleed.
-5. Numeric columns are mono.
-6. Heading hierarchy follows 3 tiers.
-7. Invalid workflow actions are hidden.
-8. Visual system uses thin-shadow boundaries.
+A screen is compliant only when:
+1. Warm paper tokens are applied with semantic variables.
+2. Exactly one table is visible per active view.
+3. Multi-table contexts use vertical tabs.
+4. DataTable controls are unified into a single aligned row.
+5. Workflow invalid actions are hidden and requirement context is shown when useful.
+6. Canonical statuses are used exactly, with `Ignored` chart-only.
+7. Charts use dashed grid, muted labels, status mapping, and hatch for ignored.
+8. List to detail navigation preserves context and bulk bar behavior follows this standard.

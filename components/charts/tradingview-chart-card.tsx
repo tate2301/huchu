@@ -112,7 +112,7 @@ export function TradingViewChartCard({
                   axisLine={false}
                   tickLine={false}
                   minTickGap={24}
-                  tick={{ fill: "var(--chart-text)", fontSize: 11 }}
+                  tick={{ fill: "var(--text-muted)", fontSize: 11 }}
                   tickFormatter={(value) => {
                     if (xAxisType !== "time") return String(value);
                     const parsed = new Date(String(value));
@@ -125,7 +125,7 @@ export function TradingViewChartCard({
                   axisLine={false}
                   tickLine={false}
                   width={72}
-                  tick={{ fill: "var(--chart-text)", fontSize: 11 }}
+                  tick={{ fill: "var(--text-muted)", fontSize: 11 }}
                   tickFormatter={(value) => valueFormatter(Number(value))}
                 />
                 {hasRightAxis ? (
@@ -135,7 +135,7 @@ export function TradingViewChartCard({
                     axisLine={false}
                     tickLine={false}
                     width={72}
-                    tick={{ fill: "var(--chart-text)", fontSize: 11 }}
+                    tick={{ fill: "var(--text-muted)", fontSize: 11 }}
                     tickFormatter={(value) => valueFormatter(Number(value))}
                   />
                 ) : null}

@@ -23,7 +23,14 @@ import {
 } from "@/components/ui/dialog";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
@@ -95,19 +102,31 @@ function findPaymentForShiftWorker(
 
 export default function GoldSettlementPayoutsPage() {
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState("2");
-  const [selectedShift, setSelectedShift] = useState<ShiftPayoutSummary | null>(null);
+  const [selectedShift, setSelectedShift] = useState<ShiftPayoutSummary | null>(
+    null,
+  );
   const payoutTableRef = useRef<HTMLDivElement>(null);
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
     [session],
   );
   const canOpenHrPayouts = useMemo(
-    () => canViewHrefWithEnabledFeatures("/human-resources/payouts", enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        "/human-resources/payouts",
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
   const canOpenSales = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.receipts, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.settlement.receipts,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
 
@@ -182,10 +201,7 @@ export default function GoldSettlementPayoutsPage() {
               share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0),
             status: payment?.status ?? "DUE",
             dueDate: payment ? new Date(payment.dueDate) : expectedDueDate,
-            paidAmountUsd:
-              payment?.paidAmountUsd ??
-              payment?.paidAmount ??
-              0,
+            paidAmountUsd: payment?.paidAmountUsd ?? payment?.paidAmount ?? 0,
             paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
           } satisfies WorkerPayoutDetail;
         });
@@ -220,7 +236,8 @@ export default function GoldSettlementPayoutsPage() {
   }, [goldPayments, shiftAllocations, windowWeeks]);
 
   const totalWorkerValueUsd = useMemo(
-    () => shiftPayouts.reduce((sum, shift) => sum + shift.workerShareValueUsd, 0),
+    () =>
+      shiftPayouts.reduce((sum, shift) => sum + shift.workerShareValueUsd, 0),
     [shiftPayouts],
   );
   const totalWorkers = useMemo(
@@ -247,35 +264,45 @@ export default function GoldSettlementPayoutsPage() {
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "site",
         header: "Site",
         cell: ({ row }) => (
           <div>
             <div className="font-semibold">{row.original.siteName}</div>
-            <div className="text-xs text-muted-foreground">{row.original.siteCode}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.siteCode}
+            </div>
           </div>
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "workerCount",
         header: "Workers",
-        cell: ({ row }) => <NumericCell>{row.original.workerCount}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.workerCount}</NumericCell>
+        ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "workerShareValueUsd",
         header: "Worker Value",
         cell: ({ row }) => (
-          <NumericCell>${row.original.workerShareValueUsd.toFixed(2)}</NumericCell>
+          <NumericCell>
+            ${row.original.workerShareValueUsd.toFixed(2)}
+          </NumericCell>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "expectedDueDate",
         header: "Expected Due",
@@ -286,24 +313,35 @@ export default function GoldSettlementPayoutsPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "progress",
         header: "Payment Progress",
         cell: ({ row }) => (
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="success">Paid {row.original.paidCount}</Badge>
+            <StatusChip
+              status="passing"
+              label={`Paid ${row.original.paidCount}`}
+            />
             {row.original.partialCount > 0 ? (
-              <Badge variant="warning">Partial {row.original.partialCount}</Badge>
+              <StatusChip
+                status="in_progress"
+                label={`Partial ${row.original.partialCount}`}
+              />
             ) : null}
             {row.original.dueCount > 0 ? (
-              <Badge variant="neutral">Due {row.original.dueCount}</Badge>
+              <StatusChip
+                status="pending"
+                label={`Due ${row.original.dueCount}`}
+              />
             ) : null}
           </div>
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "actions",
         header: "",
@@ -321,7 +359,8 @@ export default function GoldSettlementPayoutsPage() {
         ),
         size: 108,
         minSize: 108,
-        maxSize: 108},
+        maxSize: 108,
+      },
     ],
     [],
   );
@@ -334,66 +373,85 @@ export default function GoldSettlementPayoutsPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-semibold">{row.original.employeeName}</div>
-            <div className="text-xs text-muted-foreground font-mono">{row.original.code}</div>
+            <div className="text-xs text-muted-foreground font-mono">
+              {row.original.code}
+            </div>
           </div>
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "shareValueUsd",
         header: "Share Value",
-        cell: ({ row }) => <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "dueDate",
         header: "Due",
         cell: ({ row }) => (
-          <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
+          <NumericCell align="left">
+            {format(row.original.dueDate, "MMM d, yyyy")}
+          </NumericCell>
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => {
-          const variant =
-            row.original.status === "PAID"
-              ? "success"
-              : row.original.status === "PARTIAL"
-                ? "warning"
-                : "neutral";
-          return <Badge variant={variant}>{row.original.status}</Badge>;
-        },
+        cell: ({ row }) => (
+          <StatusChip
+            status={
+              row.original.status === "PAID"
+                ? "passing"
+                : row.original.status === "PARTIAL"
+                  ? "in_progress"
+                  : "pending"
+            }
+            label={row.original.status}
+          />
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "paidAmountUsd",
         header: "Paid",
         cell: ({ row }) => (
           <NumericCell>
-            {row.original.paidAmountUsd > 0 ? `$${row.original.paidAmountUsd.toFixed(2)}` : "-"}
+            {row.original.paidAmountUsd > 0
+              ? `$${row.original.paidAmountUsd.toFixed(2)}`
+              : "-"}
           </NumericCell>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "paidAt",
         header: "Paid Date",
         cell: ({ row }) =>
           row.original.paidAt ? (
-            <NumericCell align="left">{format(row.original.paidAt, "MMM d, yyyy")}</NumericCell>
+            <NumericCell align="left">
+              {format(row.original.paidAt, "MMM d, yyyy")}
+            </NumericCell>
           ) : (
             "-"
           ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
     ],
     [],
   );
@@ -418,13 +476,7 @@ export default function GoldSettlementPayoutsPage() {
         </div>
       }
     >
-      <PageIntro
-        title="Shift Payout Queue"
-        purpose="See each gold shift, expected payout timing, and who is paid from that shift."
-        nextStep="Open View Members to inspect shift members without leaving this page."
-      />
-
-      {(allocationsError || paymentsError) ? (
+      {allocationsError || paymentsError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load payouts</AlertTitle>
           <AlertDescription>
@@ -434,13 +486,10 @@ export default function GoldSettlementPayoutsPage() {
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Shift Payout Schedule
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Each row is one attendance-linked shift allocation.
-          </p>
         </header>
         <DataTable
           data={shiftPayouts}
@@ -456,7 +505,10 @@ export default function GoldSettlementPayoutsPage() {
               <Badge variant="secondary">
                 Worker value: ${totalWorkerValueUsd.toFixed(2)}
               </Badge>
-              <Select value={payoutWindowWeeks} onValueChange={setPayoutWindowWeeks}>
+              <Select
+                value={payoutWindowWeeks}
+                onValueChange={setPayoutWindowWeeks}
+              >
                 <SelectTrigger size="sm" className="h-8 w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -480,7 +532,11 @@ export default function GoldSettlementPayoutsPage() {
               />
             </div>
           }
-          emptyState={isLoading ? "Loading payout schedule..." : "No shift payouts recorded for this window."}
+          emptyState={
+            isLoading
+              ? "Loading payout schedule..."
+              : "No shift payouts recorded for this window."
+          }
         />
       </section>
 

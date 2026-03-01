@@ -15,12 +15,12 @@ export const chartTheme = {
   gridStrokeDasharray: "4 6",
 
   // Text styling - muted for axes
-  text: "var(--chart-text)",
+  text: "var(--text-muted)",
   textSize: 11,
 
   // Tooltip styling
   tooltip: {
-    bg: "var(--surface)",
+    bg: "var(--surface-base)",
     border: "var(--border)",
     shadow: "var(--shadow-popover)",
     borderRadius: 12,
@@ -36,6 +36,7 @@ export const chartTheme = {
     inProgress: "var(--chart-in-progress)",
     pending: "var(--chart-pending)",
     inactive: "var(--chart-inactive)",
+    ignored: "var(--chart-inactive)",
   },
 
   // Generic chart colors (for non-status data)
@@ -69,14 +70,14 @@ export const rechartsDefaults = {
   // Axis configuration
   xAxis: {
     stroke: "var(--chart-grid)",
-    tick: { fill: "var(--chart-text)", fontSize: 11 },
+    tick: { fill: "var(--text-muted)", fontSize: 11 },
     axisLine: { stroke: "var(--chart-grid)" },
     tickLine: false,
   },
 
   yAxis: {
     stroke: "var(--chart-grid)",
-    tick: { fill: "var(--chart-text)", fontSize: 11 },
+    tick: { fill: "var(--text-muted)", fontSize: 11 },
     axisLine: false,
     tickLine: false,
     width: 40,
@@ -85,7 +86,7 @@ export const rechartsDefaults = {
   // Tooltip configuration
   tooltip: {
     contentStyle: {
-      backgroundColor: "var(--surface)",
+      backgroundColor: "var(--surface-base)",
       border: "1px solid var(--border)",
       borderRadius: "12px",
       boxShadow: "var(--shadow-popover)",
@@ -113,35 +114,73 @@ export const rechartsDefaults = {
   },
 };
 
+function normalizeChartStatusKey(status: string): string {
+  return status
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+const STATUS_COLOR_MAP: Record<string, string> = {
+  passing: "var(--chart-passing)",
+  pass: "var(--chart-passing)",
+  success: "var(--chart-passing)",
+
+  failing: "var(--chart-failing)",
+  fail: "var(--chart-failing)",
+  error: "var(--chart-failing)",
+
+  need_changes: "var(--chart-need-changes)",
+  needs_changes: "var(--chart-need-changes)",
+  needchanges: "var(--chart-need-changes)",
+  needschanges: "var(--chart-need-changes)",
+  need_change: "var(--chart-need-changes)",
+  needs_change: "var(--chart-need-changes)",
+  changes_requested: "var(--chart-need-changes)",
+
+  in_review: "var(--chart-in-review)",
+  inreview: "var(--chart-in-review)",
+  review: "var(--chart-in-review)",
+
+  in_progress: "var(--chart-in-progress)",
+  inprogress: "var(--chart-in-progress)",
+  progress: "var(--chart-in-progress)",
+
+  pending: "var(--chart-pending)",
+  inactive: "var(--chart-inactive)",
+  ignored: "var(--chart-inactive)",
+  ignore: "var(--chart-inactive)",
+};
+
 /**
  * Get status color by name
  */
 export function getStatusColor(status: string): string {
-  const statusMap: Record<string, string> = {
-    passing: "var(--chart-passing)",
-    failing: "var(--chart-failing)",
-    "need-changes": "var(--chart-need-changes)",
-    "in-review": "var(--chart-in-review)",
-    "in-progress": "var(--chart-in-progress)",
-    pending: "var(--chart-pending)",
-    inactive: "var(--chart-inactive)",
-  };
-
-  return statusMap[status.toLowerCase()] || "var(--chart-1)";
+  const key = normalizeChartStatusKey(status);
+  return STATUS_COLOR_MAP[key] || "var(--chart-1)";
 }
 
 /**
  * Pattern fill for "ignored" status
  * Use this for bars/areas that need hatching
  */
+export const IGNORED_PATTERN_PATH = "M 0,8 l 8,-8 M -2,2 l 4,-4 M 6,10 l 4,-4";
+
+export function getIgnoredPatternPath(): string {
+  return IGNORED_PATTERN_PATH;
+}
+
 export function getIgnoredPattern() {
   return {
     id: "ignored-pattern",
     patternUnits: "userSpaceOnUse" as const,
     width: 8,
     height: 8,
-    fill: "var(--chart-inactive)",
-    path: "M 0,8 l 8,-8 M -2,2 l 4,-4 M 6,10 l 4,-4",
+    fill: "transparent",
+    stroke: "var(--chart-inactive)",
+    strokeWidth: 1,
+    path: IGNORED_PATTERN_PATH,
   };
 }
 

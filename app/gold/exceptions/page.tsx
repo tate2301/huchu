@@ -16,6 +16,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { StatusChip } from "@/components/ui/status-chip";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
@@ -59,7 +60,9 @@ export default function GoldExceptionsPage() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
     [session],
   );
   const initialView = searchParams.get("view");
@@ -100,9 +103,15 @@ export default function GoldExceptionsPage() {
   });
 
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
+  const dispatches = useMemo(
+    () => dispatchesData?.data ?? [],
+    [dispatchesData],
+  );
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
-  const corrections = useMemo(() => correctionsData?.data ?? [], [correctionsData]);
+  const corrections = useMemo(
+    () => correctionsData?.data ?? [],
+    [correctionsData],
+  );
 
   const dispatchByPourId = useMemo(() => {
     const map = new Map<string, (typeof dispatches)[number]>();
@@ -165,11 +174,19 @@ export default function GoldExceptionsPage() {
     missingSaleRows.length === 0 &&
     correctionRows.length === 0;
   const canOpenDispatches = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.transit.dispatches, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.transit.dispatches,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
   const canOpenSales = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.receipts, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.settlement.receipts,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
 
@@ -185,20 +202,28 @@ export default function GoldExceptionsPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "batchId",
         header: "Batch ID",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.batchId}</span>
+          <span className="font-mono font-semibold">
+            {row.original.batchId}
+          </span>
         ),
         size: 112,
         minSize: 112,
-        maxSize: 112},
-      { id: "site", header: "Site", accessorKey: "site" ,
+        maxSize: 112,
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorKey: "site",
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "grossWeight",
         header: "Gross Weight",
@@ -207,14 +232,18 @@ export default function GoldExceptionsPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "valueUsd",
         header: "Value",
-        cell: ({ row }) => <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
@@ -231,31 +260,44 @@ export default function GoldExceptionsPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "batchId",
         header: "Batch",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.batchId}</span>
+          <span className="font-mono font-semibold">
+            {row.original.batchId}
+          </span>
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
-      { id: "courier", header: "Courier", accessorKey: "courier" ,
+        maxSize: 420,
+      },
+      {
+        id: "courier",
+        header: "Courier",
+        accessorKey: "courier",
         size: 160,
         minSize: 160,
-        maxSize: 160},
-      { id: "destination", header: "Destination", accessorKey: "destination" ,
+        maxSize: 160,
+      },
+      {
+        id: "destination",
+        header: "Destination",
+        accessorKey: "destination",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "status",
         header: "Status",
-        cell: () => <Badge variant="secondary">Awaiting sale</Badge>,
+        cell: () => <StatusChip status="pending" label="Awaiting sale" />,
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
@@ -272,26 +314,42 @@ export default function GoldExceptionsPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "entityType",
         header: "Type",
-        cell: ({ row }) => <Badge variant="neutral">{row.original.entityType}</Badge>,
+        cell: ({ row }) => (
+          <Badge variant="neutral">{row.original.entityType}</Badge>
+        ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
-      { id: "reference", header: "Reference", accessorKey: "reference" ,
+        maxSize: 420,
+      },
+      {
+        id: "reference",
+        header: "Reference",
+        accessorKey: "reference",
         size: 112,
         minSize: 112,
-        maxSize: 112},
-      { id: "reason", header: "Reason", accessorKey: "reason" ,
+        maxSize: 112,
+      },
+      {
+        id: "reason",
+        header: "Reason",
+        accessorKey: "reason",
         size: 260,
         minSize: 200,
-        maxSize: 360},
-      { id: "createdBy", header: "By", accessorKey: "createdBy" ,
+        maxSize: 360,
+      },
+      {
+        id: "createdBy",
+        header: "By",
+        accessorKey: "createdBy",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
     ],
     [],
   );
@@ -331,13 +389,7 @@ export default function GoldExceptionsPage() {
         </div>
       }
     >
-      <PageIntro
-        title="Issues"
-        purpose="Find records that are missing the next step."
-        nextStep="Fix missing records first, then review correction notes."
-      />
-
-      {(correctionsError || receiptsError) ? (
+      {correctionsError || receiptsError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load issues</AlertTitle>
           <AlertDescription>
@@ -366,18 +418,19 @@ export default function GoldExceptionsPage() {
         ]}
         value={activeView}
         onValueChange={(value) =>
-          setActiveView(value as "missing-dispatch" | "missing-sale" | "corrections")
+          setActiveView(
+            value as "missing-dispatch" | "missing-sale" | "corrections",
+          )
         }
         railLabel="Issue Views"
       >
-        <div className={activeView === "missing-dispatch" ? "space-y-3" : "hidden"}>
-          <header className="section-shell space-y-1">
+        <div
+          className={activeView === "missing-dispatch" ? "space-y-3" : "hidden"}
+        >
+          <header className="space-y-1">
             <h2 className="text-section-title text-foreground font-bold tracking-tight">
               Batches Missing Dispatch
             </h2>
-            <p className="text-sm text-muted-foreground">
-              Batches without a recorded dispatch.
-            </p>
           </header>
           <DataTable
             data={missingDispatchRows}
@@ -391,7 +444,7 @@ export default function GoldExceptionsPage() {
         </div>
 
         <div className={activeView === "missing-sale" ? "space-y-3" : "hidden"}>
-          <header className="section-shell space-y-1">
+          <header className="space-y-1">
             <h2 className="text-section-title text-foreground font-bold tracking-tight">
               Dispatches Missing Sale
             </h2>
@@ -406,12 +459,16 @@ export default function GoldExceptionsPage() {
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
-            emptyState={receiptsLoading ? "Loading missing-sale records..." : "No dispatches missing sales."}
+            emptyState={
+              receiptsLoading
+                ? "Loading missing-sale records..."
+                : "No dispatches missing sales."
+            }
           />
         </div>
 
         <div className={activeView === "corrections" ? "space-y-3" : "hidden"}>
-          <header className="section-shell space-y-1">
+          <header className="space-y-1">
             <h2 className="text-section-title text-foreground font-bold tracking-tight">
               Correction Log
             </h2>
@@ -426,7 +483,11 @@ export default function GoldExceptionsPage() {
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
-            emptyState={correctionsLoading ? "Loading corrections..." : "No correction notes."}
+            emptyState={
+              correctionsLoading
+                ? "Loading corrections..."
+                : "No correction notes."
+            }
           />
         </div>
       </VerticalDataViews>
@@ -437,8 +498,14 @@ export default function GoldExceptionsPage() {
             title="Gold Issues Snapshot"
             subtitle="Missing records and correction notes"
             meta={[
-              { label: "Batches missing dispatch", value: String(missingDispatchRows.length) },
-              { label: "Dispatches missing sale", value: String(missingSaleRows.length) },
+              {
+                label: "Batches missing dispatch",
+                value: String(missingDispatchRows.length),
+              },
+              {
+                label: "Dispatches missing sale",
+                value: String(missingSaleRows.length),
+              },
               { label: "Corrections", value: String(correctionRows.length) },
             ]}
           >
@@ -452,7 +519,10 @@ export default function GoldExceptionsPage() {
               </thead>
               <tbody>
                 {missingDispatchRows.map((row) => (
-                  <tr key={`u-p-${row.id}`} className="border-b border-gray-100">
+                  <tr
+                    key={`u-p-${row.id}`}
+                    className="border-b border-gray-100"
+                  >
                     <td className="py-2">Missing Dispatch</td>
                     <td className="py-2">{row.batchId}</td>
                     <td className="py-2">
@@ -461,11 +531,15 @@ export default function GoldExceptionsPage() {
                   </tr>
                 ))}
                 {missingSaleRows.map((row) => (
-                  <tr key={`u-d-${row.id}`} className="border-b border-gray-100">
+                  <tr
+                    key={`u-d-${row.id}`}
+                    className="border-b border-gray-100"
+                  >
                     <td className="py-2">Missing Sale</td>
                     <td className="py-2">{row.batchId}</td>
                     <td className="py-2">
-                      {row.courier} | {new Date(row.dispatchDate).toLocaleDateString()}
+                      {row.courier} |{" "}
+                      {new Date(row.dispatchDate).toLocaleDateString()}
                     </td>
                   </tr>
                 ))}

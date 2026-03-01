@@ -20,6 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { SplitButton } from "@/components/ui/split-button";
+import { StatusChip } from "@/components/ui/status-chip";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchAttendance,
@@ -48,7 +50,7 @@ type GoldChainRow = {
   companyTotal: number;
   expenseBreakdown: string;
   valueUsd: number;
-  status: "Complete" | "Dispatched" | "Waiting for dispatch";
+  status: "passing" | "in_review" | "pending";
 };
 
 export default function GoldPage() {
@@ -57,27 +59,46 @@ export default function GoldPage() {
   const [shiftModalOpen, setShiftModalOpen] = useState(false);
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
     [session],
   );
   const canRecordBatch = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.intake.pours, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(goldRoutes.intake.pours, enabledFeatures),
     [enabledFeatures],
   );
   const canRecordPurchase = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.intake.purchases, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.intake.purchases,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
   const canRecordDispatch = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.transit.dispatches, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.transit.dispatches,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
   const canRecordSale = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.receipts, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.settlement.receipts,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
   const canRecordShiftOutput = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.payouts, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.settlement.payouts,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
   const secondaryActions = useMemo(() => {
@@ -86,13 +107,22 @@ export default function GoldPage() {
       actions.push({ label: "Record Batch", href: goldRoutes.intake.create });
     }
     if (canRecordPurchase) {
-      actions.push({ label: "Record Purchase", href: goldRoutes.intake.createPurchase });
+      actions.push({
+        label: "Record Purchase",
+        href: goldRoutes.intake.createPurchase,
+      });
     }
     if (canRecordDispatch) {
-      actions.push({ label: "Record Dispatch", href: goldRoutes.transit.create });
+      actions.push({
+        label: "Record Dispatch",
+        href: goldRoutes.transit.create,
+      });
     }
     if (canRecordSale) {
-      actions.push({ label: "Record Sale", href: goldRoutes.settlement.create });
+      actions.push({
+        label: "Record Sale",
+        href: goldRoutes.settlement.create,
+      });
     }
     return actions;
   }, [canRecordBatch, canRecordDispatch, canRecordPurchase, canRecordSale]);
@@ -140,17 +170,18 @@ export default function GoldPage() {
       fetchShiftReports({ startDate: attendanceStart, limit: 200 }),
   });
 
-  const {
-    data: shiftAllocationsData,
-    isLoading: shiftAllocationsLoading,
-  } = useQuery({
-    queryKey: ["gold-shift-allocations", attendanceStart],
-    queryFn: () =>
-      fetchGoldShiftAllocations({ startDate: attendanceStart, limit: 500 }),
-  });
+  const { data: shiftAllocationsData, isLoading: shiftAllocationsLoading } =
+    useQuery({
+      queryKey: ["gold-shift-allocations", attendanceStart],
+      queryFn: () =>
+        fetchGoldShiftAllocations({ startDate: attendanceStart, limit: 500 }),
+    });
 
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
+  const dispatches = useMemo(
+    () => dispatchesData?.data ?? [],
+    [dispatchesData],
+  );
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
   const attendanceRecords = useMemo(
     () => attendanceData?.data ?? [],
@@ -193,7 +224,9 @@ export default function GoldPage() {
 
   const pendingSettlementDispatches = useMemo(
     () =>
-      dispatches.filter((dispatch) => !receiptByPourId.has(dispatch.goldPourId)),
+      dispatches.filter(
+        (dispatch) => !receiptByPourId.has(dispatch.goldPourId),
+      ),
     [dispatches, receiptByPourId],
   );
 
@@ -208,11 +241,7 @@ export default function GoldPage() {
       .map((pour) => {
         const dispatch = dispatchByPourId.get(pour.id);
         const receipt = receiptByPourId.get(pour.id);
-        const status = receipt
-          ? "Complete"
-          : dispatch
-            ? "Dispatched"
-            : "Waiting for dispatch";
+        const status = receipt ? "passing" : dispatch ? "in_review" : "pending";
         return {
           id: pour.id,
           pourBarId: pour.pourBarId,
@@ -224,7 +253,7 @@ export default function GoldPage() {
           companySplit: pour.companySplitWeight ?? 0,
           companyTotal:
             pour.companyTotalWeight ??
-            ((pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0)),
+            (pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0),
           expenseBreakdown: pour.expenseBreakdown?.trim() || "-",
           valueUsd: pour.valueUsd ?? 0,
           status,
@@ -344,18 +373,22 @@ export default function GoldPage() {
         id: "pourBarId",
         header: "Batch ID",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.pourBarId}</span>
+          <span className="font-mono font-semibold">
+            {row.original.pourBarId}
+          </span>
         ),
         size: 112,
         minSize: 112,
-        maxSize: 112},
+        maxSize: 112,
+      },
       {
         id: "site",
         header: "Site",
         accessorKey: "site",
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "date",
         header: "Date",
@@ -371,7 +404,9 @@ export default function GoldPage() {
       {
         id: "grossWeight",
         header: "Gross Weight (Recorded)",
-        cell: ({ row }) => <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 120,
@@ -379,7 +414,9 @@ export default function GoldPage() {
       {
         id: "expenseGold",
         header: "Expense Gold",
-        cell: ({ row }) => <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 120,
@@ -387,7 +424,9 @@ export default function GoldPage() {
       {
         id: "workerSplit",
         header: "Worker Split",
-        cell: ({ row }) => <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 120,
@@ -395,7 +434,9 @@ export default function GoldPage() {
       {
         id: "companySplit",
         header: "Company Split",
-        cell: ({ row }) => <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 120,
@@ -403,7 +444,9 @@ export default function GoldPage() {
       {
         id: "companyTotal",
         header: "Company Total",
-        cell: ({ row }) => <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 120,
@@ -419,7 +462,9 @@ export default function GoldPage() {
       {
         id: "valueUsd",
         header: "Value (USD)",
-        cell: ({ row }) => <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
         maxSize: 120,
@@ -428,17 +473,16 @@ export default function GoldPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge
-            variant={
-              row.original.status === "Complete"
-                ? "success"
-                : row.original.status === "Dispatched"
-                  ? "info"
-                  : "warning"
+          <StatusChip
+            status={row.original.status}
+            label={
+              row.original.status === "passing"
+                ? "Complete"
+                : row.original.status === "in_review"
+                  ? "Dispatched"
+                  : "Waiting for dispatch"
             }
-          >
-            {row.original.status}
-          </Badge>
+          />
         ),
         size: 120,
         minSize: 120,
@@ -454,35 +498,24 @@ export default function GoldPage() {
       actions={
         <div className="flex flex-wrap gap-2">
           {canRecordShiftOutput ? (
-            <div className="inline-flex">
-              <Button
+            secondaryActions.length > 0 ? (
+              <SplitButton
                 size="sm"
                 onClick={() => setShiftModalOpen(true)}
-                className={secondaryActions.length > 0 ? "rounded-r-none" : undefined}
+                triggerAriaLabel="More gold actions"
+                menuContent={secondaryActions.map((action) => (
+                  <DropdownMenuItem key={action.href} asChild>
+                    <Link href={action.href}>{action.label}</Link>
+                  </DropdownMenuItem>
+                ))}
               >
                 Record Shift Output
+              </SplitButton>
+            ) : (
+              <Button size="sm" onClick={() => setShiftModalOpen(true)}>
+                Record Shift Output
               </Button>
-              {secondaryActions.length > 0 ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      className="rounded-l-none border-l border-primary-foreground/20 px-2"
-                      aria-label="More gold actions"
-                    >
-                      <ChevronDown className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {secondaryActions.map((action) => (
-                      <DropdownMenuItem key={action.href} asChild>
-                        <Link href={action.href}>{action.label}</Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
-            </div>
+            )
           ) : secondaryActions.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -503,12 +536,6 @@ export default function GoldPage() {
         </div>
       }
     >
-      <PageIntro
-        title="Gold Operations"
-        purpose="Track chain progress from batch creation to settlement."
-        nextStep="Use the table below to find incomplete items and move them forward."
-      />
-
       {pendingSettlementDispatches.length > 0 ? (
         <Alert variant="destructive">
           <AlertTitle>Needs Attention</AlertTitle>
@@ -521,13 +548,10 @@ export default function GoldPage() {
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
-          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+        <header className="space-y-1">
+          <h2 className="text-base text-foreground font-bold tracking-tight">
             Chain Activity
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Latest batches and current chain status.
-          </p>
         </header>
         {commandError ? (
           <StatusState
@@ -546,11 +570,17 @@ export default function GoldPage() {
             toolbar={
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">Batches: {pours.length}</Badge>
-                <Badge variant="secondary">Dispatches: {dispatches.length}</Badge>
+                <Badge variant="secondary">
+                  Dispatches: {dispatches.length}
+                </Badge>
                 <Badge variant="secondary">Sales: {receipts.length}</Badge>
               </div>
             }
-            emptyState={commandLoading ? "Loading chain activity..." : "No gold activity yet."}
+            emptyState={
+              commandLoading
+                ? "Loading chain activity..."
+                : "No gold activity yet."
+            }
           />
         )}
       </section>

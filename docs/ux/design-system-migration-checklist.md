@@ -1,33 +1,41 @@
 # Design System Migration Checklist
 
+## Canonical Source
+Use `docs/ux/platform-ux-playbook.md` as the sole normative source during migration.
+
 ## Scope
-- Phase 1: Foundation tokens + shared primitives + shell + HR benchmark pages.
+- Phase 1: Foundation tokens, shared primitives, shell patterns, and benchmark list/detail/settings pages.
 - Mode: Light-first migration with dark-mode follow-up.
 
 ## Foundation
-- [x] Refresh semantic color and surface tokens in `app/globals.css`.
-- [x] Add density tokens for controls and table rhythm.
-- [x] Tune elevation and edge tokens for reference-inspired polish.
+- [x] Semantic warm-paper tokens are available in global styles.
+- [x] Control density and table rhythm align to playbook spacing guidance.
+- [x] Radius and shadow usage align to playbook elevation guidance.
 
 ## Shared Primitives
-- [x] Restyle `Button` variants and control heights.
-- [x] Restyle `Input` and `Select` surface treatment.
-- [x] Restyle `Badge`, `Card`, and `Alert` components.
-- [x] Refine `Table` and `DataTable` visual hierarchy.
-- [x] Refine `Dialog` and `Sheet` modal composition.
-- [x] Refresh dropdown and tab surfaces.
+- [ ] Button, Input, Select, Badge, Card, and Alert align to canonical token usage.
+- [ ] Table and DataTable align to one-table-per-view and unified controls row standards.
+- [ ] Dialog and Sheet align to requirement context and workflow confirmation patterns.
 
-## Shell
-- [x] Update sidebar visual language and spacing.
-- [x] Update top navbar surface and rhythm.
-- [x] Update page heading typography hierarchy.
+## Shell Patterns
+- [ ] List shell matches canonical structure.
+- [ ] Detail shell uses right panel pattern where workflow context is needed.
+- [ ] Settings shell follows single-active-panel pattern.
 
-## HR Benchmark
-- [x] Update HR shell horizontal tab treatment.
-- [x] Upgrade employee table row styling and numeric readability.
-- [x] Keep workflows intact for table + modal actions.
+## Workflow and Status
+- [ ] Invalid actions are hidden (not disabled) and requirement context appears where useful.
+- [ ] Canonical statuses are used exactly: Passing, Failing, Need changes, In review, In progress, Pending, Inactive.
+- [ ] `Ignored` is used only as a chart rendering variant.
+
+## Charts
+- [ ] Dashed grid and muted labels are applied.
+- [ ] Status color mapping follows the canonical set.
+- [ ] Hatch pattern is used for ignored data.
+
+## Context and Bulk Actions
+- [ ] List to detail navigation preserves tab, search, filter, sort, pagination, and return context.
+- [ ] Bulk action bar appears on selection with count, valid actions, and clear selection.
 
 ## Validation
 - [ ] Run `pnpm lint`.
-- [ ] Manual smoke test on HR pages (desktop + mobile).
-- [ ] Follow-up dark mode parity pass.
+- [ ] Manual smoke test of affected desktop and mobile screens.

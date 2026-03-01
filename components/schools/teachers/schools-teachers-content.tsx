@@ -17,21 +17,30 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  fetchTeacherProfileUsers,
   fetchTeacherAssignments,
   fetchTeacherProfiles,
   fetchTeacherSubjects,
   type TeacherAssignmentRecord,
   type TeacherProfileRecord,
+  type TeacherProfileUserRecord,
   type TeacherSubjectRecord,
 } from "@/lib/schools/admin-v2";
 
 type TeachersView = "profiles" | "subjects" | "assignments";
 
 const initialSubjectForm = { code: "", name: "", isCore: false, passMark: "50" };
-const initialTeacherForm = { employeeCode: "", department: "", isClassTeacher: false, isHod: false };
+const initialTeacherForm = {
+  userId: "",
+  employeeCode: "",
+  department: "",
+  isClassTeacher: false,
+  isHod: false,
+};
 
 export function SchoolsTeachersContent() {
   const [activeView, setActiveView] = useState<TeachersView>("profiles");
@@ -66,6 +75,7 @@ export function SchoolsTeachersContent() {
       fetchJson("/api/v2/schools/teachers/profiles", {
         method: "POST",
         body: JSON.stringify({
+          userId: payload.userId,
           employeeCode: payload.employeeCode,
           department: payload.department || undefined,
           isClassTeacher: payload.isClassTeacher,
@@ -103,10 +113,14 @@ export function SchoolsTeachersContent() {
 
   const handleTeacherSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teacherForm.employeeCode) return;
+    if (!teacherForm.userId || !teacherForm.employeeCode) return;
     createTeacherMutation.mutate(teacherForm);
   };
 
+  const teacherUsersQuery = useQuery({
+    queryKey: ["schools", "teachers", "profile-users"],
+    queryFn: () => fetchTeacherProfileUsers({ page: 1, limit: 500, active: true }),
+  });
   const profilesQuery = useQuery({
     queryKey: ["schools", "teachers", "profiles"],
     queryFn: () => fetchTeacherProfiles({ page: 1, limit: 200 }),
@@ -126,6 +140,24 @@ export function SchoolsTeachersContent() {
     () => assignmentsQuery.data?.data ?? [],
     [assignmentsQuery.data],
   );
+  const teacherUsers = useMemo<TeacherProfileUserRecord[]>(
+    () => teacherUsersQuery.data?.data ?? [],
+    [teacherUsersQuery.data],
+  );
+  const profiledUserIds = useMemo(() => new Set(profiles.map((profile) => profile.user.id)), [profiles]);
+  const availableTeacherUsers = useMemo(
+    () => teacherUsers.filter((user) => !profiledUserIds.has(user.id)),
+    [teacherUsers, profiledUserIds],
+  );
+
+  const openTeacherDialog = () => {
+    createTeacherMutation.reset();
+    setTeacherForm({
+      ...initialTeacherForm,
+      userId: availableTeacherUsers[0]?.id ?? "",
+    });
+    setTeacherDialogOpen(true);
+  };
 
   const profileColumns = useMemo<ColumnDef<TeacherProfileRecord>[]>(
     () => [
@@ -301,7 +333,7 @@ export function SchoolsTeachersContent() {
         <div className={activeView === "profiles" ? "space-y-2" : "hidden"}>
           <div className="flex items-center justify-between">
             <h2 className="text-section-title">Teacher Profiles</h2>
-            <Button size="sm" onClick={() => setTeacherDialogOpen(true)}>
+            <Button size="sm" onClick={openTeacherDialog}>
               Add Teacher
             </Button>
           </div>
@@ -427,12 +459,48 @@ export function SchoolsTeachersContent() {
             <DialogDescription>Enter the teacher profile details below.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleTeacherSubmit} className="space-y-4">
-            {createTeacherMutation.error ? (
+            {createTeacherMutation.error || teacherUsersQuery.error ? (
               <Alert variant="destructive">
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{getApiErrorMessage(createTeacherMutation.error)}</AlertDescription>
+                <AlertDescription>
+                  {getApiErrorMessage(createTeacherMutation.error || teacherUsersQuery.error)}
+                </AlertDescription>
               </Alert>
             ) : null}
+            <div className="space-y-2">
+              <label htmlFor="teacher-userId" className="text-sm font-medium">
+                User <span className="text-destructive">*</span>
+              </label>
+              <Select
+                value={teacherForm.userId || undefined}
+                onValueChange={(value) => setTeacherForm((f) => ({ ...f, userId: value }))}
+                disabled={teacherUsersQuery.isLoading || availableTeacherUsers.length === 0}
+              >
+                <SelectTrigger id="teacher-userId">
+                  <SelectValue
+                    placeholder={
+                      teacherUsersQuery.isLoading
+                        ? "Loading users..."
+                        : availableTeacherUsers.length === 0
+                          ? "No available users"
+                          : "Select user"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTeacherUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!teacherUsersQuery.isLoading && availableTeacherUsers.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No available users without an existing teacher profile.
+                </p>
+              ) : null}
+            </div>
             <div className="space-y-2">
               <label htmlFor="teacher-employeeCode" className="text-sm font-medium">
                 Employee Code <span className="text-destructive">*</span>
@@ -482,7 +550,14 @@ export function SchoolsTeachersContent() {
               <Button type="button" variant="outline" onClick={() => handleTeacherDialogOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTeacherMutation.isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  createTeacherMutation.isPending ||
+                  teacherUsersQuery.isLoading ||
+                  availableTeacherUsers.length === 0
+                }
+              >
                 {createTeacherMutation.isPending ? "Saving…" : "Add Teacher"}
               </Button>
             </DialogFooter>

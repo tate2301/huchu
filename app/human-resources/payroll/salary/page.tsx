@@ -133,7 +133,9 @@ export default function SalaryPayrollPage() {
     defaultManualPeriodForm,
   );
   const [runDetailsId, setRunDetailsId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"periods" | "pending" | "archived">("periods");
+  const [activeView, setActiveView] = useState<
+    "periods" | "pending" | "archived"
+  >("periods");
   const [periodsQuery, setPeriodsQuery] = useState<DataTableQueryState>({
     mode: "paginated",
     page: 1,
@@ -146,12 +148,13 @@ export default function SalaryPayrollPage() {
     pageSize: 10,
     search: "",
   });
-  const [archivedRunsQuery, setArchivedRunsQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  });
+  const [archivedRunsQuery, setArchivedRunsQuery] =
+    useState<DataTableQueryState>({
+      mode: "paginated",
+      page: 1,
+      pageSize: 10,
+      search: "",
+    });
   const [expandedPeriodIds, setExpandedPeriodIds] = useState<string[]>([]);
 
   const {
@@ -233,11 +236,20 @@ export default function SalaryPayrollPage() {
   });
   const runs = useMemo(() => runsData?.data ?? [], [runsData]);
   const pendingRuns = useMemo(
-    () => runs.filter((run) => run.status === "DRAFT" || run.status === "SUBMITTED" || run.status === "REJECTED"),
+    () =>
+      runs.filter(
+        (run) =>
+          run.status === "DRAFT" ||
+          run.status === "SUBMITTED" ||
+          run.status === "REJECTED",
+      ),
     [runs],
   );
   const archivedRuns = useMemo(
-    () => runs.filter((run) => run.status === "APPROVED" || run.status === "POSTED"),
+    () =>
+      runs.filter(
+        (run) => run.status === "APPROVED" || run.status === "POSTED",
+      ),
     [runs],
   );
 
@@ -360,7 +372,9 @@ export default function SalaryPayrollPage() {
 
   const approveRunMutation = useMutation({
     mutationFn: async (runId: string) =>
-      fetchJson<{ id?: string }>(`/api/payroll/runs/${runId}/approve`, { method: "POST" }),
+      fetchJson<{ id?: string }>(`/api/payroll/runs/${runId}/approve`, {
+        method: "POST",
+      }),
     onSuccess: (run: { id?: string }) => {
       toast({ title: "Run approved", variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -417,7 +431,8 @@ export default function SalaryPayrollPage() {
   );
 
   const canGenerateForPeriod = useCallback(
-    (period: PayrollPeriodRecord) => period.status !== "APPROVED" && period.status !== "CLOSED",
+    (period: PayrollPeriodRecord) =>
+      period.status !== "APPROVED" && period.status !== "CLOSED",
     [],
   );
 
@@ -426,7 +441,11 @@ export default function SalaryPayrollPage() {
       label: string,
       runRows: PayrollRunRecord[],
       emptyMessage: string,
-      options?: { statusVariant?: (run: PayrollRunRecord) => "neutral" | "success" | "info" | "warning" | "danger" },
+      options?: {
+        statusVariant?: (
+          run: PayrollRunRecord,
+        ) => "neutral" | "success" | "info" | "warning" | "danger";
+      },
     ) => (
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-foreground">{label}</h3>
@@ -492,32 +511,35 @@ export default function SalaryPayrollPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "window",
         header: "Window",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {format(new Date(row.original.startDate), "MMM d")} - {format(
-              new Date(row.original.endDate),
-              "MMM d, yyyy",
-            )}
+            {format(new Date(row.original.startDate), "MMM d")} -{" "}
+            {format(new Date(row.original.endDate), "MMM d, yyyy")}
           </NumericCell>
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "APPROVED" ? "success" : "warning"}>
+          <Badge
+            variant={row.original.status === "APPROVED" ? "success" : "warning"}
+          >
             {row.original.status}
           </Badge>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "source",
         header: "Source",
@@ -528,7 +550,8 @@ export default function SalaryPayrollPage() {
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "action",
         header: "",
@@ -540,7 +563,10 @@ export default function SalaryPayrollPage() {
                 setSelectedPeriodId(row.original.id);
                 setGenerateRunOpen(true);
               }}
-              disabled={!canGenerateForPeriod(row.original) || generateRunMutation.isPending}
+              disabled={
+                !canGenerateForPeriod(row.original) ||
+                generateRunMutation.isPending
+              }
             >
               {canGenerateForPeriod(row.original) ? "Generate Run" : "Locked"}
             </Button>
@@ -548,7 +574,8 @@ export default function SalaryPayrollPage() {
         ),
         size: 108,
         minSize: 108,
-        maxSize: 108},
+        maxSize: 108,
+      },
     ],
     [canGenerateForPeriod, generateRunMutation.isPending],
   );
@@ -561,7 +588,9 @@ export default function SalaryPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+              <NumericCell align="left">
+                Run #{row.original.runNumber}
+              </NumericCell>
             </div>
             <div className="text-xs text-muted-foreground">
               <NumericCell align="left">
@@ -572,32 +601,40 @@ export default function SalaryPayrollPage() {
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "APPROVED" ? "success" : "warning"}>
+          <Badge
+            variant={row.original.status === "APPROVED" ? "success" : "warning"}
+          >
             {row.original.status}
           </Badge>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         accessorKey: "netTotal",
         header: "Net Total",
-        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "owner",
         header: "Owner",
         cell: ({ row }) => row.original.createdBy?.name ?? "-",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "actions",
         header: "",
@@ -616,7 +653,8 @@ export default function SalaryPayrollPage() {
         ),
         size: 108,
         minSize: 108,
-        maxSize: 108},
+        maxSize: 108,
+      },
     ],
     [renderPrimaryAction],
   );
@@ -629,7 +667,9 @@ export default function SalaryPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">
-              <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
+              <NumericCell align="left">
+                Run #{row.original.runNumber}
+              </NumericCell>
             </div>
             <div className="text-xs text-muted-foreground">
               <NumericCell align="left">
@@ -640,32 +680,40 @@ export default function SalaryPayrollPage() {
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "POSTED" ? "success" : "warning"}>
+          <Badge
+            variant={row.original.status === "POSTED" ? "success" : "warning"}
+          >
             {row.original.status}
           </Badge>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         accessorKey: "netTotal",
         header: "Net Total",
-        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "owner",
         header: "Owner",
         cell: ({ row }) => row.original.createdBy?.name ?? "-",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "actions",
         header: "",
@@ -673,13 +721,19 @@ export default function SalaryPayrollPage() {
           <div className="flex justify-end gap-2">
             {row.original.status === "APPROVED" ? (
               <Button asChild size="sm">
-                <Link href={`/human-resources/disbursements?runId=${row.original.id}`}>
+                <Link
+                  href={`/human-resources/disbursements?runId=${row.original.id}`}
+                >
                   Disburse
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
             ) : null}
-            <Button size="sm" variant="outline" onClick={() => setRunDetailsId(row.original.id)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRunDetailsId(row.original.id)}
+            >
               <FileText className="size-4" />
               Details
             </Button>
@@ -687,7 +741,8 @@ export default function SalaryPayrollPage() {
         ),
         size: 108,
         minSize: 108,
-        maxSize: 108},
+        maxSize: 108,
+      },
     ],
     [],
   );
@@ -701,44 +756,59 @@ export default function SalaryPayrollPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.employee.employeeId}
+            </div>
           </div>
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "base",
         header: "Base",
         accessorFn: (row) => row.baseAmount,
-        cell: ({ row }) => <NumericCell>{row.original.baseAmount.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.baseAmount.toFixed(2)}</NumericCell>
+        ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "allowances",
         header: "Allow",
         accessorFn: (row) => row.allowancesTotal,
-        cell: ({ row }) => <NumericCell>{row.original.allowancesTotal.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.allowancesTotal.toFixed(2)}</NumericCell>
+        ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "deductions",
         header: "Deduct",
         accessorFn: (row) => row.deductionsTotal,
-        cell: ({ row }) => <NumericCell>{row.original.deductionsTotal.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.deductionsTotal.toFixed(2)}</NumericCell>
+        ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "net",
         header: "Net",
         accessorFn: (row) => row.netAmount,
-        cell: ({ row }) => <NumericCell>{row.original.netAmount.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.netAmount.toFixed(2)}</NumericCell>
+        ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
@@ -759,7 +829,7 @@ export default function SalaryPayrollPage() {
       )}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Payroll Modes
           </h2>
@@ -776,10 +846,16 @@ export default function SalaryPayrollPage() {
         items={[
           { id: "periods", label: "Periods", count: periods.length },
           { id: "pending", label: "Pending Runs", count: pendingRuns.length },
-          { id: "archived", label: "Archived Runs", count: archivedRuns.length },
+          {
+            id: "archived",
+            label: "Archived Runs",
+            count: archivedRuns.length,
+          },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "periods" | "pending" | "archived")}
+        onValueChange={(value) =>
+          setActiveView(value as "periods" | "pending" | "archived")
+        }
         railLabel="Payroll Views"
       >
         {activeView === "periods" ? (
@@ -790,7 +866,8 @@ export default function SalaryPayrollPage() {
                   Payroll Periods
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Expand a period row to review runs, then generate a run when the period is open.
+                  Expand a period row to review runs, then generate a run when
+                  the period is open.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -836,7 +913,11 @@ export default function SalaryPayrollPage() {
                 onQueryStateChange={(next) =>
                   setPeriodsQuery((prev) => ({ ...prev, ...next }))
                 }
-                features={{ sorting: true, globalFilter: true, pagination: true }}
+                features={{
+                  sorting: true,
+                  globalFilter: true,
+                  pagination: true,
+                }}
                 pagination={{ enabled: true, server: false }}
                 searchPlaceholder="Search periods"
                 tableClassName="text-sm"
@@ -874,7 +955,11 @@ export default function SalaryPayrollPage() {
                       );
                     }
                     if (isLoading) {
-                      return <div className="px-4 py-3 text-sm text-muted-foreground">Loading runs...</div>;
+                      return (
+                        <div className="px-4 py-3 text-sm text-muted-foreground">
+                          Loading runs...
+                        </div>
+                      );
                     }
 
                     const runsForPeriod = expandedRunsByPeriodId[rowId] ?? [];
@@ -887,10 +972,14 @@ export default function SalaryPayrollPage() {
                     }
 
                     const pendingRows = runsForPeriod.filter(
-                      (run) => run.status === "DRAFT" || run.status === "SUBMITTED" || run.status === "REJECTED",
+                      (run) =>
+                        run.status === "DRAFT" ||
+                        run.status === "SUBMITTED" ||
+                        run.status === "REJECTED",
                     );
                     const archivedRows = runsForPeriod.filter(
-                      (run) => run.status === "APPROVED" || run.status === "POSTED",
+                      (run) =>
+                        run.status === "APPROVED" || run.status === "POSTED",
                     );
 
                     return (
@@ -904,7 +993,10 @@ export default function SalaryPayrollPage() {
                           "Archived Runs",
                           archivedRows,
                           "No archived runs for this period.",
-                          { statusVariant: (run) => (run.status === "POSTED" ? "success" : "warning") },
+                          {
+                            statusVariant: (run) =>
+                              run.status === "POSTED" ? "success" : "warning",
+                          },
                         )}
                       </div>
                     );
@@ -917,7 +1009,7 @@ export default function SalaryPayrollPage() {
 
         {activeView === "pending" ? (
           <section className="space-y-3">
-            <header className="section-shell space-y-1">
+            <header className="space-y-1">
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Pending Runs
               </h2>
@@ -943,7 +1035,11 @@ export default function SalaryPayrollPage() {
                 onQueryStateChange={(next) =>
                   setRunsQuery((prev) => ({ ...prev, ...next }))
                 }
-                features={{ sorting: true, globalFilter: true, pagination: true }}
+                features={{
+                  sorting: true,
+                  globalFilter: true,
+                  pagination: true,
+                }}
                 pagination={{ enabled: true, server: false }}
                 searchPlaceholder="Search pending runs"
                 tableClassName="text-sm"
@@ -954,12 +1050,13 @@ export default function SalaryPayrollPage() {
 
         {activeView === "archived" ? (
           <section className="space-y-3">
-            <header className="section-shell space-y-1">
+            <header className="space-y-1">
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Archived Runs
               </h2>
               <p className="text-sm text-muted-foreground">
-                Approved and posted runs retained for disbursement and audit history.
+                Approved and posted runs retained for disbursement and audit
+                history.
               </p>
             </header>
             {!activePeriod ? (
@@ -980,7 +1077,11 @@ export default function SalaryPayrollPage() {
                 onQueryStateChange={(next) =>
                   setArchivedRunsQuery((prev) => ({ ...prev, ...next }))
                 }
-                features={{ sorting: true, globalFilter: true, pagination: true }}
+                features={{
+                  sorting: true,
+                  globalFilter: true,
+                  pagination: true,
+                }}
                 pagination={{ enabled: true, server: false }}
                 searchPlaceholder="Search archived runs"
                 tableClassName="text-sm"
@@ -1027,7 +1128,10 @@ export default function SalaryPayrollPage() {
                 </div>
               </div>
               <div>
-                <label htmlFor="salary-run-notes" className="mb-2 block text-sm font-semibold">
+                <label
+                  htmlFor="salary-run-notes"
+                  className="mb-2 block text-sm font-semibold"
+                >
                   Run Notes
                 </label>
                 <Input
@@ -1038,10 +1142,20 @@ export default function SalaryPayrollPage() {
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setGenerateRunOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setGenerateRunOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={generateRunMutation.isPending || !canGenerateForPeriod(activePeriod)}>
+                <Button
+                  type="submit"
+                  disabled={
+                    generateRunMutation.isPending ||
+                    !canGenerateForPeriod(activePeriod)
+                  }
+                >
                   Generate Run
                 </Button>
               </div>
@@ -1305,7 +1419,11 @@ export default function SalaryPayrollPage() {
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Run</div>
-                  <div className="font-semibold"><NumericCell align="left">#{runDetails.runNumber}</NumericCell></div>
+                  <div className="font-semibold">
+                    <NumericCell align="left">
+                      #{runDetails.runNumber}
+                    </NumericCell>
+                  </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Status</div>
@@ -1322,7 +1440,11 @@ export default function SalaryPayrollPage() {
                 <DataTable
                   data={runDetails.lineItems}
                   columns={runDetailColumns}
-                  features={{ globalFilter: false, pagination: false, sorting: true }}
+                  features={{
+                    globalFilter: false,
+                    pagination: false,
+                    sorting: true,
+                  }}
                   maxBodyHeight="45dvh"
                   tableContainerClassName="overflow-auto"
                   tableClassName="text-sm"

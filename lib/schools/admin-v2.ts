@@ -169,6 +169,14 @@ export type TeacherAssignmentRecord = {
   };
 };
 
+export type TeacherProfileUserRecord = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+};
+
 export async function fetchSchoolsStudents(params: {
   page?: number;
   limit?: number;
@@ -289,6 +297,18 @@ export async function fetchTeacherAssignments(params: {
     `/api/v2/schools/teachers/assignments${query}`,
   );
   return response.data;
+}
+
+export async function fetchTeacherProfileUsers(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  active?: boolean;
+  role?: string;
+} = {}) {
+  const query = buildQuery(params);
+  const response = await fetchJson<Paginated<TeacherProfileUserRecord>>(`/api/users${query}`);
+  return response;
 }
 
 export async function fetchSchoolsClasses(params: {

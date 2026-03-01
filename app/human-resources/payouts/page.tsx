@@ -11,7 +11,10 @@ import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableQueryState,
+} from "@/components/ui/data-table";
 import { ExportMenu } from "@/components/ui/export-menu";
 import {
   Dialog,
@@ -23,7 +26,13 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
@@ -106,15 +115,21 @@ export default function HrPayoutsPage() {
 
   const createdId = searchParams.get("createdId");
   const allocationIdFilter = searchParams.get("allocationId");
-  const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(searchParams.get("window") ?? "2");
+  const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(
+    searchParams.get("window") ?? "2",
+  );
   const [groupsQuery, setGroupsQuery] = useState<DataTableQueryState>({
     mode: "paginated",
     page: 1,
     pageSize: 25,
     search: "",
   });
-  const [selectedGroup, setSelectedGroup] = useState<ShiftPayoutGroup | null>(null);
-  const [rejectionAllocationId, setRejectionAllocationId] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<ShiftPayoutGroup | null>(
+    null,
+  );
+  const [rejectionAllocationId, setRejectionAllocationId] = useState<
+    string | null
+  >(null);
   const [rejectionNote, setRejectionNote] = useState("");
   const payoutPdfRef = useRef<HTMLDivElement>(null);
 
@@ -126,39 +141,74 @@ export default function HrPayoutsPage() {
   }, [windowWeeks]);
   const windowEndDate = new Date();
 
-  const { data: allocationsData, isLoading: allocationsLoading, error: allocationsError } = useQuery({
-    queryKey: ["gold-shift-allocations", "hr-payouts", payoutWindowWeeks, allocationIdFilter],
+  const {
+    data: allocationsData,
+    isLoading: allocationsLoading,
+    error: allocationsError,
+  } = useQuery({
+    queryKey: [
+      "gold-shift-allocations",
+      "hr-payouts",
+      payoutWindowWeeks,
+      allocationIdFilter,
+    ],
     queryFn: () =>
       fetchGoldShiftAllocations({
-        startDate: allocationIdFilter ? undefined : windowStartDate.toISOString().slice(0, 10),
+        startDate: allocationIdFilter
+          ? undefined
+          : windowStartDate.toISOString().slice(0, 10),
         limit: 500,
       }),
   });
 
-  const { data: paymentsData, isLoading: paymentsLoading, error: paymentsError } = useQuery({
-    queryKey: ["employee-payments", "gold", "shift-grouped", payoutWindowWeeks, allocationIdFilter],
+  const {
+    data: paymentsData,
+    isLoading: paymentsLoading,
+    error: paymentsError,
+  } = useQuery({
+    queryKey: [
+      "employee-payments",
+      "gold",
+      "shift-grouped",
+      payoutWindowWeeks,
+      allocationIdFilter,
+    ],
     queryFn: () =>
       fetchEmployeePayments({
         type: "GOLD",
-        startDate: allocationIdFilter ? undefined : windowStartDate.toISOString(),
+        startDate: allocationIdFilter
+          ? undefined
+          : windowStartDate.toISOString(),
         limit: 1000,
       }),
   });
 
-  const shiftAllocations = useMemo(() => allocationsData?.data ?? [], [allocationsData]);
+  const shiftAllocations = useMemo(
+    () => allocationsData?.data ?? [],
+    [allocationsData],
+  );
   const payments = useMemo(() => paymentsData?.data ?? [], [paymentsData]);
 
   const payoutGroups = useMemo<ShiftPayoutGroup[]>(() => {
     return shiftAllocations
       .filter((allocation) =>
-        allocationIdFilter ? allocation.id === allocationIdFilter : allocation.payCycleWeeks === windowWeeks,
+        allocationIdFilter
+          ? allocation.id === allocationIdFilter
+          : allocation.payCycleWeeks === windowWeeks,
       )
       .map((allocation) => {
         const allocationDate = new Date(allocation.date);
-        const expectedDueDate = addDays(allocationDate, allocation.payCycleWeeks * 7);
+        const expectedDueDate = addDays(
+          allocationDate,
+          allocation.payCycleWeeks * 7,
+        );
 
         const workers = allocation.workerShares.map((share) => {
-          const payment = findPaymentForShiftWorker(payments, share.employee.id, allocationDate);
+          const payment = findPaymentForShiftWorker(
+            payments,
+            share.employee.id,
+            allocationDate,
+          );
 
           return {
             employeeId: share.employee.id,
@@ -169,17 +219,18 @@ export default function HrPayoutsPage() {
               share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0),
             status: payment?.status ?? "DUE",
             dueDate: payment ? new Date(payment.dueDate) : expectedDueDate,
-            paidAmountUsd:
-              payment?.paidAmountUsd ??
-              payment?.paidAmount ??
-              0,
+            paidAmountUsd: payment?.paidAmountUsd ?? payment?.paidAmount ?? 0,
             paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
             payment,
           } satisfies ShiftWorkerPayout;
         });
 
-        const paidCount = workers.filter((worker) => worker.status === "PAID").length;
-        const partialCount = workers.filter((worker) => worker.status === "PARTIAL").length;
+        const paidCount = workers.filter(
+          (worker) => worker.status === "PAID",
+        ).length;
+        const partialCount = workers.filter(
+          (worker) => worker.status === "PARTIAL",
+        ).length;
         const dueCount = workers.length - paidCount - partialCount;
         const totalValueUsd =
           allocation.workerShareValueUsd ??
@@ -193,8 +244,12 @@ export default function HrPayoutsPage() {
           siteCode: allocation.site.code,
           payCycleWeeks: allocation.payCycleWeeks,
           workflowStatus: allocation.workflowStatus,
-          submittedAt: allocation.submittedAt ? new Date(allocation.submittedAt) : undefined,
-          approvedAt: allocation.approvedAt ? new Date(allocation.approvedAt) : undefined,
+          submittedAt: allocation.submittedAt
+            ? new Date(allocation.submittedAt)
+            : undefined,
+          approvedAt: allocation.approvedAt
+            ? new Date(allocation.approvedAt)
+            : undefined,
           submittedByName: allocation.submittedBy?.name,
           approvedByName: allocation.approvedBy?.name,
           expectedDueDate,
@@ -229,7 +284,9 @@ export default function HrPayoutsPage() {
 
   const submitAllocationMutation = useMutation({
     mutationFn: async (allocationId: string) =>
-      fetchJson(`/api/gold/shift-allocations/${allocationId}/submit`, { method: "POST" }),
+      fetchJson(`/api/gold/shift-allocations/${allocationId}/submit`, {
+        method: "POST",
+      }),
     onSuccess: () => {
       toast({
         title: "Allocation submitted",
@@ -249,11 +306,14 @@ export default function HrPayoutsPage() {
 
   const approveAllocationMutation = useMutation({
     mutationFn: async (allocationId: string) =>
-      fetchJson(`/api/gold/shift-allocations/${allocationId}/approve`, { method: "POST" }),
+      fetchJson(`/api/gold/shift-allocations/${allocationId}/approve`, {
+        method: "POST",
+      }),
     onSuccess: () => {
       toast({
         title: "Allocation approved",
-        description: "Gold payouts can now be recorded for this shift allocation.",
+        description:
+          "Gold payouts can now be recorded for this shift allocation.",
         variant: "success",
       });
       invalidatePayoutWorkflowData();
@@ -268,7 +328,13 @@ export default function HrPayoutsPage() {
   });
 
   const rejectAllocationMutation = useMutation({
-    mutationFn: async ({ allocationId, note }: { allocationId: string; note: string }) =>
+    mutationFn: async ({
+      allocationId,
+      note,
+    }: {
+      allocationId: string;
+      note: string;
+    }) =>
       fetchJson(`/api/gold/shift-allocations/${allocationId}/reject`, {
         method: "POST",
         body: JSON.stringify({ note }),
@@ -276,7 +342,8 @@ export default function HrPayoutsPage() {
     onSuccess: () => {
       toast({
         title: "Allocation rejected",
-        description: "Allocation returned for correction before payout recording.",
+        description:
+          "Allocation returned for correction before payout recording.",
         variant: "success",
       });
       setRejectionAllocationId(null);
@@ -307,12 +374,16 @@ export default function HrPayoutsPage() {
     });
   };
 
-  const openPaymentForm = (group: ShiftPayoutGroup, worker: ShiftWorkerPayout) => {
+  const openPaymentForm = (
+    group: ShiftPayoutGroup,
+    worker: ShiftWorkerPayout,
+  ) => {
     void worker;
     if (group.workflowStatus !== "APPROVED") {
       toast({
         title: "Approval required",
-        description: "Submit and approve this allocation before recording worker payouts.",
+        description:
+          "Submit and approve this allocation before recording worker payouts.",
         variant: "destructive",
       });
       return;
@@ -320,11 +391,14 @@ export default function HrPayoutsPage() {
 
     toast({
       title: "Continue in payroll",
-      description: "Generate and approve a Gold Run, then disburse the batch to complete payout.",
+      description:
+        "Generate and approve a Gold Run, then disburse the batch to complete payout.",
       variant: "success",
     });
     setSelectedGroup(null);
-    router.push(`/human-resources/payroll/gold?allocationId=${group.allocationId}`);
+    router.push(
+      `/human-resources/payroll/gold?allocationId=${group.allocationId}`,
+    );
   };
 
   const handleExport = async (format: DocumentExportFormat) => {
@@ -344,13 +418,18 @@ export default function HrPayoutsPage() {
         accessorFn: (row) => `${format(row.date, "MMM d, yyyy")} ${row.shift}`,
         cell: ({ row }) => (
           <div>
-            <div className="font-semibold">{format(row.original.date, "MMM d, yyyy")} ({row.original.shift})</div>
-            <div className="text-xs text-muted-foreground">Allocation {row.original.allocationId.slice(0, 8)}</div>
+            <div className="font-semibold">
+              {format(row.original.date, "MMM d, yyyy")} ({row.original.shift})
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Allocation {row.original.allocationId.slice(0, 8)}
+            </div>
           </div>
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "site",
         header: "Site",
@@ -358,50 +437,72 @@ export default function HrPayoutsPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-semibold">{row.original.siteName}</div>
-            <div className="text-xs text-muted-foreground">{row.original.siteCode}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.siteCode}
+            </div>
           </div>
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "workers",
         header: "Workers",
         accessorFn: (row) => row.workers.length,
-        cell: ({ row }) => <NumericCell>{row.original.workers.length}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>{row.original.workers.length}</NumericCell>
+        ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "valueDueUsd",
         header: "Value Due",
         accessorFn: (row) => row.totalValueUsd,
-        cell: ({ row }) => <NumericCell>${row.original.totalValueUsd.toFixed(2)}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell>${row.original.totalValueUsd.toFixed(2)}</NumericCell>
+        ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "expectedDue",
         header: "Expected Due",
         accessorFn: (row) => format(row.expectedDueDate, "yyyy-MM-dd"),
-        cell: ({ row }) => <NumericCell align="left">{format(row.original.expectedDueDate, "MMM d, yyyy")}</NumericCell>,
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(row.original.expectedDueDate, "MMM d, yyyy")}
+          </NumericCell>
+        ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "payoutStatus",
         header: "Payout Status",
-        accessorFn: (row) => `paid:${row.paidCount} partial:${row.partialCount} due:${row.dueCount}`,
+        accessorFn: (row) =>
+          `paid:${row.paidCount} partial:${row.partialCount} due:${row.dueCount}`,
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-2">
             <Badge variant="success">Paid {row.original.paidCount}</Badge>
-            {row.original.partialCount > 0 ? <Badge variant="warning">Partial {row.original.partialCount}</Badge> : null}
-            {row.original.dueCount > 0 ? <Badge variant="neutral">Due {row.original.dueCount}</Badge> : null}
+            {row.original.partialCount > 0 ? (
+              <Badge variant="warning">
+                Partial {row.original.partialCount}
+              </Badge>
+            ) : null}
+            {row.original.dueCount > 0 ? (
+              <Badge variant="neutral">Due {row.original.dueCount}</Badge>
+            ) : null}
           </div>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "workflow",
         header: "Workflow",
@@ -413,7 +514,8 @@ export default function HrPayoutsPage() {
             </Badge>
             {row.original.submittedAt ? (
               <div className="text-xs text-muted-foreground">
-                Submitted {format(row.original.submittedAt, "MMM d, yyyy HH:mm")}
+                Submitted{" "}
+                {format(row.original.submittedAt, "MMM d, yyyy HH:mm")}
               </div>
             ) : null}
             {row.original.approvedAt ? (
@@ -425,19 +527,23 @@ export default function HrPayoutsPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "workflowActions",
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            {row.original.workflowStatus === "DRAFT" || row.original.workflowStatus === "REJECTED" ? (
+            {row.original.workflowStatus === "DRAFT" ||
+            row.original.workflowStatus === "REJECTED" ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 disabled={submitAllocationMutation.isPending}
-                onClick={() => submitAllocationMutation.mutate(row.original.allocationId)}
+                onClick={() =>
+                  submitAllocationMutation.mutate(row.original.allocationId)
+                }
               >
                 Submit
               </Button>
@@ -449,7 +555,9 @@ export default function HrPayoutsPage() {
                   size="sm"
                   variant="outline"
                   disabled={approveAllocationMutation.isPending}
-                  onClick={() => approveAllocationMutation.mutate(row.original.allocationId)}
+                  onClick={() =>
+                    approveAllocationMutation.mutate(row.original.allocationId)
+                  }
                 >
                   Approve
                 </Button>
@@ -464,16 +572,26 @@ export default function HrPayoutsPage() {
                 </Button>
               </>
             ) : null}
-            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedGroup(row.original)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedGroup(row.original)}
+            >
               View Members
             </Button>
           </div>
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
     ],
-    [approveAllocationMutation, rejectAllocationMutation, submitAllocationMutation],
+    [
+      approveAllocationMutation,
+      rejectAllocationMutation,
+      submitAllocationMutation,
+    ],
   );
 
   const selectedGroupWorkerColumns: ColumnDef<ShiftWorkerPayout>[] = [
@@ -484,39 +602,54 @@ export default function HrPayoutsPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-semibold">{row.original.employeeName}</div>
-          <div className="text-xs text-muted-foreground">{row.original.employeeCode}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.employeeCode}
+          </div>
           {createdId && createdId === row.original.payment?.id ? (
-            <Badge variant="secondary" className="mt-1">Saved</Badge>
+            <Badge variant="secondary" className="mt-1">
+              Saved
+            </Badge>
           ) : null}
         </div>
       ),
       size: 280,
       minSize: 220,
-      maxSize: 420},
+      maxSize: 420,
+    },
     {
       id: "earned",
       header: "Shift Earned",
       accessorFn: (row) => row.shareValueUsd,
-      cell: ({ row }) => <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>,
+      cell: ({ row }) => (
+        <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>
+      ),
       size: 120,
       minSize: 120,
-      maxSize: 120},
+      maxSize: 120,
+    },
     {
       id: "dueDate",
       header: "Due Date",
       accessorFn: (row) => format(row.dueDate, "yyyy-MM-dd"),
       cell: ({ row }) => {
-        const isOverdue = isBefore(row.original.dueDate, new Date()) && row.original.status !== "PAID";
+        const isOverdue =
+          isBefore(row.original.dueDate, new Date()) &&
+          row.original.status !== "PAID";
         return (
           <div>
-            <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
-            {isOverdue ? <div className="text-[10px] text-red-600">Past due</div> : null}
+            <NumericCell align="left">
+              {format(row.original.dueDate, "MMM d, yyyy")}
+            </NumericCell>
+            {isOverdue ? (
+              <div className="text-[10px] text-red-600">Past due</div>
+            ) : null}
           </div>
         );
       },
       size: 128,
       minSize: 128,
-      maxSize: 128},
+      maxSize: 128,
+    },
     {
       id: "status",
       header: "Status",
@@ -532,27 +665,38 @@ export default function HrPayoutsPage() {
       },
       size: 120,
       minSize: 120,
-      maxSize: 120},
+      maxSize: 120,
+    },
     {
       id: "paid",
       header: "Paid (USD)",
       accessorFn: (row) => row.paidAmountUsd,
       cell: ({ row }) => (
-        <NumericCell>{row.original.paidAmountUsd > 0 ? `$${row.original.paidAmountUsd.toFixed(2)}` : "-"}</NumericCell>
+        <NumericCell>
+          {row.original.paidAmountUsd > 0
+            ? `$${row.original.paidAmountUsd.toFixed(2)}`
+            : "-"}
+        </NumericCell>
       ),
       size: 120,
       minSize: 120,
-      maxSize: 120},
+      maxSize: 120,
+    },
     {
       id: "paidDate",
       header: "Paid Date",
       accessorFn: (row) => (row.paidAt ? format(row.paidAt, "yyyy-MM-dd") : ""),
       cell: ({ row }) => (
-        <NumericCell align="left">{row.original.paidAt ? format(row.original.paidAt, "MMM d, yyyy") : "-"}</NumericCell>
+        <NumericCell align="left">
+          {row.original.paidAt
+            ? format(row.original.paidAt, "MMM d, yyyy")
+            : "-"}
+        </NumericCell>
       ),
       size: 128,
       minSize: 128,
-      maxSize: 128},
+      maxSize: 128,
+    },
     {
       id: "action",
       header: "",
@@ -563,56 +707,74 @@ export default function HrPayoutsPage() {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => selectedGroup && openPaymentForm(selectedGroup, row.original)}
+              onClick={() =>
+                selectedGroup && openPaymentForm(selectedGroup, row.original)
+              }
             >
               Disburse
             </Button>
           ) : (
-            <span className="text-xs text-muted-foreground">Pending approval</span>
+            <span className="text-xs text-muted-foreground">
+              Pending approval
+            </span>
           )}
         </div>
       ),
       size: 108,
       minSize: 108,
-      maxSize: 108},
+      maxSize: 108,
+    },
   ];
 
   return (
-    <HrShell activeTab="payouts" description="Gold shift payout approvals that feed payroll disbursement">
+    <HrShell
+      activeTab="payouts"
+      description="Gold shift payout approvals that feed payroll disbursement"
+    >
       <RecordSavedBanner entityLabel="gold payout record" />
       {(allocationsError || paymentsError) && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load payouts</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(allocationsError || paymentsError)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(allocationsError || paymentsError)}
+          </AlertDescription>
         </Alert>
       )}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Gold Payouts by Shift
           </h2>
           <p className="text-sm text-muted-foreground">
-            Approve shift allocations here, then finalize cash disbursement from payroll runs.
+            Approve shift allocations here, then finalize cash disbursement from
+            payroll runs.
           </p>
         </header>
         {isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : payoutGroups.length === 0 ? (
-          <div className="section-shell text-sm text-muted-foreground">No payouts for this window.</div>
+          <div className="section-shell text-sm text-muted-foreground">
+            No payouts for this window.
+          </div>
         ) : (
           <DataTable
             data={payoutGroups}
             columns={payoutColumns}
             queryState={groupsQuery}
-            onQueryStateChange={(next) => setGroupsQuery((prev) => ({ ...prev, ...next }))}
+            onQueryStateChange={(next) =>
+              setGroupsQuery((prev) => ({ ...prev, ...next }))
+            }
             features={{ sorting: true, globalFilter: true, pagination: true }}
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search by site, shift, or allocation"
             tableClassName="text-sm"
             toolbar={
               <>
-                <Select value={payoutWindowWeeks} onValueChange={setPayoutWindowWeeks}>
+                <Select
+                  value={payoutWindowWeeks}
+                  onValueChange={setPayoutWindowWeeks}
+                >
                   <SelectTrigger size="sm" className="h-8 w-[110px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -640,13 +802,22 @@ export default function HrPayoutsPage() {
                   <Badge variant="neutral">Focused: {allocationIdFilter}</Badge>
                 ) : null}
                 <span className="text-xs text-muted-foreground">
-                  Shifts <span className="font-mono text-foreground">{payoutGroups.length}</span>
+                  Shifts{" "}
+                  <span className="font-mono text-foreground">
+                    {payoutGroups.length}
+                  </span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Workers <span className="font-mono text-foreground">{totalWorkers}</span>
+                  Workers{" "}
+                  <span className="font-mono text-foreground">
+                    {totalWorkers}
+                  </span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Gold Due <span className="font-mono text-foreground">${totalValueDueUsd.toFixed(2)}</span>
+                  Gold Due{" "}
+                  <span className="font-mono text-foreground">
+                    ${totalValueDueUsd.toFixed(2)}
+                  </span>
                 </span>
               </>
             }
@@ -667,7 +838,8 @@ export default function HrPayoutsPage() {
           <DialogHeader>
             <DialogTitle>Reject Allocation</DialogTitle>
             <DialogDescription>
-              Capture a rejection reason so the submitter can correct this payout allocation.
+              Capture a rejection reason so the submitter can correct this
+              payout allocation.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -693,7 +865,9 @@ export default function HrPayoutsPage() {
             <Button
               type="button"
               variant="destructive"
-              disabled={!rejectionNote.trim() || rejectAllocationMutation.isPending}
+              disabled={
+                !rejectionNote.trim() || rejectAllocationMutation.isPending
+              }
               onClick={handleRejectAllocation}
             >
               Reject Allocation
@@ -724,7 +898,9 @@ export default function HrPayoutsPage() {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Workflow:</span>
-                <Badge variant={workflowBadgeVariant(selectedGroup.workflowStatus)}>
+                <Badge
+                  variant={workflowBadgeVariant(selectedGroup.workflowStatus)}
+                >
                   {selectedGroup.workflowStatus}
                 </Badge>
                 {selectedGroup.workflowStatus !== "APPROVED" ? (
@@ -735,16 +911,28 @@ export default function HrPayoutsPage() {
               </div>
               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
                 <div>
-                  Site: <span className="font-semibold text-foreground">{selectedGroup.siteCode}</span>
+                  Site:{" "}
+                  <span className="font-semibold text-foreground">
+                    {selectedGroup.siteCode}
+                  </span>
                 </div>
                 <div>
-                  Workers: <span className="font-semibold text-foreground">{selectedGroup.workers.length}</span>
+                  Workers:{" "}
+                  <span className="font-semibold text-foreground">
+                    {selectedGroup.workers.length}
+                  </span>
                 </div>
                 <div>
-                  Gold due: <span className="font-semibold text-foreground">${selectedGroup.totalValueUsd.toFixed(2)}</span>
+                  Gold due:{" "}
+                  <span className="font-semibold text-foreground">
+                    ${selectedGroup.totalValueUsd.toFixed(2)}
+                  </span>
                 </div>
                 <div>
-                  Expected due: <span className="font-semibold text-foreground">{format(selectedGroup.expectedDueDate, "MMM d, yyyy")}</span>
+                  Expected due:{" "}
+                  <span className="font-semibold text-foreground">
+                    {format(selectedGroup.expectedDueDate, "MMM d, yyyy")}
+                  </span>
                 </div>
               </div>
 
@@ -752,7 +940,11 @@ export default function HrPayoutsPage() {
                 <DataTable
                   data={selectedGroup.workers}
                   columns={selectedGroupWorkerColumns}
-                  features={{ globalFilter: false, pagination: false, sorting: false }}
+                  features={{
+                    globalFilter: false,
+                    pagination: false,
+                    sorting: false,
+                  }}
                   maxBodyHeight="60dvh"
                   tableContainerClassName="overflow-auto"
                   tableClassName="text-sm"
@@ -788,12 +980,23 @@ export default function HrPayoutsPage() {
               <tbody>
                 {payoutGroups.flatMap((group) =>
                   group.workers.map((worker) => (
-                    <tr key={`pdf-${group.allocationId}-${worker.employeeId}`} className="border-b border-gray-100">
-                      <td className="py-2">{format(group.date, "yyyy-MM-dd")} ({group.shift})</td>
+                    <tr
+                      key={`pdf-${group.allocationId}-${worker.employeeId}`}
+                      className="border-b border-gray-100"
+                    >
+                      <td className="py-2">
+                        {format(group.date, "yyyy-MM-dd")} ({group.shift})
+                      </td>
                       <td className="py-2">{group.siteCode}</td>
-                      <td className="py-2">{worker.employeeName} ({worker.employeeCode})</td>
-                      <td className="py-2">{worker.shareValueUsd.toFixed(2)}</td>
-                      <td className="py-2">{format(worker.dueDate, "yyyy-MM-dd")}</td>
+                      <td className="py-2">
+                        {worker.employeeName} ({worker.employeeCode})
+                      </td>
+                      <td className="py-2">
+                        {worker.shareValueUsd.toFixed(2)}
+                      </td>
+                      <td className="py-2">
+                        {format(worker.dueDate, "yyyy-MM-dd")}
+                      </td>
                       <td className="py-2">{worker.status}</td>
                     </tr>
                   )),

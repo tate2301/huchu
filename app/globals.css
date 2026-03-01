@@ -192,20 +192,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --table-head-min-h: 2.5rem;
     --control-height-sm: 2rem;
     --control-height-md: 2.25rem;
-    --erp-canvas: #FCFBFA;
+    --erp-canvas: #FCFCF4;
     --erp-surface: #FFFFFF;
-    --erp-border: #E7E4E3;
+    --erp-border: #E6E6E0;
     --erp-text-primary: #111111;
-    --erp-text-secondary: #5B5B5B;
-    --erp-text-muted: #7A7A7A;
-    --erp-primary: #4C66D4;
-    --erp-success: #24866A;
-    --erp-danger: #D24133;
-    --erp-warning: #F08D1A;
-    --erp-in-progress: #F7B01B;
-    --erp-in-review: #4D6FC2;
-    --erp-pending: #C8C3BF;
-    --erp-inactive: #9B9692;
+    --erp-text-secondary: #6B6B6B;
+    --erp-text-muted: #6B6B6B;
+    --erp-primary: #4C64D4;
+    --erp-success: #2CA47C;
+    --erp-danger: #EC442C;
+    --erp-warning: #F46414;
+    --erp-in-progress: #FCB414;
+    --erp-in-review: #4C64D4;
+    --erp-pending: #CFCFC6;
+    --erp-inactive: #9A9A93;
     --erp-status-success: var(--erp-success);
     --erp-status-danger: var(--erp-danger);
     --erp-status-warning: var(--erp-warning);
@@ -213,26 +213,26 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --erp-status-in-review: var(--erp-in-review);
     --erp-status-pending: var(--erp-pending);
     --erp-status-inactive: var(--erp-inactive);
-    --erp-primary-soft: #EEF1FC;
-    --erp-primary-soft-hover: #E3E9FB;
-    --erp-success-soft: #E9F4F1;
-    --erp-danger-soft: #FBEDEA;
-    --erp-warning-soft: #FDF3E5;
-    --erp-in-progress-soft: #FFF6E0;
-    --erp-in-review-soft: #EDF1FB;
-    --erp-pending-soft: #F3F1EF;
-    --erp-inactive-soft: #F1F0EF;
+    --erp-primary-soft: #EEF0FF;
+    --erp-primary-soft-hover: #E4E8FF;
+    --erp-success-soft: #EAF7F1;
+    --erp-danger-soft: #FDEBE7;
+    --erp-warning-soft: #FDF1E8;
+    --erp-in-progress-soft: #FFF6D6;
+    --erp-in-review-soft: #EEF0FF;
+    --erp-pending-soft: #F3F3EF;
+    --erp-inactive-soft: #F3F3EF;
     /* Surface + text mappings (compatibility layer) */
     --surface-app: var(--erp-canvas);
     --surface-panel: var(--erp-surface);
     --surface-elevated: var(--erp-surface);
-    --surface-soft: #F7F6F5;
+    --surface-soft: #F7F7F2;
     --surface-canvas: var(--erp-canvas);
     --surface-base: var(--erp-surface);
     --surface-raised: var(--erp-surface);
-    --surface-muted: #F7F6F5;
-    --surface-subtle: #FAF9F8;
-    --surface-overlay: rgb(252 251 250 / 86%);
+    --surface-muted: #F7F7F2;
+    --surface-subtle: #FAFAF6;
+    --surface-overlay: rgb(252 252 244 / 86%);
     --text-strong: var(--erp-text-primary);
     --text-body: var(--erp-text-primary);
     --text-muted: var(--erp-text-muted);
@@ -242,21 +242,21 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     /* Primary actions */
     --action-primary-bg: var(--erp-primary);
     --action-primary-fg: #ffffff;
-    --action-primary-hover: #3F58C8;
+    --action-primary-hover: #3F57C8;
     --action-primary-pressed: #344BB3;
     --action-secondary-bg: var(--erp-primary-soft);
     --action-secondary-fg: var(--erp-primary);
     --action-secondary-hover: var(--erp-primary-soft-hover);
     --action-outline-bg: #ffffff;
-    --action-outline-hover-bg: #F7F6F5;
+    --action-outline-hover-bg: #F7F7F2;
     /* Light borders - very subtle */
     --edge-subtle: var(--erp-border);
     --edge-default: var(--erp-border);
-    --edge-strong: #D8D4D2;
+    --edge-strong: #DADAD3;
     --edge-neutral-rest: var(--edge-default);
     --edge-neutral-hover: var(--edge-strong);
-    --edge-neutral-pressed: #CBC7C4;
-    --edge-neutral-focus: rgb(76 102 212 / 0.25);
+    --edge-neutral-pressed: #CDCDC6;
+    --edge-neutral-focus: rgb(76 100 212 / 0.25);
     --edge-outline-sharp:
         inset 0 0 0 1px var(--edge-neutral-rest);
     --edge-outline-sharp-hover:
@@ -273,7 +273,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --action-outline-shadow-hover: var(--edge-outline-sharp-hover);
     --action-destructive-bg: var(--erp-danger);
     --action-destructive-fg: #ffffff;
-    --action-disabled-bg: #F3F1EF;
+    --action-disabled-bg: #F3F3EF;
     --action-disabled-fg: var(--erp-inactive);
     /* Status colors - semantic naming */
     --status-success-bg: var(--erp-success-soft);
@@ -299,7 +299,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --status-inactive-text: var(--erp-inactive);
     /* Badge styling - minimal */
     --badge-shadow: none;
-    --badge-neutral-bg: #F7F6F5;
+    --badge-neutral-bg: #F7F7F2;
     --badge-neutral-text: var(--erp-text-secondary);
     --badge-brand-bg: var(--erp-primary-soft);
     --badge-brand-text: var(--erp-primary);
@@ -319,55 +319,65 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         0 2px 4px rgb(17 17 17 / 0.04);
     --button-shadow-pressed:
         inset 0 0 0 1px var(--edge-strong);
-    --button-ghost-hover-bg: #F7F6F5;
-    --button-ghost-active-bg: #F3F1EF;
+    --button-ghost-hover-bg: #F7F7F2;
+    --button-ghost-active-bg: #F3F3EF;
     /* Card styling - light borders */
     --card-shadow-rest:
         inset 0 0 0 1px var(--edge-default);
     --card-divider: var(--edge-default);
     /* Table styling - grid-light */
-    --table-toolbar-bg: rgb(252 251 250 / 86%);
+    --table-toolbar-bg: rgb(252 252 244 / 86%);
     --table-toolbar-border: var(--edge-default);
     --table-header-bg: var(--erp-canvas);
-    --table-header-text: var(--erp-text-muted);
+    --table-header-text: var(--text-subtle);
     --table-divider: var(--edge-default);
     --table-row-bg: #ffffff;
-    --table-row-bg-alt: #FAF9F8;
-    --table-row-hover-bg: #F7F6F5;
+    --table-row-bg-alt: #F7F7F2;
+    --table-row-hover-bg: #F3F3EF;
     --table-row-selected-bg: var(--erp-primary-soft);
-    --datatable-toolbar-bg: rgb(252 251 250 / 90%);
+    --datatable-toolbar-bg: rgb(252 252 244 / 90%);
     --datatable-toolbar-border: var(--edge-default);
-    --datatable-expanded-bg: #FAF9F8;
-    --datatable-empty-bg: #FAF9F8;
+    --datatable-expanded-bg: #F7F7F2;
+    --datatable-empty-bg: #F7F7F2;
     /* Focus ring */
     --focus-ring: var(--erp-primary);
     --focus-ring-offset: var(--erp-canvas);
-    /* Typography - Inter-based scale */
-    --type-display-size: 2rem;
-    --type-display-line: 2.4rem;
+    /* Typography scale */
+    --type-size-12: 0.75rem;
+    --type-size-13: 0.8125rem;
+    --type-size-14: 0.875rem;
+    --type-size-16: 1rem;
+    --type-size-20: 1.25rem;
+    --type-size-24: 1.5rem;
+    --type-size-32: 2rem;
+    --type-display-size: var(--type-size-32);
+    --type-display-line: 2.5rem;
     --type-display-weight: 700;
-    --type-page-title-size: 2rem;
-    --type-page-title-line: 2.4rem;
+    --type-page-title-size: var(--type-size-24);
+    --type-page-title-line: 2rem;
     --type-page-title-weight: 700;
-    --type-section-title-size: 1.25rem;
+    --type-section-title-size: var(--type-size-20);
     --type-section-title-line: 1.5rem;
     --type-section-title-weight: 700;
-    --type-body-size: 0.875rem;
-    --type-body-line: 1.27rem;
+    --type-body-size: var(--type-size-14);
+    --type-body-line: 1.5rem;
     --type-body-weight: 400;
-    --type-field-label-size: 0.8125rem;
-    --type-field-label-line: 1.125rem;
+    --type-body-lg-size: var(--type-size-16);
+    --type-body-lg-line: 1.5rem;
+    --type-body-lg-weight: 500;
+    --type-field-label-size: var(--type-size-13);
+    --type-field-label-line: 1rem;
     --type-field-label-weight: 600;
-    --type-field-help-size: 0.75rem;
+    --type-field-help-size: var(--type-size-12);
     --type-field-help-line: 1rem;
     --type-field-help-weight: 400;
-    --type-table-text-size: 0.875rem;
-    --type-table-text-line: 1.27rem;
+    --type-table-text-size: var(--type-size-14);
+    --type-table-text-line: 1.5rem;
     --type-table-text-weight: 500;
-    --type-table-header-size: 0.75rem;
+    --type-table-header-size: var(--type-size-12);
     --type-table-header-line: 1rem;
     --type-table-header-weight: 600;
-    --type-caption-size: 0.75rem;
+    --type-caption-size: var(--type-size-12);
     --type-caption-line: 1rem;
     --type-caption-weight: 500;
     /* Elevation - minimal, only for popovers */
@@ -378,13 +388,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
         inset 0 0 0 1px var(--edge-default),
         0 2px 6px rgb(17 17 17 / 0.04);
     --elevation-3:
-        0 12px 24px -12px rgba(17, 17, 17, 0.18),
-        0 2px 6px rgba(17, 17, 17, 0.06);
+        0 12px 24px -12px rgba(0, 0, 0, 0.18),
+        0 2px 6px rgba(0, 0, 0, 0.06);
     --elevation-4:
         0 16px 32px -16px rgba(17, 17, 17, 0.22),
         0 4px 8px rgba(17, 17, 17, 0.08);
     /* Popover shadow (menus, dropdowns) */
-    --shadow-popover: 0 12px 24px -12px rgba(17, 17, 17, 0.18), 0 2px 6px rgba(17, 17, 17, 0.06);
+    --shadow-popover: 0 12px 24px -12px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
     /* Motion system */
     --motion-duration-instant: 90ms;
     --motion-duration-fast: 160ms;
@@ -434,12 +444,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: #F7F6F5;
+    --sidebar-accent: #F7F7F2;
     --sidebar-accent-foreground: var(--text-body);
     --sidebar-border: var(--edge-default);
     --sidebar-ring: var(--focus-ring);
     /* Warm paper gradient - subtle */
-    --app-canvas-wash: linear-gradient(180deg, #FCFBFA 0%, #F7F6F5 100%);
+    --app-canvas-wash: linear-gradient(180deg, #FCFCF4 0%, #F7F7F2 100%);
 }
 
 .dark {

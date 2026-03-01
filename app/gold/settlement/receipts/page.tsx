@@ -22,12 +22,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@/lib/api";
+import {
+  fetchGoldDispatches,
+  fetchGoldPours,
+  fetchGoldReceipts,
+} from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
-type GoldReceiptRow = Awaited<ReturnType<typeof fetchGoldReceipts>>["data"][number];
+type GoldReceiptRow = Awaited<
+  ReturnType<typeof fetchGoldReceipts>
+>["data"][number];
 
 export default function GoldSettlementReceiptsPage() {
   const [manualCreateOpen, setManualCreateOpen] = useState(false);
@@ -38,11 +44,17 @@ export default function GoldSettlementReceiptsPage() {
   const createOpen = manualCreateOpen || createRequested;
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
     [session],
   );
   const canViewPayouts = useMemo(
-    () => canViewHrefWithEnabledFeatures(goldRoutes.settlement.payouts, enabledFeatures),
+    () =>
+      canViewHrefWithEnabledFeatures(
+        goldRoutes.settlement.payouts,
+        enabledFeatures,
+      ),
     [enabledFeatures],
   );
 
@@ -77,7 +89,10 @@ export default function GoldSettlementReceiptsPage() {
         .sort((a, b) => b.receiptDate.localeCompare(a.receiptDate)),
     [data],
   );
-  const dispatches = useMemo(() => dispatchesData?.data ?? [], [dispatchesData]);
+  const dispatches = useMemo(
+    () => dispatchesData?.data ?? [],
+    [dispatchesData],
+  );
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
   const soldPourIds = useMemo(() => {
     const ids = new Set<string>();
@@ -91,7 +106,8 @@ export default function GoldSettlementReceiptsPage() {
     [pours, soldPourIds],
   );
   const availableDispatches = useMemo(
-    () => dispatches.filter((dispatch) => !soldPourIds.has(dispatch.goldPourId)),
+    () =>
+      dispatches.filter((dispatch) => !soldPourIds.has(dispatch.goldPourId)),
     [dispatches, soldPourIds],
   );
 
@@ -107,16 +123,20 @@ export default function GoldSettlementReceiptsPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "receiptNumber",
         header: "Sale No.",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.receiptNumber}</span>
+          <span className="font-mono font-semibold">
+            {row.original.receiptNumber}
+          </span>
         ),
         size: 112,
         minSize: 112,
-        maxSize: 112},
+        maxSize: 112,
+      },
       {
         id: "batch",
         header: "Batch",
@@ -130,18 +150,20 @@ export default function GoldSettlementReceiptsPage() {
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "batchValue",
         header: "Batch Value",
         cell: ({ row }) => (
           <NumericCell>
-            ${((row.original.goldPour.valueUsd ?? 0)).toFixed(2)}
+            ${(row.original.goldPour.valueUsd ?? 0).toFixed(2)}
           </NumericCell>
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "source",
         header: "Source",
@@ -151,25 +173,28 @@ export default function GoldSettlementReceiptsPage() {
             : "Direct from batch",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "paymentMethod",
         header: "Method",
         accessorKey: "paymentMethod",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "paidAmount",
         header: "Paid Amount",
         cell: ({ row }) => (
           <NumericCell>
-            ${((row.original.paidValueUsd ?? row.original.paidAmount)).toFixed(2)}
+            ${(row.original.paidValueUsd ?? row.original.paidAmount).toFixed(2)}
           </NumericCell>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
@@ -192,11 +217,6 @@ export default function GoldSettlementReceiptsPage() {
         </div>
       }
     >
-      <PageIntro
-        title="Sales"
-        purpose="Record buyer sale details per batch, with or without dispatch."
-        nextStep="Select an unsold batch and optionally link a dispatch."
-      />
       <RecordSavedBanner entityLabel="gold sale record" />
 
       {error ? (
@@ -207,11 +227,10 @@ export default function GoldSettlementReceiptsPage() {
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Sales History
           </h2>
-          <p className="text-sm text-muted-foreground">Recorded buyer sale entries</p>
         </header>
         <DataTable
           data={rows}
@@ -237,7 +256,9 @@ export default function GoldSettlementReceiptsPage() {
         <SheetContent size="xl" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Record Sale</SheetTitle>
-            <SheetDescription>Capture buyer test results and payment details.</SheetDescription>
+            <SheetDescription>
+              Capture buyer test results and payment details.
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-6">
             <ReceiptForm

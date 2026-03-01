@@ -41,11 +41,6 @@ export function GoldShell({
   return (
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
-      <PageHeading
-        title={title}
-        description={description}
-        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
-      />
 
       <nav aria-label="Gold navigation">
         <Tabs value={activeTab}>

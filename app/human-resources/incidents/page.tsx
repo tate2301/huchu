@@ -11,11 +11,31 @@ import { HrShell } from "@/components/human-resources/hr-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DataTable,
+  type DataTableQueryState,
+} from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -38,7 +58,12 @@ type IncidentForm = {
   employeeId: string;
   siteId: string;
   incidentDate: string;
-  category: "MISCONDUCT" | "ATTENDANCE" | "SAFETY_POLICY" | "PERFORMANCE" | "OTHER";
+  category:
+    | "MISCONDUCT"
+    | "ATTENDANCE"
+    | "SAFETY_POLICY"
+    | "PERFORMANCE"
+    | "OTHER";
   severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   status: "OPEN" | "UNDER_REVIEW" | "CLOSED";
   title: string;
@@ -172,39 +197,60 @@ export default function HrIncidentsPage() {
   });
   const [incidentStatusFilter, setIncidentStatusFilter] = useState("ALL");
   const [actionStatusFilter, setActionStatusFilter] = useState("ALL");
-  const [activeView, setActiveView] = useState<"incidents" | "actions">("incidents");
+  const [activeView, setActiveView] = useState<"incidents" | "actions">(
+    "incidents",
+  );
 
   const [incidentEditorOpen, setIncidentEditorOpen] = useState(false);
-  const [incidentForm, setIncidentForm] = useState<IncidentForm>(emptyIncidentForm);
-  const [editingIncidentId, setEditingIncidentId] = useState<string | null>(null);
+  const [incidentForm, setIncidentForm] =
+    useState<IncidentForm>(emptyIncidentForm);
+  const [editingIncidentId, setEditingIncidentId] = useState<string | null>(
+    null,
+  );
 
   const [actionEditorOpen, setActionEditorOpen] = useState(false);
   const [actionForm, setActionForm] = useState<ActionForm>(emptyActionForm);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
 
-  const [incidentDetailsId, setIncidentDetailsId] = useState<string | null>(incidentIdFromQuery);
-  const [actionDetailsId, setActionDetailsId] = useState<string | null>(disciplinaryIdFromQuery);
+  const [incidentDetailsId, setIncidentDetailsId] = useState<string | null>(
+    incidentIdFromQuery,
+  );
+  const [actionDetailsId, setActionDetailsId] = useState<string | null>(
+    disciplinaryIdFromQuery,
+  );
   const [rejectActionId, setRejectActionId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [applyActionId, setApplyActionId] = useState<string | null>(null);
-  const [applyPenaltyStatus, setApplyPenaltyStatus] = useState<"DEDUCTED" | "PAID" | "WAIVED">(
-    "DEDUCTED",
-  );
+  const [applyPenaltyStatus, setApplyPenaltyStatus] = useState<
+    "DEDUCTED" | "PAID" | "WAIVED"
+  >("DEDUCTED");
   const [applyNote, setApplyNote] = useState("");
   const [deleteIncidentId, setDeleteIncidentId] = useState<string | null>(null);
   const [deleteActionId, setDeleteActionId] = useState<string | null>(null);
 
-  const { data: employeesData, isLoading: employeesLoading, error: employeesError } = useQuery({
+  const {
+    data: employeesData,
+    isLoading: employeesLoading,
+    error: employeesError,
+  } = useQuery({
     queryKey: ["employees", "hr-incidents"],
     queryFn: () => fetchEmployees({ active: true, limit: 500 }),
   });
 
-  const { data: sitesData, isLoading: sitesLoading, error: sitesError } = useQuery({
+  const {
+    data: sitesData,
+    isLoading: sitesLoading,
+    error: sitesError,
+  } = useQuery({
     queryKey: ["sites", "hr-incidents"],
     queryFn: () => fetchSites(),
   });
 
-  const { data: incidentsData, isLoading: incidentsLoading, error: incidentsError } = useQuery({
+  const {
+    data: incidentsData,
+    isLoading: incidentsLoading,
+    error: incidentsError,
+  } = useQuery({
     queryKey: ["hr-incidents", incidentQuery.search, incidentStatusFilter],
     queryFn: () =>
       fetchHrIncidents({
@@ -217,14 +263,23 @@ export default function HrIncidentsPage() {
       }),
   });
 
-  const { data: actionsData, isLoading: actionsLoading, error: actionsError } = useQuery({
+  const {
+    data: actionsData,
+    isLoading: actionsLoading,
+    error: actionsError,
+  } = useQuery({
     queryKey: ["disciplinary-actions", actionStatusFilter],
     queryFn: () =>
       fetchDisciplinaryActions({
         status:
           actionStatusFilter === "ALL"
             ? undefined
-            : (actionStatusFilter as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "APPLIED"),
+            : (actionStatusFilter as
+                | "DRAFT"
+                | "SUBMITTED"
+                | "APPROVED"
+                | "REJECTED"
+                | "APPLIED"),
         limit: 500,
       }),
   });
@@ -239,20 +294,29 @@ export default function HrIncidentsPage() {
     return map;
   }, [incidents]);
 
-  const { data: incidentDetails, isLoading: incidentDetailsLoading, error: incidentDetailsError } =
-    useQuery({
-      queryKey: ["hr-incident-details", incidentDetailsId],
-      queryFn: () => fetchJson<HrIncidentRecord>(`/api/hr/incidents/${incidentDetailsId}`),
-      enabled: Boolean(incidentDetailsId),
-    });
+  const {
+    data: incidentDetails,
+    isLoading: incidentDetailsLoading,
+    error: incidentDetailsError,
+  } = useQuery({
+    queryKey: ["hr-incident-details", incidentDetailsId],
+    queryFn: () =>
+      fetchJson<HrIncidentRecord>(`/api/hr/incidents/${incidentDetailsId}`),
+    enabled: Boolean(incidentDetailsId),
+  });
 
-  const { data: actionDetails, isLoading: actionDetailsLoading, error: actionDetailsError } =
-    useQuery({
-      queryKey: ["disciplinary-action-details", actionDetailsId],
-      queryFn: () =>
-        fetchJson<DisciplinaryActionRecord>(`/api/hr/disciplinary-actions/${actionDetailsId}`),
-      enabled: Boolean(actionDetailsId),
-    });
+  const {
+    data: actionDetails,
+    isLoading: actionDetailsLoading,
+    error: actionDetailsError,
+  } = useQuery({
+    queryKey: ["disciplinary-action-details", actionDetailsId],
+    queryFn: () =>
+      fetchJson<DisciplinaryActionRecord>(
+        `/api/hr/disciplinary-actions/${actionDetailsId}`,
+      ),
+    enabled: Boolean(actionDetailsId),
+  });
 
   const actionLookup = useMemo(() => {
     const map = new Map<string, DisciplinaryActionRecord>();
@@ -262,11 +326,24 @@ export default function HrIncidentsPage() {
   }, [actions, actionDetails]);
 
   const summary = useMemo(() => {
-    const openIncidents = incidents.filter((item) => item.status !== "CLOSED").length;
-    const criticalIncidents = incidents.filter((item) => item.severity === "CRITICAL").length;
-    const incidentsWithActions = incidents.filter((item) => (item._count?.actions ?? 0) > 0).length;
-    const pendingActionApprovals = actions.filter((item) => item.status === "SUBMITTED").length;
-    return { openIncidents, criticalIncidents, incidentsWithActions, pendingActionApprovals };
+    const openIncidents = incidents.filter(
+      (item) => item.status !== "CLOSED",
+    ).length;
+    const criticalIncidents = incidents.filter(
+      (item) => item.severity === "CRITICAL",
+    ).length;
+    const incidentsWithActions = incidents.filter(
+      (item) => (item._count?.actions ?? 0) > 0,
+    ).length;
+    const pendingActionApprovals = actions.filter(
+      (item) => item.status === "SUBMITTED",
+    ).length;
+    return {
+      openIncidents,
+      criticalIncidents,
+      incidentsWithActions,
+      pendingActionApprovals,
+    };
   }, [incidents, actions]);
 
   const currentUser = (session?.user ?? {}) as { id?: string; role?: string };
@@ -275,7 +352,9 @@ export default function HrIncidentsPage() {
 
   const canApproveOrReject = (item: DisciplinaryActionRecord) =>
     canRunApprovals &&
-    (canSelfApprove || !item.submittedById || item.submittedById !== currentUser.id);
+    (canSelfApprove ||
+      !item.submittedById ||
+      item.submittedById !== currentUser.id);
 
   const incidentColumns: ColumnDef<HrIncidentRecord>[] = [
     {
@@ -285,12 +364,15 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-medium">{row.original.title}</div>
-          <div className="text-xs text-muted-foreground">{row.original.category}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.category}
+          </div>
         </div>
       ),
       size: 280,
       minSize: 220,
-      maxSize: 420},
+      maxSize: 420,
+    },
     {
       id: "employee",
       header: "Employee",
@@ -298,55 +380,76 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <div>
           <div>{row.original.employee.name}</div>
-          <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.employee.employeeId}
+          </div>
         </div>
       ),
       size: 160,
       minSize: 160,
-      maxSize: 160},
+      maxSize: 160,
+    },
     {
       id: "severity",
       header: "Severity",
       accessorKey: "severity",
       cell: ({ row }) => (
-        <Badge variant={incidentSeverityVariant(row.original.severity)}>{row.original.severity}</Badge>
+        <Badge variant={incidentSeverityVariant(row.original.severity)}>
+          {row.original.severity}
+        </Badge>
       ),
       size: 160,
       minSize: 160,
-      maxSize: 160},
+      maxSize: 160,
+    },
     {
       id: "status",
       header: "Status",
       accessorKey: "status",
       cell: ({ row }) => (
-        <Badge variant={incidentStatusVariant(row.original.status)}>{row.original.status}</Badge>
+        <Badge variant={incidentStatusVariant(row.original.status)}>
+          {row.original.status}
+        </Badge>
       ),
       size: 120,
       minSize: 120,
-      maxSize: 120},
+      maxSize: 120,
+    },
     {
       id: "date",
       header: "Date",
       accessorFn: (row) => row.incidentDate,
-      cell: ({ row }) => <NumericCell>{format(new Date(row.original.incidentDate), "yyyy-MM-dd")}</NumericCell>,
+      cell: ({ row }) => (
+        <NumericCell>
+          {format(new Date(row.original.incidentDate), "yyyy-MM-dd")}
+        </NumericCell>
+      ),
       size: 128,
       minSize: 128,
-      maxSize: 128},
+      maxSize: 128,
+    },
     {
       id: "actionsCount",
       header: "Actions",
       accessorFn: (row) => row._count?.actions ?? 0,
-      cell: ({ row }) => <NumericCell>{row.original._count?.actions ?? 0}</NumericCell>,
+      cell: ({ row }) => (
+        <NumericCell>{row.original._count?.actions ?? 0}</NumericCell>
+      ),
       size: 108,
       minSize: 108,
-      maxSize: 108},
+      maxSize: 108,
+    },
     {
       id: "quickActions",
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={() => setIncidentDetailsId(row.original.id)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIncidentDetailsId(row.original.id)}
+          >
             <FileText className="size-4" />
             Details
           </Button>
@@ -358,14 +461,19 @@ export default function HrIncidentsPage() {
           >
             Edit
           </Button>
-          <Button size="sm" onClick={() => openCreateAction(row.original)} disabled={!canRunApprovals}>
+          <Button
+            size="sm"
+            onClick={() => openCreateAction(row.original)}
+            disabled={!canRunApprovals}
+          >
             New Action
           </Button>
         </div>
       ),
       size: 160,
       minSize: 160,
-      maxSize: 160},
+      maxSize: 160,
+    },
   ];
 
   const actionColumns: ColumnDef<DisciplinaryActionRecord>[] = [
@@ -376,12 +484,15 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-medium">{row.original.actionType}</div>
-          <div className="text-xs text-muted-foreground">{row.original.summary}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.summary}
+          </div>
         </div>
       ),
       size: 108,
       minSize: 108,
-      maxSize: 108},
+      maxSize: 108,
+    },
     {
       id: "employee",
       header: "Employee",
@@ -389,20 +500,28 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <div>
           {row.original.employee.name}
-          <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.employee.employeeId}
+          </div>
         </div>
       ),
       size: 280,
       minSize: 220,
-      maxSize: 420},
+      maxSize: 420,
+    },
     {
       id: "status",
       header: "Status",
       accessorKey: "status",
-      cell: ({ row }) => <Badge variant={actionStatusVariant(row.original.status)}>{row.original.status}</Badge>,
+      cell: ({ row }) => (
+        <Badge variant={actionStatusVariant(row.original.status)}>
+          {row.original.status}
+        </Badge>
+      ),
       size: 120,
       minSize: 120,
-      maxSize: 120},
+      maxSize: 120,
+    },
     {
       id: "penalty",
       header: "Penalty",
@@ -410,25 +529,34 @@ export default function HrIncidentsPage() {
       cell: ({ row }) => (
         <div>
           <NumericCell>
-            {row.original.penaltyCurrency} {row.original.penaltyAmount.toFixed(2)}
+            {row.original.penaltyCurrency}{" "}
+            {row.original.penaltyAmount.toFixed(2)}
           </NumericCell>
-          <div className="text-xs text-muted-foreground">{row.original.penaltyStatus}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.penaltyStatus}
+          </div>
         </div>
       ),
       size: 160,
       minSize: 160,
-      maxSize: 160},
+      maxSize: 160,
+    },
     {
       id: "workflow",
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex flex-wrap justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={() => setActionDetailsId(row.original.id)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setActionDetailsId(row.original.id)}
+          >
             <FileText className="size-4" />
             Details
           </Button>
-          {(row.original.status === "DRAFT" || row.original.status === "REJECTED") && (
+          {(row.original.status === "DRAFT" ||
+            row.original.status === "REJECTED") && (
             <>
               <Button
                 size="sm"
@@ -438,7 +566,11 @@ export default function HrIncidentsPage() {
               >
                 Edit
               </Button>
-              <Button size="sm" onClick={() => submitActionMutation.mutate(row.original.id)} disabled={!canRunApprovals}>
+              <Button
+                size="sm"
+                onClick={() => submitActionMutation.mutate(row.original.id)}
+                disabled={!canRunApprovals}
+              >
                 Submit
               </Button>
             </>
@@ -473,11 +605,16 @@ export default function HrIncidentsPage() {
             </>
           )}
           {row.original.status === "APPROVED" && (
-            <Button size="sm" onClick={() => setApplyActionId(row.original.id)} disabled={!canRunApprovals}>
+            <Button
+              size="sm"
+              onClick={() => setApplyActionId(row.original.id)}
+              disabled={!canRunApprovals}
+            >
               Apply
             </Button>
           )}
-          {(row.original.status === "DRAFT" || row.original.status === "REJECTED") && (
+          {(row.original.status === "DRAFT" ||
+            row.original.status === "REJECTED") && (
             <Button
               size="sm"
               variant="destructive"
@@ -492,21 +629,31 @@ export default function HrIncidentsPage() {
       ),
       size: 120,
       minSize: 120,
-      maxSize: 120},
+      maxSize: 120,
+    },
   ];
 
-  const selectedRejectAction = rejectActionId ? actionLookup.get(rejectActionId) ?? null : null;
-  const selectedApplyAction = applyActionId ? actionLookup.get(applyActionId) ?? null : null;
-  const selectedDeleteAction = deleteActionId ? actionLookup.get(deleteActionId) ?? null : null;
+  const selectedRejectAction = rejectActionId
+    ? (actionLookup.get(rejectActionId) ?? null)
+    : null;
+  const selectedApplyAction = applyActionId
+    ? (actionLookup.get(applyActionId) ?? null)
+    : null;
+  const selectedDeleteAction = deleteActionId
+    ? (actionLookup.get(deleteActionId) ?? null)
+    : null;
   const selectedDeleteIncident = deleteIncidentId
-    ? incidentLookup.get(deleteIncidentId) ?? (incidentDetails?.id === deleteIncidentId ? incidentDetails : null)
+    ? (incidentLookup.get(deleteIncidentId) ??
+      (incidentDetails?.id === deleteIncidentId ? incidentDetails : null))
     : null;
 
   const invalidateHr = () => {
     queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
     queryClient.invalidateQueries({ queryKey: ["disciplinary-actions"] });
     queryClient.invalidateQueries({ queryKey: ["hr-incident-details"] });
-    queryClient.invalidateQueries({ queryKey: ["disciplinary-action-details"] });
+    queryClient.invalidateQueries({
+      queryKey: ["disciplinary-action-details"],
+    });
     queryClient.invalidateQueries({ queryKey: ["approval-history"] });
   };
 
@@ -542,7 +689,13 @@ export default function HrIncidentsPage() {
   });
 
   const updateIncidentMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: IncidentForm }) =>
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: IncidentForm;
+    }) =>
       fetchJson(`/api/hr/incidents/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -572,7 +725,8 @@ export default function HrIncidentsPage() {
   });
 
   const deleteIncidentMutation = useMutation({
-    mutationFn: async (id: string) => fetchJson(`/api/hr/incidents/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/hr/incidents/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast({ title: "Incident deleted", variant: "success" });
       setIncidentDetailsId(null);
@@ -597,7 +751,9 @@ export default function HrIncidentsPage() {
           summary: payload.summary.trim(),
           notes: payload.notes.trim() || undefined,
           effectiveDate: payload.effectiveDate || undefined,
-          penaltyAmount: payload.penaltyAmount ? Number(payload.penaltyAmount) : undefined,
+          penaltyAmount: payload.penaltyAmount
+            ? Number(payload.penaltyAmount)
+            : undefined,
           penaltyCurrency: payload.penaltyCurrency || "USD",
         }),
       }),
@@ -627,7 +783,9 @@ export default function HrIncidentsPage() {
           summary: payload.summary.trim(),
           notes: payload.notes.trim() || null,
           effectiveDate: payload.effectiveDate || null,
-          penaltyAmount: payload.penaltyAmount ? Number(payload.penaltyAmount) : 0,
+          penaltyAmount: payload.penaltyAmount
+            ? Number(payload.penaltyAmount)
+            : 0,
           penaltyCurrency: payload.penaltyCurrency || "USD",
         }),
       }),
@@ -663,7 +821,9 @@ export default function HrIncidentsPage() {
 
   const submitActionMutation = useMutation({
     mutationFn: async (id: string) =>
-      fetchJson(`/api/hr/disciplinary-actions/${id}/submit`, { method: "POST" }),
+      fetchJson(`/api/hr/disciplinary-actions/${id}/submit`, {
+        method: "POST",
+      }),
     onSuccess: () => {
       toast({ title: "Action submitted", variant: "success" });
       invalidateHr();
@@ -678,7 +838,9 @@ export default function HrIncidentsPage() {
 
   const approveActionMutation = useMutation({
     mutationFn: async (id: string) =>
-      fetchJson(`/api/hr/disciplinary-actions/${id}/approve`, { method: "POST" }),
+      fetchJson(`/api/hr/disciplinary-actions/${id}/approve`, {
+        method: "POST",
+      }),
     onSuccess: () => {
       toast({ title: "Action approved", variant: "success" });
       invalidateHr();
@@ -793,12 +955,22 @@ export default function HrIncidentsPage() {
 
   const handleIncidentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!incidentForm.employeeId || !incidentForm.title.trim() || !incidentForm.description.trim()) {
-      toast({ title: "Employee, title and description are required", variant: "destructive" });
+    if (
+      !incidentForm.employeeId ||
+      !incidentForm.title.trim() ||
+      !incidentForm.description.trim()
+    ) {
+      toast({
+        title: "Employee, title and description are required",
+        variant: "destructive",
+      });
       return;
     }
     if (editingIncidentId) {
-      updateIncidentMutation.mutate({ id: editingIncidentId, payload: incidentForm });
+      updateIncidentMutation.mutate({
+        id: editingIncidentId,
+        payload: incidentForm,
+      });
     } else {
       createIncidentMutation.mutate(incidentForm);
     }
@@ -807,7 +979,10 @@ export default function HrIncidentsPage() {
   const handleActionSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!actionForm.employeeId || !actionForm.summary.trim()) {
-      toast({ title: "Employee and summary are required", variant: "destructive" });
+      toast({
+        title: "Employee and summary are required",
+        variant: "destructive",
+      });
       return;
     }
     if (editingActionId) {
@@ -817,7 +992,8 @@ export default function HrIncidentsPage() {
     }
   };
 
-  const hasError = employeesError || sitesError || incidentsError || actionsError;
+  const hasError =
+    employeesError || sitesError || incidentsError || actionsError;
 
   return (
     <HrShell
@@ -826,7 +1002,11 @@ export default function HrIncidentsPage() {
       description="Manage incidents and disciplinary workflows."
       actions={
         <div className="flex gap-2">
-          <Button size="sm" onClick={openCreateIncident} disabled={!canRunApprovals}>
+          <Button
+            size="sm"
+            onClick={openCreateIncident}
+            disabled={!canRunApprovals}
+          >
             <Plus className="size-4" />
             Log Incident
           </Button>
@@ -853,8 +1033,8 @@ export default function HrIncidentsPage() {
         <Alert variant="warning">
           <AlertTitle>Read-only mode</AlertTitle>
           <AlertDescription>
-            You can view incidents and disciplinary actions, but approvals and edits require manager
-            or superadmin access.
+            You can view incidents and disciplinary actions, but approvals and
+            edits require manager or superadmin access.
           </AlertDescription>
         </Alert>
       )}
@@ -889,16 +1069,24 @@ export default function HrIncidentsPage() {
       <VerticalDataViews
         items={[
           { id: "incidents", label: "Incidents", count: incidents.length },
-          { id: "actions", label: "Disciplinary Actions", count: actions.length },
+          {
+            id: "actions",
+            label: "Disciplinary Actions",
+            count: actions.length,
+          },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "incidents" | "actions")}
+        onValueChange={(value) =>
+          setActiveView(value as "incidents" | "actions")
+        }
         railLabel="Workforce Views"
       >
         {activeView === "incidents" ? (
           <>
-            <header className="section-shell space-y-1">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">Incidents</h2>
+            <header className="space-y-1">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Incidents
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Log, review, and investigate workforce incidents.
               </p>
@@ -907,13 +1095,17 @@ export default function HrIncidentsPage() {
             {incidentsLoading ? (
               <Skeleton className="h-24 w-full" />
             ) : incidents.length === 0 ? (
-              <div className="section-shell text-sm text-muted-foreground">No incidents found.</div>
+              <div className="section-shell text-sm text-muted-foreground">
+                No incidents found.
+              </div>
             ) : (
               <DataTable
                 data={incidents}
                 columns={incidentColumns}
                 queryState={incidentQuery}
-                onQueryStateChange={(next) => setIncidentQuery((prev) => ({ ...prev, ...next }))}
+                onQueryStateChange={(next) =>
+                  setIncidentQuery((prev) => ({ ...prev, ...next }))
+                }
                 searchPlaceholder="Search title or notes"
                 searchSubmitLabel="Search"
                 toolbar={
@@ -946,7 +1138,7 @@ export default function HrIncidentsPage() {
 
         {activeView === "actions" ? (
           <>
-            <header className="section-shell space-y-1">
+            <header className="space-y-1">
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Disciplinary Workflow
               </h2>
@@ -966,7 +1158,9 @@ export default function HrIncidentsPage() {
                 data={actions}
                 columns={actionColumns}
                 queryState={actionsQuery}
-                onQueryStateChange={(next) => setActionsQuery((prev) => ({ ...prev, ...next }))}
+                onQueryStateChange={(next) =>
+                  setActionsQuery((prev) => ({ ...prev, ...next }))
+                }
                 searchPlaceholder="Search action summary or employee"
                 searchSubmitLabel="Search"
                 toolbar={
@@ -1001,20 +1195,29 @@ export default function HrIncidentsPage() {
       <Dialog open={incidentEditorOpen} onOpenChange={setIncidentEditorOpen}>
         <DialogContent size="xl">
           <DialogHeader>
-            <DialogTitle>{editingIncidentId ? "Edit Incident" : "Log Incident"}</DialogTitle>
-            <DialogDescription>Capture key details with clear labels and structured fields.</DialogDescription>
+            <DialogTitle>
+              {editingIncidentId ? "Edit Incident" : "Log Incident"}
+            </DialogTitle>
+            <DialogDescription>
+              Capture key details with clear labels and structured fields.
+            </DialogDescription>
           </DialogHeader>
-          {(employeesLoading || sitesLoading) ? (
+          {employeesLoading || sitesLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : (
             <form className="grid gap-4" onSubmit={handleIncidentSubmit}>
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Employee</label>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Employee
+                  </label>
                   <Select
                     value={incidentForm.employeeId || "none"}
                     onValueChange={(value) =>
-                      setIncidentForm((prev) => ({ ...prev, employeeId: value === "none" ? "" : value }))
+                      setIncidentForm((prev) => ({
+                        ...prev,
+                        employeeId: value === "none" ? "" : value,
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -1031,11 +1234,16 @@ export default function HrIncidentsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Site</label>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Site
+                  </label>
                   <Select
                     value={incidentForm.siteId || "none"}
                     onValueChange={(value) =>
-                      setIncidentForm((prev) => ({ ...prev, siteId: value === "none" ? "" : value }))
+                      setIncidentForm((prev) => ({
+                        ...prev,
+                        siteId: value === "none" ? "" : value,
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -1054,19 +1262,31 @@ export default function HrIncidentsPage() {
               </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Date</label>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Date
+                  </label>
                   <Input
                     type="date"
                     value={incidentForm.incidentDate}
-                    onChange={(event) => setIncidentForm((prev) => ({ ...prev, incidentDate: event.target.value }))}
+                    onChange={(event) =>
+                      setIncidentForm((prev) => ({
+                        ...prev,
+                        incidentDate: event.target.value,
+                      }))
+                    }
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Category</label>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Category
+                  </label>
                   <Select
                     value={incidentForm.category}
                     onValueChange={(value) =>
-                      setIncidentForm((prev) => ({ ...prev, category: value as IncidentForm["category"] }))
+                      setIncidentForm((prev) => ({
+                        ...prev,
+                        category: value as IncidentForm["category"],
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -1082,11 +1302,16 @@ export default function HrIncidentsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Severity</label>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Severity
+                  </label>
                   <Select
                     value={incidentForm.severity}
                     onValueChange={(value) =>
-                      setIncidentForm((prev) => ({ ...prev, severity: value as IncidentForm["severity"] }))
+                      setIncidentForm((prev) => ({
+                        ...prev,
+                        severity: value as IncidentForm["severity"],
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -1102,11 +1327,16 @@ export default function HrIncidentsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">Status</label>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Status
+                  </label>
                   <Select
                     value={incidentForm.status}
                     onValueChange={(value) =>
-                      setIncidentForm((prev) => ({ ...prev, status: value as IncidentForm["status"] }))
+                      setIncidentForm((prev) => ({
+                        ...prev,
+                        status: value as IncidentForm["status"],
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -1123,38 +1353,67 @@ export default function HrIncidentsPage() {
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold">Title</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Title
+                </label>
                 <Input
                   value={incidentForm.title}
-                  onChange={(event) => setIncidentForm((prev) => ({ ...prev, title: event.target.value }))}
+                  onChange={(event) =>
+                    setIncidentForm((prev) => ({
+                      ...prev,
+                      title: event.target.value,
+                    }))
+                  }
                   placeholder="Incident headline"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold">Description</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Description
+                </label>
                 <Textarea
                   value={incidentForm.description}
-                  onChange={(event) => setIncidentForm((prev) => ({ ...prev, description: event.target.value }))}
+                  onChange={(event) =>
+                    setIncidentForm((prev) => ({
+                      ...prev,
+                      description: event.target.value,
+                    }))
+                  }
                   placeholder="What happened?"
                   rows={4}
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold">Investigation Notes</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Investigation Notes
+                </label>
                 <Textarea
                   value={incidentForm.investigationNotes}
                   onChange={(event) =>
-                    setIncidentForm((prev) => ({ ...prev, investigationNotes: event.target.value }))
+                    setIncidentForm((prev) => ({
+                      ...prev,
+                      investigationNotes: event.target.value,
+                    }))
                   }
                   placeholder="Optional"
                   rows={3}
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIncidentEditorOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIncidentEditorOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createIncidentMutation.isPending || updateIncidentMutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={
+                    createIncidentMutation.isPending ||
+                    updateIncidentMutation.isPending
+                  }
+                >
                   {editingIncidentId ? "Save Changes" : "Log Incident"}
                 </Button>
               </div>
@@ -1166,17 +1425,28 @@ export default function HrIncidentsPage() {
       <Dialog open={actionEditorOpen} onOpenChange={setActionEditorOpen}>
         <DialogContent size="xl">
           <DialogHeader>
-            <DialogTitle>{editingActionId ? "Edit Disciplinary Action" : "Create Disciplinary Action"}</DialogTitle>
-            <DialogDescription>Create draft actions and progress them through approvals.</DialogDescription>
+            <DialogTitle>
+              {editingActionId
+                ? "Edit Disciplinary Action"
+                : "Create Disciplinary Action"}
+            </DialogTitle>
+            <DialogDescription>
+              Create draft actions and progress them through approvals.
+            </DialogDescription>
           </DialogHeader>
           <form className="grid gap-4" onSubmit={handleActionSubmit}>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-semibold">Employee</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Employee
+                </label>
                 <Select
                   value={actionForm.employeeId || "none"}
                   onValueChange={(value) =>
-                    setActionForm((prev) => ({ ...prev, employeeId: value === "none" ? "" : value }))
+                    setActionForm((prev) => ({
+                      ...prev,
+                      employeeId: value === "none" ? "" : value,
+                    }))
                   }
                 >
                   <SelectTrigger>
@@ -1193,16 +1463,22 @@ export default function HrIncidentsPage() {
                 </Select>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold">Linked Incident</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Linked Incident
+                </label>
                 <Select
                   value={actionForm.incidentId || "none"}
                   onValueChange={(value) => {
                     const incidentId = value === "none" ? "" : value;
-                    const incident = incidentId ? incidentLookup.get(incidentId) : null;
+                    const incident = incidentId
+                      ? incidentLookup.get(incidentId)
+                      : null;
                     setActionForm((prev) => ({
                       ...prev,
                       incidentId,
-                      employeeId: incident ? incident.employeeId : prev.employeeId,
+                      employeeId: incident
+                        ? incident.employeeId
+                        : prev.employeeId,
                     }));
                   }}
                 >
@@ -1222,11 +1498,16 @@ export default function HrIncidentsPage() {
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <div>
-                <label className="mb-2 block text-sm font-semibold">Action Type</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Action Type
+                </label>
                 <Select
                   value={actionForm.actionType}
                   onValueChange={(value) =>
-                    setActionForm((prev) => ({ ...prev, actionType: value as ActionForm["actionType"] }))
+                    setActionForm((prev) => ({
+                      ...prev,
+                      actionType: value as ActionForm["actionType"],
+                    }))
                   }
                 >
                   <SelectTrigger>
@@ -1242,29 +1523,50 @@ export default function HrIncidentsPage() {
                 </Select>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold">Effective Date</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Effective Date
+                </label>
                 <Input
                   type="date"
                   value={actionForm.effectiveDate}
-                  onChange={(event) => setActionForm((prev) => ({ ...prev, effectiveDate: event.target.value }))}
+                  onChange={(event) =>
+                    setActionForm((prev) => ({
+                      ...prev,
+                      effectiveDate: event.target.value,
+                    }))
+                  }
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold">Penalty Amount</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Penalty Amount
+                </label>
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={actionForm.penaltyAmount}
-                  onChange={(event) => setActionForm((prev) => ({ ...prev, penaltyAmount: event.target.value }))}
+                  onChange={(event) =>
+                    setActionForm((prev) => ({
+                      ...prev,
+                      penaltyAmount: event.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Summary</label>
+              <label className="mb-2 block text-sm font-semibold">
+                Summary
+              </label>
               <Input
                 value={actionForm.summary}
-                onChange={(event) => setActionForm((prev) => ({ ...prev, summary: event.target.value }))}
+                onChange={(event) =>
+                  setActionForm((prev) => ({
+                    ...prev,
+                    summary: event.target.value,
+                  }))
+                }
                 placeholder="Action summary"
               />
             </div>
@@ -1272,16 +1574,31 @@ export default function HrIncidentsPage() {
               <label className="mb-2 block text-sm font-semibold">Notes</label>
               <Textarea
                 value={actionForm.notes}
-                onChange={(event) => setActionForm((prev) => ({ ...prev, notes: event.target.value }))}
+                onChange={(event) =>
+                  setActionForm((prev) => ({
+                    ...prev,
+                    notes: event.target.value,
+                  }))
+                }
                 rows={4}
                 placeholder="Optional notes"
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setActionEditorOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setActionEditorOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createActionMutation.isPending || updateActionMutation.isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  createActionMutation.isPending ||
+                  updateActionMutation.isPending
+                }
+              >
                 {editingActionId ? "Save Changes" : "Create Action"}
               </Button>
             </div>
@@ -1289,54 +1606,80 @@ export default function HrIncidentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(incidentDetailsId)} onOpenChange={(open) => !open && setIncidentDetailsId(null)}>
+      <Dialog
+        open={Boolean(incidentDetailsId)}
+        onOpenChange={(open) => !open && setIncidentDetailsId(null)}
+      >
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>Incident Details</DialogTitle>
-            <DialogDescription>Review details and trigger immediate workflow actions.</DialogDescription>
+            <DialogDescription>
+              Review details and trigger immediate workflow actions.
+            </DialogDescription>
           </DialogHeader>
           {incidentDetailsLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : incidentDetailsError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load incident details</AlertTitle>
-              <AlertDescription>{getApiErrorMessage(incidentDetailsError)}</AlertDescription>
+              <AlertDescription>
+                {getApiErrorMessage(incidentDetailsError)}
+              </AlertDescription>
             </Alert>
           ) : incidentDetails ? (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Status</div>
-                  <Badge variant={incidentStatusVariant(incidentDetails.status)}>
+                  <Badge
+                    variant={incidentStatusVariant(incidentDetails.status)}
+                  >
                     {incidentDetails.status}
                   </Badge>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Severity</div>
-                  <Badge variant={incidentSeverityVariant(incidentDetails.severity)}>
+                  <Badge
+                    variant={incidentSeverityVariant(incidentDetails.severity)}
+                  >
                     {incidentDetails.severity}
                   </Badge>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Employee</div>
-                  <div className="font-medium">{incidentDetails.employee.name}</div>
+                  <div className="font-medium">
+                    {incidentDetails.employee.name}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {incidentDetails.employee.employeeId}
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Incident Date</div>
-                  <div>{format(new Date(incidentDetails.incidentDate), "yyyy-MM-dd")}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Incident Date
+                  </div>
+                  <div>
+                    {format(
+                      new Date(incidentDetails.incidentDate),
+                      "yyyy-MM-dd",
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="font-medium">{incidentDetails.title}</div>
-                <div className="text-sm text-muted-foreground">{incidentDetails.description}</div>
+                <div className="text-sm text-muted-foreground">
+                  {incidentDetails.description}
+                </div>
               </div>
 
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Investigation Notes</div>
-                <div className="text-sm">{incidentDetails.investigationNotes || "-"}</div>
+                <div className="text-xs text-muted-foreground">
+                  Investigation Notes
+                </div>
+                <div className="text-sm">
+                  {incidentDetails.investigationNotes || "-"}
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
@@ -1349,11 +1692,15 @@ export default function HrIncidentsPage() {
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Reported By</div>
+                  <div className="text-xs text-muted-foreground">
+                    Reported By
+                  </div>
                   <div>{incidentDetails.reportedBy?.name ?? "-"}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Resolved By</div>
+                  <div className="text-xs text-muted-foreground">
+                    Resolved By
+                  </div>
                   <div>{incidentDetails.resolvedBy?.name ?? "-"}</div>
                 </div>
               </div>
@@ -1365,13 +1712,19 @@ export default function HrIncidentsPage() {
                 >
                   Edit
                 </Button>
-                <Button onClick={() => openCreateAction(incidentDetails)} disabled={!canRunApprovals}>
+                <Button
+                  onClick={() => openCreateAction(incidentDetails)}
+                  disabled={!canRunApprovals}
+                >
                   Create Action
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={() => setDeleteIncidentId(incidentDetails.id)}
-                  disabled={!canRunApprovals || (incidentDetails._count?.actions ?? 0) > 0}
+                  disabled={
+                    !canRunApprovals ||
+                    (incidentDetails._count?.actions ?? 0) > 0
+                  }
                 >
                   <Trash2 className="size-4" />
                   Delete
@@ -1379,23 +1732,32 @@ export default function HrIncidentsPage() {
               </div>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">No incident details found.</div>
+            <div className="text-sm text-muted-foreground">
+              No incident details found.
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(actionDetailsId)} onOpenChange={(open) => !open && setActionDetailsId(null)}>
+      <Dialog
+        open={Boolean(actionDetailsId)}
+        onOpenChange={(open) => !open && setActionDetailsId(null)}
+      >
         <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Disciplinary Action Details</DialogTitle>
-            <DialogDescription>Inspect workflow state, then continue actioning.</DialogDescription>
+            <DialogDescription>
+              Inspect workflow state, then continue actioning.
+            </DialogDescription>
           </DialogHeader>
           {actionDetailsLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : actionDetailsError ? (
             <Alert variant="destructive">
               <AlertTitle>Unable to load action details</AlertTitle>
-              <AlertDescription>{getApiErrorMessage(actionDetailsError)}</AlertDescription>
+              <AlertDescription>
+                {getApiErrorMessage(actionDetailsError)}
+              </AlertDescription>
             </Alert>
           ) : actionDetails ? (
             <div className="space-y-3">
@@ -1413,17 +1775,22 @@ export default function HrIncidentsPage() {
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-xs text-muted-foreground">Penalty</div>
                   <div>
-                    {actionDetails.penaltyCurrency} {actionDetails.penaltyAmount.toFixed(2)}
+                    {actionDetails.penaltyCurrency}{" "}
+                    {actionDetails.penaltyAmount.toFixed(2)}
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Penalty Status</div>
+                  <div className="text-xs text-muted-foreground">
+                    Penalty Status
+                  </div>
                   <div>{actionDetails.penaltyStatus}</div>
                 </div>
               </div>
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="font-medium">{actionDetails.summary}</div>
-                <div className="text-sm text-muted-foreground">{actionDetails.notes || "-"}</div>
+                <div className="text-sm text-muted-foreground">
+                  {actionDetails.notes || "-"}
+                </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
@@ -1434,38 +1801,56 @@ export default function HrIncidentsPage() {
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Linked Incident</div>
+                  <div className="text-xs text-muted-foreground">
+                    Linked Incident
+                  </div>
                   <div>{actionDetails.incident?.title ?? "-"}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Effective Date</div>
+                  <div className="text-xs text-muted-foreground">
+                    Effective Date
+                  </div>
                   <div>
                     {actionDetails.effectiveDate
-                      ? format(new Date(actionDetails.effectiveDate), "yyyy-MM-dd")
+                      ? format(
+                          new Date(actionDetails.effectiveDate),
+                          "yyyy-MM-dd",
+                        )
                       : "-"}
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">No disciplinary action details found.</div>
+            <div className="text-sm text-muted-foreground">
+              No disciplinary action details found.
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(rejectActionId)} onOpenChange={(open) => !open && setRejectActionId(null)}>
+      <Dialog
+        open={Boolean(rejectActionId)}
+        onOpenChange={(open) => !open && setRejectActionId(null)}
+      >
         <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Reject Disciplinary Action</DialogTitle>
-            <DialogDescription>Provide a rejection note for audit history and rework.</DialogDescription>
+            <DialogDescription>
+              Provide a rejection note for audit history and rework.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Action</div>
-              <div className="font-medium">{selectedRejectAction?.summary ?? "-"}</div>
+              <div className="font-medium">
+                {selectedRejectAction?.summary ?? "-"}
+              </div>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Rejection Note</label>
+              <label className="mb-2 block text-sm font-semibold">
+                Rejection Note
+              </label>
               <Textarea
                 value={rejectNote}
                 onChange={(event) => setRejectNote(event.target.value)}
@@ -1473,19 +1858,32 @@ export default function HrIncidentsPage() {
                 maxLength={1000}
                 placeholder="Explain why this is rejected"
               />
-              <div className="text-xs text-muted-foreground">{rejectNote.length}/1000</div>
+              <div className="text-xs text-muted-foreground">
+                {rejectNote.length}/1000
+              </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setRejectActionId(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRejectActionId(null)}
+              >
                 Cancel
               </Button>
               <Button
                 type="button"
                 variant="destructive"
-                disabled={!rejectNote.trim() || rejectNote.length > 1000 || rejectActionMutation.isPending}
+                disabled={
+                  !rejectNote.trim() ||
+                  rejectNote.length > 1000 ||
+                  rejectActionMutation.isPending
+                }
                 onClick={() => {
                   if (!rejectActionId) return;
-                  rejectActionMutation.mutate({ id: rejectActionId, note: rejectNote.trim() });
+                  rejectActionMutation.mutate({
+                    id: rejectActionId,
+                    note: rejectNote.trim(),
+                  });
                 }}
               >
                 Reject Action
@@ -1495,24 +1893,35 @@ export default function HrIncidentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(applyActionId)} onOpenChange={(open) => !open && setApplyActionId(null)}>
+      <Dialog
+        open={Boolean(applyActionId)}
+        onOpenChange={(open) => !open && setApplyActionId(null)}
+      >
         <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Apply Disciplinary Action</DialogTitle>
-            <DialogDescription>Record application details and penalty settlement state.</DialogDescription>
+            <DialogDescription>
+              Record application details and penalty settlement state.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Action</div>
-              <div className="font-medium">{selectedApplyAction?.summary ?? "-"}</div>
+              <div className="font-medium">
+                {selectedApplyAction?.summary ?? "-"}
+              </div>
             </div>
             {(selectedApplyAction?.penaltyAmount ?? 0) > 0 ? (
               <div>
-                <label className="mb-2 block text-sm font-semibold">Penalty Status</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Penalty Status
+                </label>
                 <Select
                   value={applyPenaltyStatus}
                   onValueChange={(value) =>
-                    setApplyPenaltyStatus(value as "DEDUCTED" | "PAID" | "WAIVED")
+                    setApplyPenaltyStatus(
+                      value as "DEDUCTED" | "PAID" | "WAIVED",
+                    )
                   }
                 >
                   <SelectTrigger>
@@ -1529,7 +1938,9 @@ export default function HrIncidentsPage() {
               </div>
             ) : null}
             <div>
-              <label className="mb-2 block text-sm font-semibold">Application Note</label>
+              <label className="mb-2 block text-sm font-semibold">
+                Application Note
+              </label>
               <Textarea
                 value={applyNote}
                 onChange={(event) => setApplyNote(event.target.value)}
@@ -1537,15 +1948,23 @@ export default function HrIncidentsPage() {
                 maxLength={1000}
                 placeholder="Optional note"
               />
-              <div className="text-xs text-muted-foreground">{applyNote.length}/1000</div>
+              <div className="text-xs text-muted-foreground">
+                {applyNote.length}/1000
+              </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setApplyActionId(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setApplyActionId(null)}
+              >
                 Cancel
               </Button>
               <Button
                 type="button"
-                disabled={applyActionMutation.isPending || applyNote.length > 1000}
+                disabled={
+                  applyActionMutation.isPending || applyNote.length > 1000
+                }
                 onClick={() => {
                   if (!applyActionId) return;
                   applyActionMutation.mutate({
@@ -1565,21 +1984,31 @@ export default function HrIncidentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteActionId)} onOpenChange={(open) => !open && setDeleteActionId(null)}>
+      <Dialog
+        open={Boolean(deleteActionId)}
+        onOpenChange={(open) => !open && setDeleteActionId(null)}
+      >
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Delete Disciplinary Action</DialogTitle>
             <DialogDescription>
-              This removes the draft/rejected action permanently. This cannot be undone.
+              This removes the draft/rejected action permanently. This cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Action</div>
-              <div className="font-medium">{selectedDeleteAction?.summary ?? "-"}</div>
+              <div className="font-medium">
+                {selectedDeleteAction?.summary ?? "-"}
+              </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setDeleteActionId(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteActionId(null)}
+              >
                 Cancel
               </Button>
               <Button
@@ -1598,7 +2027,10 @@ export default function HrIncidentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteIncidentId)} onOpenChange={(open) => !open && setDeleteIncidentId(null)}>
+      <Dialog
+        open={Boolean(deleteIncidentId)}
+        onOpenChange={(open) => !open && setDeleteIncidentId(null)}
+      >
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Delete Incident</DialogTitle>
@@ -1609,10 +2041,16 @@ export default function HrIncidentsPage() {
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
               <div className="text-xs text-muted-foreground">Incident</div>
-              <div className="font-medium">{selectedDeleteIncident?.title ?? "-"}</div>
+              <div className="font-medium">
+                {selectedDeleteIncident?.title ?? "-"}
+              </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setDeleteIncidentId(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteIncidentId(null)}
+              >
                 Cancel
               </Button>
               <Button
@@ -1637,4 +2075,3 @@ export default function HrIncidentsPage() {
     </HrShell>
   );
 }
-

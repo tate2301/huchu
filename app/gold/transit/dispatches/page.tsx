@@ -10,10 +10,10 @@ import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   Sheet,
   SheetContent,
@@ -21,11 +21,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { fetchEmployees, fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@/lib/api";
+import {
+  fetchEmployees,
+  fetchGoldDispatches,
+  fetchGoldPours,
+  fetchGoldReceipts,
+} from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
-type GoldDispatchRow = Awaited<ReturnType<typeof fetchGoldDispatches>>["data"][number];
+type GoldDispatchRow = Awaited<
+  ReturnType<typeof fetchGoldDispatches>
+>["data"][number];
 
 export default function GoldTransitDispatchesPage() {
   const [manualCreateOpen, setManualCreateOpen] = useState(false);
@@ -116,13 +123,16 @@ export default function GoldTransitDispatchesPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "batch",
         header: "Batch",
         cell: ({ row }) => (
           <div>
-            <div className="font-mono font-semibold">{row.original.goldPour.pourBarId}</div>
+            <div className="font-mono font-semibold">
+              {row.original.goldPour.pourBarId}
+            </div>
             <div className="text-xs text-muted-foreground">
               {row.original.goldPour.grossWeight.toFixed(3)} g
             </div>
@@ -130,44 +140,57 @@ export default function GoldTransitDispatchesPage() {
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "value",
         header: "Value",
         cell: ({ row }) => (
-          <NumericCell>${(row.original.valueUsd ?? row.original.goldPour.valueUsd ?? 0).toFixed(2)}</NumericCell>
+          <NumericCell>
+            $
+            {(
+              row.original.valueUsd ??
+              row.original.goldPour.valueUsd ??
+              0
+            ).toFixed(2)}
+          </NumericCell>
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "courier",
         header: "Courier",
         accessorKey: "courier",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "destination",
         header: "Destination",
         accessorKey: "destination",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "status",
         header: "Status",
         cell: ({ row }) => {
           const settled = soldPourIds.has(row.original.goldPourId);
           return (
-            <Badge variant={settled ? "default" : "secondary"}>
-              {settled ? "Settled" : "Awaiting sale"}
-            </Badge>
+            <StatusChip
+              status={settled ? "passing" : "pending"}
+              label={settled ? "Settled" : "Awaiting sale"}
+            />
           );
         },
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [soldPourIds],
   );
@@ -183,26 +206,22 @@ export default function GoldTransitDispatchesPage() {
         </Button>
       }
     >
-      <PageIntro
-        title="Dispatches"
-        purpose="Track dispatches until sale is recorded."
-        nextStep="Find rows marked Awaiting sale and finish them."
-      />
       <RecordSavedBanner entityLabel="batch dispatch" />
 
       {dispatchesError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load dispatches</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(dispatchesError)}</AlertDescription>
+          <AlertDescription>
+            {getApiErrorMessage(dispatchesError)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
+        <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Dispatch History
           </h2>
-          <p className="text-sm text-muted-foreground">Recorded dispatch entries</p>
         </header>
         <DataTable
           data={rows}
@@ -211,7 +230,9 @@ export default function GoldTransitDispatchesPage() {
           searchSubmitLabel="Search"
           tableClassName="text-sm"
           pagination={{ enabled: true }}
-          emptyState={dispatchesLoading ? "Loading dispatches..." : "No dispatch records."}
+          emptyState={
+            dispatchesLoading ? "Loading dispatches..." : "No dispatch records."
+          }
         />
       </section>
 
@@ -228,7 +249,9 @@ export default function GoldTransitDispatchesPage() {
         <SheetContent size="xl" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Record Dispatch</SheetTitle>
-            <SheetDescription>Move a batch into transit with full custody details.</SheetDescription>
+            <SheetDescription>
+              Move a batch into transit with full custody details.
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-6">
             <DispatchForm

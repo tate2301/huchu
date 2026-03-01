@@ -79,30 +79,36 @@ export default function GoldIntakePoursPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 128},
+        maxSize: 128,
+      },
       {
         id: "pourBarId",
         header: "Batch ID",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.pourBarId}</span>
+          <span className="font-mono font-semibold">
+            {row.original.pourBarId}
+          </span>
         ),
         size: 112,
         minSize: 112,
-        maxSize: 112},
+        maxSize: 112,
+      },
       {
         id: "site",
         header: "Site",
         cell: ({ row }) => row.original.site.name,
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "storageLocation",
         header: "Storage",
         accessorKey: "storageLocation",
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "grossWeight",
         header: "Gross Weight",
@@ -111,21 +117,24 @@ export default function GoldIntakePoursPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
       {
         id: "shiftLeader",
         header: "Shift Leader",
         cell: ({ row }) => row.original.shiftLeaderName ?? "-",
         size: 180,
         minSize: 160,
-        maxSize: 240},
+        maxSize: 240,
+      },
       {
         id: "recordedBy",
         header: "Recorded By",
         cell: ({ row }) => row.original.createdBy?.name ?? "-",
         size: 180,
         minSize: 160,
-        maxSize: 240},
+        maxSize: 240,
+      },
       {
         id: "recordedAt",
         header: "Recorded At",
@@ -136,7 +145,8 @@ export default function GoldIntakePoursPage() {
         ),
         size: 128,
         minSize: 128,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         id: "valueUsd",
         header: "Value",
@@ -145,7 +155,8 @@ export default function GoldIntakePoursPage() {
         ),
         size: 120,
         minSize: 120,
-        maxSize: 120},
+        maxSize: 120,
+      },
     ],
     [],
   );
@@ -161,11 +172,6 @@ export default function GoldIntakePoursPage() {
         </Button>
       }
     >
-      <PageIntro
-        title="Batches"
-        purpose="Review all batches before dispatch."
-        nextStep="Find a batch, then create dispatch if needed."
-      />
       <RecordSavedBanner entityLabel="gold batch" />
 
       {error ? (
@@ -176,11 +182,10 @@ export default function GoldIntakePoursPage() {
       ) : null}
 
       <section className="space-y-3">
-        <header className="section-shell space-y-1">
-          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+        <header className="space-y-1">
+          <h2 className="text-base text-foreground font-bold tracking-tight">
             Batch History
           </h2>
-          <p className="text-sm text-muted-foreground">Recorded batch entries</p>
         </header>
         <DataTable
           data={rows}
@@ -206,7 +211,9 @@ export default function GoldIntakePoursPage() {
         <SheetContent size="xl" className="w-full p-6">
           <SheetHeader>
             <SheetTitle>Record Batch</SheetTitle>
-            <SheetDescription>Create the first chain record for produced gold.</SheetDescription>
+            <SheetDescription>
+              Create the first chain record for produced gold.
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-6">
             <PourForm

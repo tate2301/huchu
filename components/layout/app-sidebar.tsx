@@ -299,54 +299,71 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" variant="inset" className="sticky top-0">
       <SidebarHeader className="pb-2">
         <SidebarMenu className="space-y-2">
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  tooltip="Organization"
-                  className="h-[3.15rem] rounded-xl bg-sidebar-accent/85 shadow-[var(--surface-frame-shadow)]"
+          {session ? (
+            <div className={!isCollapsed ? "w-64" : ""}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    tooltip="Account"
+                    className="h-10 rounded-lg !p-2 hover:bg-muted"
+                  >
+                    <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-md text-xs font-semibold shadow-[var(--surface-frame-shadow)]">
+                      {getInitials(session.user?.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-foreground">
+                        {session.user?.name ?? "User"}
+                      </p>
+                    </div>
+                    {!isCollapsed ? (
+                      <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
+                    ) : null}
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side={isCollapsed ? "right" : isMobile ? "bottom" : "top"}
+                  className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
                 >
-                  <div className="bg-primary/10 text-primary flex aspect-square size-8 items-center justify-center rounded-lg shadow-[var(--surface-frame-shadow)]">
-                    <Building2 className="h-4 w-4" />
-                  </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">
-                      {companyLabel}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {companyMeta}
-                    </span>
-                  </div>
-                  {!isCollapsed ? (
-                    <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
-                  ) : null}
+                  <DropdownMenuLabel>Account</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    {(session.user as { role?: string })?.role ?? "User"}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/help">
+                      <HelpCircle className="h-4 w-4" />
+                      Quick Tips
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/api/auth/signout">
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild size="lg" tooltip="Login">
+                  <Link href="/login">
+                    <div className="bg-sidebar-accent text-sidebar-accent-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-medium">Login</span>
+                      <span className="truncate text-sm text-muted-foreground">
+                        Access account
+                      </span>
+                    </div>
+                  </Link>
                 </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side={isCollapsed ? "right" : isMobile ? "bottom" : "bottom"}
-                className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
-              >
-                <DropdownMenuItem asChild>
-                  <Link href="/">
-                    <Home className="h-4 w-4" />
-                    Workspace Home
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/help">
-                    <FileCheck className="h-4 w-4" />
-                    Platform Playbook
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <Building2 className="h-4 w-4" />
-                  Switch Organization (Soon)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
           {quickActionsSection ? (
             <SidebarGroup className="mb-0.5">
               <SidebarGroupContent>
@@ -356,7 +373,7 @@ export function AppSidebar() {
                       <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
                           variant="default"
-                          className="h-9 rounded-lg bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                          className="font-semibold bg-primary text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
                           tooltip="Daily Shortcuts"
                         >
                           <Plus className="h-4 w-4" />
@@ -491,76 +508,6 @@ export function AppSidebar() {
         ) : null}
       </SidebarContent>
 
-      <SidebarFooter className="pt-2">
-        {session ? (
-          <div className="space-y-1.5 rounded-xl bg-sidebar-accent/65 p-1.5 shadow-[var(--surface-frame-shadow)]">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  tooltip="Account"
-                  className="h-10 rounded-lg bg-sidebar-accent/75 shadow-[var(--surface-frame-shadow)]"
-                >
-                  <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-md text-xs font-semibold shadow-[var(--surface-frame-shadow)]">
-                    {getInitials(session.user?.name)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-foreground">
-                      {session.user?.name ?? "User"}
-                    </p>
-                    <p className="truncate text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                      {(session.user as { role?: string })?.role ?? "User"}
-                    </p>
-                  </div>
-                  {!isCollapsed ? (
-                    <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
-                  ) : null}
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side={isCollapsed ? "right" : isMobile ? "bottom" : "top"}
-                className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
-              >
-                <DropdownMenuLabel>Account</DropdownMenuLabel>
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  {(session.user as { role?: string })?.role ?? "User"}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/help">
-                    <HelpCircle className="h-4 w-4" />
-                    Quick Tips
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/api/auth/signout">
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : (
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild size="lg" tooltip="Login">
-                <Link href="/login">
-                  <div className="bg-sidebar-accent text-sidebar-accent-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                    <User className="h-4 w-4" />
-                  </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">Login</span>
-                    <span className="truncate text-sm text-muted-foreground">
-                      Access account
-                    </span>
-                  </div>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        )}
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

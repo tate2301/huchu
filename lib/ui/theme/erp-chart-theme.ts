@@ -21,13 +21,16 @@ export const erpChartVars = {
   pending: "var(--chart-pending)",
   inactive: "var(--chart-inactive)",
   grid: "var(--chart-grid)",
-  text: "var(--chart-text)",
+  text: "var(--text-muted)",
 } as const;
 
 export const erpChartTheme = {
   grid: erpChartVars.grid,
+  gridStrokeDasharray: "4 6",
   text: erpChartVars.text,
+  tickColor: erpChartVars.text,
   textSize: 11,
+  barRadius: 4,
   fontFamily: "\"SS Huchu\", \"Inter\", ui-sans-serif, system-ui, sans-serif",
   tooltip: {
     background: "var(--surface-base)",
@@ -50,23 +53,50 @@ export const erpChartTheme = {
     inProgress: erpChartVars.inProgress,
     pending: erpChartVars.pending,
     inactive: erpChartVars.inactive,
+    ignored: erpChartVars.inactive,
   },
 } as const;
 
+function normalizeStatusKey(status: string): string {
+  return status
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 const STATUS_ALIASES: Record<string, keyof typeof erpChartTheme.status> = {
   passing: "passing",
+  pass: "passing",
+  success: "passing",
+
   failing: "failing",
-  "need-changes": "needChanges",
+  fail: "failing",
+  error: "failing",
+
+  need_changes: "needChanges",
+  needs_changes: "needChanges",
+  needs_change: "needChanges",
+  need_change: "needChanges",
   needchanges: "needChanges",
-  "in-review": "inReview",
+  needschanges: "needChanges",
+
+  in_review: "inReview",
   inreview: "inReview",
-  "in-progress": "inProgress",
+  review: "inReview",
+
+  in_progress: "inProgress",
   inprogress: "inProgress",
+  progress: "inProgress",
+
   pending: "pending",
+
   inactive: "inactive",
+  ignored: "ignored",
+  ignore: "ignored",
 };
 
 export function getErpChartStatusColor(status: string): string {
-  const key = STATUS_ALIASES[status.toLowerCase()];
+  const key = STATUS_ALIASES[normalizeStatusKey(status)];
   return key ? erpChartTheme.status[key] : erpChartVars.primary;
 }
