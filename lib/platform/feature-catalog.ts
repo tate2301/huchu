@@ -5,6 +5,7 @@ export type FeatureDomain =
   | "operations"
   | "stores"
   | "gold"
+  | "scrap-metal"
   | "hr"
   | "accounting"
   | "maintenance"
@@ -81,6 +82,12 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "gold.exceptions", name: "Gold Exceptions", description: "Exception and anomaly tracking in gold flows.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
   f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 10 }),
   f({ key: "gold.payouts", name: "Gold Payouts", description: "Gold payout workflows.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 18 }),
+
+  f({ key: "scrap-metal.home", name: "Scrap Metal Home", description: "Scrap metal module landing and dashboard.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.purchases", name: "Scrap Metal Purchases", description: "Scrap metal purchase recording and tracking.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.batches", name: "Scrap Metal Batches", description: "Scrap metal batch management and collection.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.sales", name: "Scrap Metal Sales", description: "Scrap metal sales processing and approval.", domain: "scrap-metal", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
+  f({ key: "scrap-metal.pricing", name: "Scrap Metal Pricing", description: "Scrap metal price management by category.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
 
   f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "hr.incidents", name: "HR Incidents", description: "HR incident management.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 10 }),
@@ -380,6 +387,20 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "portal.schools",
       "portal.autos",
       "portal.thrift",
+    ],
+  },
+  {
+    code: "ADDON_SCRAP_METAL_SUITE",
+    name: "Scrap Metal Suite",
+    description: "Complete scrap metal buying, batching, and sales operations.",
+    monthlyPrice: 150,
+    additionalSiteMonthlyPrice: 20,
+    features: [
+      "scrap-metal.home",
+      "scrap-metal.purchases",
+      "scrap-metal.batches",
+      "scrap-metal.sales",
+      "scrap-metal.pricing",
     ],
   },
 ];
