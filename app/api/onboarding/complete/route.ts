@@ -110,16 +110,18 @@ export async function POST(request: NextRequest) {
       let createdDepartments: Array<{ id: string; name: string; code: string }> = [];
       if (body.departments && body.departments.length > 0) {
         createdDepartments = await Promise.all(
-          body.departments.map((dept) =>
-            tx.department.create({
+          body.departments.map((dept) => {
+            const normalizedCode = dept.code.trim().toUpperCase();
+
+            return tx.department.create({
               data: {
                 name: dept.name,
-                code: dept.code,
+                code: normalizedCode,
                 companyId: user.companyId!,
                 isActive: true,
               },
-            })
-          )
+            });
+          })
         );
       }
 
