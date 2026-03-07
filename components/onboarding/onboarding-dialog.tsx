@@ -103,7 +103,13 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
   const canProceedFromStep2 = departments.some((dept) => dept.name && dept.code);
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    const canProceed =
+      (currentStep === 0 && canProceedFromStep0) ||
+      (currentStep === 1 && canProceedFromStep1) ||
+      (currentStep === 2 && canProceedFromStep2) ||
+      currentStep === 3;
+
+    if (canProceed && currentStep < 3) {
       setCurrentStep((currentStep + 1) as OnboardingStep);
     }
   };
