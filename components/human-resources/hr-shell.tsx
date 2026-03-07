@@ -51,7 +51,7 @@ const hrTabs: HrTabItem[] = [
     href: "/human-resources/incidents",
     icon: ShieldCheck,
   },
-  { id: "payouts", label: "Gold Payouts", href: "/human-resources/payouts", icon: Coins },
+  { id: "payouts", label: "Payouts", href: "/human-resources/payouts", icon: Coins },
   { id: "salaries", label: "Salary Ops", href: "/human-resources/salaries", icon: Payments },
   {
     id: "salary-outstanding",
