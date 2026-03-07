@@ -58,6 +58,7 @@ export default function ScrapMetalSalesPage() {
     data: sales = [],
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["scrap-metal-sales"],
     queryFn: fetchSales,
@@ -122,28 +123,19 @@ export default function ScrapMetalSalesPage() {
         size: 180,
       },
       {
-        id: "recordedWeight",
-        header: "Recorded (kg)",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.recordedWeight.toFixed(2)}</NumericCell>
-        ),
-        size: 110,
-      },
-      {
-        id: "soldWeight",
-        header: "Sold (kg)",
-        cell: ({ row }) => <NumericCell>{row.original.soldWeight.toFixed(2)}</NumericCell>,
-        size: 110,
-      },
-      {
         id: "discrepancy",
-        header: "Discrepancy",
+        header: "Weight Discrepancy",
         cell: ({ row }) => (
-          <NumericCell className={row.original.weightDiscrepancy > 0 ? "text-destructive" : ""}>
-            {row.original.weightDiscrepancy.toFixed(2)} kg
-          </NumericCell>
+          <div>
+            <NumericCell className={row.original.weightDiscrepancy > 0 ? "text-destructive" : ""}>
+              {row.original.weightDiscrepancy.toFixed(2)} kg
+            </NumericCell>
+            <div className="text-xs text-muted-foreground">
+              {row.original.soldWeight.toFixed(2)} / {row.original.recordedWeight.toFixed(2)} kg
+            </div>
+          </div>
         ),
-        size: 110,
+        size: 140,
       },
       {
         id: "totalAmount",
@@ -197,7 +189,7 @@ export default function ScrapMetalSalesPage() {
   return (
     <div className="space-y-6">
       <PageIntro
-        purpose=""
+        purpose="Record and approve batch sales to buyers—verify sold weight and track discrepancies"
         title="Scrap Metal Sales"
         actions={
           <Button asChild size="sm">
@@ -210,6 +202,12 @@ export default function ScrapMetalSalesPage() {
         <StatusState
           variant="error"
           title="Unable to load sales"
+          description={getApiErrorMessage(error)}
+          action={
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              Try Again
+            </Button>
+          }
         />
       ) : (
         <DataTable

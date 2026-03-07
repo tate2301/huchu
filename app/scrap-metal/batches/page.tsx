@@ -42,6 +42,7 @@ export default function ScrapMetalBatchesPage() {
     data: batches = [],
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["scrap-metal-batches"],
     queryFn: fetchBatches,
@@ -128,7 +129,7 @@ export default function ScrapMetalBatchesPage() {
   return (
     <div className="space-y-6">
       <PageIntro
-        purpose=""
+        purpose="Manage collection batches from start to sale—group purchases by category and track batch status"
         title="Scrap Metal Batches"
         actions={
           <Button asChild size="sm">
@@ -141,6 +142,12 @@ export default function ScrapMetalBatchesPage() {
         <StatusState
           variant="error"
           title="Unable to load batches"
+          description={getApiErrorMessage(error)}
+          action={
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              Try Again
+            </Button>
+          }
         />
       ) : (
         <DataTable

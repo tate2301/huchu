@@ -34,6 +34,7 @@ export default function ScrapMetalPricingPage() {
     data: prices = [],
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["scrap-metal-pricing"],
     queryFn: fetchPrices,
@@ -91,7 +92,7 @@ export default function ScrapMetalPricingPage() {
   return (
     <div className="space-y-6">
       <PageIntro
-        purpose=""
+        purpose="Set and manage price per kilogram by category—control pricing with effective dates"
         title="Scrap Metal Pricing"
         actions={
           <Button asChild size="sm">
@@ -104,6 +105,12 @@ export default function ScrapMetalPricingPage() {
         <StatusState
           variant="error"
           title="Unable to load prices"
+          description={getApiErrorMessage(error)}
+          action={
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              Try Again
+            </Button>
+          }
         />
       ) : (
         <DataTable

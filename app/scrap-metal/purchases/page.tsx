@@ -44,6 +44,7 @@ export default function ScrapMetalPurchasesPage() {
     data: purchases = [],
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["scrap-metal-purchases"],
     queryFn: fetchPurchases,
@@ -134,7 +135,7 @@ export default function ScrapMetalPurchasesPage() {
   return (
     <div className="space-y-6">
       <PageIntro
-        purpose=""
+        purpose="Record all scrap metal purchases from sellers—track employee transactions and inventory weight"
         title="Scrap Metal Purchases"
         actions={
           <Button asChild size="sm">
@@ -147,6 +148,12 @@ export default function ScrapMetalPurchasesPage() {
         <StatusState
           variant="error"
           title="Unable to load purchases"
+          description={getApiErrorMessage(error)}
+          action={
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              Try Again
+            </Button>
+          }
         />
       ) : (
         <DataTable
