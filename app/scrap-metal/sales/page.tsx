@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/dialog";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { StatusChip } from "@/components/ui/status-chip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ReceiptLong } from "@/lib/icons";
@@ -53,6 +60,7 @@ export default function ScrapMetalSalesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const {
     data: sales = [],
@@ -63,6 +71,11 @@ export default function ScrapMetalSalesPage() {
     queryKey: ["scrap-metal-sales"],
     queryFn: fetchSales,
   });
+
+  const filteredSales = useMemo(() => {
+    if (statusFilter === "all") return sales;
+    return sales.filter((sale) => sale.status === statusFilter);
+  }, [sales, statusFilter]);
 
   const approveSaleMutation = useMutation({
     mutationFn: (saleId: string) =>
@@ -210,15 +223,39 @@ export default function ScrapMetalSalesPage() {
           }
         />
       ) : (
-        <DataTable
-          data={sales}
-          columns={columns}
-          searchPlaceholder="Search by sale number or buyer"
-          searchSubmitLabel="Search"
-          tableClassName="text-sm"
-          pagination={{ enabled: true }}
-          emptyState={isLoading ? "Loading sales..." : "No sales recorded yet"}
-        />
+        <>
+          {/* Status Filter Toolbar */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Status:
+              </label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredSales.length} of {sales.length} sales
+            </div>
+          </div>
+
+          <DataTable
+            data={filteredSales}
+            columns={columns}
+            searchPlaceholder="Search by sale number or buyer"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            emptyState={isLoading ? "Loading sales..." : statusFilter === "all" ? "No sales recorded yet" : `No sales with status "${statusFilter.replace(/_/g, ' ')}"`}
+          />
+        </>
       )}
 
       {selectedSale && (
