@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { PageActionsProvider } from "@/components/layout/page-actions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -23,7 +24,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <SidebarInset className="flex min-h-screen flex-col bg-background">
           <Navbar />
-          <main className="content-shell min-w-0 flex-1 bg-background py-6">{children}</main>
+          <main className="content-shell min-w-0 flex-1 bg-background py-6">
+            <OnboardingProvider>{children}</OnboardingProvider>
+          </main>
         </SidebarInset>
       </SidebarProvider>
     </PageActionsProvider>

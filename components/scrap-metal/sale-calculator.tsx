@@ -83,6 +83,14 @@ export function SaleCalculator({ recordedWeight, onWeightCalculated }: Calculato
 
   return (
     <div className="space-y-4">
+      {/* Instructional header */}
+      <div className="text-sm text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">Verify Sold Weight</p>
+        <p>
+          Enter the actual weight sold to the buyer using the calculator below. The discrepancy shows the difference between recorded batch weight and sold weight—positive values indicate weight loss during transport or handling.
+        </p>
+      </div>
+
       {/* Large animated total display */}
       <Card className="p-6 bg-[var(--warm-paper)] shadow-[var(--surface-frame-shadow)]">
         <div className="space-y-2">
@@ -127,6 +135,11 @@ export function SaleCalculator({ recordedWeight, onWeightCalculated }: Calculato
               </div>
             </div>
           </div>
+          {discrepancy > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Weight loss detected. Verify the sold weight is correct before approving.
+            </p>
+          )}
         </Card>
       )}
 

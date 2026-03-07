@@ -58,7 +58,7 @@ export default function ScrapMetalPage() {
   return (
     <div className="space-y-6">
       <PageIntro
-        purpose=""
+        purpose="Track scrap metal purchases, batch collections, and sales across all sites"
         title="Scrap Metal Operations"
       />
 
@@ -93,61 +93,122 @@ export default function ScrapMetalPage() {
         <StatusState
           variant="error"
           title="Unable to load dashboard"
+          description={getApiErrorMessage(error)}
         />
       ) : isLoading ? (
         <StatusState variant="loading" title="Loading metrics..." />
       ) : metrics ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Purchases
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalPurchases}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="font-mono">${metrics.totalPurchaseAmount.toFixed(2)}</span> total
-                amount
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Batches
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalBatches}</div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <Badge variant="secondary">{metrics.batchesCollecting} collecting</Badge>
-                <Badge variant="secondary">{metrics.batchesReady} ready</Badge>
+        <>
+          {/* Action Cards - Priority Tasks */}
+          {(metrics.salesPending > 0 || metrics.batchesReady > 0) && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Action Required
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                {metrics.salesPending > 0 && (
+                  <Card className="border-destructive/50 bg-destructive/5">
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Pending Approval</p>
+                          <p className="text-2xl font-bold mb-2">
+                            {metrics.salesPending} {metrics.salesPending === 1 ? 'Sale' : 'Sales'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Review and verify sold weight before approving
+                          </p>
+                        </div>
+                        <Button asChild size="sm" variant="destructive">
+                          <Link href="/scrap-metal/sales">
+                            <ReceiptLong className="mr-2 h-4 w-4" />
+                            Review Now
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {metrics.batchesReady > 0 && (
+                  <Card className="border-blue-500/50 bg-blue-50/50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Ready for Sale</p>
+                          <p className="text-2xl font-bold mb-2">
+                            {metrics.batchesReady} {metrics.batchesReady === 1 ? 'Batch' : 'Batches'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Batches collected and ready to sell to buyers
+                          </p>
+                        </div>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href="/scrap-metal/batches">
+                            <Package className="mr-2 h-4 w-4" />
+                            View Batches
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Sales
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalSales}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="font-mono">${metrics.totalSalesAmount.toFixed(2)}</span> total
-                amount
-              </p>
-              {metrics.salesPending > 0 ? (
-                <Badge variant="destructive" className="mt-2">
-                  {metrics.salesPending} pending approval
-                </Badge>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
+          {/* Metrics Overview */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Overview
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Purchases
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metrics.totalPurchases}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="font-mono">${metrics.totalPurchaseAmount.toFixed(2)}</span> total
+                    amount
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Batches
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metrics.totalBatches}</div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="secondary">{metrics.batchesCollecting} collecting</Badge>
+                    <Badge variant="secondary">{metrics.batchesReady} ready</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Sales
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metrics.totalSales}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="font-mono">${metrics.totalSalesAmount.toFixed(2)}</span> total
+                    amount
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
       ) : null}
     </div>
   );

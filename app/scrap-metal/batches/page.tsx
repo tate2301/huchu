@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
@@ -12,6 +12,13 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { StatusChip } from "@/components/ui/status-chip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Package } from "@/lib/icons";
 
@@ -38,14 +45,22 @@ async function fetchBatches(): Promise<Batch[]> {
 }
 
 export default function ScrapMetalBatchesPage() {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   const {
     data: batches = [],
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["scrap-metal-batches"],
     queryFn: fetchBatches,
   });
+
+  const filteredBatches = useMemo(() => {
+    if (statusFilter === "all") return batches;
+    return batches.filter((batch) => batch.status === statusFilter);
+  }, [batches, statusFilter]);
 
   const columns = useMemo<ColumnDef<Batch>[]>(
     () => [
@@ -128,7 +143,7 @@ export default function ScrapMetalBatchesPage() {
   return (
     <div className="space-y-6">
       <PageIntro
-        purpose=""
+        purpose="Manage collection batches from start to sale—group purchases by category and track batch status"
         title="Scrap Metal Batches"
         actions={
           <Button asChild size="sm">
@@ -141,17 +156,48 @@ export default function ScrapMetalBatchesPage() {
         <StatusState
           variant="error"
           title="Unable to load batches"
+          description={getApiErrorMessage(error)}
+          action={
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              Try Again
+            </Button>
+          }
         />
       ) : (
-        <DataTable
-          data={batches}
-          columns={columns}
-          searchPlaceholder="Search by batch number or category"
-          searchSubmitLabel="Search"
-          tableClassName="text-sm"
-          pagination={{ enabled: true }}
-          emptyState={isLoading ? "Loading batches..." : "No batches created yet"}
-        />
+        <>
+          {/* Status Filter Toolbar */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Status:
+              </label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="COLLECTING">Collecting</SelectItem>
+                  <SelectItem value="READY">Ready</SelectItem>
+                  <SelectItem value="SOLD">Sold</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredBatches.length} of {batches.length} batches
+            </div>
+          </div>
+
+          <DataTable
+            data={filteredBatches}
+            columns={columns}
+            searchPlaceholder="Search by batch number or category"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            emptyState={isLoading ? "Loading batches..." : statusFilter === "all" ? "No batches created yet" : `No batches with status "${statusFilter}"`}
+          />
+        </>
       )}
     </div>
   );
