@@ -16,6 +16,7 @@ import {
   ManageAccounts,
   Package,
   Plus,
+  Recycle,
   User,
   Video,
   Wrench,
@@ -74,6 +75,7 @@ function getInitials(name: string | null | undefined) {
 const sectionIcons: Record<string, LucideIcon> = {
   reporting: FileCheck,
   gold: Coins,
+  "scrap-metal": Recycle,
   stores: Package,
   maintenance: Wrench,
   hr: ManageAccounts,
@@ -127,6 +129,7 @@ export function AppSidebar() {
     const order = [
       "hr",
       "gold",
+      "scrap-metal",
       "stores",
       "maintenance",
       "schools",

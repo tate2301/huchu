@@ -100,6 +100,7 @@ export const Plus = createMaterialIcon("add", "Plus");
 export const QrCode = createMaterialIcon("qr_code", "QrCode");
 export const Radio = createMaterialIcon("radio", "Radio");
 export const ReceiptLong = createMaterialIcon("receipt_long", "ReceiptLong");
+export const Recycle = createMaterialIcon("recycling", "Recycle");
 export const ReportProblem = createMaterialIcon(
   "report_problem",
   "ReportProblem",

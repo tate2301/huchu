@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { Pencil, Plus, Trash2 } from "@/lib/icons"
 
+import { EmployeeWizard } from "@/components/human-resources/employee-wizard"
 import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -109,6 +110,8 @@ export default function HumanResourcesPage() {
   const [formData, setFormData] = useState<EmployeeForm>(emptyEmployee)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardInitialTemplateId, setWizardInitialTemplateId] = useState<string | undefined>(undefined)
   const [passportUploading, setPassportUploading] = useState(false)
   const [nationalIdUploading, setNationalIdUploading] = useState(false)
   const [employeeIdPendingDelete, setEmployeeIdPendingDelete] = useState<string | null>(null)
@@ -456,11 +459,8 @@ export default function HumanResourcesPage() {
 
   const openNewEmployee = () => {
     const templateId = searchParams.get("templateId")
-    resetForm()
-    if (templateId) {
-      setFormData((prev) => ({ ...prev, compensationTemplateId: templateId }))
-    }
-    setFormOpen(true)
+    setWizardInitialTemplateId(templateId ?? undefined)
+    setWizardOpen(true)
   }
 
   const handleFormOpenChange = (open: boolean) => {
@@ -701,10 +701,23 @@ export default function HumanResourcesPage() {
         </Alert>
       ) : null}
 
+      <EmployeeWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        departments={departments}
+        grades={grades}
+        templates={templates}
+        employees={employees}
+        initialTemplateId={wizardInitialTemplateId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["employees"] })
+        }}
+      />
+
       <Sheet open={formOpen} onOpenChange={handleFormOpenChange}>
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>{editingId ? "Edit Employee" : "Add Employee"}</SheetTitle>
+            <SheetTitle>Edit Employee</SheetTitle>
             <SheetDescription>Employee IDs are generated automatically.</SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">

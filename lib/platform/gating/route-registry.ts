@@ -124,6 +124,12 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold/prices", featureKey: "gold.home" },
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
 
+  { scope: "page", prefix: "/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
+  { scope: "page", prefix: "/scrap-metal/batches", featureKey: "scrap-metal.batches" },
+  { scope: "page", prefix: "/scrap-metal/sales", featureKey: "scrap-metal.sales" },
+  { scope: "page", prefix: "/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
+  { scope: "page", prefix: "/scrap-metal", featureKey: "scrap-metal.home" },
+
   { scope: "page", prefix: "/compliance", featureKey: "compliance.overview" },
   { scope: "page", prefix: "/management/master-data/hr/departments", featureKey: "hr.employees" },
   { scope: "page", prefix: "/management/master-data/hr/job-grades", featureKey: "hr.employees" },
@@ -214,6 +220,12 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/expense-types", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
+
+  { scope: "api", prefix: "/api/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
+  { scope: "api", prefix: "/api/scrap-metal/batches", featureKey: "scrap-metal.batches" },
+  { scope: "api", prefix: "/api/scrap-metal/sales", featureKey: "scrap-metal.sales" },
+  { scope: "api", prefix: "/api/scrap-metal/employee-balances", featureKey: "scrap-metal.purchases" },
+  { scope: "api", prefix: "/api/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
