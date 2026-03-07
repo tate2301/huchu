@@ -369,8 +369,17 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
     }
   };
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && !completionMutation.isSuccess) {
+      // Ignore attempts to close the dialog until onboarding is complete
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent size="lg" tabletBehavior="fullscreen" className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
