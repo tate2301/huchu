@@ -51,8 +51,11 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
         body: JSON.stringify(data),
       });
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to complete onboarding");
+        const payload = await response.json();
+        const message =
+          (payload && (payload.error || payload.message)) ||
+          "Failed to complete onboarding";
+        throw new Error(message);
       }
       return response.json();
     },
