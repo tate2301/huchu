@@ -9,10 +9,11 @@ import {
   PORTAL_SUBDOMAIN_MAP,
 } from "@/lib/platform/tenant";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
+import { ADMIN_PORTAL_HOST, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
-const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos"] as const;
+const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos", "/portal/admin"] as const;
 const PORTAL_HOME_BY_ROLE = {
   PARENT: "/portal/parent",
   STUDENT: "/portal/student",
@@ -75,7 +76,7 @@ function getPortalHomeForRole(role: string | undefined | null) {
   }
 
   if (role === "PARENT" || role === "STUDENT" || role === "TEACHER") {
-    return PORTAL_HOME_BY_ROLE[role];
+    return PORTAL_HOME_BY_ROLE[role as keyof typeof PORTAL_HOME_BY_ROLE];
   }
 
   return null;
@@ -114,6 +115,16 @@ export default withAuth(
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
     const portalBasePath = getPortalBasePathForPathname(pathname);
     const portalHomeForRole = getPortalHomeForRole(token?.role);
+
+    if (isPathWithinRoute(pathname, "/portal/admin") || isPathWithinRoute(pathname, "/api/platform-admin")) {
+      if (!isAdminPortalHost(hostHeader)) {
+        return denyAccess(request, `Admin portal is only available on ${ADMIN_PORTAL_HOST}`);
+      }
+
+      if (token?.role && !isSuperuserRole(token.role)) {
+        return denyAccess(request, "Superuser access required");
+      }
+    }
 
     if (!isApiRequest && portalBasePath && !token) {
       const portalLoginPath = `${portalBasePath}/login`;
@@ -247,6 +258,7 @@ export default withAuth(
 export const config = {
   matcher: [
     "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)).*)",
+    "/api/platform-admin/:path*",
     "/api/cctv/:path*",
     "/api/gold/:path*",
     "/api/payroll/:path*",
