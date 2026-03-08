@@ -51,8 +51,8 @@ const hrTabs: HrTabItem[] = [
     href: "/human-resources/incidents",
     icon: ShieldCheck,
   },
-  { id: "payouts", label: "Payouts", href: "/human-resources/payouts", icon: Coins },
-  { id: "salaries", label: "Salary Ops", href: "/human-resources/salaries", icon: Payments },
+  { id: "payouts", label: "Irregular Payouts", href: "/human-resources/payouts", icon: Coins },
+  { id: "salaries", label: "Salary Payouts", href: "/human-resources/salaries", icon: Payments },
   {
     id: "salary-outstanding",
     label: "Outstanding Salaries",
@@ -93,7 +93,7 @@ export function HrShell({
   actions,
   children,
   title = "Human Resources",
-  description = "Employee records and payout management",
+  description = "Employee records, salary payouts, and irregular payout management",
 }: HrShellProps) {
   const { data: session } = useSession()
   const enabledFeatures = useMemo(

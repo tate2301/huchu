@@ -478,6 +478,7 @@ export type EmployeePayment = {
   id: string;
   employeeId: string;
   type: "GOLD" | "SALARY";
+  payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
   periodStart: string;
   periodEnd: string;
   dueDate: string;
@@ -1834,7 +1835,8 @@ export async function removeWebPushSubscription(input: { endpoint: string }) {
 export async function fetchEmployeePayments(
   params: {
     search?: string;
-    type?: "GOLD" | "SALARY";
+    type?: "GOLD" | "SALARY" | "IRREGULAR";
+    payoutSource?: "GOLD" | "COMMISSION" | "OTHER";
     employeeId?: string;
     status?: "DUE" | "PARTIAL" | "PAID";
     startDate?: string;

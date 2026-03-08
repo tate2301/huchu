@@ -8,7 +8,6 @@ import { addDays, format, isAfter, isBefore } from "date-fns";
 import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { PageIntro } from "@/components/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -163,7 +162,8 @@ export default function GoldSettlementPayoutsPage() {
     queryKey: ["employee-payments", "gold", "by-shift", payoutWindowWeeks],
     queryFn: () =>
       fetchEmployeePayments({
-        type: "GOLD",
+        type: "IRREGULAR",
+        payoutSource: "GOLD",
         startDate: windowStartDate.toISOString(),
         limit: 1000,
       }),
@@ -465,7 +465,7 @@ export default function GoldSettlementPayoutsPage() {
         <div className="flex gap-2">
           {canOpenHrPayouts ? (
             <Button asChild size="sm" variant="outline">
-              <Link href="/human-resources/payouts">Manage payouts in HR</Link>
+              <Link href="/human-resources/payouts?source=GOLD">Manage payouts in HR</Link>
             </Button>
           ) : null}
           {canOpenSales ? (

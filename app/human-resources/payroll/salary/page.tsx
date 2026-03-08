@@ -834,7 +834,7 @@ export default function SalaryPayrollPage() {
             Payroll Modes
           </h2>
           <p className="text-sm text-muted-foreground">
-            Switch between salary payroll and gold payout payroll.
+            Switch between salary payroll and irregular payout payroll.
           </p>
         </header>
         <div className="section-shell">

@@ -97,7 +97,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.payroll", name: "Payroll", description: "Payroll periods and runs.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 20 }),
   f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
   f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 6 }),
-  f({ key: "hr.gold-payouts", name: "HR Gold Payouts", description: "Gold payouts from HR perspective.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
+  f({ key: "hr.gold-payouts", name: "HR Irregular Payouts", description: "Irregular payouts in HR (gold, commission, and other variable payouts).", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
 
   f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),

@@ -114,6 +114,17 @@ export async function POST(request: NextRequest) {
       }),
     ]);
 
+    const existingBatchSale = await prisma.scrapMetalSale.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        batchId: validated.batchId,
+        status: {
+          in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "COMPLETED"],
+        },
+      },
+      select: { id: true, saleNumber: true, status: true },
+    });
+
     if (!site || site.companyId !== session.user.companyId) {
       return errorResponse("Invalid site", 403);
     }
@@ -134,6 +145,13 @@ export async function POST(request: NextRequest) {
 
     if (batch.siteId !== validated.siteId) {
       return errorResponse("Batch and sale must be at the same site", 400);
+    }
+
+    if (existingBatchSale) {
+      return errorResponse(
+        `Batch already has an active sale (${existingBatchSale.saleNumber})`,
+        409
+      );
     }
 
     const saleNumber = validated.saleNumber
@@ -195,15 +213,6 @@ export async function POST(request: NextRequest) {
           },
           approvedBy: { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
-        },
-      });
-
-      // Update batch status to SOLD (pending approval)
-      await tx.scrapMetalBatch.update({
-        where: { id: validated.batchId },
-        data: {
-          status: "SOLD",
-          collectionEndDate: saleDate,
         },
       });
 

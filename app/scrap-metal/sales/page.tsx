@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ReceiptLong } from "@/lib/icons";
 import { SaleCalculator } from "@/components/scrap-metal/sale-calculator";
 
 type Sale = {
@@ -61,6 +60,7 @@ export default function ScrapMetalSalesPage() {
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [cancelReason, setCancelReason] = useState("");
 
   const {
     data: sales = [],
@@ -92,6 +92,53 @@ export default function ScrapMetalSalesPage() {
     onError: (error) => {
       toast({
         title: "Approval failed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+
+  const completeSaleMutation = useMutation({
+    mutationFn: (saleId: string) =>
+      fetchJson(`/api/scrap-metal/sales/${saleId}/complete`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      toast({
+        title: "Sale completed",
+        description: "The sale has been marked as completed",
+        variant: "success",
+      });
+      setSelectedSale(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to complete sale",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cancelSaleMutation = useMutation({
+    mutationFn: (input: { saleId: string; reason?: string }) =>
+      fetchJson(`/api/scrap-metal/sales/${input.saleId}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ reason: input.reason }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      toast({
+        title: "Sale cancelled",
+        description: "The sale has been cancelled",
+        variant: "success",
+      });
+      setCancelReason("");
+      setSelectedSale(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to cancel sale",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -166,11 +213,15 @@ export default function ScrapMetalSalesPage() {
         cell: ({ row }) => (
           <StatusChip
             status={
-              row.original.status === "APPROVED"
+              row.original.status === "COMPLETED"
                 ? "passing"
-                : row.original.status === "PENDING_APPROVAL"
+                : row.original.status === "APPROVED"
                   ? "in_review"
-                  : "pending"
+                  : row.original.status === "PENDING_APPROVAL"
+                    ? "pending"
+                    : row.original.status === "CANCELLED"
+                      ? "inactive"
+                      : "pending"
             }
             label={row.original.status.replace(/_/g, " ")}
           />
@@ -182,13 +233,13 @@ export default function ScrapMetalSalesPage() {
         header: "",
         cell: ({ row }) => (
           <div className="flex gap-2">
-            {row.original.status === "PENDING_APPROVAL" && (
+            {["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setSelectedSale(row.original)}
               >
-                Review
+                {row.original.status === "APPROVED" ? "Close" : "Review"}
               </Button>
             )}
           </div>
@@ -238,6 +289,8 @@ export default function ScrapMetalSalesPage() {
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
                   <SelectItem value="APPROVED">Approved</SelectItem>
+                  <SelectItem value="COMPLETED">Completed</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -294,16 +347,56 @@ export default function ScrapMetalSalesPage() {
                 }}
               />
 
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setSelectedSale(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => approveSaleMutation.mutate(selectedSale.id)}
-                  disabled={approveSaleMutation.isPending}
-                >
-                  {approveSaleMutation.isPending ? "Approving..." : "Approve Sale"}
-                </Button>
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">Cancellation note (optional)</label>
+                <textarea
+                  className="min-h-[74px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="State reason if this sale is being cancelled"
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => { setSelectedSale(null); setCancelReason(""); }}>
+                    Close
+                  </Button>
+                  {selectedSale.status === "PENDING_APPROVAL" ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={() =>
+                          cancelSaleMutation.mutate({ saleId: selectedSale.id, reason: cancelReason })
+                        }
+                        disabled={cancelSaleMutation.isPending || approveSaleMutation.isPending}
+                      >
+                        {cancelSaleMutation.isPending ? "Cancelling..." : "Cancel Sale"}
+                      </Button>
+                      <Button
+                        onClick={() => approveSaleMutation.mutate(selectedSale.id)}
+                        disabled={approveSaleMutation.isPending || cancelSaleMutation.isPending}
+                      >
+                        {approveSaleMutation.isPending ? "Approving..." : "Approve Sale"}
+                      </Button>
+                    </>
+                  ) : selectedSale.status === "APPROVED" ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={() =>
+                          cancelSaleMutation.mutate({ saleId: selectedSale.id, reason: cancelReason })
+                        }
+                        disabled={cancelSaleMutation.isPending || completeSaleMutation.isPending}
+                      >
+                        {cancelSaleMutation.isPending ? "Cancelling..." : "Cancel Sale"}
+                      </Button>
+                      <Button
+                        onClick={() => completeSaleMutation.mutate(selectedSale.id)}
+                        disabled={completeSaleMutation.isPending || cancelSaleMutation.isPending}
+                      >
+                        {completeSaleMutation.isPending ? "Completing..." : "Mark Completed"}
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </div>
           </DialogContent>
