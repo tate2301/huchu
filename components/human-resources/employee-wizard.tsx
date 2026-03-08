@@ -88,12 +88,12 @@ const emptyForm: EmployeeWizardForm = {
 type StepId = "employment" | "role" | "personal" | "emergency" | "documents" | "compensation" | "review"
 
 const ALL_STEPS: { id: StepId; label: string; description: string }[] = [
-  { id: "employment", label: "Employment", description: "Type & start date" },
+  { id: "employment", label: "Employment", description: "Type, cycle & start date" },
   { id: "role", label: "Role", description: "Position & assignment" },
   { id: "personal", label: "Personal", description: "Name & contact" },
   { id: "emergency", label: "Emergency", description: "Next of kin" },
   { id: "documents", label: "Documents", description: "Photo & ID" },
-  { id: "compensation", label: "Compensation", description: "Pay structure" },
+  { id: "compensation", label: "Compensation", description: "Salary setup" },
   { id: "review", label: "Review", description: "Confirm & submit" },
 ]
 
@@ -189,6 +189,17 @@ function StepEmployment({
         </p>
       </div>
 
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+        <p className="font-semibold">Payout pathway preview</p>
+        <p className="mt-1 text-muted-foreground">
+          {form.employmentType === "CASUAL"
+            ? "Casual employees are typically processed through irregular payout runs (for example, gold or commission)."
+            : form.employmentType === "CONTRACT"
+              ? "Contract employees can use salary payroll and can still receive irregular payouts when applicable."
+              : "Full-time and part-time employees default to salary payroll, with optional irregular payouts."}
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <FieldLabel required>Employment type</FieldLabel>
@@ -266,6 +277,17 @@ function StepRole({
         <h2 className="text-lg font-semibold">Role & assignment</h2>
         <p className="text-sm text-muted-foreground">
           Assign the employee to a position, department, and reporting line.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+        <p className="font-semibold">Payout pathway preview</p>
+        <p className="mt-1 text-muted-foreground">
+          {form.employmentType === "CASUAL"
+            ? "Casual employees are typically processed through irregular payout runs (for example, gold or commission)."
+            : form.employmentType === "CONTRACT"
+              ? "Contract employees can use salary payroll and can still receive irregular payouts when applicable."
+              : "Full-time and part-time employees default to salary payroll, with optional irregular payouts."}
         </p>
       </div>
 
@@ -385,6 +407,17 @@ function StepPersonal({
         </p>
       </div>
 
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+        <p className="font-semibold">Payout pathway preview</p>
+        <p className="mt-1 text-muted-foreground">
+          {form.employmentType === "CASUAL"
+            ? "Casual employees are typically processed through irregular payout runs (for example, gold or commission)."
+            : form.employmentType === "CONTRACT"
+              ? "Contract employees can use salary payroll and can still receive irregular payouts when applicable."
+              : "Full-time and part-time employees default to salary payroll, with optional irregular payouts."}
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <FieldLabel required>Full name</FieldLabel>
@@ -440,6 +473,17 @@ function StepEmergency({
         <h2 className="text-lg font-semibold">Emergency contact</h2>
         <p className="text-sm text-muted-foreground">
           Who should be contacted in case of an emergency?
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+        <p className="font-semibold">Payout pathway preview</p>
+        <p className="mt-1 text-muted-foreground">
+          {form.employmentType === "CASUAL"
+            ? "Casual employees are typically processed through irregular payout runs (for example, gold or commission)."
+            : form.employmentType === "CONTRACT"
+              ? "Contract employees can use salary payroll and can still receive irregular payouts when applicable."
+              : "Full-time and part-time employees default to salary payroll, with optional irregular payouts."}
         </p>
       </div>
 

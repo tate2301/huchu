@@ -17,6 +17,12 @@ type DepartmentData = {
 type OnboardingPayload = {
   sites: SiteData[];
   departments: DepartmentData[];
+  organizationPrefs?: {
+    payrollCycle?: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
+    goldPayoutCycle?: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
+    goldSettlementMode?: "CURRENT_PERIOD" | "NEXT_PERIOD";
+    cashDisbursementOnly?: boolean;
+  };
 };
 
 export async function POST(request: NextRequest) {
@@ -131,6 +137,12 @@ export async function POST(request: NextRequest) {
         data: {
           isProvisioned: true,
           tenantStatus: "ACTIVE",
+          payrollCycle: body.organizationPrefs?.payrollCycle ?? "MONTHLY",
+          goldPayoutCycle: body.organizationPrefs?.goldPayoutCycle ?? "FORTNIGHTLY",
+          goldSettlementMode:
+            body.organizationPrefs?.goldSettlementMode ?? "CURRENT_PERIOD",
+          cashDisbursementOnly:
+            body.organizationPrefs?.cashDisbursementOnly ?? true,
         },
       });
 

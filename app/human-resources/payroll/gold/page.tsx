@@ -832,7 +832,7 @@ export default function GoldPayrollPage() {
             Payroll Modes
           </h2>
           <p className="text-sm text-muted-foreground">
-            Keep salary payroll and gold payout payroll separated by design.
+            Keep salary payroll and irregular payout payroll separated by design.
           </p>
         </header>
         <div className="section-shell">
@@ -861,7 +861,7 @@ export default function GoldPayrollPage() {
             <header className="section-shell flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
                 <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Gold Payout Periods
+                  Irregular Payout Periods
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Expand a period row to review runs, then generate a run when
@@ -901,7 +901,7 @@ export default function GoldPayrollPage() {
               <Skeleton className="h-20 w-full" />
             ) : periods.length === 0 ? (
               <div className="section-shell text-sm text-muted-foreground">
-                No gold payout periods available.
+                No irregular payout periods available.
               </div>
             ) : (
               <DataTable
@@ -1092,7 +1092,7 @@ export default function GoldPayrollPage() {
       <Dialog open={generateRunOpen} onOpenChange={setGenerateRunOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>Generate Gold Payout Run</DialogTitle>
+            <DialogTitle>Generate Irregular Payout Run</DialogTitle>
             <DialogDescription>
               {activePeriod
                 ? `Create a draft run for period ${activePeriod.periodKey} using allocation valuation snapshots.`
@@ -1181,7 +1181,7 @@ export default function GoldPayrollPage() {
             >
               <div>
                 <label className="mb-2 block text-sm font-semibold">
-                  Gold Payout Cycle
+                  Irregular Payout Cycle
                 </label>
                 <Select
                   value={settingsForm.goldPayoutCycle}

@@ -38,6 +38,11 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  isSupportedIrregularPayoutSource,
+  parseIrregularPayoutSource,
+  type IrregularPayoutSource,
+} from "@/lib/hr-irregular-payouts";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import type { EmployeePayment } from "@/lib/api";
@@ -72,6 +77,38 @@ type ShiftPayoutGroup = {
   paidCount: number;
   partialCount: number;
   dueCount: number;
+};
+
+const IRREGULAR_SOURCE_META: Record<
+  IrregularPayoutSource,
+  {
+    label: string;
+    tabLabel: string;
+    allocationLabel: string;
+    description: string;
+  }
+> = {
+  GOLD: {
+    label: "Gold payouts",
+    tabLabel: "Gold",
+    allocationLabel: "Shift",
+    description:
+      "Approve gold shift allocations here, then finalize disbursement from payroll runs.",
+  },
+  COMMISSION: {
+    label: "Commission payouts",
+    tabLabel: "Commission",
+    allocationLabel: "Period",
+    description:
+      "Commission payouts are configured per sales cycle and posted to irregular payouts.",
+  },
+  OTHER: {
+    label: "Other variable payouts",
+    tabLabel: "Other",
+    allocationLabel: "Batch",
+    description:
+      "Dividends, profit sharing, and other variable payouts are managed through irregular payout batches.",
+  },
 };
 
 function workflowBadgeVariant(status: ShiftPayoutGroup["workflowStatus"]) {
@@ -118,6 +155,9 @@ export default function HrPayoutsPage() {
   const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(
     searchParams.get("window") ?? "2",
   );
+  const [payoutSource, setPayoutSource] = useState<IrregularPayoutSource>(
+    parseIrregularPayoutSource(searchParams.get("source")),
+  );
   const [groupsQuery, setGroupsQuery] = useState<DataTableQueryState>({
     mode: "paginated",
     page: 1,
@@ -132,6 +172,9 @@ export default function HrPayoutsPage() {
   >(null);
   const [rejectionNote, setRejectionNote] = useState("");
   const payoutPdfRef = useRef<HTMLDivElement>(null);
+
+  const sourceMeta = IRREGULAR_SOURCE_META[payoutSource];
+  const sourceIsImplemented = isSupportedIrregularPayoutSource(payoutSource);
 
   const windowWeeks = Number(payoutWindowWeeks);
   const windowStartDate = useMemo(() => {
@@ -148,9 +191,10 @@ export default function HrPayoutsPage() {
   } = useQuery({
     queryKey: [
       "gold-shift-allocations",
-      "hr-payouts",
+      "hr-irregular-payouts",
       payoutWindowWeeks,
       allocationIdFilter,
+      payoutSource,
     ],
     queryFn: () =>
       fetchGoldShiftAllocations({
@@ -159,6 +203,7 @@ export default function HrPayoutsPage() {
           : windowStartDate.toISOString().slice(0, 10),
         limit: 500,
       }),
+    enabled: sourceIsImplemented,
   });
 
   const {
@@ -168,19 +213,22 @@ export default function HrPayoutsPage() {
   } = useQuery({
     queryKey: [
       "employee-payments",
-      "gold",
+      "irregular",
       "shift-grouped",
       payoutWindowWeeks,
       allocationIdFilter,
+      payoutSource,
     ],
     queryFn: () =>
       fetchEmployeePayments({
-        type: "GOLD",
+        type: "IRREGULAR",
+        payoutSource,
         startDate: allocationIdFilter
           ? undefined
           : windowStartDate.toISOString(),
         limit: 1000,
       }),
+    enabled: sourceIsImplemented,
   });
 
   const shiftAllocations = useMemo(
@@ -729,9 +777,9 @@ export default function HrPayoutsPage() {
   return (
     <HrShell
       activeTab="payouts"
-      description="Gold shift payout approvals that feed payroll disbursement"
+      description={`${sourceMeta.label} allocations and worker disbursement readiness`}
     >
-      <RecordSavedBanner entityLabel="gold payout record" />
+      <RecordSavedBanner entityLabel={`${sourceMeta.tabLabel.toLowerCase()} payout record`} />
       {(allocationsError || paymentsError) && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load payouts</AlertTitle>
@@ -744,14 +792,18 @@ export default function HrPayoutsPage() {
       <section className="space-y-3">
         <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
-            Gold Payouts by Shift
+            Irregular Payouts
           </h2>
           <p className="text-sm text-muted-foreground">
-            Approve shift allocations here, then finalize cash disbursement from
-            payroll runs.
+            {sourceMeta.description}
           </p>
         </header>
-        {isLoading ? (
+        {!sourceIsImplemented ? (
+          <div className="section-shell text-sm text-muted-foreground">
+            <p className="font-semibold text-foreground">{sourceMeta.label} are not configured yet.</p>
+            <p className="mt-1">Enable this source in HR payouts configuration before processing records.</p>
+          </div>
+        ) : isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : payoutGroups.length === 0 ? (
           <div className="section-shell text-sm text-muted-foreground">
@@ -767,10 +819,29 @@ export default function HrPayoutsPage() {
             }
             features={{ sorting: true, globalFilter: true, pagination: true }}
             pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search by site, shift, or allocation"
+            searchPlaceholder={`Search by site, ${sourceMeta.allocationLabel.toLowerCase()}, or allocation`}
             tableClassName="text-sm"
             toolbar={
               <>
+                <Select
+                  value={payoutSource}
+                  onValueChange={(value) => {
+                    const nextSource = parseIrregularPayoutSource(value);
+                    setPayoutSource(nextSource);
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("source", nextSource);
+                    router.replace(`/human-resources/payouts?${params.toString()}`);
+                  }}
+                >
+                  <SelectTrigger size="sm" className="h-8 w-[170px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GOLD">Gold payouts</SelectItem>
+                    <SelectItem value="COMMISSION">Commission payouts</SelectItem>
+                    <SelectItem value="OTHER">Dividends / profit sharing / other</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select
                   value={payoutWindowWeeks}
                   onValueChange={setPayoutWindowWeeks}
@@ -814,7 +885,7 @@ export default function HrPayoutsPage() {
                   </span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Gold Due{" "}
+                  Total Due{" "}
                   <span className="font-mono text-foreground">
                     ${totalValueDueUsd.toFixed(2)}
                   </span>
@@ -958,7 +1029,7 @@ export default function HrPayoutsPage() {
       <div className="absolute left-[-9999px] top-0">
         <div ref={payoutPdfRef}>
           <PdfTemplate
-            title="Gold Payouts by Shift"
+            title="Irregular Payouts"
             subtitle={`${format(windowStartDate, "yyyy-MM-dd")} to ${format(windowEndDate, "yyyy-MM-dd")}`}
             meta={[
               { label: "Pay window", value: `${payoutWindowWeeks} weeks` },

@@ -56,26 +56,38 @@ export async function POST(
       return errorResponse("Sale is not pending approval", 400);
     }
 
-    const updatedSale = await prisma.scrapMetalSale.update({
-      where: { id: saleId },
-      data: {
-        status: "APPROVED",
-        approvedById: session.user.id,
-        approvedAt: new Date(),
-      },
-      include: {
-        site: { select: { id: true, name: true, code: true } },
-        batch: {
-          select: {
-            id: true,
-            batchNumber: true,
-            category: true,
-            totalWeight: true,
-          },
+    const updatedSale = await prisma.$transaction(async (tx) => {
+      const approvedSale = await tx.scrapMetalSale.update({
+        where: { id: saleId },
+        data: {
+          status: "APPROVED",
+          approvedById: session.user.id,
+          approvedAt: new Date(),
         },
-        approvedBy: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
+        include: {
+          site: { select: { id: true, name: true, code: true } },
+          batch: {
+            select: {
+              id: true,
+              batchNumber: true,
+              category: true,
+              totalWeight: true,
+            },
+          },
+          approvedBy: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+
+      await tx.scrapMetalBatch.update({
+        where: { id: sale.batchId },
+        data: {
+          status: "SOLD",
+          collectionEndDate: sale.saleDate,
+        },
+      });
+
+      return approvedSale;
     });
 
     // Capture accounting event

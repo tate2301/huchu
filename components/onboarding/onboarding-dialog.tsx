@@ -16,9 +16,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
 
-type OnboardingStep = 0 | 1 | 2 | 3;
+type OnboardingStep = 0 | 1 | 2 | 3 | 4;
 
 type SiteFormData = {
   name: string;
@@ -37,14 +44,31 @@ type OnboardingDialogProps = {
   onComplete: () => void;
 };
 
+type OrganizationPrefs = {
+  payrollCycle: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
+  goldPayoutCycle: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
+  goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD";
+  cashDisbursementOnly: boolean;
+};
+
 export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingDialogProps) {
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(0);
   const [sites, setSites] = useState<SiteFormData[]>([{ name: "", code: "", location: "" }]);
   const [departments, setDepartments] = useState<DepartmentFormData[]>([{ name: "", code: "" }]);
+  const [organizationPrefs, setOrganizationPrefs] = useState<OrganizationPrefs>({
+    payrollCycle: "MONTHLY",
+    goldPayoutCycle: "FORTNIGHTLY",
+    goldSettlementMode: "CURRENT_PERIOD",
+    cashDisbursementOnly: true,
+  });
 
   const completionMutation = useMutation({
-    mutationFn: async (data: { sites: SiteFormData[]; departments: DepartmentFormData[] }) => {
+    mutationFn: async (data: {
+      sites: SiteFormData[];
+      departments: DepartmentFormData[];
+      organizationPrefs: OrganizationPrefs;
+    }) => {
       const response = await fetch("/api/onboarding/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,16 +124,18 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
 
   const canProceedFromStep0 = true; // Welcome step
   const canProceedFromStep1 = sites.some((site) => site.name && site.code);
-  const canProceedFromStep2 = departments.some((dept) => dept.name && dept.code);
+  const canProceedFromStep2 = true;
+  const canProceedFromStep3 = true;
 
   const handleNext = () => {
     const canProceed =
       (currentStep === 0 && canProceedFromStep0) ||
       (currentStep === 1 && canProceedFromStep1) ||
       (currentStep === 2 && canProceedFromStep2) ||
-      currentStep === 3;
+      (currentStep === 3 && canProceedFromStep3) ||
+      currentStep === 4;
 
-    if (canProceed && currentStep < 3) {
+    if (canProceed && currentStep < 4) {
       setCurrentStep((currentStep + 1) as OnboardingStep);
     }
   };
@@ -131,10 +157,11 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
     completionMutation.mutate({
       sites: validSites,
       departments: validDepartments,
+      organizationPrefs,
     });
   };
 
-  const progressPercentage = ((currentStep + 1) / 4) * 100;
+  const progressPercentage = ((currentStep + 1) / 5) * 100;
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -157,6 +184,10 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                 <li className="flex items-center gap-2">
                   <Badge variant="secondary" className="text-xs">Optional</Badge>
                   <span>Departments for organization structure</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs">New</Badge>
+                  <span>Organization payroll and payout preferences</span>
                 </li>
               </ul>
             </div>
@@ -287,6 +318,93 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
         );
 
       case 3:
+        return (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/50 p-4">
+              <p className="text-sm font-medium">Organization Preferences</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Configure defaults now so payroll and irregular payouts align with your organization.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Salary payroll cycle</Label>
+                <Select
+                  value={organizationPrefs.payrollCycle}
+                  onValueChange={(value: OrganizationPrefs["payrollCycle"]) =>
+                    setOrganizationPrefs((prev) => ({ ...prev, payrollCycle: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                    <SelectItem value="FORTNIGHTLY">Fortnightly</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Irregular payout cycle</Label>
+                <Select
+                  value={organizationPrefs.goldPayoutCycle}
+                  onValueChange={(value: OrganizationPrefs["goldPayoutCycle"]) =>
+                    setOrganizationPrefs((prev) => ({ ...prev, goldPayoutCycle: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                    <SelectItem value="FORTNIGHTLY">Fortnightly</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Gold settlement mode</Label>
+                <Select
+                  value={organizationPrefs.goldSettlementMode}
+                  onValueChange={(value: OrganizationPrefs["goldSettlementMode"]) =>
+                    setOrganizationPrefs((prev) => ({ ...prev, goldSettlementMode: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CURRENT_PERIOD">Current period</SelectItem>
+                    <SelectItem value="NEXT_PERIOD">Next period</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Disbursement mode</Label>
+                <Select
+                  value={organizationPrefs.cashDisbursementOnly ? "cash" : "mixed"}
+                  onValueChange={(value) =>
+                    setOrganizationPrefs((prev) => ({
+                      ...prev,
+                      cashDisbursementOnly: value === "cash",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash only</SelectItem>
+                    <SelectItem value="mixed">Cash + transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 4:
         const validSitesCount = sites.filter((site) => site.name && site.code).length;
         const validDepartmentsCount = departments.filter((dept) => dept.name && dept.code).length;
         const setupComplete = validSitesCount > 0;
@@ -395,10 +513,11 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
             {currentStep === 0 && "Welcome to Huchu"}
             {currentStep === 1 && "Set Up Sites"}
             {currentStep === 2 && "Set Up Departments"}
-            {currentStep === 3 && "Review & Complete"}
+            {currentStep === 3 && "Organization Preferences"}
+            {currentStep === 4 && "Review & Complete"}
           </DialogTitle>
           <DialogDescription>
-            Step {currentStep + 1} of 4
+            Step {currentStep + 1} of 5
           </DialogDescription>
           <Progress value={progressPercentage} className="mt-2" />
         </DialogHeader>
@@ -415,7 +534,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
             Back
           </Button>
           <div className="flex gap-2">
-            {currentStep < 3 ? (
+            {currentStep < 4 ? (
               <Button
                 type="button"
                 onClick={handleNext}

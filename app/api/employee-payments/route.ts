@@ -11,6 +11,12 @@ import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
 } from "@/lib/gold-payouts"
+import {
+  isIrregularEmployeePaymentType,
+  isSupportedIrregularPayoutSource,
+  parseIrregularPayoutSource,
+  sourceToEmployeePaymentType,
+} from "@/lib/hr-irregular-payouts"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { derivePaidStatus } from "@/lib/hr-payroll"
 import { prisma } from "@/lib/prisma"
@@ -180,6 +186,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const type = searchParams.get("type")
+    const payoutSource = parseIrregularPayoutSource(searchParams.get("payoutSource"))
     const employeeId = searchParams.get("employeeId")
     const status = searchParams.get("status")
     const startDate = searchParams.get("startDate")
@@ -191,7 +198,18 @@ export async function GET(request: NextRequest) {
       employee: { companyId: session.user.companyId },
     }
 
-    if (type) where.type = type
+    if (type === "IRREGULAR" && !isSupportedIrregularPayoutSource(payoutSource)) {
+      return errorResponse(
+        `Irregular payout source ${payoutSource} is not configured yet for this company`,
+        400,
+      )
+    }
+
+    if (type === "IRREGULAR") {
+      where.type = sourceToEmployeePaymentType(payoutSource)
+    } else if (type) {
+      where.type = type
+    }
     if (employeeId) where.employeeId = employeeId
     if (status) where.status = status
     if (startDate) where.periodStart = { gte: new Date(startDate) }
@@ -206,6 +224,7 @@ export async function GET(request: NextRequest) {
         ...(normalizedSearch === "GOLD" || normalizedSearch === "SALARY"
           ? [{ type: normalizedSearch }]
           : []),
+        ...(normalizedSearch === "IRREGULAR" ? [{ type: "GOLD" }] : []),
         ...((
           ["DUE", "PARTIAL", "PAID"] as const
         ).includes(normalizedSearch as "DUE" | "PARTIAL" | "PAID")
@@ -252,7 +271,12 @@ export async function GET(request: NextRequest) {
       prisma.employeePayment.count({ where }),
     ])
 
-    return successResponse(paginationResponse(payments, total, page, limit))
+    const withSource = payments.map((payment) => ({
+      ...payment,
+      payoutSource: isIrregularEmployeePaymentType(payment.type) ? "GOLD" : null,
+    }))
+
+    return successResponse(paginationResponse(withSource, total, page, limit))
   } catch (error) {
     console.error("[API] GET /api/employee-payments error:", error)
     return errorResponse("Failed to fetch employee payments")
@@ -400,12 +424,13 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      const shouldQueueForAccounting = payment.type === "SALARY"
+      const accountingSourceType =
+        payment.type === "SALARY" ? "PAYROLL_DISBURSEMENT" : "IRREGULAR_PAYOUT_DISBURSEMENT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "employee-payments",
         sourceAction: "payment-created",
-        sourceType: shouldQueueForAccounting ? "PAYROLL_DISBURSEMENT" : undefined,
+        sourceType: accountingSourceType,
         sourceId: payment.id,
         entryDate: payment.createdAt,
         description: `${payment.type} employee payment recorded`,
@@ -420,7 +445,7 @@ export async function POST(request: NextRequest) {
           disbursementBatchId: payment.disbursementBatch?.id ?? null,
         },
         createdById: session.user.id,
-        status: shouldQueueForAccounting ? "PENDING" : "IGNORED",
+        status: "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Employee payment capture failed:", error)
