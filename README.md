@@ -134,6 +134,16 @@ NEXTAUTH_URL="https://apps.pagka.dev"
 PLATFORM_ROOT_DOMAIN="apps.pagka.dev"
 PLATFORM_ROOT_HOSTS="apps.pagka.dev"
 BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
+
+# Admin portal magic-link setup
+ADMIN_PORTAL_EMAIL="thehalfstackdev@gmail.com"
+ADMIN_PORTAL_ACTOR_NAME="Platform Superuser"
+ADMIN_PORTAL_COMPANY_ID="<optional-company-uuid>"
+ADMIN_MAGIC_LINK_FROM="no-reply@pagka.dev"
+# Pick one delivery method:
+ADMIN_MAGIC_LINK_RESEND_API_KEY="re_..."
+# OR
+ADMIN_MAGIC_LINK_WEBHOOK_URL="https://your-mail-webhook.example/send"
 ```
 
 ### Multitenancy Notes
