@@ -198,14 +198,13 @@ export async function GET(request: NextRequest) {
       employee: { companyId: session.user.companyId },
     }
 
-    if (type === "IRREGULAR" && !isSupportedIrregularPayoutSource(payoutSource)) {
-      return errorResponse(
-        `Irregular payout source ${payoutSource} is not configured yet for this company`,
-        400,
-      )
-    }
-
     if (type === "IRREGULAR") {
+      if (!isSupportedIrregularPayoutSource(payoutSource)) {
+        return errorResponse(
+          `Irregular payout source ${payoutSource} is not configured yet for this company`,
+          400,
+        )
+      }
       where.type = sourceToEmployeePaymentType(payoutSource)
     } else if (type) {
       where.type = type

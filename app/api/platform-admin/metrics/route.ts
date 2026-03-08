@@ -32,8 +32,8 @@ export async function GET(request: Request) {
       { id: "users", label: "Users", value: await safeCount(() => services.user.list({ companyId, limit: 500 })) },
       { id: "sites", label: "Sites", value: await safeCount(() => services.site.list({ companyId, limit: 500 })) },
       { id: "audit", label: "Audit events", value: await safeCount(() => services.audit.list({ companyId, limit: 500 })) },
-      { id: "support", label: "Support sessions", value: await safeCount(() => services.support.listSessions({ companyId, limit: 500 })) },
-      { id: "runbooks", label: "Runbooks", value: await safeCount(() => services.runbook.listDefinitions({ companyId })) },
+      { id: "support", label: "Support sessions", value: await safeCount(() => services.support.listSessions(companyId)) },
+      { id: "runbooks", label: "Runbooks", value: await safeCount(() => services.runbook.listDefinitions(companyId)) },
       { id: "health", label: "Incidents", value: await safeCount(() => services.health.listIncidents({ companyId, limit: 500 })) },
     ];
 
