@@ -31,10 +31,10 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
           onValueChange={(value) => {
             if (typeof window === "undefined") return;
             if (value === "platform") {
-              window.location.href = "/portal/admin/dashboard";
+              window.location.href = "/admin/dashboard";
               return;
             }
-            window.location.href = `/portal/admin/company/${value}/dashboard`;
+            window.location.href = `/admin/company/${value}/dashboard`;
           }}
         >
           <SelectTrigger className="h-9 flex-1">
@@ -52,7 +52,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
 
         {activeCompany ? (
           <Button asChild variant="outline" size="icon" className="h-9 w-9">
-            <Link href={`/portal/admin/company/${activeCompany.id}/features`} aria-label="Configure active organization">
+            <Link href={`/admin/company/${activeCompany.id}/features`} aria-label="Configure active organization">
               <Settings className="h-4 w-4" />
             </Link>
           </Button>

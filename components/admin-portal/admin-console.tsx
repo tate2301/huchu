@@ -142,7 +142,7 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
             <CardDescription>Complete platform control surface with mobile-first execution flow.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" onClick={() => signOut({ callbackUrl: "/portal/admin/login" })}>Sign out</Button>
+            <Button variant="outline" onClick={() => signOut({ callbackUrl: "/admin/login" })}>Sign out</Button>
           </CardContent>
         </Card>
 

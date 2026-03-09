@@ -64,7 +64,7 @@ BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
     - `test.admin.pagka.dev` (any subdomain)
     - `acme.admin.pagka.dev` (any subdomain)
 
-**Important**: Admin portal routes (`/portal/admin/*` and `/api/platform-admin/*`) are only accessible on `*.admin.pagka.dev` domains and require SUPERADMIN role.
+**Important**: Admin portal routes (`/admin/*` and `/api/platform-admin/*`) are only accessible on `*.admin.pagka.dev` domains and require SUPERADMIN role.
 
 ## Database Setup
 

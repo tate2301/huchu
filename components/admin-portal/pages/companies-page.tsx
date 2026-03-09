@@ -36,7 +36,7 @@ export function CompaniesPage() {
                 <td className="px-3 py-2">{company.status ?? "-"}</td>
                 <td className="px-3 py-2">
                   <Button asChild size="sm">
-                    <Link href={`/portal/admin/company/${company.id}/dashboard`}>Manage</Link>
+                    <Link href={`/admin/company/${company.id}/dashboard`}>Manage</Link>
                   </Button>
                 </td>
               </tr>

@@ -18,7 +18,7 @@ export function AdminMagicLinkLogin({ adminEmail }: { adminEmail: string }) {
     try {
       const result = await signIn("email", {
         email: adminEmail.trim().toLowerCase(),
-        callbackUrl: "/portal/admin/dashboard",
+        callbackUrl: "/admin/dashboard",
         redirect: false,
       });
 
