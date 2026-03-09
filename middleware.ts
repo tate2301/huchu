@@ -256,6 +256,13 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname;
+        const hostHeader = getHostHeaderFromRequestHeaders(req.headers);
+        const resolvedHost = hostHeader || req.nextUrl.host || null;
+
+        if (isAdminPortalHost(resolvedHost)) {
+          return true;
+        }
+
         if (pathname === LOGIN_PATH || pathname === ACCESS_BLOCKED_PATH) {
           return true;
         }
