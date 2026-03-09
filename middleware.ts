@@ -110,8 +110,10 @@ export default withAuth(
     }
 
     const hostHeader = getHostHeaderFromRequestHeaders(request.headers);
-    const hostContext = getPlatformHostContext(hostHeader);
-    const isAdminHost = isAdminPortalHost(hostHeader);
+    const requestHost = request.nextUrl.host;
+    const resolvedHost = hostHeader || requestHost || null;
+    const hostContext = getPlatformHostContext(resolvedHost);
+    const isAdminHost = isAdminPortalHost(resolvedHost);
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
     const portalBasePath = getPortalBasePathForPathname(pathname);
