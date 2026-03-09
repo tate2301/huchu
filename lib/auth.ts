@@ -74,24 +74,29 @@ async function upsertAdminPortalUser(email: string) {
 
 const baseAdapter = PrismaAdapter(prisma) as Adapter;
 
-const adminPortalAdapter: Adapter = {
+const adminPortalAdapter = {
   ...baseAdapter,
-  async getUserByEmail(email) {
-    const baseUser = await baseAdapter.getUserByEmail(email);
+  async getUserByEmail(email: string) {
+    const baseUser = await baseAdapter.getUserByEmail?.(email);
     if (baseUser) return baseUser;
     const adminUser = await upsertAdminPortalUser(email);
     return adminUser ?? null;
   },
-  async createUser(user) {
+  // Cast to `as Adapter` below resolves type incompatibility caused by the project
+  // augmenting AdapterUser with custom fields (companyId, role) that conflict with
+  // the standard next-auth Adapter interface signature for createUser.
+  async createUser(user: Parameters<NonNullable<Adapter["createUser"]>>[0]) {
     const adminEmail = getAdminPortalEmail();
-    const normalized = user.email?.trim().toLowerCase();
+    const typedUser = user as { email?: string };
+    const normalized = typedUser.email?.trim().toLowerCase();
     if (normalized === adminEmail) {
       const adminUser = await upsertAdminPortalUser(adminEmail);
       if (adminUser) return adminUser;
     }
-    return baseAdapter.createUser(user);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return baseAdapter.createUser!(user as any);
   },
-};
+} as Adapter;
 
 type PlatformJWT = JWT & {
   id?: string;
@@ -158,6 +163,10 @@ export const authOptions: NextAuthOptions = {
       id: "email",
       type: "email",
       name: "Email",
+      // SMTP is not used — email delivery is handled via Resend API or webhook.
+      // The `server` field is required by next-auth's EmailConfig but is intentionally
+      // left empty here since sendVerificationRequest overrides all delivery logic.
+      server: "",
       from: process.env.ADMIN_MAGIC_LINK_FROM ?? "no-reply@pagka.dev",
       maxAge: 10 * 60,
       async sendVerificationRequest({ identifier, url }: { identifier: string; url: string }) {

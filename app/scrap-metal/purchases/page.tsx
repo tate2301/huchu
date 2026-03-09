@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import type { ColumnDef } from "@tantml:react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageIntro } from "@/components/shared/page-intro";
