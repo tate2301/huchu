@@ -111,18 +111,33 @@ export default withAuth(
 
     const hostHeader = getHostHeaderFromRequestHeaders(request.headers);
     const hostContext = getPlatformHostContext(hostHeader);
+    const isAdminHost = isAdminPortalHost(hostHeader);
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
     const portalBasePath = getPortalBasePathForPathname(pathname);
     const portalHomeForRole = getPortalHomeForRole(token?.role);
 
     if (isPathWithinRoute(pathname, "/portal/admin") || isPathWithinRoute(pathname, "/api/platform-admin")) {
-      if (!isAdminPortalHost(hostHeader)) {
+      if (!isAdminHost) {
         return denyAccess(request, `Admin portal is only available on ${ADMIN_PORTAL_HOST}`);
       }
 
       if (token?.role && !isSuperuserRole(token.role)) {
         return denyAccess(request, "Superuser access required");
+      }
+    }
+
+    if (isAdminHost && !isApiRequest) {
+      if (pathname === LOGIN_PATH) {
+        const rewriteUrl = request.nextUrl.clone();
+        rewriteUrl.pathname = "/portal/admin/login";
+        return NextResponse.rewrite(rewriteUrl);
+      }
+
+      if (pathname === "/") {
+        const rewriteUrl = request.nextUrl.clone();
+        rewriteUrl.pathname = "/portal/admin";
+        return NextResponse.rewrite(rewriteUrl);
       }
     }
 
