@@ -8,6 +8,7 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 
 const platformNav = [
   { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/operations", label: "Operations" },
   { href: "/admin/features", label: "Features" },
   { href: "/admin/companies", label: "Organizations" },
 ];
