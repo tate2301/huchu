@@ -7,15 +7,15 @@ import { CompanyWorkspace } from "@/components/admin-portal/types";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 const platformNav = [
-  { href: "/portal/admin/dashboard", label: "Dashboard" },
-  { href: "/portal/admin/features", label: "Features" },
-  { href: "/portal/admin/companies", label: "Organizations" },
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/features", label: "Features" },
+  { href: "/admin/companies", label: "Organizations" },
 ];
 
 const companyNav = (companyId: string) => [
-  { href: `/portal/admin/company/${companyId}/dashboard`, label: "Dashboard" },
-  { href: `/portal/admin/company/${companyId}/features`, label: "Features" },
-  { href: `/portal/admin/company/${companyId}/operations`, label: "Operations" },
+  { href: `/admin/company/${companyId}/dashboard`, label: "Dashboard" },
+  { href: `/admin/company/${companyId}/features`, label: "Features" },
+  { href: `/admin/company/${companyId}/operations`, label: "Operations" },
 ];
 
 export function AdminSidebar({

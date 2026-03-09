@@ -13,6 +13,9 @@ import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/ad
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
+const ADMIN_BASE_PATH = "/admin";
+const ADMIN_LOGIN_PATH = `${ADMIN_BASE_PATH}/login`;
+const ADMIN_INTERNAL_BASE_PATH = "/portal/admin";
 const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos", "/portal/admin"] as const;
 const PORTAL_HOME_BY_ROLE = {
   PARENT: "/portal/parent",
@@ -100,6 +103,30 @@ function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string)
   return NextResponse.redirect(redirectUrl);
 }
 
+function toInternalAdminPath(pathname: string) {
+  if (pathname === ADMIN_BASE_PATH) {
+    return ADMIN_INTERNAL_BASE_PATH;
+  }
+
+  if (pathname.startsWith(`${ADMIN_BASE_PATH}/`)) {
+    return `${ADMIN_INTERNAL_BASE_PATH}${pathname.slice(ADMIN_BASE_PATH.length)}`;
+  }
+
+  return null;
+}
+
+function toExternalAdminPath(pathname: string) {
+  if (pathname === ADMIN_INTERNAL_BASE_PATH) {
+    return ADMIN_BASE_PATH;
+  }
+
+  if (pathname.startsWith(`${ADMIN_INTERNAL_BASE_PATH}/`)) {
+    return `${ADMIN_BASE_PATH}${pathname.slice(ADMIN_INTERNAL_BASE_PATH.length)}`;
+  }
+
+  return null;
+}
+
 export default withAuth(
   function middleware(request) {
     const { pathname } = request.nextUrl;
@@ -118,8 +145,10 @@ export default withAuth(
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
     const portalBasePath = getPortalBasePathForPathname(pathname);
     const portalHomeForRole = getPortalHomeForRole(token?.role);
+    const isAdminExternalPath = isPathWithinRoute(pathname, ADMIN_BASE_PATH);
+    const isAdminInternalPath = isPathWithinRoute(pathname, ADMIN_INTERNAL_BASE_PATH);
 
-    if (isPathWithinRoute(pathname, "/portal/admin") || isPathWithinRoute(pathname, "/api/platform-admin")) {
+    if (isAdminExternalPath || isAdminInternalPath || isPathWithinRoute(pathname, "/api/platform-admin")) {
       if (!isAdminHost) {
         const adminRootDomain = getAdminRootDomain();
         return denyAccess(request, `Admin portal is only available on *.${adminRootDomain}`);
@@ -130,18 +159,31 @@ export default withAuth(
       }
     }
 
-    if (isAdminHost && !isApiRequest) {
+    if (isAdminHost) {
+      if (isApiRequest) {
+        if (isPathWithinRoute(pathname, "/api/platform-admin")) {
+          return NextResponse.next();
+        }
+        return denyAccess(request, "Only admin APIs are available on this host");
+      }
+
       if (pathname === LOGIN_PATH) {
+        return redirectToPath(request, ADMIN_LOGIN_PATH);
+      }
+
+      const canonicalAdminPath = toExternalAdminPath(pathname);
+      if (canonicalAdminPath) {
+        return redirectToPath(request, canonicalAdminPath);
+      }
+
+      const internalAdminPath = toInternalAdminPath(pathname);
+      if (internalAdminPath) {
         const rewriteUrl = request.nextUrl.clone();
-        rewriteUrl.pathname = "/portal/admin/login";
+        rewriteUrl.pathname = internalAdminPath;
         return NextResponse.rewrite(rewriteUrl);
       }
 
-      if (!isPathWithinRoute(pathname, "/portal/admin") && pathname !== ACCESS_BLOCKED_PATH) {
-        const rewriteUrl = request.nextUrl.clone();
-        rewriteUrl.pathname = pathname === "/" ? "/portal/admin" : `/portal/admin${pathname}`;
-        return NextResponse.rewrite(rewriteUrl);
-      }
+      return redirectToPath(request, ADMIN_BASE_PATH);
     }
 
     if (!isApiRequest && portalBasePath && !token) {

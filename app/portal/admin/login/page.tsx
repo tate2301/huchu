@@ -18,7 +18,7 @@ export default async function AdminPortalLoginPage() {
 
   const session = await getServerSession(authOptions);
   if (session?.user?.role === "SUPERADMIN") {
-    redirect("/portal/admin/dashboard");
+    redirect("/admin/dashboard");
   }
 
   const adminEmail = process.env.ADMIN_PORTAL_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;

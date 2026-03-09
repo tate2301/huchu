@@ -13,7 +13,7 @@ export async function requireAdminPortalSession() {
 
   const session = await getServerSession(authOptions);
   if (!session?.user) {
-    redirect("/portal/admin/login");
+    redirect("/admin/login");
   }
 
   if (!isSuperuserRole(session.user.role)) {

@@ -13,8 +13,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthRoute = pathname === "/login";
   const isPortalRoute = pathname.startsWith("/portal/");
+  const isAdminRoute = pathname.startsWith("/admin");
 
-  if (isAuthRoute || isPortalRoute) {
+  if (isAuthRoute || isPortalRoute || isAdminRoute) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
 
