@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
 import type { JWT } from "next-auth/jwt";
+import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasFeature } from "@/lib/platform/features";
 import {
@@ -17,6 +18,85 @@ import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import { getEffectiveFeaturesForUser } from "@/lib/platform/user-entitlements";
 import bcrypt from "bcryptjs";
+import { ADMIN_PORTAL_HOST } from "@/lib/admin-portal";
+
+const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
+
+function getAdminPortalEmail() {
+  return process.env.ADMIN_PORTAL_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
+}
+
+
+async function resolveAdminPortalCompanyId() {
+  const configuredCompanyId = process.env.ADMIN_PORTAL_COMPANY_ID?.trim();
+  if (configuredCompanyId) {
+    const company = await prisma.company.findUnique({ where: { id: configuredCompanyId }, select: { id: true } });
+    if (!company) {
+      throw new Error("ADMIN_PORTAL_COMPANY_ID is set but does not match any company.");
+    }
+    return configuredCompanyId;
+  }
+
+  const firstCompany = await prisma.company.findFirst({ select: { id: true }, orderBy: { createdAt: "asc" } });
+  if (!firstCompany) {
+    throw new Error("No company available to attach admin portal identity.");
+  }
+  return firstCompany.id;
+}
+
+async function upsertAdminPortalUser(email: string) {
+  const adminEmail = getAdminPortalEmail();
+  if (email.trim().toLowerCase() !== adminEmail) {
+    return null;
+  }
+
+  const companyId = await resolveAdminPortalCompanyId();
+  const name = process.env.ADMIN_PORTAL_ACTOR_NAME?.trim() || "Platform Superuser";
+
+  return prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {
+      role: UserRole.SUPERADMIN,
+      companyId,
+      isActive: true,
+      name,
+    },
+    create: {
+      email: adminEmail,
+      name,
+      role: UserRole.SUPERADMIN,
+      companyId,
+      isActive: true,
+      emailVerified: new Date(),
+    },
+  });
+}
+
+const baseAdapter = PrismaAdapter(prisma) as Adapter;
+
+const adminPortalAdapter = {
+  ...baseAdapter,
+  async getUserByEmail(email: string) {
+    const baseUser = await baseAdapter.getUserByEmail?.(email);
+    if (baseUser) return baseUser;
+    const adminUser = await upsertAdminPortalUser(email);
+    return adminUser ?? null;
+  },
+  // Cast to `as Adapter` below resolves type incompatibility caused by the project
+  // augmenting AdapterUser with custom fields (companyId, role) that conflict with
+  // the standard next-auth Adapter interface signature for createUser.
+  async createUser(user: Parameters<NonNullable<Adapter["createUser"]>>[0]) {
+    const adminEmail = getAdminPortalEmail();
+    const typedUser = user as { email?: string };
+    const normalized = typedUser.email?.trim().toLowerCase();
+    if (normalized === adminEmail) {
+      const adminUser = await upsertAdminPortalUser(adminEmail);
+      if (adminUser) return adminUser;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return baseAdapter.createUser!(user as any);
+  },
+} as Adapter;
 
 type PlatformJWT = JWT & {
   id?: string;
@@ -77,8 +157,70 @@ function buildDevPasswordFallbackCandidates(rawPassword: string): string[] {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as Adapter,
+  adapter: adminPortalAdapter,
   providers: [
+    {
+      id: "email",
+      type: "email",
+      name: "Email",
+      // SMTP is not used — email delivery is handled via Resend API or webhook.
+      // The `server` field is required by next-auth's EmailConfig but is intentionally
+      // left empty here since sendVerificationRequest overrides all delivery logic.
+      server: "",
+      from: process.env.ADMIN_MAGIC_LINK_FROM ?? "no-reply@pagka.dev",
+      maxAge: 10 * 60,
+      async sendVerificationRequest({ identifier, url }: { identifier: string; url: string }) {
+        const adminPortalEmail = getAdminPortalEmail();
+        if (identifier.trim().toLowerCase() !== adminPortalEmail) {
+          throw new Error("Magic link is restricted to the configured admin email.");
+        }
+
+        const parsedUrl = new URL(url);
+        if (parsedUrl.host !== ADMIN_PORTAL_HOST) {
+          throw new Error(`Magic links are restricted to ${ADMIN_PORTAL_HOST}`);
+        }
+
+        const subject = "Your Pagka superuser magic link";
+        const text = `Use this secure link to sign in: ${url}`;
+        const html = `<p>Use this secure link to sign in:</p><p><a href="${url}">Sign in to Superuser Portal</a></p>`;
+
+        const resendApiKey = process.env.ADMIN_MAGIC_LINK_RESEND_API_KEY?.trim();
+        if (resendApiKey) {
+          const response = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${resendApiKey}`,
+            },
+            body: JSON.stringify({
+              from: process.env.ADMIN_MAGIC_LINK_FROM ?? "no-reply@pagka.dev",
+              to: [identifier],
+              subject,
+              text,
+              html,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Resend delivery failed with status ${response.status}.`);
+          }
+          return;
+        }
+
+        const webhookUrl = process.env.ADMIN_MAGIC_LINK_WEBHOOK_URL?.trim();
+        if (webhookUrl) {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: identifier, subject, text, html }),
+          });
+          return;
+        }
+
+        throw new Error("No magic-link delivery provider configured. Set ADMIN_MAGIC_LINK_RESEND_API_KEY or ADMIN_MAGIC_LINK_WEBHOOK_URL.");
+      },
+      options: {},
+    },
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -201,6 +343,19 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider !== "email") {
+        return true;
+      }
+
+      const normalizedEmail = user.email?.trim().toLowerCase();
+      const adminPortalEmail = getAdminPortalEmail();
+      if (!normalizedEmail || normalizedEmail !== adminPortalEmail) {
+        return false;
+      }
+
+      return normalizedEmail === adminPortalEmail;
+    },
     async jwt({ token, user }) {
       const extendedToken = token as PlatformJWT;
 
@@ -267,6 +422,11 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 60,
+    updateAge: 5 * 60,
+  },
+  jwt: {
+    maxAge: 30 * 60,
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

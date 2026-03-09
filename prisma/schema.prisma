@@ -140,6 +140,11 @@ model Company {
   goldPurchases        GoldPurchase[]
   goldPrices          GoldPrice[]
   goldExpenseTypes    GoldExpenseType[]
+  scrapMetalPrices    ScrapMetalPrice[]
+  scrapMetalEmployeeBalances ScrapMetalEmployeeBalance[]
+  scrapMetalPurchases ScrapMetalPurchase[]
+  scrapMetalBatches   ScrapMetalBatch[]
+  scrapMetalSales     ScrapMetalSale[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -660,6 +665,9 @@ model Site {
   goldPours            GoldPour[]
   goldPurchases        GoldPurchase[]
   goldShiftAllocations GoldShiftAllocation[]
+  scrapMetalPurchases  ScrapMetalPurchase[]
+  scrapMetalBatches    ScrapMetalBatch[]
+  scrapMetalSales      ScrapMetalSale[]
   attendance           Attendance[]
   equipment            Equipment[]
   inventory            InventoryItem[]
@@ -802,6 +810,10 @@ model User {
   carSalesAssignedLeads         CarSalesLead[]       @relation("CarSalesLeadAssignedTo")
   carSalesDeals                 CarSalesDeal[]       @relation("CarSalesDealSalesperson")
   carSalesPaymentsReceived      CarSalesPayment[]    @relation("CarSalesPaymentReceivedBy")
+  createdScrapMetalPurchases    ScrapMetalPurchase[] @relation("ScrapMetalPurchaseCreatedBy")
+  createdScrapMetalBatches      ScrapMetalBatch[]    @relation("ScrapMetalBatchCreatedBy")
+  createdScrapMetalSales        ScrapMetalSale[]     @relation("ScrapMetalSaleCreatedBy")
+  approvedScrapMetalSales       ScrapMetalSale[]     @relation("ScrapMetalSaleApprovedBy")
   accounts                      Account[] // For NextAuth
   sessions                      Session[] // For NextAuth
 
@@ -850,6 +862,8 @@ model Employee {
   receivedGoldPurchases1    GoldPurchase[]         @relation("GoldPurchaseReceiver1")
   receivedGoldPurchases2    GoldPurchase[]         @relation("GoldPurchaseReceiver2")
   goldShiftWorkerShares     GoldShiftWorkerShare[]
+  scrapMetalPurchases       ScrapMetalPurchase[]   @relation("ScrapMetalPurchaseEmployee")
+  scrapMetalBalance         ScrapMetalEmployeeBalance?
   fixedSalary               FixedSalary?
   payments                  EmployeePayment[]
   compensationProfiles      CompensationProfile[]
@@ -1444,6 +1458,7 @@ enum CompensationCalcMethod {
 enum PayrollCycle {
   MONTHLY
   FORTNIGHTLY
+  WEEKLY
 }
 
 enum GoldSettlementMode {
@@ -2081,6 +2096,171 @@ model GoldShiftWorkerShare {
 }
 
 // ============================================
+// SCRAP METAL OPERATIONS
+// ============================================
+
+enum ScrapMetalCategory {
+  BATTERIES
+  COPPER
+  ALUMINUM
+  STEEL
+  BRASS
+  MIXED
+  OTHER
+}
+
+enum ScrapMetalSaleStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+model ScrapMetalPrice {
+  id              String   @id @default(uuid())
+  companyId       String
+  category        ScrapMetalCategory
+  effectiveDate   DateTime
+  pricePerKg      Float
+  currency        String   @default("USD")
+  note            String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, category, effectiveDate])
+  @@index([companyId, category, effectiveDate])
+}
+
+model ScrapMetalEmployeeBalance {
+  id              String   @id @default(uuid())
+  companyId       String
+  employeeId      String   @unique
+  balance         Float    @default(0) // Positive = employee owes company, Negative = company owes employee
+  lastUpdated     DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, employeeId])
+  @@index([companyId, employeeId])
+}
+
+model ScrapMetalPurchase {
+  id               String             @id @default(uuid())
+  purchaseNumber   String
+  companyId        String
+  siteId           String
+  employeeId       String // Employee who made the purchase
+  purchaseDate     DateTime
+  category         ScrapMetalCategory
+  weight           Float // in kg
+  pricePerKg       Float
+  totalAmount      Float
+  currency         String             @default("USD")
+  sellerName       String?
+  sellerPhone      String?
+  notes            String?
+  createdById      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  company       Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site          Site                       @relation(fields: [siteId], references: [id])
+  employee      Employee                   @relation("ScrapMetalPurchaseEmployee", fields: [employeeId], references: [id])
+  createdBy     User                       @relation("ScrapMetalPurchaseCreatedBy", fields: [createdById], references: [id])
+  batchItems    ScrapMetalBatchItem[]
+
+  @@unique([companyId, purchaseNumber])
+  @@index([companyId, purchaseDate])
+  @@index([siteId, purchaseDate])
+  @@index([employeeId])
+}
+
+model ScrapMetalBatch {
+  id               String             @id @default(uuid())
+  batchNumber      String
+  companyId        String
+  siteId           String
+  category         ScrapMetalCategory
+  status           String             @default("COLLECTING") // COLLECTING, READY, SOLD
+  totalWeight      Float              @default(0) // in kg
+  collectionStartDate DateTime
+  collectionEndDate   DateTime?
+  notes            String?
+  createdById      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  company       Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site          Site                       @relation(fields: [siteId], references: [id])
+  createdBy     User                       @relation("ScrapMetalBatchCreatedBy", fields: [createdById], references: [id])
+  items         ScrapMetalBatchItem[]
+  sales         ScrapMetalSale[]
+
+  @@unique([companyId, batchNumber])
+  @@index([companyId, siteId])
+  @@index([status])
+}
+
+model ScrapMetalBatchItem {
+  id          String   @id @default(uuid())
+  batchId     String
+  purchaseId  String
+  weight      Float
+  addedAt     DateTime @default(now())
+
+  batch    ScrapMetalBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  purchase ScrapMetalPurchase  @relation(fields: [purchaseId], references: [id])
+
+  @@unique([batchId, purchaseId])
+  @@index([batchId])
+  @@index([purchaseId])
+}
+
+model ScrapMetalSale {
+  id                String                @id @default(uuid())
+  saleNumber        String
+  companyId         String
+  siteId            String
+  batchId           String
+  saleDate          DateTime
+  buyerName         String
+  buyerContact      String?
+  recordedWeight    Float // Weight when batch was sold
+  soldWeight        Float  // Actual weight accepted by buyer
+  weightDiscrepancy Float  // recordedWeight - soldWeight
+  pricePerKg        Float
+  totalAmount       Float
+  currency          String                @default("USD")
+  paymentMethod     String?
+  paymentReference  String?
+  status            ScrapMetalSaleStatus  @default(DRAFT)
+  approvedById      String?
+  approvedAt        DateTime?
+  notes             String?
+  createdById       String
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site     @relation(fields: [siteId], references: [id])
+  batch      ScrapMetalBatch @relation(fields: [batchId], references: [id])
+  approvedBy User?    @relation("ScrapMetalSaleApprovedBy", fields: [approvedById], references: [id])
+  createdBy  User     @relation("ScrapMetalSaleCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([companyId, saleNumber])
+  @@index([companyId, saleDate])
+  @@index([siteId, saleDate])
+  @@index([batchId])
+  @@index([status])
+}
+
+// ============================================
 // PHASE 4: STORES & MAINTENANCE
 // ============================================
 
@@ -2287,6 +2467,10 @@ enum AccountingSourceType {
   PURCHASE_WRITE_OFF
   BANK_TRANSACTION
   MAINTENANCE_COMPLETION
+  IRREGULAR_PAYOUT_DISBURSEMENT
+  SCRAP_METAL_PURCHASE
+  SCRAP_METAL_BATCH
+  SCRAP_METAL_SALE
 }
 
 enum InvoiceStatus {

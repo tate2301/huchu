@@ -26,9 +26,9 @@ const items: Array<{
   },
   {
     id: "gold",
-    label: "Gold Payout Payroll",
+    label: "Irregular Payout Payroll",
     href: "/human-resources/payroll/gold",
-    description: "Gold shift allocations converted and prepared for disbursement.",
+    description: "Variable payout runs (currently gold allocations) prepared for disbursement.",
     icon: Coins,
   },
 ]

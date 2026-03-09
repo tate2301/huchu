@@ -25,7 +25,10 @@ export type ReservableIdEntity =
   | "CAR_SALES_PAYMENT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
-  | "GOLD_PURCHASE";
+  | "GOLD_PURCHASE"
+  | "SCRAP_METAL_PURCHASE"
+  | "SCRAP_METAL_BATCH"
+  | "SCRAP_METAL_SALE";
 
 type EntityConfig = {
   prefix: string;
@@ -61,6 +64,9 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
+  SCRAP_METAL_PURCHASE: { prefix: "SCPUR", requiresSiteId: true },
+  SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: true },
+  SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: true },
 };
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -291,6 +297,30 @@ async function findEntityMaxExistingCode(
         select: { purchaseNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
+    }
+    case "SCRAP_METAL_PURCHASE": {
+      if (!siteId) return 0;
+      const records = await db.scrapMetalPurchase.findMany({
+        where: { companyId, siteId },
+        select: { purchaseNumber: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
+    }
+    case "SCRAP_METAL_BATCH": {
+      if (!siteId) return 0;
+      const records = await db.scrapMetalBatch.findMany({
+        where: { companyId, siteId },
+        select: { batchNumber: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.batchNumber), prefix);
+    }
+    case "SCRAP_METAL_SALE": {
+      if (!siteId) return 0;
+      const records = await db.scrapMetalSale.findMany({
+        where: { companyId, siteId },
+        select: { saleNumber: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.saleNumber), prefix);
     }
     default:
       return 0;

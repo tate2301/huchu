@@ -21,6 +21,7 @@ import {
   ManageAccounts,
   NoteAdd,
   ReceiptLong,
+  Recycle,
   ReportProblem,
   TableRows,
   Home,
@@ -330,6 +331,18 @@ export const navSections: NavSection[] = [
       },
       { href: "/gold/exceptions", icon: ReportProblem, label: "Problems" },
       { href: "/reports/gold-chain", icon: ChartLine, label: "Reports" },
+    ],
+  },
+  {
+    id: "scrap-metal",
+    title: "Scrap Metal",
+    description: "Scrap metal buying and sales operations",
+    items: [
+      { href: "/scrap-metal", icon: Recycle, label: "Scrap Metal Home" },
+      { href: "/scrap-metal/purchases", icon: Payments, label: "Purchases" },
+      { href: "/scrap-metal/batches", icon: Package, label: "Batches" },
+      { href: "/scrap-metal/sales", icon: ReceiptLong, label: "Sales", roles: ["SUPERADMIN", "MANAGER"] },
+      { href: "/scrap-metal/pricing", icon: Coins, label: "Pricing" },
     ],
   },
   {
