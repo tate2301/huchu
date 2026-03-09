@@ -1,15 +1,16 @@
-import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { AdminMagicLinkLogin } from "@/components/admin-portal/admin-magic-link-login";
 import { authOptions } from "@/lib/auth";
 import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@/lib/admin-portal";
+import { headers } from "next/headers";
+import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
 
 const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
 
 export default async function AdminPortalLoginPage() {
   const headersList = await headers();
-  const host = headersList.get("host");
+  const host = getHostHeaderFromRequestHeaders(headersList);
 
   if (!isAdminPortalHost(host)) {
     redirect("/access-blocked");
