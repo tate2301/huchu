@@ -122,9 +122,12 @@ pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "re
 2. Configure Vercel project domains:
    - `apps.pagka.dev`
    - `*.apps.pagka.dev`
-3. Configure DNS records for both root and wildcard to point to Vercel.
+   - `admin.pagka.dev`
+   - `*.admin.pagka.dev`
+3. Configure DNS records for both root and wildcard domains to point to Vercel.
 4. Set production environment variables in Vercel (see below).
 5. Deploy and verify tenant login on subdomains.
+6. Verify admin portal access on `*.admin.pagka.dev`.
 
 ### Production Environment Variables (Vercel)
 ```
@@ -133,6 +136,7 @@ NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="https://apps.pagka.dev"
 PLATFORM_ROOT_DOMAIN="apps.pagka.dev"
 PLATFORM_ROOT_HOSTS="apps.pagka.dev"
+ADMIN_ROOT_DOMAIN="admin.pagka.dev"
 BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
 
 # Admin portal magic-link setup

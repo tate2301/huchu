@@ -37,15 +37,34 @@ BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
 
 ## Vercel Subdomain Setup
 
-1. Add your central app domain in Vercel (example: `app.your-domain.com`).
-2. Add a wildcard domain in Vercel (example: `*.app.your-domain.com`).
+### Main Application Domain (Multitenancy)
+
+1. Add your central app domain in Vercel (example: `apps.pagka.dev`).
+2. Add a wildcard domain in Vercel (example: `*.apps.pagka.dev`).
 3. Configure DNS for the wildcard record to point to Vercel.
 4. Confirm TLS certificates are issued for both central and wildcard domains.
 5. Set production env vars:
-   - `NEXTAUTH_URL=https://app.your-domain.com`
-   - `PLATFORM_ROOT_DOMAIN=app.your-domain.com`
-   - `PLATFORM_ROOT_HOSTS=app.your-domain.com`
+   - `NEXTAUTH_URL=https://apps.pagka.dev`
+   - `PLATFORM_ROOT_DOMAIN=apps.pagka.dev`
+   - `PLATFORM_ROOT_HOSTS=apps.pagka.dev`
 6. For preview deployments, leave `PLATFORM_ROOT_DOMAIN` unset to avoid strict host enforcement during QA.
+
+### Admin Portal Domain (Wildcard Support)
+
+7. Add your admin portal domain in Vercel (example: `admin.pagka.dev`).
+8. Add a wildcard admin domain in Vercel (example: `*.admin.pagka.dev`).
+9. Configure DNS records:
+   - `admin.pagka.dev` → Vercel (A/CNAME record)
+   - `*.admin.pagka.dev` → Vercel (A/CNAME wildcard record)
+10. Confirm TLS certificates are issued for both admin and wildcard admin domains.
+11. Set admin portal env var:
+    - `ADMIN_ROOT_DOMAIN=admin.pagka.dev`
+12. Verify access works at:
+    - `portal.admin.pagka.dev` (primary admin host)
+    - `test.admin.pagka.dev` (any subdomain)
+    - `acme.admin.pagka.dev` (any subdomain)
+
+**Important**: Admin portal routes (`/portal/admin/*` and `/api/platform-admin/*`) are only accessible on `*.admin.pagka.dev` domains and require SUPERADMIN role.
 
 ## Database Setup
 
@@ -232,9 +251,13 @@ For issues:
 - [ ] Admin user created
 - [ ] Backup strategy implemented
 - [ ] Monitoring configured
-- [ ] Domain DNS configured
-- [ ] Wildcard domain configured (`*.app.your-domain.com`)
-- [ ] Tenant subdomain login verified (for example `acme.app.your-domain.com/login`)
+- [ ] Main app domain DNS configured
+- [ ] Wildcard app domain configured (`*.apps.pagka.dev`)
+- [ ] Tenant subdomain login verified (e.g., `acme.apps.pagka.dev/login`)
+- [ ] Admin portal domain configured (`admin.pagka.dev`)
+- [ ] Wildcard admin domain configured (`*.admin.pagka.dev`)
+- [ ] Admin portal access verified (e.g., `portal.admin.pagka.dev`)
+- [ ] Admin portal SUPERADMIN access tested
 - [ ] Build succeeds
 - [ ] Tests pass
 - [ ] Performance tested
