@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { executeOperation } from "@/components/admin-portal/api";
+import type { OperationManifest } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,10 +31,14 @@ type Props = {
   action: string;
   actorEmail: string;
   companyId?: string;
+  manifest: OperationManifest;
+  modules?: string[];
   onCompleted?: (result: unknown) => void;
 };
 
 type DraftState = {
+  module: string;
+  action: string;
   payload: string;
   argsText: string;
   mode: "payload" | "args";
@@ -41,22 +46,35 @@ type DraftState = {
   targetCompanyId: string;
 };
 
-function buildSeedPayload(actor: string, companyId: string) {
-  if (companyId) {
-    return `{\n  "companyId": "${companyId}",\n  "actor": "${actor}"\n}`;
-  }
-  return `{\n  "actor": "${actor}"\n}`;
+const WIZARD_STEPS = ["Details", "Input", "Review", "Result"] as const;
+
+function buildDefaultPayload(actor: string, companyId?: string) {
+  const seedPayload = companyId ? { companyId, actor } : { actor };
+  return JSON.stringify(seedPayload, null, 2);
+}
+
+function getDefaultAction(manifest: OperationManifest, module: string) {
+  return manifest[module]?.[0] ?? "";
 }
 
 export function OperationWizardDialog({
   open,
   onOpenChange,
-  module,
-  action,
+  module: initialModule,
+  action: initialAction,
   actorEmail,
   companyId,
+  manifest,
+  modules,
   onCompleted,
 }: Props) {
+  const availableModules = useMemo(
+    () => Object.keys(manifest).filter((item) => (modules ? modules.includes(item) : true)),
+    [manifest, modules],
+  );
+  const [module, setModule] = useState(initialModule || availableModules[0] || "");
+  const [action, setAction] = useState(initialAction || "");
+  const actionOptions = useMemo(() => manifest[module] ?? [], [manifest, module]);
   const draftKey = useMemo(
     () => `admin-wizard-draft:${module}.${action}:${companyId ?? "global"}`,
     [module, action, companyId],
@@ -83,7 +101,11 @@ export function OperationWizardDialog({
       }
       return true;
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Invalid JSON");
+      if (error instanceof Error) {
+        setStatus(`Invalid JSON: ${error.message}`);
+      } else {
+        setStatus("Invalid JSON syntax - check for missing commas or quotes.");
+      }
       return false;
     }
   };
@@ -91,6 +113,10 @@ export function OperationWizardDialog({
   useEffect(() => {
     if (!open) return;
     setStepIndex(0);
+    const defaultModule = initialModule || availableModules[0] || "";
+    const defaultAction = initialAction || getDefaultAction(manifest, defaultModule);
+    setModule(defaultModule);
+    setAction(defaultAction);
     setActor(actorEmail);
     setTargetCompanyId(companyId ?? "");
     setMode("payload");
@@ -105,6 +131,8 @@ export function OperationWizardDialog({
         if (existing.mode) setMode(existing.mode);
         if (existing.actor) setActor(existing.actor);
         if (typeof existing.targetCompanyId === "string") setTargetCompanyId(existing.targetCompanyId);
+        if (typeof existing.module === "string") setModule(existing.module);
+        if (typeof existing.action === "string") setAction(existing.action);
         setStatus("Draft restored");
         return;
       } catch {
@@ -114,12 +142,14 @@ export function OperationWizardDialog({
       }
     }
 
-    setPayload(buildSeedPayload(actorEmail, companyId ?? ""));
+    setPayload(buildDefaultPayload(actorEmail, companyId ?? ""));
     setStatus("New draft");
-  }, [open, draftKey, actorEmail, companyId]);
+  }, [open, draftKey, actorEmail, companyId, initialModule, initialAction, availableModules, manifest]);
 
   const saveDraft = () => {
     const draft: DraftState = {
+      module,
+      action,
       payload,
       argsText,
       mode,
@@ -161,7 +191,7 @@ export function OperationWizardDialog({
       setStatus("Completed");
       onCompleted?.(result);
       window.localStorage.removeItem(draftKey);
-      onOpenChange(false);
+      setStepIndex(3);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed");
     } finally {
@@ -180,7 +210,7 @@ export function OperationWizardDialog({
         </DialogHeader>
 
         <div className="flex items-center gap-2">
-          {["Details", "Input", "Review"].map((step, index) => (
+          {WIZARD_STEPS.map((step, index) => (
             <Badge key={step} variant={index === stepIndex ? "default" : "outline"}>
               {index + 1}. {step}
             </Badge>
@@ -191,9 +221,39 @@ export function OperationWizardDialog({
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Run mode</Label>
+                <Label htmlFor="admin-operation-module">Module</Label>
+                <Select
+                  value={module}
+                  onValueChange={(value) => {
+                    setModule(value);
+                    setAction(getDefaultAction(manifest, value));
+                  }}
+                >
+                  <SelectTrigger id="admin-operation-module"><SelectValue placeholder="Select module" /></SelectTrigger>
+                  <SelectContent>
+                    {availableModules.map((item) => (
+                      <SelectItem key={item} value={item}>{item}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-operation-action">Action</Label>
+                <Select value={action} onValueChange={setAction}>
+                  <SelectTrigger id="admin-operation-action"><SelectValue placeholder="Select action" /></SelectTrigger>
+                  <SelectContent>
+                    {actionOptions.map((item) => (
+                      <SelectItem key={item} value={item}>{item}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="admin-operation-run-mode">Run mode</Label>
                 <Select value={mode} onValueChange={(value: "payload" | "args") => setMode(value)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="admin-operation-run-mode"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="payload">Payload object</SelectItem>
                     <SelectItem value="args">Args array</SelectItem>
@@ -201,8 +261,9 @@ export function OperationWizardDialog({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Actor email</Label>
+                <Label htmlFor="admin-operation-actor">Actor email</Label>
                 <Input
+                  id="admin-operation-actor"
                   value={actor}
                   onChange={(event) => setActor(event.target.value)}
                   placeholder="support@example.com"
@@ -210,8 +271,9 @@ export function OperationWizardDialog({
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Company scope (optional)</Label>
+              <Label htmlFor="admin-operation-company-scope">Company scope (optional)</Label>
               <Input
+                id="admin-operation-company-scope"
                 value={targetCompanyId}
                 onChange={(event) => setTargetCompanyId(event.target.value)}
                 placeholder="UUID for company-scoped actions"
@@ -222,8 +284,11 @@ export function OperationWizardDialog({
 
         {stepIndex === 1 ? (
           <div className="space-y-2">
-            <Label>{mode === "payload" ? "Payload JSON object" : "Args JSON array"}</Label>
+            <Label htmlFor="admin-operation-json-input">
+              {mode === "payload" ? "Payload JSON object" : "Args JSON array"}
+            </Label>
             <Textarea
+              id="admin-operation-json-input"
               value={mode === "payload" ? payload : argsText}
               onChange={(event) => {
                 if (mode === "payload") {
@@ -247,6 +312,15 @@ export function OperationWizardDialog({
           </div>
         ) : null}
 
+        {stepIndex === 3 ? (
+          <div className="space-y-2 rounded-md border bg-[var(--surface-muted)] p-3">
+            <p className="text-sm font-semibold">Operation completed</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Review status above, then close this wizard or go back to run another operation.
+            </p>
+          </div>
+        ) : null}
+
         <p className="text-xs text-[var(--text-muted)]">{status}</p>
 
         <DialogFooter className="flex flex-wrap gap-2">
@@ -262,6 +336,10 @@ export function OperationWizardDialog({
           {stepIndex < 2 ? (
             <Button
               onClick={() => {
+                if (!module || !action) {
+                  setStatus("Required: choose a module and action to continue.");
+                  return;
+                }
                 if (stepIndex === 1 && !validateCurrentInput()) return;
                 setStepIndex((value) => Math.min(2, value + 1));
               }}
@@ -269,9 +347,13 @@ export function OperationWizardDialog({
             >
               Next
             </Button>
-          ) : (
-            <Button onClick={run} disabled={loading}>{loading ? "Running..." : "Run operation"}</Button>
-          )}
+          ) : null}
+          {stepIndex === 2 ? (
+            <Button onClick={run} disabled={loading || !module || !action}>{loading ? "Running..." : "Run operation"}</Button>
+          ) : null}
+          {stepIndex === 3 ? (
+            <Button onClick={() => onOpenChange(false)}>Close</Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

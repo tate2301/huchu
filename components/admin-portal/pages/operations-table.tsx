@@ -25,6 +25,7 @@ import { OperationWizardDialog } from "@/components/admin-portal/wizards/operati
 import { ChevronDown } from "@/lib/icons";
 
 type Row = { module: string; action: string };
+const MAX_PICKER_RESULTS = 60;
 
 export function OperationsTable({
   title,
@@ -73,7 +74,12 @@ export function OperationsTable({
     <section className="space-y-3 rounded-xl border bg-[var(--surface-base)] p-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">{title}</h1>
-        <Badge variant="outline" className="font-mono">{rows.length} actions</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="font-mono">{rows.length} actions</Badge>
+          <Button size="sm" onClick={() => setSelected({ module: "", action: "" })}>
+            Start guided workflow
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -111,7 +117,12 @@ export function OperationsTable({
           }}
         >
           <PopoverTrigger asChild>
-            <Button variant="outline" className="h-9 min-w-[220px] justify-between">
+            <Button
+              variant="outline"
+              className="h-9 min-w-[220px] justify-between"
+              aria-label="Jump to operation"
+              aria-expanded={operationPickerOpen}
+            >
               Jump to operation
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
@@ -128,7 +139,7 @@ export function OperationsTable({
                   <CommandEmpty>No matching operation.</CommandEmpty>
                 ) : (
                   <CommandGroup>
-                    {operationPickerRows.slice(0, 60).map((row) => {
+                    {operationPickerRows.slice(0, MAX_PICKER_RESULTS).map((row) => {
                       const key = `${row.module}.${row.action}`;
                       return (
                         <CommandItem
@@ -203,6 +214,8 @@ export function OperationsTable({
         action={selected?.action ?? ""}
         actorEmail={actorEmail}
         companyId={companyId}
+        manifest={manifest}
+        modules={modules}
       />
     </section>
   );
