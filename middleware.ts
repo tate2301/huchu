@@ -134,9 +134,9 @@ export default withAuth(
         return NextResponse.rewrite(rewriteUrl);
       }
 
-      if (pathname === "/") {
+      if (!isPathWithinRoute(pathname, "/portal/admin") && pathname !== ACCESS_BLOCKED_PATH) {
         const rewriteUrl = request.nextUrl.clone();
-        rewriteUrl.pathname = "/portal/admin";
+        rewriteUrl.pathname = pathname === "/" ? "/portal/admin" : `/portal/admin${pathname}`;
         return NextResponse.rewrite(rewriteUrl);
       }
     }
