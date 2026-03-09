@@ -113,7 +113,7 @@ export default withAuth(
     const requestHost = request.nextUrl.host;
     const resolvedHost = hostHeader || requestHost || null;
     const hostContext = getPlatformHostContext(resolvedHost);
-    const isAdminHost = isAdminPortalHost(requestHost) || isAdminPortalHost(hostHeader);
+    const isAdminHost = isAdminPortalHost(resolvedHost);
     const token = request.nextauth.token as PlatformToken | null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
     const portalBasePath = getPortalBasePathForPathname(pathname);
