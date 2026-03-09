@@ -222,10 +222,22 @@ export const authOptions: NextAuthOptions = {
             return;
           }
 
-          if (await sendViaWebhook()) {
-            return;
+          let webhookFallbackError: Error | null = null;
+          try {
+            if (await sendViaWebhook()) {
+              return;
+            }
+          } catch (error) {
+            webhookFallbackError = error instanceof Error
+              ? error
+              : new Error(`Webhook fallback delivery failed: ${String(error)}`);
           }
 
+          if (webhookFallbackError) {
+            throw new Error(
+              `Resend delivery failed with status ${response.status}. Webhook fallback failed: ${webhookFallbackError.message}`,
+            );
+          }
           throw new Error(`Resend delivery failed with status ${response.status}.`);
         }
 
