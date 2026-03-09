@@ -9,7 +9,7 @@ import {
   PORTAL_SUBDOMAIN_MAP,
 } from "@/lib/platform/tenant";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
-import { ADMIN_PORTAL_HOST, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
@@ -121,7 +121,8 @@ export default withAuth(
 
     if (isPathWithinRoute(pathname, "/portal/admin") || isPathWithinRoute(pathname, "/api/platform-admin")) {
       if (!isAdminHost) {
-        return denyAccess(request, `Admin portal is only available on ${ADMIN_PORTAL_HOST}`);
+        const adminRootDomain = getAdminRootDomain();
+        return denyAccess(request, `Admin portal is only available on *.${adminRootDomain}`);
       }
 
       if (token?.role && !isSuperuserRole(token.role)) {
