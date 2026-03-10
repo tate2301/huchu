@@ -1,10 +1,5 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { CompaniesPage } from "@/components/admin-portal/pages/companies-page";
+import { redirect } from "next/navigation";
 
 export default function AdminCompaniesRoute() {
-  return (
-    <AdminShell>
-      <CompaniesPage />
-    </AdminShell>
-  );
+  redirect("/admin/clients");
 }

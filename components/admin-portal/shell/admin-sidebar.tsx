@@ -8,13 +8,24 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 
 const platformNav = [
   { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/features", label: "Features" },
-  { href: "/admin/companies", label: "Organizations" },
+  { href: "/admin/clients", label: "Clients" },
+  { href: "/admin/subscriptions", label: "Subscriptions" },
+  { href: "/admin/add-ons", label: "Add-ons" },
+  { href: "/admin/templates", label: "Templates" },
+  { href: "/admin/feature-catalog", label: "Feature Catalog" },
+  { href: "/admin/support-access", label: "Support Access" },
+  { href: "/admin/health", label: "Health" },
+  { href: "/admin/audit-log", label: "Audit Log" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
-const companyNav = (companyId: string) => [
-  { href: `/admin/company/${companyId}/dashboard`, label: "Dashboard" },
-  { href: `/admin/company/${companyId}/features`, label: "Features" },
+const clientNav = (companyId: string) => [
+  { href: `/admin/clients/${companyId}`, label: "Overview" },
+  { href: `/admin/clients/${companyId}#subscription`, label: "Subscription" },
+  { href: `/admin/clients/${companyId}#addons`, label: "Add-ons" },
+  { href: `/admin/clients/${companyId}#features`, label: "Features" },
+  { href: `/admin/clients/${companyId}#usage`, label: "Usage" },
+  { href: `/admin/clients/${companyId}#audit`, label: "Audit" },
   { href: `/admin/company/${companyId}/operations`, label: "Operations" },
 ];
 
@@ -26,7 +37,8 @@ export function AdminSidebar({
   activeCompanyId?: string;
 }) {
   const pathname = usePathname();
-  const nav = activeCompanyId ? companyNav(activeCompanyId) : platformNav;
+  const normalizedPath = pathname.replace(/^\/portal/, "");
+  const nav = activeCompanyId ? clientNav(activeCompanyId) : platformNav;
 
   return (
     <aside className="w-full space-y-4 rounded-xl border bg-[var(--surface-base)] p-3 md:w-72">
@@ -34,7 +46,11 @@ export function AdminSidebar({
 
       <nav className="space-y-1">
         {nav.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive =
+            normalizedPath === item.href ||
+            normalizedPath.startsWith(item.href.replace(/#.*/, "")) ||
+            (activeCompanyId ? normalizedPath.startsWith(`/admin/company/${activeCompanyId}`) : false) ||
+            (activeCompanyId ? normalizedPath.startsWith(`/admin/clients/${activeCompanyId}`) : false);
           return (
             <Link
               key={item.href}
