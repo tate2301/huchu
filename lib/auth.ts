@@ -184,6 +184,23 @@ export const authOptions: NextAuthOptions = {
         const text = `Use this secure link to sign in: ${url}`;
         const html = `<p>Use this secure link to sign in:</p><p><a href="${url}">Sign in to Superuser Portal</a></p>`;
 
+        const webhookUrl = process.env.ADMIN_MAGIC_LINK_WEBHOOK_URL?.trim();
+        const sendViaWebhook = async () => {
+          if (!webhookUrl) {
+            return false;
+          }
+
+          const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: identifier, subject, text, html }),
+          });
+          if (!response.ok) {
+            throw new Error(`Webhook delivery failed with status ${response.status}.`);
+          }
+          return true;
+        };
+
         const resendApiKey = process.env.ADMIN_MAGIC_LINK_RESEND_API_KEY?.trim();
         if (resendApiKey) {
           const response = await fetch("https://api.resend.com/emails", {
@@ -201,19 +218,31 @@ export const authOptions: NextAuthOptions = {
             }),
           });
 
-          if (!response.ok) {
-            throw new Error(`Resend delivery failed with status ${response.status}.`);
+          if (response.ok) {
+            return;
           }
-          return;
+
+          let webhookFallbackError: Error | null = null;
+          try {
+            if (await sendViaWebhook()) {
+              return;
+            }
+          } catch (error) {
+            webhookFallbackError = error instanceof Error
+              ? error
+              : new Error(`Webhook fallback delivery failed: ${String(error)}`);
+          }
+
+          if (webhookFallbackError) {
+            throw new Error(
+              `Resend delivery failed with status ${response.status}. Webhook fallback failed: ${webhookFallbackError.message}`,
+            );
+          }
+          throw new Error(`Resend delivery failed with status ${response.status}.`);
         }
 
-        const webhookUrl = process.env.ADMIN_MAGIC_LINK_WEBHOOK_URL?.trim();
         if (webhookUrl) {
-          await fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: identifier, subject, text, html }),
-          });
+          await sendViaWebhook();
           return;
         }
 
