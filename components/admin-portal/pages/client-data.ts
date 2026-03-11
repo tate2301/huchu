@@ -30,7 +30,7 @@ const ADDON_ROTATION: FeatureBundleDefinition["code"][] = [
   "ADDON_SCRAP_METAL_SUITE",
 ];
 
-function computeMonthlyTotal(tier: TierDefinition, addonCodes: string[], activeSites: number) {
+export function computeMonthlyTotal(tier: TierDefinition, addonCodes: string[], activeSites: number) {
   const siteOverage = Math.max(0, activeSites - tier.includedSites) * tier.additionalSiteMonthlyPrice;
   const addonBaseTotal = addonCodes.reduce((acc, code) => acc + (getBundleDefinition(code)?.monthlyPrice ?? 0), 0);
   const addonSiteTotal = addonCodes.reduce(

@@ -19,6 +19,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { fetchCompanies } from "@/components/admin-portal/api";
 import { enrichClients, type EnrichedClient } from "./client-data";
 import { FEATURE_BUNDLES, TIERS } from "@/lib/platform/feature-catalog";
+import { ChangeTierWizard, CreateClientWizard, ManageAddonsWizard } from "@/components/admin-portal/wizards/platform-wizards";
 
 const statusOptions = ["All statuses", "ACTIVE", "EXPIRING_SOON", "IN_GRACE", "PAST_DUE", "CANCELED"];
 
@@ -26,12 +27,14 @@ function formatCurrency(value: number) {
   return `$${value.toLocaleString()}/month`;
 }
 
-export function CompaniesPage() {
+export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
   const [clients, setClients] = useState<EnrichedClient[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("All statuses");
   const [addonFilter, setAddonFilter] = useState<string>("all");
+  const [tierWizardClient, setTierWizardClient] = useState<EnrichedClient | null>(null);
+  const [addonWizardClient, setAddonWizardClient] = useState<EnrichedClient | null>(null);
 
   useEffect(() => {
     void fetchCompanies()
@@ -65,14 +68,21 @@ export function CompaniesPage() {
         </p>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <CreateClientWizard actorEmail={actorEmail} />
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/admin/templates">Apply templates</Link>
+        </Button>
+      </div>
+
       <Card className="border-[var(--border)]">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-base">Client list</CardTitle>
             <CardDescription>One table, predictable controls, progressive disclosure via action menus.</CardDescription>
           </div>
-          <Button size="sm" asChild>
-            <Link href="/admin/templates">Create client (wizard)</Link>
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/admin/health">Health monitor</Link>
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -182,11 +192,13 @@ export function CompaniesPage() {
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/clients/${client.id}`}>View Client</Link>
                             </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setTierWizardClient(client)}>Change Tier (wizard)</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setAddonWizardClient(client)}>Manage Add-ons (wizard)</DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/clients/${client.id}#subscription`}>Edit Plan</Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                              <Link href={`/admin/clients/${client.id}#addons`}>Manage Add-ons</Link>
+                              <Link href={`/admin/clients/${client.id}#addons`}>View Add-ons</Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/clients/${client.id}#features`}>View Features</Link>
@@ -204,6 +216,24 @@ export function CompaniesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {tierWizardClient ? (
+        <ChangeTierWizard
+          actorEmail={actorEmail}
+          companyId={tierWizardClient.id}
+          companyName={tierWizardClient.name}
+        />
+      ) : null}
+
+      {addonWizardClient ? (
+        <ManageAddonsWizard
+          actorEmail={actorEmail}
+          companyId={addonWizardClient.id}
+          companyName={addonWizardClient.name}
+          currentAddonCodes={addonWizardClient.addonCodes}
+          siteCount={addonWizardClient.activeSites}
+        />
+      ) : null}
     </section>
   );
 }
