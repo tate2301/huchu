@@ -24,7 +24,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Workspace</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Client Workspace</p>
       <div className="flex items-center gap-2">
         <Select
           value={activeCompanyId ?? "platform"}
@@ -34,7 +34,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
               window.location.href = "/admin/dashboard";
               return;
             }
-            window.location.href = `/admin/company/${value}/dashboard`;
+            window.location.href = `/admin/clients/${value}`;
           }}
         >
           <SelectTrigger className="h-9 flex-1">
@@ -52,7 +52,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
 
         {activeCompany ? (
           <Button asChild variant="outline" size="icon" className="h-9 w-9">
-            <Link href={`/admin/company/${activeCompany.id}/features`} aria-label="Configure active organization">
+            <Link href={`/admin/clients/${activeCompany.id}`} aria-label="Configure active organization">
               <Settings className="h-4 w-4" />
             </Link>
           </Button>
@@ -60,7 +60,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
       </div>
       {activeCompany ? (
         <p className="text-xs text-[var(--text-muted)]">Active: <span className="font-mono">{activeCompany.slug ?? activeCompany.id}</span></p>
-      ) : pathname.includes("/company/") ? (
+      ) : pathname.includes("/company/") || pathname.includes("/clients/") ? (
         <p className="text-xs text-[var(--text-muted)]">Loading workspace…</p>
       ) : null}
     </div>

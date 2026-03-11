@@ -1,19 +1,6 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { OperationsPage } from "@/components/admin-portal/pages/operations-page";
-import { requireAdminPortalSession } from "@/lib/admin-portal/server";
+import { redirect } from "next/navigation";
 
 export default async function CompanyFeaturesRoute({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = await params;
-  const session = await requireAdminPortalSession();
-
-  return (
-    <AdminShell activeCompanyId={companyId}>
-      <OperationsPage
-        title="Organization features"
-        actorEmail={session.user.email ?? "superuser"}
-        companyId={companyId}
-        modules={["feature", "subscription", "site"]}
-      />
-    </AdminShell>
-  );
+  redirect(`/admin/clients/${companyId}#features`);
 }
