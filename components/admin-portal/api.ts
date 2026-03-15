@@ -1,4 +1,11 @@
-import type { OperationManifest, CompanyWorkspace, AdminMetricCard } from "./types";
+import type {
+  OperationManifest,
+  CompanyWorkspace,
+  AdminMetricCard,
+  AdminSearchResult,
+  IdentityHubData,
+  WorkspaceOverview,
+} from "./types";
 
 export async function fetchManifest(): Promise<OperationManifest> {
   const response = await fetch("/api/platform-admin/manifest", { cache: "no-store" });
@@ -37,5 +44,36 @@ export async function executeOperation(input: {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error ?? "Operation failed");
+  return data;
+}
+
+export async function searchAdminPortal(query: string): Promise<AdminSearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const response = await fetch(`/api/platform-admin/search?q=${encodeURIComponent(trimmed)}`, {
+    cache: "no-store",
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to search control plane");
+  return data.results;
+}
+
+export async function fetchIdentityHub(companyId?: string, search?: string): Promise<IdentityHubData> {
+  const params = new URLSearchParams();
+  if (companyId) params.set("companyId", companyId);
+  if (search?.trim()) params.set("search", search.trim());
+
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await fetch(`/api/platform-admin/identity${suffix}`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to load identity hub");
+  return data;
+}
+
+export async function fetchWorkspaceOverview(companyId: string): Promise<WorkspaceOverview> {
+  const response = await fetch(`/api/platform-admin/workspaces/${companyId}/overview`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to load workspace overview");
   return data;
 }

@@ -1,391 +1,471 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, LifeBuoy, RefreshCcw, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
+import { fetchWorkspaceOverview } from "@/components/admin-portal/api";
+import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
+import type { WorkspaceOverview } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusChip } from "@/components/ui/status-chip";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchCompanies } from "@/components/admin-portal/api";
+import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import {
-  getEnrichedClient,
-  getFeaturesForClient,
-  getPricingBreakdown,
-  type EnrichedClient,
-} from "./client-data";
-import { FEATURE_BUNDLES, TIERS } from "@/lib/platform/feature-catalog";
+  CreateSiteDialog,
+  OrgStatusDialog,
+  ReserveSubdomainDialog,
+  SiteStatusDialog,
+  SupportRequestDialog,
+} from "@/components/admin-portal/wizards/identity-hub-wizards";
 
 function formatCurrency(value: number) {
   return `$${value.toLocaleString()}`;
 }
 
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Not available";
+  return new Date(value).toLocaleString();
+}
+
+function StatusBadge({ value }: { value: string }) {
+  const normalized = value.toUpperCase();
+  const variant =
+    normalized === "ACTIVE" || normalized === "OPEN"
+      ? "secondary"
+      : normalized === "DISABLED" || normalized === "SUSPENDED"
+        ? "destructive"
+        : "outline";
+  return <Badge variant={variant}>{value.replaceAll("_", " ")}</Badge>;
+}
+
+function getInitialView() {
+  if (typeof window === "undefined") return "overview";
+  const hash = window.location.hash.replace("#", "");
+  if (hash === "subscription" || hash === "addons") return "commercial";
+  if (hash === "features") return "features";
+  if (hash === "audit") return "audit";
+  return "overview";
+}
+
 export function ClientDetailsPage({ companyId }: { companyId: string }) {
-  const [client, setClient] = useState<EnrichedClient | undefined>();
-  const [addons, setAddons] = useState<Set<string>>(new Set());
-  const [referenceNow] = useState(() => Date.now());
+  const { actorEmail, companies } = useAdminShell();
+  const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
+  const [view, setView] = useState("overview");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    void fetchCompanies()
-      .then((companies) => {
-        const enriched = getEnrichedClient(companies, companyId);
-        setClient(enriched);
-        setAddons(new Set(enriched?.addonCodes ?? []));
-      })
-      .catch(() => setClient(undefined));
-  }, [companyId]);
+    setView(getInitialView());
+    const onHashChange = () => setView(getInitialView());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
-  const pricing = useMemo(() => (client ? getPricingBreakdown({ ...client, addonCodes: Array.from(addons) }) : null), [addons, client]);
-  const includedFeatures = useMemo(() => (client ? getFeaturesForClient({ ...client, addonCodes: Array.from(addons) }) : []), [addons, client]);
+  useEffect(() => {
+    let ignore = false;
 
-  const siteRows = useMemo(
-    () => {
-      if (!client) return [];
-      return Array.from({ length: Math.max(1, client.activeSites) }).map((_, index) => ({
-        name: `${client.name} Site ${index + 1}`,
-        tier: client.tierName,
-        status: index === 0 ? "PRIMARY" : "ACTIVE",
-        lastSeen: new Date(referenceNow - index * 36_000_00).toLocaleString(),
-      }));
-    },
-    [client, referenceNow],
-  );
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const payload = await fetchWorkspaceOverview(companyId);
+        if (!ignore) {
+          setOverview(payload);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setOverview(null);
+          setError(err instanceof Error ? err.message : "Failed to load workspace overview");
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
 
-  const auditRows = useMemo(
-    () =>
-      client
-        ? [
-            { id: "au1", action: "Change Tier", target: client.name, actor: "alice@ops.team", status: "SUCCESS", at: "Today 10:24" },
-            { id: "au2", action: "Enable Add-on", target: "Analytics Pro", actor: "alice@ops.team", status: "SUCCESS", at: "Today 10:22" },
-            { id: "au3", action: "Support Login", target: client.name, actor: "support@pagka.dev", status: "PENDING", at: "Today 09:55" },
-          ]
-        : [],
-    [client],
-  );
+    void load();
+    return () => {
+      ignore = true;
+    };
+  }, [companyId, refreshKey]);
 
-  if (!client) {
+  const refresh = () => setRefreshKey((value) => value + 1);
+  const items = [
+    { id: "overview", label: "Overview" },
+    { id: "commercial", label: "Commercial", count: overview?.addons.length ?? 0 },
+    { id: "features", label: "Features", count: overview?.features.length ?? 0 },
+    { id: "sites", label: "Sites", count: overview?.sites.length ?? 0 },
+    { id: "identity", label: "Identity", count: (overview?.admins.length ?? 0) + (overview?.users.length ?? 0) },
+    { id: "audit", label: "Audit", count: overview?.auditEvents.length ?? 0 },
+  ];
+
+  if (loading) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold">Client not found</h1>
-        <p className="text-sm text-[var(--text-muted)]">Select a client from the list to view details.</p>
-        <Button asChild>
-          <Link href="/admin/clients">Back to clients</Link>
-        </Button>
-      </section>
+      <Card className="border-[var(--border)]">
+        <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading workspace overview...</CardContent>
+      </Card>
     );
   }
 
-  const statusMap: Record<string, string> = {
-    ACTIVE: "Active",
-    EXPIRING_SOON: "Expiring Soon",
-    IN_GRACE: "In Grace",
-    PAST_DUE: "Past Due",
-    CANCELED: "Canceled",
-  };
+  if (!overview || error) {
+    return (
+      <Card className="border-[var(--border)]">
+        <CardContent className="space-y-4 py-10">
+          <p className="text-sm text-red-700">{error ?? "Workspace not found"}</p>
+          <Button asChild variant="outline">
+            <Link href="/admin/clients">Back to clients</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { company, reservation, contractState, subscription, subscriptionHealth, pricing, addons, features, admins, users, sites, supportSessions, auditEvents, incidents } = overview;
+  const enabledAddons = addons.filter((addon) => addon.enabled);
+  const activeAdmins = admins.filter((admin) => admin.isActive).length;
+  const activeUsers = users.filter((user) => user.isActive).length;
+  const activeSites = sites.filter((site) => site.isActive).length;
+  const activeSessions = supportSessions.filter((session) => session.status === "ACTIVE").length;
 
   return (
     <section className="space-y-5">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Client</p>
-            <h1 className="text-2xl font-semibold">{client.name}</h1>
-            <p className="text-sm text-[var(--text-muted)]">
-              Guided controls for plan, add-ons, features, support access, and audit. Safe defaults, no raw toggles unless advanced.
-            </p>
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="font-medium">{client.tierName}</Badge>
-            <StatusChip status={client.status} />
-            <Badge variant="secondary" className="font-mono">{formatCurrency(client.monthlyAmount)}/mo</Badge>
+            <Badge variant="secondary" className="rounded-full px-3 py-1">Organization workspace</Badge>
+            <StatusBadge value={company.tenantStatus} />
+            <StatusBadge value={contractState} />
+            {subscriptionHealth ? <StatusBadge value={subscriptionHealth.state} /> : null}
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold">{company.name}</h1>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Service-backed workspace overview for pricing, identity, sites, support, and audit.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+            <span>{company.slug}</span>
+            <span>|</span>
+            <span>{company.counts.activeSites} active sites</span>
+            <span>|</span>
+            <span>{company.counts.activeUsers} active users</span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" asChild><Link href={`/admin/clients/${client.id}#subscription`}>Change Tier</Link></Button>
-          <Button size="sm" variant="outline" asChild><Link href={`/admin/clients/${client.id}#addons`}>Manage Add-ons</Link></Button>
-          <Button size="sm" variant="outline"><RefreshCw className="mr-2 h-4 w-4" />Recompute Pricing</Button>
-          <Button size="sm" variant="outline" asChild><Link href="/admin/templates"><Wand2 className="mr-2 h-4 w-4" />Apply Template</Link></Button>
-          <Button size="sm"><ShieldCheck className="mr-2 h-4 w-4" />Enable Support Access</Button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/admin/company/${companyId}/identity`}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Identity hub
+            </Link>
+          </Button>
+          <SupportRequestDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} triggerLabel="Request support" buttonVariant="outline" onCompleted={refresh} />
+          <CreateSiteDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} triggerLabel="Create site" onCompleted={refresh} />
+          <ReserveSubdomainDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} currentSubdomain={reservation?.subdomain ?? company.slug} triggerLabel="Reserve subdomain" buttonVariant="outline" onCompleted={refresh} />
+          {company.tenantStatus === "ACTIVE" ? (
+            <OrgStatusDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} action="suspend" triggerLabel="Suspend" onCompleted={refresh} />
+          ) : (
+            <OrgStatusDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} action="activate" triggerLabel="Activate" onCompleted={refresh} />
+          )}
+          <Button variant="ghost" size="sm" onClick={refresh}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-3">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="subscription">Subscription</TabsTrigger>
-          <TabsTrigger value="addons">Add-ons</TabsTrigger>
-          <TabsTrigger value="features">Features</TabsTrigger>
-          <TabsTrigger value="sites">Sites</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="audit">Audit</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+        <Card className="border-[var(--border)]">
+          <CardHeader>
+            <CardDescription>Monthly total</CardDescription>
+            <CardTitle className="font-mono text-2xl">{pricing ? `${formatCurrency(pricing.total)}/mo` : "No plan"}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--text-muted)]">{subscription?.planName ?? "No plan assigned"} | {enabledAddons.length} enabled add-ons</CardContent>
+        </Card>
+        <Card className="border-[var(--border)]">
+          <CardHeader>
+            <CardDescription>Identity</CardDescription>
+            <CardTitle className="text-2xl">{activeAdmins + activeUsers}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--text-muted)]">{activeAdmins} active admins | {activeUsers} active users</CardContent>
+        </Card>
+        <Card className="border-[var(--border)]">
+          <CardHeader>
+            <CardDescription>Sites and support</CardDescription>
+            <CardTitle className="text-2xl">{activeSites + activeSessions}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--text-muted)]">{activeSites} active sites | {activeSessions} active support sessions</CardContent>
+        </Card>
+        <Card className="border-[var(--border)]">
+          <CardHeader>
+            <CardDescription>Health posture</CardDescription>
+            <CardTitle className="text-lg">{subscriptionHealth?.state ?? "No health signal"}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--text-muted)]">{incidents.length} incidents | {reservation ? reservation.status : "No reservation record"}</CardContent>
+        </Card>
+      </div>
 
-        <TabsContent value="overview" className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Workspace views">
+        {view === "overview" ? (
+          <div className="space-y-4">
             <Card className="border-[var(--border)]">
               <CardHeader>
-                <CardDescription>Plan Level</CardDescription>
-                <CardTitle className="text-lg">{client.tierName}</CardTitle>
+                <CardTitle className="text-base">Workspace state</CardTitle>
+                <CardDescription>Operational state, contract posture, subscription health, and recommended next actions.</CardDescription>
               </CardHeader>
-              <CardContent className="text-sm text-[var(--text-muted)]">
-                {statusMap[client.status]}. {client.activeSites} active sites. Add-ons: {client.addonCodes.length || "None"}.
+              <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Subscription</p>
+                  <p className="text-sm font-medium">{subscription?.planName ?? "No plan assigned"}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{subscriptionHealth?.reason ?? "No subscription health record found."}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Subdomain</p>
+                  <p className="text-sm font-medium">{reservation?.subdomain ?? company.slug}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{reservation ? `${reservation.status} via ${reservation.provider}` : "No reservation recorded."}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Provisioning</p>
+                  <p className="text-sm font-medium">{company.isProvisioned ? "Provisioned" : "Provisioning pending"}</p>
+                  <p className="text-xs text-[var(--text-muted)]">Created {formatDate(company.createdAt)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Next actions</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/identity`}>Open identity</Link></Button>
+                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/operations`}>Scoped operations</Link></Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardDescription>Monthly Amount</CardDescription>
-                <CardTitle className="text-lg font-mono">{formatCurrency(pricing?.total ?? client.monthlyAmount)}/mo</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1 text-xs text-[var(--text-muted)]">
-                <p>Tier base: {formatCurrency(pricing?.tierBase ?? 0)}</p>
-                <p>Site overage: {formatCurrency(pricing?.siteOverage ?? 0)}</p>
-                <p>Add-ons: {formatCurrency((pricing?.addonBaseTotal ?? 0) + (pricing?.addonSiteTotal ?? 0))}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardDescription>Last Updated</CardDescription>
-                <CardTitle className="text-lg">{new Date(client.lastUpdated).toLocaleString()}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-[var(--text-muted)]">Platform-managed with safe defaults and audit trail.</CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
-        <TabsContent value="subscription" className="space-y-3" id="subscription">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardTitle className="text-base">Plan</CardTitle>
-                <CardDescription>Plan level, base price, and included sites.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p><span className="font-medium">Current Tier:</span> {client.tierName}</p>
-                <p><span className="font-medium">Base Price:</span> {formatCurrency(pricing?.tierBase ?? 0)}/month</p>
-                <p><span className="font-medium">Included Sites:</span> {TIERS.find((tier) => tier.code === client.tierCode)?.includedSites ?? 0}</p>
-                <p><span className="font-medium">Additional Site Price:</span> {formatCurrency(TIERS.find((tier) => tier.code === client.tierCode)?.additionalSiteMonthlyPrice ?? 0)}/site</p>
-              </CardContent>
-            </Card>
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardTitle className="text-base">Site Usage</CardTitle>
-                <CardDescription>Included vs active sites with overage.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p><span className="font-medium">Active Sites:</span> {client.activeSites}</p>
-                <p><span className="font-medium">Included Sites:</span> {TIERS.find((tier) => tier.code === client.tierCode)?.includedSites ?? 0}</p>
-                <p><span className="font-medium">Overage Sites:</span> {Math.max(0, client.activeSites - (TIERS.find((tier) => tier.code === client.tierCode)?.includedSites ?? 0))}</p>
-                <p><span className="font-medium">Overage Cost:</span> {formatCurrency(pricing?.siteOverage ?? 0)}/month</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Billing Snapshot</CardTitle>
-              <CardDescription>Applies platform formula: tier_base + tier_site_overage + addon_base_total + addon_site_total.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Base Plan</p>
-                <p className="text-lg font-mono">{formatCurrency(pricing?.tierBase ?? 0)}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Site Overage</p>
-                <p className="text-lg font-mono">{formatCurrency(pricing?.siteOverage ?? 0)}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Add-ons</p>
-                <p className="text-lg font-mono">
-                  {formatCurrency((pricing?.addonBaseTotal ?? 0) + (pricing?.addonSiteTotal ?? 0))}
-                </p>
-              </div>
-              <div className="space-y-1 md:col-span-3">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Total</p>
-                <p className="text-2xl font-mono">{formatCurrency(pricing?.total ?? client.monthlyAmount)}/month</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="addons" className="space-y-3" id="addons">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {FEATURE_BUNDLES.map((bundle) => {
-              const enabled = addons.has(bundle.code);
-              return (
-                <Card key={bundle.code} className="border-[var(--border)]">
-                  <CardHeader className="space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <CardTitle className="text-base">{bundle.name}</CardTitle>
-                        <CardDescription>{bundle.description}</CardDescription>
+            {subscriptionHealth?.shouldBlock || incidents.length > 0 ? (
+              <Card className="border-[var(--border)]">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TriangleAlert className="h-4 w-4 text-[#EC442C]" />
+                    Attention needed
+                  </CardTitle>
+                  <CardDescription>Signals that could affect access, billing, or rollout safety for this workspace.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {subscriptionHealth?.shouldBlock ? (
+                    <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                      <p className="font-semibold">{subscriptionHealth.state.replaceAll("_", " ")}</p>
+                      <p className="mt-1 text-[var(--text-muted)]">{subscriptionHealth.reason}</p>
+                    </div>
+                  ) : null}
+                  {incidents.slice(0, 3).map((incident) => (
+                    <div key={incident.id} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold">{incident.metricKey}</p>
+                        <StatusBadge value={incident.status} />
                       </div>
-                      <Badge variant={enabled ? "secondary" : "outline"}>{enabled ? "Enabled" : "Disabled"}</Badge>
+                      <p className="mt-1 text-[var(--text-muted)]">{incident.message}</p>
                     </div>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Base: {formatCurrency(bundle.monthlyPrice)} · Per site: {formatCurrency(bundle.additionalSiteMonthlyPrice)}/site
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Features Included</p>
-                    <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--text-muted)]">
-                      {bundle.features.slice(0, 4).map((feature) => (
-                        <li key={feature}>{feature}</li>
-                      ))}
-                    </ul>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant={enabled ? "outline" : "default"} onClick={() => {
-                        setAddons((current) => {
-                          const next = new Set(current);
-                          if (enabled) {
-                            next.delete(bundle.code);
-                          } else {
-                            next.add(bundle.code);
-                          }
-                          return next;
-                        });
-                      }}>
-                        {enabled ? "Disable" : "Enable"}
-                      </Button>
-                      <Button size="sm" variant="ghost" asChild>
-                        <Link href="/admin/feature-catalog">View feature access</Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
-        </TabsContent>
+        ) : null}
 
-        <TabsContent value="features" className="space-y-3" id="features">
-          <Card className="border-[var(--border)]">
+        {view === "commercial" ? (
+          <Card className="border-[var(--border)]" id="subscription">
             <CardHeader>
-              <CardTitle className="text-base">Feature Access</CardTitle>
-              <CardDescription>Derived from tier and enabled add-ons. Advanced mode toggles are gated.</CardDescription>
+              <CardTitle className="text-base">Commercial state</CardTitle>
+              <CardDescription>Pricing breakdown and add-on posture for this workspace.</CardDescription>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Plan</p>
+                  <p className="mt-2 font-semibold">{subscription?.planName ?? "No plan"}</p>
+                  <p className="mt-1 text-[var(--text-muted)]">{subscription?.status ?? "No subscription record"}</p>
+                </div>
+                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Pricing</p>
+                  <p className="mt-2 font-mono text-lg">{pricing ? `${formatCurrency(pricing.total)}/mo` : "Unavailable"}</p>
+                  <p className="mt-1 text-[var(--text-muted)]">Tier base {pricing ? formatCurrency(pricing.tierBase) : "N/A"}</p>
+                </div>
+                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Usage</p>
+                  <p className="mt-2 font-semibold">{activeSites} active sites</p>
+                  <p className="mt-1 text-[var(--text-muted)]">{enabledAddons.length} enabled add-ons</p>
+                </div>
+              </div>
+
+              <table className="w-full text-sm" id="addons">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
-                    <th className="px-3 py-2">Feature Name</th>
-                    <th className="px-3 py-2">Key</th>
-                    <th className="px-3 py-2">Billable</th>
-                    <th className="px-3 py-2">Default Enabled</th>
-                    <th className="px-3 py-2">Domain</th>
+                    <th className="px-3 py-2">Add-on</th>
+                    <th className="px-3 py-2">Base</th>
+                    <th className="px-3 py-2">Per site</th>
+                    <th className="px-3 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {includedFeatures.map((feature) => (
-                    <tr key={feature.key} className="border-t">
-                      <td className="px-3 py-2">{feature.name}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{feature.key}</td>
-                      <td className="px-3 py-2">{feature.isBillable ? "Yes" : "No"}</td>
-                      <td className="px-3 py-2">{feature.defaultEnabled ? "Yes" : "No"}</td>
-                      <td className="px-3 py-2 text-xs uppercase tracking-wide text-[var(--text-muted)]">{feature.domain}</td>
+                  {addons.map((addon) => (
+                    <tr key={addon.code} className="border-t">
+                      <td className="px-3 py-3"><p className="font-medium">{addon.name}</p><p className="text-xs text-[var(--text-muted)]">{addon.code}</p></td>
+                      <td className="px-3 py-3 font-mono">{formatCurrency(addon.monthlyPrice)}</td>
+                      <td className="px-3 py-3 font-mono">{formatCurrency(addon.additionalSiteMonthlyPrice)}</td>
+                      <td className="px-3 py-3"><StatusBadge value={addon.enabled ? "ACTIVE" : "INACTIVE"} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
+        ) : null}
 
-        <TabsContent value="sites" className="space-y-3">
-          <Card className="border-[var(--border)]">
+        {view === "features" ? (
+          <Card className="border-[var(--border)]" id="features">
             <CardHeader>
-              <CardTitle className="text-base">Sites</CardTitle>
-              <CardDescription>Site list with status and recent activity.</CardDescription>
+              <CardTitle className="text-base">Effective features</CardTitle>
+              <CardDescription>Resolved feature access for this workspace.</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <tr>
+                    <th className="px-3 py-2">Feature</th>
+                    <th className="px-3 py-2">Platform active</th>
+                    <th className="px-3 py-2">Enabled</th>
+                    <th className="px-3 py-2">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {features.map((feature) => (
+                    <tr key={feature.feature} className="border-t">
+                      <td className="px-3 py-3"><p className="font-medium">{feature.featureLabel}</p><p className="text-xs text-[var(--text-muted)]">{feature.feature}</p></td>
+                      <td className="px-3 py-3"><StatusBadge value={feature.platformActive ? "ACTIVE" : "INACTIVE"} /></td>
+                      <td className="px-3 py-3"><StatusBadge value={feature.enabled ? "ACTIVE" : "INACTIVE"} /></td>
+                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{feature.reason ?? "No note"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {view === "sites" ? (
+          <Card className="border-[var(--border)]">
+            <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="text-base">Sites</CardTitle>
+                <CardDescription>Workspace sites with activation controls.</CardDescription>
+              </div>
+              <CreateSiteDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} triggerLabel="Create site" onCompleted={refresh} />
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
                     <th className="px-3 py-2">Site</th>
-                    <th className="px-3 py-2">Tier</th>
+                    <th className="px-3 py-2">Location</th>
+                    <th className="px-3 py-2">Unit</th>
                     <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Last Activity</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {siteRows.map((site) => (
-                    <tr key={site.name} className="border-t">
-                      <td className="px-3 py-2">{site.name}</td>
-                      <td className="px-3 py-2">{site.tier}</td>
-                      <td className="px-3 py-2"><Badge variant="outline">{site.status}</Badge></td>
-                      <td className="px-3 py-2 text-xs text-[var(--text-muted)]">{site.lastSeen}</td>
+                  {sites.map((site) => (
+                    <tr key={site.id} className="border-t">
+                      <td className="px-3 py-3"><p className="font-medium">{site.name}</p><p className="text-xs text-[var(--text-muted)]">{site.code}</p></td>
+                      <td className="px-3 py-3 text-[var(--text-muted)]">{site.location ?? "Not set"}</td>
+                      <td className="px-3 py-3"><Badge variant="outline">{site.measurementUnit}</Badge></td>
+                      <td className="px-3 py-3"><StatusBadge value={site.isActive ? "ACTIVE" : "INACTIVE"} /></td>
+                      <td className="px-3 py-3">
+                        <div className="flex justify-end">
+                          {site.isActive ? (
+                            <SiteStatusDialog actorEmail={actorEmail} site={site} activate={false} triggerLabel="Deactivate" onCompleted={refresh} />
+                          ) : (
+                            <SiteStatusDialog actorEmail={actorEmail} site={site} activate={true} triggerLabel="Activate" onCompleted={refresh} />
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
+        ) : null}
 
-        <TabsContent value="usage" className="space-y-3" id="usage">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardDescription>Monthly Usage</CardDescription>
-                <CardTitle className="text-lg font-mono">{client.activeSites * 12} site credits</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-[var(--text-muted)]">Usage-based pricing ready for future modules.</CardContent>
-            </Card>
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardDescription>Support Sessions</CardDescription>
-                <CardTitle className="text-lg font-mono">2 active</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-[var(--text-muted)]">Support access expires automatically after set duration.</CardContent>
-            </Card>
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardDescription>Health Score</CardDescription>
-                <CardTitle className="text-lg font-mono">92/100</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-[var(--text-muted)]">Includes billing, entitlement sync, and usage signals.</CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="audit" className="space-y-3" id="audit">
+        {view === "identity" ? (
           <Card className="border-[var(--border)]">
+            <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="text-base">Identity snapshot</CardTitle>
+                <CardDescription>Admins, users, and support sessions for this workspace.</CardDescription>
+              </div>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/admin/company/${companyId}/identity`}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Open identity hub
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Admins</p>
+                <p className="mt-2 text-2xl font-semibold">{admins.length}</p>
+              </div>
+              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Users</p>
+                <p className="mt-2 text-2xl font-semibold">{users.length}</p>
+              </div>
+              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
+                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Support sessions</p>
+                <p className="mt-2 text-2xl font-semibold">{supportSessions.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {view === "audit" ? (
+          <Card className="border-[var(--border)]" id="audit">
             <CardHeader>
-              <CardTitle className="text-base">Audit Log</CardTitle>
-              <CardDescription>Operator, target, changes, and timestamp. Filters by actor/client/action.</CardDescription>
+              <CardTitle className="text-base">Audit timeline</CardTitle>
+              <CardDescription>Recent workspace actions and operator history.</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
-                    <th className="px-3 py-2">Operator</th>
+                    <th className="px-3 py-2">Timestamp</th>
+                    <th className="px-3 py-2">Actor</th>
                     <th className="px-3 py-2">Action</th>
                     <th className="px-3 py-2">Target</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Timestamp</th>
+                    <th className="px-3 py-2">Reason</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {auditRows.map((row) => (
-                    <tr key={row.id} className="border-t">
-                      <td className="px-3 py-2 font-mono">{row.actor}</td>
-                      <td className="px-3 py-2">{row.action}</td>
-                      <td className="px-3 py-2">{row.target}</td>
-                      <td className="px-3 py-2"><StatusChip status={row.status} /></td>
-                      <td className="px-3 py-2 text-xs text-[var(--text-muted)]">{row.at}</td>
+                  {auditEvents.map((event) => (
+                    <tr key={event.id} className="border-t">
+                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(event.timestamp)}</td>
+                      <td className="px-3 py-3">{event.actor ?? "Unknown actor"}</td>
+                      <td className="px-3 py-3">{event.action ?? "Unknown action"}</td>
+                      <td className="px-3 py-3">{event.entityType ?? "Unknown"} {event.entityId ? `| ${event.entityId}` : ""}</td>
+                      <td className="px-3 py-3 text-[var(--text-muted)]">{event.reason ?? "No reason provided"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        ) : null}
+      </VerticalDataViews>
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
-        <ArrowRight className="h-4 w-4" />
-        When add-ons change, the portal updates bundles, recomputes entitlements, and refreshes the price snapshot automatically.
+        <LifeBuoy className="h-4 w-4" />
+        Remaining uncovered workflows still fall back to the scoped operations catalog while the rest of the domain surfaces are completed.
+        <Link href={`/admin/company/${companyId}/operations`} className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+          Open fallback operations
+          <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
     </section>
   );

@@ -192,6 +192,9 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/clients/${client.id}`}>View Client</Link>
                             </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/company/${client.id}/identity`}>Open Identity Hub</Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => setTierWizardClient(client)}>Change Tier (wizard)</DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => setAddonWizardClient(client)}>Manage Add-ons (wizard)</DropdownMenuItem>
                             <DropdownMenuItem asChild>
