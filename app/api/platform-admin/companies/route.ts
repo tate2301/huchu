@@ -24,7 +24,5 @@ export async function GET() {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load organizations";
     return NextResponse.json({ error: message }, { status: 400 });
-  } finally {
-    await services.disconnect();
   }
 }

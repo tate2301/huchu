@@ -51,7 +51,5 @@ export async function GET(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load reliability cluster";
     return NextResponse.json({ error: message }, { status: 400 });
-  } finally {
-    await services.disconnect();
   }
 }

@@ -32,7 +32,12 @@ export const prisma = new PrismaClient({
   },
 });
 
+let disconnectPromise: Promise<void> | null = null;
+
 export async function disconnectPrisma() {
-  await prisma.$disconnect();
-  await pool.end();
+  if (!disconnectPromise) {
+    disconnectPromise = prisma.$disconnect();
+  }
+
+  await disconnectPromise;
 }

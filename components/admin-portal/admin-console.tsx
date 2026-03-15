@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
+import { fetchManifest } from "@/components/admin-portal/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,32 +23,19 @@ type HistoryEntry = {
   ok: boolean;
 };
 
-const FALLBACK_MANIFEST: OperationManifest = {
-  org: ["list", "resolve", "detail", "provision", "previewProvisionBundle", "provisionBundle", "suggestSubdomains", "reserveSubdomain", "getSubdomainReservation", "suspend", "activate", "disable"],
-  site: ["list", "detail", "create", "update", "activate", "deactivate"],
-  subscription: ["list", "setStatus", "listPlans", "assignTier", "listTemplates", "applyTemplate", "listBundleCatalog", "upsertBundleCatalog", "setBundleFeatures", "listAddons", "setAddon", "recomputePricing", "health", "syncCatalog"],
-  feature: ["list", "set"],
-  admin: ["list", "create", "activate", "deactivate", "resetPassword"],
-  user: ["list", "create", "activate", "deactivate", "resetPassword", "changeRole"],
-  audit: ["list", "addNote", "export", "verifyChain"],
-  support: ["listRequests", "listSessions", "requestAccess", "approveRequest", "startSession", "endSession", "expireSessions"],
-  runbook: ["listDefinitions", "upsertDefinition", "listExecutions", "execute", "setEnabled"],
-  health: ["recordMetric", "listMetrics", "listIncidents", "triggerRemediation"],
-  contract: ["evaluate", "enforce", "override", "getState"],
-  search: ["global"],
-};
-
 function prettyTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
 export function AdminConsole({ actorEmail }: { actorEmail: string }) {
-  const [manifest, setManifest] = useState<OperationManifest>(FALLBACK_MANIFEST);
+  const [manifest, setManifest] = useState<OperationManifest | null>(null);
   const [moduleName, setModuleName] = useState("org");
   const [actionName, setActionName] = useState("list");
   const [argsText, setArgsText] = useState("[]");
   const [payloadText, setPayloadText] = useState('{\n  "actor": ""\n}');
   const [loading, setLoading] = useState(false);
+  const [loadingManifest, setLoadingManifest] = useState(true);
+  const [manifestError, setManifestError] = useState<string | null>(null);
   const [result, setResult] = useState<string>("Ready.");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [search, setSearch] = useState("");
@@ -55,25 +43,51 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
-    void (async () => {
+    let ignore = false;
+
+    async function loadManifest() {
+      setLoadingManifest(true);
+      setManifestError(null);
       try {
-        const response = await fetch("/api/platform-admin/manifest", { cache: "no-store" });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (data?.manifest && typeof data.manifest === "object") {
-          setManifest(data.manifest as OperationManifest);
+        const nextManifest = await fetchManifest();
+        if (ignore) {
+          return;
         }
-      } catch {
-        // Keep fallback manifest
+
+        setManifest(nextManifest);
+        const [firstModule, actions] = Object.entries(nextManifest)[0] ?? [];
+        const nextModule = "org" in nextManifest ? "org" : firstModule ?? "";
+        const nextAction = nextManifest[nextModule]?.includes("list")
+          ? "list"
+          : actions?.[0] ?? "";
+
+        if (nextModule) {
+          setModuleName(nextModule);
+          setActionName(nextAction);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setManifestError(error instanceof Error ? error.message : "Failed to load operations manifest");
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingManifest(false);
+        }
       }
-    })();
+    }
+
+    void loadManifest();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  const actionOptions = manifest[moduleName] ?? [];
+  const resolvedManifest = useMemo(() => manifest ?? {}, [manifest]);
+  const actionOptions = resolvedManifest[moduleName] ?? [];
 
   const catalogRows = useMemo(
-    () => Object.entries(manifest).flatMap(([module, actions]) => actions.map((action) => ({ module, action }))),
-    [manifest],
+    () => Object.entries(resolvedManifest).flatMap(([module, actions]) => actions.map((action) => ({ module, action }))),
+    [resolvedManifest],
   );
 
   const filteredRows = useMemo(() => {
@@ -160,20 +174,31 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
                 <CardDescription>Pick any module/action and run via payload or positional args.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {loadingManifest ? (
+                  <div className="rounded-md border bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                    Loading live operations manifest...
+                  </div>
+                ) : manifestError ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-700">
+                    {manifestError}
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Module</Label>
                     <Select
                       value={moduleName}
+                      disabled={loadingManifest || Boolean(manifestError)}
                       onValueChange={(value) => {
-                        const nextAction = (manifest[value] ?? [])[0] ?? "";
+                        const nextAction = (resolvedManifest[value] ?? [])[0] ?? "";
                         setModuleName(value);
                         setActionName(nextAction);
                       }}
                     >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Object.keys(manifest).map((item) => (
+                        {Object.keys(resolvedManifest).map((item) => (
                           <SelectItem key={item} value={item}>{item}</SelectItem>
                         ))}
                       </SelectContent>
@@ -182,7 +207,7 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
 
                   <div className="space-y-2">
                     <Label>Action</Label>
-                    <Select value={actionName} onValueChange={setActionName}>
+                    <Select value={actionName} onValueChange={setActionName} disabled={loadingManifest || Boolean(manifestError)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {actionOptions.map((item) => (
@@ -199,16 +224,22 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
                     value={payloadText}
                     onChange={(event) => setPayloadText(event.target.value)}
                     className="min-h-40 font-mono text-xs"
+                    disabled={loadingManifest || Boolean(manifestError)}
                   />
-                  <Button disabled={loading} onClick={() => runOperation("payload")} className="w-full">
+                  <Button disabled={loading || loadingManifest || Boolean(manifestError)} onClick={() => runOperation("payload")} className="w-full">
                     {loading ? "Running..." : "Run with payload"}
                   </Button>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Args JSON array</Label>
-                  <Input value={argsText} onChange={(event) => setArgsText(event.target.value)} className="font-mono text-xs" />
-                  <Button variant="outline" disabled={loading} onClick={() => runOperation("args")} className="w-full">
+                  <Input
+                    value={argsText}
+                    onChange={(event) => setArgsText(event.target.value)}
+                    className="font-mono text-xs"
+                    disabled={loadingManifest || Boolean(manifestError)}
+                  />
+                  <Button variant="outline" disabled={loading || loadingManifest || Boolean(manifestError)} onClick={() => runOperation("args")} className="w-full">
                     Run with args
                   </Button>
                 </div>
@@ -232,6 +263,16 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
                 <CardDescription>Single-table manifest view with search and pagination.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {loadingManifest ? (
+                  <div className="rounded-md border bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                    Loading live operations catalog...
+                  </div>
+                ) : manifestError ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-700">
+                    {manifestError}
+                  </div>
+                ) : null}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
                     placeholder="Search module or action"
@@ -241,14 +282,16 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
                       setPage(1);
                     }}
                     className="h-9 flex-1"
+                    disabled={loadingManifest || Boolean(manifestError)}
                   />
-                  <Button className="h-9" onClick={() => setPage(1)}>Search</Button>
+                  <Button className="h-9" onClick={() => setPage(1)} disabled={loadingManifest || Boolean(manifestError)}>Search</Button>
                   <Select
                     value={String(rowsPerPage)}
                     onValueChange={(value) => {
                       setRowsPerPage(Number(value));
                       setPage(1);
                     }}
+                    disabled={loadingManifest || Boolean(manifestError)}
                   >
                     <SelectTrigger className="h-9 w-[120px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -257,9 +300,9 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
                       <SelectItem value="50">50 / page</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" className="h-9" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
+                  <Button variant="outline" className="h-9" disabled={currentPage <= 1 || loadingManifest || Boolean(manifestError)} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
                   <Badge variant="outline" className="h-9 rounded-md px-3 font-mono">{currentPage}/{totalPages}</Badge>
-                  <Button variant="outline" className="h-9" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                  <Button variant="outline" className="h-9" disabled={currentPage >= totalPages || loadingManifest || Boolean(manifestError)} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
                 </div>
 
                 <div className="overflow-x-auto rounded-md border">
@@ -272,24 +315,32 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {pagedRows.map((row) => (
-                        <tr key={`${row.module}.${row.action}`} className="border-t">
-                          <td className="px-3 py-2 font-mono">{row.module}</td>
-                          <td className="px-3 py-2">{row.action}</td>
-                          <td className="px-3 py-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setModuleName(row.module);
-                                setActionName(row.action);
-                              }}
-                            >
-                              Load
-                            </Button>
+                      {pagedRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="px-3 py-6 text-center text-[var(--text-muted)]">
+                            {loadingManifest ? "Loading catalog..." : manifestError ? "Catalog unavailable." : "No operations match your search."}
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        pagedRows.map((row) => (
+                          <tr key={`${row.module}.${row.action}`} className="border-t">
+                            <td className="px-3 py-2 font-mono">{row.module}</td>
+                            <td className="px-3 py-2">{row.action}</td>
+                            <td className="px-3 py-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setModuleName(row.module);
+                                  setActionName(row.action);
+                                }}
+                              >
+                                Load
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

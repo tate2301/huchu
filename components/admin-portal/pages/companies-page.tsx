@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MoreHorizontal, Search } from "lucide-react";
+import { fetchCommercialCenter } from "@/components/admin-portal/api";
+import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
+import type { CommercialCenterData, CompanyWorkspace } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,55 +19,104 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusChip } from "@/components/ui/status-chip";
-import { fetchCompanies } from "@/components/admin-portal/api";
-import { enrichClients, type EnrichedClient } from "./client-data";
-import { FEATURE_BUNDLES, TIERS } from "@/lib/platform/feature-catalog";
-import { ChangeTierWizard, CreateClientWizard, ManageAddonsWizard } from "@/components/admin-portal/wizards/platform-wizards";
+import { ChangeTierWizard, CreateClientWizard } from "@/components/admin-portal/wizards/platform-wizards";
+import { TIERS } from "@/lib/platform/feature-catalog";
 
-const statusOptions = ["All statuses", "ACTIVE", "EXPIRING_SOON", "IN_GRACE", "PAST_DUE", "CANCELED"];
+type CompanyRow = CompanyWorkspace & {
+  subscription: CommercialCenterData["subscriptions"][number] | null;
+};
 
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString()}/month`;
+const statusOptions = [
+  { value: "all", label: "All subscription statuses" },
+  { value: "ACTIVE", label: "ACTIVE" },
+  { value: "TRIALING", label: "TRIALING" },
+  { value: "PAST_DUE", label: "PAST_DUE" },
+  { value: "CANCELED", label: "CANCELED" },
+  { value: "EXPIRED", label: "EXPIRED" },
+  { value: "NONE", label: "No subscription" },
+];
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Not available";
+  return new Date(value).toLocaleDateString();
 }
 
 export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
-  const [clients, setClients] = useState<EnrichedClient[]>([]);
+  const { companies, isLoadingCompanies } = useAdminShell();
+  const [commercial, setCommercial] = useState<CommercialCenterData | null>(null);
+  const [isLoadingCommercial, setIsLoadingCommercial] = useState(true);
+  const [commercialError, setCommercialError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [tierFilter, setTierFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("All statuses");
-  const [addonFilter, setAddonFilter] = useState<string>("all");
-  const [tierWizardClient, setTierWizardClient] = useState<EnrichedClient | null>(null);
-  const [addonWizardClient, setAddonWizardClient] = useState<EnrichedClient | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [tierWizardClient, setTierWizardClient] = useState<CompanyWorkspace | null>(null);
 
   useEffect(() => {
-    void fetchCompanies()
-      .then((data) => setClients(enrichClients(data)))
-      .catch(() => setClients([]));
+    let ignore = false;
+
+    async function loadCommercial() {
+      setIsLoadingCommercial(true);
+      setCommercialError(null);
+      try {
+        const payload = await fetchCommercialCenter();
+        if (!ignore) {
+          setCommercial(payload);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setCommercial(null);
+          setCommercialError(error instanceof Error ? error.message : "Failed to load live subscription data");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingCommercial(false);
+        }
+      }
+    }
+
+    void loadCommercial();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  const filteredClients = useMemo(() => {
+  const rows = useMemo<CompanyRow[]>(() => {
+    const latestSubscriptions = new Map<string, CommercialCenterData["subscriptions"][number]>();
+
+    for (const subscription of commercial?.subscriptions ?? []) {
+      if (!latestSubscriptions.has(subscription.companyId)) {
+        latestSubscriptions.set(subscription.companyId, subscription);
+      }
+    }
+
+    return companies.map((company) => ({
+      ...company,
+      subscription: latestSubscriptions.get(company.id) ?? null,
+    }));
+  }, [commercial, companies]);
+
+  const filteredRows = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return clients.filter((client) => {
+    return rows.filter((row) => {
+      const subscriptionStatus = row.subscription?.status ?? "NONE";
       const matchesSearch =
         !term ||
-        client.name.toLowerCase().includes(term) ||
-        client.slug?.toLowerCase().includes(term) ||
-        client.tierName.toLowerCase().includes(term);
-      const matchesTier = tierFilter === "all" || client.tierCode === tierFilter;
-      const matchesStatus = statusFilter === "All statuses" || client.status === statusFilter;
-      const matchesAddon =
-        addonFilter === "all" ||
-        client.addonCodes.some((code) => code === addonFilter);
-      return matchesSearch && matchesTier && matchesStatus && matchesAddon;
+        row.name.toLowerCase().includes(term) ||
+        row.slug?.toLowerCase().includes(term) ||
+        row.subscription?.planName?.toLowerCase().includes(term) ||
+        subscriptionStatus.toLowerCase().includes(term);
+      const matchesTier = tierFilter === "all" || row.subscription?.planCode === tierFilter;
+      const matchesStatus = statusFilter === "all" || subscriptionStatus === statusFilter;
+      return matchesSearch && matchesTier && matchesStatus;
     });
-  }, [addonFilter, clients, searchTerm, statusFilter, tierFilter]);
+  }, [rows, searchTerm, statusFilter, tierFilter]);
 
   return (
     <section className="space-y-4">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Clients</h1>
         <p className="text-sm text-[var(--text-muted)]">
-          Layman-friendly client directory with search, filters, and guided actions.
+          Live client directory with workspace state, current subscription context, and guided actions.
         </p>
       </div>
 
@@ -79,41 +131,47 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-base">Client list</CardTitle>
-            <CardDescription>One table, predictable controls, progressive disclosure via action menus.</CardDescription>
+            <CardDescription>One table, live workspace data, and no synthetic pricing or add-on summaries.</CardDescription>
           </div>
           <Button size="sm" variant="outline" asChild>
             <Link href="/admin/reliability?view=health">Reliability monitor</Link>
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-12">
-            <div className="md:col-span-4">
+          {commercialError ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {commercialError}
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-10">
+            <div className="md:col-span-5">
               <Label className="sr-only">Search</Label>
               <div className="flex items-center gap-2 rounded-md border px-3">
                 <Search className="h-4 w-4 text-[var(--text-muted)]" />
                 <Input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search by name, tier, status"
+                  placeholder="Search workspace, slug, or plan"
                   className="border-0 px-0 shadow-none focus-visible:ring-0"
                 />
               </div>
             </div>
             <div className="md:col-span-3">
-              <Label className="sr-only">Tier</Label>
+              <Label className="sr-only">Plan</Label>
               <Select value={tierFilter} onValueChange={setTierFilter}>
                 <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Tier" />
+                  <SelectValue placeholder="Plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All tiers</SelectItem>
+                  <SelectItem value="all">All plans</SelectItem>
                   {TIERS.map((tier) => (
                     <SelectItem key={tier.code} value={tier.code}>{tier.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
               <Label className="sr-only">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-10">
@@ -121,21 +179,7 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
                 </SelectTrigger>
                 <SelectContent>
                   {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status}>{status}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <Label className="sr-only">Add-on</Label>
-              <Select value={addonFilter} onValueChange={setAddonFilter}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Add-on" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All add-ons</SelectItem>
-                  {FEATURE_BUNDLES.map((bundle) => (
-                    <SelectItem key={bundle.code} value={bundle.code}>{bundle.name}</SelectItem>
+                    <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -147,39 +191,45 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
               <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                 <tr>
                   <th className="px-3 py-2">Client Name</th>
-                  <th className="px-3 py-2">Tier</th>
-                  <th className="px-3 py-2">Active Sites</th>
-                  <th className="px-3 py-2">Add-ons</th>
+                  <th className="px-3 py-2">Workspace Status</th>
+                  <th className="px-3 py-2">Plan</th>
                   <th className="px-3 py-2">Subscription Status</th>
-                  <th className="px-3 py-2">Monthly Amount</th>
                   <th className="px-3 py-2">Last Updated</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredClients.length === 0 ? (
+                {isLoadingCompanies || isLoadingCommercial ? (
                   <tr>
-                    <td className="px-3 py-6 text-center text-[var(--text-muted)]" colSpan={8}>No clients match your filters.</td>
+                    <td className="px-3 py-6 text-center text-[var(--text-muted)]" colSpan={6}>
+                      Loading live client directory...
+                    </td>
+                  </tr>
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-6 text-center text-[var(--text-muted)]" colSpan={6}>No clients match your filters.</td>
                   </tr>
                 ) : (
-                  filteredClients.map((client) => (
+                  filteredRows.map((client) => (
                     <tr key={client.id} className="border-t">
                       <td className="px-3 py-2">
                         <div className="font-medium">{client.name}</div>
                         <p className="text-xs text-[var(--text-muted)]">{client.slug ?? client.id}</p>
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant="outline" className="font-medium">{client.tierName}</Badge>
-                      </td>
-                      <td className="px-3 py-2 font-mono">{client.activeSites}</td>
-                      <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
-                        {client.addonCodes.length === 0 ? "None" : client.addonCodes.map((code) => FEATURE_BUNDLES.find((bundle) => bundle.code === code)?.name ?? code).join(", ")}
+                        <StatusChip status={client.status ?? "Pending"} />
                       </td>
                       <td className="px-3 py-2">
-                        <StatusChip status={client.status} />
+                        {client.subscription?.planName ? (
+                          <Badge variant="outline" className="font-medium">{client.subscription.planName}</Badge>
+                        ) : (
+                          <span className="text-xs text-[var(--text-muted)]">No live plan</span>
+                        )}
                       </td>
-                      <td className="px-3 py-2 font-mono">{formatCurrency(client.monthlyAmount)}</td>
-                      <td className="px-3 py-2 text-xs text-[var(--text-muted)]">{new Date(client.lastUpdated).toLocaleDateString()}</td>
+                      <td className="px-3 py-2">
+                        <StatusChip status={client.subscription?.status ?? "Pending"} />
+                      </td>
+                      <td className="px-3 py-2 text-xs text-[var(--text-muted)]">{formatDate(client.subscription?.updatedAt)}</td>
                       <td className="px-3 py-2 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -195,19 +245,13 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/company/${client.id}/identity`}>Open Identity Hub</Link>
                             </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/company/${client.id}/commercial`}>Open Commercial Center</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/company/${client.id}/support-access`}>Open Support Access</Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => setTierWizardClient(client)}>Change Tier (wizard)</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setAddonWizardClient(client)}>Manage Add-ons (wizard)</DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/clients/${client.id}#subscription`}>Edit Plan</Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/clients/${client.id}#addons`}>View Add-ons</Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/clients/${client.id}#features`}>View Features</Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>Support Login</DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">Suspend Client</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -225,16 +269,6 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
           actorEmail={actorEmail}
           companyId={tierWizardClient.id}
           companyName={tierWizardClient.name}
-        />
-      ) : null}
-
-      {addonWizardClient ? (
-        <ManageAddonsWizard
-          actorEmail={actorEmail}
-          companyId={addonWizardClient.id}
-          companyName={addonWizardClient.name}
-          currentAddonCodes={addonWizardClient.addonCodes}
-          siteCount={addonWizardClient.activeSites}
         />
       ) : null}
     </section>

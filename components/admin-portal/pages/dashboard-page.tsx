@@ -15,54 +15,16 @@ import {
   Search,
   ShieldAlert,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-} from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchMetrics } from "@/components/admin-portal/api";
 import { getQuickActions } from "@/components/admin-portal/shell/admin-config";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { AdminMetricCard } from "@/components/admin-portal/types";
-
-const chartPalette = ["#2CA47C", "#4C64D4", "#FCB414", "#EC442C", "#111111", "#9A9A93"];
-
-const fallbackCharts = {
-  tiers: [
-    { name: "Basic", value: 24 },
-    { name: "Standard", value: 32 },
-    { name: "Enterprise", value: 18 },
-  ],
-  addons: [
-    { name: "CCTV Suite", value: 28 },
-    { name: "Accounting", value: 22 },
-    { name: "Analytics Pro", value: 18 },
-    { name: "Compliance Pro", value: 12 },
-    { name: "Gold Advanced", value: 9 },
-  ],
-  revenue: [
-    { name: "Base Plans", value: 68 },
-    { name: "Add-ons", value: 22 },
-    { name: "Usage", value: 10 },
-  ],
-};
-
-const fallbackAlerts = [
-  { id: "a1", title: "Plans expiring this week", tone: "In review", hint: "Renewals: Axiom Mining, Kasiya Metals, Apex Drilling." },
-  { id: "a2", title: "Clients in grace", tone: "In progress", hint: "Auto-disable of non-core features due within 48 hours." },
-  { id: "a3", title: "Catalog drift detected", tone: "Failing", hint: "Review templates and feature bundles before the next billing cycle." },
-  { id: "a4", title: "Billing retries pending", tone: "Need changes", hint: "Five webhook events still need replay." },
-];
 
 function metricPresentation(metric: AdminMetricCard) {
   if (metric.id === "revenue") {
@@ -72,30 +34,79 @@ function metricPresentation(metric: AdminMetricCard) {
 }
 
 export function DashboardPage({ companyId }: { companyId?: string }) {
-  const { activeCompany, activeCompanyId, companies, recentCompanies } = useAdminShell();
+  const { activeCompany, activeCompanyId, companies, recentCompanies, isLoadingCompanies } = useAdminShell();
   const [metrics, setMetrics] = useState<AdminMetricCard[]>([]);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [workspaceQuery, setWorkspaceQuery] = useState("");
   const scopeCompanyId = companyId ?? activeCompanyId;
   const quickActions = useMemo(() => getQuickActions(scopeCompanyId), [scopeCompanyId]);
 
   useEffect(() => {
-    void fetchMetrics(scopeCompanyId).then(setMetrics).catch(() => setMetrics([]));
-  }, [scopeCompanyId]);
+    let ignore = false;
 
-  const displayMetrics = useMemo(() => {
-    if (metrics.length > 0) {
-      return metrics.slice(0, 8);
+    async function loadMetrics() {
+      setIsLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const nextMetrics = await fetchMetrics(scopeCompanyId);
+        if (!ignore) {
+          setMetrics(nextMetrics);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMetrics([]);
+          setMetricsError(error instanceof Error ? error.message : "Failed to load dashboard metrics");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingMetrics(false);
+        }
+      }
     }
 
+    void loadMetrics();
+    return () => {
+      ignore = true;
+    };
+  }, [scopeCompanyId]);
+
+  const displayMetrics = useMemo(() => metrics.slice(0, 8), [metrics]);
+
+  const operatorSignals = useMemo(() => {
+    const lookup = new Map(metrics.map((metric) => [metric.id, metric]));
+    const incidentCount = lookup.get("health")?.value ?? 0;
+    const supportCount = lookup.get("support")?.value ?? 0;
+    const auditCount = lookup.get("audit")?.value ?? 0;
+
     return [
-      { id: "clients", label: "Total Clients", value: 74, hint: "Active tenants across the platform." },
-      { id: "subscriptions", label: "Active Subscriptions", value: 69, hint: "Includes clients in grace." },
-      { id: "revenue", label: "Revenue Estimate", value: 1630, hint: "Monthly recurring USD." },
-      { id: "support", label: "Support Sessions", value: 2, hint: "Active operator sessions." },
-      { id: "expiring", label: "Expiring Soon", value: 3 },
-      { id: "in-grace", label: "In Grace", value: 2 },
-      { id: "past-due", label: "Past Due", value: 1 },
-      { id: "health", label: "Open Incidents", value: 4 },
+      {
+        id: "health",
+        label: "Escalations",
+        value: incidentCount,
+        tone: incidentCount > 0 ? "Need changes" : "Passing",
+        hint: incidentCount > 0 ? `${incidentCount} open incident(s) need review in reliability.` : "No open reliability incidents right now.",
+        icon: AlertTriangle,
+        iconClassName: "text-[#EC442C]",
+      },
+      {
+        id: "support",
+        label: "Support",
+        value: supportCount,
+        tone: supportCount > 0 ? "In progress" : "Pending",
+        hint: supportCount > 0 ? `${supportCount} live support session(s) are active.` : "No live support sessions are running.",
+        icon: LifeBuoy,
+        iconClassName: "text-[#4C64D4]",
+      },
+      {
+        id: "audit",
+        label: "Review",
+        value: auditCount,
+        tone: auditCount > 0 ? "In review" : "Pending",
+        hint: auditCount > 0 ? `${auditCount} recent audit event(s) are available for review.` : "No recent audit events were returned.",
+        icon: ShieldAlert,
+        iconClassName: "text-[#F46414]",
+      },
     ];
   }, [metrics]);
 
@@ -123,7 +134,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
                   {scopeCompanyId ? `${activeCompany?.name ?? "Workspace"} command center` : "Platform command center"}
                 </CardTitle>
                 <CardDescription>
-                  Quick stats, recent warnings, and high-confidence actions for production operations.
+                  Quick stats, live operational signals, and high-confidence actions for production operations.
                 </CardDescription>
               </div>
               <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
@@ -131,20 +142,40 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {displayMetrics.map((metric) => (
-                <div
-                  key={metric.id}
-                  className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{metric.label}</p>
-                  <p className="mt-2 font-mono text-2xl font-semibold text-[var(--text-strong)]">
-                    {metricPresentation(metric)}
-                  </p>
-                  {metric.hint ? <p className="mt-2 text-xs text-[var(--text-muted)]">{metric.hint}</p> : null}
-                </div>
-              ))}
-            </div>
+            {isLoadingMetrics ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="mt-3 h-8 w-20" />
+                    <Skeleton className="mt-3 h-3 w-36" />
+                  </div>
+                ))}
+              </div>
+            ) : metricsError ? (
+              <div className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                {metricsError}
+              </div>
+            ) : displayMetrics.length === 0 ? (
+              <div className="rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                Live dashboard metrics are not available yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {displayMetrics.map((metric) => (
+                  <div
+                    key={metric.id}
+                    className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{metric.label}</p>
+                    <p className="mt-2 font-mono text-2xl font-semibold text-[var(--text-strong)]">
+                      {metricPresentation(metric)}
+                    </p>
+                    {metric.hint ? <p className="mt-2 text-xs text-[var(--text-muted)]">{metric.hint}</p> : null}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardHeader>
         </Card>
 
@@ -202,28 +233,42 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             </div>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {workspaceRows.map((workspace) => (
-              <Link
-                key={workspace.id}
-                href={`/admin/clients/${workspace.id}`}
-                className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-base)] p-4 transition-colors hover:bg-[var(--surface-muted)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
-                      <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{workspace.name}</p>
+            {isLoadingCompanies ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="mt-3 h-3 w-28" />
+                  <Skeleton className="mt-5 h-3 w-24" />
+                </div>
+              ))
+            ) : workspaceRows.length === 0 ? (
+              <div className="col-span-full rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--surface-base)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                No workspaces match the current search.
+              </div>
+            ) : (
+              workspaceRows.map((workspace) => (
+                <Link
+                  key={workspace.id}
+                  href={`/admin/clients/${workspace.id}`}
+                  className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-base)] p-4 transition-colors hover:bg-[var(--surface-muted)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
+                        <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{workspace.name}</p>
+                      </div>
+                      <p className="mt-2 truncate text-xs text-[var(--text-muted)]">{workspace.slug ?? workspace.id}</p>
                     </div>
-                    <p className="mt-2 truncate text-xs text-[var(--text-muted)]">{workspace.slug ?? workspace.id}</p>
+                    {workspace.status ? <Badge variant="outline">{workspace.status}</Badge> : null}
                   </div>
-                  {workspace.status ? <Badge variant="outline">{workspace.status}</Badge> : null}
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                  <span>Open workspace</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </div>
-              </Link>
-            ))}
+                  <div className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                    <span>Open workspace</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </div>
+                </Link>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -231,33 +276,51 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           <CardHeader className="space-y-3">
             <div>
               <CardTitle className="text-lg">Alerts and operator backlog</CardTitle>
-              <CardDescription>Failures, upcoming expirations, and remediation pressure points that need attention.</CardDescription>
+              <CardDescription>Live counts and operational pressure points from the current admin services.</CardDescription>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-                <div className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-[#EC442C]" />Escalations</div>
-                <p className="mt-2 text-2xl font-semibold">4</p>
-              </div>
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-                <div className="flex items-center gap-2 text-sm font-semibold"><LifeBuoy className="h-4 w-4 text-[#4C64D4]" />Support</div>
-                <p className="mt-2 text-2xl font-semibold">2</p>
-              </div>
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-                <div className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert className="h-4 w-4 text-[#F46414]" />Review</div>
-                <p className="mt-2 text-2xl font-semibold">7</p>
-              </div>
+              {isLoadingMetrics ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="mt-3 h-8 w-12" />
+                  </div>
+                ))
+              ) : (
+                operatorSignals.map((signal) => {
+                  const Icon = signal.icon;
+                  return (
+                    <div key={signal.id} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <Icon className={`h-4 w-4 ${signal.iconClassName}`} />
+                        {signal.label}
+                      </div>
+                      <p className="mt-2 text-2xl font-semibold">{signal.value}</p>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {fallbackAlerts.map((alert) => (
-              <div key={alert.id} className="flex items-start justify-between gap-3 rounded-[18px] border border-[var(--border)] p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold">{alert.title}</p>
-                  <p className="text-xs text-[var(--text-muted)]">{alert.hint}</p>
+            {isLoadingMetrics ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="rounded-[18px] border border-[var(--border)] p-4">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="mt-3 h-3 w-60" />
                 </div>
-                <StatusChip status={alert.tone} showDot />
-              </div>
-            ))}
+              ))
+            ) : (
+              operatorSignals.map((signal) => (
+                <div key={signal.id} className="flex items-start justify-between gap-3 rounded-[18px] border border-[var(--border)] p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">{signal.label}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{signal.hint}</p>
+                  </div>
+                  <StatusChip status={signal.tone} showDot />
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -272,17 +335,9 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <CardDescription>Distribution by plan level.</CardDescription>
           </CardHeader>
           <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={fallbackCharts.tiers}>
-                <XAxis dataKey="name" />
-                <Tooltip cursor={{ fill: "var(--surface-muted)" }} />
-                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                  {fallbackCharts.tiers.map((entry, index) => (
-                    <Cell key={entry.name} fill={chartPalette[index % chartPalette.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="flex h-full items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-6 text-center text-sm text-[var(--text-muted)]">
+              {isLoadingMetrics ? "Loading live tier distribution..." : "Live tier distribution will appear here once the analytics feed is connected."}
+            </div>
           </CardContent>
         </Card>
 
@@ -295,17 +350,9 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <CardDescription>Adoption across active workspaces.</CardDescription>
           </CardHeader>
           <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={fallbackCharts.addons}>
-                <XAxis dataKey="name" />
-                <Tooltip cursor={{ fill: "var(--surface-muted)" }} />
-                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                  {fallbackCharts.addons.map((entry, index) => (
-                    <Cell key={entry.name} fill={chartPalette[(index + 1) % chartPalette.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="flex h-full items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-6 text-center text-sm text-[var(--text-muted)]">
+              {isLoadingMetrics ? "Loading live add-on analytics..." : "Live add-on adoption will appear here once the analytics feed is connected."}
+            </div>
           </CardContent>
         </Card>
 
@@ -318,16 +365,9 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <CardDescription>Plans, add-ons, and usage share.</CardDescription>
           </CardHeader>
           <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={fallbackCharts.revenue} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={4}>
-                  {fallbackCharts.revenue.map((entry, index) => (
-                    <Cell key={entry.name} fill={chartPalette[(index + 2) % chartPalette.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex h-full items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-6 text-center text-sm text-[var(--text-muted)]">
+              {isLoadingMetrics ? "Loading live revenue mix..." : "Live revenue mix will appear here once the billing analytics feed is connected."}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -344,7 +384,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Link href="/admin/commercial?view=subscriptions" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
               <p className="text-sm font-semibold">Review subscription states</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Inspect grace windows, plan health, and monthly totals.</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Inspect live plan health, renewal timing, and service state.</p>
             </Link>
             <Link href="/admin/commercial?view=bundles" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
               <p className="text-sm font-semibold">Inspect catalog drift</p>

@@ -86,7 +86,5 @@ export async function GET(_request: Request, context: { params: Params }) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load workspace overview";
     return NextResponse.json({ error: message }, { status: 400 });
-  } finally {
-    await services.disconnect();
   }
 }
