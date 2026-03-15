@@ -14,6 +14,7 @@ const employeeUpdateSchema = z
     nationalIdNumber: z.union([z.string().trim().min(1).max(100), z.null()]).optional(),
     nationalIdDocumentUrl: z.union([z.string().min(1).max(2048), z.null()]).optional(),
     villageOfOrigin: z.string().min(1).max(200).optional(),
+    jobTitle: z.string().trim().max(200).nullable().optional(),
     position: z
       .enum([
         "MANAGER",
@@ -65,6 +66,7 @@ export async function GET(
       select: {
         id: true,
         employeeId: true,
+        userId: true,
         name: true,
         phone: true,
         nextOfKinName: true,
@@ -73,6 +75,7 @@ export async function GET(
         nationalIdNumber: true,
         nationalIdDocumentUrl: true,
         villageOfOrigin: true,
+        jobTitle: true,
         position: true,
         departmentId: true,
         gradeId: true,
@@ -83,6 +86,18 @@ export async function GET(
         defaultCurrency: true,
         isActive: true,
         companyId: true,
+        user: { select: { id: true, email: true, name: true, role: true, isActive: true } },
+        moduleAssignments: {
+          select: {
+            id: true,
+            module: true,
+            accessRole: true,
+            requiresUserAccess: true,
+            isPrimary: true,
+            isActive: true,
+          },
+          orderBy: [{ isPrimary: "desc" }, { module: "asc" }],
+        },
         department: { select: { id: true, code: true, name: true } },
         grade: { select: { id: true, code: true, name: true, rank: true } },
         supervisor: { select: { id: true, employeeId: true, name: true } },

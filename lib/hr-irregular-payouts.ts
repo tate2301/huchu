@@ -1,9 +1,11 @@
 export type IrregularPayoutSource = "GOLD" | "COMMISSION" | "OTHER"
 
-export type SupportedIrregularPayoutSource = "GOLD"
+export type SupportedIrregularPayoutSource = IrregularPayoutSource
 
 const SUPPORTED_IRREGULAR_PAYOUT_SOURCES: ReadonlySet<IrregularPayoutSource> = new Set([
   "GOLD",
+  "COMMISSION",
+  "OTHER",
 ])
 
 export function parseIrregularPayoutSource(
@@ -22,10 +24,19 @@ export function isSupportedIrregularPayoutSource(
 }
 
 export function sourceToEmployeePaymentType(source: SupportedIrregularPayoutSource) {
-  if (source === "GOLD") return "GOLD" as const
-  return "GOLD" as const
+  void source
+  return "IRREGULAR" as const
+}
+
+export function isLegacyGoldPaymentType(type: string | null | undefined) {
+  return type === "GOLD"
 }
 
 export function isIrregularEmployeePaymentType(type: string | null | undefined) {
-  return type === "GOLD"
+  return type === "IRREGULAR" || type === "GOLD"
+}
+
+export function normalizeIrregularPayoutSource(input?: string | null) {
+  if (input === "COMMISSION" || input === "OTHER") return input
+  return "GOLD" as const
 }

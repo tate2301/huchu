@@ -13,7 +13,9 @@ import {
 } from "@/lib/gold-payouts"
 import {
   isIrregularEmployeePaymentType,
+  isLegacyGoldPaymentType,
   isSupportedIrregularPayoutSource,
+  normalizeIrregularPayoutSource,
   parseIrregularPayoutSource,
   sourceToEmployeePaymentType,
 } from "@/lib/hr-irregular-payouts"
@@ -26,7 +28,8 @@ const dateInputSchema = z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-
 
 const employeePaymentCreateSchema = z.object({
   employeeId: z.string().uuid(),
-  type: z.enum(["GOLD", "SALARY"]),
+  type: z.enum(["GOLD", "IRREGULAR", "SALARY"]),
+  payoutSource: z.enum(["GOLD", "COMMISSION", "OTHER"]).optional(),
   periodStart: dateInputSchema,
   periodEnd: dateInputSchema,
   dueDate: dateInputSchema,
@@ -197,6 +200,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {
       employee: { companyId: session.user.companyId },
     }
+    const andClauses: Record<string, unknown>[] = []
 
     if (type === "IRREGULAR") {
       if (!isSupportedIrregularPayoutSource(payoutSource)) {
@@ -205,7 +209,15 @@ export async function GET(request: NextRequest) {
           400,
         )
       }
-      where.type = sourceToEmployeePaymentType(payoutSource)
+      andClauses.push({
+        OR: [
+          {
+            type: sourceToEmployeePaymentType(payoutSource),
+            payoutSource,
+          },
+          ...(payoutSource === "GOLD" ? [{ type: "GOLD" }] : []),
+        ],
+      })
     } else if (type) {
       where.type = type
     }
@@ -215,7 +227,8 @@ export async function GET(request: NextRequest) {
     if (endDate) where.periodEnd = { lte: new Date(endDate) }
     if (search) {
       const normalizedSearch = search.toUpperCase()
-      where.OR = [
+      andClauses.push({
+        OR: [
         { notes: { contains: search, mode: "insensitive" } },
         { unit: { contains: search, mode: "insensitive" } },
         { employee: { name: { contains: search, mode: "insensitive" } } },
@@ -223,13 +236,19 @@ export async function GET(request: NextRequest) {
         ...(normalizedSearch === "GOLD" || normalizedSearch === "SALARY"
           ? [{ type: normalizedSearch }]
           : []),
-        ...(normalizedSearch === "IRREGULAR" ? [{ type: "GOLD" }] : []),
+        ...(normalizedSearch === "IRREGULAR"
+          ? [{ type: "IRREGULAR" }, { type: "GOLD" }]
+          : []),
         ...((
           ["DUE", "PARTIAL", "PAID"] as const
         ).includes(normalizedSearch as "DUE" | "PARTIAL" | "PAID")
           ? [{ status: normalizedSearch }]
           : []),
-      ]
+        ],
+      })
+    }
+    if (andClauses.length > 0) {
+      where.AND = andClauses
     }
 
     const [payments, total] = await Promise.all([
@@ -272,7 +291,9 @@ export async function GET(request: NextRequest) {
 
     const withSource = payments.map((payment) => ({
       ...payment,
-      payoutSource: isIrregularEmployeePaymentType(payment.type) ? "GOLD" : null,
+      payoutSource: isLegacyGoldPaymentType(payment.type)
+        ? "GOLD"
+        : payment.payoutSource ?? (isIrregularEmployeePaymentType(payment.type) ? "GOLD" : null),
     }))
 
     return successResponse(paginationResponse(withSource, total, page, limit))
@@ -299,8 +320,11 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid employee", 403)
     }
 
+    const payoutSource =
+      validated.type === "SALARY" ? null : normalizeIrregularPayoutSource(validated.payoutSource)
     let notes = validated.notes
-    if (validated.type === "GOLD") {
+    let goldShiftAllocationId: string | null = null
+    if (payoutSource === "GOLD") {
       const allocationResolution = await resolveGoldAllocationForPayment({
         companyId: session.user.companyId,
         employeeId: validated.employeeId,
@@ -319,6 +343,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      goldShiftAllocationId = allocationResolution.allocationId
       notes = buildGoldPayoutNotes(allocationResolution.allocationId, validated.notes)
     }
 
@@ -336,7 +361,7 @@ export async function POST(request: NextRequest) {
     let goldPriceUsdPerGram: number | null = null
     let valuationDate: Date | null = null
 
-    if (validated.type === "GOLD") {
+    if (payoutSource === "GOLD") {
       const valuation = await snapshotGoldUsdValue({
         companyId: session.user.companyId,
         businessDate: validated.periodEnd,
@@ -375,7 +400,8 @@ export async function POST(request: NextRequest) {
     const payment = await prisma.employeePayment.create({
       data: {
         employeeId: validated.employeeId,
-        type: validated.type,
+        type: validated.type === "SALARY" ? "SALARY" : "IRREGULAR",
+        payoutSource: payoutSource ?? undefined,
         periodStart: new Date(validated.periodStart),
         periodEnd: new Date(validated.periodEnd),
         dueDate: new Date(validated.dueDate),
@@ -390,6 +416,7 @@ export async function POST(request: NextRequest) {
         paidAt,
         status,
         notes,
+        goldShiftAllocationId: goldShiftAllocationId ?? undefined,
         createdById: session.user.id,
       },
       include: {
@@ -437,6 +464,7 @@ export async function POST(request: NextRequest) {
         payload: {
           employeeId: payment.employeeId,
           type: payment.type,
+          payoutSource: payment.payoutSource,
           status: payment.status,
           amountUsd: payment.amountUsd,
           paidAmountUsd: payment.paidAmountUsd,

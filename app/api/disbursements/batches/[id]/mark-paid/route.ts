@@ -88,7 +88,9 @@ export async function POST(
     }
 
     const updatedBatch = await prisma.$transaction(async (tx) => {
-      const isGoldRun = batch.payrollRun.domain === "GOLD_PAYOUT"
+      const isIrregularRun = batch.payrollRun.domain === "GOLD_PAYOUT"
+      const irregularSource = batch.payrollRun.payoutSource ?? "GOLD"
+      const isGoldRun = isIrregularRun && irregularSource === "GOLD"
 
       for (const payload of validated.items) {
         const item = itemById.get(payload.id)!
@@ -113,8 +115,14 @@ export async function POST(
           const linkedGoldPayments = await tx.employeePayment.findMany({
             where: {
               employeeId: updatedItem.employeeId,
-              type: "GOLD",
-              notes: { startsWith: AUTO_PAYOUT_NOTE_PREFIX },
+              OR: [
+                { type: "GOLD", notes: { startsWith: AUTO_PAYOUT_NOTE_PREFIX } },
+                {
+                  type: "IRREGULAR",
+                  payoutSource: "GOLD",
+                  goldShiftAllocationId: { not: null },
+                },
+              ],
               ...(batch.payrollRun.goldSettlementMode === "NEXT_PERIOD"
                 ? {
                     dueDate: {
@@ -176,7 +184,8 @@ export async function POST(
             await tx.employeePayment.create({
               data: {
                 employeeId: updatedItem.employeeId,
-                type: "GOLD",
+                type: "IRREGULAR",
+                payoutSource: "GOLD",
                 periodStart: batch.payrollRun.period.startDate,
                 periodEnd: batch.payrollRun.period.endDate,
                 dueDate: batch.payrollRun.period.dueDate,
@@ -194,6 +203,52 @@ export async function POST(
                 paidAt: updatedItem.paidAt,
                 status: derivePaidStatus(updatedItem.amount, updatedItem.paidAmount ?? 0),
                 notes: updatedItem.notes ?? `Gold disbursement batch ${batch.code}`,
+                createdById: session.user.id,
+                payrollRunId: batch.payrollRunId,
+                payrollLineItemId: updatedItem.lineItemId,
+                disbursementBatchId: batch.id,
+                disbursementItemId: updatedItem.id,
+              },
+            })
+          }
+        } else if (isIrregularRun) {
+          const existingPayment = await tx.employeePayment.findFirst({
+            where: { disbursementItemId: updatedItem.id },
+            select: { id: true },
+          })
+
+          if (existingPayment) {
+            await tx.employeePayment.update({
+              where: { id: existingPayment.id },
+              data: {
+                amount: updatedItem.amount,
+                amountUsd: updatedItem.amount,
+                unit: updatedItem.lineItem.currency,
+                payoutSource: irregularSource,
+                paidAmount: updatedItem.paidAmount,
+                paidAmountUsd: updatedItem.paidAmount,
+                paidAt: updatedItem.paidAt,
+                status: updatedItem.status,
+                notes: updatedItem.notes ?? `Irregular payout batch ${batch.code}`,
+              },
+            })
+          } else {
+            await tx.employeePayment.create({
+              data: {
+                employeeId: updatedItem.employeeId,
+                type: "IRREGULAR",
+                payoutSource: irregularSource,
+                periodStart: batch.payrollRun.period.startDate,
+                periodEnd: batch.payrollRun.period.endDate,
+                dueDate: batch.payrollRun.period.dueDate,
+                amount: updatedItem.amount,
+                amountUsd: updatedItem.amount,
+                unit: updatedItem.lineItem.currency,
+                paidAmount: updatedItem.paidAmount,
+                paidAmountUsd: updatedItem.paidAmount,
+                paidAt: updatedItem.paidAt,
+                status: updatedItem.status,
+                notes: updatedItem.notes ?? `Irregular payout batch ${batch.code}`,
                 createdById: session.user.id,
                 payrollRunId: batch.payrollRunId,
                 payrollLineItemId: updatedItem.lineItemId,

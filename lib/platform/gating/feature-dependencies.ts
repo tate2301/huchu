@@ -8,7 +8,6 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "gold.exceptions": ["gold.home"],
   "gold.audit-trail": ["gold.home"],
   "gold.payouts": ["gold.home"],
-  "hr.gold-payouts": ["gold.home"],
   "accounting.chart-of-accounts": ["accounting.core"],
   "accounting.journals": ["accounting.core"],
   "accounting.periods": ["accounting.core"],

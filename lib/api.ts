@@ -59,6 +59,7 @@ export type ChangeManagedUserRoleInput = {
 export type EmployeeSummary = {
   id: string;
   employeeId: string;
+  userId?: string | null;
   name: string;
   phone: string;
   nextOfKinName: string;
@@ -67,6 +68,7 @@ export type EmployeeSummary = {
   nationalIdNumber?: string | null;
   nationalIdDocumentUrl?: string | null;
   villageOfOrigin: string;
+  jobTitle?: string | null;
   position: string;
   departmentId?: string | null;
   gradeId?: string | null;
@@ -75,11 +77,27 @@ export type EmployeeSummary = {
   hireDate?: string | null;
   terminationDate?: string | null;
   defaultCurrency?: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    isActive: boolean;
+  } | null;
+  moduleAssignments?: Array<{
+    id: string;
+    module: "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "THRIFT";
+    accessRole?: string | null;
+    requiresUserAccess: boolean;
+    isPrimary: boolean;
+    isActive: boolean;
+  }>;
   department?: { id: string; code: string; name: string } | null;
   grade?: { id: string; code: string; name: string; rank: number } | null;
   supervisor?: { id: string; employeeId: string; name: string } | null;
   isActive: boolean;
   goldOwed: number;
+  irregularOwed?: number;
   salaryOwed: number;
 };
 
@@ -274,6 +292,8 @@ export type PayrollPeriodRecord = {
   id: string;
   companyId: string;
   domain: RunDomain;
+  payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
+  scopeKey: string;
   periodKey: string;
   cycle: "MONTHLY" | "FORTNIGHTLY";
   startDate: string;
@@ -304,6 +324,7 @@ export type PayrollRunRecord = {
   companyId: string;
   periodId: string;
   domain: RunDomain;
+  payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
   runNumber: number;
   status: "DRAFT" | "SUBMITTED" | "APPROVED" | "POSTED" | "REJECTED";
   notes?: string | null;
@@ -352,6 +373,7 @@ export type DisbursementBatchRecord = {
     id: string;
     runNumber: number;
     domain?: RunDomain;
+    payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
     status?: string;
     goldRatePerUnit?: number | null;
     goldRateUnit?: string;
@@ -372,6 +394,7 @@ export type ApprovalHistoryRecord = {
     | "COMPENSATION_PROFILE"
     | "COMPENSATION_RULE"
     | "GOLD_SHIFT_ALLOCATION"
+    | "IRREGULAR_PAYOUT_BATCH"
     | "DISCIPLINARY_ACTION";
   entityId: string;
   action: "CREATE" | "SUBMIT" | "APPROVE" | "REJECT" | "ADJUST";
@@ -477,7 +500,7 @@ export type UserNotificationPreferences = {
 export type EmployeePayment = {
   id: string;
   employeeId: string;
-  type: "GOLD" | "SALARY";
+  type: "GOLD" | "IRREGULAR" | "SALARY";
   payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
   periodStart: string;
   periodEnd: string;
@@ -497,6 +520,8 @@ export type EmployeePayment = {
   payrollLineItemId?: string | null;
   disbursementBatchId?: string | null;
   disbursementItemId?: string | null;
+  goldShiftAllocationId?: string | null;
+  irregularPayoutBatchId?: string | null;
   createdAt: string;
   updatedAt: string;
   employee: {
@@ -519,6 +544,33 @@ export type EmployeePayment = {
     code: string;
     status: "DRAFT" | "SUBMITTED" | "APPROVED" | "PAID" | "REJECTED";
   } | null;
+};
+
+export type IrregularPayoutBatchRecord = {
+  id: string;
+  companyId: string;
+  source: "COMMISSION" | "OTHER";
+  label: string;
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string;
+  currency: string;
+  workflowStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  notes?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: { id: string; name: string } | null;
+  submittedBy?: { id: string; name: string } | null;
+  approvedBy?: { id: string; name: string } | null;
+  items: Array<{
+    id: string;
+    employeeId: string;
+    amount: number;
+    notes?: string | null;
+    employee: { id: string; employeeId: string; name: string };
+  }>;
 };
 
 export type SectionSummary = {
@@ -1847,6 +1899,19 @@ export async function fetchEmployeePayments(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<EmployeePayment>>(`/api/employee-payments${query}`);
+}
+
+export async function fetchIrregularPayoutBatches(
+  params: {
+    source?: "COMMISSION" | "OTHER";
+    workflowStatus?: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<IrregularPayoutBatchRecord>>(`/api/hr/payout-batches${query}`);
 }
 
 export async function fetchSections(

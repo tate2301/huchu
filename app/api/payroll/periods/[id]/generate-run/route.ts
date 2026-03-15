@@ -77,12 +77,89 @@ function deriveRunTotals(lineItems: LineItemDraft[]) {
   )
 }
 
-async function buildGoldPayoutRunDraft(input: {
+async function buildIrregularPayoutRunDraft(input: {
   companyId: string
+  payoutSource: "GOLD" | "COMMISSION" | "OTHER"
   periodStart: Date
   periodEnd: Date
   goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD"
 }) {
+  if (input.payoutSource !== "GOLD") {
+    const approvedBatches = await prisma.irregularPayoutBatch.findMany({
+      where: {
+        companyId: input.companyId,
+        source: input.payoutSource,
+        workflowStatus: "APPROVED",
+        dueDate: {
+          gte: input.periodStart,
+          lte: input.periodEnd,
+        },
+      },
+      include: {
+        items: {
+          select: {
+            employeeId: true,
+            amount: true,
+          },
+        },
+      },
+      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+    })
+
+    const payoutByEmployee = new Map<string, { amount: number; batchCount: number }>()
+    for (const batch of approvedBatches) {
+      for (const item of batch.items) {
+        const current = payoutByEmployee.get(item.employeeId) ?? { amount: 0, batchCount: 0 }
+        payoutByEmployee.set(item.employeeId, {
+          amount: current.amount + item.amount,
+          batchCount: current.batchCount + 1,
+        })
+      }
+    }
+
+    const employeeIds = Array.from(payoutByEmployee.keys())
+    if (employeeIds.length === 0) {
+      return null
+    }
+
+    const employees = await prisma.employee.findMany({
+      where: {
+        id: { in: employeeIds },
+        companyId: input.companyId,
+      },
+      select: {
+        id: true,
+        defaultCurrency: true,
+      },
+    })
+    const employeeById = new Map(employees.map((employee) => [employee.id, employee]))
+
+    const lineItems: LineItemDraft[] = employeeIds.map((employeeId) => {
+      const payout = payoutByEmployee.get(employeeId) ?? { amount: 0, batchCount: 0 }
+      const employee = employeeById.get(employeeId)
+      return {
+        employeeId,
+        compensationProfileId: null,
+        baseAmount: 0,
+        variableAmount: payout.amount,
+        allowancesTotal: 0,
+        deductionsTotal: 0,
+        grossAmount: payout.amount,
+        netAmount: payout.amount,
+        currency: employee?.defaultCurrency ?? "USD",
+        notes: `${input.payoutSource} payout snapshot from ${payout.batchCount} approved batch${payout.batchCount === 1 ? "" : "es"}.`,
+        components: [],
+      }
+    })
+
+    return {
+      lineItems,
+      totals: deriveRunTotals(lineItems),
+      workflowNote: `${input.payoutSource} payout run generated from approved irregular payout batches.`,
+      warnings: [],
+    } satisfies RunDraft
+  }
+
   const allocationDateFloor = new Date(input.periodStart)
   allocationDateFloor.setDate(allocationDateFloor.getDate() - 42)
 
@@ -402,19 +479,20 @@ export async function POST(
 
     let runDraft: RunDraft
     if (period.domain === "GOLD_PAYOUT") {
-      const goldDraft = await buildGoldPayoutRunDraft({
+      const irregularDraft = await buildIrregularPayoutRunDraft({
         companyId: session.user.companyId,
+        payoutSource: period.payoutSource ?? "GOLD",
         periodStart: new Date(period.startDate),
         periodEnd: new Date(period.endDate),
         goldSettlementMode: period.company.goldSettlementMode,
       })
-      if (!goldDraft) {
+      if (!irregularDraft) {
         return errorResponse(
-          "No approved gold payout allocations found for this period. Approve allocations before generating a run.",
+          `No approved ${(period.payoutSource ?? "GOLD").toLowerCase()} payout records found for this period. Approve source records before generating a run.`,
           409,
         )
       }
-      runDraft = goldDraft
+      runDraft = irregularDraft
     } else {
       runDraft = await buildSalaryPayrollRunDraft({
         companyId: session.user.companyId,
@@ -440,6 +518,7 @@ export async function POST(
           companyId: session.user.companyId,
           periodId: period.id,
           domain: period.domain,
+          payoutSource: period.payoutSource ?? undefined,
           runNumber,
           status: "DRAFT",
           notes: validated.notes,

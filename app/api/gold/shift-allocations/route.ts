@@ -361,7 +361,8 @@ export async function POST(request: NextRequest) {
         await tx.employeePayment.createMany({
           data: allocation.workerShares.map((share) => ({
             employeeId: share.employee.id,
-            type: "GOLD",
+            type: "IRREGULAR",
+            payoutSource: "GOLD",
             periodStart: start,
             periodEnd: start,
             dueDate: payoutDueDate,
@@ -373,6 +374,7 @@ export async function POST(request: NextRequest) {
             valuationDate,
             status: "DUE",
             notes: `${AUTO_PAYOUT_NOTE_PREFIX}${allocation.id}`,
+            goldShiftAllocationId: allocation.id,
             createdById: session.user.id,
           })),
         })

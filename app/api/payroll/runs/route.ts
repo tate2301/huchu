@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const periodId = searchParams.get("periodId")
     const status = searchParams.get("status")
     const domain = searchParams.get("domain")
+    const payoutSource = searchParams.get("payoutSource")
     const search = searchParams.get("search")?.trim()
 
     const where: Record<string, unknown> = {
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
     if (periodId) where.periodId = periodId
     if (status) where.status = status
     if (domain === "PAYROLL" || domain === "GOLD_PAYOUT") where.domain = domain
+    if (payoutSource === "GOLD" || payoutSource === "COMMISSION" || payoutSource === "OTHER") {
+      where.payoutSource = payoutSource
+    }
     if (search) {
       const normalizedSearch = search.toUpperCase()
       const runNumber = Number(search)
@@ -36,6 +40,9 @@ export async function GET(request: NextRequest) {
         ...(Number.isFinite(runNumber) ? [{ runNumber }] : []),
         ...(normalizedSearch === "PAYROLL" || normalizedSearch === "GOLD_PAYOUT"
           ? [{ domain: normalizedSearch }]
+          : []),
+        ...(normalizedSearch === "COMMISSION" || normalizedSearch === "OTHER"
+          ? [{ payoutSource: normalizedSearch }]
           : []),
         ...((
           ["DRAFT", "SUBMITTED", "APPROVED", "POSTED", "REJECTED"] as const

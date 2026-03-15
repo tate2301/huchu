@@ -9,13 +9,9 @@ import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filt
 import { cn } from "@/lib/utils"
 import {
   type LucideIcon,
-  Checklist,
   Coins,
   ManageAccounts,
   Payments,
-  ShieldCheck,
-  UserRound,
-  Wallet,
 } from "@/lib/icons"
 
 export type HrTab =
@@ -39,45 +35,8 @@ type HrTabItem = {
 
 const hrTabs: HrTabItem[] = [
   { id: "employees", label: "Employees", href: "/human-resources", icon: ManageAccounts },
-  {
-    id: "shift-groups",
-    label: "Shift Groups",
-    href: "/human-resources/shift-groups",
-    icon: UserRound,
-  },
-  {
-    id: "incidents",
-    label: "Workforce Incidents",
-    href: "/human-resources/incidents",
-    icon: ShieldCheck,
-  },
-  { id: "payouts", label: "Irregular Payouts", href: "/human-resources/payouts", icon: Coins },
   { id: "salaries", label: "Salary Payouts", href: "/human-resources/salaries", icon: Payments },
-  {
-    id: "salary-outstanding",
-    label: "Outstanding Salaries",
-    href: "/human-resources/salaries/outstanding",
-    icon: Wallet,
-  },
-  {
-    id: "compensation",
-    label: "Compensation",
-    href: "/human-resources/compensation",
-    icon: UserRound,
-  },
-  { id: "payroll", label: "Payroll", href: "/human-resources/payroll", icon: Checklist },
-  {
-    id: "disbursements",
-    label: "Disbursements",
-    href: "/human-resources/disbursements",
-    icon: Wallet,
-  },
-  {
-    id: "approvals",
-    label: "Approvals",
-    href: "/human-resources/approvals",
-    icon: ShieldCheck,
-  },
+  { id: "payouts", label: "Payouts", href: "/human-resources/payouts", icon: Coins },
 ]
 
 type HrShellProps = {
@@ -93,7 +52,7 @@ export function HrShell({
   actions,
   children,
   title = "Human Resources",
-  description = "Employee records, salary payouts, and irregular payout management",
+  description = "Employee records, salary operations, and irregular payout management",
 }: HrShellProps) {
   const { data: session } = useSession()
   const enabledFeatures = useMemo(

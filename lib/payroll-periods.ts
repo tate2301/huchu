@@ -17,6 +17,7 @@ type SeedInput = {
 type PeriodDraft = {
   companyId: string
   domain: RunDomain
+  scopeKey: string
   periodKey: string
   cycle: PayrollCycle
   startDate: Date
@@ -56,6 +57,7 @@ function buildAutoDrafts(input: {
   companyId: string
   createdById: string
   domain: RunDomain
+  scopeKey: string
   cycle: PayrollCycle
   horizon: number
   now: Date
@@ -68,6 +70,7 @@ function buildAutoDrafts(input: {
     drafts.push({
       companyId: input.companyId,
       domain: input.domain,
+      scopeKey: input.scopeKey,
       periodKey: deriveCyclePeriodKey(window.startDate, input.cycle),
       cycle: input.cycle,
       startDate: window.startDate,
@@ -122,6 +125,7 @@ export async function ensureAutoPeriods(
         companyId: input.companyId,
         createdById: input.createdById,
         domain,
+        scopeKey: domain === "GOLD_PAYOUT" ? "GOLD" : "PAYROLL",
         cycle: cycleForDomain({
           domain,
           payrollCycle: company.payrollCycle,
@@ -144,7 +148,10 @@ export async function ensureAutoPeriods(
   const uniqueDrafts = drafts.filter((draft, index, list) => {
     return (
       list.findIndex(
-        (item) => item.domain === draft.domain && item.periodKey === draft.periodKey,
+        (item) =>
+          item.domain === draft.domain &&
+          item.periodKey === draft.periodKey &&
+          item.scopeKey === draft.scopeKey,
       ) === index
     )
   })
@@ -155,19 +162,21 @@ export async function ensureAutoPeriods(
       OR: uniqueDrafts.map((draft) => ({
         domain: draft.domain,
         periodKey: draft.periodKey,
+        scopeKey: draft.scopeKey,
       })),
     },
     select: {
       domain: true,
       periodKey: true,
+      scopeKey: true,
     },
   })
   const existingSet = new Set(
-    existing.map((row) => `${row.domain}:${row.periodKey}`),
+    existing.map((row) => `${row.domain}:${row.scopeKey}:${row.periodKey}`),
   )
 
   const toCreate = uniqueDrafts.filter(
-    (draft) => !existingSet.has(`${draft.domain}:${draft.periodKey}`),
+    (draft) => !existingSet.has(`${draft.domain}:${draft.scopeKey}:${draft.periodKey}`),
   )
   if (toCreate.length > 0) {
     await prisma.payrollPeriod.createMany({
@@ -179,6 +188,6 @@ export async function ensureAutoPeriods(
   return {
     createdCount: toCreate.length,
     skippedCount: uniqueDrafts.length - toCreate.length,
-    periodKeysCreated: toCreate.map((row) => `${row.domain}:${row.periodKey}`),
+    periodKeysCreated: toCreate.map((row) => `${row.domain}:${row.scopeKey}:${row.periodKey}`),
   }
 }

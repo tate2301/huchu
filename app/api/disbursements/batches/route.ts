@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
               id: true,
               runNumber: true,
               domain: true,
+              payoutSource: true,
               status: true,
               goldRatePerUnit: true,
               goldRateUnit: true,
@@ -154,7 +155,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isGoldRun = run.domain === "GOLD_PAYOUT"
+    const isIrregularRun = run.domain === "GOLD_PAYOUT"
+    const irregularLabel = run.payoutSource ? `${run.payoutSource} payout` : "Irregular payout"
     const disbursementItems = run.lineItems.map((line) => ({
       employeeId: line.employeeId,
       lineItemId: line.id,
@@ -198,6 +200,7 @@ export async function POST(request: NextRequest) {
               id: true,
               runNumber: true,
               domain: true,
+              payoutSource: true,
               goldRatePerUnit: true,
               goldRateUnit: true,
               period: { select: { id: true, periodKey: true, startDate: true, endDate: true } },
@@ -219,8 +222,8 @@ export async function POST(request: NextRequest) {
         action: "CREATE",
         actedById: session.user.id,
         toStatus: "DRAFT",
-        note: isGoldRun
-          ? `Gold disbursement batch ${created.code} created from payout run ${run.runNumber}.`
+        note: isIrregularRun
+          ? `${irregularLabel} disbursement batch ${created.code} created from payout run ${run.runNumber}.`
           : `Salary disbursement batch ${created.code} created from payroll run ${run.runNumber}.`,
       })
 
@@ -228,7 +231,7 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      const isGoldRun = batch.payrollRun.domain === "GOLD_PAYOUT"
+      const isIrregularRun = batch.payrollRun.domain === "GOLD_PAYOUT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "disbursements",
@@ -244,7 +247,7 @@ export async function POST(request: NextRequest) {
           itemCount: batch.items.length,
         },
         createdById: session.user.id,
-        status: isGoldRun ? "IGNORED" : "PENDING",
+        status: isIrregularRun ? "IGNORED" : "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Disbursement batch capture failed:", error)

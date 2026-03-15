@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs"
 import { NextRequest, NextResponse } from "next/server"
 import {
   validateSession,
@@ -20,6 +21,7 @@ const employeeSchema = z.object({
   nationalIdNumber: z.string().trim().min(1).max(100).optional(),
   nationalIdDocumentUrl: z.string().min(1).max(2048).optional(),
   villageOfOrigin: z.string().min(1).max(200),
+  jobTitle: z.string().trim().max(200).optional(),
   position: z.enum([
     "MANAGER",
     "CLERK",
@@ -47,6 +49,44 @@ const employeeSchema = z.object({
   defaultCurrency: z.string().min(1).max(10).optional(),
   isActive: z.boolean().optional(),
   compensationTemplateId: z.string().uuid().optional(),
+  moduleAssignments: z
+    .array(
+      z.object({
+        module: z.enum(["HR", "GOLD", "SCRAP_METAL", "CAR_SALES", "THRIFT"]),
+        accessRole: z
+          .enum([
+            "MANAGER",
+            "CLERK",
+            "SALES_EXEC",
+            "AUTO_MANAGER",
+            "FINANCE_OFFICER",
+            "SHOP_MANAGER",
+            "CASHIER",
+            "STOCK_CLERK",
+          ])
+          .optional(),
+        requiresUserAccess: z.boolean().optional(),
+        isPrimary: z.boolean().optional(),
+        isActive: z.boolean().optional(),
+      }),
+    )
+    .max(10)
+    .optional(),
+  createUserAccount: z.boolean().optional(),
+  userEmail: z.string().email().max(320).optional(),
+  userPassword: z.string().min(8).max(200).optional(),
+  userRole: z
+    .enum([
+      "MANAGER",
+      "CLERK",
+      "SALES_EXEC",
+      "AUTO_MANAGER",
+      "FINANCE_OFFICER",
+      "SHOP_MANAGER",
+      "CASHIER",
+      "STOCK_CLERK",
+    ])
+    .optional(),
 })
 
 const EMPLOYEE_ID_PREFIX = "EMP-"
@@ -118,6 +158,7 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           employeeId: true,
+          userId: true,
           name: true,
           phone: true,
           nextOfKinName: true,
@@ -126,6 +167,7 @@ export async function GET(request: NextRequest) {
           nationalIdNumber: true,
           nationalIdDocumentUrl: true,
           villageOfOrigin: true,
+          jobTitle: true,
           position: true,
           departmentId: true,
           gradeId: true,
@@ -135,6 +177,18 @@ export async function GET(request: NextRequest) {
           terminationDate: true,
           defaultCurrency: true,
           isActive: true,
+          user: { select: { id: true, email: true, name: true, role: true, isActive: true } },
+          moduleAssignments: {
+            select: {
+              id: true,
+              module: true,
+              accessRole: true,
+              requiresUserAccess: true,
+              isPrimary: true,
+              isActive: true,
+            },
+            orderBy: [{ isPrimary: "desc" }, { module: "asc" }],
+          },
           department: { select: { id: true, code: true, name: true } },
           grade: { select: { id: true, code: true, name: true, rank: true } },
           supervisor: { select: { id: true, employeeId: true, name: true } },
@@ -149,7 +203,7 @@ export async function GET(request: NextRequest) {
     const employeeIds = employees.map((employee) => employee.id)
     const owedByEmployee = new Map<
       string,
-      { goldOwed: number; salaryOwed: number }
+      { goldOwed: number; irregularOwed: number; salaryOwed: number }
     >()
 
     if (employeeIds.length > 0) {
@@ -161,6 +215,7 @@ export async function GET(request: NextRequest) {
         select: {
           employeeId: true,
           type: true,
+          payoutSource: true,
           amount: true,
           paidAmount: true,
           amountUsd: true,
@@ -176,11 +231,15 @@ export async function GET(request: NextRequest) {
         const outstanding = Math.max(amount - paidAmount, 0)
         const current = owedByEmployee.get(row.employeeId) ?? {
           goldOwed: 0,
+          irregularOwed: 0,
           salaryOwed: 0,
         }
 
-        if (row.type === "GOLD") {
+        if (row.type === "GOLD" || row.payoutSource === "GOLD") {
           current.goldOwed += outstanding
+          current.irregularOwed += outstanding
+        } else if (row.type === "IRREGULAR") {
+          current.irregularOwed += outstanding
         } else if (row.type === "SALARY") {
           current.salaryOwed += outstanding
         }
@@ -194,6 +253,7 @@ export async function GET(request: NextRequest) {
       return {
         ...employee,
         goldOwed: owed?.goldOwed ?? 0,
+        irregularOwed: owed?.irregularOwed ?? 0,
         salaryOwed: owed?.salaryOwed ?? 0,
       }
     })
@@ -270,6 +330,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (validated.createUserAccount) {
+      if (session.user.role !== "SUPERADMIN") {
+        return errorResponse("Only superadmins can provision linked user accounts during onboarding", 403)
+      }
+      if (!validated.userEmail || !validated.userPassword || !validated.userRole) {
+        return errorResponse("Linked user email, password, and role are required", 400)
+      }
+      const existingUser = await prisma.user.findFirst({
+        where: { email: { equals: validated.userEmail.trim(), mode: "insensitive" } },
+        select: { id: true },
+      })
+      if (existingUser) {
+        return errorResponse("A user with this email already exists", 409)
+      }
+    }
+
+    const moduleAssignments =
+      validated.moduleAssignments && validated.moduleAssignments.length > 0
+        ? validated.moduleAssignments
+        : [{ module: "HR" as const, isPrimary: true, isActive: true }]
+    const normalizedModuleAssignments = Array.from(
+      new Map(
+        moduleAssignments.map((assignment, index) => [
+          assignment.module,
+          {
+            ...assignment,
+            isPrimary: assignment.isPrimary ?? (index === 0 || assignment.module === "HR"),
+            isActive: assignment.isActive ?? true,
+            requiresUserAccess: assignment.requiresUserAccess ?? validated.createUserAccount ?? false,
+          },
+        ]),
+      ).values(),
+    )
+
     const employeeId = await generateEmployeeId(session.user.companyId)
     const hireDate = validated.hireDate ? new Date(validated.hireDate) : undefined
     const terminationDate = validated.terminationDate
@@ -277,9 +371,28 @@ export async function POST(request: NextRequest) {
       : undefined
 
     const result = await prisma.$transaction(async (tx) => {
+      let linkedUserId: string | undefined
+      if (validated.createUserAccount && validated.userEmail && validated.userPassword && validated.userRole) {
+        const passwordHash = await bcrypt.hash(validated.userPassword, 12)
+        const user = await tx.user.create({
+          data: {
+            companyId: session.user.companyId,
+            name: validated.name,
+            email: validated.userEmail.trim().toLowerCase(),
+            password: passwordHash,
+            role: validated.userRole,
+            isActive: validated.isActive ?? true,
+            phone: validated.phone,
+          },
+          select: { id: true },
+        })
+        linkedUserId = user.id
+      }
+
       const createdEmployee = await tx.employee.create({
         data: {
           employeeId,
+          userId: linkedUserId,
           name: validated.name,
           phone: validated.phone,
           nextOfKinName: validated.nextOfKinName,
@@ -288,6 +401,7 @@ export async function POST(request: NextRequest) {
           nationalIdNumber: validated.nationalIdNumber,
           nationalIdDocumentUrl: validated.nationalIdDocumentUrl,
           villageOfOrigin: validated.villageOfOrigin,
+          jobTitle: validated.jobTitle?.trim() || undefined,
           position: validated.position,
           departmentId: validated.departmentId,
           gradeId: validated.gradeId,
@@ -298,12 +412,24 @@ export async function POST(request: NextRequest) {
           defaultCurrency: validated.defaultCurrency ?? "USD",
           isActive: validated.isActive ?? true,
           companyId: session.user.companyId,
+          moduleAssignments: {
+            create: normalizedModuleAssignments.map((assignment) => ({
+              companyId: session.user.companyId,
+              module: assignment.module,
+              accessRole: assignment.accessRole,
+              requiresUserAccess: assignment.requiresUserAccess,
+              isPrimary: assignment.isPrimary,
+              isActive: assignment.isActive,
+            })),
+          },
         },
       })
 
       if (!compensationTemplate) {
         return {
           employee: createdEmployee,
+          linkedUserId: linkedUserId ?? null,
+          moduleAssignmentsCreated: normalizedModuleAssignments.length,
           compensationTemplateApplied: null,
         }
       }
@@ -354,6 +480,8 @@ export async function POST(request: NextRequest) {
 
       return {
         employee: createdEmployee,
+        linkedUserId: linkedUserId ?? null,
+        moduleAssignmentsCreated: normalizedModuleAssignments.length,
         compensationTemplateApplied: {
           id: compensationTemplate.id,
           name: compensationTemplate.name,

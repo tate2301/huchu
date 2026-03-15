@@ -1,21 +1,17 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { addDays, format, isAfter, isBefore } from "date-fns";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { HrShell } from "@/components/human-resources/hr-shell";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DataTable,
-  type DataTableQueryState,
-} from "@/components/ui/data-table";
-import { ExportMenu } from "@/components/ui/export-menu";
+import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import {
   Select,
   SelectContent,
@@ -33,25 +29,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
-import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
+import {
+  fetchEmployeePayments,
+  fetchEmployees,
+  fetchGoldShiftAllocations,
+  fetchIrregularPayoutBatches,
+  type EmployeePayment,
+  type IrregularPayoutBatchRecord,
+} from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
-  isSupportedIrregularPayoutSource,
   parseIrregularPayoutSource,
   type IrregularPayoutSource,
 } from "@/lib/hr-irregular-payouts";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
-import type { EmployeePayment } from "@/lib/api";
 
-type ShiftWorkerPayout = {
+type WorkflowStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+
+type PayoutWorker = {
   employeeId: string;
   employeeName: string;
   employeeCode: string;
-  shareValueUsd: number;
+  amountUsd: number;
   status: "DUE" | "PARTIAL" | "PAID";
   dueDate: Date;
   paidAmountUsd: number;
@@ -59,59 +60,46 @@ type ShiftWorkerPayout = {
   payment?: EmployeePayment;
 };
 
-type ShiftPayoutGroup = {
-  allocationId: string;
-  date: Date;
-  shift: string;
-  siteName: string;
-  siteCode: string;
-  payCycleWeeks: number;
-  workflowStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
-  submittedAt?: Date;
-  approvedAt?: Date;
-  submittedByName?: string;
-  approvedByName?: string;
-  expectedDueDate: Date;
-  workers: ShiftWorkerPayout[];
+type PayoutGroup = {
+  id: string;
+  kind: "gold" | "batch";
+  source: IrregularPayoutSource;
+  label: string;
+  context: string;
+  workflowStatus: WorkflowStatus;
+  referenceDate: Date;
+  dueDate: Date;
+  workers: PayoutWorker[];
   totalValueUsd: number;
   paidCount: number;
   partialCount: number;
   dueCount: number;
 };
 
-const IRREGULAR_SOURCE_META: Record<
+type BatchItemDraft = { employeeId: string; amount: string; notes: string };
+
+const SOURCE_META: Record<
   IrregularPayoutSource,
-  {
-    label: string;
-    tabLabel: string;
-    allocationLabel: string;
-    description: string;
-  }
+  { label: string; description: string; groupLabel: string }
 > = {
   GOLD: {
     label: "Gold payouts",
-    tabLabel: "Gold",
-    allocationLabel: "Shift",
-    description:
-      "Approve gold shift allocations here, then finalize disbursement from payroll runs.",
+    description: "Approved gold shift allocations flow into the irregular payout pipeline here.",
+    groupLabel: "Shift",
   },
   COMMISSION: {
     label: "Commission payouts",
-    tabLabel: "Commission",
-    allocationLabel: "Period",
-    description:
-      "Commission payouts are configured per sales cycle and posted to irregular payouts.",
+    description: "Commission batches are reviewed here before payout runs and disbursement.",
+    groupLabel: "Batch",
   },
   OTHER: {
-    label: "Other variable payouts",
-    tabLabel: "Other",
-    allocationLabel: "Batch",
-    description:
-      "Dividends, profit sharing, and other variable payouts are managed through irregular payout batches.",
+    label: "Other payouts",
+    description: "Use this for profit share, dividends, and other non-salary employee payouts.",
+    groupLabel: "Batch",
   },
 };
 
-function workflowBadgeVariant(status: ShiftPayoutGroup["workflowStatus"]) {
+function workflowVariant(status: WorkflowStatus) {
   return status === "APPROVED" ? "success" : "warning";
 }
 
@@ -120,27 +108,25 @@ function toDateOnly(value: string | Date) {
   return format(date, "yyyy-MM-dd");
 }
 
-function findPaymentForShiftWorker(
+function findPayment(
   payments: EmployeePayment[],
   employeeId: string,
-  allocationDate: Date,
+  referenceDate: Date,
+  batchId?: string,
 ) {
-  const allocationKey = toDateOnly(allocationDate);
-
-  const exact = payments.find(
-    (payment) =>
-      payment.employeeId === employeeId &&
-      toDateOnly(payment.periodStart) === allocationKey &&
-      toDateOnly(payment.periodEnd) === allocationKey,
-  );
-
-  if (exact) return exact;
+  if (batchId) {
+    return payments.find(
+      (payment) =>
+        payment.employeeId === employeeId && payment.irregularPayoutBatchId === batchId,
+    );
+  }
 
   return payments.find((payment) => {
     if (payment.employeeId !== employeeId) return false;
+    if (toDateOnly(payment.periodStart) === toDateOnly(referenceDate)) return true;
     const start = new Date(payment.periodStart);
     const end = new Date(payment.periodEnd);
-    return !isBefore(allocationDate, start) && !isAfter(allocationDate, end);
+    return !isBefore(referenceDate, start) && !isAfter(referenceDate, end);
   });
 }
 
@@ -149,500 +135,287 @@ export default function HrPayoutsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-
   const createdId = searchParams.get("createdId");
-  const allocationIdFilter = searchParams.get("allocationId");
-  const [payoutWindowWeeks, setPayoutWindowWeeks] = useState(
-    searchParams.get("window") ?? "2",
-  );
-  const [payoutSource, setPayoutSource] = useState<IrregularPayoutSource>(
+  const [source, setSource] = useState<IrregularPayoutSource>(
     parseIrregularPayoutSource(searchParams.get("source")),
   );
-  const [groupsQuery, setGroupsQuery] = useState<DataTableQueryState>({
+  const [windowWeeks, setWindowWeeks] = useState(searchParams.get("window") ?? "2");
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
     mode: "paginated",
     page: 1,
     pageSize: 25,
     search: "",
   });
-  const [selectedGroup, setSelectedGroup] = useState<ShiftPayoutGroup | null>(
-    null,
-  );
-  const [rejectionAllocationId, setRejectionAllocationId] = useState<
-    string | null
-  >(null);
+  const [selectedGroup, setSelectedGroup] = useState<PayoutGroup | null>(null);
+  const [rejectionTarget, setRejectionTarget] = useState<PayoutGroup | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
-  const payoutPdfRef = useRef<HTMLDivElement>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [batchLabel, setBatchLabel] = useState("");
+  const [batchPeriodStart, setBatchPeriodStart] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [batchPeriodEnd, setBatchPeriodEnd] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [batchDueDate, setBatchDueDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [batchCurrency, setBatchCurrency] = useState("USD");
+  const [batchNotes, setBatchNotes] = useState("");
+  const [batchItems, setBatchItems] = useState<BatchItemDraft[]>([
+    { employeeId: "", amount: "", notes: "" },
+  ]);
 
-  const sourceMeta = IRREGULAR_SOURCE_META[payoutSource];
-  const sourceIsImplemented = isSupportedIrregularPayoutSource(payoutSource);
-
-  const windowWeeks = Number(payoutWindowWeeks);
-  const windowStartDate = useMemo(() => {
-    const start = new Date();
-    start.setDate(start.getDate() - windowWeeks * 7);
-    return start;
+  const meta = SOURCE_META[source];
+  const lookbackStart = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - Number(windowWeeks) * 7);
+    return date;
   }, [windowWeeks]);
-  const windowEndDate = new Date();
 
-  const {
-    data: allocationsData,
-    isLoading: allocationsLoading,
-    error: allocationsError,
-  } = useQuery({
-    queryKey: [
-      "gold-shift-allocations",
-      "hr-irregular-payouts",
-      payoutWindowWeeks,
-      allocationIdFilter,
-      payoutSource,
-    ],
+  const { data: employeesData } = useQuery({
+    queryKey: ["employees", "payout-batch"],
+    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+    enabled: createOpen && source !== "GOLD",
+  });
+  const employees = employeesData?.data ?? [];
+
+  const goldQuery = useQuery({
+    queryKey: ["gold-shift-allocations", "hr-payouts", windowWeeks],
     queryFn: () =>
       fetchGoldShiftAllocations({
-        startDate: allocationIdFilter
-          ? undefined
-          : windowStartDate.toISOString().slice(0, 10),
+        startDate: lookbackStart.toISOString().slice(0, 10),
         limit: 500,
       }),
-    enabled: sourceIsImplemented,
+    enabled: source === "GOLD",
   });
 
-  const {
-    data: paymentsData,
-    isLoading: paymentsLoading,
-    error: paymentsError,
-  } = useQuery({
-    queryKey: [
-      "employee-payments",
-      "irregular",
-      "shift-grouped",
-      payoutWindowWeeks,
-      allocationIdFilter,
-      payoutSource,
-    ],
-    queryFn: () =>
-      fetchEmployeePayments({
-        type: "IRREGULAR",
-        payoutSource,
-        startDate: allocationIdFilter
-          ? undefined
-          : windowStartDate.toISOString(),
-        limit: 1000,
-      }),
-    enabled: sourceIsImplemented,
+  const batchQuery = useQuery({
+    queryKey: ["irregular-payout-batches", source],
+    queryFn: () => fetchIrregularPayoutBatches({ source: source === "GOLD" ? undefined : source, limit: 500 }),
+    enabled: source !== "GOLD",
   });
 
-  const shiftAllocations = useMemo(
-    () => allocationsData?.data ?? [],
-    [allocationsData],
-  );
-  const payments = useMemo(() => paymentsData?.data ?? [], [paymentsData]);
+  const paymentQuery = useQuery({
+    queryKey: ["employee-payments", "irregular", source],
+    queryFn: () => fetchEmployeePayments({ type: "IRREGULAR", payoutSource: source, limit: 1000 }),
+  });
 
-  const payoutGroups = useMemo<ShiftPayoutGroup[]>(() => {
-    return shiftAllocations
-      .filter((allocation) =>
-        allocationIdFilter
-          ? allocation.id === allocationIdFilter
-          : allocation.payCycleWeeks === windowWeeks,
-      )
-      .map((allocation) => {
-        const allocationDate = new Date(allocation.date);
-        const expectedDueDate = addDays(
-          allocationDate,
-          allocation.payCycleWeeks * 7,
-        );
-
-        const workers = allocation.workerShares.map((share) => {
-          const payment = findPaymentForShiftWorker(
-            payments,
-            share.employee.id,
-            allocationDate,
-          );
-
-          return {
-            employeeId: share.employee.id,
-            employeeName: share.employee.name,
-            employeeCode: share.employee.employeeId,
-            shareValueUsd:
-              share.shareValueUsd ??
-              share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0),
-            status: payment?.status ?? "DUE",
-            dueDate: payment ? new Date(payment.dueDate) : expectedDueDate,
-            paidAmountUsd: payment?.paidAmountUsd ?? payment?.paidAmount ?? 0,
-            paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
-            payment,
-          } satisfies ShiftWorkerPayout;
-        });
-
-        const paidCount = workers.filter(
-          (worker) => worker.status === "PAID",
-        ).length;
-        const partialCount = workers.filter(
-          (worker) => worker.status === "PARTIAL",
-        ).length;
-        const dueCount = workers.length - paidCount - partialCount;
-        const totalValueUsd =
-          allocation.workerShareValueUsd ??
-          workers.reduce((sum, worker) => sum + worker.shareValueUsd, 0);
-
-        return {
-          allocationId: allocation.id,
-          date: allocationDate,
-          shift: allocation.shift,
-          siteName: allocation.site.name,
-          siteCode: allocation.site.code,
-          payCycleWeeks: allocation.payCycleWeeks,
-          workflowStatus: allocation.workflowStatus,
-          submittedAt: allocation.submittedAt
-            ? new Date(allocation.submittedAt)
-            : undefined,
-          approvedAt: allocation.approvedAt
-            ? new Date(allocation.approvedAt)
-            : undefined,
-          submittedByName: allocation.submittedBy?.name,
-          approvedByName: allocation.approvedBy?.name,
-          expectedDueDate,
-          workers,
-          totalValueUsd,
-          paidCount,
-          partialCount,
-          dueCount,
-        } satisfies ShiftPayoutGroup;
-      })
-      .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [allocationIdFilter, payments, shiftAllocations, windowWeeks]);
-
-  const totalValueDueUsd = useMemo(
-    () => payoutGroups.reduce((sum, group) => sum + group.totalValueUsd, 0),
-    [payoutGroups],
-  );
-
-  const totalWorkers = useMemo(
-    () => payoutGroups.reduce((sum, group) => sum + group.workers.length, 0),
-    [payoutGroups],
-  );
-
-  const isLoading = allocationsLoading || paymentsLoading;
-
-  const invalidatePayoutWorkflowData = () => {
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["gold-shift-allocations"] });
+    queryClient.invalidateQueries({ queryKey: ["irregular-payout-batches"] });
     queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
-    queryClient.invalidateQueries({ queryKey: ["approval-history"] });
-    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
+    queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
   };
 
-  const submitAllocationMutation = useMutation({
-    mutationFn: async (allocationId: string) =>
-      fetchJson(`/api/gold/shift-allocations/${allocationId}/submit`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Allocation submitted",
-        description: "Gold payout allocation is now pending approval.",
-        variant: "success",
-      });
-      invalidatePayoutWorkflowData();
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to submit allocation",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const approveAllocationMutation = useMutation({
-    mutationFn: async (allocationId: string) =>
-      fetchJson(`/api/gold/shift-allocations/${allocationId}/approve`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Allocation approved",
-        description:
-          "Gold payouts can now be recorded for this shift allocation.",
-        variant: "success",
-      });
-      invalidatePayoutWorkflowData();
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to approve allocation",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const rejectAllocationMutation = useMutation({
-    mutationFn: async ({
-      allocationId,
-      note,
-    }: {
-      allocationId: string;
-      note: string;
-    }) =>
-      fetchJson(`/api/gold/shift-allocations/${allocationId}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ note }),
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Allocation rejected",
-        description:
-          "Allocation returned for correction before payout recording.",
-        variant: "success",
-      });
-      setRejectionAllocationId(null);
-      setRejectionNote("");
-      invalidatePayoutWorkflowData();
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to reject allocation",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const openRejectionDialog = (allocationId: string) => {
-    setRejectionAllocationId(allocationId);
-    setRejectionNote("");
-  };
-
-  const handleRejectAllocation = () => {
-    if (!rejectionAllocationId) return;
-    const note = rejectionNote.trim();
-    if (!note) return;
-    rejectAllocationMutation.mutate({
-      allocationId: rejectionAllocationId,
-      note,
-    });
-  };
-
-  const openPaymentForm = (
-    group: ShiftPayoutGroup,
-    worker: ShiftWorkerPayout,
-  ) => {
-    void worker;
-    if (group.workflowStatus !== "APPROVED") {
-      toast({
-        title: "Approval required",
-        description:
-          "Submit and approve this allocation before recording worker payouts.",
-        variant: "destructive",
-      });
-      return;
+  const groups = useMemo<PayoutGroup[]>(() => {
+    const payments = paymentQuery.data?.data ?? [];
+    if (source === "GOLD") {
+      return (goldQuery.data?.data ?? [])
+        .filter((allocation) => allocation.payCycleWeeks === Number(windowWeeks))
+        .map((allocation) => {
+          const date = new Date(allocation.date);
+          const dueDate = addDays(date, allocation.payCycleWeeks * 7);
+          const workers = allocation.workerShares.map((share) => {
+            const payment = findPayment(payments, share.employee.id, date);
+            return {
+              employeeId: share.employee.id,
+              employeeName: share.employee.name,
+              employeeCode: share.employee.employeeId,
+              amountUsd:
+                share.shareValueUsd ??
+                share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0),
+              status: payment?.status ?? "DUE",
+              dueDate: payment ? new Date(payment.dueDate) : dueDate,
+              paidAmountUsd: payment?.paidAmountUsd ?? payment?.paidAmount ?? 0,
+              paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
+              payment,
+            };
+          });
+          const paidCount = workers.filter((worker) => worker.status === "PAID").length;
+          const partialCount = workers.filter((worker) => worker.status === "PARTIAL").length;
+          return {
+            id: allocation.id,
+            kind: "gold",
+            source,
+            label: `${format(date, "MMM d, yyyy")} (${allocation.shift})`,
+            context: `${allocation.site.code} - ${allocation.site.name}`,
+            workflowStatus: allocation.workflowStatus,
+            referenceDate: date,
+            dueDate,
+            workers,
+            totalValueUsd: workers.reduce((sum, worker) => sum + worker.amountUsd, 0),
+            paidCount,
+            partialCount,
+            dueCount: workers.length - paidCount - partialCount,
+          };
+        });
     }
 
-    toast({
-      title: "Continue in payroll",
-      description:
-        "Generate and approve a Gold Run, then disburse the batch to complete payout.",
-      variant: "success",
+    return ((batchQuery.data?.data ?? []) as IrregularPayoutBatchRecord[]).map((batch) => {
+      const referenceDate = new Date(batch.periodEnd);
+      const dueDate = new Date(batch.dueDate);
+      const workers = batch.items.map((item) => {
+        const payment = findPayment(payments, item.employeeId, referenceDate, batch.id);
+        return {
+          employeeId: item.employeeId,
+          employeeName: item.employee.name,
+          employeeCode: item.employee.employeeId,
+          amountUsd: item.amount,
+          status: payment?.status ?? "DUE",
+          dueDate: payment ? new Date(payment.dueDate) : dueDate,
+          paidAmountUsd: payment?.paidAmountUsd ?? payment?.paidAmount ?? 0,
+          paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
+          payment,
+        };
+      });
+      const paidCount = workers.filter((worker) => worker.status === "PAID").length;
+      const partialCount = workers.filter((worker) => worker.status === "PARTIAL").length;
+      return {
+        id: batch.id,
+        kind: "batch",
+        source,
+        label: batch.label,
+        context: `${format(new Date(batch.periodStart), "MMM d")} to ${format(new Date(batch.periodEnd), "MMM d, yyyy")}`,
+        workflowStatus: batch.workflowStatus,
+        referenceDate,
+        dueDate,
+        workers,
+        totalValueUsd: workers.reduce((sum, worker) => sum + worker.amountUsd, 0),
+        paidCount,
+        partialCount,
+        dueCount: workers.length - paidCount - partialCount,
+      };
     });
-    setSelectedGroup(null);
-    router.push(
-      `/human-resources/payroll/gold?allocationId=${group.allocationId}`,
-    );
-  };
+  }, [batchQuery.data, goldQuery.data, paymentQuery.data, source, windowWeeks]);
 
-  const handleExport = async (format: DocumentExportFormat) => {
-    if (!payoutPdfRef.current) return;
-    await exportElementToDocument(
-      payoutPdfRef.current,
-      `gold-payouts-shift-grouped-${payoutWindowWeeks}-weeks.${format}`,
-      format,
-    );
-  };
+  const createBatch = useMutation({
+    mutationFn: async () =>
+      fetchJson("/api/hr/payout-batches", {
+        method: "POST",
+        body: JSON.stringify({
+          source,
+          label: batchLabel.trim(),
+          periodStart: batchPeriodStart,
+          periodEnd: batchPeriodEnd,
+          dueDate: batchDueDate,
+          currency: batchCurrency,
+          notes: batchNotes.trim() || undefined,
+          items: batchItems
+            .filter((item) => item.employeeId && item.amount.trim() !== "")
+            .map((item) => ({
+              employeeId: item.employeeId,
+              amount: Number(item.amount),
+              notes: item.notes.trim() || undefined,
+            })),
+        }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Payout batch created", description: "Batch saved for review.", variant: "success" });
+      setCreateOpen(false);
+      setBatchLabel("");
+      setBatchNotes("");
+      setBatchItems([{ employeeId: "", amount: "", notes: "" }]);
+      invalidate();
+    },
+    onError: (error) => {
+      toast({ title: "Unable to create batch", description: getApiErrorMessage(error), variant: "destructive" });
+    },
+  });
 
-  const payoutColumns = useMemo<ColumnDef<ShiftPayoutGroup>[]>(
-    () => [
-      {
-        id: "shift",
-        header: "Shift",
-        accessorFn: (row) => `${format(row.date, "MMM d, yyyy")} ${row.shift}`,
-        cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">
-              {format(row.original.date, "MMM d, yyyy")} ({row.original.shift})
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Allocation {row.original.allocationId.slice(0, 8)}
-            </div>
-          </div>
-        ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420,
-      },
-      {
-        id: "site",
-        header: "Site",
-        accessorFn: (row) => `${row.siteCode} ${row.siteName}`,
-        cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">{row.original.siteName}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.siteCode}
-            </div>
-          </div>
-        ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160,
-      },
-      {
-        id: "workers",
-        header: "Workers",
-        accessorFn: (row) => row.workers.length,
-        cell: ({ row }) => (
-          <NumericCell>{row.original.workers.length}</NumericCell>
-        ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160,
-      },
-      {
-        id: "valueDueUsd",
-        header: "Value Due",
-        accessorFn: (row) => row.totalValueUsd,
-        cell: ({ row }) => (
-          <NumericCell>${row.original.totalValueUsd.toFixed(2)}</NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128,
-      },
-      {
-        id: "expectedDue",
-        header: "Expected Due",
-        accessorFn: (row) => format(row.expectedDueDate, "yyyy-MM-dd"),
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {format(row.original.expectedDueDate, "MMM d, yyyy")}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128,
-      },
-      {
-        id: "payoutStatus",
-        header: "Payout Status",
-        accessorFn: (row) =>
-          `paid:${row.paidCount} partial:${row.partialCount} due:${row.dueCount}`,
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="success">Paid {row.original.paidCount}</Badge>
-            {row.original.partialCount > 0 ? (
-              <Badge variant="warning">
-                Partial {row.original.partialCount}
-              </Badge>
-            ) : null}
-            {row.original.dueCount > 0 ? (
-              <Badge variant="neutral">Due {row.original.dueCount}</Badge>
-            ) : null}
-          </div>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "workflow",
-        header: "Workflow",
-        accessorFn: (row) => row.workflowStatus,
-        cell: ({ row }) => (
-          <div className="space-y-1">
-            <Badge variant={workflowBadgeVariant(row.original.workflowStatus)}>
-              {row.original.workflowStatus}
-            </Badge>
-            {row.original.submittedAt ? (
-              <div className="text-xs text-muted-foreground">
-                Submitted{" "}
-                {format(row.original.submittedAt, "MMM d, yyyy HH:mm")}
-              </div>
-            ) : null}
-            {row.original.approvedAt ? (
-              <div className="text-xs text-muted-foreground">
-                Approved {format(row.original.approvedAt, "MMM d, yyyy HH:mm")}
-              </div>
-            ) : null}
-          </div>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "workflowActions",
-        header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            {row.original.workflowStatus === "DRAFT" ||
-            row.original.workflowStatus === "REJECTED" ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={submitAllocationMutation.isPending}
-                onClick={() =>
-                  submitAllocationMutation.mutate(row.original.allocationId)
-                }
-              >
-                Submit
-              </Button>
-            ) : null}
-            {row.original.workflowStatus === "SUBMITTED" ? (
-              <>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={approveAllocationMutation.isPending}
-                  onClick={() =>
-                    approveAllocationMutation.mutate(row.original.allocationId)
-                  }
-                >
-                  Approve
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={rejectAllocationMutation.isPending}
-                  onClick={() => openRejectionDialog(row.original.allocationId)}
-                >
-                  Reject
-                </Button>
-              </>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setSelectedGroup(row.original)}
-            >
-              View Members
-            </Button>
-          </div>
-        ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160,
-      },
-    ],
-    [
-      approveAllocationMutation,
-      rejectAllocationMutation,
-      submitAllocationMutation,
-    ],
-  );
+  const submit = useMutation({
+    mutationFn: async (group: PayoutGroup) =>
+      fetchJson(group.kind === "gold" ? `/api/gold/shift-allocations/${group.id}/submit` : `/api/hr/payout-batches/${group.id}/submit`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Submitted", description: "Payout record is now pending approval.", variant: "success" });
+      invalidate();
+    },
+    onError: (error) => {
+      toast({ title: "Unable to submit", description: getApiErrorMessage(error), variant: "destructive" });
+    },
+  });
 
-  const selectedGroupWorkerColumns: ColumnDef<ShiftWorkerPayout>[] = [
+  const approve = useMutation({
+    mutationFn: async (group: PayoutGroup) =>
+      fetchJson(group.kind === "gold" ? `/api/gold/shift-allocations/${group.id}/approve` : `/api/hr/payout-batches/${group.id}/approve`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Approved", description: "This payout record is ready for run generation.", variant: "success" });
+      invalidate();
+    },
+    onError: (error) => {
+      toast({ title: "Unable to approve", description: getApiErrorMessage(error), variant: "destructive" });
+    },
+  });
+
+  const reject = useMutation({
+    mutationFn: async (group: PayoutGroup) =>
+      fetchJson(group.kind === "gold" ? `/api/gold/shift-allocations/${group.id}/reject` : `/api/hr/payout-batches/${group.id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ note: rejectionNote.trim() }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Rejected", description: "The payout record was returned for correction.", variant: "success" });
+      setRejectionTarget(null);
+      setRejectionNote("");
+      invalidate();
+    },
+    onError: (error) => {
+      toast({ title: "Unable to reject", description: getApiErrorMessage(error), variant: "destructive" });
+    },
+  });
+
+  const columns = useMemo<ColumnDef<PayoutGroup>[]>(() => [
+    {
+      id: "group",
+      header: meta.groupLabel,
+      accessorFn: (row) => `${row.label} ${row.context}`,
+      cell: ({ row }) => (
+        <div>
+          <div className="font-semibold">{row.original.label}</div>
+          <div className="text-xs text-muted-foreground">{row.original.context}</div>
+        </div>
+      ),
+    },
+    {
+      id: "workers",
+      header: "Workers",
+      accessorFn: (row) => row.workers.length,
+      cell: ({ row }) => <NumericCell>{row.original.workers.length}</NumericCell>,
+    },
+    {
+      id: "value",
+      header: "Value Due",
+      accessorFn: (row) => row.totalValueUsd,
+      cell: ({ row }) => <NumericCell>${row.original.totalValueUsd.toFixed(2)}</NumericCell>,
+    },
+    {
+      id: "due",
+      header: "Due Date",
+      accessorFn: (row) => format(row.dueDate, "yyyy-MM-dd"),
+      cell: ({ row }) => <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>,
+    },
+    {
+      id: "status",
+      header: "Workflow",
+      accessorFn: (row) => row.workflowStatus,
+      cell: ({ row }) => <Badge variant={workflowVariant(row.original.workflowStatus)}>{row.original.workflowStatus}</Badge>,
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-2">
+          {(row.original.workflowStatus === "DRAFT" || row.original.workflowStatus === "REJECTED") ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => submit.mutate(row.original)}>Submit</Button>
+          ) : null}
+          {row.original.workflowStatus === "SUBMITTED" ? (
+            <>
+              <Button type="button" size="sm" variant="outline" onClick={() => approve.mutate(row.original)}>Approve</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setRejectionTarget(row.original)}>Reject</Button>
+            </>
+          ) : null}
+          <Button type="button" size="sm" variant="outline" onClick={() => setSelectedGroup(row.original)}>View Members</Button>
+        </div>
+      ),
+    },
+  ], [approve, meta.groupLabel, submit]);
+
+  const workersColumns: ColumnDef<PayoutWorker>[] = [
     {
       id: "worker",
       header: "Worker",
@@ -650,433 +423,177 @@ export default function HrPayoutsPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-semibold">{row.original.employeeName}</div>
-          <div className="text-xs text-muted-foreground">
-            {row.original.employeeCode}
-          </div>
-          {createdId && createdId === row.original.payment?.id ? (
-            <Badge variant="secondary" className="mt-1">
-              Saved
-            </Badge>
-          ) : null}
+          <div className="text-xs text-muted-foreground">{row.original.employeeCode}</div>
+          {createdId && createdId === row.original.payment?.id ? <Badge className="mt-1" variant="secondary">Saved</Badge> : null}
         </div>
       ),
-      size: 280,
-      minSize: 220,
-      maxSize: 420,
     },
     {
       id: "earned",
-      header: "Shift Earned",
-      accessorFn: (row) => row.shareValueUsd,
-      cell: ({ row }) => (
-        <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      header: "Earned",
+      accessorFn: (row) => row.amountUsd,
+      cell: ({ row }) => <NumericCell>${row.original.amountUsd.toFixed(2)}</NumericCell>,
+    },
+    {
+      id: "paid",
+      header: "Paid",
+      accessorFn: (row) => row.paidAmountUsd,
+      cell: ({ row }) => <NumericCell>{row.original.paidAmountUsd > 0 ? `$${row.original.paidAmountUsd.toFixed(2)}` : "-"}</NumericCell>,
     },
     {
       id: "dueDate",
       header: "Due Date",
       accessorFn: (row) => format(row.dueDate, "yyyy-MM-dd"),
-      cell: ({ row }) => {
-        const isOverdue =
-          isBefore(row.original.dueDate, new Date()) &&
-          row.original.status !== "PAID";
-        return (
-          <div>
-            <NumericCell align="left">
-              {format(row.original.dueDate, "MMM d, yyyy")}
-            </NumericCell>
-            {isOverdue ? (
-              <div className="text-[10px] text-red-600">Past due</div>
-            ) : null}
-          </div>
-        );
-      },
-      size: 128,
-      minSize: 128,
-      maxSize: 128,
-    },
-    {
-      id: "status",
-      header: "Status",
-      accessorKey: "status",
-      cell: ({ row }) => {
-        const variant =
-          row.original.status === "PAID"
-            ? "success"
-            : row.original.status === "PARTIAL"
-              ? "warning"
-              : "neutral";
-        return <Badge variant={variant}>{row.original.status}</Badge>;
-      },
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "paid",
-      header: "Paid (USD)",
-      accessorFn: (row) => row.paidAmountUsd,
       cell: ({ row }) => (
-        <NumericCell>
-          {row.original.paidAmountUsd > 0
-            ? `$${row.original.paidAmountUsd.toFixed(2)}`
-            : "-"}
-        </NumericCell>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "paidDate",
-      header: "Paid Date",
-      accessorFn: (row) => (row.paidAt ? format(row.paidAt, "yyyy-MM-dd") : ""),
-      cell: ({ row }) => (
-        <NumericCell align="left">
-          {row.original.paidAt
-            ? format(row.original.paidAt, "MMM d, yyyy")
-            : "-"}
-        </NumericCell>
-      ),
-      size: 128,
-      minSize: 128,
-      maxSize: 128,
-    },
-    {
-      id: "action",
-      header: "",
-      cell: ({ row }) => (
-        <div className="text-right">
-          {selectedGroup?.workflowStatus === "APPROVED" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                selectedGroup && openPaymentForm(selectedGroup, row.original)
-              }
-            >
-              Disburse
-            </Button>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              Pending approval
-            </span>
-          )}
+        <div>
+          <NumericCell align="left">{format(row.original.dueDate, "MMM d, yyyy")}</NumericCell>
+          {isBefore(row.original.dueDate, new Date()) && row.original.status !== "PAID" ? <div className="text-[10px] text-red-600">Past due</div> : null}
         </div>
       ),
-      size: 108,
-      minSize: 108,
-      maxSize: 108,
+    },
+    {
+      id: "continue",
+      header: "",
+      cell: () =>
+        selectedGroup?.workflowStatus === "APPROVED" ? (
+          <span className="text-xs text-muted-foreground">Ready for run generation</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Pending approval</span>
+        ),
     },
   ];
+
+  const loadError = goldQuery.error || batchQuery.error || paymentQuery.error;
 
   return (
     <HrShell
       activeTab="payouts"
-      description={`${sourceMeta.label} allocations and worker disbursement readiness`}
+      description={meta.description}
+      actions={source !== "GOLD" ? <Button size="sm" onClick={() => setCreateOpen(true)}>New {meta.groupLabel}</Button> : undefined}
     >
-      <RecordSavedBanner entityLabel={`${sourceMeta.tabLabel.toLowerCase()} payout record`} />
-      {(allocationsError || paymentsError) && (
+      <RecordSavedBanner entityLabel={`${meta.label.toLowerCase()} record`} />
+
+      {loadError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load payouts</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(allocationsError || paymentsError)}
-          </AlertDescription>
+          <AlertDescription>{getApiErrorMessage(loadError)}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      <section className="space-y-3">
-        <header className="space-y-1">
-          <h2 className="text-section-title text-foreground font-bold tracking-tight">
-            Irregular Payouts
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {sourceMeta.description}
-          </p>
-        </header>
-        {!sourceIsImplemented ? (
-          <div className="section-shell text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground">{sourceMeta.label} are not configured yet.</p>
-            <p className="mt-1">Enable this source in HR payouts configuration before processing records.</p>
-          </div>
-        ) : isLoading ? (
-          <Skeleton className="h-24 w-full" />
-        ) : payoutGroups.length === 0 ? (
-          <div className="section-shell text-sm text-muted-foreground">
-            No payouts for this window.
-          </div>
-        ) : (
-          <DataTable
-            data={payoutGroups}
-            columns={payoutColumns}
-            queryState={groupsQuery}
-            onQueryStateChange={(next) =>
-              setGroupsQuery((prev) => ({ ...prev, ...next }))
-            }
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder={`Search by site, ${sourceMeta.allocationLabel.toLowerCase()}, or allocation`}
-            tableClassName="text-sm"
-            toolbar={
-              <>
-                <Select
-                  value={payoutSource}
-                  onValueChange={(value) => {
-                    const nextSource = parseIrregularPayoutSource(value);
-                    setPayoutSource(nextSource);
-                    const params = new URLSearchParams(searchParams.toString());
-                    params.set("source", nextSource);
-                    router.replace(`/human-resources/payouts?${params.toString()}`);
-                  }}
-                >
-                  <SelectTrigger size="sm" className="h-8 w-[170px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GOLD">Gold payouts</SelectItem>
-                    <SelectItem value="COMMISSION">Commission payouts</SelectItem>
-                    <SelectItem value="OTHER">Dividends / profit sharing / other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={payoutWindowWeeks}
-                  onValueChange={setPayoutWindowWeeks}
-                >
-                  <SelectTrigger size="sm" className="h-8 w-[110px]">
-                    <SelectValue />
-                  </SelectTrigger>
+      {goldQuery.isLoading || batchQuery.isLoading || paymentQuery.isLoading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <DataTable
+          data={groups}
+          columns={columns}
+          queryState={queryState}
+          onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
+          features={{ sorting: true, globalFilter: true, pagination: true }}
+          pagination={{ enabled: true, server: false }}
+          searchPlaceholder={`Search ${meta.groupLabel.toLowerCase()}, worker, or note`}
+          toolbar={
+            <>
+              <Select value={source} onValueChange={(value) => {
+                const nextSource = parseIrregularPayoutSource(value);
+                setSource(nextSource);
+                const params = new URLSearchParams(searchParams.toString());
+                params.set("source", nextSource);
+                router.replace(`/human-resources/payouts?${params.toString()}`);
+              }}>
+                <SelectTrigger size="sm" className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GOLD">Gold payouts</SelectItem>
+                  <SelectItem value="COMMISSION">Commission payouts</SelectItem>
+                  <SelectItem value="OTHER">Other payouts</SelectItem>
+                </SelectContent>
+              </Select>
+              {source === "GOLD" ? (
+                <Select value={windowWeeks} onValueChange={setWindowWeeks}>
+                  <SelectTrigger size="sm" className="h-8 w-[110px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="2">2 weeks</SelectItem>
                     <SelectItem value="4">4 weeks</SelectItem>
                   </SelectContent>
                 </Select>
-                <ExportMenu
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  onExport={(format) => {
-                    void handleExport(format).catch((error) => {
-                      toast({
-                        title: `${format.toUpperCase()} export failed`,
-                        description: getApiErrorMessage(error),
-                        variant: "destructive",
-                      });
-                    });
-                  }}
-                  disabled={payoutGroups.length === 0}
-                />
-                {allocationIdFilter ? (
-                  <Badge variant="neutral">Focused: {allocationIdFilter}</Badge>
-                ) : null}
-                <span className="text-xs text-muted-foreground">
-                  Shifts{" "}
-                  <span className="font-mono text-foreground">
-                    {payoutGroups.length}
-                  </span>
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Workers{" "}
-                  <span className="font-mono text-foreground">
-                    {totalWorkers}
-                  </span>
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Total Due{" "}
-                  <span className="font-mono text-foreground">
-                    ${totalValueDueUsd.toFixed(2)}
-                  </span>
-                </span>
-              </>
-            }
-          />
-        )}
-      </section>
-
-      <Dialog
-        open={Boolean(rejectionAllocationId)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRejectionAllocationId(null);
-            setRejectionNote("");
+              ) : null}
+              <span className="text-xs text-muted-foreground">Groups <span className="font-mono text-foreground">{groups.length}</span></span>
+              <span className="text-xs text-muted-foreground">Workers <span className="font-mono text-foreground">{groups.reduce((sum, group) => sum + group.workers.length, 0)}</span></span>
+              <span className="text-xs text-muted-foreground">Total Due <span className="font-mono text-foreground">${groups.reduce((sum, group) => sum + group.totalValueUsd, 0).toFixed(2)}</span></span>
+            </>
           }
-        }}
-      >
-        <DialogContent size="md">
+        />
+      )}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>Reject Allocation</DialogTitle>
-            <DialogDescription>
-              Capture a rejection reason so the submitter can correct this
-              payout allocation.
-            </DialogDescription>
+            <DialogTitle>New {meta.groupLabel}</DialogTitle>
+            <DialogDescription>Create a manual irregular payout batch for review.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">Rejection Note</label>
-            <Textarea
-              value={rejectionNote}
-              onChange={(event) => setRejectionNote(event.target.value)}
-              placeholder="Describe why this allocation is being rejected."
-              rows={4}
-            />
+          <div className="space-y-4">
+            <Input placeholder="Label" value={batchLabel} onChange={(event) => setBatchLabel(event.target.value)} />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Input type="date" value={batchPeriodStart} onChange={(event) => setBatchPeriodStart(event.target.value)} />
+              <Input type="date" value={batchPeriodEnd} onChange={(event) => setBatchPeriodEnd(event.target.value)} />
+              <Input type="date" value={batchDueDate} onChange={(event) => setBatchDueDate(event.target.value)} />
+            </div>
+            <Input value={batchCurrency} onChange={(event) => setBatchCurrency(event.target.value)} />
+            <Textarea rows={3} value={batchNotes} onChange={(event) => setBatchNotes(event.target.value)} placeholder="Notes" />
+            {batchItems.map((item, index) => (
+              <div key={`batch-item-${index}`} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[2fr_1fr_2fr_auto]">
+                <Select value={item.employeeId || "__none"} onValueChange={(value) => setBatchItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, employeeId: value === "__none" ? "" : value } : entry))}>
+                  <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Select employee</SelectItem>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id}>{employee.name} ({employee.employeeId})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input value={item.amount} onChange={(event) => setBatchItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, amount: event.target.value } : entry))} placeholder="Amount" />
+                <Input value={item.notes} onChange={(event) => setBatchItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, notes: event.target.value } : entry))} placeholder="Worker note" />
+                <Button type="button" variant="outline" size="sm" disabled={batchItems.length === 1} onClick={() => setBatchItems((current) => current.filter((_, entryIndex) => entryIndex !== index))}>Remove</Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setBatchItems((current) => [...current, { employeeId: "", amount: "", notes: "" }])}>Add Worker</Button>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setRejectionAllocationId(null);
-                setRejectionNote("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={
-                !rejectionNote.trim() || rejectAllocationMutation.isPending
-              }
-              onClick={handleRejectAllocation}
-            >
-              Reject Allocation
-            </Button>
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button type="button" disabled={createBatch.isPending || !batchLabel.trim()} onClick={() => createBatch.mutate()}>{createBatch.isPending ? "Creating..." : "Create Batch"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={Boolean(selectedGroup)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedGroup(null);
-        }}
-      >
-        <DialogContent size="full" className="max-h-[90dvh]">
+      <Dialog open={Boolean(rejectionTarget)} onOpenChange={(open) => !open && setRejectionTarget(null)}>
+        <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>
-              Shift Members
-              {selectedGroup
-                ? ` - ${format(selectedGroup.date, "MMM d, yyyy")} (${selectedGroup.shift})`
-                : ""}
-            </DialogTitle>
-            <DialogDescription>
-              Record and review payout status by worker for this shift.
-            </DialogDescription>
+            <DialogTitle>Reject Payout Record</DialogTitle>
+            <DialogDescription>Capture why this payout record is being rejected.</DialogDescription>
           </DialogHeader>
-          {selectedGroup ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">Workflow:</span>
-                <Badge
-                  variant={workflowBadgeVariant(selectedGroup.workflowStatus)}
-                >
-                  {selectedGroup.workflowStatus}
-                </Badge>
-                {selectedGroup.workflowStatus !== "APPROVED" ? (
-                  <span className="text-xs text-muted-foreground">
-                    Payout recording unlocks after approval.
-                  </span>
-                ) : null}
-              </div>
-              <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
-                <div>
-                  Site:{" "}
-                  <span className="font-semibold text-foreground">
-                    {selectedGroup.siteCode}
-                  </span>
-                </div>
-                <div>
-                  Workers:{" "}
-                  <span className="font-semibold text-foreground">
-                    {selectedGroup.workers.length}
-                  </span>
-                </div>
-                <div>
-                  Gold due:{" "}
-                  <span className="font-semibold text-foreground">
-                    ${selectedGroup.totalValueUsd.toFixed(2)}
-                  </span>
-                </div>
-                <div>
-                  Expected due:{" "}
-                  <span className="font-semibold text-foreground">
-                    {format(selectedGroup.expectedDueDate, "MMM d, yyyy")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
-                <DataTable
-                  data={selectedGroup.workers}
-                  columns={selectedGroupWorkerColumns}
-                  features={{
-                    globalFilter: false,
-                    pagination: false,
-                    sorting: false,
-                  }}
-                  maxBodyHeight="60dvh"
-                  tableContainerClassName="overflow-auto"
-                  tableClassName="text-sm"
-                />
-              </div>
-            </div>
-          ) : null}
+          <Textarea rows={4} value={rejectionNote} onChange={(event) => setRejectionNote(event.target.value)} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRejectionTarget(null)}>Cancel</Button>
+            <Button type="button" variant="destructive" disabled={!rejectionNote.trim() || reject.isPending || !rejectionTarget} onClick={() => rejectionTarget && reject.mutate(rejectionTarget)}>Reject</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="absolute left-[-9999px] top-0">
-        <div ref={payoutPdfRef}>
-          <PdfTemplate
-            title="Irregular Payouts"
-            subtitle={`${format(windowStartDate, "yyyy-MM-dd")} to ${format(windowEndDate, "yyyy-MM-dd")}`}
-            meta={[
-              { label: "Pay window", value: `${payoutWindowWeeks} weeks` },
-              { label: "Total shifts", value: String(payoutGroups.length) },
-              { label: "Gold due", value: `$${totalValueDueUsd.toFixed(2)}` },
-            ]}
-          >
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="py-2">Shift</th>
-                  <th className="py-2">Site</th>
-                  <th className="py-2">Worker</th>
-                  <th className="py-2">Earned (USD)</th>
-                  <th className="py-2">Due Date</th>
-                  <th className="py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payoutGroups.flatMap((group) =>
-                  group.workers.map((worker) => (
-                    <tr
-                      key={`pdf-${group.allocationId}-${worker.employeeId}`}
-                      className="border-b border-gray-100"
-                    >
-                      <td className="py-2">
-                        {format(group.date, "yyyy-MM-dd")} ({group.shift})
-                      </td>
-                      <td className="py-2">{group.siteCode}</td>
-                      <td className="py-2">
-                        {worker.employeeName} ({worker.employeeCode})
-                      </td>
-                      <td className="py-2">
-                        {worker.shareValueUsd.toFixed(2)}
-                      </td>
-                      <td className="py-2">
-                        {format(worker.dueDate, "yyyy-MM-dd")}
-                      </td>
-                      <td className="py-2">{worker.status}</td>
-                    </tr>
-                  )),
-                )}
-              </tbody>
-            </table>
-          </PdfTemplate>
-        </div>
-      </div>
+      <Dialog open={Boolean(selectedGroup)} onOpenChange={(open) => !open && setSelectedGroup(null)}>
+        <DialogContent size="full" className="max-h-[90dvh]">
+          <DialogHeader>
+            <DialogTitle>{selectedGroup?.label ?? "Members"}</DialogTitle>
+            <DialogDescription>Review worker payout state for this record.</DialogDescription>
+          </DialogHeader>
+          {selectedGroup ? (
+            <DataTable
+              data={selectedGroup.workers}
+              columns={workersColumns}
+              features={{ globalFilter: false, pagination: false, sorting: false }}
+              tableClassName="text-sm"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </HrShell>
   );
 }

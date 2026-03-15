@@ -163,6 +163,11 @@ function mapApprovalToNotificationType(
     if (action === "APPROVE") return NotificationType.HR_GOLD_PAYOUT_APPROVED
     if (action === "REJECT") return NotificationType.HR_GOLD_PAYOUT_REJECTED
   }
+  if (entityType === "IRREGULAR_PAYOUT_BATCH") {
+    if (action === "SUBMIT") return NotificationType.HR_GOLD_PAYOUT_SUBMITTED
+    if (action === "APPROVE") return NotificationType.HR_GOLD_PAYOUT_APPROVED
+    if (action === "REJECT") return NotificationType.HR_GOLD_PAYOUT_REJECTED
+  }
   if (entityType === "DISCIPLINARY_ACTION") {
     if (action === "SUBMIT") return NotificationType.HR_DISCIPLINARY_SUBMITTED
     if (action === "APPROVE") return NotificationType.HR_DISCIPLINARY_APPROVED
@@ -185,6 +190,9 @@ function toNotificationEntityType(entityType: ApprovalTargetType): NotificationE
   if (entityType === "COMPENSATION_PROFILE") return NotificationEntityType.COMPENSATION_PROFILE
   if (entityType === "GOLD_SHIFT_ALLOCATION") {
     return NotificationEntityType.GOLD_SHIFT_ALLOCATION
+  }
+  if (entityType === "IRREGULAR_PAYOUT_BATCH") {
+    return NotificationEntityType.IRREGULAR_PAYOUT_BATCH
   }
   if (entityType === "DISCIPLINARY_ACTION") return NotificationEntityType.DISCIPLINARY_ACTION
   return NotificationEntityType.COMPENSATION_RULE
@@ -346,6 +354,36 @@ async function getWorkflowEntityContext(
         totalWeight: allocation.totalWeight,
         netWeight: allocation.netWeight,
         workerShareWeight: allocation.workerShareWeight,
+      },
+    }
+  }
+
+  if (input.entityType === "IRREGULAR_PAYOUT_BATCH") {
+    const batch = await db.irregularPayoutBatch.findUnique({
+      where: { id: input.entityId },
+      select: {
+        id: true,
+        label: true,
+        source: true,
+        periodStart: true,
+        periodEnd: true,
+        dueDate: true,
+        submittedById: true,
+        createdById: true,
+      },
+    })
+    if (!batch) return null
+    return {
+      submittedById: batch.submittedById,
+      createdById: batch.createdById,
+      label: `${batch.source} - ${batch.label}`,
+      viewPath: `/human-resources/payouts?batchId=${batch.id}&source=${batch.source}`,
+      payload: {
+        source: batch.source,
+        label: batch.label,
+        periodStart: batch.periodStart.toISOString(),
+        periodEnd: batch.periodEnd.toISOString(),
+        dueDate: batch.dueDate.toISOString(),
       },
     }
   }
@@ -533,6 +571,9 @@ export async function emitWorkflowNotificationFromApprovalAction(
   input: WorkflowNotificationInput,
 ) {
   try {
+    if (input.entityType === "IRREGULAR_PAYOUT_BATCH") {
+      return null
+    }
     const notificationType = mapApprovalToNotificationType(input.entityType, input.action)
     if (!notificationType) return null
 

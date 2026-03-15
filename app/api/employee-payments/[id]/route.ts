@@ -9,6 +9,7 @@ import {
 } from "@/lib/gold-payouts"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { derivePaidStatus } from "@/lib/hr-payroll"
+import { isLegacyGoldPaymentType, normalizeIrregularPayoutSource } from "@/lib/hr-irregular-payouts"
 import { prisma } from "@/lib/prisma"
 
 const dateInputSchema = z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
@@ -182,6 +183,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       select: {
         id: true,
         type: true,
+        payoutSource: true,
         employeeId: true,
         periodStart: true,
         periodEnd: true,
@@ -220,8 +222,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       )
     }
 
+    const existingPayoutSource =
+      existing.type === "SALARY"
+        ? null
+        : isLegacyGoldPaymentType(existing.type)
+          ? "GOLD"
+          : normalizeIrregularPayoutSource(existing.payoutSource)
+
     let normalizedGoldNotes: string | null | undefined
-    if (existing.type === "GOLD") {
+    let nextGoldShiftAllocationId: string | undefined
+    if (existingPayoutSource === "GOLD") {
       const nextPeriodStart = validated.periodStart ?? existing.periodStart.toISOString()
       const nextPeriodEnd = validated.periodEnd ?? existing.periodEnd.toISOString()
       const nextNotes =
@@ -245,6 +255,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         )
       }
 
+      nextGoldShiftAllocationId = allocationResolution.allocationId
       normalizedGoldNotes = buildGoldPayoutNotes(allocationResolution.allocationId, nextNotes)
     }
 
@@ -267,18 +278,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       status: validated.status ?? (existing.status as "DUE" | "PARTIAL" | "PAID"),
     })
 
-    const nextUnit = existing.type === "GOLD" ? "g" : (validated.unit ?? existing.unit)
+    const nextUnit = existingPayoutSource === "GOLD" ? "g" : (validated.unit ?? existing.unit)
     let nextAmountUsd = roundUsd(nextAmount)
     let nextPaidAmountUsd =
       normalizedByInput.paidAmount && normalizedByInput.paidAmount > 0
         ? roundUsd(normalizedByInput.paidAmount)
         : null
     let nextGoldWeightGrams: number | null =
-      existing.type === "GOLD" ? nextAmount : null
+      existingPayoutSource === "GOLD" ? nextAmount : null
     let nextGoldPriceUsdPerGram: number | null = null
     let nextValuationDate: Date | null = null
 
-    if (existing.type === "GOLD") {
+    if (existingPayoutSource === "GOLD") {
       const valuation = await snapshotGoldUsdValue({
         companyId: session.user.companyId,
         businessDate: nextPeriodEndIso,
@@ -323,8 +334,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         paidAmountUsd: nextPaidAmountUsd,
         paidAt: nextPaidAt,
         status: normalizedStatus,
+        goldShiftAllocationId: nextGoldShiftAllocationId,
         notes:
-          existing.type === "GOLD"
+          existingPayoutSource === "GOLD"
             ? normalizedGoldNotes
             : (validated.notes !== undefined ? validated.notes : undefined),
       },
@@ -372,6 +384,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         amount: updated.amountUsd ?? updated.amount,
         payload: {
           employeeId: updated.employee.id,
+          payoutSource: updated.payoutSource,
           status: updated.status,
           paidAmount: updated.paidAmount,
           paidAmountUsd: updated.paidAmountUsd,

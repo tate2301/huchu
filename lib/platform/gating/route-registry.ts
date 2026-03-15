@@ -206,6 +206,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/approvals/history", featureKey: "hr.approvals-history" },
   { scope: "api", prefix: "/api/hr/incidents", featureKey: "hr.incidents" },
   { scope: "api", prefix: "/api/hr/disciplinary-actions", featureKey: "hr.disciplinary-actions" },
+  { scope: "api", prefix: "/api/hr/payout-batches", featureKey: "hr.gold-payouts" },
   { scope: "api", prefix: "/api/hr/shift-group-schedules", featureKey: "hr.employees" },
   { scope: "api", prefix: "/api/hr/shift-groups", featureKey: "hr.employees" },
   { scope: "api", prefix: "/api/departments", featureKey: "hr.employees" },

@@ -494,6 +494,9 @@ export default function HumanResourcesPage() {
               <div className="font-mono text-xs text-muted-foreground">
                 ID: {row.original.employeeId}
               </div>
+              {row.original.jobTitle ? (
+                <div className="text-xs text-muted-foreground">{row.original.jobTitle}</div>
+              ) : null}
             </div>
           </div>
         ),
@@ -593,6 +596,29 @@ export default function HumanResourcesPage() {
         minSize: 160,
         maxSize: 160},
       {
+        id: "access",
+        header: "Access",
+        meta: {
+          exportValue: (row: EmployeeSummary) => {
+            const modules = row.moduleAssignments?.map((assignment) => assignment.module).join(", ") || "HR";
+            const linkedUser = row.user ? `${row.user.email} (${row.user.role})` : "No linked user";
+            return `${linkedUser} | ${modules}`;
+          },
+        },
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">
+              {row.original.user ? row.original.user.email : "No linked user"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.moduleAssignments?.map((assignment) => assignment.module).join(", ") || "HR"}
+            </div>
+          </div>
+        ),
+        size: 190,
+        minSize: 190,
+        maxSize: 220},
+      {
         id: "nextOfKin",
         header: "Next of Kin",
         meta: {
@@ -616,11 +642,11 @@ export default function HumanResourcesPage() {
         maxSize: 160},
       {
         id: "goldOwed",
-        header: "Gold Owed",
+        header: "Payouts Owed",
         cell: ({ row }) => (
           <div className="text-right">
-            <div className="font-mono font-semibold">${row.original.goldOwed.toFixed(2)}</div>
-            <div className="text-xs text-muted-foreground">Outstanding gold value</div>
+            <div className="font-mono font-semibold">${(row.original.irregularOwed ?? row.original.goldOwed).toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground">Outstanding irregular payouts</div>
           </div>
         ),
         size: 120,

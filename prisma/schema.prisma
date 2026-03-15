@@ -34,6 +34,7 @@ model Company {
   sites               Site[]
   users               User[]
   employees           Employee[]
+  employeeModuleAssignments EmployeeModuleAssignment[]
   shiftGroups         ShiftGroup[]
   shiftGroupSchedules ShiftGroupSchedule[]
   departments         Department[]
@@ -140,6 +141,7 @@ model Company {
   goldPurchases        GoldPurchase[]
   goldPrices          GoldPrice[]
   goldExpenseTypes    GoldExpenseType[]
+  irregularPayoutBatches IrregularPayoutBatch[]
   scrapMetalPrices    ScrapMetalPrice[]
   scrapMetalEmployeeBalances ScrapMetalEmployeeBalance[]
   scrapMetalPurchases ScrapMetalPurchase[]
@@ -814,6 +816,10 @@ model User {
   createdScrapMetalBatches      ScrapMetalBatch[]    @relation("ScrapMetalBatchCreatedBy")
   createdScrapMetalSales        ScrapMetalSale[]     @relation("ScrapMetalSaleCreatedBy")
   approvedScrapMetalSales       ScrapMetalSale[]     @relation("ScrapMetalSaleApprovedBy")
+  createdIrregularPayoutBatches IrregularPayoutBatch[] @relation("IrregularPayoutBatchCreatedBy")
+  submittedIrregularPayoutBatches IrregularPayoutBatch[] @relation("IrregularPayoutBatchSubmittedBy")
+  approvedIrregularPayoutBatches IrregularPayoutBatch[] @relation("IrregularPayoutBatchApprovedBy")
+  employeeProfile               Employee?            @relation("EmployeeUser")
   accounts                      Account[] // For NextAuth
   sessions                      Session[] // For NextAuth
 
@@ -824,6 +830,7 @@ model User {
 model Employee {
   id               String           @id @default(uuid())
   employeeId       String
+  userId           String?          @unique
   name             String
   phone            String
   nextOfKinName    String
@@ -832,6 +839,7 @@ model Employee {
   nationalIdNumber String?
   nationalIdDocumentUrl String?
   villageOfOrigin  String
+  jobTitle         String?
   position         EmployeePosition @default(MINERS)
   departmentId     String?
   gradeId          String?
@@ -846,6 +854,7 @@ model Employee {
   updatedAt        DateTime         @updatedAt
 
   company                   Company                @relation(fields: [companyId], references: [id])
+  user                      User?                  @relation("EmployeeUser", fields: [userId], references: [id])
   department                Department?            @relation(fields: [departmentId], references: [id])
   grade                     JobGrade?              @relation(fields: [gradeId], references: [id])
   supervisor                Employee?              @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
@@ -864,6 +873,8 @@ model Employee {
   goldShiftWorkerShares     GoldShiftWorkerShare[]
   scrapMetalPurchases       ScrapMetalPurchase[]   @relation("ScrapMetalPurchaseEmployee")
   scrapMetalBalance         ScrapMetalEmployeeBalance?
+  moduleAssignments         EmployeeModuleAssignment[]
+  irregularPayoutBatchItems IrregularPayoutBatchItem[]
   fixedSalary               FixedSalary?
   payments                  EmployeePayment[]
   compensationProfiles      CompensationProfile[]
@@ -877,9 +888,29 @@ model Employee {
   @@unique([companyId, employeeId])
   @@unique([companyId, nationalIdNumber])
   @@index([companyId])
+  @@index([userId])
   @@index([departmentId])
   @@index([gradeId])
   @@index([supervisorId])
+}
+
+model EmployeeModuleAssignment {
+  id                 String               @id @default(uuid())
+  companyId          String
+  employeeId         String
+  module             EmployeeModule
+  accessRole         UserRole?
+  requiresUserAccess Boolean              @default(false)
+  isPrimary          Boolean              @default(false)
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, module])
+  @@index([companyId, module, isActive])
 }
 
 model FixedSalary {
@@ -900,6 +931,7 @@ model EmployeePayment {
   id                  String        @id @default(uuid())
   employeeId          String
   type                PaymentType
+  payoutSource        IrregularPayoutSource?
   periodStart         DateTime
   periodEnd           DateTime
   dueDate             DateTime
@@ -918,6 +950,8 @@ model EmployeePayment {
   payrollLineItemId   String?
   disbursementBatchId String?
   disbursementItemId  String?
+  goldShiftAllocationId String?
+  irregularPayoutBatchId String?
   createdById         String
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -928,12 +962,17 @@ model EmployeePayment {
   payrollLineItem   PayrollLineItem?   @relation(fields: [payrollLineItemId], references: [id])
   disbursementBatch DisbursementBatch? @relation(fields: [disbursementBatchId], references: [id])
   disbursementItem  DisbursementItem?  @relation(fields: [disbursementItemId], references: [id])
+  goldShiftAllocation GoldShiftAllocation? @relation(fields: [goldShiftAllocationId], references: [id])
+  irregularPayoutBatch IrregularPayoutBatch? @relation(fields: [irregularPayoutBatchId], references: [id])
 
   @@index([employeeId, type])
+  @@index([employeeId, payoutSource])
   @@index([payrollRunId])
   @@index([payrollLineItemId])
   @@index([disbursementBatchId])
   @@index([disbursementItemId])
+  @@index([goldShiftAllocationId])
+  @@index([irregularPayoutBatchId])
 }
 
 model Department {
@@ -1080,6 +1119,8 @@ model PayrollPeriod {
   id            String              @id @default(uuid())
   companyId     String
   domain        RunDomain           @default(PAYROLL)
+  payoutSource  IrregularPayoutSource?
+  scopeKey      String              @default("DEFAULT")
   periodKey     String
   startDate     DateTime
   endDate       DateTime
@@ -1105,8 +1146,8 @@ model PayrollPeriod {
   approvedBy  User?        @relation("PayrollPeriodApprovedBy", fields: [approvedById], references: [id])
   runs        PayrollRun[]
 
-  @@unique([companyId, domain, periodKey])
-  @@index([companyId, domain, startDate])
+  @@unique([companyId, domain, periodKey, scopeKey])
+  @@index([companyId, domain, payoutSource, scopeKey, startDate])
   @@index([status])
 }
 
@@ -1115,6 +1156,7 @@ model PayrollRun {
   companyId          String
   periodId           String
   domain             RunDomain          @default(PAYROLL)
+  payoutSource       IrregularPayoutSource?
   runNumber          Int                @default(1)
   status             PayrollRunStatus   @default(DRAFT)
   notes              String?
@@ -1144,7 +1186,7 @@ model PayrollRun {
   legacyPayments      EmployeePayment[]
 
   @@unique([periodId, runNumber])
-  @@index([companyId, status, domain])
+  @@index([companyId, status, domain, payoutSource])
 }
 
 model PayrollLineItem {
@@ -1382,6 +1424,51 @@ model AdjustmentEntry {
   @@index([employeeId])
 }
 
+model IrregularPayoutBatch {
+  id            String                @id @default(uuid())
+  companyId     String
+  source        IrregularPayoutSource
+  label         String
+  periodStart   DateTime
+  periodEnd     DateTime
+  dueDate       DateTime
+  currency      String                @default("USD")
+  workflowStatus WorkflowStatus       @default(DRAFT)
+  notes         String?
+  createdById   String
+  submittedById String?
+  approvedById  String?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User                  @relation("IrregularPayoutBatchCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?                 @relation("IrregularPayoutBatchSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?                 @relation("IrregularPayoutBatchApprovedBy", fields: [approvedById], references: [id])
+  items       IrregularPayoutBatchItem[]
+  payments    EmployeePayment[]
+
+  @@index([companyId, source, workflowStatus, dueDate])
+}
+
+model IrregularPayoutBatchItem {
+  id         String   @id @default(uuid())
+  batchId    String
+  employeeId String
+  amount     Float
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  batch    IrregularPayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employee Employee             @relation(fields: [employeeId], references: [id])
+
+  @@unique([batchId, employeeId])
+  @@index([employeeId])
+}
+
 // ============================================
 // PHASE 1: DAILY OPERATIONS
 // ============================================
@@ -1417,6 +1504,7 @@ enum ReportStatus {
 
 enum PaymentType {
   GOLD
+  IRREGULAR
   SALARY
 }
 
@@ -1431,6 +1519,20 @@ enum EmploymentType {
   PART_TIME
   CONTRACT
   CASUAL
+}
+
+enum EmployeeModule {
+  HR
+  GOLD
+  SCRAP_METAL
+  CAR_SALES
+  THRIFT
+}
+
+enum IrregularPayoutSource {
+  GOLD
+  COMMISSION
+  OTHER
 }
 
 enum WorkflowStatus {
@@ -1513,6 +1615,7 @@ enum ApprovalTargetType {
   COMPENSATION_PROFILE
   COMPENSATION_RULE
   GOLD_SHIFT_ALLOCATION
+  IRREGULAR_PAYOUT_BATCH
   DISCIPLINARY_ACTION
 }
 
@@ -1569,6 +1672,7 @@ enum NotificationEntityType {
   COMPENSATION_PROFILE
   COMPENSATION_RULE
   GOLD_SHIFT_ALLOCATION
+  IRREGULAR_PAYOUT_BATCH
   DISCIPLINARY_ACTION
   HR_INCIDENT
   INCIDENT
@@ -2063,6 +2167,7 @@ model GoldShiftAllocation {
   expenses     GoldShiftExpense[]
   workerShares GoldShiftWorkerShare[]
   pours        GoldPour[]
+  employeePayments EmployeePayment[]
 
   @@unique([siteId, date, shift])
   @@index([siteId, date])
