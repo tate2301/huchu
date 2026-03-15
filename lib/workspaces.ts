@@ -94,7 +94,7 @@ type WorkspaceProfileRecipe = {
 };
 
 const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GOLD_MINE";
-const CORE_MODULE_IDS: readonly WorkspaceModuleId[] = ["accounting", "management"];
+const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["hr", "accounting", "management"];
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "gold",
   "scrap-metal",
@@ -236,7 +236,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       roleItem("/gold/transit/dispatches/new", "Record Dispatch", LocalShipping, ["SUPERADMIN", "MANAGER"]),
       roleItem("/gold/settlement/receipts/new", "Record Receipt", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
     ],
-    nativeModules: ["gold", "hr", "reporting"],
+    nativeModules: ["gold", "reporting"],
     sections: [
       {
         id: "gold-operations",
@@ -274,7 +274,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       roleItem("/scrap-metal/batches", "Open Batch", Package),
       roleItem("/scrap-metal/sales", "Record Sale", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
     ],
-    nativeModules: ["scrap-metal", "hr", "reporting"],
+    nativeModules: ["scrap-metal", "reporting"],
     sections: [
       {
         id: "scrap-buying",
@@ -304,7 +304,6 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         id: "scrap-people",
         title: "Team & Settlements",
         refs: [
-          { moduleId: "hr", href: "/human-resources" },
           { moduleId: "hr", href: "/human-resources/payouts" },
         ],
       },
@@ -525,7 +524,7 @@ function buildGeneralSections(visibleModules: Map<WorkspaceModuleId, NavItem[]>)
 function buildCanonicalCoreSections(
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
 ): WorkspaceNavSection[] {
-  return CORE_MODULE_IDS
+  return CANONICAL_MODULE_IDS
     .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary"))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
@@ -538,7 +537,7 @@ function buildAdditionalSections(
     .filter(
       (moduleId) =>
         !recipe.nativeModules.includes(moduleId) &&
-        !CORE_MODULE_IDS.includes(moduleId) &&
+        !CANONICAL_MODULE_IDS.includes(moduleId) &&
         visibleModules.has(moduleId),
     )
     .map((moduleId) => buildModuleSection(moduleId, visibleModules, "additional"))
