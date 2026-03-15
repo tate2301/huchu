@@ -20,7 +20,7 @@ import { ensureAutoPeriods } from "@/lib/payroll-periods"
 
 const periodSchema = z.object({
   domain: z.enum(["PAYROLL", "GOLD_PAYOUT"]).optional(),
-  payoutSource: z.enum(["GOLD", "COMMISSION", "OTHER"]).optional(),
+  payoutSource: z.enum(["GOLD", "SCRAP", "COMMISSION", "OTHER"]).optional(),
   periodKey: z.string().regex(/^\d{4}-\d{2}(-H[12])?$/).optional(),
   cycle: z.enum(["MONTHLY", "FORTNIGHTLY"]).optional(),
   anchorDate: z
@@ -62,7 +62,7 @@ function parsePeriodKeyToDate(periodKey: string) {
 
 type PeriodDraft = {
   domain: RunDomain
-  payoutSource?: "GOLD" | "COMMISSION" | "OTHER"
+  payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER"
   scopeKey: string
   periodKey: string
   cycle: PayrollCycle
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
     }
     if (domain === "PAYROLL" || domain === "GOLD_PAYOUT") where.domain = domain
-    if (payoutSource === "GOLD" || payoutSource === "COMMISSION" || payoutSource === "OTHER") {
+    if (payoutSource === "GOLD" || payoutSource === "SCRAP" || payoutSource === "COMMISSION" || payoutSource === "OTHER") {
       where.payoutSource = payoutSource
     }
     if (status) where.status = status

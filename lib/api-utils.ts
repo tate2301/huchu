@@ -22,6 +22,7 @@ export interface AuthenticatedSession extends Session {
     companyId: string;
     companySlug?: string;
     tenantStatus?: string;
+    workspaceProfile?: string;
     subscriptionHealth?: string;
     enabledFeatures?: string[];
     allowedHosts?: string[];

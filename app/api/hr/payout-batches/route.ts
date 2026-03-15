@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma"
 const dateInputSchema = z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
 
 const payoutBatchSchema = z.object({
-  source: z.enum(["COMMISSION", "OTHER"]),
+  source: z.enum(["SCRAP", "COMMISSION", "OTHER"]),
   label: z.string().trim().min(1).max(200),
   periodStart: dateInputSchema,
   periodEnd: dateInputSchema,
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {
       companyId: session.user.companyId,
     }
-    if (source === "COMMISSION" || source === "OTHER") where.source = source
+    if (source === "SCRAP" || source === "COMMISSION" || source === "OTHER") where.source = source
     if (
       workflowStatus === "DRAFT" ||
       workflowStatus === "SUBMITTED" ||

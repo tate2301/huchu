@@ -23,6 +23,7 @@ export type TenantContext = {
 export type TenantClaims = {
   companySlug?: string;
   tenantStatus?: string;
+  workspaceProfile?: string;
 };
 
 export type PlatformHostContext = {
@@ -476,6 +477,7 @@ export async function resolveTenantFromHost(hostHeader: NullableString): Promise
 type CompanyClaimsRow = {
   slug: string | null;
   tenantStatus: string | null;
+  workspaceProfile: string | null;
 };
 
 export async function getTenantClaimsForCompany(companyId: string): Promise<TenantClaims> {
@@ -496,13 +498,24 @@ export async function getTenantClaimsForCompany(companyId: string): Promise<Tena
   }
 
   const hasTenantStatusColumn = await tableColumnExists("Company", "tenantStatus");
+  const hasWorkspaceProfileColumn = await tableColumnExists("Company", "workspaceProfile");
   const prisma = await getPrismaClient();
 
   try {
-    const rows = hasTenantStatusColumn
+    const rows = hasTenantStatusColumn && hasWorkspaceProfileColumn
       ? await prisma.$queryRawUnsafe<CompanyClaimsRow[]>(
           `
-            SELECT slug, "tenantStatus"
+            SELECT slug, "tenantStatus", "workspaceProfile"
+            FROM "Company"
+            WHERE id = $1
+            LIMIT 1
+          `,
+          normalizedCompanyId
+        )
+      : hasTenantStatusColumn
+      ? await prisma.$queryRawUnsafe<CompanyClaimsRow[]>(
+          `
+            SELECT slug, "tenantStatus", NULL::text AS "workspaceProfile"
             FROM "Company"
             WHERE id = $1
             LIMIT 1
@@ -511,7 +524,7 @@ export async function getTenantClaimsForCompany(companyId: string): Promise<Tena
         )
       : await prisma.$queryRawUnsafe<CompanyClaimsRow[]>(
           `
-            SELECT slug, NULL::text AS "tenantStatus"
+            SELECT slug, NULL::text AS "tenantStatus", NULL::text AS "workspaceProfile"
             FROM "Company"
             WHERE id = $1
             LIMIT 1
@@ -527,6 +540,7 @@ export async function getTenantClaimsForCompany(companyId: string): Promise<Tena
     return {
       companySlug: row.slug?.toLowerCase() ?? undefined,
       tenantStatus: row.tenantStatus ?? undefined,
+      workspaceProfile: row.workspaceProfile ?? undefined,
     };
   } catch {
     return {};

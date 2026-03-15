@@ -87,6 +87,11 @@ const SOURCE_META: Record<
     description: "Approved gold shift allocations flow into the irregular payout pipeline here.",
     groupLabel: "Shift",
   },
+  SCRAP: {
+    label: "Scrap settlements",
+    description: "Approved scrap settlement batches flow through HR disbursement from here.",
+    groupLabel: "Batch",
+  },
   COMMISSION: {
     label: "Commission payouts",
     description: "Commission batches are reviewed here before payout runs and disbursement.",
@@ -503,6 +508,7 @@ export default function HrPayoutsPage() {
                 <SelectTrigger size="sm" className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="GOLD">Gold payouts</SelectItem>
+                  <SelectItem value="SCRAP">Scrap settlements</SelectItem>
                   <SelectItem value="COMMISSION">Commission payouts</SelectItem>
                   <SelectItem value="OTHER">Other payouts</SelectItem>
                 </SelectContent>

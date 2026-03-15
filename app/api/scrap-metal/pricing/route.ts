@@ -75,13 +75,12 @@ export async function POST(request: NextRequest) {
     const currency = validated.currency?.trim().toUpperCase() || "USD";
 
     // Check for duplicate
-    const existing = await prisma.scrapMetalPrice.findUnique({
+    const existing = await prisma.scrapMetalPrice.findFirst({
       where: {
-        companyId_category_effectiveDate: {
-          companyId: session.user.companyId,
-          category: validated.category,
-          effectiveDate,
-        },
+        companyId: session.user.companyId,
+        materialId: null,
+        category: validated.category,
+        effectiveDate,
       },
     });
 

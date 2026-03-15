@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     if (periodId) where.periodId = periodId
     if (status) where.status = status
     if (domain === "PAYROLL" || domain === "GOLD_PAYOUT") where.domain = domain
-    if (payoutSource === "GOLD" || payoutSource === "COMMISSION" || payoutSource === "OTHER") {
+    if (payoutSource === "GOLD" || payoutSource === "SCRAP" || payoutSource === "COMMISSION" || payoutSource === "OTHER") {
       where.payoutSource = payoutSource
     }
     if (search) {
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         ...(normalizedSearch === "PAYROLL" || normalizedSearch === "GOLD_PAYOUT"
           ? [{ domain: normalizedSearch }]
           : []),
-        ...(normalizedSearch === "COMMISSION" || normalizedSearch === "OTHER"
+        ...(normalizedSearch === "SCRAP" || normalizedSearch === "COMMISSION" || normalizedSearch === "OTHER"
           ? [{ payoutSource: normalizedSearch }]
           : []),
         ...((

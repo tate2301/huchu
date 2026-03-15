@@ -52,6 +52,31 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     featureKeys: [],
   },
   {
+    code: "TEMPLATE_SCRAP_METAL",
+    label: "Scrap Metal Operations",
+    description: "Purpose-built scrap buying, batching, settlements, and sales workspace.",
+    targetClients: ["Scrap yards", "Metal recyclers", "Industrial scrap traders"],
+    recommendedTierCode: "STANDARD",
+    bundleCodes: ["ADDON_SCRAP_METAL_SUITE", "ADDON_ADVANCED_PAYROLL", "ADDON_ANALYTICS_PRO"],
+    featureKeys: [],
+    disabledFeatureKeys: [
+      "gold.home",
+      "gold.intake.pours",
+      "gold.dispatches",
+      "gold.receipts",
+      "gold.reconciliation",
+      "gold.exceptions",
+      "gold.audit-trail",
+      "gold.payouts",
+      "schools.core",
+      "autos.core",
+      "thrift.core",
+      "portal.schools",
+      "portal.autos",
+      "portal.thrift",
+    ],
+  },
+  {
     code: "TEMPLATE_SCHOOLS",
     label: "School Operations",
     description: "Purpose-built school management workspace with admin and portal workflows.",
@@ -172,6 +197,8 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   GOLD: "TEMPLATE_GOLD_MINE",
   SCHOOL: "TEMPLATE_SCHOOLS",
   SCHOOLS: "TEMPLATE_SCHOOLS",
+  SCRAP: "TEMPLATE_SCRAP_METAL",
+  SCRAP_METAL: "TEMPLATE_SCRAP_METAL",
   AUTOS: "TEMPLATE_CAR_SALES",
   "CAR-SALES": "TEMPLATE_CAR_SALES",
   CAR_SALES: "TEMPLATE_CAR_SALES",
@@ -268,4 +295,27 @@ export function getClientTemplateFeatureKeys(code: string | null | undefined, ti
     if (!disabledFeatureKeys.has(key)) keys.add(key);
   }
   return [...keys];
+}
+
+export function getClientTemplateWorkspaceProfile(code: string | null | undefined): string | null {
+  const template = getClientTemplateDefinition(code);
+  if (!template) return null;
+
+  switch (template.code) {
+    case "TEMPLATE_GOLD_MINE":
+      return "GOLD_MINE";
+    case "TEMPLATE_SCRAP_METAL":
+      return "SCRAP_METAL";
+    case "TEMPLATE_SCHOOLS":
+      return "SCHOOLS";
+    case "TEMPLATE_CAR_SALES":
+      return "AUTOS";
+    case "TEMPLATE_THRIFT":
+      return "THRIFT";
+    case "TEMPLATE_CORE_STARTER":
+    case "TEMPLATE_ALL_FEATURES":
+      return "GENERAL";
+    default:
+      return null;
+  }
 }

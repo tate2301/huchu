@@ -24,10 +24,10 @@ import {
 } from "@/lib/icons";
 import { useSession } from "next-auth/react";
 
-import { getNavSectionsForRole, type NavSection } from "@/lib/navigation";
-import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import type { NavSection } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useGuidedMode } from "@/hooks/use-guided-mode";
+import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,
   SidebarContent,
@@ -103,27 +103,19 @@ export function AppSidebar() {
         ?.enabledFeatures,
     [session],
   );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)
+    ?.workspaceProfile;
   const { state, isMobile, setOpen } = useSidebar();
   const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
   const isCollapsed = state === "collapsed";
-  const sections = React.useMemo(() => {
-    const roleSections = getNavSectionsForRole(role);
-    return filterNavSectionsByEnabledFeatures(roleSections, enabledFeatures);
-  }, [enabledFeatures, role]);
-  const overviewSection = React.useMemo(
-    () => sections.find((section) => section.id === "overview"),
-    [sections],
-  );
-  const contentSections = React.useMemo(
+  const sidebarModel = React.useMemo(
     () =>
-      sections.filter(
-        (section) => section.id !== "overview" && section.id !== "daily",
-      ),
-    [sections],
-  );
-  const quickActionsSection = React.useMemo(
-    () => sections.find((section) => section.id === "daily"),
-    [sections],
+      getWorkspaceSidebarModel({
+        role,
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, role, workspaceProfile],
   );
   const orderedSections = React.useMemo(() => {
     const order = [
@@ -140,7 +132,7 @@ export function AppSidebar() {
       "cctv",
     ];
     const rank = new Map(order.map((id, index) => [id, index]));
-    return contentSections.slice().sort((a, b) => {
+    return sidebarModel.sections.slice().sort((a, b) => {
       const aRank = rank.get(a.id);
       const bRank = rank.get(b.id);
       if (aRank === undefined && bRank === undefined) {
@@ -150,10 +142,10 @@ export function AppSidebar() {
       if (bRank === undefined) return -1;
       return aRank - bRank;
     });
-  }, [contentSections]);
+  }, [sidebarModel.sections]);
   const secondaryItems = React.useMemo(
-    () => (overviewSection?.items ?? []).filter((item) => item.href !== "/"),
-    [overviewSection],
+    () => sidebarModel.supportItems,
+    [sidebarModel.supportItems],
   );
   const companySlug = (session?.user as { companySlug?: string } | undefined)
     ?.companySlug;
@@ -367,7 +359,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
             </SidebarMenu>
           )}
-          {quickActionsSection ? (
+          {sidebarModel.quickActions.length > 0 ? (
             <SidebarGroup className="mb-0.5">
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -395,7 +387,7 @@ export function AppSidebar() {
                       >
                         <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        {quickActionsSection.items.map((item) => {
+                        {sidebarModel.quickActions.map((item) => {
                           const isActive = hasActiveHref(
                             item.href,
                             pathname,
@@ -435,13 +427,13 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === "/"}
-                  tooltip="Home"
+                  isActive={pathname === sidebarModel.homeHref}
+                  tooltip={sidebarModel.homeLabel}
                   className="h-9 font-semibold"
                 >
-                  <Link href="/">
+                  <Link href={sidebarModel.homeHref}>
                     <Home className="h-4 w-4" />
-                    <span className="font-semibold">Home</span>
+                    <span className="font-semibold">{sidebarModel.homeLabel}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

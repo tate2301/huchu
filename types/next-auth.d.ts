@@ -8,6 +8,7 @@ declare module "next-auth" {
       companyId: string;
       companySlug?: string;
       tenantStatus?: string;
+      workspaceProfile?: string;
       enabledFeatures?: string[];
       subscriptionHealth?: string;
       allowedHosts?: string[];
@@ -20,6 +21,7 @@ declare module "next-auth" {
     companyId: string;
     companySlug?: string;
     tenantStatus?: string;
+    workspaceProfile?: string;
     enabledFeatures?: string[];
     subscriptionHealth?: string;
     allowedHosts?: string[];
@@ -33,6 +35,7 @@ declare module "next-auth/jwt" {
     companyId: string;
     companySlug?: string;
     tenantStatus?: string;
+    workspaceProfile?: string;
     enabledFeatures?: string[];
     subscriptionHealth?: string;
     allowedHosts?: string[];

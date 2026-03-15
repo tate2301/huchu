@@ -292,7 +292,7 @@ export type PayrollPeriodRecord = {
   id: string;
   companyId: string;
   domain: RunDomain;
-  payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
+  payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER" | null;
   scopeKey: string;
   periodKey: string;
   cycle: "MONTHLY" | "FORTNIGHTLY";
@@ -324,7 +324,7 @@ export type PayrollRunRecord = {
   companyId: string;
   periodId: string;
   domain: RunDomain;
-  payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
+  payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER" | null;
   runNumber: number;
   status: "DRAFT" | "SUBMITTED" | "APPROVED" | "POSTED" | "REJECTED";
   notes?: string | null;
@@ -373,7 +373,7 @@ export type DisbursementBatchRecord = {
     id: string;
     runNumber: number;
     domain?: RunDomain;
-    payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
+    payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER" | null;
     status?: string;
     goldRatePerUnit?: number | null;
     goldRateUnit?: string;
@@ -501,7 +501,7 @@ export type EmployeePayment = {
   id: string;
   employeeId: string;
   type: "GOLD" | "IRREGULAR" | "SALARY";
-  payoutSource?: "GOLD" | "COMMISSION" | "OTHER" | null;
+  payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER" | null;
   periodStart: string;
   periodEnd: string;
   dueDate: string;
@@ -549,7 +549,7 @@ export type EmployeePayment = {
 export type IrregularPayoutBatchRecord = {
   id: string;
   companyId: string;
-  source: "COMMISSION" | "OTHER";
+  source: "SCRAP" | "COMMISSION" | "OTHER";
   label: string;
   periodStart: string;
   periodEnd: string;
@@ -1888,7 +1888,7 @@ export async function fetchEmployeePayments(
   params: {
     search?: string;
     type?: "GOLD" | "SALARY" | "IRREGULAR";
-    payoutSource?: "GOLD" | "COMMISSION" | "OTHER";
+    payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER";
     employeeId?: string;
     status?: "DUE" | "PARTIAL" | "PAID";
     startDate?: string;
@@ -1903,7 +1903,7 @@ export async function fetchEmployeePayments(
 
 export async function fetchIrregularPayoutBatches(
   params: {
-    source?: "COMMISSION" | "OTHER";
+    source?: "SCRAP" | "COMMISSION" | "OTHER";
     workflowStatus?: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
     search?: string;
     page?: number;

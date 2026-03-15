@@ -1,9 +1,10 @@
-export type IrregularPayoutSource = "GOLD" | "COMMISSION" | "OTHER"
+export type IrregularPayoutSource = "GOLD" | "SCRAP" | "COMMISSION" | "OTHER"
 
 export type SupportedIrregularPayoutSource = IrregularPayoutSource
 
 const SUPPORTED_IRREGULAR_PAYOUT_SOURCES: ReadonlySet<IrregularPayoutSource> = new Set([
   "GOLD",
+  "SCRAP",
   "COMMISSION",
   "OTHER",
 ])
@@ -11,7 +12,7 @@ const SUPPORTED_IRREGULAR_PAYOUT_SOURCES: ReadonlySet<IrregularPayoutSource> = n
 export function parseIrregularPayoutSource(
   value: string | null | undefined,
 ): IrregularPayoutSource {
-  if (value === "COMMISSION" || value === "OTHER" || value === "GOLD") {
+  if (value === "COMMISSION" || value === "OTHER" || value === "GOLD" || value === "SCRAP") {
     return value
   }
   return "GOLD"
@@ -37,6 +38,6 @@ export function isIrregularEmployeePaymentType(type: string | null | undefined) 
 }
 
 export function normalizeIrregularPayoutSource(input?: string | null) {
-  if (input === "COMMISSION" || input === "OTHER") return input
+  if (input === "SCRAP" || input === "COMMISSION" || input === "OTHER") return input
   return "GOLD" as const
 }

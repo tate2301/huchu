@@ -79,7 +79,7 @@ function deriveRunTotals(lineItems: LineItemDraft[]) {
 
 async function buildIrregularPayoutRunDraft(input: {
   companyId: string
-  payoutSource: "GOLD" | "COMMISSION" | "OTHER"
+  payoutSource: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER"
   periodStart: Date
   periodEnd: Date
   goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD"

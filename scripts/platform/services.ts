@@ -73,6 +73,7 @@ import {
   getClientTemplateBundleCodes,
   getClientTemplateDefinition,
   getClientTemplateFeatureKeys,
+  getClientTemplateWorkspaceProfile,
 } from "../../lib/platform/client-templates";
 import {
   ADMIN_ACCOUNT_STATUSES,
@@ -971,6 +972,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
   const applyMode = normalizeTemplateApplyMode(input.mode);
   const tierCode = String(input.tierCode || template.recommendedTierCode || "").trim().toUpperCase();
   if (!tierCode) throw new Error(`Template ${template.code} does not define a tier.`);
+  const workspaceProfile = getClientTemplateWorkspaceProfile(template.code);
 
   const bundleCodes = getClientTemplateBundleCodes(template.code);
   const featureKeys = getClientTemplateFeatureKeys(template.code, tierCode);
@@ -1042,6 +1044,13 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
     }
   }
 
+  if (workspaceProfile) {
+    await prisma.company.update({
+      where: { id: input.companyId },
+      data: { workspaceProfile: workspaceProfile as Prisma.CompanyUpdateInput["workspaceProfile"] },
+    });
+  }
+
   const audit = await appendAuditEvent({
     actor: input.actor,
     action: "SUBSCRIPTION_APPLY_TEMPLATE",
@@ -1060,6 +1069,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
       enabledBundles,
       disabledBundles,
       enabledFeatureCount: enabledFeatures.length,
+      workspaceProfile,
     },
   });
 

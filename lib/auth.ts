@@ -104,6 +104,7 @@ type PlatformJWT = JWT & {
   companyId?: string;
   companySlug?: string;
   tenantStatus?: string;
+  workspaceProfile?: string;
   enabledFeatures?: string[];
   subscriptionHealth?: string;
   allowedHosts?: string[];
@@ -383,6 +384,7 @@ export const authOptions: NextAuthOptions = {
 
         extendedToken.companySlug = tenantClaims.companySlug;
         extendedToken.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
+        extendedToken.workspaceProfile = tenantClaims.workspaceProfile;
         extendedToken.subscriptionHealth = subscriptionHealth.state;
         extendedToken.enabledFeatures = enabledFeatures;
         extendedToken.allowedHosts = allowedHosts;
@@ -400,6 +402,7 @@ export const authOptions: NextAuthOptions = {
           companyId: typedToken.companyId,
           companySlug: typedToken.companySlug,
           tenantStatus: typedToken.tenantStatus,
+          workspaceProfile: typedToken.workspaceProfile,
           enabledFeatures: typedToken.enabledFeatures,
           subscriptionHealth: typedToken.subscriptionHealth,
           allowedHosts: typedToken.allowedHosts,
@@ -409,6 +412,7 @@ export const authOptions: NextAuthOptions = {
           companyId?: string;
           companySlug?: string;
           tenantStatus?: string;
+          workspaceProfile?: string;
           enabledFeatures?: string[];
           subscriptionHealth?: string;
           allowedHosts?: string[];

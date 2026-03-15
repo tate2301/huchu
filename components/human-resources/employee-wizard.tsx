@@ -483,7 +483,7 @@ function ModulesStep({
   onChange,
 }: {
   form: EmployeeWizardForm
-  availableModules: typeof moduleOptions
+  availableModules: readonly (typeof moduleOptions)[number][]
   onToggleModule: (module: EmployeeModule, checked: boolean) => void
   onChange: (updates: Partial<EmployeeWizardForm>) => void
 }) {
@@ -1211,10 +1211,10 @@ export function EmployeeWizard({
 
   const handleToggleModule = (module: EmployeeModule, checked: boolean) => {
     setForm((current) => {
-      const assignments = checked
-        ? Array.from(new Set([...current.moduleAssignments, module]))
+      const assignments: EmployeeModule[] = checked
+        ? Array.from(new Set<EmployeeModule>([...current.moduleAssignments, module]))
         : current.moduleAssignments.filter((item) => item !== module)
-      const nextAssignments = assignments.length > 0 ? assignments : ["HR"]
+      const nextAssignments: EmployeeModule[] = assignments.length > 0 ? assignments : ["HR"]
       const nextPrimary = nextAssignments.includes(current.primaryModule)
         ? current.primaryModule
         : nextAssignments[0]
