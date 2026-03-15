@@ -17,6 +17,7 @@ import {
   Package,
   Plus,
   Recycle,
+  Scale,
   User,
   Video,
   Wrench,
@@ -31,7 +32,6 @@ import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -84,6 +84,8 @@ const sectionIcons: Record<string, LucideIcon> = {
   schools: Building2,
   "car-sales": Package,
   thrift: Coins,
+  accounting: Scale,
+  management: ManageAccounts,
 };
 const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "thrift"]);
 
@@ -117,58 +119,23 @@ export function AppSidebar() {
       }),
     [enabledFeatures, role, workspaceProfile],
   );
-  const orderedSections = React.useMemo(() => {
-    const order = [
-      "hr",
-      "gold",
-      "scrap-metal",
-      "stores",
-      "maintenance",
-      "schools",
-      "car-sales",
-      "thrift",
-      "settings",
-      "reporting",
-      "cctv",
-    ];
-    const rank = new Map(order.map((id, index) => [id, index]));
-    return sidebarModel.sections.slice().sort((a, b) => {
-      const aRank = rank.get(a.id);
-      const bRank = rank.get(b.id);
-      if (aRank === undefined && bRank === undefined) {
-        return a.title.localeCompare(b.title);
-      }
-      if (aRank === undefined) return 1;
-      if (bRank === undefined) return -1;
-      return aRank - bRank;
-    });
-  }, [sidebarModel.sections]);
+  const orderedSections = React.useMemo(
+    () => sidebarModel.sections,
+    [sidebarModel.sections],
+  );
+  const primarySections = React.useMemo(
+    () =>
+      orderedSections.filter((section) => section.workspaceGroup !== "additional"),
+    [orderedSections],
+  );
+  const additionalSections = React.useMemo(
+    () => orderedSections.filter((section) => section.workspaceGroup === "additional"),
+    [orderedSections],
+  );
   const secondaryItems = React.useMemo(
     () => sidebarModel.supportItems,
     [sidebarModel.supportItems],
   );
-  const companySlug = (session?.user as { companySlug?: string } | undefined)
-    ?.companySlug;
-  const companyId = (session?.user as { companyId?: string } | undefined)
-    ?.companyId;
-  const companyLabel = React.useMemo(() => {
-    if (companySlug && companySlug.trim().length > 0) {
-      return companySlug
-        .split("-")
-        .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
-        .join(" ");
-    }
-    return "Current Organization";
-  }, [companySlug]);
-  const companyMeta = React.useMemo(() => {
-    if (companySlug && companySlug.trim().length > 0) {
-      return `${companySlug}.workspace`;
-    }
-    if (companyId) {
-      return `ID ${companyId.slice(0, 8)}`;
-    }
-    return "Tenant context";
-  }, [companyId, companySlug]);
   const activeSectionId = React.useMemo(
     () =>
       orderedSections.find((section) =>
@@ -441,10 +408,27 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {orderedSections.length > 0 ? (
+        {primarySections.length > 0 ? (
           <SidebarGroup className="mb-0.5">
             <SidebarGroupContent className="mt-0">
-              {orderedSections.map((section) =>
+              {primarySections.map((section) =>
+                FLAT_SECTION_IDS.has(section.id)
+                  ? renderFlatSection(section)
+                  : renderSection(section),
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {additionalSections.length > 0 ? (
+          <SidebarGroup className="mb-0.5">
+            {!isCollapsed ? (
+              <SidebarGroupLabel className="px-2 text-xs uppercase">
+                Additional Modules
+              </SidebarGroupLabel>
+            ) : null}
+            <SidebarGroupContent className="mt-0">
+              {additionalSections.map((section) =>
                 FLAT_SECTION_IDS.has(section.id)
                   ? renderFlatSection(section)
                   : renderSection(section),

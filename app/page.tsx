@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { getWorkspaceHomeHref } from "@/lib/workspaces";
+import { getComputedWorkspaceHomeHref } from "@/lib/workspaces";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -11,5 +11,11 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  redirect(getWorkspaceHomeHref(session.user.workspaceProfile));
+  redirect(
+    getComputedWorkspaceHomeHref({
+      role: session.user.role,
+      enabledFeatures: session.user.enabledFeatures,
+      workspaceProfile: session.user.workspaceProfile,
+    }),
+  );
 }
