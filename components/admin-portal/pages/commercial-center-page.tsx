@@ -337,7 +337,7 @@ export function CommercialCenterPage({
                   <p className="text-sm text-[var(--text-muted)]">{template.description}</p>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <p className="text-[var(--text-muted)]">{template.bundleCodes.length} bundles • {template.featureCount} features</p>
+                  <p className="text-[var(--text-muted)]">{template.bundleCodes.length} bundles | {template.featureCount} features</p>
                   <div className="flex flex-wrap gap-2">
                     {template.bundleCodes.slice(0, 3).map((bundleCode) => (
                       <Badge key={bundleCode} variant="outline">{bundleCode}</Badge>
@@ -587,16 +587,10 @@ export function CommercialCenterPage({
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
         <Sparkles className="h-4 w-4" />
-        Commercial flows are now typed and guided. Remaining uncovered actions live in advanced tools, not the default operator path.
-        {isCompanyScope ? (
-          <Link href={`/admin/company/${companyId}/advanced`} className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-            Open advanced tools
-          </Link>
-        ) : (
-          <Link href="/admin/advanced" className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-            Open advanced tools
-          </Link>
-        )}
+        Keep subscription, template, bundle, and feature work here. Settings has manual tools when you need them.
+        <Link href="/admin/settings" className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+          Open settings
+        </Link>
       </div>
     </section>
   );

@@ -524,16 +524,10 @@ export function ReliabilityClusterPage({
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
         <ShieldCheck className="h-4 w-4" />
-        Reliability workflows are now typed and grouped by operational intent. Anything still uncovered remains in explicit advanced mode, not on the default operator path.
-        {companyId ? (
-          <Link href={`/admin/company/${companyId}/advanced`} className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-            Open advanced tools
-          </Link>
-        ) : (
-          <Link href="/admin/advanced" className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-            Open advanced tools
-          </Link>
-        )}
+        Use this space for incidents, contracts, runbooks, and audit review.
+        <Link href="/admin/settings" className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+          Open settings
+        </Link>
       </div>
     </section>
   );

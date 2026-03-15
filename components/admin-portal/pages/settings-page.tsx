@@ -44,10 +44,10 @@ export function SettingsPage() {
         <Card className="border-[var(--border)]">
           <CardHeader>
             <CardTitle className="text-base">Advanced Mode</CardTitle>
-            <CardDescription>Fallback tools stay out of the main operator path and live behind explicit advanced entrypoints.</CardDescription>
+            <CardDescription>Manual tools and diagnostics live here when you need direct control.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
-            <p>Use advanced tools only when the typed control-plane flows do not yet cover the task you need.</p>
+            <p>Use these tools for manual operations, diagnostics, and exceptional cases.</p>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm" variant="outline">
                 <Link href="/admin/advanced">Open advanced tools</Link>

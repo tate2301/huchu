@@ -85,3 +85,13 @@ export type ReliabilityClusterData = {
   executions: import("@/scripts/platform/types").RunbookExecutionRecord[];
   auditEvents: import("@/scripts/platform/types").AuditEventRecord[];
 };
+
+export type SupportAccessHubData = {
+  requests: import("@/scripts/platform/types").SupportAccessRequestRecord[];
+  sessions: import("@/scripts/platform/types").SupportSessionRecord[];
+};
+
+export type AdminSupportState = {
+  activeSession: import("@/scripts/platform/types").SupportSessionRecord | null;
+  actorPendingRequests: import("@/scripts/platform/types").SupportAccessRequestRecord[];
+};

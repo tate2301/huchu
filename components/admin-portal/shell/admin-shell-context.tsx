@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { fetchCompanies } from "@/components/admin-portal/api";
-import type { CompanyWorkspace } from "@/components/admin-portal/types";
+import { fetchCompanies, fetchSupportState } from "@/components/admin-portal/api";
+import type { AdminSupportState, CompanyWorkspace } from "@/components/admin-portal/types";
 
 const RECENT_WORKSPACES_KEY = "admin-portal:recent-workspaces";
 const MAX_RECENT_WORKSPACES = 6;
@@ -18,6 +18,8 @@ type AdminShellContextValue = {
   roleLabel: string;
   activeScope: "platform" | "organization";
   isLoadingCompanies: boolean;
+  supportState: AdminSupportState;
+  isLoadingSupportState: boolean;
 };
 
 const AdminShellContext = createContext<AdminShellContextValue | null>(null);
@@ -33,6 +35,8 @@ export function AdminShellProvider({
   const [companies, setCompanies] = useState<CompanyWorkspace[]>([]);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [supportState, setSupportState] = useState<AdminSupportState>({ activeSession: null, actorPendingRequests: [] });
+  const [isLoadingSupportState, setIsLoadingSupportState] = useState(true);
 
   useEffect(() => {
     let ignore = false;
@@ -100,6 +104,33 @@ export function AdminShellProvider({
   const actorLabel = session?.user?.name?.trim() || actorEmail;
   const roleLabel = (session?.user as { role?: string } | undefined)?.role?.trim() || "SUPERADMIN";
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSupportState() {
+      setIsLoadingSupportState(true);
+      try {
+        const state = await fetchSupportState(activeCompanyId, actorEmail);
+        if (!ignore) {
+          setSupportState(state);
+        }
+      } catch {
+        if (!ignore) {
+          setSupportState({ activeSession: null, actorPendingRequests: [] });
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingSupportState(false);
+        }
+      }
+    }
+
+    void loadSupportState();
+    return () => {
+      ignore = true;
+    };
+  }, [activeCompanyId, actorEmail]);
+
   const value = useMemo<AdminShellContextValue>(
     () => ({
       activeCompanyId,
@@ -111,8 +142,10 @@ export function AdminShellProvider({
       roleLabel,
       activeScope: activeCompanyId ? "organization" : "platform",
       isLoadingCompanies,
+      supportState,
+      isLoadingSupportState,
     }),
-    [activeCompany, activeCompanyId, actorEmail, actorLabel, companies, isLoadingCompanies, recentCompanies, roleLabel],
+    [activeCompany, activeCompanyId, actorEmail, actorLabel, companies, isLoadingCompanies, isLoadingSupportState, recentCompanies, roleLabel, supportState],
   );
 
   return <AdminShellContext.Provider value={value}>{children}</AdminShellContext.Provider>;

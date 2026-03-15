@@ -119,7 +119,7 @@ export function AdminCommandBar() {
         }
       }}
     >
-      <DialogTrigger asChild>
+      <DialogTrigger>
         <Button variant="outline" className="w-full justify-between rounded-2xl border-[var(--border)] bg-[var(--surface-base)] px-4 text-[var(--text-muted)] md:w-[28rem]">
           <span className="flex items-center gap-2">
             <Search className="h-4 w-4" />

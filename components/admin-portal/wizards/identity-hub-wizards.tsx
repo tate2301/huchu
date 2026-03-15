@@ -219,7 +219,7 @@ export function CreateAdminDialog({
               </div>
               <div className="space-y-1">
                 <Label>Role</Label>
-                <Select value={role} onValueChange={setRole}>
+                <Select value={role} onValueChange={(value) => setRole(value as "SUPERADMIN" | "MANAGER")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="SUPERADMIN">Superadmin</SelectItem>
@@ -322,7 +322,7 @@ export function CreateUserDialog({
               </div>
               <div className="space-y-1">
                 <Label>Role</Label>
-                <Select value={role} onValueChange={setRole}>
+                <Select value={role} onValueChange={(value) => setRole(value as "MANAGER" | "CLERK")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MANAGER">Manager</SelectItem>
@@ -546,7 +546,7 @@ export function UserRoleDialog({
           >
             <div className="space-y-1">
               <Label>Role</Label>
-              <Select value={role} onValueChange={setRole}>
+              <Select value={role} onValueChange={(value) => setRole(value as "MANAGER" | "CLERK")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MANAGER">Manager</SelectItem>
@@ -645,7 +645,7 @@ export function SupportRequestDialog({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-1">
                 <Label>Access scope</Label>
-                <Select value={scope} onValueChange={setScope}>
+                <Select value={scope} onValueChange={(value) => setScope(value as "READ_ONLY" | "READ_WRITE")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="READ_ONLY">Read only</SelectItem>
@@ -761,7 +761,7 @@ export function SupportStartDialog({
           >
             <div className="space-y-1">
               <Label>Session mode</Label>
-              <Select value={mode} onValueChange={setMode}>
+              <Select value={mode} onValueChange={(value) => setMode(value as "IMPERSONATE" | "SHADOW")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="IMPERSONATE">Impersonate</SelectItem>
@@ -1003,7 +1003,7 @@ export function CreateSiteDialog({
               </div>
               <div className="space-y-1">
                 <Label>Measurement unit</Label>
-                <Select value={measurementUnit} onValueChange={setMeasurementUnit}>
+                <Select value={measurementUnit} onValueChange={(value) => setMeasurementUnit(value as "tonnes" | "trips" | "wheelbarrows")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tonnes">Tonnes</SelectItem>

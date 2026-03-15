@@ -24,7 +24,7 @@ export function FeatureCatalogPage() {
     <section className="space-y-4">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Feature Catalog</h1>
-        <p className="text-sm text-[var(--text-muted)]">Read-only catalog; advanced mode allows manual toggles when needed.</p>
+        <p className="text-sm text-[var(--text-muted)]">Read-only catalog with manual controls available when needed.</p>
       </div>
 
       <Card className="border-[var(--border)]">

@@ -6,6 +6,8 @@ import type {
   CommercialCenterData,
   IdentityHubData,
   ReliabilityClusterData,
+  SupportAccessHubData,
+  AdminSupportState,
   WorkspaceOverview,
 } from "./types";
 
@@ -99,5 +101,27 @@ export async function fetchReliabilityCluster(companyId?: string): Promise<Relia
   const response = await fetch(`/api/platform-admin/reliability${query}`, { cache: "no-store" });
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error ?? "Failed to load reliability cluster");
+  return data;
+}
+
+export async function fetchSupportAccessHub(companyId?: string, search?: string): Promise<SupportAccessHubData> {
+  const params = new URLSearchParams();
+  if (companyId) params.set("companyId", companyId);
+  if (search?.trim()) params.set("search", search.trim());
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await fetch(`/api/platform-admin/support-access${suffix}`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to load support access");
+  return data;
+}
+
+export async function fetchSupportState(companyId?: string, actor?: string): Promise<AdminSupportState> {
+  const params = new URLSearchParams();
+  if (companyId) params.set("companyId", companyId);
+  if (actor?.trim()) params.set("actor", actor.trim());
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await fetch(`/api/platform-admin/support-state${suffix}`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to load support state");
   return data;
 }

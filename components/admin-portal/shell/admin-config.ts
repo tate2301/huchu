@@ -13,7 +13,7 @@ export const PLATFORM_NAV: AdminNavItem[] = [
   { href: "/admin/clients", label: "Clients", description: "Workspace directory and lifecycle controls." },
   { href: "/admin/identity", label: "Identity", description: "Admins, users, support sessions, and impersonation." },
   { href: "/admin/commercial", label: "Commercial Center", description: "Subscriptions, templates, bundles, and feature catalog." },
-  { href: "/admin/support-access", label: "Support Access", description: "Impersonation and support sessions." },
+  { href: "/admin/support-access", label: "Support Access", description: "Support requests, session launch, and impersonation controls." },
   { href: "/admin/reliability", label: "Reliability Cluster", description: "Health, contracts, runbooks, and audit evidence." },
   { href: "/admin/settings", label: "Settings", description: "Portal and operator preferences." },
 ];
@@ -23,6 +23,7 @@ export function getCompanyNav(companyId: string): AdminNavItem[] {
     { href: `/admin/clients/${companyId}`, label: "Overview", description: "Client health and pricing context." },
     { href: `/admin/company/${companyId}/identity`, label: "Identity", description: "Workspace admins, users, and support sessions." },
     { href: `/admin/company/${companyId}/commercial`, label: "Commercial Center", description: "Workspace plan, templates, add-ons, and feature access." },
+    { href: `/admin/company/${companyId}/support-access`, label: "Support Access", description: "Workspace support requests and live session control." },
     { href: `/admin/company/${companyId}/reliability`, label: "Reliability", description: "Incidents, contracts, runbooks, and workspace audit." },
   ];
 }
@@ -49,7 +50,7 @@ export function getQuickActions(activeCompanyId?: string): AdminQuickAction[] {
       id: "quick-start-support",
       label: "Start support session",
       description: "Open support access and impersonation workflows.",
-      href: "/admin/support-access",
+      href: companyId ? `/admin/company/${companyId}/support-access` : "/admin/support-access",
       scope: companyId ? "organization" : "platform",
     },
     {
@@ -71,13 +72,6 @@ export function getQuickActions(activeCompanyId?: string): AdminQuickAction[] {
       label: "Review reliability",
       description: "Inspect incidents, contracts, runbooks, and audit posture.",
       href: companyId ? `/admin/company/${companyId}/reliability` : "/admin/reliability",
-      scope: companyId ? "organization" : "platform",
-    },
-    {
-      id: "quick-advanced-tools",
-      label: "Advanced tools",
-      description: "Open the explicit fallback surface for uncovered operator actions.",
-      href: companyId ? `/admin/company/${companyId}/advanced` : "/admin/advanced",
       scope: companyId ? "organization" : "platform",
     },
   ];

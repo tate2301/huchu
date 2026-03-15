@@ -362,7 +362,7 @@ export function RunbookExecuteDialog({
             </div>
             <div className="space-y-1">
               <Label>Execution mode</Label>
-              <Select value={dryRun} onValueChange={setDryRun}>
+              <Select value={dryRun} onValueChange={(value) => setDryRun(value as "true" | "false")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="true">Dry run</SelectItem>
@@ -444,13 +444,14 @@ export function RunbookUpsertDialog({
     setRunning(true);
     setError(null);
     try {
+      const resolvedCompanyId = fixedCompanyId ?? companyId ?? undefined;
       await executeOperation({
         module: "runbook",
         action: "upsertDefinition",
         payload: {
           id: runbook?.id,
           name,
-          companyId: fixedCompanyId ?? companyId || undefined,
+          companyId: resolvedCompanyId,
           actionType,
           schedule: schedule || undefined,
           enabled: enabled === "true",
@@ -513,7 +514,7 @@ export function RunbookUpsertDialog({
               </div>
               <div className="space-y-1">
                 <Label>Risk level</Label>
-                <Select value={riskLevel} onValueChange={setRiskLevel}>
+                <Select value={riskLevel} onValueChange={(value) => setRiskLevel(value as "LOW" | "MEDIUM" | "HIGH")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="LOW">Low</SelectItem>
@@ -524,7 +525,7 @@ export function RunbookUpsertDialog({
               </div>
               <div className="space-y-1">
                 <Label>Default state</Label>
-                <Select value={enabled} onValueChange={setEnabled}>
+                <Select value={enabled} onValueChange={(value) => setEnabled(value as "true" | "false")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">Enabled</SelectItem>
@@ -765,7 +766,7 @@ export function AuditExportDialog({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className="space-y-1">
                 <Label>Format</Label>
-                <Select value={format} onValueChange={setFormat}>
+                <Select value={format} onValueChange={(value) => setFormat(value as "json" | "csv")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="json">JSON</SelectItem>

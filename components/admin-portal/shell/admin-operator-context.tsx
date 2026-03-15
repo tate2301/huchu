@@ -30,7 +30,24 @@ function ContextTile({
 }
 
 export function AdminOperatorContext() {
-  const { activeCompany, activeScope, actorEmail, actorLabel, roleLabel } = useAdminShell();
+  const { activeCompany, activeScope, actorEmail, actorLabel, roleLabel, supportState, isLoadingSupportState } = useAdminShell();
+  const activeSession = supportState.activeSession;
+  const pendingRequestCount = supportState.actorPendingRequests.length;
+  const accessModeLabel = activeSession ? activeSession.mode : pendingRequestCount > 0 ? "Pending request" : "Direct operator";
+  const accessModeDetail = activeSession
+    ? `${activeSession.scope} until ${activeSession.expiresAt ? new Date(activeSession.expiresAt).toLocaleString() : "manual end"}`
+    : pendingRequestCount > 0
+      ? `${pendingRequestCount} support request${pendingRequestCount === 1 ? "" : "s"} awaiting approval`
+      : activeScope === "platform"
+        ? "No impersonation session active"
+        : "Workspace ready for support or impersonation actions";
+  const accessModeBadge = activeSession
+    ? "Active session"
+    : pendingRequestCount > 0
+      ? "Pending"
+      : activeScope === "platform"
+        ? "Platform"
+        : "Organization";
 
   return (
     <section className="grid grid-cols-1 gap-3 xl:grid-cols-4">
@@ -49,14 +66,12 @@ export function AdminOperatorContext() {
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Access Mode</p>
-            <p className="text-sm font-semibold text-[var(--text-strong)]">Direct operator</p>
-            <p className="text-xs text-[var(--text-muted)]">
-              {activeScope === "platform" ? "No impersonation session active" : "Workspace ready for support or impersonation actions"}
-            </p>
+            <p className="text-sm font-semibold text-[var(--text-strong)]">{isLoadingSupportState ? "Loading support state" : accessModeLabel}</p>
+            <p className="text-xs text-[var(--text-muted)]">{isLoadingSupportState ? "Checking live support session state" : accessModeDetail}</p>
           </div>
         </div>
         <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
-          {activeScope === "platform" ? "Platform" : "Organization"}
+          {accessModeBadge}
         </Badge>
       </div>
     </section>

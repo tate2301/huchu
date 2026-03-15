@@ -462,9 +462,9 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
         <LifeBuoy className="h-4 w-4" />
-        Remaining uncovered workflows still fall back to explicit advanced tools while the rest of the domain surfaces are completed.
-        <Link href={`/admin/company/${companyId}/advanced`} className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-          Open advanced tools
+        Move between workspace overview, identity, commercial, support, and reliability from here.
+        <Link href="/admin/settings" className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+          Open settings
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
