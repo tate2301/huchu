@@ -1,10 +1,5 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { HealthPage } from "@/components/admin-portal/pages/health-page";
+import { redirect } from "next/navigation";
 
 export default function AdminHealthRoute() {
-  return (
-    <AdminShell>
-      <HealthPage />
-    </AdminShell>
-  );
+  redirect("/admin/reliability?view=health");
 }

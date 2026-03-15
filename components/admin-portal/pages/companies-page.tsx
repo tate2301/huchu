@@ -71,7 +71,7 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
       <div className="flex flex-wrap gap-2">
         <CreateClientWizard actorEmail={actorEmail} />
         <Button variant="outline" size="sm" asChild>
-          <Link href="/admin/templates">Apply templates</Link>
+          <Link href="/admin/commercial?view=templates">Apply templates</Link>
         </Button>
       </div>
 
@@ -82,7 +82,7 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
             <CardDescription>One table, predictable controls, progressive disclosure via action menus.</CardDescription>
           </div>
           <Button size="sm" variant="outline" asChild>
-            <Link href="/admin/health">Health monitor</Link>
+            <Link href="/admin/reliability?view=health">Reliability monitor</Link>
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">

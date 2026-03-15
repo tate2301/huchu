@@ -1,10 +1,5 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { AddonsPage } from "@/components/admin-portal/pages/addons-page";
+import { redirect } from "next/navigation";
 
 export default function AdminAddonsRoute() {
-  return (
-    <AdminShell>
-      <AddonsPage />
-    </AdminShell>
-  );
+  redirect("/admin/commercial?view=bundles");
 }

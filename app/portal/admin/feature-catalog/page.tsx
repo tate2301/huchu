@@ -1,10 +1,5 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { FeatureCatalogPage } from "@/components/admin-portal/pages/feature-catalog-page";
+import { redirect } from "next/navigation";
 
 export default function AdminFeatureCatalogRoute() {
-  return (
-    <AdminShell>
-      <FeatureCatalogPage />
-    </AdminShell>
-  );
+  redirect("/admin/commercial?view=catalog");
 }

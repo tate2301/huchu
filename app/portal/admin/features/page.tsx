@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AdminFeaturesRoute() {
-  redirect("/admin/feature-catalog");
+  redirect("/admin/commercial?view=catalog");
 }

@@ -1,10 +1,5 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { TemplatesPage } from "@/components/admin-portal/pages/templates-page";
+import { redirect } from "next/navigation";
 
 export default function AdminTemplatesRoute() {
-  return (
-    <AdminShell>
-      <TemplatesPage />
-    </AdminShell>
-  );
+  redirect("/admin/commercial?view=templates");
 }

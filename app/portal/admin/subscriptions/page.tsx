@@ -1,10 +1,5 @@
-import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
-import { SubscriptionsPage } from "@/components/admin-portal/pages/subscriptions-page";
+import { redirect } from "next/navigation";
 
 export default function AdminSubscriptionsRoute() {
-  return (
-    <AdminShell>
-      <SubscriptionsPage />
-    </AdminShell>
-  );
+  redirect("/admin/commercial?view=subscriptions");
 }

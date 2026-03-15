@@ -342,11 +342,11 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <CardDescription>Queue the actions that most often impact access and billing confidence.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Link href="/admin/subscriptions" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
+            <Link href="/admin/commercial?view=subscriptions" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
               <p className="text-sm font-semibold">Review subscription states</p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">Inspect grace windows, plan health, and monthly totals.</p>
             </Link>
-            <Link href="/admin/feature-catalog" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
+            <Link href="/admin/commercial?view=bundles" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
               <p className="text-sm font-semibold">Inspect catalog drift</p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">Align bundles, templates, and feature access before changes roll out.</p>
             </Link>
@@ -366,9 +366,9 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
               <p className="text-sm font-semibold">Start support access</p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">Request, approve, shadow, or impersonate with guided safeguards.</p>
             </Link>
-            <Link href="/admin/audit-log" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
+            <Link href="/admin/reliability?view=audit" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
               <p className="text-sm font-semibold">Audit recent actions</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Review operator history, action outcomes, and session evidence.</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Review operator history, contract posture, and execution evidence.</p>
             </Link>
           </CardContent>
         </Card>

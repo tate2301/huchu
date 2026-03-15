@@ -18,8 +18,12 @@ function searchResultHref(result: AdminSearchResult) {
     return `/admin/clients/${result.companyId}`;
   }
 
-  if ((result.kind === "admin" || result.kind === "incident" || result.kind === "runbook") && result.companyId) {
-    return `/admin/company/${result.companyId}/operations`;
+  if (result.kind === "admin" && result.companyId) {
+    return `/admin/company/${result.companyId}/identity`;
+  }
+
+  if ((result.kind === "incident" || result.kind === "runbook") && result.companyId) {
+    return `/admin/company/${result.companyId}/reliability`;
   }
 
   return "/admin/dashboard";
@@ -236,8 +240,8 @@ export function AdminCommandBarHint() {
     <div className="hidden items-center gap-2 text-xs text-[var(--text-muted)] lg:flex">
       <CommandIcon className="h-3.5 w-3.5" />
       <span>Global command bar</span>
-      <Link href="/admin/support-access" className="rounded-full border border-[var(--border)] px-2 py-0.5 hover:bg-[var(--surface-muted)]">
-        Support sessions
+      <Link href="/admin/commercial" className="rounded-full border border-[var(--border)] px-2 py-0.5 hover:bg-[var(--surface-muted)]">
+        Commercial Center
       </Link>
     </div>
   );

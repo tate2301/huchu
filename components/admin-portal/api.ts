@@ -3,7 +3,9 @@ import type {
   CompanyWorkspace,
   AdminMetricCard,
   AdminSearchResult,
+  CommercialCenterData,
   IdentityHubData,
+  ReliabilityClusterData,
   WorkspaceOverview,
 } from "./types";
 
@@ -44,7 +46,14 @@ export async function executeOperation(input: {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error ?? "Operation failed");
-  return data;
+  const result = data?.result;
+  if (result && typeof result === "object" && "ok" in result) {
+    if (!result.ok) {
+      throw new Error(result.message ?? "Operation failed");
+    }
+    return result.resource ?? result;
+  }
+  return result ?? data;
 }
 
 export async function searchAdminPortal(query: string): Promise<AdminSearchResult[]> {
@@ -75,5 +84,20 @@ export async function fetchWorkspaceOverview(companyId: string): Promise<Workspa
   const response = await fetch(`/api/platform-admin/workspaces/${companyId}/overview`, { cache: "no-store" });
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error ?? "Failed to load workspace overview");
+  return data;
+}
+
+export async function fetchCommercialCenter(): Promise<CommercialCenterData> {
+  const response = await fetch("/api/platform-admin/commercial", { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to load commercial center");
+  return data;
+}
+
+export async function fetchReliabilityCluster(companyId?: string): Promise<ReliabilityClusterData> {
+  const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
+  const response = await fetch(`/api/platform-admin/reliability${query}`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error ?? "Failed to load reliability cluster");
   return data;
 }

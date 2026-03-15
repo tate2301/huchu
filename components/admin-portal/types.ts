@@ -68,3 +68,20 @@ export type WorkspaceOverview = {
   auditEvents: import("@/scripts/platform/types").AuditEventRecord[];
   incidents: import("@/scripts/platform/types").HealthIncidentRecord[];
 };
+
+export type CommercialCenterData = {
+  subscriptions: import("@/scripts/platform/types").SubscriptionSummary[];
+  plans: import("@/scripts/platform/types").TierPlanSummary[];
+  templates: import("@/scripts/platform/types").ClientTemplateSummary[];
+  bundleCatalog: import("@/scripts/platform/types").BundleCatalogSummary[];
+  featureCatalog: import("@/scripts/platform/types").FeatureSummary[];
+};
+
+export type ReliabilityClusterData = {
+  incidents: import("@/scripts/platform/types").HealthIncidentRecord[];
+  metrics: import("@/scripts/platform/types").SloMetricSnapshotRecord[];
+  contractEvaluations: import("@/scripts/platform/types").ContractEvaluationResult[];
+  runbooks: import("@/scripts/platform/types").RunbookDefinitionRecord[];
+  executions: import("@/scripts/platform/types").RunbookExecutionRecord[];
+  auditEvents: import("@/scripts/platform/types").AuditEventRecord[];
+};

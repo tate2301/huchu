@@ -233,7 +233,8 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                   <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Next actions</p>
                   <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/identity`}>Open identity</Link></Button>
-                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/operations`}>Scoped operations</Link></Button>
+                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/commercial`}>Open commercial center</Link></Button>
+                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/reliability`}>Open reliability</Link></Button>
                   </div>
                 </div>
               </CardContent>
@@ -461,9 +462,9 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
         <LifeBuoy className="h-4 w-4" />
-        Remaining uncovered workflows still fall back to the scoped operations catalog while the rest of the domain surfaces are completed.
-        <Link href={`/admin/company/${companyId}/operations`} className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-          Open fallback operations
+        Remaining uncovered workflows still fall back to explicit advanced tools while the rest of the domain surfaces are completed.
+        <Link href={`/admin/company/${companyId}/advanced`} className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+          Open advanced tools
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>

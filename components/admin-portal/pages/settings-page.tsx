@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,24 @@ export function SettingsPage() {
             <Label htmlFor="webhook">Webhook URL</Label>
             <Input id="webhook" type="url" placeholder="https://hooks.example.com/support" />
             <Button size="sm" className="mt-2">Save notifications</Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[var(--border)]">
+          <CardHeader>
+            <CardTitle className="text-base">Advanced Mode</CardTitle>
+            <CardDescription>Fallback tools stay out of the main operator path and live behind explicit advanced entrypoints.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
+            <p>Use advanced tools only when the typed control-plane flows do not yet cover the task you need.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href="/admin/advanced">Open advanced tools</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/admin/commercial">Open Commercial Center</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
