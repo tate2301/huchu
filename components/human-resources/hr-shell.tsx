@@ -81,7 +81,7 @@ export function HrShell({
       <PageHeading
         title={title ?? modulePresentation.title}
         description={description ?? modulePresentation.description}
-        className="mb-3 [&_h1]:text-[1.3rem] [&_h1]:leading-8 [&_h1]:font-semibold"
+        className="mb-3"
       />
 
       <nav

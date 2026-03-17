@@ -343,15 +343,6 @@ function getBundleById(id: VerticalProductId): VerticalProductBundleDefinition {
 }
 
 function resolveGeneralVerticalProduct(enabledFeatures: string[] | undefined): VerticalProductId {
-  const hasWorkshopSignals =
-    hasTokenFeature(enabledFeatures, "maintenance.equipment") &&
-    hasTokenFeature(enabledFeatures, "stores.inventory") &&
-    hasTokenFeature(enabledFeatures, "hr.employees");
-
-  if (hasWorkshopSignals) {
-    return "service-workshop";
-  }
-
   const hasMultiSiteSignals =
     hasTokenFeature(enabledFeatures, "cctv.overview") &&
     hasTokenFeature(enabledFeatures, "stores.inventory") &&
@@ -359,6 +350,15 @@ function resolveGeneralVerticalProduct(enabledFeatures: string[] | undefined): V
 
   if (hasMultiSiteSignals) {
     return "multi-site-operations";
+  }
+
+  const hasWorkshopSignals =
+    hasTokenFeature(enabledFeatures, "maintenance.equipment") &&
+    hasTokenFeature(enabledFeatures, "stores.inventory") &&
+    hasTokenFeature(enabledFeatures, "hr.employees");
+
+  if (hasWorkshopSignals) {
+    return "service-workshop";
   }
 
   return GENERAL_GENERAL_PRODUCT_ID;

@@ -86,7 +86,7 @@ export function StoresShell({
       <PageHeading
         title={title ?? modulePresentation.title}
         description={description ?? modulePresentation.description}
-        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+        className="mb-4"
       />
 
       <nav

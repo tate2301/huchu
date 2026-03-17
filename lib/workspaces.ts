@@ -6,6 +6,7 @@ import { filterHrefItemsByEnabledFeatures, filterNavSectionsByEnabledFeatures } 
 import { hasRole, type UserRole } from "@/lib/roles";
 import {
   resolveWorkspaceVerticalProductBundle,
+  type VerticalProductBundleDefinition,
   WORKSPACE_PROFILES,
   type WorkspaceModuleId,
   type WorkspaceProfile,
@@ -485,12 +486,34 @@ function buildProfileSections(
     .filter((section) => section.items.length > 0);
 }
 
+function getOrderedModuleIds(verticalProduct: VerticalProductBundleDefinition): WorkspaceModuleId[] {
+  const seen = new Set<WorkspaceModuleId>();
+  const ordered: WorkspaceModuleId[] = [];
+
+  for (const moduleId of [
+    ...verticalProduct.primaryModules,
+    ...verticalProduct.foundationalModules,
+    ...WORKSPACE_MODULE_ORDER,
+  ]) {
+    if (seen.has(moduleId)) continue;
+    seen.add(moduleId);
+    ordered.push(moduleId);
+  }
+
+  return ordered;
+}
+
+function collectSectionHrefs(sections: WorkspaceNavSection[]): Set<string> {
+  return new Set(sections.flatMap((section) => section.items.map((item) => item.href)));
+}
+
 function buildModuleSection(
   moduleId: WorkspaceModuleId,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
   workspaceGroup: WorkspaceSectionGroup,
+  excludedHrefs?: Set<string>,
 ): WorkspaceNavSection | null {
-  const items = visibleModules.get(moduleId) ?? [];
+  const items = (visibleModules.get(moduleId) ?? []).filter((item) => !excludedHrefs?.has(item.href));
   if (items.length === 0) return null;
 
   return {
@@ -501,46 +524,58 @@ function buildModuleSection(
   };
 }
 
-function buildGeneralSections(visibleModules: Map<WorkspaceModuleId, NavItem[]>): WorkspaceNavSection[] {
-  return WORKSPACE_MODULE_ORDER
+function buildGeneralSections(
+  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  verticalProduct: VerticalProductBundleDefinition,
+): WorkspaceNavSection[] {
+  return getOrderedModuleIds(verticalProduct)
     .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary"))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
 
 function buildCanonicalCoreSections(
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  excludedHrefs: Set<string>,
+  verticalProduct: VerticalProductBundleDefinition,
 ): WorkspaceNavSection[] {
-  return CANONICAL_MODULE_IDS
-    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary"))
+  return getOrderedModuleIds(verticalProduct)
+    .filter((moduleId): moduleId is WorkspaceModuleId => CANONICAL_MODULE_IDS.includes(moduleId))
+    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary", excludedHrefs))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
 
 function buildAdditionalSections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  excludedHrefs: Set<string>,
+  verticalProduct: VerticalProductBundleDefinition,
 ): WorkspaceNavSection[] {
-  return WORKSPACE_MODULE_ORDER
+  return getOrderedModuleIds(verticalProduct)
     .filter(
       (moduleId) =>
         !recipe.nativeModules.includes(moduleId) &&
         !CANONICAL_MODULE_IDS.includes(moduleId) &&
         visibleModules.has(moduleId),
     )
-    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "additional"))
+    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "additional", excludedHrefs))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
 
 function getPrimarySections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  verticalProduct: VerticalProductBundleDefinition,
 ): WorkspaceNavSection[] {
   if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
-    return buildGeneralSections(visibleModules);
+    return buildGeneralSections(visibleModules, verticalProduct);
   }
 
+  const profileSections = buildProfileSections(recipe, visibleModules);
+  const usedHrefs = collectSectionHrefs(profileSections);
+
   return [
-    ...buildProfileSections(recipe, visibleModules),
-    ...buildCanonicalCoreSections(visibleModules),
+    ...profileSections,
+    ...buildCanonicalCoreSections(visibleModules, usedHrefs, verticalProduct),
   ];
 }
 
@@ -620,10 +655,11 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   });
   const context = buildContext(args);
   const visibleModules = getVisibleModules(context);
-  const primarySections = getPrimarySections(recipe, visibleModules);
+  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct);
+  const usedPrimaryHrefs = collectSectionHrefs(primarySections);
   const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
     ? []
-    : buildAdditionalSections(recipe, visibleModules);
+    : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
   const sections = [...primarySections, ...additionalSections];
   const homeTarget = getHomeTarget({
     recipe,
