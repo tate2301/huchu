@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, hasRole, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { PLANT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -92,8 +93,8 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session, ["SUPERADMIN"])) {
-      return errorResponse("Only SUPERADMIN can create plant reports.", 403);
+    if (!canSessionAccessOperationalFeature(session, PLANT_REPORT_FEATURE_KEY)) {
+      return errorResponse("Insufficient permissions to create plant reports.", 403);
     }
 
     const body = await request.json();

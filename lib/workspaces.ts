@@ -3,7 +3,8 @@ import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import type { NavItem, NavSection } from "@/lib/navigation";
 import { getNavSectionsForRole } from "@/lib/navigation";
 import { filterHrefItemsByEnabledFeatures, filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
-import { hasRole, type UserRole } from "@/lib/roles";
+import { getPrimaryQuickActions } from "@/lib/primary-actions";
+import type { UserRole } from "@/lib/roles";
 import {
   resolveWorkspaceVerticalProductBundle,
   type VerticalProductBundleDefinition,
@@ -425,10 +426,6 @@ export function getWorkspaceProfileForTemplate(code: string | null | undefined):
   return null;
 }
 
-function filterNavItemsByRole(items: NavItem[], role: string | null | undefined): NavItem[] {
-  return items.filter((item) => (item.roles ? hasRole(role, item.roles) : true));
-}
-
 function buildContext(args: WorkspaceModelArgs): WorkspaceBuildContext {
   const visibleNavSections = filterNavSectionsByEnabledFeatures(
     getNavSectionsForRole(args.role),
@@ -589,13 +586,18 @@ function getQuickActions(
   recipe: WorkspaceProfileRecipe,
 ): NavItem[] {
   if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
-    return context.navSectionById.get("daily")?.items ?? [];
+    return getPrimaryQuickActions({
+      workspaceProfile: context.workspaceProfile,
+      role: context.role,
+      enabledFeatures: context.enabledFeatures,
+    });
   }
 
-  return filterHrefItemsByEnabledFeatures(
-    filterNavItemsByRole(recipe.quickActions, context.role),
-    context.enabledFeatures,
-  );
+  return getPrimaryQuickActions({
+    workspaceProfile: context.workspaceProfile,
+    role: context.role,
+    enabledFeatures: context.enabledFeatures,
+  });
 }
 
 function getGeneralDashboardItem(context: WorkspaceBuildContext): NavItem | null {

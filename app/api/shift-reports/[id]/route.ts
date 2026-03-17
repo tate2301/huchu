@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, errorResponse, hasRole, successResponse } from '@/lib/api-utils';
+import { SHIFT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from '@/lib/prisma';
 
 // GET - Get single shift report
@@ -57,8 +58,8 @@ export async function PATCH(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session, ["SUPERADMIN"])) {
-      return errorResponse("Only SUPERADMIN can update shift reports.", 403);
+    if (!canSessionAccessOperationalFeature(session, SHIFT_REPORT_FEATURE_KEY)) {
+      return errorResponse("Insufficient permissions to update shift reports.", 403);
     }
 
     const body = await request.json();

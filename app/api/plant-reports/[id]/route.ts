@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, hasRole, successResponse, validateSession } from "@/lib/api-utils";
+import { PLANT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from "@/lib/prisma";
 
 const downtimeEventSchema = z.object({
@@ -77,8 +78,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session, ["SUPERADMIN"])) {
-      return errorResponse("Only SUPERADMIN can update plant reports.", 403);
+    if (!canSessionAccessOperationalFeature(session, PLANT_REPORT_FEATURE_KEY)) {
+      return errorResponse("Insufficient permissions to update plant reports.", 403);
     }
 
     const { id } = await params;

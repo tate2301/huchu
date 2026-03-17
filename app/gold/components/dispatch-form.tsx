@@ -7,13 +7,6 @@ import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -215,28 +208,15 @@ export function DispatchForm({
         </>
       }
     >
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="pt-6">
-          <div className="flex gap-3">
-            <Shield className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <strong className="block mb-1">Dispatch Record</strong>
-              <p className="text-foreground">
-                Save who sent the batch, who received it, and where it is going.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Alert className="border-blue-200 bg-blue-50 text-blue-950">
+        <Shield className="h-4 w-4 text-blue-600" />
+        <AlertTitle>Dispatch Record</AlertTitle>
+        <AlertDescription>
+          Save who sent the batch, who received it, and where it is going.
+        </AlertDescription>
+      </Alert>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dispatch Details</CardTitle>
-          <CardDescription>
-            Fill all required fields.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="space-y-4">
           {availablePours.length === 0 ? (
             <Alert>
               <AlertTitle>No batches ready for dispatch</AlertTitle>
@@ -411,8 +391,7 @@ export function DispatchForm({
             ) : null}
             <FieldHelp hint="Provide override reason whenever a batch already has a previous dispatch." />
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </FormShell>
   );
 }

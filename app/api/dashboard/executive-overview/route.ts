@@ -22,6 +22,7 @@ import {
   type ExecutiveModuleKey,
 } from "@/lib/dashboard/executive-thresholds";
 import { getNavSectionsForRole } from "@/lib/navigation";
+import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { prisma } from "@/lib/prisma";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
@@ -565,12 +566,16 @@ export async function GET(request: NextRequest) {
 
     const roleSections = getNavSectionsForRole(role);
     const authorizedSections = filterNavSectionsByEnabledFeatures(roleSections, enabledFeatures);
-    const sidebarQuickActions = authorizedSections.find((section) => section.id === "daily")?.items ?? [];
+    const primaryQuickActions = getPrimaryQuickActions({
+      workspaceProfile: session.user.workspaceProfile,
+      role,
+      enabledFeatures,
+    });
 
     const quickLinkCandidates: QuickLinkCandidate[] = [];
     const seen = new Set<string>();
 
-    sidebarQuickActions.forEach((action, index) => {
+    primaryQuickActions.forEach((action, index) => {
       if (seen.has(action.href)) return;
       seen.add(action.href);
       quickLinkCandidates.push({

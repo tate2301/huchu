@@ -18,10 +18,6 @@ type FormShellProps = {
   formClassName?: string;
   contentClassName?: string;
   mainClassName?: string;
-  rightRailClassName?: string;
-  rightRailMeta?: ReactNode;
-  rightRailStatus?: ReactNode;
-  rightRailAttachments?: ReactNode;
   actionPanelClassName?: string;
 };
 
@@ -38,10 +34,6 @@ export function FormShell({
   formClassName,
   contentClassName,
   mainClassName,
-  rightRailClassName,
-  rightRailMeta,
-  rightRailStatus,
-  rightRailAttachments,
   actionPanelClassName,
 }: FormShellProps) {
   return (
@@ -51,14 +43,8 @@ export function FormShell({
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className={contentClassName}>
-        <form
-          className={cn(
-            "grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6",
-          )}
-          onSubmit={onSubmit}
-          noValidate
-        >
-          <div className={cn("min-w-0 space-y-4", formClassName, mainClassName)}>
+        <form className={cn("space-y-6", formClassName)} onSubmit={onSubmit} noValidate>
+          <div className={cn("min-w-0 space-y-4", mainClassName)}>
             {errors?.length ? (
               <Alert variant="destructive">
                 <AlertTitle>{errorTitle}</AlertTitle>
@@ -73,26 +59,15 @@ export function FormShell({
             ) : null}
             {children}
           </div>
-
-          <aside
+          <PrimaryActionBar
+            hint={requiredHint}
             className={cn(
-              "space-y-4 lg:sticky lg:top-[calc(3.5rem+1.5rem)] lg:self-start",
-              rightRailClassName,
+              "border-[var(--border)] bg-[var(--surface-muted)]/60",
+              actionPanelClassName,
             )}
           >
-            <PrimaryActionBar
-              hint={requiredHint}
-              className={cn(
-                "lg:sticky lg:top-0 lg:rounded-lg lg:border lg:border-[var(--edge-subtle)] lg:bg-card lg:px-4 lg:py-4",
-                actionPanelClassName,
-              )}
-            >
-              {actions}
-            </PrimaryActionBar>
-            {rightRailMeta}
-            {rightRailStatus}
-            {rightRailAttachments}
-          </aside>
+            {actions}
+          </PrimaryActionBar>
         </form>
       </CardContent>
     </Card>

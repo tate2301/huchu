@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, hasRole, successResponse, validateSession } from "@/lib/api-utils";
+import { ATTENDANCE_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from "@/lib/prisma";
 
 function normalizeShiftLabel(value: string) {
@@ -73,8 +74,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session, ["SUPERADMIN"])) {
-      return errorResponse("Only SUPERADMIN can update attendance records.", 403);
+    if (!canSessionAccessOperationalFeature(session, ATTENDANCE_FEATURE_KEY)) {
+      return errorResponse("Insufficient permissions to update attendance records.", 403);
     }
 
     const { id } = await params;

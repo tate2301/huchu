@@ -12,7 +12,6 @@ import { PageHeading } from "@/components/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +25,7 @@ import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { fetchShiftGroupSchedules, fetchShiftGroups, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { SHIFT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
 const toNumber = (value: string) => {
@@ -59,8 +59,8 @@ export default function ShiftReportPage() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId");
   const isEditMode = Boolean(editId);
-  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
-  const isSuperAdmin = sessionRole === "SUPERADMIN";
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  const canManageShiftReports = canAccessOperationalFeature(enabledFeatures, SHIFT_REPORT_FEATURE_KEY);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     shift: "SHIFT-1",
@@ -86,7 +86,7 @@ export default function ShiftReportPage() {
   } = useQuery({
     queryKey: ["shift-report-detail", editId],
     queryFn: () => fetchJson<ShiftReportDetail>(`/api/shift-reports/${editId}`),
-    enabled: Boolean(isSuperAdmin && editId),
+    enabled: Boolean(canManageShiftReports && editId),
   });
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function ShiftReportPage() {
   } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
-    enabled: isSuperAdmin,
+    enabled: canManageShiftReports,
   });
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
 
@@ -139,7 +139,7 @@ export default function ShiftReportPage() {
         active: true,
         limit: 300,
       }),
-    enabled: Boolean(activeSiteId && isSuperAdmin),
+    enabled: Boolean(activeSiteId && canManageShiftReports),
   });
   const shiftGroups = useMemo(() => shiftGroupsData?.data ?? [], [shiftGroupsData]);
 
@@ -152,7 +152,7 @@ export default function ShiftReportPage() {
         shift: formData.shift,
         limit: 10,
       }),
-    enabled: Boolean(activeSiteId && formData.date && formData.shift && isSuperAdmin),
+    enabled: Boolean(activeSiteId && formData.date && formData.shift && canManageShiftReports),
   });
 
   const scheduledShiftGroupId = scheduleData?.data?.[0]?.shiftGroupId ?? "";
@@ -322,7 +322,7 @@ export default function ShiftReportPage() {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!canManageShiftReports) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageActions>
@@ -334,7 +334,7 @@ export default function ShiftReportPage() {
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
-            Only SUPERADMIN can create or backfill shift reports.
+            You do not have permission to create or backfill shift reports.
           </AlertDescription>
         </Alert>
       </div>
@@ -423,12 +423,12 @@ export default function ShiftReportPage() {
           </>
         }
       >
-        <Card>
-          <CardHeader className="border-b pb-2">
-            <CardTitle>Shift Information</CardTitle>
-            <CardDescription>Date, shift, and location details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-4">
+        <section className="space-y-4">
+          <div className="space-y-1 border-b pb-2">
+            <h3 className="text-base font-semibold">Shift Information</h3>
+            <p className="text-sm text-muted-foreground">Date, shift, and location details</p>
+          </div>
+          <div className="space-y-4 pt-2">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold">Date *</label>
@@ -534,17 +534,17 @@ export default function ShiftReportPage() {
               )}
               <FieldHelp hint="Group leader is automatically used as shift leader." />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Process & Output</CardTitle>
-            <CardDescription>
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Process & Output</h3>
+            <p className="text-sm text-muted-foreground">
               Extraction - Haulage - Crushing - Processing (gold logged in Gold Control)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </p>
+          </div>
+          <div className="space-y-4">
             <div>
               <label className="mb-2 block text-sm font-semibold">Process Stage *</label>
               <Select
@@ -612,15 +612,15 @@ export default function ShiftReportPage() {
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Safety & Handover</CardTitle>
-            <CardDescription>Incidents and notes for next shift</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Safety & Handover</h3>
+            <p className="text-sm text-muted-foreground">Incidents and notes for next shift</p>
+          </div>
+          <div className="space-y-4">
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold">
                 <input
@@ -660,8 +660,8 @@ export default function ShiftReportPage() {
               />
               <FieldHelp hint="Call out outstanding tasks, hazards, or equipment status." />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         <p className="text-center text-xs text-muted-foreground">
           Saves offline / Auto-syncs when connected / 2-minute form

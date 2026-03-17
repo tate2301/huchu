@@ -3,10 +3,10 @@ import {
   validateSession,
   successResponse,
   errorResponse,
-  hasRole,
   getPaginationParams,
   paginationResponse,
 } from '@/lib/api-utils';
+import { ATTENDANCE_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session, ["SUPERADMIN"])) {
-      return errorResponse("Only SUPERADMIN can create attendance records.", 403);
+    if (!canSessionAccessOperationalFeature(session, ATTENDANCE_FEATURE_KEY)) {
+      return errorResponse("Insufficient permissions to create attendance records.", 403);
     }
 
     const body = await request.json();

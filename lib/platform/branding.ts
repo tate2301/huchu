@@ -1,3 +1,4 @@
+import { isAdminPortalHost } from "@/lib/admin-portal";
 import { prisma } from "@/lib/prisma";
 import { hasFeature } from "@/lib/platform/features";
 import { resolveTenantFromHost } from "@/lib/platform/tenant";
@@ -278,6 +279,9 @@ export async function getEffectiveBrandingForCompany(companyId: string): Promise
 }
 
 export async function getEffectiveBrandingForHost(hostHeader: string | null | undefined): Promise<EffectiveBranding> {
+  if (isAdminPortalHost(hostHeader)) {
+    return DEFAULT_BRANDING;
+  }
   const tenant = await resolveTenantFromHost(hostHeader ?? null);
   if (!tenant) {
     return DEFAULT_BRANDING;

@@ -7,13 +7,6 @@ import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -258,26 +251,15 @@ export function ReceiptForm({
         </>
       }
     >
-      <Card className="border-green-200 bg-green-50">
-        <CardContent className="pt-6">
-          <div className="flex gap-3">
-            <Shield className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <strong className="block mb-1">Sale Details</strong>
-              <p className="text-foreground">
-                Record buyer test results and payment details.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Alert className="border-green-200 bg-green-50 text-green-950">
+        <Shield className="h-4 w-4 text-green-600" />
+        <AlertTitle>Sale Details</AlertTitle>
+        <AlertDescription>
+          Record buyer test results and payment details.
+        </AlertDescription>
+      </Alert>
 
-      <Card>
-        <CardHeader>
-        <CardTitle>Sale Record</CardTitle>
-        <CardDescription>Fill all required fields.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <div className="space-y-4">
           {availableBatches.length === 0 ? (
             <Alert>
               <AlertTitle>No batches awaiting sale</AlertTitle>
@@ -449,8 +431,7 @@ export function ReceiptForm({
             />
             <FieldHelp hint="Optional notes for discrepancies, buyer comments, or exceptions." />
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </FormShell>
   );
 }

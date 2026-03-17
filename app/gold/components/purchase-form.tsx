@@ -10,7 +10,6 @@ import { goldRoutes } from "@/app/gold/routes"
 import { FieldHelp } from "@/components/shared/field-help"
 import { FormShell } from "@/components/shared/form-shell"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -298,12 +297,7 @@ export function PurchaseForm({
         </>
       }
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Purchase Record</CardTitle>
-          <CardDescription>Buyer is the company. Capture seller and payment details.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold mb-2">Purchase Number</label>
@@ -531,8 +525,7 @@ export function PurchaseForm({
               placeholder="Optional notes about this purchase..."
             />
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </FormShell>
   )
 }

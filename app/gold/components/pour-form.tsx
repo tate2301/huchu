@@ -6,13 +6,6 @@ import { useRouter } from "next/navigation";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -228,14 +221,7 @@ export function PourForm({
         </>
       }
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Batch Details</CardTitle>
-          <CardDescription>
-            Fill all required fields.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold mb-2">Batch ID</label>
@@ -384,8 +370,7 @@ export function PourForm({
             />
             <FieldHelp hint="Optional notes for unusual conditions or context." />
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </FormShell>
   );
 }

@@ -20,7 +20,6 @@ import { StatusState } from "@/components/shared/status-state";
 import { ContextHelp } from "@/components/shared/context-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +32,7 @@ import {
   fetchSites,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ATTENDANCE_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
 type CrewStatus = "PRESENT" | "ABSENT" | "LATE";
@@ -54,8 +54,8 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
-  const isSuperAdmin = sessionRole === "SUPERADMIN";
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  const canManageAttendance = canAccessOperationalFeature(enabledFeatures, ATTENDANCE_FEATURE_KEY);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -70,7 +70,7 @@ export default function AttendancePage() {
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
-    enabled: isSuperAdmin,
+    enabled: canManageAttendance,
   });
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
 
@@ -86,7 +86,7 @@ export default function AttendancePage() {
         active: true,
         limit: 300,
       }),
-    enabled: Boolean(activeSiteId && isSuperAdmin),
+    enabled: Boolean(activeSiteId && canManageAttendance),
   });
   const shiftGroups = useMemo(() => shiftGroupsData?.data ?? [], [shiftGroupsData]);
 
@@ -99,7 +99,7 @@ export default function AttendancePage() {
         shift: formData.shift,
         limit: 10,
       }),
-    enabled: Boolean(activeSiteId && formData.date && formData.shift && isSuperAdmin),
+    enabled: Boolean(activeSiteId && formData.date && formData.shift && canManageAttendance),
   });
 
   const scheduledShiftGroupId = scheduleData?.data?.[0]?.shiftGroupId ?? "";
@@ -117,7 +117,7 @@ export default function AttendancePage() {
   } = useQuery({
     queryKey: ["shift-group-members", effectiveShiftGroupId],
     queryFn: () => fetchShiftGroupMembers(effectiveShiftGroupId, { active: true }),
-    enabled: Boolean(effectiveShiftGroupId && isSuperAdmin),
+    enabled: Boolean(effectiveShiftGroupId && canManageAttendance),
   });
 
   const baseWorkers = useMemo<CrewWorker[]>(
@@ -151,7 +151,7 @@ export default function AttendancePage() {
   const { data: workerSearchData } = useQuery({
     queryKey: ["employees", "attendance", "search", workerSearch],
     queryFn: () => fetchEmployees({ active: true, search: workerSearch.trim(), limit: 12 }),
-    enabled: isSuperAdmin && workerSearch.trim().length >= 2,
+    enabled: canManageAttendance && workerSearch.trim().length >= 2,
   });
   const workerSearchResults = useMemo(() => workerSearchData?.data ?? [], [workerSearchData]);
 
@@ -291,7 +291,7 @@ export default function AttendancePage() {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!canManageAttendance) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageActions>
@@ -303,7 +303,7 @@ export default function AttendancePage() {
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
-            Only SUPERADMIN can create or backfill attendance records.
+            You do not have permission to create or backfill attendance records.
           </AlertDescription>
         </Alert>
       </div>
@@ -352,12 +352,12 @@ export default function AttendancePage() {
           </>
         }
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>Shift Details</CardTitle>
-            <CardDescription>Date, shift, site, group, and shift leader</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Shift Details</h3>
+            <p className="text-sm text-muted-foreground">Date, shift, site, group, and shift leader</p>
+          </div>
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <label className="mb-2 block text-sm font-semibold">Date *</label>
@@ -444,15 +444,15 @@ export default function AttendancePage() {
               )}
               <FieldHelp hint="Group leader is automatically used as shift leader for attendance." />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Add Out-of-Group Worker</CardTitle>
-            <CardDescription>Add extra workers who joined this shift.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <section className="space-y-2 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Add Out-of-Group Worker</h3>
+            <p className="text-sm text-muted-foreground">Add extra workers who joined this shift.</p>
+          </div>
+          <div className="space-y-2">
             <Input value={workerSearch} onChange={(e) => setWorkerSearch(e.target.value)} placeholder="Search worker by name or ID" />
             {workerSearch.trim().length >= 2 ? (
               <div className="max-h-36 space-y-1 overflow-y-auto rounded border border-border p-2">
@@ -522,8 +522,8 @@ export default function AttendancePage() {
                 ))}
               </div>
             ) : null}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         <div className="grid grid-cols-2 gap-4">
           <FrappeStatCard
@@ -543,12 +543,12 @@ export default function AttendancePage() {
           />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Crew Attendance</CardTitle>
-            <CardDescription>Mark attendance for each worker</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Crew Attendance</h3>
+            <p className="text-sm text-muted-foreground">Mark attendance for each worker</p>
+          </div>
+          <div>
             {loading ? (
               <StatusState variant="loading" title="Loading crew list" description="Please wait while we fetch shift group members." />
             ) : crew.length === 0 ? (
@@ -579,8 +579,8 @@ export default function AttendancePage() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </FormShell>
     </div>
   );

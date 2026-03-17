@@ -16,7 +16,6 @@ import { StatusState } from "@/components/shared/status-state";
 import { ContextHelp } from "@/components/shared/context-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchDowntimeCodes, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { PLANT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 
 const toNumber = (value: string) => {
@@ -65,8 +65,8 @@ export default function PlantReportPage() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId");
   const isEditMode = Boolean(editId);
-  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
-  const isSuperAdmin = sessionRole === "SUPERADMIN";
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  const canManagePlantReports = canAccessOperationalFeature(enabledFeatures, PLANT_REPORT_FEATURE_KEY);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     siteId: searchParams.get("siteId") ?? "",
@@ -91,7 +91,7 @@ export default function PlantReportPage() {
   } = useQuery({
     queryKey: ["plant-report-detail", editId],
     queryFn: () => fetchJson<PlantReportDetail>(`/api/plant-reports/${editId}`),
-    enabled: Boolean(isSuperAdmin && editId),
+    enabled: Boolean(canManagePlantReports && editId),
   });
 
   useEffect(() => {
@@ -128,7 +128,7 @@ export default function PlantReportPage() {
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
-    enabled: isSuperAdmin,
+    enabled: canManagePlantReports,
   });
 
   const activeSiteId = formData.siteId || sites?.[0]?.id || "";
@@ -140,7 +140,7 @@ export default function PlantReportPage() {
   } = useQuery({
     queryKey: ["downtime-codes", activeSiteId],
     queryFn: () => fetchDowntimeCodes({ siteId: activeSiteId, active: true }),
-    enabled: Boolean(isSuperAdmin && activeSiteId),
+    enabled: Boolean(canManagePlantReports && activeSiteId),
   });
 
   const plantReportMutation = useMutation({
@@ -279,7 +279,7 @@ export default function PlantReportPage() {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!canManagePlantReports) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageActions>
@@ -291,7 +291,7 @@ export default function PlantReportPage() {
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
-            Only SUPERADMIN can create or backfill plant reports.
+            You do not have permission to create or backfill plant reports.
           </AlertDescription>
         </Alert>
       </div>
@@ -380,12 +380,12 @@ export default function PlantReportPage() {
           </>
         }
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>Plant Details</CardTitle>
-            <CardDescription>Date and site information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Plant Details</h3>
+            <p className="text-sm text-muted-foreground">Date and site information</p>
+          </div>
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold">Date *</label>
@@ -417,15 +417,15 @@ export default function PlantReportPage() {
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Production</CardTitle>
-            <CardDescription>Tonnes processed and run hours</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Production</h3>
+            <p className="text-sm text-muted-foreground">Tonnes processed and run hours</p>
+          </div>
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold">Tonnes Fed</label>
@@ -450,15 +450,15 @@ export default function PlantReportPage() {
                 <FieldHelp hint="Total equipment run time in hours." />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Consumables</CardTitle>
-            <CardDescription>Diesel, media, and reagents used</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Consumables</h3>
+            <p className="text-sm text-muted-foreground">Diesel, media, and reagents used</p>
+          </div>
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold">Diesel Used (litres)</label>
@@ -486,20 +486,20 @@ export default function PlantReportPage() {
                 <Input type="number" name="waterUsed" value={formData.waterUsed} onChange={handleChange} placeholder="0" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Downtime</CardTitle>
-            <CardDescription>
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Downtime</h3>
+            <p className="text-sm text-muted-foreground">
               Record any downtime events.{" "}
               <Link href="/management/master-data/operations/downtime-codes" className="text-primary hover:underline">
                 Manage codes
               </Link>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </p>
+          </div>
+          <div className="space-y-4">
             {totalDowntime > 0 && (
               <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
                 <AlertCircle className="h-4 w-4 text-orange-500" />
@@ -574,15 +574,15 @@ export default function PlantReportPage() {
               + Add Downtime Event
             </Button>
             <FieldHelp hint="Add one row per downtime event with code and duration." />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Gold Recovered</CardTitle>
-            <CardDescription>Only if a pour happened today</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Gold Recovered</h3>
+            <p className="text-sm text-muted-foreground">Only if a pour happened today</p>
+          </div>
+          <div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold">Gold Recovered (grams)</label>
@@ -596,14 +596,14 @@ export default function PlantReportPage() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Additional Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <section className="space-y-4 border-t pt-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Additional Notes</h3>
+          </div>
+          <div>
             <Textarea
               name="notes"
               value={formData.notes}
@@ -612,8 +612,8 @@ export default function PlantReportPage() {
               rows={3}
             />
             <FieldHelp hint="Use notes for unusual observations not captured above." />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </FormShell>
     </div>
   );
