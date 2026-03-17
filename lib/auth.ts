@@ -2,33 +2,56 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
-import type { JWT } from "next-auth/jwt";
+import { decode as defaultJwtDecode, encode as defaultJwtEncode } from "next-auth/jwt";
 import { UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { ADMIN_PORTAL_HOST } from "@/lib/admin-portal";
 import { hasFeature } from "@/lib/platform/features";
 import {
-  getAllowedHostsForCompany,
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,
   getTenantClaimsForCompany,
   isTenantStatusActive,
   resolveTenantFromHost,
 } from "@/lib/platform/tenant";
-import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
-import { getEffectiveFeaturesForUser } from "@/lib/platform/user-entitlements";
-import bcrypt from "bcryptjs";
-import { ADMIN_PORTAL_HOST } from "@/lib/admin-portal";
+import { validateAuthConfiguration, getAuthRuntimeConfig } from "@/lib/auth-core/config";
+import { logAuthEvent } from "@/lib/auth-core/events";
+import { checkRateLimit } from "@/lib/auth-core/rate-limit";
+import {
+  applyTokenToSessionClaims,
+  buildInitialTokenClaims,
+  enrichTokenClaims,
+} from "@/lib/auth-core/session-claims";
+import {
+  buildAuthExpiresAt,
+  getSessionPolicyMaxAge,
+  hydrateLegacyTokenClaims,
+  isAuthExpired,
+} from "@/lib/auth-core/session-policy";
+import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
+import { assertStrategyEnabled } from "@/lib/auth-core/strategy-registry";
+import type { AuthStrategyId, AuthenticatedSession, PlatformJwtClaims, SessionPolicy } from "@/lib/auth-core/types";
 
-const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
+type AuthenticatedUserLike = {
+  id: string;
+  role?: string;
+  companyId?: string;
+  authStrategy?: AuthStrategyId;
+  rememberMe?: boolean;
+  sessionPolicy?: SessionPolicy;
+  authExpiresAt?: string;
+};
+
+const AUTH_RUNTIME_CONFIG = getAuthRuntimeConfig();
 
 function getAdminPortalEmail() {
-  return process.env.ADMIN_PORTAL_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
+  return AUTH_RUNTIME_CONFIG.adminPortalEmail;
 }
 
-
 async function resolveAdminPortalCompanyId() {
-  const configuredCompanyId = process.env.ADMIN_PORTAL_COMPANY_ID?.trim();
+  const configuredCompanyId = AUTH_RUNTIME_CONFIG.adminPortalCompanyId;
   if (configuredCompanyId) {
     const company = await prisma.company.findUnique({ where: { id: configuredCompanyId }, select: { id: true } });
     if (!company) {
@@ -51,7 +74,7 @@ async function upsertAdminPortalUser(email: string) {
   }
 
   const companyId = await resolveAdminPortalCompanyId();
-  const name = process.env.ADMIN_PORTAL_ACTOR_NAME?.trim() || "Platform Superuser";
+  const name = AUTH_RUNTIME_CONFIG.adminPortalActorName || "Platform Superuser";
 
   return prisma.user.upsert({
     where: { email: adminEmail },
@@ -82,9 +105,6 @@ const adminPortalAdapter = {
     const adminUser = await upsertAdminPortalUser(email);
     return adminUser ?? null;
   },
-  // Cast to `as Adapter` below resolves type incompatibility caused by the project
-  // augmenting AdapterUser with custom fields (companyId, role) that conflict with
-  // the standard next-auth Adapter interface signature for createUser.
   async createUser(user: Parameters<NonNullable<Adapter["createUser"]>>[0]) {
     const adminEmail = getAdminPortalEmail();
     const typedUser = user as { email?: string };
@@ -97,18 +117,6 @@ const adminPortalAdapter = {
     return baseAdapter.createUser!(user as any);
   },
 } as Adapter;
-
-type PlatformJWT = JWT & {
-  id?: string;
-  role?: string;
-  companyId?: string;
-  companySlug?: string;
-  tenantStatus?: string;
-  workspaceProfile?: string;
-  enabledFeatures?: string[];
-  subscriptionHealth?: string;
-  allowedHosts?: string[];
-};
 
 function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
   const normalizedStatus = rawStatus?.trim().toUpperCase();
@@ -157,6 +165,35 @@ function buildDevPasswordFallbackCandidates(rawPassword: string): string[] {
   return Array.from(new Set(candidates.filter(Boolean)));
 }
 
+function readHeaderValue(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+  name: string,
+): string | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  if (headers instanceof Headers) {
+    return headers.get(name) ?? undefined;
+  }
+
+  const rawValue = headers[name];
+  if (Array.isArray(rawValue)) {
+    return rawValue[0];
+  }
+  return rawValue;
+}
+
+function getClientAddressFromHeaders(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+): string {
+  const forwardedFor = readHeaderValue(headers, "x-forwarded-for")?.split(",")[0]?.trim();
+  const realIp = readHeaderValue(headers, "x-real-ip")?.trim();
+  return forwardedFor || realIp || "unknown";
+}
+
+validateAuthConfiguration();
+
 export const authOptions: NextAuthOptions = {
   adapter: adminPortalAdapter,
   providers: [
@@ -164,28 +201,58 @@ export const authOptions: NextAuthOptions = {
       id: "email",
       type: "email",
       name: "Email",
-      // SMTP is not used — email delivery is handled via Resend API or webhook.
-      // The `server` field is required by next-auth's EmailConfig but is intentionally
-      // left empty here since sendVerificationRequest overrides all delivery logic.
       server: "",
-      from: process.env.ADMIN_MAGIC_LINK_FROM ?? "no-reply@pagka.dev",
+      from: AUTH_RUNTIME_CONFIG.adminMagicLinkFrom,
       maxAge: 10 * 60,
       async sendVerificationRequest({ identifier, url }: { identifier: string; url: string }) {
+        assertStrategyEnabled("admin-email-link");
+
         const adminPortalEmail = getAdminPortalEmail();
         if (identifier.trim().toLowerCase() !== adminPortalEmail) {
+          await logAuthEvent({
+            eventType: "auth.email-link.rejected",
+            actor: identifier,
+            reason: "ADMIN_EMAIL_MISMATCH",
+            entityType: "auth-strategy",
+            entityId: "admin-email-link",
+          });
           throw new Error("Magic link is restricted to the configured admin email.");
         }
 
         const parsedUrl = new URL(url);
         if (parsedUrl.host !== ADMIN_PORTAL_HOST) {
+          await logAuthEvent({
+            eventType: "auth.email-link.rejected",
+            actor: identifier,
+            reason: "ADMIN_HOST_MISMATCH",
+            entityType: "auth-strategy",
+            entityId: "admin-email-link",
+            payload: { host: parsedUrl.host },
+          });
           throw new Error(`Magic links are restricted to ${ADMIN_PORTAL_HOST}`);
+        }
+
+        const rateLimit = checkRateLimit({
+          key: `auth:admin-email-link:${identifier.trim().toLowerCase()}`,
+          limit: 5,
+          windowMs: 15 * 60 * 1000,
+        });
+        if (!rateLimit.allowed) {
+          await logAuthEvent({
+            eventType: "auth.email-link.rate-limited",
+            actor: identifier,
+            reason: `Retry after ${rateLimit.retryAfterSeconds}s`,
+            entityType: "auth-strategy",
+            entityId: "admin-email-link",
+          });
+          throw new Error("AUTH_RATE_LIMITED");
         }
 
         const subject = "Your Pagka superuser magic link";
         const text = `Use this secure link to sign in: ${url}`;
         const html = `<p>Use this secure link to sign in:</p><p><a href="${url}">Sign in to Superuser Portal</a></p>`;
 
-        const resendApiKey = process.env.ADMIN_MAGIC_LINK_RESEND_API_KEY?.trim();
+        const resendApiKey = AUTH_RUNTIME_CONFIG.adminMagicLinkResendApiKey;
         if (resendApiKey) {
           const response = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -194,7 +261,7 @@ export const authOptions: NextAuthOptions = {
               Authorization: `Bearer ${resendApiKey}`,
             },
             body: JSON.stringify({
-              from: process.env.ADMIN_MAGIC_LINK_FROM ?? "no-reply@pagka.dev",
+              from: AUTH_RUNTIME_CONFIG.adminMagicLinkFrom,
               to: [identifier],
               subject,
               text,
@@ -203,17 +270,38 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!response.ok) {
+            await logAuthEvent({
+              eventType: "auth.email-link.delivery-failed",
+              actor: identifier,
+              reason: `Resend status ${response.status}`,
+              entityType: "auth-strategy",
+              entityId: "admin-email-link",
+            });
             throw new Error(`Resend delivery failed with status ${response.status}.`);
           }
+
+          await logAuthEvent({
+            eventType: "auth.email-link.sent",
+            actor: identifier,
+            entityType: "auth-strategy",
+            entityId: "admin-email-link",
+          });
           return;
         }
 
-        const webhookUrl = process.env.ADMIN_MAGIC_LINK_WEBHOOK_URL?.trim();
+        const webhookUrl = AUTH_RUNTIME_CONFIG.adminMagicLinkWebhookUrl;
         if (webhookUrl) {
           await fetch(webhookUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ to: identifier, subject, text, html }),
+          });
+
+          await logAuthEvent({
+            eventType: "auth.email-link.sent",
+            actor: identifier,
+            entityType: "auth-strategy",
+            entityId: "admin-email-link",
           });
           return;
         }
@@ -226,32 +314,79 @@ export const authOptions: NextAuthOptions = {
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        rememberMe: { label: "Remember me", type: "text" },
       },
       async authorize(credentials, req) {
+        assertStrategyEnabled("credentials");
+
         const exposeCredentialDebugReason = process.env.NODE_ENV !== "production";
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
+        const rememberMe = credentials?.rememberMe === "true";
 
         if (!email || !password) {
           throw new Error("Invalid credentials");
         }
 
         const hostHeader = getHostHeaderFromRequestHeaders(req?.headers);
+        const clientAddress = getClientAddressFromHeaders(req?.headers);
         const hostContext = getPlatformHostContext(hostHeader);
+
+        const rateLimit = checkRateLimit({
+          key: `auth:credentials:${hostHeader ?? "unknown-host"}:${email}:${clientAddress}`,
+          limit: 10,
+          windowMs: 15 * 60 * 1000,
+        });
+        if (!rateLimit.allowed) {
+          await logAuthEvent({
+            eventType: "auth.login.rate-limited",
+            actor: email,
+            reason: `Retry after ${rateLimit.retryAfterSeconds}s`,
+            entityType: "auth-strategy",
+            entityId: "credentials",
+            payload: { hostHeader, clientAddress },
+          });
+          throw new Error("AUTH_RATE_LIMITED");
+        }
 
         let scopedCompanyId: string | undefined;
         if (hostContext.strictTenantEnforcement) {
           if (hostContext.isCentralHost) {
+            await logAuthEvent({
+              eventType: "auth.login.failed",
+              actor: email,
+              reason: "TENANT_HOST_REQUIRED",
+              entityType: "auth-strategy",
+              entityId: "credentials",
+              payload: { hostHeader, clientAddress },
+            });
             throw new Error("TENANT_HOST_REQUIRED");
           }
 
           const tenant = await resolveTenantFromHost(hostHeader);
           if (!tenant) {
+            await logAuthEvent({
+              eventType: "auth.login.failed",
+              actor: email,
+              reason: "TENANT_NOT_FOUND",
+              entityType: "auth-strategy",
+              entityId: "credentials",
+              payload: { hostHeader, clientAddress },
+            });
             throw new Error("TENANT_NOT_FOUND");
           }
 
           if (!isTenantStatusActive(tenant.tenantStatus)) {
+            await logAuthEvent({
+              eventType: "auth.login.failed",
+              actor: email,
+              companyId: tenant.companyId,
+              reason: "TENANT_INACTIVE",
+              entityType: "auth-strategy",
+              entityId: "credentials",
+              payload: { hostHeader, clientAddress },
+            });
             throw new Error("TENANT_INACTIVE");
           }
 
@@ -273,18 +408,44 @@ export const authOptions: NextAuthOptions = {
             isActive: true,
             image: true,
             updatedAt: true,
-          }
+          },
         });
 
         if (!user) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            reason: exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "INVALID_CREDENTIALS",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+            payload: { hostHeader, clientAddress },
+          });
           throw new Error(exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "Invalid credentials");
         }
 
         if (!user.password) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            companyId: user.companyId,
+            reason: exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "INVALID_CREDENTIALS",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+            payload: { hostHeader, clientAddress },
+          });
           throw new Error(exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "Invalid credentials");
         }
 
         if (!user.isActive) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            companyId: user.companyId,
+            reason: "ACCOUNT_INACTIVE",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+            payload: { hostHeader, clientAddress },
+          });
           throw new Error("Account is inactive");
         }
 
@@ -303,11 +464,19 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!isCorrectPassword) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            companyId: user.companyId,
+            reason: exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "INVALID_CREDENTIALS",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+            payload: { hostHeader, clientAddress },
+          });
           throw new Error(exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "Invalid credentials");
         }
 
         if (exposeCredentialDebugReason && matchedCandidate !== password) {
-          // Self-heal legacy local hashes that were saved with hidden whitespace/control chars.
           const canonicalPasswordHash = await bcrypt.hash(password, 12);
           await prisma.user.update({
             where: { id: user.id },
@@ -317,6 +486,14 @@ export const authOptions: NextAuthOptions = {
 
         const loginEnabled = await hasFeature(user.companyId, "core.auth.login");
         if (!loginEnabled) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            companyId: user.companyId,
+            reason: "LOGIN_DISABLED",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+          });
           throw new Error("Login is disabled for this organization");
         }
 
@@ -329,8 +506,29 @@ export const authOptions: NextAuthOptions = {
           !subscriptionHealth.shouldBlock,
         );
         if (!isTenantStatusActive(effectiveTenantStatus)) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            companyId: user.companyId,
+            reason: "TENANT_INACTIVE",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+          });
           throw new Error("TENANT_INACTIVE");
         }
+
+        await logAuthEvent({
+          eventType: "auth.login.success",
+          actor: email,
+          companyId: user.companyId,
+          entityType: "auth-strategy",
+          entityId: "credentials",
+          payload: {
+            hostHeader,
+            clientAddress,
+            rememberMe,
+          },
+        });
 
         return {
           id: user.id,
@@ -338,10 +536,14 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           companyId: user.companyId,
-          image: user.image
+          image: user.image,
+          authStrategy: "credentials" satisfies AuthStrategyId,
+          rememberMe,
+          sessionPolicy: rememberMe ? "remember" : "standard",
+          authExpiresAt: buildAuthExpiresAt(rememberMe ? "remember" : "standard"),
         };
-      }
-    })
+      },
+    }),
   ],
   callbacks: {
     async signIn({ user, account }) {
@@ -352,85 +554,105 @@ export const authOptions: NextAuthOptions = {
       const normalizedEmail = user.email?.trim().toLowerCase();
       const adminPortalEmail = getAdminPortalEmail();
       if (!normalizedEmail || normalizedEmail !== adminPortalEmail) {
+        await logAuthEvent({
+          eventType: "auth.login.failed",
+          actor: normalizedEmail ?? user.email ?? null,
+          reason: "ADMIN_EMAIL_MISMATCH",
+          entityType: "auth-strategy",
+          entityId: "admin-email-link",
+        });
         return false;
       }
 
-      return normalizedEmail === adminPortalEmail;
+      await logAuthEvent({
+        eventType: "auth.login.success",
+        actor: normalizedEmail,
+        companyId: (user as { companyId?: string }).companyId ?? null,
+        entityType: "auth-strategy",
+        entityId: "admin-email-link",
+      });
+      return true;
     },
-    async jwt({ token, user }) {
-      const extendedToken = token as PlatformJWT;
+    async jwt({ token, user, account }) {
+      const extendedToken = token as PlatformJwtClaims;
 
       if (user) {
-        const typedUser = user as { id: string; role?: string; companyId?: string };
-        extendedToken.id = typedUser.id;
-        extendedToken.role = typedUser.role ?? extendedToken.role;
-        extendedToken.companyId = typedUser.companyId ?? extendedToken.companyId;
+        const typedUser = user as AuthenticatedUserLike;
+        const authStrategy =
+          account?.provider === "email"
+            ? "admin-email-link"
+            : typedUser.authStrategy ?? "credentials";
+        Object.assign(
+          extendedToken,
+          buildInitialTokenClaims({
+            id: typedUser.id,
+            role: typedUser.role,
+            companyId: typedUser.companyId,
+            authStrategy,
+            rememberMe: typedUser.rememberMe === true,
+          }),
+        );
+      } else {
+        hydrateLegacyTokenClaims(extendedToken);
       }
 
-      if (extendedToken.companyId) {
-        const tenantClaims = await getTenantClaimsForCompany(extendedToken.companyId);
-        const [subscriptionHealth, enabledFeatures, allowedHosts] = await Promise.all([
-          getSubscriptionHealth(extendedToken.companyId),
-          extendedToken.id && extendedToken.role
-            ? getEffectiveFeaturesForUser({
-                companyId: extendedToken.companyId,
-                userId: extendedToken.id,
-                role: extendedToken.role,
-              })
-            : getEnabledFeatureKeys(extendedToken.companyId),
-          getAllowedHostsForCompany(extendedToken.companyId),
-        ]);
-        const subscriptionActive = !subscriptionHealth.shouldBlock;
-
-        extendedToken.companySlug = tenantClaims.companySlug;
-        extendedToken.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
-        extendedToken.workspaceProfile = tenantClaims.workspaceProfile;
-        extendedToken.subscriptionHealth = subscriptionHealth.state;
-        extendedToken.enabledFeatures = enabledFeatures;
-        extendedToken.allowedHosts = allowedHosts;
+      if (isAuthExpired(extendedToken.authExpiresAt)) {
+        return {};
       }
 
-      return extendedToken;
+      return enrichTokenClaims(extendedToken);
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) {
+        return `${baseUrl}${normalizeCallbackUrl(url, "/")}`;
+      }
+
+      try {
+        const targetUrl = new URL(url);
+        if (targetUrl.origin === baseUrl) {
+          return url;
+        }
+      } catch {
+        return baseUrl;
+      }
+
+      return baseUrl;
     },
     async session({ session, token }) {
       if (session.user) {
-        const typedToken = token as PlatformJWT;
-        session.user = {
-          ...session.user,
-          id: typedToken.id,
-          role: typedToken.role,
-          companyId: typedToken.companyId,
-          companySlug: typedToken.companySlug,
-          tenantStatus: typedToken.tenantStatus,
-          workspaceProfile: typedToken.workspaceProfile,
-          enabledFeatures: typedToken.enabledFeatures,
-          subscriptionHealth: typedToken.subscriptionHealth,
-          allowedHosts: typedToken.allowedHosts,
-        } as typeof session.user & {
-          id?: string;
-          role?: string;
-          companyId?: string;
-          companySlug?: string;
-          tenantStatus?: string;
-          workspaceProfile?: string;
-          enabledFeatures?: string[];
-          subscriptionHealth?: string;
-          allowedHosts?: string[];
-        };
+        applyTokenToSessionClaims(session as AuthenticatedSession, token as PlatformJwtClaims);
       }
       return session;
-    }
+    },
   },
   pages: {
     signIn: "/login",
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 60,
-    updateAge: 5 * 60,
+    maxAge: getSessionPolicyMaxAge("remember"),
   },
   jwt: {
-    maxAge: 30 * 60,
+    maxAge: getSessionPolicyMaxAge("remember"),
+    async encode(params) {
+      const token = params.token as PlatformJwtClaims | undefined;
+      const maxAge = getSessionPolicyMaxAge(token?.sessionPolicy);
+
+      return defaultJwtEncode({
+        ...params,
+        maxAge,
+      });
+    },
+    async decode(params) {
+      const token = await defaultJwtDecode(params);
+      const typedToken = token as PlatformJwtClaims | null;
+      if (typedToken?.authExpiresAt && isAuthExpired(typedToken.authExpiresAt)) {
+        return null;
+      }
+      return token;
+    },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: AUTH_RUNTIME_CONFIG.nextAuthSecret,
 };
+
+export { isAuthExpired, type PlatformJwtClaims, type SessionPolicy };

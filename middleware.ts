@@ -10,6 +10,8 @@ import {
 } from "@/lib/platform/tenant";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
+import { isAuthExpired } from "@/lib/auth-core/session-policy";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
@@ -30,6 +32,7 @@ type PlatformToken = {
   enabledFeatures?: string[];
   allowedHosts?: string[];
   role?: string;
+  authExpiresAt?: string;
 };
 
 function redirectToAccessBlocked(request: NextRequestWithAuth) {
@@ -92,6 +95,12 @@ function redirectToPath(request: NextRequestWithAuth, pathname: string) {
   return NextResponse.redirect(redirectUrl);
 }
 
+function redirectToLoginWithCallback(request: NextRequestWithAuth, loginPath: string) {
+  return NextResponse.redirect(
+    new URL(buildCallbackLoginPath(loginPath, `${request.nextUrl.pathname}${request.nextUrl.search}`), request.url),
+  );
+}
+
 function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string) {
   const rootDomain = getRootDomain();
   if (!rootDomain) {
@@ -141,7 +150,8 @@ export default withAuth(
     const resolvedHost = hostHeader || requestHost || null;
     const hostContext = getPlatformHostContext(resolvedHost);
     const isAdminHost = isAdminPortalHost(resolvedHost);
-    const token = request.nextauth.token as PlatformToken | null;
+    const rawToken = request.nextauth.token as PlatformToken | null;
+    const token = rawToken && !isAuthExpired(rawToken.authExpiresAt) ? rawToken : null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
     const portalBasePath = getPortalBasePathForPathname(pathname);
     const portalHomeForRole = getPortalHomeForRole(token?.role);
@@ -161,6 +171,9 @@ export default withAuth(
 
     if (isAdminHost) {
       if (isApiRequest) {
+        if (!token) {
+          return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+        }
         if (isPathWithinRoute(pathname, "/api/platform-admin")) {
           return NextResponse.next();
         }
@@ -178,6 +191,9 @@ export default withAuth(
 
       const internalAdminPath = toInternalAdminPath(pathname);
       if (internalAdminPath) {
+        if (!token && pathname !== ADMIN_LOGIN_PATH) {
+          return redirectToLoginWithCallback(request, ADMIN_LOGIN_PATH);
+        }
         const rewriteUrl = request.nextUrl.clone();
         rewriteUrl.pathname = internalAdminPath;
         return NextResponse.rewrite(rewriteUrl);
@@ -189,7 +205,7 @@ export default withAuth(
     if (!isApiRequest && portalBasePath && !token) {
       const portalLoginPath = `${portalBasePath}/login`;
       if (!isPathWithinRoute(pathname, portalLoginPath)) {
-        return redirectToPath(request, portalLoginPath);
+        return redirectToLoginWithCallback(request, portalLoginPath);
       }
     }
 
@@ -246,7 +262,10 @@ export default withAuth(
 
     if (isApiRequest) {
       if (!token?.companyId) {
-        return denyAccess(request, "Missing tenant context");
+        return NextResponse.json(
+          { error: "Missing tenant context", code: token ? "MISSING_TENANT_CONTEXT" : "UNAUTHORIZED", path: pathname },
+          { status: 401 },
+        );
       }
       if (!isTenantStatusActive(token.tenantStatus)) {
         return denyAccess(request, "Tenant is inactive");
@@ -300,6 +319,7 @@ export default withAuth(
         const pathname = req.nextUrl.pathname;
         const hostHeader = getHostHeaderFromRequestHeaders(req.headers);
         const resolvedHost = hostHeader || req.nextUrl.host || null;
+        const typedToken = token as PlatformToken | null;
 
         if (isAdminPortalHost(resolvedHost)) {
           return true;
@@ -313,7 +333,11 @@ export default withAuth(
           return true;
         }
 
-        return !!token;
+        if (typedToken && isAuthExpired(typedToken.authExpiresAt)) {
+          return false;
+        }
+
+        return !!typedToken;
       },
     },
     pages: {

@@ -6,8 +6,8 @@ export const runtime = "nodejs";
 
 type Params = Promise<{ companyId: string }>;
 
-export async function GET(_request: Request, context: { params: Params }) {
-  const access = await requirePlatformAdminAccess();
+export async function GET(request: Request, context: { params: Params }) {
+  const access = await requirePlatformAdminAccess(request);
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }

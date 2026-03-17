@@ -1,19 +1,38 @@
 import { headers } from "next/headers";
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { getCurrentAuthSession } from "@/lib/auth-core/guards";
+import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { companyLabelFromHost } from "@/lib/utils";
 import { PosPortalLoginClient } from "./client";
 
-export default async function PosPortalLoginPage() {
-  const session = await getServerSession(authOptions);
+export default async function PosPortalLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const { callbackUrl } = await searchParams;
+  const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/portal/pos");
+  const strategies = getAuthStrategiesForSurface("portal-login");
+  const credentialsStrategy = strategies.find((strategy) => strategy.id === "credentials");
+  if (!credentialsStrategy) {
+    redirect("/access-blocked");
+  }
+
+  const session = await getCurrentAuthSession();
   if (session?.user) {
-    redirect("/portal/pos");
+    redirect(resolvedCallbackUrl);
   }
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "localhost";
   const companyLabel = companyLabelFromHost(host, "Store");
 
-  return <PosPortalLoginClient companyLabel={companyLabel} />;
+  return (
+    <PosPortalLoginClient
+      companyLabel={companyLabel}
+      callbackUrl={resolvedCallbackUrl}
+      rememberMeEnabled={credentialsStrategy.supportsRememberMe}
+    />
+  );
 }

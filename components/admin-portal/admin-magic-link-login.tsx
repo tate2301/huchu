@@ -4,11 +4,19 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 
-export function AdminMagicLinkLogin({ adminEmail }: { adminEmail: string }) {
+export function AdminMagicLinkLogin({
+  adminEmail,
+  callbackUrl,
+}: {
+  adminEmail: string;
+  callbackUrl?: string;
+}) {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/admin/dashboard");
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -18,12 +26,12 @@ export function AdminMagicLinkLogin({ adminEmail }: { adminEmail: string }) {
     try {
       const result = await signIn("email", {
         email: adminEmail.trim().toLowerCase(),
-        callbackUrl: "/admin/dashboard",
+        callbackUrl: resolvedCallbackUrl,
         redirect: false,
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError(result.error === "AUTH_RATE_LIMITED" ? "Too many magic-link requests. Please wait a few minutes and try again." : result.error);
         return;
       }
       setSent(true);

@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 import { AlertCircle } from "@/lib/icons";
 
 type PortalLoginFormProps = {
@@ -22,6 +24,8 @@ type PortalLoginFormProps = {
   companyLabel: string;
   redirectTo: string;
   helpText?: string;
+  callbackUrl?: string;
+  rememberMeEnabled?: boolean;
 };
 
 function getAuthErrorMessage(rawError: string) {
@@ -41,6 +45,8 @@ function getAuthErrorMessage(rawError: string) {
       return "This account has no password set. Contact your school administrator.";
     case "AUTH_PASSWORD_MISMATCH":
       return "Password does not match. Please try again.";
+    case "AUTH_RATE_LIMITED":
+      return "Too many sign-in attempts. Please wait a few minutes and try again.";
     default:
       return rawError;
   }
@@ -53,12 +59,16 @@ export function PortalLoginForm({
   companyLabel,
   redirectTo,
   helpText,
+  callbackUrl,
+  rememberMeEnabled = true,
 }: PortalLoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, redirectTo);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,13 +79,15 @@ export function PortalLoginForm({
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
+        rememberMe: rememberMe ? "true" : "false",
+        callbackUrl: resolvedCallbackUrl,
         redirect: false,
       });
 
       if (result?.error) {
         setError(getAuthErrorMessage(result.error));
       } else {
-        router.push(redirectTo);
+        router.push(result?.url ?? resolvedCallbackUrl);
         router.refresh();
       }
     } catch {
@@ -135,6 +147,17 @@ export function PortalLoginForm({
                   disabled={loading}
                 />
               </div>
+
+              {rememberMeEnabled ? (
+                <label className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    disabled={loading}
+                  />
+                  <span>Remember me on this device</span>
+                </label>
+              ) : null}
 
               <Button
                 type="submit"

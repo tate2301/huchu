@@ -5,7 +5,7 @@ import { requirePlatformAdminAccess } from "../_auth";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const access = await requirePlatformAdminAccess();
+  const access = await requirePlatformAdminAccess(request);
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }

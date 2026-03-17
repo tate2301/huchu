@@ -1,24 +1,12 @@
-import { headers } from "next/headers";
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
-import { isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { requirePageAuth } from "@/lib/auth-core/guards";
 
 export async function requireAdminPortalSession() {
-  const headersList = await headers();
-  const host = headersList.get("host");
-  if (!isAdminPortalHost(host)) {
-    redirect("/access-blocked");
-  }
-
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/admin/login");
-  }
-
-  if (!isSuperuserRole(session.user.role)) {
-    redirect("/access-blocked");
-  }
-
-  return session;
+  return requirePageAuth({
+    requireAdmin: true,
+    loginPath: "/admin/login",
+    accessBlockedPath: "/access-blocked",
+    requireTenantContext: false,
+    enforceRouteFeatureCheck: false,
+    enforceTenantHost: false,
+  });
 }

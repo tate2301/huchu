@@ -1,33 +1,9 @@
 // API utility functions for production-ready endpoints
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from './auth';
-import { Session } from 'next-auth';
-import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
-import { canAccessRouteForCompany } from "@/lib/platform/gating/enforcer-server";
-import {
-  getHostHeaderFromRequestHeaders,
-  getPlatformHostContext,
-  isAllowedHost,
-  getTenantClaimsForCompany,
-  isTenantStatusActive,
-} from "@/lib/platform/tenant";
+import { requireApiAuth } from "@/lib/auth-core/guards";
+import type { AuthenticatedSession } from "@/lib/auth-core/types";
 
-export interface AuthenticatedSession extends Session {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    companyId: string;
-    companySlug?: string;
-    tenantStatus?: string;
-    workspaceProfile?: string;
-    subscriptionHealth?: string;
-    enabledFeatures?: string[];
-    allowedHosts?: string[];
-  };
-}
+export type { AuthenticatedSession } from "@/lib/auth-core/types";
 
 /**
  * Validates user session and returns it or sends 401 response
@@ -35,62 +11,7 @@ export interface AuthenticatedSession extends Session {
 export async function validateSession(
   request: NextRequest
 ): Promise<{ session: AuthenticatedSession } | NextResponse> {
-  const session = (await getServerSession(authOptions)) as AuthenticatedSession | null;
-  
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!session.user.companyId) {
-    return NextResponse.json({ error: "Missing tenant context" }, { status: 401 });
-  }
-
-  let tenantStatus = session.user.tenantStatus?.trim();
-  if (!tenantStatus) {
-    const claims = await getTenantClaimsForCompany(session.user.companyId);
-    tenantStatus = claims.tenantStatus?.trim();
-  }
-  if (!isTenantStatusActive(tenantStatus)) {
-    return NextResponse.json(
-      {
-        error: "Tenant is inactive",
-        code: "TENANT_INACTIVE",
-        tenantStatus: tenantStatus ?? null,
-      },
-      { status: 403 },
-    );
-  }
-
-  const hostHeader = getHostHeaderFromRequestHeaders(request.headers);
-  const hostContext = getPlatformHostContext(hostHeader);
-  if (hostContext.strictTenantEnforcement && !isAllowedHost(hostHeader, session.user.allowedHosts)) {
-    return NextResponse.json(
-      {
-        error: "Tenant host mismatch",
-        code: "TENANT_HOST_MISMATCH",
-      },
-      { status: 403 },
-    );
-  }
-
-  const pathname = new URL(request.url).pathname;
-  let decision = canAccessRouteWithToken(pathname, session.user.enabledFeatures);
-  if (!decision.allowed && (!session.user.enabledFeatures || session.user.enabledFeatures.length === 0)) {
-    decision = await canAccessRouteForCompany(session.user.companyId, pathname);
-  }
-  if (!decision.allowed) {
-    return NextResponse.json(
-      {
-        error: decision.message ?? "Feature disabled for this company.",
-        code: decision.code ?? "FEATURE_DISABLED",
-        feature: decision.featureKey ?? null,
-        path: pathname,
-      },
-      { status: decision.code === "UNAUTHORIZED" ? 401 : 403 },
-    );
-  }
-  
-  return { session };
+  return requireApiAuth({ request });
 }
 
 /**
