@@ -1,14 +1,18 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { PageHeading } from "@/components/layout/page-heading";
 import { TeacherPortalContent } from "@/components/schools/portal/teacher-portal-content";
-import { authOptions } from "@/lib/auth";
+import { requirePageAuth } from "@/lib/auth-core/guards";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
 
 export default async function TeacherPortalPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/portal/teacher/login");
-  }
+  const headersList = await headers();
+  const hostHeader = getHostHeaderFromRequestHeaders(headersList);
+  const portalRouting = getPortalRequestRouting(hostHeader, "/portal/teacher");
+  await requirePageAuth({
+    pathname: "/portal/teacher",
+    callbackUrl: portalRouting.callbackPath,
+    loginPath: portalRouting.loginPath,
+  });
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">

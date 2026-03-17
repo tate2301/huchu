@@ -1,17 +1,17 @@
+import {
+  buildPortalHost,
+  getPortalHostDescriptorByPath,
+  getPortalHostDescriptorByPrefix,
+  getPortalHostPrefixes,
+  isPortalAliasPrefix,
+} from "@/lib/platform/portal-hosts";
+
 type NullableString = string | null | undefined;
 type HeaderRecordValue = string | string[] | undefined | null;
 type RequestHeadersLike = Headers | Record<string, HeaderRecordValue>;
 
 const TENANT_SLUG_PATTERN = /^[a-z0-9-]+$/;
 const ACTIVE_TENANT_STATUS = "ACTIVE";
-
-const PORTAL_SUBDOMAIN_MAP: Record<string, string> = {
-  students: "/portal/student",
-  guardian: "/portal/parent",
-  pos: "/portal/pos",
-};
-
-export { PORTAL_SUBDOMAIN_MAP };
 
 export type TenantContext = {
   companyId: string;
@@ -31,6 +31,10 @@ export type PlatformHostContext = {
   hostname: string | null;
   tenantSlug: string | null;
   portalSubdomain: string | null;
+  portalCanonicalPrefix: string | null;
+  portalPath: string | null;
+  portalLoginPath: string | null;
+  portalIsAlias: boolean;
   isCentralHost: boolean;
   isTenantHost: boolean;
   hasHostConfig: boolean;
@@ -124,18 +128,46 @@ function parseRootHosts(value: NullableString): string[] {
 function getPortalAndTenantForHost(
   hostname: string | null,
   rootDomain: string | null,
-): { tenantSlug: string | null; portalSubdomain: string | null } {
+): {
+  tenantSlug: string | null;
+  portalSubdomain: string | null;
+  portalCanonicalPrefix: string | null;
+  portalPath: string | null;
+  portalLoginPath: string | null;
+  portalIsAlias: boolean;
+} {
   if (!hostname || !rootDomain) {
-    return { tenantSlug: null, portalSubdomain: null };
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
   }
 
   if (hostname === rootDomain) {
-    return { tenantSlug: null, portalSubdomain: null };
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
   }
 
   const suffix = `.${rootDomain}`;
   if (!hostname.endsWith(suffix)) {
-    return { tenantSlug: null, portalSubdomain: null };
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
   }
 
   const prefix = hostname.slice(0, -suffix.length);
@@ -144,27 +176,71 @@ function getPortalAndTenantForHost(
   if (segments.length === 1) {
     const slug = segments[0]?.trim().toLowerCase() ?? "";
     if (!slug || !TENANT_SLUG_PATTERN.test(slug)) {
-      return { tenantSlug: null, portalSubdomain: null };
+      return {
+        tenantSlug: null,
+        portalSubdomain: null,
+        portalCanonicalPrefix: null,
+        portalPath: null,
+        portalLoginPath: null,
+        portalIsAlias: false,
+      };
     }
-    if (slug in PORTAL_SUBDOMAIN_MAP) {
-      return { tenantSlug: null, portalSubdomain: slug };
+    const portalDescriptor = getPortalHostDescriptorByPrefix(slug);
+    if (portalDescriptor) {
+      return {
+        tenantSlug: null,
+        portalSubdomain: slug,
+        portalCanonicalPrefix: portalDescriptor.canonicalPrefix,
+        portalPath: portalDescriptor.portalPath,
+        portalLoginPath: portalDescriptor.loginPath,
+        portalIsAlias: isPortalAliasPrefix(slug, portalDescriptor),
+      };
     }
-    return { tenantSlug: slug, portalSubdomain: null };
+    return {
+      tenantSlug: slug,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
   }
 
   if (segments.length === 2) {
     const first = segments[0]?.trim().toLowerCase() ?? "";
     const second = segments[1]?.trim().toLowerCase() ?? "";
-    if (first in PORTAL_SUBDOMAIN_MAP && second && TENANT_SLUG_PATTERN.test(second)) {
-      return { tenantSlug: second, portalSubdomain: first };
+    const portalDescriptor = getPortalHostDescriptorByPrefix(first);
+    if (portalDescriptor && second && TENANT_SLUG_PATTERN.test(second)) {
+      return {
+        tenantSlug: second,
+        portalSubdomain: first,
+        portalCanonicalPrefix: portalDescriptor.canonicalPrefix,
+        portalPath: portalDescriptor.portalPath,
+        portalLoginPath: portalDescriptor.loginPath,
+        portalIsAlias: isPortalAliasPrefix(first, portalDescriptor),
+      };
     }
   }
 
   const tenantSlug = segments[0]?.trim().toLowerCase() ?? "";
   if (!tenantSlug || !TENANT_SLUG_PATTERN.test(tenantSlug)) {
-    return { tenantSlug: null, portalSubdomain: null };
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
   }
-  return { tenantSlug, portalSubdomain: null };
+  return {
+    tenantSlug,
+    portalSubdomain: null,
+    portalCanonicalPrefix: null,
+    portalPath: null,
+    portalLoginPath: null,
+    portalIsAlias: false,
+  };
 }
 
 export function getPlatformHostContext(hostHeader: NullableString): PlatformHostContext {
@@ -193,13 +269,24 @@ export function getPlatformHostContext(hostHeader: NullableString): PlatformHost
       (hostname !== null && centralHosts.has(hostname)))
   );
 
-  const { tenantSlug, portalSubdomain } = getPortalAndTenantForHost(hostname, rootDomain || null);
+  const {
+    tenantSlug,
+    portalSubdomain,
+    portalCanonicalPrefix,
+    portalPath,
+    portalLoginPath,
+    portalIsAlias,
+  } = getPortalAndTenantForHost(hostname, rootDomain || null);
 
   return {
     host: host || null,
     hostname,
     tenantSlug,
     portalSubdomain,
+    portalCanonicalPrefix,
+    portalPath,
+    portalLoginPath,
+    portalIsAlias,
     isCentralHost,
     isTenantHost: Boolean(tenantSlug),
     hasHostConfig,
@@ -586,16 +673,22 @@ export async function getAllowedHostsForCompany(companyId: string): Promise<stri
     rootDomain && claims.companySlug
       ? `${claims.companySlug.trim().toLowerCase()}.${rootDomain}`
       : null;
+  const portalHosts =
+    rootDomain && claims.companySlug
+      ? getPortalHostPrefixes({ includeAliases: true }).map((prefix) =>
+          buildPortalHost(prefix, claims.companySlug!, rootDomain),
+        )
+      : [];
 
   const companyDomainTableExists = await tableExists("CompanyDomain");
   if (!companyDomainTableExists) {
-    return uniqueNonEmpty([subdomainHost]);
+    return uniqueNonEmpty([subdomainHost, ...portalHosts]);
   }
 
   const hasHostnameColumn = await tableColumnExists("CompanyDomain", "hostname");
   const hasStatusColumn = await tableColumnExists("CompanyDomain", "status");
   if (!hasHostnameColumn || !hasStatusColumn) {
-    return uniqueNonEmpty([subdomainHost]);
+    return uniqueNonEmpty([subdomainHost, ...portalHosts]);
   }
 
   try {
@@ -610,10 +703,48 @@ export async function getAllowedHostsForCompany(companyId: string): Promise<stri
       normalizedCompanyId,
     );
     const domainHosts = domains.map((row) => row.hostname ?? null);
-    return uniqueNonEmpty([subdomainHost, ...domainHosts]);
+    return uniqueNonEmpty([subdomainHost, ...portalHosts, ...domainHosts]);
   } catch {
-    return uniqueNonEmpty([subdomainHost]);
+    return uniqueNonEmpty([subdomainHost, ...portalHosts]);
   }
+}
+
+export function getPortalRequestRouting(
+  hostHeader: NullableString,
+  portalPath: "/portal/student" | "/portal/parent" | "/portal/teacher" | "/portal/pos",
+): {
+  homePath: string;
+  loginPath: string;
+  callbackPath: string;
+  isPortalHost: boolean;
+} {
+  const descriptor = getPortalHostDescriptorByPath(portalPath);
+  if (!descriptor) {
+    return {
+      homePath: portalPath,
+      loginPath: `${portalPath}/login`,
+      callbackPath: portalPath,
+      isPortalHost: false,
+    };
+  }
+
+  const hostContext = getPlatformHostContext(hostHeader);
+  const isPortalHost = hostContext.portalPath === descriptor.portalPath && Boolean(hostContext.tenantSlug);
+  if (isPortalHost) {
+    return {
+      homePath: "/",
+      loginPath: "/login",
+      callbackPath: "/",
+      isPortalHost: true,
+    };
+  }
+
+  return {
+    homePath: descriptor.portalPath,
+    loginPath: descriptor.loginPath,
+    callbackPath: descriptor.portalPath,
+    isPortalHost: false,
+  };
 }
 
 export function isAllowedHost(hostHeader: NullableString, allowedHosts: string[] | undefined): boolean {

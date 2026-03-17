@@ -6,8 +6,13 @@ import {
   getPlatformHostContext,
   isAllowedHost,
   isTenantStatusActive,
-  PORTAL_SUBDOMAIN_MAP,
 } from "@/lib/platform/tenant";
+import {
+  buildPortalHost,
+  getPortalHostDescriptorByPath,
+  getPortalInternalPathForPublicPath,
+  getPortalPublicPathForInternalPath,
+} from "@/lib/platform/portal-hosts";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
@@ -95,6 +100,12 @@ function redirectToPath(request: NextRequestWithAuth, pathname: string) {
   return NextResponse.redirect(redirectUrl);
 }
 
+function redirectToPathPreserveSearch(request: NextRequestWithAuth, pathname: string) {
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = pathname;
+  return NextResponse.redirect(redirectUrl);
+}
+
 function redirectToLoginWithCallback(request: NextRequestWithAuth, loginPath: string) {
   return NextResponse.redirect(
     new URL(buildCallbackLoginPath(loginPath, `${request.nextUrl.pathname}${request.nextUrl.search}`), request.url),
@@ -109,6 +120,17 @@ function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string)
 
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.hostname = `${companySlug}.${rootDomain}`;
+  return NextResponse.redirect(redirectUrl);
+}
+
+function redirectToPortalHost(request: NextRequestWithAuth, tenantSlug: string, portalPrefix: string) {
+  const rootDomain = getRootDomain();
+  if (!rootDomain) {
+    return NextResponse.next();
+  }
+
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.hostname = buildPortalHost(portalPrefix, tenantSlug, rootDomain);
   return NextResponse.redirect(redirectUrl);
 }
 
@@ -184,6 +206,10 @@ export default withAuth(
         return redirectToPath(request, ADMIN_LOGIN_PATH);
       }
 
+      if (pathname === ADMIN_LOGIN_PATH) {
+        return NextResponse.next();
+      }
+
       const canonicalAdminPath = toExternalAdminPath(pathname);
       if (canonicalAdminPath) {
         return redirectToPath(request, canonicalAdminPath);
@@ -200,6 +226,38 @@ export default withAuth(
       }
 
       return redirectToPath(request, ADMIN_BASE_PATH);
+    }
+
+    if (hostContext.portalPath && !isApiRequest) {
+      if (!hostContext.tenantSlug) {
+        return redirectToAccessBlocked(request);
+      }
+
+      if (hostContext.portalIsAlias && hostContext.portalCanonicalPrefix) {
+        return redirectToPortalHost(request, hostContext.tenantSlug, hostContext.portalCanonicalPrefix);
+      }
+
+      const portalDescriptor = getPortalHostDescriptorByPath(hostContext.portalPath);
+      if (!portalDescriptor) {
+        return redirectToAccessBlocked(request);
+      }
+
+      const publicPortalPath = getPortalPublicPathForInternalPath(pathname, portalDescriptor);
+      if (publicPortalPath) {
+        return redirectToPathPreserveSearch(request, publicPortalPath);
+      }
+
+      if (!token && pathname !== LOGIN_PATH) {
+        return redirectToLoginWithCallback(request, LOGIN_PATH);
+      }
+
+      if (token && pathname === LOGIN_PATH) {
+        return redirectToPath(request, "/");
+      }
+
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = getPortalInternalPathForPublicPath(pathname, portalDescriptor);
+      return NextResponse.rewrite(rewriteUrl);
     }
 
     if (!isApiRequest && portalBasePath && !token) {
@@ -223,22 +281,6 @@ export default withAuth(
 
     if (!isApiRequest && portalBasePath && pathname === `${portalBasePath}/login`) {
       return NextResponse.next();
-    }
-
-    if (hostContext.portalSubdomain && !isApiRequest) {
-      const portalPath = PORTAL_SUBDOMAIN_MAP[hostContext.portalSubdomain];
-      if (portalPath) {
-        if (pathname === LOGIN_PATH) {
-          const rewriteUrl = request.nextUrl.clone();
-          rewriteUrl.pathname = portalPath + "/login";
-          return NextResponse.rewrite(rewriteUrl);
-        }
-        if (pathname !== portalPath && !pathname.startsWith(portalPath + "/")) {
-          const rewriteUrl = request.nextUrl.clone();
-          rewriteUrl.pathname = portalPath;
-          return NextResponse.rewrite(rewriteUrl);
-        }
-      }
     }
 
     if (pathname === LOGIN_PATH) {
@@ -320,8 +362,13 @@ export default withAuth(
         const hostHeader = getHostHeaderFromRequestHeaders(req.headers);
         const resolvedHost = hostHeader || req.nextUrl.host || null;
         const typedToken = token as PlatformToken | null;
+        const hostContext = getPlatformHostContext(resolvedHost);
 
         if (isAdminPortalHost(resolvedHost)) {
+          return true;
+        }
+
+        if (hostContext.portalPath) {
           return true;
         }
 
