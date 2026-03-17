@@ -51,14 +51,35 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-function hasActiveHref(href: string, pathname: string, view: string | null) {
+function matchesNavHref(href: string, pathname: string, view: string | null) {
   if (href === "/") return pathname === "/";
-  if (!href.includes("?")) return pathname === href;
   const [path, query] = href.split("?");
-  if (pathname !== path) return false;
+  const pathMatches = query
+    ? pathname === path
+    : pathname === path || pathname.startsWith(`${path}/`);
+
+  if (!pathMatches) return false;
+  if (!query) return true;
+
   const params = new URLSearchParams(query);
   const expectedView = params.get("view");
   return expectedView ? expectedView === view : true;
+}
+
+function getActiveNavHref(sections: NavSection[], pathname: string, view: string | null) {
+  const candidates = sections
+    .flatMap((section) => section.items)
+    .filter((item) => matchesNavHref(item.href, pathname, view))
+    .map((item) => {
+      const [path, query] = item.href.split("?");
+      return {
+        href: item.href,
+        score: path.length + (query ? 1000 : 0),
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0]?.href ?? null;
 }
 
 function getInitials(name: string | null | undefined) {
@@ -136,12 +157,23 @@ export function AppSidebar() {
     () => sidebarModel.supportItems,
     [sidebarModel.supportItems],
   );
+  const activeHref = React.useMemo(
+    () => getActiveNavHref(orderedSections, pathname, view),
+    [orderedSections, pathname, view],
+  );
   const activeSectionId = React.useMemo(
     () =>
       orderedSections.find((section) =>
-        section.items.some((item) => hasActiveHref(item.href, pathname, view)),
+        section.items.some((item) => item.href === activeHref),
       )?.id ?? null,
-    [orderedSections, pathname, view],
+    [activeHref, orderedSections],
+  );
+  const homeHrefExistsInSections = React.useMemo(
+    () =>
+      orderedSections.some((section) =>
+        section.items.some((item) => item.href === sidebarModel.homeHref),
+      ),
+    [orderedSections, sidebarModel.homeHref],
   );
   const [openSectionId, setOpenSectionId] = React.useState<string | null>(
     activeSectionId,
@@ -163,9 +195,7 @@ export function AppSidebar() {
   const renderSection = (section: (typeof orderedSections)[number]) => {
     const SectionIcon = getSectionIcon(section);
     const isOpen = openSectionId === section.id;
-    const hasActiveChild = section.items.some((item) =>
-      hasActiveHref(item.href, pathname, view),
-    );
+    const hasActiveChild = section.items.some((item) => item.href === activeHref);
 
     return (
       <SidebarGroup key={section.id} className="space-y-1">
@@ -202,7 +232,7 @@ export function AppSidebar() {
           <SidebarGroupContent className="pl-4 pr-1">
             <SidebarMenu className="pl-2">
               {section.items.map((item) => {
-                const isActive = hasActiveHref(item.href, pathname, view);
+                const isActive = item.href === activeHref;
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
@@ -233,7 +263,7 @@ export function AppSidebar() {
         <SidebarGroupContent>
           <SidebarMenu>
             {section.items.map((item) => {
-              const isActive = hasActiveHref(item.href, pathname, view);
+              const isActive = item.href === activeHref;
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
@@ -355,7 +385,7 @@ export function AppSidebar() {
                         <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {sidebarModel.quickActions.map((item) => {
-                          const isActive = hasActiveHref(
+                          const isActive = matchesNavHref(
                             item.href,
                             pathname,
                             view,
@@ -384,29 +414,43 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
           ) : null}
+          {!isCollapsed ? (
+            <div className="px-2 pt-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {sidebarModel.workspaceLabel}
+              </p>
+            </div>
+          ) : null}
         </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === sidebarModel.homeHref}
-                  tooltip={sidebarModel.homeLabel}
-                  className="h-9 font-semibold"
-                >
-                  <Link href={sidebarModel.homeHref}>
-                    <Home className="h-4 w-4" />
-                    <span className="font-semibold">{sidebarModel.homeLabel}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {!homeHrefExistsInSections ? (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={
+                      pathname === sidebarModel.homeHref &&
+                      !orderedSections.some((section) =>
+                        section.items.some((item) => item.href === activeHref),
+                      )
+                    }
+                    tooltip={sidebarModel.homeLabel}
+                    className="h-9 font-semibold"
+                  >
+                    <Link href={sidebarModel.homeHref}>
+                      <Home className="h-4 w-4" />
+                      <span className="font-semibold">{sidebarModel.homeLabel}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
 
         {primarySections.length > 0 ? (
           <SidebarGroup className="mb-0.5">
@@ -463,7 +507,7 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 {secondaryItems.map((item) => {
-                  const isActive = hasActiveHref(item.href, pathname, view);
+                  const isActive = matchesNavHref(item.href, pathname, view);
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton

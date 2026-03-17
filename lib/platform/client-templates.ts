@@ -1,4 +1,8 @@
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS } from "./feature-catalog";
+import {
+  getVerticalProductBundleForTemplate,
+  type VerticalProductId,
+} from "@/lib/workspace-products";
 
 export interface ClientBundleTemplateDefinition {
   code: string;
@@ -8,6 +12,7 @@ export interface ClientBundleTemplateDefinition {
   recommendedTierCode: string;
   bundleCodes: string[];
   featureKeys: string[];
+  verticalProductId: VerticalProductId;
   disabledFeatureKeys?: string[];
   includeAllFeatures?: boolean;
 }
@@ -17,48 +22,53 @@ const allBundleCodes = FEATURE_BUNDLES.map((bundle) => bundle.code);
 export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_CORE_STARTER",
-    label: "Core Starter",
-    description: "Baseline ERP setup for smaller operators.",
+    label: "General Business Starter",
+    description: "Shared finance, stock, people, and operating controls for growing businesses.",
     targetClients: ["Small company", "Starter operations"],
     recommendedTierCode: "BASIC",
     bundleCodes: [],
     featureKeys: [],
+    verticalProductId: "general-business",
   },
   {
     code: "TEMPLATE_GOLD_MINE",
     label: "Gold Mine Operations",
-    description: "Gold-focused stack with compliance, maintenance, and analytics depth.",
+    description: "Gold production, settlement, controls, and reporting for mining and mineral-buying operations.",
     targetClients: ["Gold mine", "Mineral processing operation"],
     recommendedTierCode: "ENTERPRISE",
     bundleCodes: ["ADDON_GOLD_ADVANCED", "ADDON_COMPLIANCE_PRO", "ADDON_MAINTENANCE_PRO", "ADDON_ANALYTICS_PRO"],
     featureKeys: [],
+    verticalProductId: "gold-operations",
   },
   {
     code: "TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK",
-    label: "Small Business Security + Stock",
-    description: "HR + CCTV + stock + fuel monitoring for smaller multi-site teams.",
+    label: "Multi-Site Operations",
+    description: "People, stock, CCTV, and fuel controls for smaller companies operating across several sites.",
     targetClients: ["Shops", "SMEs", "Small multi-site company"],
     recommendedTierCode: "STANDARD",
     bundleCodes: ["ADDON_CCTV_SUITE", "ADDON_ANALYTICS_PRO"],
     featureKeys: [],
+    verticalProductId: "multi-site-operations",
   },
   {
     code: "TEMPLATE_TECH_WORKSHOP",
-    label: "Mechanics / Technician Workshop",
-    description: "Stock + maintenance + HR workflows with payroll depth.",
+    label: "Service Workshop",
+    description: "Parts, maintenance, payroll, and job operations for workshop and technician businesses.",
     targetClients: ["Mechanic workshop", "Technician services", "Engineering workshop"],
     recommendedTierCode: "STANDARD",
     bundleCodes: ["ADDON_MAINTENANCE_PRO", "ADDON_ADVANCED_PAYROLL"],
     featureKeys: [],
+    verticalProductId: "service-workshop",
   },
   {
     code: "TEMPLATE_SCRAP_METAL",
-    label: "Scrap Metal Operations",
-    description: "Purpose-built scrap buying, batching, settlements, and sales workspace.",
+    label: "Scrap & Recycling",
+    description: "Scrap buying, pricing, batching, settlements, and sales for recyclers and scrap traders.",
     targetClients: ["Scrap yards", "Metal recyclers", "Industrial scrap traders"],
     recommendedTierCode: "STANDARD",
     bundleCodes: ["ADDON_SCRAP_METAL_SUITE", "ADDON_ADVANCED_PAYROLL", "ADDON_ANALYTICS_PRO"],
     featureKeys: [],
+    verticalProductId: "scrap-recycling",
     disabledFeatureKeys: [
       "gold.home",
       "gold.intake.pours",
@@ -79,11 +89,12 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_SCHOOLS",
     label: "School Operations",
-    description: "Purpose-built school management workspace with admin and portal workflows.",
+    description: "Student, teacher, academics, boarding, finance, and portal workflows for schools.",
     targetClients: ["Schools", "Training institutions", "Education operators"],
     recommendedTierCode: "BASIC",
     bundleCodes: ["ADDON_SCHOOLS_SUITE", "ADDON_PORTAL_SUITE"],
     featureKeys: [],
+    verticalProductId: "school-operations",
     disabledFeatureKeys: [
       "ops.shift-report.submit",
       "ops.attendance.mark",
@@ -163,31 +174,34 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_CAR_SALES",
     label: "Auto Sales",
-    description: "Purpose-built auto sales workspace for leads, inventory, and deal execution.",
+    description: "Leads, vehicle inventory, financing, and deal execution for dealerships and traders.",
     targetClients: ["Car dealerships", "Vehicle traders", "Auto sales operators"],
     recommendedTierCode: "BASIC",
     bundleCodes: ["ADDON_AUTOS_SUITE", "ADDON_PORTAL_SUITE"],
     featureKeys: [],
+    verticalProductId: "auto-sales",
     disabledFeatureKeys: ["schools.core", "thrift.core", "portal.schools", "portal.thrift"],
   },
   {
     code: "TEMPLATE_THRIFT",
-    label: "Smart Shop",
-    description: "Purpose-built shop workspace for intake, catalog, sales, and POS touchpoints.",
+    label: "Retail & Thrift",
+    description: "Intake, cataloging, sales, and POS workflows for thrift, resale, and shop operators.",
     targetClients: ["Small retailers", "Second-hand retail", "Resale marketplaces"],
     recommendedTierCode: "BASIC",
     bundleCodes: ["ADDON_THRIFT_SUITE", "ADDON_PORTAL_SUITE"],
     featureKeys: [],
+    verticalProductId: "retail-thrift",
     disabledFeatureKeys: ["schools.core", "autos.core", "portal.schools", "portal.autos"],
   },
   {
     code: "TEMPLATE_ALL_FEATURES",
     label: "All Features",
-    description: "Enable every feature in the platform catalog.",
+    description: "Enable every feature in the platform catalog for complex or custom enterprise estates.",
     targetClients: ["Power users", "Large operators", "Custom enterprise tenants"],
     recommendedTierCode: "ENTERPRISE",
     bundleCodes: allBundleCodes,
     featureKeys: [],
+    verticalProductId: "general-business",
     includeAllFeatures: true,
   },
 ];
@@ -318,4 +332,12 @@ export function getClientTemplateWorkspaceProfile(code: string | null | undefine
     default:
       return null;
   }
+}
+
+export function getClientTemplateVerticalProductId(code: string | null | undefined): VerticalProductId | null {
+  return getClientTemplateDefinition(code)?.verticalProductId ?? null;
+}
+
+export function getClientTemplateVerticalProductLabel(code: string | null | undefined): string | null {
+  return getVerticalProductBundleForTemplate(code)?.label ?? null;
 }

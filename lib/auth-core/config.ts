@@ -15,6 +15,10 @@ export type AuthRuntimeConfig = {
 const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
 let didValidateAuthConfiguration = false;
 
+function isProductionBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === "phase-production-build" || process.env.npm_lifecycle_event === "build";
+}
+
 export function getAuthRuntimeConfig(): AuthRuntimeConfig {
   return {
     nextAuthSecret: process.env.NEXTAUTH_SECRET?.trim() || "",
@@ -48,7 +52,7 @@ export function validateAuthConfiguration(): void {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!config.nextAuthSecret) {
+  if (!config.nextAuthSecret && !isProductionBuildPhase()) {
     errors.push("NEXTAUTH_SECRET is required.");
   }
 

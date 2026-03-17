@@ -18,6 +18,7 @@ import {
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 export type CCTVTab =
   | "overview"
@@ -57,13 +58,23 @@ export function CCTVShell({
   activeTab,
   actions,
   children,
-  title = "CCTV Surveillance",
-  description = "Monitor cameras, review security events, and control live streams across sites.",
+  title,
+  description,
 }: CCTVShellProps) {
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "cctv",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
     () => filterHrefItemsByEnabledFeatures(cctvTabs, enabledFeatures),
@@ -74,9 +85,9 @@ export function CCTVShell({
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading
-        title={title}
-        description={description}
-        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+        title={title ?? modulePresentation.title}
+        description={description ?? modulePresentation.description}
+        className="mb-4"
       />
 
       <nav

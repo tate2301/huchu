@@ -10,6 +10,7 @@ import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filt
 import { cn } from "@/lib/utils";
 import { Fuel, History, Home, Minus, Package, Plus } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 export type StoresTab =
   | "dashboard"
@@ -47,8 +48,8 @@ export function StoresShell({
   activeTab,
   actions,
   children,
-  title = "Stores & Fuel Management",
-  description = "Inventory tracking and fuel ledger",
+  title,
+  description,
 }: StoresShellProps) {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -56,6 +57,16 @@ export function StoresShell({
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "stores",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
     () => filterHrefItemsByEnabledFeatures(storesTabs, enabledFeatures),
@@ -73,9 +84,9 @@ export function StoresShell({
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading
-        title={title}
-        description={description}
-        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+        title={title ?? modulePresentation.title}
+        description={description ?? modulePresentation.description}
+        className="mb-4"
       />
 
       <nav
@@ -98,7 +109,7 @@ export function StoresShell({
               )}
             >
               <tab.icon className="h-4 w-4" />
-              <span className="ml-2">{tab.label}</span>
+              <span className="ml-2">{modulePresentation.tabLabels?.[tab.id] ?? tab.label}</span>
             </Link>
           );
         })}

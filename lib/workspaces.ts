@@ -5,6 +5,13 @@ import { getNavSectionsForRole } from "@/lib/navigation";
 import { filterHrefItemsByEnabledFeatures, filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { hasRole, type UserRole } from "@/lib/roles";
 import {
+  resolveWorkspaceVerticalProductBundle,
+  type VerticalProductBundleDefinition,
+  WORKSPACE_PROFILES,
+  type WorkspaceModuleId,
+  type WorkspaceProfile,
+} from "@/lib/workspace-products";
+import {
   Building2,
   Calendar,
   Coins,
@@ -20,30 +27,10 @@ import {
 } from "@/lib/icons";
 import { managementModuleItems } from "@/lib/settings/management-nav";
 
-export const WORKSPACE_PROFILES = [
-  "GOLD_MINE",
-  "SCRAP_METAL",
-  "SCHOOLS",
-  "AUTOS",
-  "THRIFT",
-  "GENERAL",
-] as const;
+export { WORKSPACE_PROFILES };
+export type { WorkspaceModuleId, WorkspaceProfile };
 
-export type WorkspaceProfile = (typeof WORKSPACE_PROFILES)[number];
 export type WorkspaceSectionGroup = "primary" | "additional";
-export type WorkspaceModuleId =
-  | "gold"
-  | "scrap-metal"
-  | "schools"
-  | "car-sales"
-  | "thrift"
-  | "hr"
-  | "stores"
-  | "maintenance"
-  | "reporting"
-  | "cctv"
-  | "accounting"
-  | "management";
 
 export type WorkspaceNavSection = NavSection & {
   workspaceGroup?: WorkspaceSectionGroup;
@@ -142,7 +129,7 @@ function createSectionModule(args: {
 const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = {
   gold: createSectionModule({
     id: "gold",
-    label: "Gold Control",
+    label: "Gold Operations",
     sectionId: "gold",
     homeHref: "/gold",
   }),
@@ -166,7 +153,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
   }),
   thrift: createSectionModule({
     id: "thrift",
-    label: "Smart Shop",
+    label: "Retail & Thrift",
     sectionId: "thrift",
     homeHref: "/thrift",
   }),
@@ -178,13 +165,13 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
   }),
   stores: createSectionModule({
     id: "stores",
-    label: "Stock",
+    label: "Stores & Inventory",
     sectionId: "stores",
     homeHref: "/stores/dashboard",
   }),
   maintenance: createSectionModule({
     id: "maintenance",
-    label: "Assets",
+    label: "Maintenance & Assets",
     sectionId: "maintenance",
     homeHref: "/maintenance",
   }),
@@ -228,7 +215,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
 
 const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe> = {
   GOLD_MINE: {
-    label: "Gold Mine",
+    label: "Gold Operations",
     preferredHomeHref: "/gold",
     quickActions: [
       roleItem("/gold/intake/pours/new", "Log Gold Output", Payments, ["SUPERADMIN", "MANAGER"]),
@@ -240,7 +227,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     sections: [
       {
         id: "gold-operations",
-        title: "Operations",
+        title: "Production",
         refs: [
           { moduleId: "gold", href: "/gold" },
           { moduleId: "gold", href: "/gold/intake/pours/new" },
@@ -249,7 +236,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
       {
         id: "gold-chain",
-        title: "Transit & Settlement",
+        title: "Movement & Settlement",
         refs: [
           { moduleId: "gold", href: "/gold/transit/dispatches/new" },
           { moduleId: "gold", href: "/gold/settlement/receipts/new" },
@@ -258,7 +245,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
       {
         id: "gold-control",
-        title: "Control Room",
+        title: "Insights",
         refs: [
           { moduleId: "reporting", href: "/reports/gold-chain" },
           { moduleId: "reporting", href: "/reports/gold-receipts" },
@@ -267,7 +254,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     ],
   },
   SCRAP_METAL: {
-    label: "Scrap Metal",
+    label: "Scrap & Recycling",
     preferredHomeHref: "/scrap-metal",
     quickActions: [
       roleItem("/scrap-metal/purchases", "Record Purchase", Payments),
@@ -278,7 +265,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     sections: [
       {
         id: "scrap-buying",
-        title: "Buying",
+        title: "Buying Floor",
         refs: [
           { moduleId: "scrap-metal", href: "/scrap-metal" },
           { moduleId: "scrap-metal", href: "/scrap-metal/purchases" },
@@ -287,7 +274,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
       {
         id: "scrap-yard",
-        title: "Yard & Batches",
+        title: "Yard Operations",
         refs: [
           { moduleId: "scrap-metal", href: "/scrap-metal/batches" },
           { moduleId: "reporting", href: "/reports" },
@@ -310,7 +297,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     ],
   },
   SCHOOLS: {
-    label: "Schools",
+    label: "School Operations",
     preferredHomeHref: "/schools",
     quickActions: [
       roleItem("/schools/admissions", "Admissions", Building2),
@@ -321,7 +308,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     sections: [
       {
         id: "schools-campus",
-        title: "Campus",
+        title: "Campus Operations",
         refs: [
           { moduleId: "schools", href: "/schools" },
           { moduleId: "schools", href: "/schools/students" },
@@ -341,7 +328,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
       {
         id: "schools-admin",
-        title: "Operations",
+        title: "Administration",
         refs: [
           { moduleId: "schools", href: "/schools/admissions" },
           { moduleId: "schools", href: "/schools/attendance" },
@@ -381,7 +368,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     ],
   },
   THRIFT: {
-    label: "Smart Shop",
+    label: "Retail & Thrift",
     preferredHomeHref: "/thrift",
     quickActions: [
       roleItem("/thrift/intake", "Intake", Package),
@@ -392,7 +379,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     sections: [
       {
         id: "thrift-floor",
-        title: "Floor",
+        title: "Shop Floor",
         refs: [
           { moduleId: "thrift", href: "/thrift" },
           { moduleId: "thrift", href: "/thrift/intake" },
@@ -401,7 +388,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
       {
         id: "thrift-commerce",
-        title: "Commerce",
+        title: "Sales Channels",
         refs: [
           { moduleId: "thrift", href: "/thrift/sales" },
           { moduleId: "thrift", href: "/portal/pos" },
@@ -410,7 +397,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     ],
   },
   GENERAL: {
-    label: "Operations",
+    label: "General Business",
     preferredHomeHref: null,
     quickActions: [],
     nativeModules: [...WORKSPACE_MODULE_ORDER],
@@ -499,12 +486,34 @@ function buildProfileSections(
     .filter((section) => section.items.length > 0);
 }
 
+function getOrderedModuleIds(verticalProduct: VerticalProductBundleDefinition): WorkspaceModuleId[] {
+  const seen = new Set<WorkspaceModuleId>();
+  const ordered: WorkspaceModuleId[] = [];
+
+  for (const moduleId of [
+    ...verticalProduct.primaryModules,
+    ...verticalProduct.foundationalModules,
+    ...WORKSPACE_MODULE_ORDER,
+  ]) {
+    if (seen.has(moduleId)) continue;
+    seen.add(moduleId);
+    ordered.push(moduleId);
+  }
+
+  return ordered;
+}
+
+function collectSectionHrefs(sections: WorkspaceNavSection[]): Set<string> {
+  return new Set(sections.flatMap((section) => section.items.map((item) => item.href)));
+}
+
 function buildModuleSection(
   moduleId: WorkspaceModuleId,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
   workspaceGroup: WorkspaceSectionGroup,
+  excludedHrefs?: Set<string>,
 ): WorkspaceNavSection | null {
-  const items = visibleModules.get(moduleId) ?? [];
+  const items = (visibleModules.get(moduleId) ?? []).filter((item) => !excludedHrefs?.has(item.href));
   if (items.length === 0) return null;
 
   return {
@@ -515,46 +524,58 @@ function buildModuleSection(
   };
 }
 
-function buildGeneralSections(visibleModules: Map<WorkspaceModuleId, NavItem[]>): WorkspaceNavSection[] {
-  return WORKSPACE_MODULE_ORDER
+function buildGeneralSections(
+  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  verticalProduct: VerticalProductBundleDefinition,
+): WorkspaceNavSection[] {
+  return getOrderedModuleIds(verticalProduct)
     .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary"))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
 
 function buildCanonicalCoreSections(
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  excludedHrefs: Set<string>,
+  verticalProduct: VerticalProductBundleDefinition,
 ): WorkspaceNavSection[] {
-  return CANONICAL_MODULE_IDS
-    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary"))
+  return getOrderedModuleIds(verticalProduct)
+    .filter((moduleId): moduleId is WorkspaceModuleId => CANONICAL_MODULE_IDS.includes(moduleId))
+    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary", excludedHrefs))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
 
 function buildAdditionalSections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  excludedHrefs: Set<string>,
+  verticalProduct: VerticalProductBundleDefinition,
 ): WorkspaceNavSection[] {
-  return WORKSPACE_MODULE_ORDER
+  return getOrderedModuleIds(verticalProduct)
     .filter(
       (moduleId) =>
         !recipe.nativeModules.includes(moduleId) &&
         !CANONICAL_MODULE_IDS.includes(moduleId) &&
         visibleModules.has(moduleId),
     )
-    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "additional"))
+    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "additional", excludedHrefs))
     .filter((section): section is WorkspaceNavSection => section !== null);
 }
 
 function getPrimarySections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  verticalProduct: VerticalProductBundleDefinition,
 ): WorkspaceNavSection[] {
   if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
-    return buildGeneralSections(visibleModules);
+    return buildGeneralSections(visibleModules, verticalProduct);
   }
 
+  const profileSections = buildProfileSections(recipe, visibleModules);
+  const usedHrefs = collectSectionHrefs(profileSections);
+
   return [
-    ...buildProfileSections(recipe, visibleModules),
-    ...buildCanonicalCoreSections(visibleModules),
+    ...profileSections,
+    ...buildCanonicalCoreSections(visibleModules, usedHrefs, verticalProduct),
   ];
 }
 
@@ -591,9 +612,14 @@ function getHomeTarget(args: {
   context: WorkspaceBuildContext;
   sections: WorkspaceNavSection[];
 }): { href: string; label: string } {
+  const verticalProduct = resolveWorkspaceVerticalProductBundle({
+    enabledFeatures: args.context.enabledFeatures,
+    workspaceProfile: args.context.workspaceProfile,
+  });
   const visibleItems = flattenVisibleItems(args.sections);
-  const preferredItem = args.recipe.preferredHomeHref
-    ? visibleItems.find((item) => item.href === args.recipe.preferredHomeHref) ?? null
+  const preferredHomeHref = verticalProduct.preferredHomeHref ?? args.recipe.preferredHomeHref;
+  const preferredItem = preferredHomeHref
+    ? visibleItems.find((item) => item.href === preferredHomeHref) ?? null
     : null;
   const generalDashboardItem =
     args.recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
@@ -608,7 +634,12 @@ function getHomeTarget(args: {
 }
 
 export function getWorkspaceHomeHref(profile: string | null | undefined): string {
-  return WORKSPACE_PROFILE_RECIPES[normalizeWorkspaceProfile(profile)].preferredHomeHref ?? "/dashboard";
+  return resolveWorkspaceVerticalProductBundle({
+    enabledFeatures: undefined,
+    workspaceProfile: profile,
+  }).preferredHomeHref
+    ?? WORKSPACE_PROFILE_RECIPES[normalizeWorkspaceProfile(profile)].preferredHomeHref
+    ?? "/dashboard";
 }
 
 export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
@@ -618,12 +649,17 @@ export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
   const profile = normalizeWorkspaceProfile(args.workspaceProfile);
   const recipe = WORKSPACE_PROFILE_RECIPES[profile];
+  const verticalProduct = resolveWorkspaceVerticalProductBundle({
+    enabledFeatures: args.enabledFeatures,
+    workspaceProfile: args.workspaceProfile,
+  });
   const context = buildContext(args);
   const visibleModules = getVisibleModules(context);
-  const primarySections = getPrimarySections(recipe, visibleModules);
+  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct);
+  const usedPrimaryHrefs = collectSectionHrefs(primarySections);
   const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
     ? []
-    : buildAdditionalSections(recipe, visibleModules);
+    : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
   const sections = [...primarySections, ...additionalSections];
   const homeTarget = getHomeTarget({
     recipe,
@@ -634,7 +670,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   return {
     homeHref: homeTarget.href,
     homeLabel: homeTarget.label,
-    workspaceLabel: recipe.label,
+    workspaceLabel: verticalProduct.workspaceLabel || recipe.label,
     quickActions: getQuickActions(context, recipe),
     sections,
     supportItems: getSupportItems(context),

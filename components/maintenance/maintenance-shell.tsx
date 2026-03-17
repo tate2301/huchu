@@ -7,6 +7,7 @@ import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { cn } from "@/lib/utils";
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 import {
   Calendar,
   ClipboardList,
@@ -70,13 +71,23 @@ export function MaintenanceShell({
   activeTab,
   actions,
   children,
-  title = "Maintenance Management",
-  description = "Equipment tracking and work orders",
+  title,
+  description,
 }: MaintenanceShellProps) {
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "maintenance",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
     () => filterHrefItemsByEnabledFeatures(maintenanceTabs, enabledFeatures),
@@ -87,9 +98,9 @@ export function MaintenanceShell({
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading
-        title={title}
-        description={description}
-        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+        title={title ?? modulePresentation.title}
+        description={description ?? modulePresentation.description}
+        className="mb-4"
       />
 
       <nav
@@ -112,7 +123,7 @@ export function MaintenanceShell({
               )}
             >
               <tab.icon className="size-5" />
-              <span className="ml-2">{tab.label}</span>
+              <span className="ml-2">{modulePresentation.tabLabels?.[tab.id] ?? tab.label}</span>
             </Link>
           );
         })}
