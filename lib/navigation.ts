@@ -182,7 +182,7 @@ export const navSections: NavSection[] = [
       {
         href: "/human-resources/payouts",
         icon: Coins,
-        label: "Gold Payouts",
+        label: "Irregular Payouts",
       },
       {
         href: "/human-resources/compensation",
@@ -193,7 +193,7 @@ export const navSections: NavSection[] = [
       {
         href: "/human-resources/salaries",
         icon: Payments,
-        label: "Salary Ops",
+        label: "Salaries",
       },
       {
         href: "/human-resources/salaries/outstanding",
@@ -219,10 +219,10 @@ export const navSections: NavSection[] = [
   },
   {
     id: "maintenance",
-    title: "Assets",
+    title: "Maintenance & Assets",
     description: "Equipment, work orders, scheduling",
     items: [
-      { href: "/maintenance", icon: Dashboard, label: "Dashboard" },
+      { href: "/maintenance", icon: Dashboard, label: "Overview" },
       {
         href: "/maintenance/equipment",
         icon: Wrench,
@@ -243,12 +243,12 @@ export const navSections: NavSection[] = [
   },
   {
     id: "stores",
-    title: "Stock",
+    title: "Stores & Inventory",
     description: "Inventory and fuel control",
     items: [
-      { href: "/stores/dashboard", icon: Dashboard, label: "Dashboard" },
+      { href: "/stores/dashboard", icon: Dashboard, label: "Overview" },
       { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
-      { href: "/stores/movements", icon: History, label: "Action Log" },
+      { href: "/stores/movements", icon: History, label: "Stock Movements" },
       { href: "/stores/fuel", icon: Fuel, label: "Fuel Log" },
       { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
       { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
@@ -293,10 +293,10 @@ export const navSections: NavSection[] = [
   },
   {
     id: "thrift",
-    title: "Smart Shop",
+    title: "Retail & Thrift",
     description: "Shop operations, checkout, and POS",
     items: [
-      { href: "/thrift", icon: Wallet, label: "Shop Overview" },
+      { href: "/thrift", icon: Wallet, label: "Overview" },
       { href: "/thrift/intake", icon: ArrowDownward, label: "Intake" },
       { href: "/thrift/catalog", icon: Package, label: "Catalog" },
       { href: "/thrift/sales", icon: ReceiptLong, label: "Sales" },
@@ -305,10 +305,10 @@ export const navSections: NavSection[] = [
   },
   {
     id: "gold",
-    title: "Gold Control",
-    description: "Simple daily gold tasks",
+    title: "Gold Operations",
+    description: "Production, settlement, and control tasks",
     items: [
-      { href: "/gold", icon: Coins, label: "Gold Home" },
+      { href: "/gold", icon: Coins, label: "Overview" },
       {
         href: "/gold/intake/pours/new",
         icon: Dataset,
@@ -327,10 +327,10 @@ export const navSections: NavSection[] = [
       {
         href: "/gold/settlement/receipts/new",
         icon: ReceiptLong,
-        label: "Record Receipt",
+        label: "Record Settlement Receipt",
       },
-      { href: "/gold/exceptions", icon: ReportProblem, label: "Problems" },
-      { href: "/reports/gold-chain", icon: ChartLine, label: "Reports" },
+      { href: "/gold/exceptions", icon: ReportProblem, label: "Exceptions" },
+      { href: "/reports/gold-chain", icon: ChartLine, label: "Gold Reports" },
     ],
   },
   {

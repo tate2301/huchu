@@ -15,6 +15,7 @@ import {
   type ManagementArea,
 } from "@/lib/settings/management-nav";
 import { cn } from "@/lib/utils";
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 type ManagementShellProps = {
   area: ManagementArea;
@@ -36,6 +37,16 @@ export function ManagementShell({
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "management",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   );
 
   const visibleModules = useMemo(
@@ -124,7 +135,11 @@ export function ManagementShell({
 
         <section className="min-w-0 space-y-6 xl:pr-10">
           <div className="flex flex-col gap-4 border-b border-[var(--edge-subtle)] pb-4 sm:flex-row sm:items-start sm:justify-between">
-            <PageHeading title={title} description={description} className="mb-0" />
+            <PageHeading
+              title={title || modulePresentation.title}
+              description={description || modulePresentation.description}
+              className="mb-0"
+            />
             {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
           </div>
           <div className="w-full max-w-[96rem] space-y-6">{children}</div>

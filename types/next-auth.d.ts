@@ -6,6 +6,9 @@ declare module "next-auth" {
       id: string;
       role: string;
       companyId: string;
+      sessionPolicy?: "standard" | "remember" | "admin";
+      authExpiresAt?: string;
+      rememberMe?: boolean;
       companySlug?: string;
       tenantStatus?: string;
       workspaceProfile?: string;
@@ -19,6 +22,9 @@ declare module "next-auth" {
     id: string;
     role: string;
     companyId: string;
+    sessionPolicy?: "standard" | "remember" | "admin";
+    authExpiresAt?: string;
+    rememberMe?: boolean;
     companySlug?: string;
     tenantStatus?: string;
     workspaceProfile?: string;
@@ -33,6 +39,9 @@ declare module "next-auth/jwt" {
     id: string;
     role: string;
     companyId: string;
+    sessionPolicy?: "standard" | "remember" | "admin";
+    authExpiresAt?: string;
+    rememberMe?: boolean;
     companySlug?: string;
     tenantStatus?: string;
     workspaceProfile?: string;

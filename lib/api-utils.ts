@@ -5,6 +5,7 @@ import { authOptions } from './auth';
 import { Session } from 'next-auth';
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { canAccessRouteForCompany } from "@/lib/platform/gating/enforcer-server";
+import { isAuthExpired } from "@/lib/auth";
 import {
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,
@@ -20,6 +21,9 @@ export interface AuthenticatedSession extends Session {
     name: string;
     role: string;
     companyId: string;
+    sessionPolicy?: "standard" | "remember" | "admin";
+    authExpiresAt?: string;
+    rememberMe?: boolean;
     companySlug?: string;
     tenantStatus?: string;
     workspaceProfile?: string;
@@ -39,6 +43,10 @@ export async function validateSession(
   
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (isAuthExpired(session.user.authExpiresAt)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (!session.user.companyId) {

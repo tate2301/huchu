@@ -103,6 +103,14 @@ function redirectToTenantHost(request: NextRequestWithAuth, companySlug: string)
   return NextResponse.redirect(redirectUrl);
 }
 
+function redirectToAdminLogin(request: NextRequestWithAuth) {
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = ADMIN_LOGIN_PATH;
+  redirectUrl.search = "";
+  redirectUrl.searchParams.set("callbackUrl", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  return NextResponse.redirect(redirectUrl);
+}
+
 function toInternalAdminPath(pathname: string) {
   if (pathname === ADMIN_BASE_PATH) {
     return ADMIN_INTERNAL_BASE_PATH;
@@ -131,6 +139,7 @@ export default withAuth(
   function middleware(request) {
     const { pathname } = request.nextUrl;
     const isApiRequest = pathname.startsWith("/api/");
+    const isAdminApiRequest = isPathWithinRoute(pathname, "/api/platform-admin");
 
     if (pathname === ACCESS_BLOCKED_PATH) {
       return NextResponse.next();
@@ -148,10 +157,23 @@ export default withAuth(
     const isAdminExternalPath = isPathWithinRoute(pathname, ADMIN_BASE_PATH);
     const isAdminInternalPath = isPathWithinRoute(pathname, ADMIN_INTERNAL_BASE_PATH);
 
-    if (isAdminExternalPath || isAdminInternalPath || isPathWithinRoute(pathname, "/api/platform-admin")) {
+    if (isAdminExternalPath || isAdminInternalPath || isAdminApiRequest) {
       if (!isAdminHost) {
         const adminRootDomain = getAdminRootDomain();
         return denyAccess(request, `Admin portal is only available on *.${adminRootDomain}`);
+      }
+
+      if (!token) {
+        if (isAdminApiRequest) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const isAdminLoginPath =
+          isPathWithinRoute(pathname, ADMIN_LOGIN_PATH) ||
+          isPathWithinRoute(pathname, `${ADMIN_INTERNAL_BASE_PATH}/login`);
+        if (!isAdminLoginPath) {
+          return redirectToAdminLogin(request);
+        }
       }
 
       if (token?.role && !isSuperuserRole(token.role)) {
@@ -189,7 +211,10 @@ export default withAuth(
     if (!isApiRequest && portalBasePath && !token) {
       const portalLoginPath = `${portalBasePath}/login`;
       if (!isPathWithinRoute(pathname, portalLoginPath)) {
-        return redirectToPath(request, portalLoginPath);
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = portalLoginPath;
+        redirectUrl.search = `?callbackUrl=${encodeURIComponent(`${request.nextUrl.pathname}${request.nextUrl.search}`)}`;
+        return NextResponse.redirect(redirectUrl);
       }
     }
 

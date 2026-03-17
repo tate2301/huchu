@@ -647,7 +647,7 @@ export function AuditVerifyDialog({
     setRunning(true);
     setError(null);
     try {
-      const result = await executeOperation({
+      const result = await executeOperation<{ message?: string }>({
         module: "audit",
         action: "verifyChain",
         args: fixedCompanyId ? [fixedCompanyId] : [],
@@ -723,7 +723,7 @@ export function AuditExportDialog({
     setRunning(true);
     setError(null);
     try {
-      const result = await executeOperation({
+      const result = await executeOperation<{ count: number; content: string; format: string }>({
         module: "audit",
         action: "export",
         payload: {

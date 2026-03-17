@@ -5,8 +5,10 @@ import { PortalLoginForm } from "@/components/auth/portal-login-form";
 
 export function ParentPortalLoginClient({
   companyLabel,
+  callbackUrl,
 }: {
   companyLabel: string;
+  callbackUrl?: string;
 }) {
   return (
     <PortalLoginForm
@@ -15,6 +17,7 @@ export function ParentPortalLoginClient({
       portalIcon={<Home className="h-7 w-7" />}
       companyLabel={companyLabel}
       redirectTo="/portal/parent"
+      callbackUrl={callbackUrl}
       helpText="Contact the school to request guardian portal access."
     />
   );

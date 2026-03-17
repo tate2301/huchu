@@ -384,6 +384,13 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
           ) : null}
+          {!isCollapsed ? (
+            <div className="px-2 pt-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {sidebarModel.workspaceLabel}
+              </p>
+            </div>
+          ) : null}
         </SidebarMenu>
       </SidebarHeader>
 

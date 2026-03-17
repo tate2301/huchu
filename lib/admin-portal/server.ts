@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
+import { isAuthExpired } from "@/lib/auth";
 
 export async function requireAdminPortalSession() {
   const headersList = await headers();
@@ -13,6 +14,10 @@ export async function requireAdminPortalSession() {
 
   const session = await getServerSession(authOptions);
   if (!session?.user) {
+    redirect("/admin/login");
+  }
+
+  if (isAuthExpired(session.user.authExpiresAt)) {
     redirect("/admin/login");
   }
 

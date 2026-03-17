@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/layout/page-heading";
 import { ACCOUNTING_CATEGORIES, ACCOUNTING_TABS, type AccountingTab } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import { cn } from "@/lib/utils";
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 export type { AccountingTab } from "@/lib/accounting/tab-config";
 
@@ -23,13 +24,23 @@ export function AccountingShell({
   activeTab,
   actions,
   children,
-  title = "Accounting",
-  description = "Ledger, journals, and finance controls",
+  title,
+  description,
 }: AccountingShellProps) {
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "accounting",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
     () => filterAccountingTabsByFeatures(ACCOUNTING_TABS, enabledFeatures),
@@ -55,8 +66,8 @@ export function AccountingShell({
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading
-        title={title}
-        description={description}
+        title={title ?? modulePresentation.title}
+        description={description ?? modulePresentation.description}
         className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
       />
 

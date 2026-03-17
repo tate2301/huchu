@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
 import type { JWT } from "next-auth/jwt";
+import { decode as defaultJwtDecode, encode as defaultJwtEncode } from "next-auth/jwt";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasFeature } from "@/lib/platform/features";
@@ -21,6 +22,13 @@ import bcrypt from "bcryptjs";
 import { ADMIN_PORTAL_HOST } from "@/lib/admin-portal";
 
 const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
+const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
+const THIRTY_DAYS_IN_SECONDS = 30 * ONE_DAY_IN_SECONDS;
+const ADMIN_SESSION_MAX_AGE = ONE_DAY_IN_SECONDS;
+const STANDARD_SESSION_MAX_AGE = ONE_DAY_IN_SECONDS;
+const REMEMBER_SESSION_MAX_AGE = THIRTY_DAYS_IN_SECONDS;
+
+type SessionPolicy = "standard" | "remember" | "admin";
 
 function getAdminPortalEmail() {
   return process.env.ADMIN_PORTAL_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
@@ -102,6 +110,9 @@ type PlatformJWT = JWT & {
   id?: string;
   role?: string;
   companyId?: string;
+  sessionPolicy?: SessionPolicy;
+  authExpiresAt?: string;
+  rememberMe?: boolean;
   companySlug?: string;
   tenantStatus?: string;
   workspaceProfile?: string;
@@ -109,6 +120,50 @@ type PlatformJWT = JWT & {
   subscriptionHealth?: string;
   allowedHosts?: string[];
 };
+
+type AuthenticatedUserLike = {
+  id: string;
+  role?: string;
+  companyId?: string;
+  rememberMe?: boolean;
+  sessionPolicy?: SessionPolicy;
+  authExpiresAt?: string;
+};
+
+function getSessionPolicyMaxAge(policy: SessionPolicy | undefined): number {
+  if (policy === "admin") {
+    return ADMIN_SESSION_MAX_AGE;
+  }
+  if (policy === "remember") {
+    return REMEMBER_SESSION_MAX_AGE;
+  }
+  return STANDARD_SESSION_MAX_AGE;
+}
+
+function resolveSessionPolicy(user?: AuthenticatedUserLike | null): SessionPolicy {
+  if (user?.sessionPolicy) {
+    return user.sessionPolicy;
+  }
+  if (user?.role?.trim().toUpperCase() === "SUPERADMIN") {
+    return "admin";
+  }
+  return user?.rememberMe ? "remember" : "standard";
+}
+
+function buildAuthExpiresAt(policy: SessionPolicy): string {
+  return new Date(Date.now() + getSessionPolicyMaxAge(policy) * 1000).toISOString();
+}
+
+function isAuthExpired(expiresAt: string | undefined): boolean {
+  if (!expiresAt) {
+    return false;
+  }
+  const parsed = Date.parse(expiresAt);
+  if (Number.isNaN(parsed)) {
+    return false;
+  }
+  return parsed <= Date.now();
+}
 
 function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
   const normalizedStatus = rawStatus?.trim().toUpperCase();
@@ -226,12 +281,14 @@ export const authOptions: NextAuthOptions = {
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        rememberMe: { label: "Remember me", type: "text" },
       },
       async authorize(credentials, req) {
         const exposeCredentialDebugReason = process.env.NODE_ENV !== "production";
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
+        const rememberMe = credentials?.rememberMe === "true";
 
         if (!email || !password) {
           throw new Error("Invalid credentials");
@@ -338,7 +395,10 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           companyId: user.companyId,
-          image: user.image
+          image: user.image,
+          rememberMe,
+          sessionPolicy: rememberMe ? "remember" : "standard",
+          authExpiresAt: buildAuthExpiresAt(rememberMe ? "remember" : "standard"),
         };
       }
     })
@@ -357,14 +417,37 @@ export const authOptions: NextAuthOptions = {
 
       return normalizedEmail === adminPortalEmail;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       const extendedToken = token as PlatformJWT;
 
       if (user) {
-        const typedUser = user as { id: string; role?: string; companyId?: string };
+        const typedUser = user as AuthenticatedUserLike;
+        const nextPolicy =
+          account?.provider === "email"
+            ? "admin"
+            : resolveSessionPolicy(typedUser);
         extendedToken.id = typedUser.id;
         extendedToken.role = typedUser.role ?? extendedToken.role;
         extendedToken.companyId = typedUser.companyId ?? extendedToken.companyId;
+        extendedToken.sessionPolicy = nextPolicy;
+        extendedToken.rememberMe = nextPolicy === "remember";
+        extendedToken.authExpiresAt = buildAuthExpiresAt(nextPolicy);
+      } else if (!extendedToken.sessionPolicy && extendedToken.id) {
+        const nextPolicy = resolveSessionPolicy({
+          id: extendedToken.id,
+          role: extendedToken.role,
+          companyId: extendedToken.companyId,
+          rememberMe: extendedToken.rememberMe,
+        });
+        extendedToken.sessionPolicy = nextPolicy;
+        extendedToken.rememberMe = nextPolicy === "remember";
+        extendedToken.authExpiresAt = buildAuthExpiresAt(nextPolicy);
+      } else if (extendedToken.sessionPolicy) {
+        extendedToken.authExpiresAt = buildAuthExpiresAt(extendedToken.sessionPolicy);
+      }
+
+      if (isAuthExpired(extendedToken.authExpiresAt)) {
+        return extendedToken;
       }
 
       if (extendedToken.companyId) {
@@ -400,6 +483,9 @@ export const authOptions: NextAuthOptions = {
           id: typedToken.id,
           role: typedToken.role,
           companyId: typedToken.companyId,
+          sessionPolicy: typedToken.sessionPolicy,
+          authExpiresAt: typedToken.authExpiresAt,
+          rememberMe: typedToken.rememberMe,
           companySlug: typedToken.companySlug,
           tenantStatus: typedToken.tenantStatus,
           workspaceProfile: typedToken.workspaceProfile,
@@ -421,16 +507,34 @@ export const authOptions: NextAuthOptions = {
       return session;
     }
   },
+  jwt: {
+    maxAge: REMEMBER_SESSION_MAX_AGE,
+    async encode(params) {
+      const token = params.token as PlatformJWT | undefined;
+      const maxAge = getSessionPolicyMaxAge(token?.sessionPolicy);
+
+      return defaultJwtEncode({
+        ...params,
+        maxAge,
+      });
+    },
+    async decode(params) {
+      const token = await defaultJwtDecode(params);
+      const typedToken = token as PlatformJWT | null;
+      if (typedToken?.authExpiresAt && isAuthExpired(typedToken.authExpiresAt)) {
+        return null;
+      }
+      return token;
+    },
+  },
   pages: {
     signIn: "/login",
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 60,
-    updateAge: 5 * 60,
-  },
-  jwt: {
-    maxAge: 30 * 60,
+    maxAge: REMEMBER_SESSION_MAX_AGE,
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+export { isAuthExpired, type PlatformJWT, type SessionPolicy };

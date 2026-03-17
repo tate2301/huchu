@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
-import { fetchManifest } from "@/components/admin-portal/api";
+import { executeOperation, fetchManifest } from "@/components/admin-portal/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,9 +105,10 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
     setResult("Running...");
 
     try {
-      const body: Record<string, unknown> = { module: moduleName, action: actionName };
+      const body: Parameters<typeof executeOperation>[0] = { module: moduleName, action: actionName };
       if (mode === "args") {
-        body.args = JSON.parse(argsText);
+        const parsedArgs = JSON.parse(argsText);
+        body.args = Array.isArray(parsedArgs) ? parsedArgs : [parsedArgs];
       } else {
         const parsed = JSON.parse(payloadText);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -119,12 +120,7 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
         body.payload = parsed;
       }
 
-      const response = await fetch("/api/platform-admin/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
+      const data = await executeOperation(body);
       setResult(JSON.stringify(data, null, 2));
       setHistory((prev) => [
         {
@@ -133,7 +129,7 @@ export function AdminConsole({ actorEmail }: { actorEmail: string }) {
           action: actionName,
           mode,
           at: new Date().toISOString(),
-          ok: response.ok,
+          ok: true,
         },
         ...prev,
       ]);

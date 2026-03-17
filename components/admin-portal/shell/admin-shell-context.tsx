@@ -1,9 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { fetchCompanies, fetchSupportState } from "@/components/admin-portal/api";
 import type { AdminSupportState, CompanyWorkspace } from "@/components/admin-portal/types";
+import { buildCallbackLoginPath } from "@/lib/auth-redirect";
 
 const RECENT_WORKSPACES_KEY = "admin-portal:recent-workspaces";
 const MAX_RECENT_WORKSPACES = 6;
@@ -31,7 +33,10 @@ export function AdminShellProvider({
   activeCompanyId?: string;
   children: React.ReactNode;
 }) {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const [companies, setCompanies] = useState<CompanyWorkspace[]>([]);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
@@ -103,6 +108,16 @@ export function AdminShellProvider({
   const actorEmail = session?.user?.email?.trim() || "superuser";
   const actorLabel = session?.user?.name?.trim() || actorEmail;
   const roleLabel = (session?.user as { role?: string } | undefined)?.role?.trim() || "SUPERADMIN";
+
+  useEffect(() => {
+    if (status !== "unauthenticated") {
+      return;
+    }
+
+    const search = searchParams.toString();
+    const callbackUrl = `${pathname}${search ? `?${search}` : ""}`;
+    router.replace(buildCallbackLoginPath("/admin/login", callbackUrl));
+  }, [pathname, router, searchParams, status]);
 
   useEffect(() => {
     let ignore = false;

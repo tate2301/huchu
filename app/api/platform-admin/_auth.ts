@@ -1,11 +1,15 @@
 import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, isAuthExpired } from "@/lib/auth";
 import { ADMIN_PORTAL_HOST, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
 
 export async function requirePlatformAdminAccess() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
+    return { ok: false as const, status: 401, error: "Unauthorized" };
+  }
+
+  if (isAuthExpired(session.user.authExpiresAt)) {
     return { ok: false as const, status: 401, error: "Unauthorized" };
   }
 

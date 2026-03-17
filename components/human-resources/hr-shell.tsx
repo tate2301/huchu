@@ -7,6 +7,7 @@ import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter"
 import { cn } from "@/lib/utils"
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products"
 import {
   type LucideIcon,
   Coins,
@@ -35,8 +36,8 @@ type HrTabItem = {
 
 const hrTabs: HrTabItem[] = [
   { id: "employees", label: "Employees", href: "/human-resources", icon: ManageAccounts },
-  { id: "salaries", label: "Salary Payouts", href: "/human-resources/salaries", icon: Payments },
-  { id: "payouts", label: "Payouts", href: "/human-resources/payouts", icon: Coins },
+  { id: "salaries", label: "Salaries", href: "/human-resources/salaries", icon: Payments },
+  { id: "payouts", label: "Irregular Payouts", href: "/human-resources/payouts", icon: Coins },
 ]
 
 type HrShellProps = {
@@ -51,13 +52,23 @@ export function HrShell({
   activeTab,
   actions,
   children,
-  title = "Human Resources",
-  description = "Employee records, salary operations, and irregular payout management",
+  title,
+  description,
 }: HrShellProps) {
   const { data: session } = useSession()
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
+  )
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "hr",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   )
   const visibleTabs = useMemo(
     () => filterHrefItemsByEnabledFeatures(hrTabs, enabledFeatures),
@@ -68,8 +79,8 @@ export function HrShell({
     <div className="w-full space-y-5">
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading
-        title={title}
-        description={description}
+        title={title ?? modulePresentation.title}
+        description={description ?? modulePresentation.description}
         className="mb-3 [&_h1]:text-[1.3rem] [&_h1]:leading-8 [&_h1]:font-semibold"
       />
 
@@ -93,7 +104,7 @@ export function HrShell({
               )}
             >
               <tab.icon className="h-4 w-4" />
-              <span className="ml-2">{tab.label}</span>
+              <span className="ml-2">{modulePresentation.tabLabels?.[tab.id] ?? tab.label}</span>
             </Link>
           )
         })}

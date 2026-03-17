@@ -9,6 +9,7 @@ import { PageHeading } from "@/components/layout/page-heading";
 import { cn } from "@/lib/utils";
 import { type GoldTab, GOLD_TABS } from "@/lib/gold/tab-config";
 import { filterGoldTabsByFeatures } from "@/lib/gold/visibility";
+import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 
 type GoldShellProps = {
@@ -23,8 +24,8 @@ export function GoldShell({
   activeTab,
   actions,
   children,
-  title = "Gold Chain",
-  description = "Track gold from shift output to sale and payout.",
+  title,
+  description,
 }: GoldShellProps) {
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
@@ -32,6 +33,16 @@ export function GoldShell({
       (session?.user as { enabledFeatures?: string[] } | undefined)
         ?.enabledFeatures,
     [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const modulePresentation = useMemo(
+    () =>
+      getWorkspaceModulePresentation({
+        moduleId: "gold",
+        enabledFeatures,
+        workspaceProfile,
+      }),
+    [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
     () => filterGoldTabsByFeatures(GOLD_TABS, enabledFeatures),
@@ -41,6 +52,12 @@ export function GoldShell({
   return (
     <div className="w-full space-y-6">
       {actions ? <PageActions>{actions}</PageActions> : null}
+
+      <PageHeading
+        title={title ?? modulePresentation.title}
+        description={description ?? modulePresentation.description}
+        className="mb-4 [&_h1]:text-[1.375rem] [&_h1]:leading-8"
+      />
 
       <nav aria-label="Gold navigation">
         <Tabs value={activeTab}>
@@ -61,7 +78,7 @@ export function GoldShell({
                     )}
                   >
                     <tab.icon className="size-5" />
-                    <span className="ml-2">{tab.label}</span>
+                    <span className="ml-2">{modulePresentation.tabLabels?.[tab.id] ?? tab.label}</span>
                   </Link>
                 </TabsTrigger>
               );

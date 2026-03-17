@@ -20,7 +20,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <SessionProvider>
+    <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus>
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster />
