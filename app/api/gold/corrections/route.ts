@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
       createdBy: {
         id: session.user.id,
-        name: session.user.name,
+        name: session.user.name ?? session.user.email ?? "Unknown user",
       },
     };
 

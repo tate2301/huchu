@@ -6,9 +6,11 @@ import { PortalLoginForm } from "@/components/auth/portal-login-form";
 export function ParentPortalLoginClient({
   companyLabel,
   callbackUrl,
+  rememberMeEnabled,
 }: {
   companyLabel: string;
   callbackUrl?: string;
+  rememberMeEnabled?: boolean;
 }) {
   return (
     <PortalLoginForm
@@ -18,6 +20,7 @@ export function ParentPortalLoginClient({
       companyLabel={companyLabel}
       redirectTo="/portal/parent"
       callbackUrl={callbackUrl}
+      rememberMeEnabled={rememberMeEnabled}
       helpText="Contact the school to request guardian portal access."
     />
   );

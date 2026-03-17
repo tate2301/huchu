@@ -12,7 +12,7 @@ type ExecuteBody = {
 };
 
 export async function POST(request: Request) {
-  const access = await requirePlatformAdminAccess();
+  const access = await requirePlatformAdminAccess(request);
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }

@@ -20,6 +20,7 @@ type LoginFormProps = {
   companyLabel: string;
   productLabel?: string;
   callbackUrl?: string;
+  rememberMeEnabled?: boolean;
 };
 
 function getAuthErrorMessage(rawError: string) {
@@ -39,6 +40,8 @@ function getAuthErrorMessage(rawError: string) {
       return "This account has no password set. Reset the password and try again.";
     case "AUTH_PASSWORD_MISMATCH":
       return "Password mismatch for this account.";
+    case "AUTH_RATE_LIMITED":
+      return "Too many sign-in attempts. Please wait a few minutes and try again.";
     default:
       return rawError;
   }
@@ -48,6 +51,7 @@ export function LoginForm({
   companyLabel,
   productLabel,
   callbackUrl,
+  rememberMeEnabled = true,
 }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -143,14 +147,16 @@ export function LoginForm({
                 />
               </div>
 
-              <label className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm">
-                <Checkbox
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
-                  disabled={loading}
-                />
-                <span>Remember me on this device</span>
-              </label>
+              {rememberMeEnabled ? (
+                <label className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    disabled={loading}
+                  />
+                  <span>Remember me on this device</span>
+                </label>
+              ) : null}
 
               <Button
                 type="submit"

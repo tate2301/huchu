@@ -10,22 +10,26 @@ import type {
   AdminSupportState,
   WorkspaceOverview,
 } from "./types";
-import { buildCallbackLoginPath } from "@/lib/auth-redirect";
+import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 
-class AdminAuthError extends Error {
-  constructor(message = "Unauthorized") {
-    super(message);
-    this.name = "AdminAuthError";
-  }
-}
+type AdminApiErrorPayload = {
+  error?: string;
+  code?: string;
+};
 
-type AdminOperationEnvelope = {
+const AUTH_FAILURE_CODES = new Set(["UNAUTHORIZED", "AUTH_EXPIRED"]);
+
+type OperationEnvelope = {
+  result?: unknown;
+};
+
+type OperationResult = {
   ok?: boolean;
   message?: string;
   resource?: unknown;
 };
 
-function redirectToAdminLogin() {
+function redirectAdminToLogin() {
   if (typeof window === "undefined") {
     return;
   }
@@ -34,67 +38,87 @@ function redirectToAdminLogin() {
   window.location.assign(buildCallbackLoginPath("/admin/login", callbackUrl));
 }
 
-async function readJson(response: Response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
+function isOperationResult(value: unknown): value is OperationResult {
+  return typeof value === "object" && value !== null && "ok" in value;
 }
 
-async function fetchAdminJson<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    cache: "no-store",
-    ...init,
-  });
-  const data = await readJson(response);
-
-  if (response.status === 401) {
-    redirectToAdminLogin();
-    throw new AdminAuthError((data as { error?: string } | null)?.error ?? "Unauthorized");
-  }
-
+async function parseAdminResponse<T, TResult>(
+  response: Response,
+  fallbackMessage: string,
+  select: (data: T) => TResult,
+): Promise<TResult> {
+  const data = (await response.json()) as T & AdminApiErrorPayload;
   if (!response.ok) {
-    throw new Error((data as { error?: string } | null)?.error ?? "Request failed");
+    if (response.status === 401 && AUTH_FAILURE_CODES.has(data?.code ?? "")) {
+      redirectAdminToLogin();
+    }
+    throw new Error(data?.error ?? fallbackMessage);
   }
-
-  return data as T;
+  return select(data);
 }
 
 export async function fetchManifest(): Promise<OperationManifest> {
-  const data = await fetchAdminJson<{ manifest: OperationManifest }>("/api/platform-admin/manifest");
-  return data.manifest;
+  const response = await fetch("/api/platform-admin/manifest", { cache: "no-store" });
+  return parseAdminResponse<{ manifest: OperationManifest }, OperationManifest>(
+    response,
+    "Failed to load manifest",
+    (data) => data.manifest,
+  );
 }
 
 export async function fetchCompanies(): Promise<CompanyWorkspace[]> {
-  const data = await fetchAdminJson<{ companies: CompanyWorkspace[] }>("/api/platform-admin/companies");
-  return data.companies;
+  const response = await fetch("/api/platform-admin/companies", { cache: "no-store" });
+  return parseAdminResponse<{ companies: CompanyWorkspace[] }, CompanyWorkspace[]>(
+    response,
+    "Failed to load companies",
+    (data) => data.companies,
+  );
 }
 
 export async function fetchMetrics(companyId?: string): Promise<AdminMetricCard[]> {
   const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
-  const data = await fetchAdminJson<{ metrics: AdminMetricCard[] }>(`/api/platform-admin/metrics${query}`);
-  return data.metrics;
+  const response = await fetch(`/api/platform-admin/metrics${query}`, { cache: "no-store" });
+  return parseAdminResponse<{ metrics: AdminMetricCard[] }, AdminMetricCard[]>(
+    response,
+    "Failed to load metrics",
+    (data) => data.metrics,
+  );
 }
 
+export async function executeOperation(input: {
+  module: string;
+  action: string;
+  payload?: unknown;
+  args?: unknown[];
+}): Promise<unknown>;
+export async function executeOperation<T>(input: {
+  module: string;
+  action: string;
+  payload?: unknown;
+  args?: unknown[];
+}): Promise<T>;
 export async function executeOperation<T = unknown>(input: {
   module: string;
   action: string;
   payload?: unknown;
   args?: unknown[];
 }): Promise<T> {
-  const data = await fetchAdminJson<{ result?: unknown } | Record<string, unknown>>("/api/platform-admin/execute", {
+  const response = await fetch("/api/platform-admin/execute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  const result = "result" in data ? data.result : data;
-  if (result && typeof result === "object" && "ok" in result) {
-    const envelope = result as AdminOperationEnvelope;
-    if (!envelope.ok) {
-      throw new Error(envelope.message ?? "Operation failed");
+  const data = await parseAdminResponse<OperationEnvelope, OperationEnvelope>(
+    response,
+    "Operation failed",
+    (payload) => payload,
+  );
+  const result = data?.result;
+  if (isOperationResult(result)) {
+    if (!result.ok) {
+      throw new Error(result.message ?? "Operation failed");
     }
-    return (envelope.resource ?? result) as T;
+    return (result.resource ?? result) as T;
   }
   return (result ?? data) as T;
 }
@@ -103,8 +127,14 @@ export async function searchAdminPortal(query: string): Promise<AdminSearchResul
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const data = await fetchAdminJson<{ results: AdminSearchResult[] }>(`/api/platform-admin/search?q=${encodeURIComponent(trimmed)}`);
-  return data.results;
+  const response = await fetch(`/api/platform-admin/search?q=${encodeURIComponent(trimmed)}`, {
+    cache: "no-store",
+  });
+  return parseAdminResponse<{ results: AdminSearchResult[] }, AdminSearchResult[]>(
+    response,
+    "Failed to search control plane",
+    (data) => data.results,
+  );
 }
 
 export async function fetchIdentityHub(companyId?: string, search?: string): Promise<IdentityHubData> {
@@ -113,24 +143,40 @@ export async function fetchIdentityHub(companyId?: string, search?: string): Pro
   if (search?.trim()) params.set("search", search.trim());
 
   const suffix = params.size > 0 ? `?${params.toString()}` : "";
-  return fetchAdminJson<IdentityHubData>(`/api/platform-admin/identity${suffix}`);
+  const response = await fetch(`/api/platform-admin/identity${suffix}`, { cache: "no-store" });
+  return parseAdminResponse<IdentityHubData, IdentityHubData>(
+    response,
+    "Failed to load identity hub",
+    (data) => data,
+  );
 }
 
 export async function fetchWorkspaceOverview(companyId: string): Promise<WorkspaceOverview> {
-  const data = await fetchAdminJson<{ overview: WorkspaceOverview } | WorkspaceOverview>(`/api/platform-admin/workspaces/${companyId}/overview`);
-  if ("overview" in data) {
-    return data.overview;
-  }
-  return data;
+  const response = await fetch(`/api/platform-admin/workspaces/${companyId}/overview`, { cache: "no-store" });
+  return parseAdminResponse<WorkspaceOverview, WorkspaceOverview>(
+    response,
+    "Failed to load workspace overview",
+    (data) => data,
+  );
 }
 
 export async function fetchCommercialCenter(): Promise<CommercialCenterData> {
-  return fetchAdminJson<CommercialCenterData>("/api/platform-admin/commercial");
+  const response = await fetch("/api/platform-admin/commercial", { cache: "no-store" });
+  return parseAdminResponse<CommercialCenterData, CommercialCenterData>(
+    response,
+    "Failed to load commercial center",
+    (data) => data,
+  );
 }
 
 export async function fetchReliabilityCluster(companyId?: string): Promise<ReliabilityClusterData> {
   const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
-  return fetchAdminJson<ReliabilityClusterData>(`/api/platform-admin/reliability${query}`);
+  const response = await fetch(`/api/platform-admin/reliability${query}`, { cache: "no-store" });
+  return parseAdminResponse<ReliabilityClusterData, ReliabilityClusterData>(
+    response,
+    "Failed to load reliability cluster",
+    (data) => data,
+  );
 }
 
 export async function fetchSupportAccessHub(companyId?: string, search?: string): Promise<SupportAccessHubData> {
@@ -138,7 +184,12 @@ export async function fetchSupportAccessHub(companyId?: string, search?: string)
   if (companyId) params.set("companyId", companyId);
   if (search?.trim()) params.set("search", search.trim());
   const suffix = params.size > 0 ? `?${params.toString()}` : "";
-  return fetchAdminJson<SupportAccessHubData>(`/api/platform-admin/support-access${suffix}`);
+  const response = await fetch(`/api/platform-admin/support-access${suffix}`, { cache: "no-store" });
+  return parseAdminResponse<SupportAccessHubData, SupportAccessHubData>(
+    response,
+    "Failed to load support access",
+    (data) => data,
+  );
 }
 
 export async function fetchSupportState(companyId?: string, actor?: string): Promise<AdminSupportState> {
@@ -146,5 +197,10 @@ export async function fetchSupportState(companyId?: string, actor?: string): Pro
   if (companyId) params.set("companyId", companyId);
   if (actor?.trim()) params.set("actor", actor.trim());
   const suffix = params.size > 0 ? `?${params.toString()}` : "";
-  return fetchAdminJson<AdminSupportState>(`/api/platform-admin/support-state${suffix}`);
+  const response = await fetch(`/api/platform-admin/support-state${suffix}`, { cache: "no-store" });
+  return parseAdminResponse<AdminSupportState, AdminSupportState>(
+    response,
+    "Failed to load support state",
+    (data) => data,
+  );
 }

@@ -25,6 +25,7 @@ type PortalLoginFormProps = {
   redirectTo: string;
   helpText?: string;
   callbackUrl?: string;
+  rememberMeEnabled?: boolean;
 };
 
 function getAuthErrorMessage(rawError: string) {
@@ -44,6 +45,8 @@ function getAuthErrorMessage(rawError: string) {
       return "This account has no password set. Contact your school administrator.";
     case "AUTH_PASSWORD_MISMATCH":
       return "Password does not match. Please try again.";
+    case "AUTH_RATE_LIMITED":
+      return "Too many sign-in attempts. Please wait a few minutes and try again.";
     default:
       return rawError;
   }
@@ -57,6 +60,7 @@ export function PortalLoginForm({
   redirectTo,
   helpText,
   callbackUrl,
+  rememberMeEnabled = true,
 }: PortalLoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -144,14 +148,16 @@ export function PortalLoginForm({
                 />
               </div>
 
-              <label className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm">
-                <Checkbox
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
-                  disabled={loading}
-                />
-                <span>Remember me on this device</span>
-              </label>
+              {rememberMeEnabled ? (
+                <label className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    disabled={loading}
+                  />
+                  <span>Remember me on this device</span>
+                </label>
+              ) : null}
 
               <Button
                 type="submit"

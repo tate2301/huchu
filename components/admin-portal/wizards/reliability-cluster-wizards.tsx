@@ -22,6 +22,14 @@ import { Textarea } from "@/components/ui/textarea";
 
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
 type ButtonSize = ComponentProps<typeof Button>["size"];
+type AuditVerifyResult = {
+  message?: string;
+};
+type AuditExportResult = {
+  count: number;
+  content: string;
+  format: string;
+};
 
 type TriggerProps = {
   triggerLabel: string;
@@ -647,7 +655,7 @@ export function AuditVerifyDialog({
     setRunning(true);
     setError(null);
     try {
-      const result = await executeOperation<{ message?: string }>({
+      const result = await executeOperation<AuditVerifyResult>({
         module: "audit",
         action: "verifyChain",
         args: fixedCompanyId ? [fixedCompanyId] : [],
@@ -723,7 +731,7 @@ export function AuditExportDialog({
     setRunning(true);
     setError(null);
     try {
-      const result = await executeOperation<{ count: number; content: string; format: string }>({
+      const result = await executeOperation<AuditExportResult>({
         module: "audit",
         action: "export",
         payload: {

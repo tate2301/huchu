@@ -6,6 +6,7 @@ declare module "next-auth" {
       id: string;
       role: string;
       companyId: string;
+      authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
       sessionPolicy?: "standard" | "remember" | "admin";
       authExpiresAt?: string;
       rememberMe?: boolean;
@@ -22,6 +23,7 @@ declare module "next-auth" {
     id: string;
     role: string;
     companyId: string;
+    authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
     sessionPolicy?: "standard" | "remember" | "admin";
     authExpiresAt?: string;
     rememberMe?: boolean;
@@ -36,9 +38,10 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id: string;
-    role: string;
-    companyId: string;
+    id?: string;
+    role?: string;
+    companyId?: string;
+    authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
     sessionPolicy?: "standard" | "remember" | "admin";
     authExpiresAt?: string;
     rememberMe?: boolean;

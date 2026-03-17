@@ -1,11 +1,11 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { AdminMagicLinkLogin } from "@/components/admin-portal/admin-magic-link-login";
-import { authOptions } from "@/lib/auth";
+import { getCurrentAuthSession } from "@/lib/auth-core/guards";
+import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@/lib/admin-portal";
 import { headers } from "next/headers";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
-import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 
 const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
 
@@ -18,12 +18,18 @@ export default async function AdminPortalLoginPage({
   const host = getHostHeaderFromRequestHeaders(headersList);
   const { callbackUrl } = await searchParams;
   const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/admin/dashboard");
+  const strategies = getAuthStrategiesForSurface("admin-login");
+  const adminStrategy = strategies.find((strategy) => strategy.id === "admin-email-link");
 
   if (!isAdminPortalHost(host)) {
     redirect("/access-blocked");
   }
 
-  const session = await getServerSession(authOptions);
+  if (!adminStrategy) {
+    redirect("/access-blocked");
+  }
+
+  const session = await getCurrentAuthSession();
   if (session?.user?.role === "SUPERADMIN") {
     redirect(resolvedCallbackUrl);
   }

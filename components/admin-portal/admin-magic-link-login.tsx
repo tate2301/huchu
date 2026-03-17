@@ -31,7 +31,7 @@ export function AdminMagicLinkLogin({
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError(result.error === "AUTH_RATE_LIMITED" ? "Too many magic-link requests. Please wait a few minutes and try again." : result.error);
         return;
       }
       setSent(true);

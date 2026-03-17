@@ -6,9 +6,11 @@ import { PortalLoginForm } from "@/components/auth/portal-login-form";
 export function PosPortalLoginClient({
   companyLabel,
   callbackUrl,
+  rememberMeEnabled,
 }: {
   companyLabel: string;
   callbackUrl?: string;
+  rememberMeEnabled?: boolean;
 }) {
   return (
     <PortalLoginForm
@@ -18,6 +20,7 @@ export function PosPortalLoginClient({
       companyLabel={companyLabel}
       redirectTo="/portal/pos"
       callbackUrl={callbackUrl}
+      rememberMeEnabled={rememberMeEnabled}
       helpText="Contact your store manager if you need cashier access."
     />
   );

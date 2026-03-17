@@ -6,9 +6,11 @@ import { PortalLoginForm } from "@/components/auth/portal-login-form";
 export function TeacherPortalLoginClient({
   companyLabel,
   callbackUrl,
+  rememberMeEnabled,
 }: {
   companyLabel: string;
   callbackUrl?: string;
+  rememberMeEnabled?: boolean;
 }) {
   return (
     <PortalLoginForm
@@ -18,6 +20,7 @@ export function TeacherPortalLoginClient({
       companyLabel={companyLabel}
       redirectTo="/portal/teacher"
       callbackUrl={callbackUrl}
+      rememberMeEnabled={rememberMeEnabled}
       helpText="Contact your school administrator if you need teacher portal access."
     />
   );

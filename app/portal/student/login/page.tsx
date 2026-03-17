@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { getCurrentAuthSession } from "@/lib/auth-core/guards";
+import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { companyLabelFromHost } from "@/lib/utils";
-import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 import { StudentPortalLoginClient } from "./client";
 
 export default async function StudentPortalLoginPage({
@@ -13,7 +13,13 @@ export default async function StudentPortalLoginPage({
 }) {
   const { callbackUrl } = await searchParams;
   const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/portal/student");
-  const session = await getServerSession(authOptions);
+  const strategies = getAuthStrategiesForSurface("portal-login");
+  const credentialsStrategy = strategies.find((strategy) => strategy.id === "credentials");
+  if (!credentialsStrategy) {
+    redirect("/access-blocked");
+  }
+
+  const session = await getCurrentAuthSession();
   if (session?.user) {
     redirect(resolvedCallbackUrl);
   }
@@ -22,5 +28,11 @@ export default async function StudentPortalLoginPage({
   const host = headersList.get("host") ?? "localhost";
   const companyLabel = companyLabelFromHost(host, "School");
 
-  return <StudentPortalLoginClient companyLabel={companyLabel} callbackUrl={resolvedCallbackUrl} />;
+  return (
+    <StudentPortalLoginClient
+      companyLabel={companyLabel}
+      callbackUrl={resolvedCallbackUrl}
+      rememberMeEnabled={credentialsStrategy.supportsRememberMe}
+    />
+  );
 }
