@@ -12,11 +12,11 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { StepProgress } from "@/components/ui/step-progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import type {
@@ -26,6 +26,7 @@ import type {
   JobGradeRecord,
 } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { X } from "@/lib/icons"
 import { cn } from "@/lib/utils"
 
 const employeePositions = [
@@ -319,55 +320,6 @@ async function uploadEmployeeFile(
   }
 
   return data.url as string
-}
-
-function StepIndicator({
-  visibleStepIds,
-  currentStepIndex,
-}: {
-  visibleStepIds: StepId[]
-  currentStepIndex: number
-}) {
-  const steps = stepMeta.filter((step) => visibleStepIds.includes(step.id))
-
-  return (
-    <nav aria-label="Employee onboarding steps" className="flex items-center gap-1 overflow-x-auto pb-1">
-      {steps.map((step, index) => {
-        const isCompleted = index < currentStepIndex
-        const isActive = index === currentStepIndex
-
-        return (
-          <div key={step.id} className="flex items-center gap-1">
-            <div
-              className={cn(
-                "flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                isActive
-                  ? "bg-[var(--action-primary-bg)] text-[var(--action-primary-text)]"
-                  : isCompleted
-                    ? "bg-[var(--surface-soft)] text-[var(--action-primary-bg)]"
-                    : "bg-[var(--surface-subtle)] text-muted-foreground",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold",
-                  isActive
-                    ? "bg-white/20"
-                    : isCompleted
-                      ? "bg-[var(--action-primary-bg)] text-white"
-                      : "bg-[var(--edge-subtle)] text-muted-foreground",
-                )}
-              >
-                {isCompleted ? "OK" : index + 1}
-              </span>
-              {step.label}
-            </div>
-            {index < steps.length - 1 ? <span className="text-xs text-muted-foreground/40">{">"}</span> : null}
-          </div>
-        )
-      })}
-    </nav>
-  )
 }
 
 function EmploymentStep({
@@ -1159,6 +1111,13 @@ export function EmployeeWizard({
   const currentStepId = visibleStepIds[stepIndex]
   const totalSteps = visibleStepIds.length
   const isLastStep = stepIndex === totalSteps - 1
+  const wizardSteps = useMemo(
+    () =>
+      stepMeta
+        .filter((step) => visibleStepIds.includes(step.id))
+        .map((step) => ({ id: step.id, label: step.label })),
+    [visibleStepIds],
+  )
 
   const resetWizard = () => {
     const nextPrimaryModule = availableModules.some((module) => module.value === "HR")
@@ -1359,30 +1318,26 @@ export function EmployeeWizard({
         inset={false}
         className="flex h-[100dvh] max-h-[100dvh] flex-col !rounded-none"
       >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--edge-subtle)] px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--edge-subtle)] px-5 py-3 sm:px-6">
           <DialogHeader className="min-w-0 flex-1">
-            <DialogTitle className="text-base">
-              Employee setup wizard
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                Step {stepIndex + 1} of {totalSteps}
-              </span>
-            </DialogTitle>
-            <DialogDescription>
-              Build the right employee record, module assignment, and optional linked user for this company.
-            </DialogDescription>
+            <DialogTitle className="text-[15px]">New employee</DialogTitle>
           </DialogHeader>
-          <DialogClose className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-subtle)] text-muted-foreground transition-colors hover:bg-[var(--surface-soft)] hover:text-foreground">
-            X
+          <DialogClose className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-subtle)] text-muted-foreground transition-colors hover:bg-[var(--surface-soft)] hover:text-foreground">
+            <X className="h-4 w-4" />
           </DialogClose>
         </div>
 
-        <div className="shrink-0 px-6 pb-2 pt-4">
-          <StepIndicator visibleStepIds={visibleStepIds} currentStepIndex={stepIndex} />
+        <div className="shrink-0 border-b border-[var(--edge-subtle)] px-5 py-3 sm:px-6">
+          <StepProgress
+            steps={wizardSteps}
+            currentStepIndex={stepIndex}
+            ariaLabel="Employee setup progress"
+          />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">{renderStep()}</div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">{renderStep()}</div>
 
-        <div className="shrink-0 border-t border-[var(--edge-subtle)] px-6 py-4">
+        <div className="shrink-0 border-t border-[var(--edge-subtle)] px-5 py-3 sm:px-6">
           {stepError ? <p className="mb-3 text-sm text-destructive">{stepError}</p> : null}
           <div className="flex items-center justify-between gap-3">
             <Button

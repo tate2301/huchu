@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +8,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StepProgress } from "@/components/ui/step-progress";
 import { Textarea } from "@/components/ui/textarea";
 import { WorkflowStep } from "@/components/ui/workflow-step";
 import { FEATURE_BUNDLES, TIERS, BUNDLE_DEPENDENCIES, getTierDefinition } from "@/lib/platform/feature-catalog";
+import { CLIENT_BUNDLE_TEMPLATES, getClientTemplateDefinition } from "@/lib/platform/client-templates";
 import { computeMonthlyTotal } from "@/components/admin-portal/pages/client-data";
 import { executeOperation } from "@/components/admin-portal/api";
+import type { ProvisionBundlePreview, ProvisionBundleResult } from "@/scripts/platform/types";
 
 type WizardBaseProps = {
   actorEmail: string;
@@ -27,6 +30,15 @@ type CompanyScopedProps = WizardBaseProps & {
 
 function formatCurrency(value: number) {
   return `$${value.toLocaleString()}`;
+}
+
+function slugify(value: string) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
 }
 
 function WizardShell({
@@ -66,43 +78,147 @@ function WizardShell({
 
 export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
   const [open, setOpen] = useState(false);
-  const [template, setTemplate] = useState("Core Starter");
+  const [stepIndex, setStepIndex] = useState(0);
+  const [templateCode, setTemplateCode] = useState("TEMPLATE_CORE_STARTER");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [subdomain, setSubdomain] = useState("");
   const [sites, setSites] = useState(1);
   const [tierCode, setTierCode] = useState("BASIC");
-  const [notes, setNotes] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [reason, setReason] = useState("");
   const [running, setRunning] = useState(false);
-  const [completed, setCompleted] = useState(false);
+  const [preview, setPreview] = useState<ProvisionBundlePreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  const selectedTemplate = useMemo(
+    () => getClientTemplateDefinition(templateCode) ?? CLIENT_BUNDLE_TEMPLATES[0],
+    [templateCode],
+  );
   const tier = getTierDefinition(tierCode) ?? TIERS[0];
   const price = computeMonthlyTotal(tier, [], sites);
+  const steps = [
+    { id: "template", label: "Template" },
+    { id: "workspace", label: "Workspace" },
+    { id: "admin", label: "Admin" },
+    { id: "review", label: "Review" },
+  ] as const;
+  const resolvedSlug = slugify(slug || name);
+  const resolvedSubdomain = slugify(subdomain || resolvedSlug);
 
-  const steps: { label: string; status: "done" | "active" | "pending" }[] = [
-    { label: "Select Template", status: name ? "done" : "active" },
-    { label: "Client Details", status: slug ? "done" : name ? "active" : "pending" },
-    { label: "Sites & Plan", status: tierCode ? "done" : "pending" },
-    { label: "Review & Create", status: completed ? "done" : "active" },
-  ];
+  useEffect(() => {
+    if (!open) return;
+    setTierCode(selectedTemplate?.recommendedTierCode ?? "BASIC");
+  }, [open, selectedTemplate]);
+
+  const resetWizard = () => {
+    setStepIndex(0);
+    setTemplateCode("TEMPLATE_CORE_STARTER");
+    setName("");
+    setSlug("");
+    setSubdomain("");
+    setSites(1);
+    setTierCode("BASIC");
+    setAdminName("");
+    setAdminEmail("");
+    setAdminPassword("");
+    setReason("");
+    setPreview(null);
+    setError(null);
+    setRunning(false);
+  };
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      window.setTimeout(resetWizard, 180);
+    }
+  };
+
+  const previewPayload = {
+    actor: actorEmail,
+    organizationName: name,
+    organizationSlug: resolvedSlug,
+    adminEmail,
+    adminName,
+    adminPassword,
+    tierCode,
+    featureTemplate: templateCode,
+    subdomain: resolvedSubdomain,
+    reason,
+  };
+
+  const handleNext = async () => {
+    setError(null);
+
+    if (stepIndex === 0) {
+      setStepIndex(1);
+      return;
+    }
+
+    if (stepIndex === 1) {
+      if (!name.trim()) {
+        setError("Workspace name is required.");
+        return;
+      }
+      if (!resolvedSlug) {
+        setError("Workspace slug is required.");
+        return;
+      }
+      if (!resolvedSubdomain) {
+        setError("Subdomain is required.");
+        return;
+      }
+      setStepIndex(2);
+      return;
+    }
+
+    if (stepIndex === 2) {
+      if (!adminName.trim()) {
+        setError("Admin name is required.");
+        return;
+      }
+      if (!adminEmail.includes("@")) {
+        setError("Admin email is invalid.");
+        return;
+      }
+      if (adminPassword.length < 8) {
+        setError("Admin password must be at least 8 characters.");
+        return;
+      }
+      setRunning(true);
+      try {
+        const nextPreview = await executeOperation<ProvisionBundlePreview>({
+          module: "org",
+          action: "previewProvisionBundle",
+          payload: previewPayload,
+        });
+        setPreview(nextPreview);
+        setStepIndex(3);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Unable to preview provisioning.");
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
+  };
 
   const create = async () => {
     setRunning(true);
+    setError(null);
     try {
-      await executeOperation({
+      await executeOperation<ProvisionBundleResult>({
         module: "org",
-        action: "provision",
-        payload: {
-          actor: actorEmail,
-          template,
-          name,
-          slug,
-          sites,
-          tier: tierCode,
-          notes,
-        },
+        action: "provisionBundle",
+        payload: previewPayload,
       });
-      setCompleted(true);
-      setOpen(false);
+      handleOpenChange(false);
+      window.location.reload();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Provisioning failed.");
     } finally {
       setRunning(false);
     }
@@ -110,90 +226,232 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>Create Client (wizard)</Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-2xl">
+      <Button onClick={() => setOpen(true)}>Create Client</Button>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent size="xl" className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Create Client</DialogTitle>
           </DialogHeader>
-          <WizardShell
-            title="Guided flow"
-            description="Operators never touch raw flags; pick template, fill layman details, confirm pricing."
-            steps={steps}
-            footer={
-              <DialogFooter>
-                <Button onClick={create} disabled={running || !name || !slug}>
-                  {running ? "Creating..." : "Create"}
-                </Button>
-              </DialogFooter>
-            }
-          >
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Template</Label>
-                <Select value={template} onValueChange={setTemplate}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Core Starter">Core Starter</SelectItem>
-                    <SelectItem value="Gold Mine">Gold Mine</SelectItem>
-                    <SelectItem value="Small Business Security">Small Business Security</SelectItem>
-                    <SelectItem value="Tech Workshop">Tech Workshop</SelectItem>
-                    <SelectItem value="Schools">Schools</SelectItem>
-                    <SelectItem value="Car Sales">Car Sales</SelectItem>
-                    <SelectItem value="Thrift">Thrift</SelectItem>
-                    <SelectItem value="All Features">All Features</SelectItem>
-                  </SelectContent>
-                </Select>
+          <StepProgress
+            steps={steps.map((step) => ({ id: step.id, label: step.label }))}
+            currentStepIndex={stepIndex}
+            ariaLabel="Client provisioning progress"
+          />
+
+          <div className="space-y-4 py-1">
+            {stepIndex === 0 ? (
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(18rem,1fr)]">
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Template</Label>
+                    <Select
+                      value={templateCode}
+                      onValueChange={(value) => {
+                        setTemplateCode(value);
+                        const nextTemplate = getClientTemplateDefinition(value);
+                        if (nextTemplate?.recommendedTierCode) {
+                          setTierCode(nextTemplate.recommendedTierCode);
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CLIENT_BUNDLE_TEMPLATES.map((template) => (
+                          <SelectItem key={template.code} value={template.code}>
+                            {template.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tier</Label>
+                    <Select value={tierCode} onValueChange={setTierCode}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TIERS.map((item) => (
+                          <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Active sites</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={sites}
+                      onChange={(event) => setSites(Number(event.target.value) || 1)}
+                    />
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Template</p>
+                  <p className="mt-2 text-sm font-semibold">{selectedTemplate?.label}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{selectedTemplate?.description}</p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>Tier</Label>
-                <Select value={tierCode} onValueChange={setTierCode}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TIERS.map((item) => (
-                      <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
+            ) : null}
+
+            {stepIndex === 1 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>Client name</Label>
+                  <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Kasiya Metals" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Slug</Label>
+                  <Input value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="Auto if left blank" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Subdomain</Label>
+                  <Input value={subdomain} onChange={(event) => setSubdomain(event.target.value)} placeholder="Auto if left blank" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Reason</Label>
+                  <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Optional audit context" />
+                </div>
+                <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4 md:col-span-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Resolved slug</p>
+                      <p className="mt-2 font-mono text-sm">{resolvedSlug || "pending"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Resolved subdomain</p>
+                      <p className="mt-2 font-mono text-sm">{resolvedSubdomain || "pending"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {stepIndex === 2 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>Admin name</Label>
+                  <Input value={adminName} onChange={(event) => setAdminName(event.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Admin email</Label>
+                  <Input type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <Label>Temporary password</Label>
+                  <Input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} />
+                </div>
+              </div>
+            ) : null}
+
+            {stepIndex === 3 ? (
+              <div className="space-y-3">
+                <Card className="border-0 bg-[var(--surface-subtle)] shadow-none">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Review</CardTitle>
+                    <CardDescription>{preview?.templateLabel ?? selectedTemplate?.label}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Workspace</p>
+                      <p className="mt-2 text-sm font-medium">{name}</p>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">{preview?.organizationSlug ?? resolvedSlug}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+                      <p className="mt-2 text-sm font-medium">{preview?.adminName ?? adminName}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{preview?.adminEmail ?? adminEmail}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Subdomain</p>
+                      <p className="mt-2 font-mono text-sm">{preview?.subdomainCandidate ?? resolvedSubdomain}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Plan</p>
+                      <p className="mt-2 text-sm font-medium">{tier.name}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 bg-[var(--surface-subtle)] shadow-none">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Monthly total</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Base</p>
+                      <p className="mt-2 font-mono text-lg">{formatCurrency(price.tierBase)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Site overage</p>
+                      <p className="mt-2 font-mono text-lg">{formatCurrency(price.siteOverage)}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Total</p>
+                      <p className="mt-2 font-mono text-2xl">{formatCurrency(price.total)}/month</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {preview?.warnings?.length ? (
+                  <div className="rounded-2xl bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                    {preview.warnings.map((warning) => (
+                      <p key={warning}>{warning}</p>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                ) : null}
+
+                {preview && !preview.subdomainAvailable && preview.subdomainSuggestions.length > 0 ? (
+                  <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Suggestions</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {preview.subdomainSuggestions
+                        .filter((option) => option.available)
+                        .slice(0, 4)
+                        .map((option) => (
+                          <button
+                            key={option.candidate}
+                            type="button"
+                            className="rounded-full bg-background px-3 py-1.5 font-mono text-xs text-foreground transition-colors hover:bg-[var(--surface-soft)]"
+                            onClick={() => {
+                              setSubdomain(option.candidate);
+                              setStepIndex(1);
+                              setError(null);
+                            }}
+                          >
+                            {option.candidate}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              <div className="space-y-1">
-                <Label>Client name</Label>
-                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Kasiya Metals" />
+            ) : null}
+
+            {error ? (
+              <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
               </div>
-              <div className="space-y-1">
-                <Label>Slug</Label>
-                <Input value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="kasiya-metals" />
-              </div>
-              <div className="space-y-1">
-                <Label>Sites</Label>
-                <Input type="number" min={1} value={sites} onChange={(event) => setSites(Number(event.target.value) || 1)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Notes (optional)</Label>
-                <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Purpose, onboarding context" />
-              </div>
-            </div>
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardTitle className="text-base">Pricing preview</CardTitle>
-                <CardDescription>tier_base + tier_site_overage (USD/month)</CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Base Plan</p>
-                  <p className="font-mono text-lg">{formatCurrency(price.tierBase)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Site Overage</p>
-                  <p className="font-mono text-lg">{formatCurrency(price.siteOverage)}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Total</p>
-                  <p className="font-mono text-2xl">{formatCurrency(price.total)}/month</p>
-                </div>
-              </CardContent>
-            </Card>
-          </WizardShell>
+            ) : null}
+          </div>
+
+          <DialogFooter className="flex-row justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+              disabled={stepIndex === 0 || running}
+            >
+              Back
+            </Button>
+            {stepIndex < steps.length - 1 ? (
+              <Button onClick={handleNext} disabled={running}>
+                {running ? "Checking..." : "Continue"}
+              </Button>
+            ) : (
+              <Button onClick={create} disabled={running || !preview?.subdomainAvailable}>
+                {running ? "Creating..." : "Create client"}
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

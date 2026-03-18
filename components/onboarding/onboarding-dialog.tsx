@@ -8,14 +8,12 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -23,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { StepProgress } from "@/components/ui/step-progress";
 import { getApiErrorMessage } from "@/lib/api-client";
 
 type OnboardingStep = 0 | 1 | 2 | 3 | 4;
@@ -50,6 +49,14 @@ type OrganizationPrefs = {
   goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD";
   cashDisbursementOnly: boolean;
 };
+
+const ONBOARDING_STEPS = [
+  { id: "welcome", label: "Start" },
+  { id: "sites", label: "Sites" },
+  { id: "departments", label: "Departments" },
+  { id: "preferences", label: "Preferences" },
+  { id: "review", label: "Review" },
+] as const;
 
 export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingDialogProps) {
   const queryClient = useQueryClient();
@@ -161,35 +168,22 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
     });
   };
 
-  const progressPercentage = ((currentStep + 1) / 5) * 100;
-
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
         return (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/50 p-6 text-center">
-              <h3 className="text-lg font-semibold">Welcome to Huchu!</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Let&apos;s set up your organization by creating some essential entities.
-              </p>
-              <p className="mt-4 text-sm text-muted-foreground">
-                This wizard will guide you through setting up:
-              </p>
-              <ul className="mt-2 space-y-1 text-left text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <Badge variant="default" className="text-xs">Required</Badge>
-                  <span>At least one site/location</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">Optional</Badge>
-                  <span>Departments for organization structure</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">New</Badge>
-                  <span>Organization payroll and payout preferences</span>
-                </li>
-              </ul>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Required</p>
+              <p className="mt-2 text-sm font-medium">Create at least one site</p>
+            </div>
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Optional</p>
+              <p className="mt-2 text-sm font-medium">Add departments now or later</p>
+            </div>
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Defaults</p>
+              <p className="mt-2 text-sm font-medium">Set payroll and payout preferences</p>
             </div>
           </div>
         );
@@ -197,18 +191,15 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
       case 1:
         return (
           <div className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/50 p-4">
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3">
               <div className="flex items-center gap-2">
                 <Badge variant="default" className="text-xs">Required</Badge>
                 <p className="text-sm font-medium">At least one site is required</p>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Sites represent physical locations or operational units in your organization.
-              </p>
             </div>
             <div className="space-y-4">
               {sites.map((site, index) => (
-                <div key={index} className="space-y-3 rounded-lg border border-border p-4">
+                <div key={index} className="space-y-3 rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium">Site {index + 1}</h4>
                     {sites.length > 1 && (
@@ -266,18 +257,15 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
       case 2:
         return (
           <div className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/50 p-4">
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3">
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-xs">Optional</Badge>
                 <p className="text-sm font-medium">Departments help organize your team</p>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                You can skip this step and add departments later from the management section.
-              </p>
             </div>
             <div className="space-y-4">
               {departments.map((dept, index) => (
-                <div key={index} className="space-y-3 rounded-lg border border-border p-4">
+                <div key={index} className="space-y-3 rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium">Department {index + 1}</h4>
                     <Button
@@ -320,11 +308,8 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
       case 3:
         return (
           <div className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/50 p-4">
-              <p className="text-sm font-medium">Organization Preferences</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Configure defaults now so payroll and irregular payouts align with your organization.
-              </p>
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3">
+              <p className="text-sm font-medium">Set operating defaults</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -411,15 +396,12 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
 
         return (
           <div className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/50 p-6">
-              <h3 className="text-lg font-semibold">Review Your Setup</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Please review the information below before completing setup.
-              </p>
+            <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+              <h3 className="text-sm font-semibold">Review setup</h3>
             </div>
 
             <div className="space-y-3">
-              <div className="rounded-lg border border-border p-4">
+              <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-medium">Sites</h4>
@@ -445,7 +427,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                 )}
               </div>
 
-              <div className="rounded-lg border border-border p-4">
+              <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-medium">Departments</h4>
@@ -509,20 +491,16 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent size="lg" tabletBehavior="fullscreen" className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {currentStep === 0 && "Welcome to Huchu"}
-            {currentStep === 1 && "Set Up Sites"}
-            {currentStep === 2 && "Set Up Departments"}
-            {currentStep === 3 && "Organization Preferences"}
-            {currentStep === 4 && "Review & Complete"}
-          </DialogTitle>
-          <DialogDescription>
-            Step {currentStep + 1} of 5
-          </DialogDescription>
-          <Progress value={progressPercentage} className="mt-2" />
+          <DialogTitle>Workspace setup</DialogTitle>
         </DialogHeader>
 
-        <div className="py-4">{renderStepContent()}</div>
+        <StepProgress
+          steps={[...ONBOARDING_STEPS]}
+          currentStepIndex={currentStep}
+          ariaLabel="Workspace setup progress"
+        />
+
+        <div className="py-1">{renderStepContent()}</div>
 
         <DialogFooter className="flex-row justify-between">
           <Button
