@@ -38,32 +38,26 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
   };
 
   return (
-    <div className="space-y-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-base)] p-4">
-      <div className="space-y-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Workspace</p>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-base font-semibold text-[var(--text-strong)]">{activeCompany?.name ?? "Platform"}</p>
-            <p className="text-xs text-[var(--text-muted)]">
-              {activeCompany ? activeCompany.slug ?? activeCompany.id : "Global control plane scope"}
-            </p>
-          </div>
-          <Badge variant="secondary" className="rounded-full px-3 py-1">
-            {activeCompany ? "Organization" : "Platform"}
-          </Badge>
-        </div>
-      </div>
-
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full justify-between rounded-2xl">
-            <span className="flex items-center gap-2">
-              <Layers3 className="h-4 w-4" />
-              Switch workspace
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-11 w-full justify-between rounded-2xl border-[var(--border)] bg-[var(--surface-base)] px-4 shadow-none">
+          <span className="flex min-w-0 items-center gap-2 text-left">
+            <Layers3 className="h-4 w-4 shrink-0" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">{activeCompany?.name ?? "Platform"}</span>
+              <span className="block truncate text-xs text-[var(--text-muted)]">
+                {activeCompany ? activeCompany.slug ?? activeCompany.id : "Cross-workspace scope"}
+              </span>
             </span>
+          </span>
+          <span className="flex items-center gap-2">
+            <Badge variant="secondary" className="hidden rounded-full px-2.5 py-1 md:inline-flex">
+              {activeCompany ? "Workspace" : "Platform"}
+            </Badge>
             <ChevronsUpDown className="h-4 w-4 text-[var(--text-muted)]" />
-          </Button>
-        </PopoverTrigger>
+          </span>
+        </Button>
+      </PopoverTrigger>
         <PopoverContent className="w-[24rem] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput value={query} onValueChange={setQuery} placeholder="Search clients, slugs, and workspace ids" />
@@ -126,7 +120,6 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
             </CommandList>
           </Command>
         </PopoverContent>
-      </Popover>
-    </div>
+    </Popover>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { RefreshCcw, Search, ShieldCheck, Users } from "lucide-react";
+import { RefreshCcw, Search } from "lucide-react";
 import { fetchIdentityHub } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { IdentityHubData } from "@/components/admin-portal/types";
@@ -23,6 +23,8 @@ import {
   UserRoleDialog,
   UserStatusDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
+
+type IdentityView = "admins" | "users" | "requests" | "sessions";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not available";
@@ -52,11 +54,45 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
+  return (
+    <Card className="border-[var(--border)] shadow-none">
+      <CardHeader className="space-y-2 pb-3">
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="font-mono text-2xl">{value}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0 text-xs text-[var(--text-muted)]">{hint}</CardContent>
+    </Card>
+  );
+}
+
+function SearchField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative w-full md:w-80">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-10 rounded-xl pl-10" />
+    </div>
+  );
+}
+
 export function IdentityHubPage({ companyId }: { companyId?: string }) {
   const { actorEmail, companies, activeCompany } = useAdminShell();
-  const [view, setView] = useState("admins");
-  const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
+  const [view, setView] = useState<IdentityView>("admins");
+  const [searchByView, setSearchByView] = useState<Record<IdentityView, string>>({
+    admins: "",
+    users: "",
+    requests: "",
+    sessions: "",
+  });
+  const deferredSearch = useDeferredValue(searchByView[view]);
   const [data, setData] = useState<IdentityHubData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +125,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
     return () => {
       ignore = true;
     };
-  }, [companyId, deferredSearch, refreshKey]);
+  }, [companyId, deferredSearch, refreshKey, view]);
 
   const items = useMemo(
     () => [
@@ -103,6 +139,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
 
   const refresh = () => setRefreshKey((value) => value + 1);
   const scopeLabel = companyId ? activeCompany?.name ?? "Workspace identity hub" : "Platform identity hub";
+  const activeAdmins = data?.admins.filter((admin) => admin.isActive).length ?? 0;
+  const activeUsers = data?.users.filter((user) => user.isActive).length ?? 0;
+  const pendingRequests = data?.requests.filter((request) => request.status === "REQUESTED").length ?? 0;
+  const activeSessions = data?.sessions.filter((session) => session.status === "ACTIVE").length ?? 0;
 
   return (
     <section className="space-y-5">
@@ -118,7 +158,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           </div>
           <h1 className="text-2xl font-semibold">{scopeLabel}</h1>
           <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-            Manage admins, users, support requests, and active sessions with guided actions and workspace-aware identity context.
+            Manage people, support approvals, and live access sessions from one workspace-aware identity surface with guided next actions only.
           </p>
         </div>
 
@@ -153,25 +193,14 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         </div>
       </div>
 
-      <Card className="border-[var(--border)]">
-        <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-base">Control row</CardTitle>
-            <CardDescription>Search names, emails, workspaces, or support context without leaving the active identity view.</CardDescription>
-          </div>
-          <div className="relative w-full max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, email, workspace, request, or session"
-              className="h-11 rounded-2xl pl-10"
-            />
-          </div>
-        </CardHeader>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Active admins" value={activeAdmins} hint="Operators who can access admin workflows right now." />
+        <MetricCard label="Active users" value={activeUsers} hint="Current user identities available across the visible scope." />
+        <MetricCard label="Pending requests" value={pendingRequests} hint="Support approvals waiting for a decision." />
+        <MetricCard label="Live sessions" value={activeSessions} hint="Explicit support sessions still active or awaiting termination." />
+      </div>
 
-      <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Identity views">
+      <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as IdentityView)} railLabel="Identity views">
         {loading ? (
           <Card className="border-[var(--border)]">
             <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading identity data...</CardContent>
@@ -183,35 +212,61 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "admins" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Admins</CardTitle>
-              <CardDescription>Platform and workspace administrators with activation and password controls.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Admin operators</CardTitle>
+                  <CardDescription>Platform and workspace administrators with activation and password controls.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {data?.admins.length ?? 0} total
+                  </Badge>
+                  <Badge variant="secondary" className="font-mono">
+                    {activeAdmins} active
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <SearchField
+                  value={searchByView.admins}
+                  onChange={(value) => setSearchByView((current) => ({ ...current, admins: value }))}
+                  placeholder="Search admin name, email, workspace, or role"
+                />
+                {companyId ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/admin/clients/${companyId}`}>Open workspace overview</Link>
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               {!data || data.admins.length === 0 ? (
-                <EmptyState title="No admins found" hint="Create the first workspace admin or broaden the search scope." />
+                <div className="p-6">
+                  <EmptyState title="No admins found" hint="Create the first workspace admin or broaden the active search." />
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                     <tr>
-                      <th className="px-3 py-2">Admin</th>
-                      {!companyId ? <th className="px-3 py-2">Workspace</th> : null}
-                      <th className="px-3 py-2">Role</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Updated</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-4 py-3">Admin</th>
+                      {!companyId ? <th className="px-4 py-3">Workspace</th> : null}
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Updated</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.admins.map((admin) => (
-                      <tr key={admin.id} className="border-t align-top">
-                        <td className="px-3 py-3">
+                      <tr key={admin.id} className="border-t border-[var(--border)] align-top">
+                        <td className="px-4 py-3">
                           <p className="font-medium">{admin.name}</p>
                           <p className="text-xs text-[var(--text-muted)]">{admin.email}</p>
                         </td>
                         {!companyId ? (
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-3">
                             {admin.companyId ? (
                               <Link href={`/admin/clients/${admin.companyId}`} className="text-sm font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
                                 {admin.companyName ?? admin.companyId}
@@ -221,14 +276,14 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                             )}
                           </td>
                         ) : null}
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <Badge variant="outline">{admin.role}</Badge>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <StatusBadge value={admin.isActive ? "ACTIVE" : "INACTIVE"} />
                         </td>
-                        <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(admin.updatedAt ?? admin.createdAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(admin.updatedAt ?? admin.createdAt)}</td>
+                        <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             {admin.isActive ? (
                               <AdminStatusDialog actorEmail={actorEmail} admin={admin} activate={false} triggerLabel="Deactivate" onCompleted={refresh} />
@@ -248,48 +303,67 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "users" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Users</CardTitle>
-              <CardDescription>Workspace users with role, activation, and password controls.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Workspace users</CardTitle>
+                  <CardDescription>Users with role, activation, and password controls in a single operational table.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {data?.users.length ?? 0} total
+                  </Badge>
+                  <Badge variant="secondary" className="font-mono">
+                    {activeUsers} active
+                  </Badge>
+                </div>
+              </div>
+              <SearchField
+                value={searchByView.users}
+                onChange={(value) => setSearchByView((current) => ({ ...current, users: value }))}
+                placeholder="Search user name, email, workspace, or role"
+              />
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               {!data || data.users.length === 0 ? (
-                <EmptyState title="No users found" hint="Create a user or widen the search scope." />
+                <div className="p-6">
+                  <EmptyState title="No users found" hint="Create a user or widen the active identity search." />
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                     <tr>
-                      <th className="px-3 py-2">User</th>
-                      {!companyId ? <th className="px-3 py-2">Workspace</th> : null}
-                      <th className="px-3 py-2">Role</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Updated</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-4 py-3">User</th>
+                      {!companyId ? <th className="px-4 py-3">Workspace</th> : null}
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Updated</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.users.map((user) => (
-                      <tr key={user.id} className="border-t align-top">
-                        <td className="px-3 py-3">
+                      <tr key={user.id} className="border-t border-[var(--border)] align-top">
+                        <td className="px-4 py-3">
                           <p className="font-medium">{user.name}</p>
                           <p className="text-xs text-[var(--text-muted)]">{user.email}</p>
                         </td>
                         {!companyId ? (
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-3">
                             <Link href={`/admin/clients/${user.companyId}`} className="text-sm font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
                               {user.companyName ?? user.companyId}
                             </Link>
                           </td>
                         ) : null}
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <Badge variant="outline">{user.role}</Badge>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <StatusBadge value={user.isActive ? "ACTIVE" : "INACTIVE"} />
                         </td>
-                        <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(user.updatedAt ?? user.createdAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(user.updatedAt ?? user.createdAt)}</td>
+                        <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             <UserRoleDialog actorEmail={actorEmail} user={user} triggerLabel="Change role" onCompleted={refresh} />
                             {user.isActive ? (
@@ -310,45 +384,64 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "requests" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Support requests</CardTitle>
-              <CardDescription>Time-bound access requests that must be approved before a session starts.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Support approvals</CardTitle>
+                  <CardDescription>Review request context, approve or deny access, and start sessions only when valid.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {data?.requests.length ?? 0} requests
+                  </Badge>
+                  <Badge variant={pendingRequests > 0 ? "secondary" : "outline"} className="font-mono">
+                    {pendingRequests} pending
+                  </Badge>
+                </div>
+              </div>
+              <SearchField
+                value={searchByView.requests}
+                onChange={(value) => setSearchByView((current) => ({ ...current, requests: value }))}
+                placeholder="Search requester, workspace, scope, or reason"
+              />
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               {!data || data.requests.length === 0 ? (
-                <EmptyState title="No support requests found" hint="Support requests will appear here after submission." />
+                <div className="p-6">
+                  <EmptyState title="No support requests found" hint="New support requests will appear here after submission." />
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                     <tr>
-                      <th className="px-3 py-2">Workspace</th>
-                      <th className="px-3 py-2">Requested by</th>
-                      <th className="px-3 py-2">Scope</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Requested</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-4 py-3">Workspace</th>
+                      <th className="px-4 py-3">Requested by</th>
+                      <th className="px-4 py-3">Scope</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Requested</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.requests.map((request) => (
-                      <tr key={request.id} className="border-t align-top">
-                        <td className="px-3 py-3">
+                      <tr key={request.id} className="border-t border-[var(--border)] align-top">
+                        <td className="px-4 py-3">
                           <p className="font-medium">{request.companyName ?? request.companyId}</p>
                           <p className="text-xs text-[var(--text-muted)]">{request.companySlug ?? request.companyId}</p>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <p>{request.requestedBy}</p>
                           <p className="text-xs text-[var(--text-muted)]">{request.reason}</p>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <Badge variant="outline">{request.scope}</Badge>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <StatusBadge value={request.status} />
                         </td>
-                        <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(request.requestedAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(request.requestedAt)}</td>
+                        <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             {request.status === "REQUESTED" ? (
                               <>
@@ -371,46 +464,65 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "sessions" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Active and past sessions</CardTitle>
-              <CardDescription>Impersonation and shadow sessions with clear actor visibility and termination controls.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Support sessions</CardTitle>
+                  <CardDescription>Track impersonation and shadow sessions with clear actor visibility and end-session controls.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {data?.sessions.length ?? 0} sessions
+                  </Badge>
+                  <Badge variant={activeSessions > 0 ? "secondary" : "outline"} className="font-mono">
+                    {activeSessions} active
+                  </Badge>
+                </div>
+              </div>
+              <SearchField
+                value={searchByView.sessions}
+                onChange={(value) => setSearchByView((current) => ({ ...current, sessions: value }))}
+                placeholder="Search actor, workspace, mode, scope, or status"
+              />
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               {!data || data.sessions.length === 0 ? (
-                <EmptyState title="No support sessions found" hint="Approved access sessions will appear here once started." />
+                <div className="p-6">
+                  <EmptyState title="No support sessions found" hint="Approved access sessions will appear here once started." />
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                     <tr>
-                      <th className="px-3 py-2">Workspace</th>
-                      <th className="px-3 py-2">Actor</th>
-                      <th className="px-3 py-2">Mode</th>
-                      <th className="px-3 py-2">Scope</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Expires</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-4 py-3">Workspace</th>
+                      <th className="px-4 py-3">Actor</th>
+                      <th className="px-4 py-3">Mode</th>
+                      <th className="px-4 py-3">Scope</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Expires</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.sessions.map((session) => (
-                      <tr key={session.id} className="border-t align-top">
-                        <td className="px-3 py-3">
+                      <tr key={session.id} className="border-t border-[var(--border)] align-top">
+                        <td className="px-4 py-3">
                           <p className="font-medium">{session.companyName ?? session.companyId}</p>
                           <p className="text-xs text-[var(--text-muted)]">{session.companySlug ?? session.companyId}</p>
                         </td>
-                        <td className="px-3 py-3">{session.actor}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">{session.actor}</td>
+                        <td className="px-4 py-3">
                           <Badge variant="outline">{session.mode}</Badge>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <Badge variant="outline">{session.scope}</Badge>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <StatusBadge value={session.status} />
                         </td>
-                        <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(session.expiresAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(session.expiresAt)}</td>
+                        <td className="px-4 py-3">
                           <div className="flex justify-end">
                             {session.status === "ACTIVE" ? (
                               <SupportEndDialog actorEmail={actorEmail} session={session} triggerLabel="End session" onCompleted={refresh} />
@@ -428,19 +540,6 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           </Card>
         ) : null}
       </VerticalDataViews>
-
-      <Card className="border-[var(--border)]">
-        <CardContent className="flex flex-wrap items-center gap-2 py-4 text-sm text-[var(--text-muted)]">
-          <Users className="h-4 w-4" />
-          Identity flows are workspace-aware, autocomplete-first, and audit-friendly. Support sessions remain explicit and time-bound.
-          {companyId ? (
-            <Link href={`/admin/clients/${companyId}`} className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-              <ShieldCheck className="h-4 w-4" />
-              Back to workspace overview
-            </Link>
-          ) : null}
-        </CardContent>
-      </Card>
     </section>
   );
 }

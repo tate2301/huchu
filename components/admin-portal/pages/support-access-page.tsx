@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { CircleUserRound, Clock3, Eye, RefreshCcw, ShieldCheck } from "lucide-react";
+import { CircleUserRound, Clock3, Eye, RefreshCcw, Search } from "lucide-react";
 import { fetchSupportAccessHub } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { SupportAccessHubData } from "@/components/admin-portal/types";
@@ -17,6 +17,8 @@ import {
   SupportRequestDialog,
   SupportStartDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
+
+type SupportView = "requests" | "launch" | "sessions";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not available";
@@ -46,11 +48,44 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
+  return (
+    <Card className="border-[var(--border)] shadow-none">
+      <CardHeader className="space-y-2 pb-3">
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="font-mono text-2xl">{value}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0 text-xs text-[var(--text-muted)]">{hint}</CardContent>
+    </Card>
+  );
+}
+
+function SearchField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative w-full md:w-80">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-10 rounded-xl pl-10" />
+    </div>
+  );
+}
+
 export function SupportAccessPage({ companyId }: { companyId?: string }) {
   const { actorEmail, companies, activeCompany } = useAdminShell();
-  const [view, setView] = useState("requests");
-  const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
+  const [view, setView] = useState<SupportView>("requests");
+  const [searchByView, setSearchByView] = useState<Record<SupportView, string>>({
+    requests: "",
+    launch: "",
+    sessions: "",
+  });
+  const deferredSearch = useDeferredValue(searchByView[view]);
   const [data, setData] = useState<SupportAccessHubData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +118,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
     return () => {
       ignore = true;
     };
-  }, [companyId, deferredSearch, refreshKey]);
+  }, [companyId, deferredSearch, refreshKey, view]);
 
   const refresh = () => setRefreshKey((value) => value + 1);
   const scopeLabel = companyId ? `${activeCompany?.name ?? "Workspace"} support access` : "Support Access";
@@ -91,6 +126,8 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
   const sessionRows = data?.sessions ?? [];
   const approvedRequests = requestRows.filter((row) => row.status === "APPROVED");
   const activeSessions = sessionRows.filter((row) => row.status === "ACTIVE");
+  const requestQueue = requestRows.filter((row) => row.status === "REQUESTED").length;
+  const shadowSessions = activeSessions.filter((row) => row.mode === "SHADOW").length;
 
   const items = useMemo(
     () => [
@@ -106,12 +143,16 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">{companyId ? "Organization scope" : "Platform scope"}</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">Support access</Badge>
+            <Badge variant="secondary" className="rounded-full px-3 py-1">
+              {companyId ? "Organization scope" : "Platform scope"}
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              Support access
+            </Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeLabel}</h1>
           <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-            Request, approve, launch, and terminate support sessions with explicit impersonation mode, scope, and expiration controls.
+            Request, approve, launch, and end support sessions from a single queue with explicit mode, scope, and expiry context.
           </p>
         </div>
 
@@ -130,51 +171,14 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Open requests</CardDescription>
-            <CardTitle className="text-2xl">{requestRows.filter((row) => row.status === "REQUESTED").length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Approved to launch</CardDescription>
-            <CardTitle className="text-2xl">{approvedRequests.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Active sessions</CardDescription>
-            <CardTitle className="text-2xl">{activeSessions.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Shadow sessions</CardDescription>
-            <CardTitle className="text-2xl">{activeSessions.filter((row) => row.mode === "SHADOW").length}</CardTitle>
-          </CardHeader>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Open requests" value={requestQueue} hint="Approvals waiting on an operator decision." />
+        <MetricCard label="Ready to launch" value={approvedRequests.length} hint="Approved requests that can become a live support session." />
+        <MetricCard label="Active sessions" value={activeSessions.length} hint="Sessions still visible in the operator context and subject to expiry." />
+        <MetricCard label="Shadow sessions" value={shadowSessions} hint="Observation-only sessions that avoid direct user action." />
       </div>
 
-      <Card className="border-[var(--border)]">
-        <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-base">Control row</CardTitle>
-            <CardDescription>Search workspace, requester, actor, session mode, or access reason without leaving support operations.</CardDescription>
-          </div>
-          <div className="w-full max-w-md">
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search support request, actor, workspace, or reason"
-              className="h-11 rounded-2xl"
-            />
-          </div>
-        </CardHeader>
-      </Card>
-
-      <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Support views">
+      <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as SupportView)} railLabel="Support views">
         {loading ? (
           <Card className="border-[var(--border)]">
             <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading support access...</CardContent>
@@ -186,41 +190,64 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "requests" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Support requests</CardTitle>
-              <CardDescription>Time-bound access requests that must be approved before a session starts.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Support request queue</CardTitle>
+                  <CardDescription>Time-bound access requests with clear approval and denial actions only when valid.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {requestRows.length} requests
+                  </Badge>
+                  <Badge variant={requestQueue > 0 ? "secondary" : "outline"} className="font-mono">
+                    {requestQueue} pending
+                  </Badge>
+                </div>
+              </div>
+              <SearchField
+                value={searchByView.requests}
+                onChange={(value) => setSearchByView((current) => ({ ...current, requests: value }))}
+                placeholder="Search requester, workspace, scope, or reason"
+              />
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               {requestRows.length === 0 ? (
-                <EmptyState title="No support requests found" hint="New support requests will appear here once submitted." />
+                <div className="p-6">
+                  <EmptyState title="No support requests found" hint="New support requests will appear here once submitted." />
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                     <tr>
-                      <th className="px-3 py-2">Workspace</th>
-                      <th className="px-3 py-2">Requested by</th>
-                      <th className="px-3 py-2">Scope</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Requested</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-4 py-3">Workspace</th>
+                      <th className="px-4 py-3">Requested by</th>
+                      <th className="px-4 py-3">Scope</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Requested</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {requestRows.map((request) => (
-                      <tr key={request.id} className="border-t align-top">
-                        <td className="px-3 py-3">
+                      <tr key={request.id} className="border-t border-[var(--border)] align-top">
+                        <td className="px-4 py-3">
                           <p className="font-medium">{request.companyName ?? request.companyId}</p>
                           <p className="text-xs text-[var(--text-muted)]">{request.companySlug ?? request.companyId}</p>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
                           <p>{request.requestedBy}</p>
                           <p className="text-xs text-[var(--text-muted)]">{request.reason}</p>
                         </td>
-                        <td className="px-3 py-3"><Badge variant="outline">{request.scope}</Badge></td>
-                        <td className="px-3 py-3"><StatusBadge value={request.status} /></td>
-                        <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(request.requestedAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">
+                          <Badge variant="outline">{request.scope}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge value={request.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(request.requestedAt)}</td>
+                        <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             {request.status === "REQUESTED" ? (
                               <>
@@ -243,107 +270,167 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "launch" ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardTitle className="text-base">Approved requests ready to launch</CardTitle>
-                <CardDescription>Launch impersonation or shadow sessions only after approval.</CardDescription>
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <Card className="border-[var(--border)] shadow-none">
+              <CardHeader className="gap-4 border-b border-[var(--border)]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Approved requests ready to launch</CardTitle>
+                    <CardDescription>Only approved requests appear here so operators can move straight into the correct session flow.</CardDescription>
+                  </div>
+                  <Badge variant={approvedRequests.length > 0 ? "secondary" : "outline"} className="font-mono">
+                    {approvedRequests.length} ready
+                  </Badge>
+                </div>
+                <SearchField
+                  value={searchByView.launch}
+                  onChange={(value) => setSearchByView((current) => ({ ...current, launch: value }))}
+                  placeholder="Search approved request, workspace, scope, or requester"
+                />
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="overflow-x-auto p-0">
                 {approvedRequests.length === 0 ? (
-                  <EmptyState title="No approved requests" hint="Approved requests will appear here when they are ready to launch." />
+                  <div className="p-6">
+                    <EmptyState title="No approved requests" hint="Approved requests will appear here when they are ready to launch." />
+                  </div>
                 ) : (
-                  approvedRequests.map((request) => (
-                    <div key={request.id} className="rounded-[18px] border border-[var(--border)] p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">{request.companyName ?? request.companyId}</p>
-                          <p className="mt-1 text-xs text-[var(--text-muted)]">{request.requestedBy} | {request.scope.replaceAll("_", " ")}</p>
-                        </div>
-                        <StatusBadge value={request.status} />
-                      </div>
-                      <p className="mt-3 text-sm text-[var(--text-muted)]">{request.reason}</p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <SupportStartDialog actorEmail={actorEmail} request={request} triggerLabel="Launch session" onCompleted={refresh} />
-                        {request.companyId ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/admin/company/${request.companyId}/identity`}>Open identity</Link>
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))
+                  <table className="w-full text-sm">
+                    <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                      <tr>
+                        <th className="px-4 py-3">Workspace</th>
+                        <th className="px-4 py-3">Requested by</th>
+                        <th className="px-4 py-3">Scope</th>
+                        <th className="px-4 py-3 text-right">Approved</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {approvedRequests.map((request) => (
+                        <tr key={request.id} className="border-t border-[var(--border)] align-top">
+                          <td className="px-4 py-3">
+                            <p className="font-medium">{request.companyName ?? request.companyId}</p>
+                            <p className="text-xs text-[var(--text-muted)]">{request.companySlug ?? request.companyId}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p>{request.requestedBy}</p>
+                            <p className="text-xs text-[var(--text-muted)]">{request.reason}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline">{request.scope}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(request.updatedAt ?? request.requestedAt)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <SupportStartDialog actorEmail={actorEmail} request={request} triggerLabel="Launch session" onCompleted={refresh} />
+                              {request.companyId ? (
+                                <Button asChild variant="outline" size="sm">
+                                  <Link href={`/admin/company/${request.companyId}/identity`}>Open identity</Link>
+                                </Button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardTitle className="text-base">Session mode guidance</CardTitle>
-                <CardDescription>Use the safer mode for the job you are doing.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-3">
-                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <CircleUserRound className="h-4 w-4 text-[var(--text-muted)]" />
-                    Impersonate
+            <div className="space-y-4 xl:sticky xl:top-24">
+              <Card className="border-[var(--border)] shadow-none">
+                <CardHeader>
+                  <CardTitle className="text-base">Launch guidance</CardTitle>
+                  <CardDescription>Keep the safer support mode closest to the action instead of burying it in a separate page.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm text-[var(--text-muted)]">
+                  <div className="flex items-start gap-3 rounded-2xl bg-[var(--surface-muted)] p-3">
+                    <CircleUserRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-strong)]" />
+                    <div>
+                      <p className="font-medium text-[var(--text-strong)]">Impersonate when action is required</p>
+                      <p>Use full impersonation only when you need to reproduce and directly resolve the user issue.</p>
+                    </div>
                   </div>
-                  <p className="mt-2 text-sm text-[var(--text-muted)]">Use when you need to reproduce the user experience exactly and take direct action inside their context.</p>
-                </div>
-                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Eye className="h-4 w-4 text-[var(--text-muted)]" />
-                    Shadow
+                  <div className="flex items-start gap-3 rounded-2xl bg-[var(--surface-muted)] p-3">
+                    <Eye className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-strong)]" />
+                    <div>
+                      <p className="font-medium text-[var(--text-strong)]">Shadow when observation is enough</p>
+                      <p>Prefer shadow mode for investigation, walkthroughs, and support coaching without acting as the user.</p>
+                    </div>
                   </div>
-                  <p className="mt-2 text-sm text-[var(--text-muted)]">Use when you need visibility and guidance without acting as the user directly.</p>
-                </div>
-                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Clock3 className="h-4 w-4 text-[var(--text-muted)]" />
-                    Time-bound
+                  <div className="flex items-start gap-3 rounded-2xl bg-[var(--surface-muted)] p-3">
+                    <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-strong)]" />
+                    <div>
+                      <p className="font-medium text-[var(--text-strong)]">Every session is time-bound</p>
+                      <p>Live sessions expire automatically and remain visible in the shell until explicitly ended.</p>
+                    </div>
                   </div>
-                  <p className="mt-2 text-sm text-[var(--text-muted)]">Every session is explicit, expires automatically, and remains visible in the operator context header.</p>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         ) : null}
 
         {!loading && !error && view === "sessions" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Active and recent sessions</CardTitle>
-              <CardDescription>Impersonation and shadow sessions with clear actor visibility and end-session controls.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Active and recent sessions</CardTitle>
+                  <CardDescription>Track live support work with actor visibility, mode clarity, and end-session controls.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {sessionRows.length} sessions
+                  </Badge>
+                  <Badge variant={activeSessions.length > 0 ? "secondary" : "outline"} className="font-mono">
+                    {activeSessions.length} active
+                  </Badge>
+                </div>
+              </div>
+              <SearchField
+                value={searchByView.sessions}
+                onChange={(value) => setSearchByView((current) => ({ ...current, sessions: value }))}
+                placeholder="Search actor, workspace, mode, scope, or status"
+              />
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               {sessionRows.length === 0 ? (
-                <EmptyState title="No support sessions found" hint="Approved support sessions will appear here once started." />
+                <div className="p-6">
+                  <EmptyState title="No support sessions found" hint="Approved support sessions will appear here once started." />
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                     <tr>
-                      <th className="px-3 py-2">Workspace</th>
-                      <th className="px-3 py-2">Actor</th>
-                      <th className="px-3 py-2">Mode</th>
-                      <th className="px-3 py-2">Scope</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Expires</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-4 py-3">Workspace</th>
+                      <th className="px-4 py-3">Actor</th>
+                      <th className="px-4 py-3">Mode</th>
+                      <th className="px-4 py-3">Scope</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Expires</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sessionRows.map((session) => (
-                      <tr key={session.id} className="border-t align-top">
-                        <td className="px-3 py-3">
+                      <tr key={session.id} className="border-t border-[var(--border)] align-top">
+                        <td className="px-4 py-3">
                           <p className="font-medium">{session.companyName ?? session.companyId}</p>
                           <p className="text-xs text-[var(--text-muted)]">{session.companySlug ?? session.companyId}</p>
                         </td>
-                        <td className="px-3 py-3">{session.actor}</td>
-                        <td className="px-3 py-3"><Badge variant="outline">{session.mode}</Badge></td>
-                        <td className="px-3 py-3"><Badge variant="outline">{session.scope}</Badge></td>
-                        <td className="px-3 py-3"><StatusBadge value={session.status} /></td>
-                        <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(session.expiresAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-3">{session.actor}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline">{session.mode}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline">{session.scope}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge value={session.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(session.expiresAt)}</td>
+                        <td className="px-4 py-3">
                           <div className="flex justify-end">
                             {session.status === "ACTIVE" ? (
                               <SupportEndDialog actorEmail={actorEmail} session={session} triggerLabel="End session" onCompleted={refresh} />
@@ -361,16 +448,6 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
           </Card>
         ) : null}
       </VerticalDataViews>
-
-      <Card className="border-[var(--border)]">
-        <CardContent className="flex flex-wrap items-center gap-2 py-4 text-sm text-[var(--text-muted)]">
-          <ShieldCheck className="h-4 w-4" />
-          Use the identity hub for people and permission work, and keep support sessions time-bound and explicit.
-          <Link href={companyId ? `/admin/company/${companyId}/identity` : "/admin/identity"} className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-            Open identity hub
-          </Link>
-        </CardContent>
-      </Card>
     </section>
   );
 }

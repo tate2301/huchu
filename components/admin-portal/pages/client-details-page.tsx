@@ -2,19 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, LifeBuoy, RefreshCcw, ShieldCheck, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Globe,
+  LifeBuoy,
+  RefreshCcw,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import { fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { WorkspaceOverview } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import {
   CreateSiteDialog,
   OrgStatusDialog,
   ReserveSubdomainDialog,
-  SiteStatusDialog,
   SupportRequestDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
 
@@ -38,29 +44,12 @@ function StatusBadge({ value }: { value: string }) {
   return <Badge variant={variant}>{value.replaceAll("_", " ")}</Badge>;
 }
 
-function getInitialView() {
-  if (typeof window === "undefined") return "overview";
-  const hash = window.location.hash.replace("#", "");
-  if (hash === "subscription" || hash === "addons") return "commercial";
-  if (hash === "features") return "features";
-  if (hash === "audit") return "audit";
-  return "overview";
-}
-
 export function ClientDetailsPage({ companyId }: { companyId: string }) {
   const { actorEmail, companies } = useAdminShell();
   const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
-  const [view, setView] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    setView(getInitialView());
-    const onHashChange = () => setView(getInitialView());
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -92,14 +81,6 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
   }, [companyId, refreshKey]);
 
   const refresh = () => setRefreshKey((value) => value + 1);
-  const items = [
-    { id: "overview", label: "Overview" },
-    { id: "commercial", label: "Commercial", count: overview?.addons.length ?? 0 },
-    { id: "features", label: "Features", count: overview?.features.length ?? 0 },
-    { id: "sites", label: "Sites", count: overview?.sites.length ?? 0 },
-    { id: "identity", label: "Identity", count: (overview?.admins.length ?? 0) + (overview?.users.length ?? 0) },
-    { id: "audit", label: "Audit", count: overview?.auditEvents.length ?? 0 },
-  ];
 
   if (loading) {
     return (
@@ -115,53 +96,75 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Workspace not found"}</p>
           <Button asChild variant="outline">
-            <Link href="/admin/clients">Back to clients</Link>
+            <Link href="/admin/clients">Back to workspaces</Link>
           </Button>
         </CardContent>
       </Card>
     );
   }
 
-  const { company, reservation, contractState, subscription, subscriptionHealth, pricing, addons, features, admins, users, sites, supportSessions, auditEvents, incidents } = overview;
+  const {
+    company,
+    reservation,
+    contractState,
+    subscription,
+    subscriptionHealth,
+    pricing,
+    addons,
+    features,
+    admins,
+    users,
+    sites,
+    supportSessions,
+    auditEvents,
+    incidents,
+  } = overview;
+
   const enabledAddons = addons.filter((addon) => addon.enabled);
-  const activeAdmins = admins.filter((admin) => admin.isActive).length;
-  const activeUsers = users.filter((user) => user.isActive).length;
-  const activeSites = sites.filter((site) => site.isActive).length;
-  const activeSessions = supportSessions.filter((session) => session.status === "ACTIVE").length;
+  const activeSessions = supportSessions.filter((session) => session.status === "ACTIVE");
+  const activeSites = sites.filter((site) => site.isActive);
+  const activeUsers = users.filter((user) => user.isActive);
+  const featurePreview = features.filter((feature) => feature.enabled).slice(0, 6);
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">Organization workspace</Badge>
+            <Badge variant="secondary" className="rounded-full px-3 py-1">
+              Workspace overview
+            </Badge>
             <StatusBadge value={company.tenantStatus} />
             <StatusBadge value={contractState} />
             {subscriptionHealth ? <StatusBadge value={subscriptionHealth.state} /> : null}
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">{company.name}</h1>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">Service-backed workspace overview for pricing, identity, sites, support, and audit.</p>
+            <h1 className="text-3xl font-semibold tracking-tight">{company.name}</h1>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              Workspace summary for health, pricing, identity, support posture, and the next operational action.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
             <span>{company.slug}</span>
             <span>|</span>
-            <span>{company.counts.activeSites} active sites</span>
+            <span>{activeSites.length} active sites</span>
             <span>|</span>
-            <span>{company.counts.activeUsers} active users</span>
+            <span>{activeUsers.length} active users</span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/admin/company/${companyId}/identity`}>
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              Identity hub
-            </Link>
-          </Button>
-          <SupportRequestDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} triggerLabel="Request support" buttonVariant="outline" onCompleted={refresh} />
+          <SupportRequestDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} triggerLabel="Request support" onCompleted={refresh} />
           <CreateSiteDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} triggerLabel="Create site" onCompleted={refresh} />
-          <ReserveSubdomainDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} currentSubdomain={reservation?.subdomain ?? company.slug} triggerLabel="Reserve subdomain" buttonVariant="outline" onCompleted={refresh} />
+          <ReserveSubdomainDialog
+            actorEmail={actorEmail}
+            companyId={companyId}
+            companyName={company.name}
+            currentSubdomain={reservation?.subdomain ?? company.slug}
+            triggerLabel="Reserve subdomain"
+            buttonVariant="outline"
+            onCompleted={refresh}
+          />
           {company.tenantStatus === "ACTIVE" ? (
             <OrgStatusDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} action="suspend" triggerLabel="Suspend" onCompleted={refresh} />
           ) : (
@@ -174,299 +177,225 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="border-[var(--border)]">
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardDescription>Monthly total</CardDescription>
             <CardTitle className="font-mono text-2xl">{pricing ? `${formatCurrency(pricing.total)}/mo` : "No plan"}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[var(--text-muted)]">{subscription?.planName ?? "No plan assigned"} | {enabledAddons.length} enabled add-ons</CardContent>
+          <CardContent className="text-sm text-[var(--text-muted)]">{subscription?.planName ?? "No plan assigned"}</CardContent>
         </Card>
         <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Identity</CardDescription>
-            <CardTitle className="text-2xl">{activeAdmins + activeUsers}</CardTitle>
+          <CardHeader className="pb-2">
+            <CardDescription>Support posture</CardDescription>
+            <CardTitle className="text-2xl">{activeSessions.length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[var(--text-muted)]">{activeAdmins} active admins | {activeUsers} active users</CardContent>
+          <CardContent className="text-sm text-[var(--text-muted)]">
+            {activeSessions.length > 0 ? "Active support sessions" : "No active support sessions"}
+          </CardContent>
         </Card>
         <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Sites and support</CardDescription>
-            <CardTitle className="text-2xl">{activeSites + activeSessions}</CardTitle>
+          <CardHeader className="pb-2">
+            <CardDescription>Identity footprint</CardDescription>
+            <CardTitle className="text-2xl">{admins.length + users.length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[var(--text-muted)]">{activeSites} active sites | {activeSessions} active support sessions</CardContent>
+          <CardContent className="text-sm text-[var(--text-muted)]">{admins.length} admins | {users.length} users</CardContent>
         </Card>
         <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardDescription>Health posture</CardDescription>
-            <CardTitle className="text-lg">{subscriptionHealth?.state ?? "No health signal"}</CardTitle>
+          <CardHeader className="pb-2">
+            <CardDescription>Open incidents</CardDescription>
+            <CardTitle className="text-2xl">{incidents.length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[var(--text-muted)]">{incidents.length} incidents | {reservation ? reservation.status : "No reservation record"}</CardContent>
+          <CardContent className="text-sm text-[var(--text-muted)]">
+            {subscriptionHealth?.reason ?? "No blocking subscription signal"}
+          </CardContent>
         </Card>
       </div>
 
-      <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Workspace views">
-        {view === "overview" ? (
-          <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]">
+        <div className="space-y-6">
+          {subscriptionHealth?.shouldBlock || incidents.length > 0 ? (
             <Card className="border-[var(--border)]">
-              <CardHeader>
-                <CardTitle className="text-base">Workspace state</CardTitle>
-                <CardDescription>Operational state, contract posture, subscription health, and recommended next actions.</CardDescription>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <TriangleAlert className="h-5 w-5 text-[#EC442C]" />
+                  Attention needed
+                </CardTitle>
+                <CardDescription>These items can affect access, support safety, or commercial state for this workspace.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Subscription</p>
-                  <p className="text-sm font-medium">{subscription?.planName ?? "No plan assigned"}</p>
-                  <p className="text-xs text-[var(--text-muted)]">{subscriptionHealth?.reason ?? "No subscription health record found."}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Subdomain</p>
-                  <p className="text-sm font-medium">{reservation?.subdomain ?? company.slug}</p>
-                  <p className="text-xs text-[var(--text-muted)]">{reservation ? `${reservation.status} via ${reservation.provider}` : "No reservation recorded."}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Provisioning</p>
-                  <p className="text-sm font-medium">{company.isProvisioned ? "Provisioned" : "Provisioning pending"}</p>
-                  <p className="text-xs text-[var(--text-muted)]">Created {formatDate(company.createdAt)}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Next actions</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/identity`}>Open identity</Link></Button>
-                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/commercial`}>Open commercial center</Link></Button>
-                    <Button asChild variant="outline" size="sm"><Link href={`/admin/company/${companyId}/reliability`}>Open reliability</Link></Button>
+              <CardContent className="space-y-3">
+                {subscriptionHealth?.shouldBlock ? (
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                    <p className="text-sm font-semibold text-[var(--text-strong)]">{subscriptionHealth.state.replaceAll("_", " ")}</p>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">{subscriptionHealth.reason}</p>
                   </div>
-                </div>
+                ) : null}
+                {incidents.slice(0, 3).map((incident) => (
+                  <div key={incident.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">{incident.metricKey}</p>
+                      <StatusBadge value={incident.status} />
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--text-muted)]">{incident.message}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card className="border-[var(--border)]">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Workspace state</CardTitle>
+              <CardDescription>Summary of operational readiness, access posture, and delivery context.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Subscription</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{subscription?.planName ?? "No plan assigned"}</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{subscription?.status ?? "No subscription record"}</p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Subdomain</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{reservation?.subdomain ?? company.slug}</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{reservation ? `${reservation.status} via ${reservation.provider}` : "No reservation recorded"}</p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Provisioning</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{company.isProvisioned ? "Provisioned" : "Provisioning pending"}</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">Created {formatDate(company.createdAt)}</p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Commercial footprint</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{enabledAddons.length} enabled add-ons</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{featurePreview.length} effective features shown below</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card className="border-[var(--border)]">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Sites and reach</CardTitle>
+                <CardDescription>Current operating locations and activation state.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {sites.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                    No sites exist for this workspace yet.
+                  </p>
+                ) : (
+                  sites.slice(0, 4).map((site) => (
+                    <div key={site.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--text-strong)]">{site.name}</p>
+                          <p className="mt-1 text-xs text-[var(--text-muted)]">{site.code} | {site.location ?? "Location not set"}</p>
+                        </div>
+                        <StatusBadge value={site.isActive ? "ACTIVE" : "INACTIVE"} />
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
 
-            {subscriptionHealth?.shouldBlock || incidents.length > 0 ? (
-              <Card className="border-[var(--border)]">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TriangleAlert className="h-4 w-4 text-[#EC442C]" />
-                    Attention needed
-                  </CardTitle>
-                  <CardDescription>Signals that could affect access, billing, or rollout safety for this workspace.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {subscriptionHealth?.shouldBlock ? (
-                    <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                      <p className="font-semibold">{subscriptionHealth.state.replaceAll("_", " ")}</p>
-                      <p className="mt-1 text-[var(--text-muted)]">{subscriptionHealth.reason}</p>
+            <Card className="border-[var(--border)]">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Feature access snapshot</CardTitle>
+                <CardDescription>Enabled features that define the current workspace footprint.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {featurePreview.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                    No enabled features were returned for this workspace.
+                  </p>
+                ) : (
+                  featurePreview.map((feature) => (
+                    <div key={feature.feature} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">{feature.featureLabel}</p>
+                      <p className="mt-1 font-mono text-xs text-[var(--text-muted)]">{feature.feature}</p>
+                      <p className="mt-2 text-sm text-[var(--text-muted)]">{feature.reason ?? "Enabled through tier, template, or direct access."}</p>
                     </div>
-                  ) : null}
-                  {incidents.slice(0, 3).map((incident) => (
-                    <div key={incident.id} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold">{incident.metricKey}</p>
-                        <StatusBadge value={incident.status} />
-                      </div>
-                      <p className="mt-1 text-[var(--text-muted)]">{incident.message}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ) : null}
+                  ))
+                )}
+              </CardContent>
+            </Card>
           </div>
-        ) : null}
+        </div>
 
-        {view === "commercial" ? (
-          <Card className="border-[var(--border)]" id="subscription">
-            <CardHeader>
-              <CardTitle className="text-base">Commercial state</CardTitle>
-              <CardDescription>Pricing breakdown and add-on posture for this workspace.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Plan</p>
-                  <p className="mt-2 font-semibold">{subscription?.planName ?? "No plan"}</p>
-                  <p className="mt-1 text-[var(--text-muted)]">{subscription?.status ?? "No subscription record"}</p>
-                </div>
-                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Pricing</p>
-                  <p className="mt-2 font-mono text-lg">{pricing ? `${formatCurrency(pricing.total)}/mo` : "Unavailable"}</p>
-                  <p className="mt-1 text-[var(--text-muted)]">Tier base {pricing ? formatCurrency(pricing.tierBase) : "N/A"}</p>
-                </div>
-                <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Usage</p>
-                  <p className="mt-2 font-semibold">{activeSites} active sites</p>
-                  <p className="mt-1 text-[var(--text-muted)]">{enabledAddons.length} enabled add-ons</p>
-                </div>
-              </div>
-
-              <table className="w-full text-sm" id="addons">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-3 py-2">Add-on</th>
-                    <th className="px-3 py-2">Base</th>
-                    <th className="px-3 py-2">Per site</th>
-                    <th className="px-3 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {addons.map((addon) => (
-                    <tr key={addon.code} className="border-t">
-                      <td className="px-3 py-3"><p className="font-medium">{addon.name}</p><p className="text-xs text-[var(--text-muted)]">{addon.code}</p></td>
-                      <td className="px-3 py-3 font-mono">{formatCurrency(addon.monthlyPrice)}</td>
-                      <td className="px-3 py-3 font-mono">{formatCurrency(addon.additionalSiteMonthlyPrice)}</td>
-                      <td className="px-3 py-3"><StatusBadge value={addon.enabled ? "ACTIVE" : "INACTIVE"} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {view === "features" ? (
-          <Card className="border-[var(--border)]" id="features">
-            <CardHeader>
-              <CardTitle className="text-base">Effective features</CardTitle>
-              <CardDescription>Resolved feature access for this workspace.</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-3 py-2">Feature</th>
-                    <th className="px-3 py-2">Platform active</th>
-                    <th className="px-3 py-2">Enabled</th>
-                    <th className="px-3 py-2">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {features.map((feature) => (
-                    <tr key={feature.feature} className="border-t">
-                      <td className="px-3 py-3"><p className="font-medium">{feature.featureLabel}</p><p className="text-xs text-[var(--text-muted)]">{feature.feature}</p></td>
-                      <td className="px-3 py-3"><StatusBadge value={feature.platformActive ? "ACTIVE" : "INACTIVE"} /></td>
-                      <td className="px-3 py-3"><StatusBadge value={feature.enabled ? "ACTIVE" : "INACTIVE"} /></td>
-                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{feature.reason ?? "No note"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {view === "sites" ? (
+        <aside className="space-y-4 xl:sticky xl:top-[6.25rem] xl:self-start">
           <Card className="border-[var(--border)]">
-            <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle className="text-base">Sites</CardTitle>
-                <CardDescription>Workspace sites with activation controls.</CardDescription>
-              </div>
-              <CreateSiteDialog actorEmail={actorEmail} companyId={companyId} companyName={company.name} triggerLabel="Create site" onCompleted={refresh} />
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Next actions</CardTitle>
+              <CardDescription>Use the focused route for the job you need to do next.</CardDescription>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-3 py-2">Site</th>
-                    <th className="px-3 py-2">Location</th>
-                    <th className="px-3 py-2">Unit</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sites.map((site) => (
-                    <tr key={site.id} className="border-t">
-                      <td className="px-3 py-3"><p className="font-medium">{site.name}</p><p className="text-xs text-[var(--text-muted)]">{site.code}</p></td>
-                      <td className="px-3 py-3 text-[var(--text-muted)]">{site.location ?? "Not set"}</td>
-                      <td className="px-3 py-3"><Badge variant="outline">{site.measurementUnit}</Badge></td>
-                      <td className="px-3 py-3"><StatusBadge value={site.isActive ? "ACTIVE" : "INACTIVE"} /></td>
-                      <td className="px-3 py-3">
-                        <div className="flex justify-end">
-                          {site.isActive ? (
-                            <SiteStatusDialog actorEmail={actorEmail} site={site} activate={false} triggerLabel="Deactivate" onCompleted={refresh} />
-                          ) : (
-                            <SiteStatusDialog actorEmail={actorEmail} site={site} activate={true} triggerLabel="Activate" onCompleted={refresh} />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {view === "identity" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle className="text-base">Identity snapshot</CardTitle>
-                <CardDescription>Admins, users, and support sessions for this workspace.</CardDescription>
-              </div>
-              <Button asChild variant="outline" size="sm">
+            <CardContent className="grid gap-3">
+              <Button asChild className="justify-between rounded-2xl">
                 <Link href={`/admin/company/${companyId}/identity`}>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Open identity hub
+                  Identity hub
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
+              <Button asChild variant="outline" className="justify-between rounded-2xl">
+                <Link href={`/admin/company/${companyId}/support-access`}>
+                  Support access
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="justify-between rounded-2xl">
+                <Link href={`/admin/company/${companyId}/reliability`}>
+                  Reliability
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="justify-between rounded-2xl">
+                <Link href={`/admin/company/${companyId}/commercial`}>
+                  Commercial
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-[var(--border)]">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Context</CardTitle>
+              <CardDescription>Keep operational evidence visible while you work.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Admins</p>
-                <p className="mt-2 text-2xl font-semibold">{admins.length}</p>
+            <CardContent className="space-y-3 text-sm">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
+                  <LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />
+                  Support state
+                </div>
+                <p className="mt-2 text-[var(--text-muted)]">
+                  {activeSessions.length > 0 ? `${activeSessions.length} active support session(s)` : "No active support sessions"}
+                </p>
               </div>
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Users</p>
-                <p className="mt-2 text-2xl font-semibold">{users.length}</p>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
+                  <ShieldCheck className="h-4 w-4 text-[var(--text-muted)]" />
+                  Identity state
+                </div>
+                <p className="mt-2 text-[var(--text-muted)]">{admins.length} admins and {users.length} users in this workspace.</p>
               </div>
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm">
-                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Support sessions</p>
-                <p className="mt-2 text-2xl font-semibold">{supportSessions.length}</p>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
+                  <Globe className="h-4 w-4 text-[var(--text-muted)]" />
+                  Domain posture
+                </div>
+                <p className="mt-2 text-[var(--text-muted)]">{reservation ? `${reservation.status} subdomain reservation` : "No subdomain reservation recorded"}</p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
+                  <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
+                  Audit trail
+                </div>
+                <p className="mt-2 text-[var(--text-muted)]">{auditEvents.length} recent audit event(s) available for review.</p>
               </div>
             </CardContent>
           </Card>
-        ) : null}
-
-        {view === "audit" ? (
-          <Card className="border-[var(--border)]" id="audit">
-            <CardHeader>
-              <CardTitle className="text-base">Audit timeline</CardTitle>
-              <CardDescription>Recent workspace actions and operator history.</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-3 py-2">Timestamp</th>
-                    <th className="px-3 py-2">Actor</th>
-                    <th className="px-3 py-2">Action</th>
-                    <th className="px-3 py-2">Target</th>
-                    <th className="px-3 py-2">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditEvents.map((event) => (
-                    <tr key={event.id} className="border-t">
-                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(event.timestamp)}</td>
-                      <td className="px-3 py-3">{event.actor ?? "Unknown actor"}</td>
-                      <td className="px-3 py-3">{event.action ?? "Unknown action"}</td>
-                      <td className="px-3 py-3">{event.entityType ?? "Unknown"} {event.entityId ? `| ${event.entityId}` : ""}</td>
-                      <td className="px-3 py-3 text-[var(--text-muted)]">{event.reason ?? "No reason provided"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        ) : null}
-      </VerticalDataViews>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
-        <LifeBuoy className="h-4 w-4" />
-        Move between workspace overview, identity, commercial, support, and reliability from here.
-        <Link href="/admin/settings" className="ml-auto inline-flex items-center gap-2 font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-          Open settings
-          <ArrowRight className="h-4 w-4" />
-        </Link>
+        </aside>
       </div>
     </section>
   );

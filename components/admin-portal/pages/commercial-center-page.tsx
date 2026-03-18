@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCcw, Sparkles, TriangleAlert } from "lucide-react";
+import { RefreshCcw, TriangleAlert } from "lucide-react";
 import { executeOperation, fetchCommercialCenter, fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { CommercialCenterData, WorkspaceOverview } from "@/components/admin-portal/types";
@@ -60,6 +60,11 @@ export function CommercialCenterPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [subscriptionSearch, setSubscriptionSearch] = useState("");
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [bundleSearch, setBundleSearch] = useState("");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [addonSearch, setAddonSearch] = useState("");
   const [featureSearch, setFeatureSearch] = useState("");
   const [featureReason, setFeatureReason] = useState("");
   const [featureDraft, setFeatureDraft] = useState<Record<string, boolean>>({});
@@ -134,25 +139,60 @@ export function CommercialCenterPage({
     return overview.features.filter((feature) => featureDraft[feature.feature] !== feature.enabled).length;
   }, [featureDraft, overview]);
 
-  const filteredFeatureGroups = useMemo(() => {
-    if (!overview) return [];
+  const filteredSubscriptions = useMemo(() => {
+    const normalized = subscriptionSearch.trim().toLowerCase();
+    return commercial?.subscriptions.filter((subscription) => {
+      if (!normalized) return true;
+      const haystack = `${subscription.companyName ?? ""} ${subscription.companySlug ?? ""} ${subscription.planName ?? ""} ${subscription.planCode ?? ""} ${subscription.status}`.toLowerCase();
+      return haystack.includes(normalized);
+    }) ?? [];
+  }, [commercial?.subscriptions, subscriptionSearch]);
 
+  const filteredTemplates = useMemo(() => {
+    const normalized = templateSearch.trim().toLowerCase();
+    return commercial?.templates.filter((template) => {
+      if (!normalized) return true;
+      const haystack = `${template.label} ${template.code} ${template.description} ${template.recommendedTierCode} ${template.bundleCodes.join(" ")}`.toLowerCase();
+      return haystack.includes(normalized);
+    }) ?? [];
+  }, [commercial?.templates, templateSearch]);
+
+  const filteredBundles = useMemo(() => {
+    const normalized = bundleSearch.trim().toLowerCase();
+    return commercial?.bundleCatalog.filter((bundle) => {
+      if (!normalized) return true;
+      const haystack = `${bundle.name} ${bundle.code} ${bundle.source} ${bundle.featureKeys.join(" ")}`.toLowerCase();
+      return haystack.includes(normalized);
+    }) ?? [];
+  }, [bundleSearch, commercial?.bundleCatalog]);
+
+  const filteredCatalog = useMemo(() => {
+    const normalized = catalogSearch.trim().toLowerCase();
+    return commercial?.featureCatalog.filter((feature) => {
+      if (!normalized) return true;
+      const haystack = `${feature.featureLabel} ${feature.feature}`.toLowerCase();
+      return haystack.includes(normalized);
+    }) ?? [];
+  }, [catalogSearch, commercial?.featureCatalog]);
+
+  const filteredAddons = useMemo(() => {
+    if (!overview) return [];
+    const normalized = addonSearch.trim().toLowerCase();
+    return overview.addons.filter((addon) => {
+      if (!normalized) return true;
+      const haystack = `${addon.name} ${addon.code} ${addon.reason ?? ""}`.toLowerCase();
+      return haystack.includes(normalized);
+    });
+  }, [addonSearch, overview]);
+
+  const filteredFeatures = useMemo(() => {
+    if (!overview) return [];
     const normalized = featureSearch.trim().toLowerCase();
-    const filtered = overview.features.filter((feature) => {
+    return overview.features.filter((feature) => {
       if (!normalized) return true;
       const haystack = `${feature.featureLabel} ${feature.feature} ${feature.reason ?? ""}`.toLowerCase();
       return haystack.includes(normalized);
     });
-
-    const groups = new Map<string, typeof filtered>();
-    filtered.forEach((feature) => {
-      const key = featureGroupKey(feature.feature);
-      const bucket = groups.get(key) ?? [];
-      bucket.push(feature);
-      groups.set(key, bucket);
-    });
-
-    return Array.from(groups.entries());
   }, [featureSearch, overview]);
 
   const saveFeatureDraft = async () => {
@@ -274,40 +314,48 @@ export function CommercialCenterPage({
 
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Commercial views">
         {!isCompanyScope && view === "subscriptions" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Subscriptions</CardTitle>
-              <CardDescription>Workspace subscription state, current tier, and direct commercial actions.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Workspace subscriptions</CardTitle>
+                  <CardDescription>Subscription state, plan posture, and direct commercial actions in one platform table.</CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono">{filteredSubscriptions.length} workspaces</Badge>
+              </div>
+              <div className="w-full md:w-80">
+                <Input value={subscriptionSearch} onChange={(event) => setSubscriptionSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-10 rounded-xl" />
+              </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
-                    <th className="px-3 py-2">Workspace</th>
-                    <th className="px-3 py-2">Plan</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Period End</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
+                    <th className="px-4 py-3">Workspace</th>
+                    <th className="px-4 py-3">Plan</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Period End</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {commercial.subscriptions.map((subscription) => (
-                    <tr key={subscription.id} className="border-t align-top">
-                      <td className="px-3 py-3">
+                  {filteredSubscriptions.map((subscription) => (
+                    <tr key={subscription.id} className="border-t border-[var(--border)] align-top">
+                      <td className="px-4 py-3">
                         <Link href={`/admin/clients/${subscription.companyId}`} className="font-medium underline-offset-4 hover:underline">
                           {subscription.companyName ?? subscription.companyId}
                         </Link>
                         <p className="text-xs text-[var(--text-muted)]">{subscription.companySlug ?? subscription.companyId}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3">
                         <p>{subscription.planName ?? "No plan"}</p>
                         <p className="text-xs text-[var(--text-muted)]">{subscription.planCode ?? "No code"}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3">
                         <Badge variant="outline">{subscription.status}</Badge>
                       </td>
-                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{formatDate(subscription.currentPeriodEnd)}</td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(subscription.currentPeriodEnd)}</td>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           <AssignTierDialog actorEmail={actorEmail} companies={companies} plans={commercial.plans} fixedCompanyId={subscription.companyId} defaultTierCode={subscription.planCode} triggerLabel="Change tier" onCompleted={refresh} />
                           <SubscriptionStatusDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={subscription.companyId} defaultStatus={subscription.status} triggerLabel="Set status" onCompleted={refresh} />
@@ -323,48 +371,70 @@ export function CommercialCenterPage({
         ) : null}
 
         {view === "templates" ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {commercial.templates.map((template) => (
-              <Card key={template.code} className="border-[var(--border)]">
-                <CardHeader className="space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-base">{template.label}</CardTitle>
-                      <CardDescription>{template.code}</CardDescription>
-                    </div>
-                    <Badge variant="outline">{template.recommendedTierCode}</Badge>
-                  </div>
-                  <p className="text-sm text-[var(--text-muted)]">{template.description}</p>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <p className="text-[var(--text-muted)]">{template.bundleCodes.length} bundles | {template.featureCount} features</p>
-                  <div className="flex flex-wrap gap-2">
-                    {template.bundleCodes.slice(0, 3).map((bundleCode) => (
-                      <Badge key={bundleCode} variant="outline">{bundleCode}</Badge>
-                    ))}
-                  </div>
-                  <ApplyTemplateDialog
-                    actorEmail={actorEmail}
-                    companies={companies}
-                    templates={commercial.templates}
-                    fixedCompanyId={companyId}
-                    defaultTemplateCode={template.code}
-                    triggerLabel={isCompanyScope ? "Apply to workspace" : "Apply template"}
-                    onCompleted={refresh}
-                  />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Template catalog</CardTitle>
+                  <CardDescription>Commercial templates ordered for quick review and direct application without card sprawl.</CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono">{filteredTemplates.length} templates</Badge>
+              </div>
+              <div className="w-full md:w-80">
+                <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-10 rounded-xl" />
+              </div>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <tr>
+                    <th className="px-4 py-3">Template</th>
+                    <th className="px-4 py-3">Recommended tier</th>
+                    <th className="px-4 py-3">Bundles</th>
+                    <th className="px-4 py-3">Features</th>
+                    <th className="px-4 py-3">Description</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTemplates.map((template) => (
+                    <tr key={template.code} className="border-t border-[var(--border)] align-top">
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{template.label}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{template.code}</p>
+                      </td>
+                      <td className="px-4 py-3"><Badge variant="outline">{template.recommendedTierCode}</Badge></td>
+                      <td className="px-4 py-3 text-[var(--text-muted)]">{template.bundleCodes.join(", ") || "No bundles"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{template.featureCount}</td>
+                      <td className="px-4 py-3 text-[var(--text-muted)]">{template.description}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end">
+                          <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={companyId} defaultTemplateCode={template.code} triggerLabel={isCompanyScope ? "Apply to workspace" : "Apply template"} onCompleted={refresh} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
         ) : null}
 
         {!isCompanyScope && view === "bundles" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Bundle catalog</CardTitle>
-              <CardDescription>Global bundle definitions, pricing, and feature mapping.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Bundle catalog</CardTitle>
+                  <CardDescription>Global bundle definitions, pricing, and feature mapping in one full-width table.</CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono">{filteredBundles.length} bundles</Badge>
+              </div>
+              <div className="w-full md:w-80">
+                <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-10 rounded-xl" />
+              </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
@@ -377,20 +447,20 @@ export function CommercialCenterPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {commercial.bundleCatalog.map((bundle) => (
-                    <tr key={bundle.code} className="border-t align-top">
-                      <td className="px-3 py-3">
+                  {filteredBundles.map((bundle) => (
+                    <tr key={bundle.code} className="border-t border-[var(--border)] align-top">
+                      <td className="px-4 py-3">
                         <p className="font-medium">{bundle.name}</p>
                         <p className="text-xs text-[var(--text-muted)]">{bundle.code}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3">
                         <p className="font-mono">{formatCurrency(bundle.monthlyPrice)}</p>
                         <p className="text-xs text-[var(--text-muted)]">{formatCurrency(bundle.additionalSiteMonthlyPrice)}/site</p>
                       </td>
-                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{bundle.featureKeys.length}</td>
-                      <td className="px-3 py-3"><Badge variant="outline">{bundle.source}</Badge></td>
-                      <td className="px-3 py-3"><Badge variant={bundle.isActive ? "secondary" : "outline"}>{bundle.isActive ? "ACTIVE" : "INACTIVE"}</Badge></td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{bundle.featureKeys.length}</td>
+                      <td className="px-4 py-3"><Badge variant="outline">{bundle.source}</Badge></td>
+                      <td className="px-4 py-3"><Badge variant={bundle.isActive ? "secondary" : "outline"}>{bundle.isActive ? "ACTIVE" : "INACTIVE"}</Badge></td>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           <BundleUpsertDialog actorEmail={actorEmail} bundle={bundle} triggerLabel="Edit" onCompleted={refresh} />
                           <BundleFeatureMapDialog actorEmail={actorEmail} bundle={bundle} featureCatalog={commercial.featureCatalog} triggerLabel="Map features" onCompleted={refresh} />
@@ -405,12 +475,20 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "catalog" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Feature catalog</CardTitle>
-              <CardDescription>Platform-level feature definitions used by bundles and entitlements.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Feature catalog</CardTitle>
+                  <CardDescription>Platform feature definitions used by bundles, templates, and entitlements.</CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono">{filteredCatalog.length} features</Badge>
+              </div>
+              <div className="w-full md:w-80">
+                <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-10 rounded-xl" />
+              </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
@@ -420,11 +498,11 @@ export function CommercialCenterPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {commercial.featureCatalog.map((feature) => (
-                    <tr key={feature.feature} className="border-t">
-                      <td className="px-3 py-3">{feature.featureLabel}</td>
-                      <td className="px-3 py-3 font-mono text-xs">{feature.feature}</td>
-                      <td className="px-3 py-3"><Badge variant={feature.platformActive ? "secondary" : "outline"}>{feature.platformActive ? "ACTIVE" : "INACTIVE"}</Badge></td>
+                  {filteredCatalog.map((feature) => (
+                    <tr key={feature.feature} className="border-t border-[var(--border)]">
+                      <td className="px-4 py-3">{feature.featureLabel}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{feature.feature}</td>
+                      <td className="px-4 py-3"><Badge variant={feature.platformActive ? "secondary" : "outline"}>{feature.platformActive ? "ACTIVE" : "INACTIVE"}</Badge></td>
                     </tr>
                   ))}
                 </tbody>
@@ -434,52 +512,98 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "subscription" ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Card className="border-[var(--border)]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <Card className="border-[var(--border)] shadow-none">
+              <CardHeader className="gap-4 border-b border-[var(--border)]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Subscription review</CardTitle>
+                    <CardDescription>Keep the live subscription record, pricing, and change actions in one focused workspace view.</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="font-mono">{overview?.subscription?.status ?? "No record"}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="overflow-x-auto p-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    <tr>
+                      <th className="px-4 py-3">Plan</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Period End</th>
+                      <th className="px-4 py-3 text-right">Monthly total</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-[var(--border)] align-top">
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{overview?.subscription?.planName ?? "No plan assigned"}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{overview?.subscription?.planCode ?? "No plan code"}</p>
+                      </td>
+                      <td className="px-4 py-3"><Badge variant="outline">{overview?.subscription?.status ?? "UNASSIGNED"}</Badge></td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(overview?.subscription?.currentPeriodEnd)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <AssignTierDialog actorEmail={actorEmail} companies={companies} plans={commercial.plans} fixedCompanyId={companyId} defaultTierCode={overview?.subscription?.planCode} triggerLabel="Change tier" onCompleted={refresh} />
+                          <SubscriptionStatusDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} defaultStatus={overview?.subscription?.status} triggerLabel="Set status" onCompleted={refresh} />
+                          <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={companyId} triggerLabel="Apply template" onCompleted={refresh} />
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4 xl:sticky xl:top-24">
+              <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
-                  <CardDescription>Plan</CardDescription>
-                  <CardTitle className="text-lg">{overview?.subscription?.planName ?? "No plan assigned"}</CardTitle>
+                  <CardTitle className="text-base">Pricing snapshot</CardTitle>
+                  <CardDescription>Commercial context stays beside the primary record instead of above it.</CardDescription>
                 </CardHeader>
-                <CardContent className="text-sm text-[var(--text-muted)]">{overview?.subscription?.status ?? "No subscription record"}</CardContent>
-              </Card>
-              <Card className="border-[var(--border)]">
-                <CardHeader>
-                  <CardDescription>Monthly total</CardDescription>
-                  <CardTitle className="font-mono text-lg">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1 text-sm text-[var(--text-muted)]">
-                  <p>Tier base: {overview?.pricing ? formatCurrency(overview.pricing.tierBase) : "N/A"}</p>
-                  <p>Add-ons: {overview?.pricing ? formatCurrency(overview.pricing.addonBaseTotal + overview.pricing.addonSiteTotal) : "N/A"}</p>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Monthly total</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</span></div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Tier base</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.tierBase) : "N/A"}</span></div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Add-ons</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.addonBaseTotal + overview.pricing.addonSiteTotal) : "N/A"}</span></div>
                 </CardContent>
               </Card>
-              <Card className="border-[var(--border)]">
+              <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
-                  <CardDescription>Subscription health</CardDescription>
-                  <CardTitle className="text-lg">{overview?.subscriptionHealth?.state ?? "No health signal"}</CardTitle>
+                  <CardTitle className="text-base">Subscription health</CardTitle>
+                  <CardDescription>Workspace commercial risk stays visible while you change the plan.</CardDescription>
                 </CardHeader>
-                <CardContent className="text-sm text-[var(--text-muted)]">{overview?.subscriptionHealth?.reason ?? "No subscription health record found."}</CardContent>
+                <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
+                  <p className="font-medium text-[var(--text-strong)]">{overview?.subscriptionHealth?.state ?? "No health signal"}</p>
+                  <p>{overview?.subscriptionHealth?.reason ?? "No subscription health record found."}</p>
+                  {overview?.subscriptionHealth?.shouldBlock ? (
+                    <div className="flex items-start gap-2 rounded-2xl border border-[#f5c2b7] bg-[#fff2ef] px-3 py-3 text-[#8a1c12]">
+                      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{overview.subscriptionHealth.reason}</span>
+                    </div>
+                  ) : null}
+                  <RecomputePricingDialog companyId={companyId!} companyName={overview?.company.name ?? "Workspace"} triggerLabel="Recompute pricing" onCompleted={refresh} />
+                </CardContent>
               </Card>
             </div>
-
-            {overview?.subscriptionHealth?.shouldBlock ? (
-              <Card className="border-[var(--border)]">
-                <CardContent className="flex items-center gap-2 py-4 text-sm text-[#8a1c12]">
-                  <TriangleAlert className="h-4 w-4" />
-                  {overview.subscriptionHealth.reason}
-                </CardContent>
-              </Card>
-            ) : null}
           </div>
         ) : null}
 
         {isCompanyScope && view === "addons" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader>
-              <CardTitle className="text-base">Add-ons</CardTitle>
-              <CardDescription>Workspace add-ons, pricing contribution, and enable/disable actions.</CardDescription>
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="gap-4 border-b border-[var(--border)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Workspace add-ons</CardTitle>
+                  <CardDescription>Review enabled bundles, pricing impact, and valid next actions from one table.</CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono">{filteredAddons.length} add-ons</Badge>
+              </div>
+              <div className="w-full md:w-80">
+                <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-10 rounded-xl" />
+              </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
@@ -491,19 +615,19 @@ export function CommercialCenterPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {overview?.addons.map((addon) => (
-                    <tr key={addon.code} className="border-t align-top">
-                      <td className="px-3 py-3">
+                  {filteredAddons.map((addon) => (
+                    <tr key={addon.code} className="border-t border-[var(--border)] align-top">
+                      <td className="px-4 py-3">
                         <p className="font-medium">{addon.name}</p>
                         <p className="text-xs text-[var(--text-muted)]">{addon.code}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3">
                         <p className="font-mono">{formatCurrency(addon.monthlyPrice)}</p>
                         <p className="text-xs text-[var(--text-muted)]">{formatCurrency(addon.additionalSiteMonthlyPrice)}/site</p>
                       </td>
-                      <td className="px-3 py-3"><Badge variant={addon.enabled ? "secondary" : "outline"}>{addon.enabled ? "ENABLED" : "DISABLED"}</Badge></td>
-                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{addon.reason ?? "No note"}</td>
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3"><Badge variant={addon.enabled ? "secondary" : "outline"}>{addon.enabled ? "ENABLED" : "DISABLED"}</Badge></td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-muted)]">{addon.reason ?? "No note"}</td>
+                      <td className="px-4 py-3">
                         <div className="flex justify-end">
                           {addon.enabled ? (
                             <AddonStateDialog actorEmail={actorEmail} companyId={companyId!} addon={addon} enable={false} triggerLabel="Disable" onCompleted={refresh} />
@@ -521,15 +645,15 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "features" ? (
-          <Card className="border-[var(--border)]">
-            <CardHeader className="space-y-4">
+          <Card className="border-[var(--border)] shadow-none">
+            <CardHeader className="space-y-4 border-b border-[var(--border)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">Feature access draft</CardTitle>
-                  <CardDescription>Advanced commercial overrides for effective feature state. Save applies only changed flags.</CardDescription>
+                  <CardDescription>Advanced workspace entitlements in a reviewable table so operators can see current and draft state together.</CardDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{pendingFeatureChanges} pending</Badge>
+                  <Badge variant="outline" className="font-mono">{pendingFeatureChanges} pending</Badge>
                   <Button size="sm" variant="outline" onClick={discardFeatureDraft} disabled={pendingFeatureChanges === 0 || savingFeatures}>Discard</Button>
                   <Button size="sm" variant="outline" onClick={resetFeatureDraft} disabled={savingFeatures}>Reset</Button>
                   <Button size="sm" onClick={() => void saveFeatureDraft()} disabled={pendingFeatureChanges === 0 || savingFeatures}>
@@ -539,59 +663,57 @@ export function CommercialCenterPage({
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
                 <div className="space-y-1">
-                  <Label>Search features</Label>
-                  <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" />
+                  <Label className="sr-only">Search features</Label>
+                  <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-10 rounded-xl" />
                 </div>
                 <div className="space-y-1">
-                  <Label>Reason for changes</Label>
-                  <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Optional reason for this batch" />
+                  <Label className="sr-only">Reason for changes</Label>
+                  <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch of changes" className="h-10 rounded-xl" />
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {filteredFeatureGroups.map(([group, features]) => (
-                <div key={group} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{group}</Badge>
-                    <span className="text-xs text-[var(--text-muted)]">{features.length} features</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    {features.map((feature) => {
-                      const value = featureDraft[feature.feature] ?? feature.enabled;
-                      const changed = value !== feature.enabled;
-                      return (
-                        <button
-                          key={feature.feature}
-                          type="button"
-                          onClick={() => setFeatureDraft((current) => ({ ...current, [feature.feature]: !value }))}
-                          className={`rounded-[18px] border px-4 py-3 text-left ${changed ? "border-[var(--border-strong)] bg-[var(--surface-muted)]" : "border-[var(--border)] bg-[var(--surface-base)]"}`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold">{feature.featureLabel}</p>
-                              <p className="text-xs text-[var(--text-muted)]">{feature.feature}</p>
-                            </div>
-                            <Badge variant={value ? "secondary" : "outline"}>{value ? "Enabled" : "Disabled"}</Badge>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <tr>
+                    <th className="px-4 py-3">Feature</th>
+                    <th className="px-4 py-3">Group</th>
+                    <th className="px-4 py-3">Current</th>
+                    <th className="px-4 py-3">Draft</th>
+                    <th className="px-4 py-3">Reason</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFeatures.map((feature) => {
+                    const value = featureDraft[feature.feature] ?? feature.enabled;
+                    const changed = value !== feature.enabled;
+                    return (
+                      <tr key={feature.feature} className={`border-t border-[var(--border)] align-top ${changed ? "bg-[var(--surface-muted)]" : ""}`}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{feature.featureLabel}</p>
+                          <p className="font-mono text-xs text-[var(--text-muted)]">{feature.feature}</p>
+                        </td>
+                        <td className="px-4 py-3"><Badge variant="outline">{featureGroupKey(feature.feature)}</Badge></td>
+                        <td className="px-4 py-3"><Badge variant={feature.enabled ? "secondary" : "outline"}>{feature.enabled ? "Enabled" : "Disabled"}</Badge></td>
+                        <td className="px-4 py-3"><Badge variant={value ? "secondary" : "outline"}>{value ? "Enabled" : "Disabled"}</Badge></td>
+                        <td className="px-4 py-3 text-[var(--text-muted)]">{feature.reason ?? "No restriction note"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end">
+                            <Button size="sm" variant="outline" onClick={() => setFeatureDraft((current) => ({ ...current, [feature.feature]: !value }))}>
+                              {value ? "Disable" : "Enable"}
+                            </Button>
                           </div>
-                          <p className="mt-2 text-xs text-[var(--text-muted)]">{feature.reason ?? "No restriction note"}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </CardContent>
           </Card>
         ) : null}
       </VerticalDataViews>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-muted)]">
-        <Sparkles className="h-4 w-4" />
-        Keep subscription, template, bundle, and feature work here. Settings has manual tools when you need them.
-        <Link href="/admin/settings" className="ml-auto font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
-          Open settings
-        </Link>
-      </div>
     </section>
   );
 }

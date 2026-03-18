@@ -5,26 +5,22 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
-  BarChart3,
   Building2,
-  Coins,
-  CreditCard,
   LifeBuoy,
-  LineChart,
   RefreshCcw,
   Search,
   ShieldAlert,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusChip } from "@/components/ui/status-chip";
 import { fetchMetrics } from "@/components/admin-portal/api";
 import { getQuickActions } from "@/components/admin-portal/shell/admin-config";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { AdminMetricCard } from "@/components/admin-portal/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatusChip } from "@/components/ui/status-chip";
 
 function metricPresentation(metric: AdminMetricCard) {
   if (metric.id === "revenue") {
@@ -71,7 +67,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
     };
   }, [scopeCompanyId]);
 
-  const displayMetrics = useMemo(() => metrics.slice(0, 8), [metrics]);
+  const displayMetrics = useMemo(() => metrics.slice(0, 4), [metrics]);
 
   const operatorSignals = useMemo(() => {
     const lookup = new Map(metrics.map((metric) => [metric.id, metric]));
@@ -85,30 +81,30 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         label: "Escalations",
         value: incidentCount,
         tone: incidentCount > 0 ? "Need changes" : "Passing",
-        hint: incidentCount > 0 ? `${incidentCount} open incident(s) need review in reliability.` : "No open reliability incidents right now.",
+        hint: incidentCount > 0 ? `${incidentCount} incident(s) need review in reliability.` : "No open reliability incidents right now.",
+        href: scopeCompanyId ? `/admin/company/${scopeCompanyId}/reliability` : "/admin/reliability",
         icon: AlertTriangle,
-        iconClassName: "text-[#EC442C]",
       },
       {
         id: "support",
-        label: "Support",
+        label: "Support sessions",
         value: supportCount,
         tone: supportCount > 0 ? "In progress" : "Pending",
-        hint: supportCount > 0 ? `${supportCount} live support session(s) are active.` : "No live support sessions are running.",
+        hint: supportCount > 0 ? `${supportCount} active support session(s) are live.` : "No live support sessions are running.",
+        href: scopeCompanyId ? `/admin/company/${scopeCompanyId}/support-access` : "/admin/support-access",
         icon: LifeBuoy,
-        iconClassName: "text-[#4C64D4]",
       },
       {
         id: "audit",
-        label: "Review",
+        label: "Audit review",
         value: auditCount,
         tone: auditCount > 0 ? "In review" : "Pending",
         hint: auditCount > 0 ? `${auditCount} recent audit event(s) are available for review.` : "No recent audit events were returned.",
+        href: scopeCompanyId ? `/admin/company/${scopeCompanyId}/reliability?view=audit` : "/admin/reliability?view=audit",
         icon: ShieldAlert,
-        iconClassName: "text-[#F46414]",
       },
     ];
-  }, [metrics]);
+  }, [metrics, scopeCompanyId]);
 
   const workspaceRows = useMemo(() => {
     const trimmed = workspaceQuery.trim().toLowerCase();
@@ -117,106 +113,161 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       return preferredRows.slice(0, 8);
     }
 
-    return companies.filter((company) => {
-      const haystack = `${company.name} ${company.slug ?? ""} ${company.id}`.toLowerCase();
-      return haystack.includes(trimmed);
-    });
+    return companies
+      .filter((company) => {
+        const haystack = `${company.name} ${company.slug ?? ""} ${company.id}`.toLowerCase();
+        return haystack.includes(trimmed);
+      })
+      .slice(0, 8);
   }, [companies, recentCompanies, workspaceQuery]);
 
   return (
     <section className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)]">
-        <Card className="border-[var(--border)]">
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-2xl">
-                  {scopeCompanyId ? `${activeCompany?.name ?? "Workspace"} command center` : "Platform command center"}
-                </CardTitle>
-                <CardDescription>
-                  Quick stats, live operational signals, and high-confidence actions for production operations.
-                </CardDescription>
-              </div>
-              <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
-                {scopeCompanyId ? "Organization scope" : "Platform scope"}
-              </Badge>
-            </div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="rounded-full px-3 py-1">
+              {scopeCompanyId ? "Workspace scope" : "Platform scope"}
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              Operations first
+            </Badge>
+          </div>
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight">
+              {scopeCompanyId ? `${activeCompany?.name ?? "Workspace"} command center` : "Operator command center"}
+            </h2>
+            <p className="max-w-3xl text-sm text-[var(--text-muted)]">
+              Start with active queues, workspace state, and the next safe action. This surface is optimized for support,
+              incident triage, and workspace management.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={scopeCompanyId ? `/admin/company/${scopeCompanyId}/support-access` : "/admin/support-access"}>
+              Open support queue
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href={scopeCompanyId ? `/admin/clients/${scopeCompanyId}` : "/admin/clients"}>
+              {scopeCompanyId ? "Open workspace" : "Open workspaces"}
+            </Link>
+          </Button>
+        </div>
+      </div>
 
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Card className="border-[var(--border)]">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Core signals</CardTitle>
+            <CardDescription>Revenue, clients, support, and reliability metrics for the active scope.</CardDescription>
+          </CardHeader>
+          <CardContent>
             {isLoadingMetrics ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4">
+                  <div key={index} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                     <Skeleton className="h-3 w-24" />
                     <Skeleton className="mt-3 h-8 w-20" />
-                    <Skeleton className="mt-3 h-3 w-36" />
+                    <Skeleton className="mt-3 h-3 w-24" />
                   </div>
                 ))}
               </div>
             ) : metricsError ? (
-              <div className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
                 {metricsError}
-              </div>
-            ) : displayMetrics.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
-                Live dashboard metrics are not available yet.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {displayMetrics.map((metric) => (
-                  <div
-                    key={metric.id}
-                    className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4"
-                  >
+                  <div key={metric.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{metric.label}</p>
-                    <p className="mt-2 font-mono text-2xl font-semibold text-[var(--text-strong)]">
+                    <p className="mt-2 font-mono text-3xl font-semibold text-[var(--text-strong)]">
                       {metricPresentation(metric)}
                     </p>
-                    {metric.hint ? <p className="mt-2 text-xs text-[var(--text-muted)]">{metric.hint}</p> : null}
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">{metric.hint ?? "Live metric"}</p>
                   </div>
                 ))}
               </div>
             )}
-          </CardHeader>
+          </CardContent>
         </Card>
 
         <Card className="border-[var(--border)]">
-          <CardHeader className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-lg">Quick actions</CardTitle>
-                <CardDescription>Launch the most common control-plane workflows without browsing the full catalog.</CardDescription>
-              </div>
-              <RefreshCcw className="h-4 w-4 text-[var(--text-muted)]" />
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {quickActions.map((action) => (
-                <Button
-                  key={action.id}
-                  asChild
-                  variant={action.scope === "platform" ? "secondary" : "outline"}
-                  className="h-auto justify-between rounded-[18px] px-4 py-3 text-left"
-                >
-                  <Link href={action.href}>
-                    <span>
-                      <span className="block text-sm font-semibold">{action.label}</span>
-                      <span className="mt-1 block text-xs font-normal text-[var(--text-muted)]">{action.description}</span>
-                    </span>
-                    <ArrowRight className="h-4 w-4 shrink-0" />
-                  </Link>
-                </Button>
-              ))}
-            </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Quick actions</CardTitle>
+            <CardDescription>Launch the highest-confidence workflows without browsing the full portal.</CardDescription>
           </CardHeader>
+          <CardContent className="grid gap-3">
+            {quickActions.map((action) => (
+              <Button
+                key={action.id}
+                asChild
+                variant={action.scope === "platform" ? "secondary" : "outline"}
+                className="h-auto justify-between rounded-2xl px-4 py-3 text-left"
+              >
+                <Link href={action.href}>
+                  <span>
+                    <span className="block text-sm font-semibold">{action.label}</span>
+                    <span className="mt-1 block text-xs font-normal text-[var(--text-muted)]">{action.description}</span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0" />
+                </Link>
+              </Button>
+            ))}
+          </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <Card className="border-[var(--border)]">
-          <CardHeader className="space-y-3">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">Operator backlog</CardTitle>
+                <CardDescription>Review the queues that most often drive production intervention.</CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setWorkspaceQuery("")}>
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {operatorSignals.map((signal) => {
+              const Icon = signal.icon;
+              return (
+                <Link
+                  key={signal.id}
+                  href={signal.href}
+                  className="flex items-start justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4 transition-colors hover:bg-[var(--surface-muted)]"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]">
+                      <Icon className="h-4 w-4 text-[var(--text-muted)]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">{signal.label}</p>
+                      <p className="mt-1 text-sm text-[var(--text-muted)]">{signal.hint}</p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">{signal.value}</p>
+                    <StatusChip status={signal.tone} showDot />
+                  </div>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[var(--border)]">
+          <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">Workspace jump</CardTitle>
-                <CardDescription>Browse recent organizations and jump into the right operational context quickly.</CardDescription>
+                <CardDescription>Recent and matching workspaces for fast triage handoffs.</CardDescription>
               </div>
               <Badge variant="outline" className="rounded-full px-3 py-1">
                 {companies.length} workspaces
@@ -232,17 +283,16 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
               />
             </div>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <CardContent className="space-y-2">
             {isLoadingCompanies ? (
               Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                <div key={index} className="rounded-2xl border border-[var(--border)] p-4">
                   <Skeleton className="h-4 w-40" />
                   <Skeleton className="mt-3 h-3 w-28" />
-                  <Skeleton className="mt-5 h-3 w-24" />
                 </div>
               ))
             ) : workspaceRows.length === 0 ? (
-              <div className="col-span-full rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--surface-base)] px-4 py-6 text-sm text-[var(--text-muted)]">
+              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-8 text-sm text-[var(--text-muted)]">
                 No workspaces match the current search.
               </div>
             ) : (
@@ -250,166 +300,24 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
                 <Link
                   key={workspace.id}
                   href={`/admin/clients/${workspace.id}`}
-                  className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-base)] p-4 transition-colors hover:bg-[var(--surface-muted)]"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] px-4 py-3 transition-colors hover:bg-[var(--surface-muted)]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
-                        <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{workspace.name}</p>
-                      </div>
-                      <p className="mt-2 truncate text-xs text-[var(--text-muted)]">{workspace.slug ?? workspace.id}</p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]">
+                      <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
                     </div>
-                    {workspace.status ? <Badge variant="outline">{workspace.status}</Badge> : null}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{workspace.name}</p>
+                      <p className="truncate text-xs text-[var(--text-muted)]">{workspace.slug ?? workspace.id}</p>
+                    </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                    <span>Open workspace</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
+                  <div className="flex shrink-0 items-center gap-2">
+                    {workspace.status ? <Badge variant="outline">{workspace.status}</Badge> : null}
+                    <ArrowRight className="h-4 w-4 text-[var(--text-muted)]" />
                   </div>
                 </Link>
               ))
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-[var(--border)]">
-          <CardHeader className="space-y-3">
-            <div>
-              <CardTitle className="text-lg">Alerts and operator backlog</CardTitle>
-              <CardDescription>Live counts and operational pressure points from the current admin services.</CardDescription>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {isLoadingMetrics ? (
-                Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="mt-3 h-8 w-12" />
-                  </div>
-                ))
-              ) : (
-                operatorSignals.map((signal) => {
-                  const Icon = signal.icon;
-                  return (
-                    <div key={signal.id} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        <Icon className={`h-4 w-4 ${signal.iconClassName}`} />
-                        {signal.label}
-                      </div>
-                      <p className="mt-2 text-2xl font-semibold">{signal.value}</p>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isLoadingMetrics ? (
-              Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="rounded-[18px] border border-[var(--border)] p-4">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="mt-3 h-3 w-60" />
-                </div>
-              ))
-            ) : (
-              operatorSignals.map((signal) => (
-                <div key={signal.id} className="flex items-start justify-between gap-3 rounded-[18px] border border-[var(--border)] p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold">{signal.label}</p>
-                    <p className="text-xs text-[var(--text-muted)]">{signal.hint}</p>
-                  </div>
-                  <StatusChip status={signal.tone} showDot />
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BarChart3 className="h-4 w-4 text-[var(--text-muted)]" />
-              Clients by tier
-            </CardTitle>
-            <CardDescription>Distribution by plan level.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <div className="flex h-full items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-6 text-center text-sm text-[var(--text-muted)]">
-              {isLoadingMetrics ? "Loading live tier distribution..." : "Live tier distribution will appear here once the analytics feed is connected."}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <LineChart className="h-4 w-4 text-[var(--text-muted)]" />
-              Add-on usage
-            </CardTitle>
-            <CardDescription>Adoption across active workspaces.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <div className="flex h-full items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-6 text-center text-sm text-[var(--text-muted)]">
-              {isLoadingMetrics ? "Loading live add-on analytics..." : "Live add-on adoption will appear here once the analytics feed is connected."}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Coins className="h-4 w-4 text-[var(--text-muted)]" />
-              Revenue mix
-            </CardTitle>
-            <CardDescription>Plans, add-ons, and usage share.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <div className="flex h-full items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-6 text-center text-sm text-[var(--text-muted)]">
-              {isLoadingMetrics ? "Loading live revenue mix..." : "Live revenue mix will appear here once the billing analytics feed is connected."}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CreditCard className="h-4 w-4 text-[var(--text-muted)]" />
-              Subscription signals
-            </CardTitle>
-            <CardDescription>Queue the actions that most often impact access and billing confidence.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Link href="/admin/commercial?view=subscriptions" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
-              <p className="text-sm font-semibold">Review subscription states</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Inspect live plan health, renewal timing, and service state.</p>
-            </Link>
-            <Link href="/admin/commercial?view=bundles" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
-              <p className="text-sm font-semibold">Inspect catalog drift</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Align bundles, templates, and feature access before changes roll out.</p>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />
-              Support and impersonation
-            </CardTitle>
-            <CardDescription>Launch operator sessions with clear actor context and expiration controls.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Link href="/admin/support-access" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
-              <p className="text-sm font-semibold">Start support access</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Request, approve, shadow, or impersonate with guided safeguards.</p>
-            </Link>
-            <Link href="/admin/reliability?view=audit" className="rounded-[18px] border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]">
-              <p className="text-sm font-semibold">Audit recent actions</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Review operator history, contract posture, and execution evidence.</p>
-            </Link>
           </CardContent>
         </Card>
       </div>

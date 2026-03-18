@@ -24,6 +24,7 @@ const ADMIN_BASE_PATH = "/admin";
 const ADMIN_LOGIN_PATH = `${ADMIN_BASE_PATH}/login`;
 const ADMIN_INTERNAL_BASE_PATH = "/portal/admin";
 const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos", "/portal/admin"] as const;
+const PUBLIC_ASSET_PATTERN = /\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|eot)$/i;
 const PORTAL_HOME_BY_ROLE = {
   PARENT: "/portal/parent",
   STUDENT: "/portal/student",
@@ -162,6 +163,10 @@ export default withAuth(
   function middleware(request) {
     const { pathname } = request.nextUrl;
     const isApiRequest = pathname.startsWith("/api/");
+
+    if (PUBLIC_ASSET_PATTERN.test(pathname)) {
+      return NextResponse.next();
+    }
 
     if (pathname === ACCESS_BLOCKED_PATH) {
       return NextResponse.next();
@@ -395,7 +400,7 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)).*)",
+    "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|eot)).*)",
     "/api/platform-admin/:path*",
     "/api/cctv/:path*",
     "/api/gold/:path*",

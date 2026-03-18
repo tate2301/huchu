@@ -7,8 +7,6 @@ import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@/lib/admin-portal";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
 
-const DEFAULT_ADMIN_EMAIL = "thehalfstackdev@gmail.com";
-
 export default async function AdminLoginPage({
   searchParams,
 }: {
@@ -34,11 +32,9 @@ export default async function AdminLoginPage({
     redirect(resolvedCallbackUrl);
   }
 
-  const adminEmail = process.env.ADMIN_PORTAL_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
-
   return (
     <>
-      <AdminMagicLinkLogin adminEmail={adminEmail} callbackUrl={resolvedCallbackUrl} />
+      <AdminMagicLinkLogin callbackUrl={resolvedCallbackUrl} />
       <p className="sr-only">Restricted host: {ADMIN_PORTAL_HOST}</p>
     </>
   );

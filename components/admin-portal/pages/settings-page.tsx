@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { BellRing, Palette, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,57 +8,72 @@ import { Label } from "@/components/ui/label";
 
 export function SettingsPage() {
   return (
-    <section className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-[var(--text-muted)]">Keep admin portal aligned with main app conventions and branding.</p>
+    <section className="space-y-5">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <p className="max-w-3xl text-sm text-[var(--text-muted)]">
+          Keep the control plane aligned with platform defaults, operator notifications, and production-safe presentation rules.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="border-[var(--border)]">
           <CardHeader>
-            <CardTitle className="text-base">Branding</CardTitle>
-            <CardDescription>Use the same tokens as the main app. Secrets stay in .env.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Label htmlFor="primary-color">Primary color</Label>
-            <Input id="primary-color" placeholder="e.g. #2CA47C" />
-            <Button size="sm" className="mt-2">Save branding</Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
-            <CardDescription>Configure alert channels for billing, health, and catalog drift.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="ops@example.com" />
-            <Label htmlFor="webhook">Webhook URL</Label>
-            <Input id="webhook" type="url" placeholder="https://hooks.example.com/support" />
-            <Button size="sm" className="mt-2">Save notifications</Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[var(--border)]">
-          <CardHeader>
-            <CardTitle className="text-base">Advanced Mode</CardTitle>
-            <CardDescription>Manual tools and diagnostics live here when you need direct control.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
-            <p>Use these tools for manual operations, diagnostics, and exceptional cases.</p>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm" variant="outline">
-                <Link href="/admin/advanced">Open advanced tools</Link>
-              </Button>
-              <Button asChild size="sm" variant="ghost">
-                <Link href="/admin/commercial">Open Commercial Center</Link>
-              </Button>
+            <div className="flex items-center gap-2">
+              <Palette className="h-4 w-4 text-[var(--text-muted)]" />
+              <CardTitle className="text-lg">Portal presentation</CardTitle>
             </div>
+            <CardDescription>Warm-paper branding and operator-facing defaults used across the admin portal.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="primary-color">Primary action color</Label>
+              <Input id="primary-color" placeholder="e.g. #4C64D4" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="support-copy">Support banner copy</Label>
+              <Input id="support-copy" placeholder="Short operator-facing guidance" />
+            </div>
+            <Button size="sm">Save presentation settings</Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[var(--border)]">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <BellRing className="h-4 w-4 text-[var(--text-muted)]" />
+              <CardTitle className="text-lg">Operator notifications</CardTitle>
+            </div>
+            <CardDescription>Configure the channels used for support, billing, and reliability escalations.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Notification email</Label>
+              <Input id="email" type="email" placeholder="ops@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="webhook">Webhook URL</Label>
+              <Input id="webhook" type="url" placeholder="https://hooks.example.com/platform" />
+            </div>
+            <Button size="sm">Save notification settings</Button>
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-[var(--border)]">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />
+            <CardTitle className="text-lg">Production safeguards</CardTitle>
+          </div>
+          <CardDescription>Keep risky operations explicit, guided, and out of the everyday operator path.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
+          <p>Raw execution is intentionally excluded from the primary navigation and command surfaces.</p>
+          <p>Workspace switching, support sessions, and guided write flows should remain the default operator experience.</p>
+          <p>Destructive changes belong behind confirmed modal flows with audit context, not inline controls.</p>
+        </CardContent>
+      </Card>
     </section>
   );
 }

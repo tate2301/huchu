@@ -16,8 +16,8 @@ function ContextTile({
   detail?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-4 py-3">
-      <div className="rounded-xl bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
+    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
@@ -50,7 +50,7 @@ export function AdminOperatorContext() {
         : "Organization";
 
   return (
-    <section className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+    <section className="grid grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-4">
       <ContextTile icon={UserRound} label="Signed In" value={actorLabel} detail={actorEmail} />
       <ContextTile icon={ShieldCheck} label="Actor" value={actorEmail} detail={roleLabel} />
       <ContextTile
@@ -59,9 +59,9 @@ export function AdminOperatorContext() {
         value={activeCompany?.name ?? "Platform"}
         detail={activeCompany ? activeCompany.slug ?? activeCompany.id : "Global control plane scope"}
       />
-      <div className="flex min-w-0 items-start justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-4 py-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-xl bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
+      <div className="flex min-w-0 items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
             <Fingerprint className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -70,7 +70,7 @@ export function AdminOperatorContext() {
             <p className="text-xs text-[var(--text-muted)]">{isLoadingSupportState ? "Checking live support session state" : accessModeDetail}</p>
           </div>
         </div>
-        <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
+        <Badge variant="secondary" className="ml-3 rounded-full px-3 py-1 font-medium">
           {accessModeBadge}
         </Badge>
       </div>

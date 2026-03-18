@@ -6,7 +6,7 @@ import { decode as defaultJwtDecode, encode as defaultJwtEncode } from "next-aut
 import { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { ADMIN_PORTAL_HOST } from "@/lib/admin-portal";
+import { getAdminRootDomain, isAdminPortalHost } from "@/lib/admin-portal";
 import { hasFeature } from "@/lib/platform/features";
 import {
   getHostHeaderFromRequestHeaders,
@@ -220,7 +220,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const parsedUrl = new URL(url);
-        if (parsedUrl.host !== ADMIN_PORTAL_HOST) {
+        if (!isAdminPortalHost(parsedUrl.host)) {
           await logAuthEvent({
             eventType: "auth.email-link.rejected",
             actor: identifier,
@@ -229,7 +229,7 @@ export const authOptions: NextAuthOptions = {
             entityId: "admin-email-link",
             payload: { host: parsedUrl.host },
           });
-          throw new Error(`Magic links are restricted to ${ADMIN_PORTAL_HOST}`);
+          throw new Error(`Magic links are restricted to the admin host (${getAdminRootDomain()}).`);
         }
 
         const rateLimit = checkRateLimit({
