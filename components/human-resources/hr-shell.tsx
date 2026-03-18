@@ -7,38 +7,9 @@ import { PageActions } from "@/components/layout/page-actions"
 import { PageHeading } from "@/components/layout/page-heading"
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter"
 import { cn } from "@/lib/utils"
+import { HR_TABS, type HrTab } from "@/lib/hr/tab-config"
+import { getNavSectionsForRole } from "@/lib/navigation"
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products"
-import {
-  type LucideIcon,
-  Coins,
-  ManageAccounts,
-  Payments,
-} from "@/lib/icons"
-
-export type HrTab =
-  | "employees"
-  | "shift-groups"
-  | "incidents"
-  | "payouts"
-  | "salaries"
-  | "salary-outstanding"
-  | "compensation"
-  | "payroll"
-  | "disbursements"
-  | "approvals"
-
-type HrTabItem = {
-  id: HrTab
-  label: string
-  href: string
-  icon: LucideIcon
-}
-
-const hrTabs: HrTabItem[] = [
-  { id: "employees", label: "Employees", href: "/human-resources", icon: ManageAccounts },
-  { id: "salaries", label: "Salaries", href: "/human-resources/salaries", icon: Payments },
-  { id: "payouts", label: "Irregular Payouts", href: "/human-resources/payouts", icon: Coins },
-]
 
 type HrShellProps = {
   activeTab: HrTab
@@ -56,6 +27,7 @@ export function HrShell({
   description,
 }: HrShellProps) {
   const { data: session } = useSession()
+  const role = (session?.user as { role?: string } | undefined)?.role
   const enabledFeatures = useMemo(
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
     [session],
@@ -71,8 +43,14 @@ export function HrShell({
     [enabledFeatures, workspaceProfile],
   )
   const visibleTabs = useMemo(
-    () => filterHrefItemsByEnabledFeatures(hrTabs, enabledFeatures),
-    [enabledFeatures],
+    () => {
+      const hrSection = getNavSectionsForRole(role).find((section) => section.id === "hr")
+      const visibleHrefs = new Set(
+        filterHrefItemsByEnabledFeatures(hrSection?.items ?? [], enabledFeatures).map((item) => item.href),
+      )
+      return HR_TABS.filter((tab) => visibleHrefs.has(tab.href))
+    },
+    [enabledFeatures, role],
   )
 
   return (

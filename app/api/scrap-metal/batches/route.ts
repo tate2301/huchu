@@ -14,6 +14,7 @@ import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 const scrapMetalBatchSchema = z.object({
   batchNumber: z.string().min(1).max(50).optional(),
   siteId: z.string().uuid(),
+  materialId: z.string().uuid().optional(),
   category: z.enum([
     "BATTERIES",
     "COPPER",
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const siteId = searchParams.get("siteId");
     const category = searchParams.get("category");
+    const materialId = searchParams.get("materialId");
     const status = searchParams.get("status");
     const { page, limit, skip } = getPaginationParams(request);
 
@@ -48,6 +50,7 @@ export async function GET(request: NextRequest) {
 
     if (siteId) where.siteId = siteId;
     if (category) where.category = category;
+    if (materialId) where.materialId = materialId;
     if (status) where.status = status;
 
     const [batches, total] = await Promise.all([
@@ -55,6 +58,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           site: { select: { id: true, name: true, code: true } },
+          material: { select: { id: true, code: true, name: true, category: true } },
           createdBy: { select: { id: true, name: true } },
           _count: {
             select: { items: true },
@@ -83,16 +87,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = scrapMetalBatchSchema.parse(body);
 
-    const site = await prisma.site.findUnique({
-      where: { id: validated.siteId },
-      select: { id: true, companyId: true, isActive: true },
-    });
+    const [site, material] = await Promise.all([
+      prisma.site.findUnique({
+        where: { id: validated.siteId },
+        select: { id: true, companyId: true, isActive: true },
+      }),
+      validated.materialId
+        ? prisma.scrapMaterial.findFirst({
+            where: {
+              id: validated.materialId,
+              companyId: session.user.companyId,
+            },
+            select: { id: true, category: true, isActive: true },
+          })
+        : Promise.resolve(null),
+    ]);
 
     if (!site || site.companyId !== session.user.companyId) {
       return errorResponse("Invalid site", 403);
     }
     if (!site.isActive) {
       return errorResponse("Site is not active", 400);
+    }
+    if (validated.materialId && !material) {
+      return errorResponse("Invalid material", 404);
+    }
+    if (material && !material.isActive) {
+      return errorResponse("Material is inactive", 400);
+    }
+    if (material && material.category !== validated.category) {
+      return errorResponse("Material category does not match the selected category", 400);
     }
 
     const batchNumber = validated.batchNumber
@@ -118,6 +142,7 @@ export async function POST(request: NextRequest) {
       data: {
         companyId: session.user.companyId,
         siteId: validated.siteId,
+        materialId: validated.materialId,
         batchNumber,
         category: validated.category,
         status: "COLLECTING",
@@ -127,6 +152,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
+        material: { select: { id: true, code: true, name: true, category: true } },
         createdBy: { select: { id: true, name: true } },
         _count: {
           select: { items: true },

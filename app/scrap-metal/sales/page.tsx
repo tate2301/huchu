@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { PageIntro } from "@/components/shared/page-intro";
+import { SaleCalculator } from "@/components/scrap-metal/sale-calculator";
+import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -16,7 +17,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { StatusChip } from "@/components/ui/status-chip";
 import {
   Select,
   SelectContent,
@@ -24,9 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { StatusChip } from "@/components/ui/status-chip";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { SaleCalculator } from "@/components/scrap-metal/sale-calculator";
 
 type Sale = {
   id: string;
@@ -44,6 +44,12 @@ type Sale = {
     batchNumber: string;
     category: string;
   };
+  material?: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+  } | null;
   site: {
     name: string;
     code: string;
@@ -89,15 +95,14 @@ export default function ScrapMetalSalesPage() {
       });
       setSelectedSale(null);
     },
-    onError: (error) => {
+    onError: (mutationError) => {
       toast({
         title: "Approval failed",
-        description: getApiErrorMessage(error),
+        description: getApiErrorMessage(mutationError),
         variant: "destructive",
       });
     },
   });
-
 
   const completeSaleMutation = useMutation({
     mutationFn: (saleId: string) =>
@@ -111,10 +116,10 @@ export default function ScrapMetalSalesPage() {
       });
       setSelectedSale(null);
     },
-    onError: (error) => {
+    onError: (mutationError) => {
       toast({
         title: "Unable to complete sale",
-        description: getApiErrorMessage(error),
+        description: getApiErrorMessage(mutationError),
         variant: "destructive",
       });
     },
@@ -136,10 +141,10 @@ export default function ScrapMetalSalesPage() {
       setCancelReason("");
       setSelectedSale(null);
     },
-    onError: (error) => {
+    onError: (mutationError) => {
       toast({
         title: "Unable to cancel sale",
-        description: getApiErrorMessage(error),
+        description: getApiErrorMessage(mutationError),
         variant: "destructive",
       });
     },
@@ -164,6 +169,20 @@ export default function ScrapMetalSalesPage() {
           </NumericCell>
         ),
         size: 100,
+      },
+      {
+        id: "material",
+        header: "Material",
+        accessorFn: (row) => `${row.material?.name ?? row.batch.category} ${row.buyerName}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.material?.name ?? row.original.batch.category}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.material?.code ?? row.original.batch.category}
+            </div>
+          </div>
+        ),
+        size: 160,
       },
       {
         id: "batch",
@@ -233,35 +252,29 @@ export default function ScrapMetalSalesPage() {
         header: "",
         cell: ({ row }) => (
           <div className="flex gap-2">
-            {["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setSelectedSale(row.original)}
-              >
+            {["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) ? (
+              <Button size="sm" variant="outline" onClick={() => setSelectedSale(row.original)}>
                 {row.original.status === "APPROVED" ? "Close" : "Review"}
               </Button>
-            )}
+            ) : null}
           </div>
         ),
         size: 100,
       },
     ],
-    []
+    [],
   );
 
   return (
-    <div className="space-y-6">
-      <PageIntro
-        purpose="Record and approve batch sales to buyers—verify sold weight and track discrepancies"
-        title="Scrap Metal Sales"
-        actions={
-          <Button asChild size="sm">
-            <Link href="/scrap-metal">Back to Dashboard</Link>
-          </Button>
-        }
-      />
-
+    <ScrapShell
+      title="Bulk Sales"
+      description="Review buyer deals and move approved sales to close."
+      actions={
+        <Button asChild size="sm" variant="outline">
+          <Link href="/scrap-metal/yard/batches">Yard Stock</Link>
+        </Button>
+      }
+    >
       {error ? (
         <StatusState
           variant="error"
@@ -275,8 +288,7 @@ export default function ScrapMetalSalesPage() {
         />
       ) : (
         <>
-          {/* Status Filter Toolbar */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-muted-foreground">
                 Status:
@@ -295,24 +307,30 @@ export default function ScrapMetalSalesPage() {
               </Select>
             </div>
             <div className="text-sm text-muted-foreground">
-              Showing {filteredSales.length} of {sales.length} sales
+              {filteredSales.length} of {sales.length} sales
             </div>
           </div>
 
           <DataTable
             data={filteredSales}
             columns={columns}
-            searchPlaceholder="Search by sale number or buyer"
+            searchPlaceholder="Search sale, buyer, material, or batch"
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading sales..." : statusFilter === "all" ? "No sales recorded yet" : `No sales with status "${statusFilter.replace(/_/g, ' ')}"`}
+            emptyState={
+              isLoading
+                ? "Loading sales..."
+                : statusFilter === "all"
+                  ? "No sales recorded yet"
+                  : `No sales with status "${statusFilter.replace(/_/g, " ")}"`
+            }
           />
         </>
       )}
 
-      {selectedSale && (
-        <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
+      {selectedSale ? (
+        <Dialog open={Boolean(selectedSale)} onOpenChange={() => setSelectedSale(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Review Sale - {selectedSale.saleNumber}</DialogTitle>
@@ -324,8 +342,8 @@ export default function ScrapMetalSalesPage() {
                   <div className="font-semibold">{selectedSale.batch.batchNumber}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground">Category</div>
-                  <div className="font-semibold">{selectedSale.batch.category}</div>
+                  <div className="text-muted-foreground">Material</div>
+                  <div className="font-semibold">{selectedSale.material?.name ?? selectedSale.batch.category}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Buyer</div>
@@ -339,24 +357,24 @@ export default function ScrapMetalSalesPage() {
                 </div>
               </div>
 
-              <SaleCalculator
-                recordedWeight={selectedSale.recordedWeight}
-                onWeightCalculated={(weight) => {
-                  // Weight calculated, can be used for verification
-                  console.log("Verified weight:", weight);
-                }}
-              />
+              <SaleCalculator recordedWeight={selectedSale.recordedWeight} onWeightCalculated={() => {}} />
 
               <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Cancellation note (optional)</label>
+                <label className="text-sm text-muted-foreground">Cancellation note</label>
                 <textarea
                   className="min-h-[74px] w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  placeholder="State reason if this sale is being cancelled"
+                  placeholder="Reason for cancellation"
                   value={cancelReason}
                   onChange={(event) => setCancelReason(event.target.value)}
                 />
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => { setSelectedSale(null); setCancelReason(""); }}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedSale(null);
+                      setCancelReason("");
+                    }}
+                  >
                     Close
                   </Button>
                   {selectedSale.status === "PENDING_APPROVAL" ? (
@@ -401,7 +419,7 @@ export default function ScrapMetalSalesPage() {
             </div>
           </DialogContent>
         </Dialog>
-      )}
-    </div>
+      ) : null}
+    </ScrapShell>
   );
 }

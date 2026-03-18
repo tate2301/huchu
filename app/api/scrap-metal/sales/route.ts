@@ -20,6 +20,7 @@ const scrapMetalSaleSchema = z.object({
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   siteId: z.string().uuid(),
   batchId: z.string().uuid(),
+  materialId: z.string().uuid().optional(),
   buyerName: z.string().min(1).max(200),
   buyerContact: z.string().max(100).optional(),
   recordedWeight: z.number().positive(),
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const siteId = searchParams.get("siteId");
     const status = searchParams.get("status");
+    const materialId = searchParams.get("materialId");
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -48,6 +50,7 @@ export async function GET(request: NextRequest) {
 
     if (siteId) where.siteId = siteId;
     if (status) where.status = status;
+    if (materialId) where.materialId = materialId;
 
     const [sales, total] = await Promise.all([
       prisma.scrapMetalSale.findMany({
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest) {
               totalWeight: true,
             },
           },
+          material: { select: { id: true, code: true, name: true, category: true } },
           approvedBy: { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },
@@ -96,7 +100,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = scrapMetalSaleSchema.parse(body);
 
-    const [site, batch] = await Promise.all([
+    const [site, batch, material] = await Promise.all([
       prisma.site.findUnique({
         where: { id: validated.siteId },
         select: { id: true, companyId: true, isActive: true },
@@ -110,8 +114,15 @@ export async function POST(request: NextRequest) {
           category: true,
           status: true,
           totalWeight: true,
+          materialId: true,
         },
       }),
+      validated.materialId
+        ? prisma.scrapMaterial.findFirst({
+            where: { id: validated.materialId, companyId: session.user.companyId },
+            select: { id: true, category: true, isActive: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     const existingBatchSale = await prisma.scrapMetalSale.findFirst({
@@ -134,6 +145,16 @@ export async function POST(request: NextRequest) {
 
     if (!batch || batch.companyId !== session.user.companyId) {
       return errorResponse("Batch not found", 404);
+    }
+    if (validated.materialId && !material) {
+      return errorResponse("Invalid material", 404);
+    }
+    if (material && !material.isActive) {
+      return errorResponse("Material is inactive", 400);
+    }
+    const resolvedMaterialCategory = material?.category ?? batch.category;
+    if (resolvedMaterialCategory !== batch.category) {
+      return errorResponse("Material category must match the selected batch", 400);
     }
 
     if (batch.status !== "READY" && batch.status !== "COLLECTING") {
@@ -185,6 +206,7 @@ export async function POST(request: NextRequest) {
           companyId: session.user.companyId,
           siteId: validated.siteId,
           batchId: validated.batchId,
+          materialId: validated.materialId ?? batch.materialId ?? undefined,
           saleNumber,
           saleDate,
           buyerName: validated.buyerName.trim(),
@@ -211,6 +233,7 @@ export async function POST(request: NextRequest) {
               totalWeight: true,
             },
           },
+          material: { select: { id: true, code: true, name: true, category: true } },
           approvedBy: { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
-import { PageIntro } from "@/components/shared/page-intro";
+import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Package } from "@/lib/icons";
 
 type Batch = {
   id: string;
@@ -29,7 +28,8 @@ type Batch = {
   status: string;
   totalWeight: number;
   collectionStartDate: string;
-  collectionEndDate?: string;
+  collectionEndDate?: string | null;
+  material?: { id: string; code: string; name: string; category: string } | null;
   _count: {
     items: number;
   };
@@ -46,13 +46,7 @@ async function fetchBatches(): Promise<Batch[]> {
 
 export default function ScrapMetalBatchesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
-
-  const {
-    data: batches = [],
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: batches = [], isLoading, error, refetch } = useQuery({
     queryKey: ["scrap-metal-batches"],
     queryFn: fetchBatches,
   });
@@ -67,16 +61,19 @@ export default function ScrapMetalBatchesPage() {
       {
         id: "batchNumber",
         header: "Batch #",
-        cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.batchNumber}</span>
-        ),
+        cell: ({ row }) => <span className="font-mono font-semibold">{row.original.batchNumber}</span>,
         size: 120,
       },
       {
-        id: "category",
-        header: "Category",
-        cell: ({ row }) => <Badge variant="secondary">{row.original.category}</Badge>,
-        size: 120,
+        id: "material",
+        header: "Material",
+        accessorFn: (row) => `${row.material?.name ?? row.category} ${row.site.code}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.material?.name ?? row.original.category}</div>
+            <div className="text-xs text-muted-foreground">{row.original.material?.code ?? row.original.category}</div>
+          </div>
+        ),
       },
       {
         id: "status",
@@ -108,50 +105,37 @@ export default function ScrapMetalBatchesPage() {
         size: 80,
       },
       {
-        id: "collectionStartDate",
-        header: "Start Date",
+        id: "window",
+        header: "Window",
         cell: ({ row }) => (
-          <NumericCell align="left">
-            {new Date(row.original.collectionStartDate).toLocaleDateString()}
-          </NumericCell>
+          <div className="text-sm">
+            <div className="font-mono">{row.original.collectionStartDate.slice(0, 10)}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.collectionEndDate?.slice(0, 10) ?? "Open"}
+            </div>
+          </div>
         ),
-        size: 100,
-      },
-      {
-        id: "collectionEndDate",
-        header: "End Date",
-        cell: ({ row }) =>
-          row.original.collectionEndDate ? (
-            <NumericCell align="left">
-              {new Date(row.original.collectionEndDate).toLocaleDateString()}
-            </NumericCell>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          ),
-        size: 100,
       },
       {
         id: "site",
         header: "Site",
-        accessorKey: "site.code",
+        cell: ({ row }) => <Badge variant="outline">{row.original.site.code}</Badge>,
         size: 80,
       },
     ],
-    []
+    [],
   );
 
   return (
-    <div className="space-y-6">
-      <PageIntro
-        purpose="Manage collection batches from start to sale—group purchases by category and track batch status"
-        title="Scrap Metal Batches"
-        actions={
-          <Button asChild size="sm">
-            <Link href="/scrap-metal">Back to Dashboard</Link>
-          </Button>
-        }
-      />
-
+    <ScrapShell
+      title="Yard Stock"
+      description="Track open batches, ready stock, and lot consolidation across the yard."
+      actions={
+        <Button asChild size="sm" variant="outline">
+          <Link href="/scrap-metal/trading/sales">Bulk Sales</Link>
+        </Button>
+      }
+    >
       {error ? (
         <StatusState
           variant="error"
@@ -165,40 +149,34 @@ export default function ScrapMetalBatchesPage() {
         />
       ) : (
         <>
-          {/* Status Filter Toolbar */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                Status:
-              </label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="COLLECTING">Collecting</SelectItem>
-                  <SelectItem value="READY">Ready</SelectItem>
-                  <SelectItem value="SOLD">Sold</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              Showing {filteredBatches.length} of {batches.length} batches
-            </div>
+          <div className="flex items-center gap-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 w-[180px]">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="COLLECTING">Collecting</SelectItem>
+                <SelectItem value="READY">Ready</SelectItem>
+                <SelectItem value="SOLD">Sold</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              {filteredBatches.length} of {batches.length} batches
+            </span>
           </div>
 
           <DataTable
             data={filteredBatches}
             columns={columns}
-            searchPlaceholder="Search by batch number or category"
+            searchPlaceholder="Search batch, material, or status"
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading batches..." : statusFilter === "all" ? "No batches created yet" : `No batches with status "${statusFilter}"`}
+            emptyState={isLoading ? "Loading batches..." : "No batches created yet"}
           />
         </>
       )}
-    </div>
+    </ScrapShell>
   );
 }

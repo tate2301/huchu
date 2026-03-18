@@ -102,12 +102,12 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   hr: {
     title: "Human Resources",
-    description: "Manage employees, salaries, payroll, incidents, approvals, and irregular payouts.",
+    description: "Manage employees, salaries, payroll, incidents, approvals, and settlement workflows.",
     tabLabels: {
       employees: "Employees",
       "shift-groups": "Shift Groups",
       incidents: "Incidents",
-      payouts: "Irregular Payouts",
+      payouts: "Settlements",
       salaries: "Salaries",
       "salary-outstanding": "Outstanding Salaries",
       compensation: "Compensation",
@@ -170,9 +170,9 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["hr", "stores", "maintenance", "accounting", "management"],
     moduleCopy: {
       hr: {
-        description: "Manage crews, salaries, payroll, and irregular gold payouts alongside shift operations.",
+        description: "Manage crews, salaries, payroll, and settlement workflows alongside shift operations.",
         tabLabels: {
-          payouts: "Gold Payouts",
+          payouts: "Settlements",
           salaries: "Salary Operations",
         },
       },
@@ -199,7 +199,10 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["hr", "stores", "accounting", "management"],
     moduleCopy: {
       hr: {
-        description: "Manage yard teams, salaries, approvals, and irregular payout controls for scrap operations.",
+        description: "Manage yard teams, salaries, approvals, and settlement controls for scrap operations.",
+        tabLabels: {
+          payouts: "Settlements",
+        },
       },
       stores: {
         description: "Track consumables, fuel, and stock movements that support yard and transport work.",

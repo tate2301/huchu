@@ -83,11 +83,11 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 10 }),
   f({ key: "gold.payouts", name: "Gold Payouts", description: "Gold payout workflows.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 18 }),
 
-  f({ key: "scrap-metal.home", name: "Scrap Metal Home", description: "Scrap metal module landing and dashboard.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.purchases", name: "Scrap Metal Purchases", description: "Scrap metal purchase recording and tracking.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.batches", name: "Scrap Metal Batches", description: "Scrap metal batch management and collection.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.sales", name: "Scrap Metal Sales", description: "Scrap metal sales processing and approval.", domain: "scrap-metal", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
-  f({ key: "scrap-metal.pricing", name: "Scrap Metal Pricing", description: "Scrap metal price management by category.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.home", name: "Scrap & Recycling Overview", description: "Scrap and recycling command center, dashboards, and operational queues.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Buying", description: "Scrap and recycling buying, intake, and purchase tracking.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.batches", name: "Scrap & Recycling Yard", description: "Scrap and recycling yard stock, batching, and ready-to-sell control.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.sales", name: "Scrap & Recycling Trading", description: "Scrap and recycling sales, bulk trading, and approval workflows.", domain: "scrap-metal", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
+  f({ key: "scrap-metal.pricing", name: "Scrap & Recycling Price Board", description: "Scrap and recycling material catalog and pricing controls.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
 
   f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "hr.incidents", name: "HR Incidents", description: "HR incident management.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 10 }),
@@ -97,7 +97,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.payroll", name: "Payroll", description: "Payroll periods and runs.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 20 }),
   f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
   f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 6 }),
-  f({ key: "hr.gold-payouts", name: "HR Irregular Payouts", description: "Irregular payouts in HR (gold, commission, and other variable payouts).", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
+  f({ key: "hr.gold-payouts", name: "HR Settlements", description: "Settlement workflows in HR for gold, scrap, commission, dividends, and other variable payouts.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 8 }),
 
   f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),

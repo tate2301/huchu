@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 import { managementModuleItems } from "@/lib/settings/management-nav";
+import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
 
 export { WORKSPACE_PROFILES };
 export type { WorkspaceModuleId, WorkspaceProfile };
@@ -258,41 +259,38 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     label: "Scrap & Recycling",
     preferredHomeHref: "/scrap-metal",
     quickActions: [
-      roleItem("/scrap-metal/purchases", "Record Purchase", Payments),
-      roleItem("/scrap-metal/batches", "Open Batch", Package),
-      roleItem("/scrap-metal/sales", "Record Sale", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
+      roleItem("/scrap-metal/buying/purchases", "Record Purchase", Payments),
+      roleItem("/scrap-metal/yard/batches", "Open Batch", Package),
+      roleItem("/scrap-metal/trading/sales", "Record Sale", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
     ],
     nativeModules: ["scrap-metal", "reporting"],
     sections: [
       {
         id: "scrap-buying",
         title: "Buying Floor",
-        refs: [
-          { moduleId: "scrap-metal", href: "/scrap-metal" },
-          { moduleId: "scrap-metal", href: "/scrap-metal/purchases" },
-          { moduleId: "scrap-metal", href: "/scrap-metal/pricing" },
-        ],
+        refs: SCRAP_OPERATIONS_SECTIONS.buying.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
         id: "scrap-yard",
         title: "Yard Operations",
-        refs: [
-          { moduleId: "scrap-metal", href: "/scrap-metal/batches" },
-          { moduleId: "reporting", href: "/reports" },
-        ],
+        refs: SCRAP_OPERATIONS_SECTIONS.yard.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
         id: "scrap-sales",
-        title: "Sales & Finance",
-        refs: [
-          { moduleId: "scrap-metal", href: "/scrap-metal/sales" },
-        ],
+        title: "Trading",
+        refs: SCRAP_OPERATIONS_SECTIONS.trading.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
         id: "scrap-people",
-        title: "Team & Settlements",
+        title: "Settlements",
+        refs: SCRAP_OPERATIONS_SECTIONS.settlements.map((href) => ({ moduleId: "scrap-metal" as const, href })),
+      },
+      {
+        id: "scrap-control",
+        title: "Reports & Setup",
         refs: [
-          { moduleId: "hr", href: "/human-resources/payouts" },
+          ...SCRAP_OPERATIONS_SECTIONS.reporting.map((href) => ({ moduleId: "scrap-metal" as const, href })),
+          ...SCRAP_OPERATIONS_SECTIONS.setup.map((href) => ({ moduleId: "scrap-metal" as const, href })),
         ],
       },
     ],

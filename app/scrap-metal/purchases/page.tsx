@@ -5,14 +5,13 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
-import { PageIntro } from "@/components/shared/page-intro";
+import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Payments } from "@/lib/icons";
 
 type Purchase = {
   id: string;
@@ -24,6 +23,7 @@ type Purchase = {
   totalAmount: number;
   currency: string;
   sellerName?: string;
+  material?: { id: string; code: string; name: string; category: string } | null;
   employee: {
     name: string;
     employeeId: string;
@@ -40,12 +40,7 @@ async function fetchPurchases(): Promise<Purchase[]> {
 }
 
 export default function ScrapMetalPurchasesPage() {
-  const {
-    data: purchases = [],
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: purchases = [], isLoading, error, refetch } = useQuery({
     queryKey: ["scrap-metal-purchases"],
     queryFn: fetchPurchases,
   });
@@ -55,36 +50,33 @@ export default function ScrapMetalPurchasesPage() {
       {
         id: "purchaseNumber",
         header: "Purchase #",
-        cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.purchaseNumber}</span>
-        ),
+        cell: ({ row }) => <span className="font-mono font-semibold">{row.original.purchaseNumber}</span>,
         size: 120,
       },
       {
         id: "purchaseDate",
         header: "Date",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {new Date(row.original.purchaseDate).toLocaleDateString()}
-          </NumericCell>
-        ),
+        cell: ({ row }) => <NumericCell align="left">{row.original.purchaseDate.slice(0, 10)}</NumericCell>,
         size: 100,
       },
       {
-        id: "category",
-        header: "Category",
-        cell: ({ row }) => <Badge variant="secondary">{row.original.category}</Badge>,
-        size: 120,
+        id: "material",
+        header: "Material",
+        accessorFn: (row) => `${row.material?.name ?? row.category} ${row.employee.name}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.material?.name ?? row.original.category}</div>
+            <div className="text-xs text-muted-foreground">{row.original.material?.code ?? row.original.category}</div>
+          </div>
+        ),
       },
       {
         id: "employee",
-        header: "Employee",
+        header: "Operator",
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground font-mono">
-              {row.original.employee.employeeId}
-            </div>
+            <div className="font-mono text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
           </div>
         ),
         size: 180,
@@ -125,25 +117,23 @@ export default function ScrapMetalPurchasesPage() {
       {
         id: "site",
         header: "Site",
-        accessorKey: "site.code",
+        cell: ({ row }) => <Badge variant="outline">{row.original.site.code}</Badge>,
         size: 80,
       },
     ],
-    []
+    [],
   );
 
   return (
-    <div className="space-y-6">
-      <PageIntro
-        purpose="Record all scrap metal purchases from sellers—track employee transactions and inventory weight"
-        title="Scrap Metal Purchases"
-        actions={
-          <Button asChild size="sm">
-            <Link href="/scrap-metal">Back to Dashboard</Link>
-          </Button>
-        }
-      />
-
+    <ScrapShell
+      title="Purchases"
+      description="Track buying activity, seller intake, operator handling, and locked transaction prices."
+      actions={
+        <Button asChild size="sm" variant="outline">
+          <Link href="/scrap-metal/setup/materials">Materials</Link>
+        </Button>
+      }
+    >
       {error ? (
         <StatusState
           variant="error"
@@ -159,13 +149,13 @@ export default function ScrapMetalPurchasesPage() {
         <DataTable
           data={purchases}
           columns={columns}
-          searchPlaceholder="Search by purchase number, employee, or seller"
+          searchPlaceholder="Search purchase, operator, seller, or material"
           searchSubmitLabel="Search"
           tableClassName="text-sm"
           pagination={{ enabled: true }}
           emptyState={isLoading ? "Loading purchases..." : "No purchases recorded yet"}
         />
       )}
-    </div>
+    </ScrapShell>
   );
 }

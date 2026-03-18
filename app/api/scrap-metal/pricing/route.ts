@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 const scrapMetalPriceSchema = z.object({
+  materialId: z.string().uuid().optional(),
   category: z.enum([
     "BATTERIES",
     "COPPER",
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
+    const materialId = searchParams.get("materialId");
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -44,10 +46,16 @@ export async function GET(request: NextRequest) {
     };
 
     if (category) where.category = category;
+    if (materialId) where.materialId = materialId;
 
     const [prices, total] = await Promise.all([
       prisma.scrapMetalPrice.findMany({
         where,
+        include: {
+          material: {
+            select: { id: true, code: true, name: true, category: true },
+          },
+        },
         orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
         skip,
         take: limit,
@@ -73,12 +81,28 @@ export async function POST(request: NextRequest) {
 
     const effectiveDate = new Date(validated.effectiveDate);
     const currency = validated.currency?.trim().toUpperCase() || "USD";
+    const material = validated.materialId
+      ? await prisma.scrapMaterial.findFirst({
+          where: {
+            id: validated.materialId,
+            companyId: session.user.companyId,
+          },
+          select: { id: true, category: true },
+        })
+      : null;
+
+    if (validated.materialId && !material) {
+      return errorResponse("Invalid material", 404);
+    }
+    if (material && material.category !== validated.category) {
+      return errorResponse("Material category does not match the selected category", 400);
+    }
 
     // Check for duplicate
     const existing = await prisma.scrapMetalPrice.findFirst({
       where: {
         companyId: session.user.companyId,
-        materialId: null,
+        materialId: validated.materialId ?? null,
         category: validated.category,
         effectiveDate,
       },
@@ -94,12 +118,18 @@ export async function POST(request: NextRequest) {
     const price = await prisma.scrapMetalPrice.create({
       data: {
         companyId: session.user.companyId,
+        materialId: validated.materialId ?? undefined,
         category: validated.category,
         effectiveDate,
         pricePerKg: validated.pricePerKg,
         currency,
         note: validated.note?.trim() || undefined,
         createdById: session.user.id,
+      },
+      include: {
+        material: {
+          select: { id: true, code: true, name: true, category: true },
+        },
       },
     });
 

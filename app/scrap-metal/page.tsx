@@ -1,215 +1,220 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
-import { PageIntro } from "@/components/shared/page-intro";
-import { StatusState } from "@/components/shared/status-state";
-import { Badge } from "@/components/ui/badge";
+import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Coins, Package, Payments, ReceiptLong, Recycle } from "@/lib/icons";
+import { Coins, Package, Payments, Plus, ReceiptLong, Wallet } from "@/lib/icons";
 
-type DashboardMetrics = {
-  totalPurchases: number;
-  totalPurchaseAmount: number;
-  totalBatches: number;
-  batchesCollecting: number;
-  batchesReady: number;
-  totalSales: number;
-  totalSalesAmount: number;
-  salesPending: number;
+type DashboardPayload = {
+  summary: {
+    purchasesThisMonthValue: number;
+    purchasesThisMonthWeight: number;
+    salesThisMonthValue: number;
+    salesThisMonthWeight: number;
+    estimatedMarginThisMonth: number;
+    readyBatchCount: number;
+    collectingBatchCount: number;
+    pendingSalesCount: number;
+    approvedSalesCount: number;
+    activeMaterialsCount: number;
+    materialsCount: number;
+    operatorBalanceExposure: number;
+    overdueSettlementAmount: number;
+  };
+  topMaterials: Array<{
+    label: string;
+    purchaseWeight: number;
+    saleWeight: number;
+    purchaseValue: number;
+    saleValue: number;
+  }>;
+  queues: {
+    readyBatches: Array<{ id: string; batchNumber: string; totalWeight: number; status: string; category: string }>;
+    pendingSales: Array<{
+      id: string;
+      buyerName: string;
+      totalAmount: number;
+      soldWeight: number;
+      status: string;
+      batch: { batchNumber: string; category: string };
+    }>;
+    balances: Array<{
+      id: string;
+      balance: number;
+      employee: { id: string; name: string; employeeId: string };
+    }>;
+  };
 };
 
-async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
-  const [purchases, batches, sales] = await Promise.all([
-    fetchJson<{ data: unknown[]; total: number }>("/api/scrap-metal/purchases?limit=1000"),
-    fetchJson<{ data: unknown[]; total: number }>("/api/scrap-metal/batches?limit=1000"),
-    fetchJson<{ data: unknown[]; total: number }>("/api/scrap-metal/sales?limit=1000"),
-  ]);
-
-  const purchasesData = purchases.data as Array<{ totalAmount: number }>;
-  const batchesData = batches.data as Array<{ status: string }>;
-  const salesData = sales.data as Array<{ totalAmount: number; status: string }>;
-
-  return {
-    totalPurchases: purchases.total,
-    totalPurchaseAmount: purchasesData.reduce((sum, p) => sum + p.totalAmount, 0),
-    totalBatches: batches.total,
-    batchesCollecting: batchesData.filter((b) => b.status === "COLLECTING").length,
-    batchesReady: batchesData.filter((b) => b.status === "READY").length,
-    totalSales: sales.total,
-    totalSalesAmount: salesData.reduce((sum, s) => sum + s.totalAmount, 0),
-    salesPending: salesData.filter((s) => s.status === "PENDING_APPROVAL").length,
-  };
-}
-
 export default function ScrapMetalPage() {
-  const {
-    data: metrics,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["scrap-metal-dashboard"],
-    queryFn: fetchDashboardMetrics,
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["scrap-metal-dashboard-v2"],
+    queryFn: () => fetchJson<DashboardPayload>("/api/scrap-metal/dashboard"),
   });
 
-  return (
-    <div className="space-y-6">
-      <PageIntro
-        purpose="Track scrap metal purchases, batch collections, and sales across all sites"
-        title="Scrap Metal Operations"
-      />
-
-      <div className="flex flex-wrap gap-2">
-        <Button asChild size="sm">
-          <Link href="/scrap-metal/purchases">
-            <Payments className="mr-2 h-4 w-4" />
-            View Purchases
-          </Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/scrap-metal/batches">
-            <Package className="mr-2 h-4 w-4" />
-            View Batches
-          </Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/scrap-metal/sales">
-            <ReceiptLong className="mr-2 h-4 w-4" />
-            View Sales
-          </Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/scrap-metal/pricing">
-            <Coins className="mr-2 h-4 w-4" />
-            Manage Pricing
-          </Link>
-        </Button>
-      </div>
-
-      {error ? (
-        <StatusState
-          variant="error"
-          title="Unable to load dashboard"
-          description={getApiErrorMessage(error)}
-        />
-      ) : isLoading ? (
-        <StatusState variant="loading" title="Loading metrics..." />
-      ) : metrics ? (
-        <>
-          {/* Action Cards - Priority Tasks */}
-          {(metrics.salesPending > 0 || metrics.batchesReady > 0) && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Action Required
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                {metrics.salesPending > 0 && (
-                  <Card className="border-destructive/50 bg-destructive/5">
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-1">Pending Approval</p>
-                          <p className="text-2xl font-bold mb-2">
-                            {metrics.salesPending} {metrics.salesPending === 1 ? 'Sale' : 'Sales'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Review and verify sold weight before approving
-                          </p>
-                        </div>
-                        <Button asChild size="sm" variant="destructive">
-                          <Link href="/scrap-metal/sales">
-                            <ReceiptLong className="mr-2 h-4 w-4" />
-                            Review Now
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-                {metrics.batchesReady > 0 && (
-                  <Card className="border-blue-500/50 bg-blue-50/50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-1">Ready for Sale</p>
-                          <p className="text-2xl font-bold mb-2">
-                            {metrics.batchesReady} {metrics.batchesReady === 1 ? 'Batch' : 'Batches'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Batches collected and ready to sell to buyers
-                          </p>
-                        </div>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href="/scrap-metal/batches">
-                            <Package className="mr-2 h-4 w-4" />
-                            View Batches
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Metrics Overview */}
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Overview
-            </h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Purchases
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{metrics.totalPurchases}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <span className="font-mono">${metrics.totalPurchaseAmount.toFixed(2)}</span> total
-                    amount
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Batches
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{metrics.totalBatches}</div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <Badge variant="secondary">{metrics.batchesCollecting} collecting</Badge>
-                    <Badge variant="secondary">{metrics.batchesReady} ready</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Sales
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{metrics.totalSales}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <span className="font-mono">${metrics.totalSalesAmount.toFixed(2)}</span> total
-                    amount
-                  </p>
-                </CardContent>
-              </Card>
+  const queueColumns = useMemo<ColumnDef<DashboardPayload["queues"]["pendingSales"][number]>[]>(
+    () => [
+      {
+        id: "buyer",
+        header: "Buyer",
+        accessorFn: (row) => `${row.buyerName} ${row.batch.batchNumber}`,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.buyerName}</div>
+            <div className="font-mono text-xs text-muted-foreground">
+              {row.original.batch.batchNumber}
             </div>
           </div>
-        </>
+        ),
+      },
+      {
+        id: "weight",
+        header: "Sold kg",
+        cell: ({ row }) => <NumericCell>{row.original.soldWeight.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "value",
+        header: "Value",
+        cell: ({ row }) => <NumericCell>USD {row.original.totalAmount.toFixed(2)}</NumericCell>,
+      },
+    ],
+    [],
+  );
+
+  return (
+    <ScrapShell
+      title="Scrap & Recycling"
+      description="Run buying, yard stock, bulk trading, and operator settlements from one workspace."
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href="/scrap-metal/buying/purchases">
+              <Plus className="h-4 w-4" />
+              Record Purchase
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/scrap-metal/yard/batches">
+              <Package className="h-4 w-4" />
+              Open Batch
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/scrap-metal/trading/sales">
+              <ReceiptLong className="h-4 w-4" />
+              Record Sale
+            </Link>
+          </Button>
+        </div>
+      }
+    >
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load command center</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
       ) : null}
-    </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Payments className="h-4 w-4" />
+            Bought this month
+          </div>
+          <div className="mt-2 text-xl font-semibold">
+            USD {data?.summary.purchasesThisMonthValue.toFixed(2) ?? "0.00"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {data?.summary.purchasesThisMonthWeight.toFixed(2) ?? "0.00"} kg
+          </div>
+        </div>
+        <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ReceiptLong className="h-4 w-4" />
+            Sold this month
+          </div>
+          <div className="mt-2 text-xl font-semibold">
+            USD {data?.summary.salesThisMonthValue.toFixed(2) ?? "0.00"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {data?.summary.salesThisMonthWeight.toFixed(2) ?? "0.00"} kg
+          </div>
+        </div>
+        <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Coins className="h-4 w-4" />
+            Est. margin
+          </div>
+          <div className="mt-2 text-xl font-semibold">
+            USD {data?.summary.estimatedMarginThisMonth.toFixed(2) ?? "0.00"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {data?.summary.readyBatchCount ?? 0} ready batches
+          </div>
+        </div>
+        <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Wallet className="h-4 w-4" />
+            Settlement exposure
+          </div>
+          <div className="mt-2 text-xl font-semibold">
+            USD {data?.summary.overdueSettlementAmount.toFixed(2) ?? "0.00"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            balance exposure USD {data?.summary.operatorBalanceExposure.toFixed(2) ?? "0.00"}
+          </div>
+        </div>
+      </div>
+
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_320px]">
+        <div className="space-y-3">
+          <DataTable
+            data={data?.queues.pendingSales ?? []}
+            columns={queueColumns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search pending sales"
+            tableClassName="text-sm"
+            emptyState={isLoading ? "Loading pending sales..." : "No pending sales"}
+            toolbar={<span className="text-xs text-muted-foreground">Pending bulk sales</span>}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+            <div className="text-xs text-muted-foreground">Yard position</div>
+            <div className="mt-2 text-sm font-medium">
+              {data?.summary.collectingBatchCount ?? 0} collecting
+            </div>
+            <div className="text-sm font-medium">{data?.summary.readyBatchCount ?? 0} ready</div>
+          </div>
+          <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+            <div className="text-xs text-muted-foreground">Material coverage</div>
+            <div className="mt-2 text-sm font-medium">
+              {data?.summary.activeMaterialsCount ?? 0} active of {data?.summary.materialsCount ?? 0}
+            </div>
+          </div>
+          <div className="rounded-xl bg-[var(--surface-muted)] p-3">
+            <div className="text-xs text-muted-foreground">Operator balances</div>
+            <div className="mt-2 space-y-2">
+              {(data?.queues.balances ?? []).slice(0, 5).map((balance) => (
+                <div key={balance.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">{balance.employee.name}</span>
+                  <NumericCell>USD {balance.balance.toFixed(2)}</NumericCell>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </ScrapShell>
   );
 }

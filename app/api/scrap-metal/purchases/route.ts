@@ -20,6 +20,7 @@ const scrapMetalPurchaseSchema = z.object({
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   siteId: z.string().uuid(),
   employeeId: z.string().uuid(),
+  materialId: z.string().uuid().optional(),
   category: z.enum([
     "BATTERIES",
     "COPPER",
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
     const siteId = searchParams.get("siteId");
     const employeeId = searchParams.get("employeeId");
     const category = searchParams.get("category");
+    const materialId = searchParams.get("materialId");
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -56,6 +58,7 @@ export async function GET(request: NextRequest) {
     if (siteId) where.siteId = siteId;
     if (employeeId) where.employeeId = employeeId;
     if (category) where.category = category;
+    if (materialId) where.materialId = materialId;
 
     const [purchases, total] = await Promise.all([
       prisma.scrapMetalPurchase.findMany({
@@ -63,6 +66,7 @@ export async function GET(request: NextRequest) {
         include: {
           site: { select: { id: true, name: true, code: true } },
           employee: { select: { id: true, name: true, employeeId: true } },
+          material: { select: { id: true, code: true, name: true, category: true } },
           createdBy: { select: { id: true, name: true } },
         },
         orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = scrapMetalPurchaseSchema.parse(body);
 
-    const [site, employee, currentPrice] = await Promise.all([
+    const [site, employee, material] = await Promise.all([
       prisma.site.findUnique({
         where: { id: validated.siteId },
         select: { id: true, companyId: true, isActive: true },
@@ -97,17 +101,15 @@ export async function POST(request: NextRequest) {
         where: { id: validated.employeeId },
         select: { id: true, companyId: true, isActive: true },
       }),
-      prisma.scrapMetalPrice.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          category: validated.category,
-          effectiveDate: {
-            lte: new Date(validated.purchaseDate),
-          },
-        },
-        orderBy: { effectiveDate: "desc" },
-        select: { pricePerKg: true },
-      }),
+      validated.materialId
+        ? prisma.scrapMaterial.findFirst({
+            where: {
+              id: validated.materialId,
+              companyId: session.user.companyId,
+            },
+            select: { id: true, category: true, isActive: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     if (!site || site.companyId !== session.user.companyId) {
@@ -120,6 +122,41 @@ export async function POST(request: NextRequest) {
     if (!employee || employee.companyId !== session.user.companyId || !employee.isActive) {
       return errorResponse("Invalid employee", 400);
     }
+
+    if (validated.materialId && !material) {
+      return errorResponse("Invalid material", 404);
+    }
+    if (material && !material.isActive) {
+      return errorResponse("Material is inactive", 400);
+    }
+    if (material && material.category !== validated.category) {
+      return errorResponse("Material category does not match the selected category", 400);
+    }
+
+    const purchaseDate = new Date(validated.purchaseDate);
+    const currentPrice = await prisma.scrapMetalPrice.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        category: validated.category,
+        materialId: validated.materialId ?? null,
+        effectiveDate: {
+          lte: purchaseDate,
+        },
+      },
+      orderBy: { effectiveDate: "desc" },
+      select: { pricePerKg: true },
+    }) ?? await prisma.scrapMetalPrice.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        category: validated.category,
+        materialId: null,
+        effectiveDate: {
+          lte: purchaseDate,
+        },
+      },
+      orderBy: { effectiveDate: "desc" },
+      select: { pricePerKg: true },
+    });
 
     if (!currentPrice) {
       return errorResponse(
@@ -148,7 +185,6 @@ export async function POST(request: NextRequest) {
     }
 
     const totalAmount = validated.weight * validated.pricePerKg;
-    const purchaseDate = new Date(validated.purchaseDate);
     const currency = validated.currency?.trim().toUpperCase() || "USD";
 
     const purchase = await prisma.$transaction(async (tx) => {
@@ -160,6 +196,7 @@ export async function POST(request: NextRequest) {
           purchaseNumber,
           purchaseDate,
           employeeId: validated.employeeId,
+          materialId: validated.materialId,
           category: validated.category,
           weight: validated.weight,
           pricePerKg: validated.pricePerKg,
@@ -173,6 +210,7 @@ export async function POST(request: NextRequest) {
         include: {
           site: { select: { id: true, name: true, code: true } },
           employee: { select: { id: true, name: true, employeeId: true } },
+          material: { select: { id: true, code: true, name: true, category: true } },
           createdBy: { select: { id: true, name: true } },
         },
       });

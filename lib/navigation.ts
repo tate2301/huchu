@@ -21,7 +21,6 @@ import {
   ManageAccounts,
   NoteAdd,
   ReceiptLong,
-  Recycle,
   ReportProblem,
   TableRows,
   Home,
@@ -39,7 +38,9 @@ import {
   Wrench,
   type LucideIcon,
 } from "@/lib/icons";
+import { HR_TABS } from "@/lib/hr/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
+import { SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 
 export type NavItem = {
   href: string;
@@ -162,55 +163,12 @@ export const navSections: NavSection[] = [
     id: "hr",
     title: "Human Resources",
     description: "Employee records and attendance roster",
-    items: [
-      { href: "/human-resources", icon: ManageAccounts, label: "Employees" },
-      {
-        href: "/human-resources/shift-groups",
-        icon: Users,
-        label: "Shift Groups",
-      },
-      {
-        href: "/human-resources/incidents",
-        icon: ShieldCheck,
-        label: "Workforce Incidents",
-      },
-      {
-        href: "/human-resources/payouts",
-        icon: Coins,
-        label: "Irregular Payouts",
-      },
-      {
-        href: "/human-resources/compensation",
-        icon: UserRound,
-        label: "Compensation Rules",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/human-resources/salaries",
-        icon: Payments,
-        label: "Salaries",
-      },
-      {
-        href: "/human-resources/salaries/outstanding",
-        icon: Wallet,
-        label: "Outstanding Salaries",
-      },
-      {
-        href: "/human-resources/payroll",
-        icon: Checklist,
-        label: "Payroll Runs",
-      },
-      {
-        href: "/human-resources/disbursements",
-        icon: Wallet,
-        label: "Disbursements",
-      },
-      {
-        href: "/human-resources/approvals",
-        icon: FileCheck,
-        label: "Approval History",
-      },
-    ],
+    items: HR_TABS.map((tab) => ({
+      href: tab.href,
+      icon: tab.icon,
+      label: tab.label,
+      roles: tab.id === "compensation" ? ["SUPERADMIN", "MANAGER"] : undefined,
+    })),
   },
   {
     id: "maintenance",
@@ -330,15 +288,14 @@ export const navSections: NavSection[] = [
   },
   {
     id: "scrap-metal",
-    title: "Scrap Metal",
-    description: "Scrap metal buying and sales operations",
-    items: [
-      { href: "/scrap-metal", icon: Recycle, label: "Scrap Metal Home" },
-      { href: "/scrap-metal/purchases", icon: Payments, label: "Purchases" },
-      { href: "/scrap-metal/batches", icon: Package, label: "Batches" },
-      { href: "/scrap-metal/sales", icon: ReceiptLong, label: "Sales", roles: ["SUPERADMIN", "MANAGER"] },
-      { href: "/scrap-metal/pricing", icon: Coins, label: "Pricing" },
-    ],
+    title: "Scrap & Recycling",
+    description: "Buying, yard, trading, settlements, and material controls",
+    items: SCRAP_TABS.map((tab) => ({
+      href: tab.href,
+      icon: tab.icon,
+      label: tab.label,
+      roles: tab.id === "trading-sales" ? ["SUPERADMIN", "MANAGER"] : undefined,
+    })),
   },
   {
     id: "cctv",

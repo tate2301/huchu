@@ -1,0 +1,138 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { prisma } from "@/lib/prisma";
+
+const saleUpdateSchema = z.object({
+  saleDate: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/))
+    .optional(),
+  materialId: z.string().uuid().nullable().optional(),
+  buyerName: z.string().min(1).max(200).optional(),
+  buyerContact: z.string().max(100).nullable().optional(),
+  recordedWeight: z.number().positive().optional(),
+  soldWeight: z.number().positive().optional(),
+  pricePerKg: z.number().min(0).optional(),
+  currency: z.string().trim().min(1).max(10).optional(),
+  paymentMethod: z.string().max(100).nullable().optional(),
+  paymentReference: z.string().max(100).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await context.params;
+
+    const existing = await prisma.scrapMetalSale.findFirst({
+      where: { id, companyId: session.user.companyId },
+      select: {
+        id: true,
+        status: true,
+        soldWeight: true,
+        pricePerKg: true,
+        recordedWeight: true,
+        batch: { select: { category: true } },
+      },
+    });
+    if (!existing) return errorResponse("Sale not found", 404);
+    if (existing.status === "COMPLETED" || existing.status === "CANCELLED") {
+      return errorResponse("Completed or cancelled sales cannot be edited", 400);
+    }
+
+    const body = await request.json();
+    const validated = saleUpdateSchema.parse(body);
+    if (validated.materialId) {
+      const material = await prisma.scrapMaterial.findFirst({
+        where: { id: validated.materialId, companyId: session.user.companyId },
+        select: { id: true, category: true, isActive: true },
+      });
+      if (!material) return errorResponse("Invalid material", 404);
+      if (!material.isActive) return errorResponse("Material is inactive", 400);
+      if (material.category !== existing.batch.category) {
+        return errorResponse("Material category must match the batch category", 400);
+      }
+    }
+
+    const recordedWeight = validated.recordedWeight ?? existing.recordedWeight;
+    const soldWeight = validated.soldWeight ?? existing.soldWeight;
+    const pricePerKg = validated.pricePerKg ?? existing.pricePerKg;
+
+    const sale = await prisma.scrapMetalSale.update({
+      where: { id },
+      data: {
+        saleDate: validated.saleDate ? new Date(validated.saleDate) : undefined,
+        materialId: validated.materialId === null ? null : validated.materialId,
+        buyerName: validated.buyerName,
+        buyerContact: validated.buyerContact === null ? null : validated.buyerContact,
+        recordedWeight: validated.recordedWeight,
+        soldWeight: validated.soldWeight,
+        weightDiscrepancy: recordedWeight - soldWeight,
+        pricePerKg: validated.pricePerKg,
+        totalAmount: soldWeight * pricePerKg,
+        currency: validated.currency?.trim().toUpperCase(),
+        paymentMethod: validated.paymentMethod === null ? null : validated.paymentMethod,
+        paymentReference:
+          validated.paymentReference === null ? null : validated.paymentReference,
+        notes: validated.notes === null ? null : validated.notes,
+      },
+      include: {
+        site: { select: { id: true, name: true, code: true } },
+        batch: {
+          select: {
+            id: true,
+            batchNumber: true,
+            category: true,
+            totalWeight: true,
+          },
+        },
+        material: { select: { id: true, code: true, name: true, category: true } },
+        approvedBy: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    return successResponse(sale);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues);
+    }
+    console.error("[API] PATCH /api/scrap-metal/sales/[id] error:", error);
+    return errorResponse("Failed to update scrap sale");
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await context.params;
+
+    const existing = await prisma.scrapMetalSale.findFirst({
+      where: { id, companyId: session.user.companyId },
+      select: { id: true, status: true },
+    });
+    if (!existing) return errorResponse("Sale not found", 404);
+    if (existing.status === "APPROVED" || existing.status === "COMPLETED") {
+      return errorResponse("Approved or completed sales cannot be deleted", 409);
+    }
+
+    await prisma.scrapMetalSale.delete({ where: { id } });
+    return successResponse({ deleted: true });
+  } catch (error) {
+    console.error("[API] DELETE /api/scrap-metal/sales/[id] error:", error);
+    return errorResponse("Failed to remove scrap sale");
+  }
+}
