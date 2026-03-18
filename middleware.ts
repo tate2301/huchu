@@ -23,6 +23,7 @@ const LOGIN_PATH = "/login";
 const ADMIN_BASE_PATH = "/admin";
 const ADMIN_LOGIN_PATH = `${ADMIN_BASE_PATH}/login`;
 const ADMIN_INTERNAL_BASE_PATH = "/portal/admin";
+const ADMIN_LOGIN_API_PATH = "/api/platform-admin/login-link";
 const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos", "/portal/admin"] as const;
 const PUBLIC_ASSET_PATTERN = /\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|eot)$/i;
 const PORTAL_HOME_BY_ROLE = {
@@ -198,6 +199,9 @@ export default withAuth(
 
     if (isAdminHost) {
       if (isApiRequest) {
+        if (pathname === ADMIN_LOGIN_API_PATH) {
+          return NextResponse.next();
+        }
         if (!token) {
           return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
         }
