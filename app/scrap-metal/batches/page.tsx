@@ -3,15 +3,26 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { Site } from "@/lib/api";
+import { fetchSites } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { StatusChip } from "@/components/ui/status-chip";
 import {
   Select,
   SelectContent,
@@ -19,7 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { StatusChip } from "@/components/ui/status-chip";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { Pencil, Plus, Trash2 } from "@/lib/icons";
 
 type Batch = {
   id: string;
@@ -29,15 +43,70 @@ type Batch = {
   totalWeight: number;
   collectionStartDate: string;
   collectionEndDate?: string | null;
+  notes?: string | null;
   material?: { id: string; code: string; name: string; category: string } | null;
   _count: {
     items: number;
   };
   site: {
+    id: string;
     name: string;
     code: string;
   };
 };
+
+type MaterialOption = {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+};
+
+type PurchaseOption = {
+  id: string;
+  purchaseNumber: string;
+  purchaseDate: string;
+  category: string;
+  weight: number;
+  sellerName?: string;
+  material?: { id: string; code: string; name: string; category: string } | null;
+  employee: {
+    id: string;
+    name: string;
+    employeeId: string;
+  };
+  site: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  batchItems?: Array<{ batchId: string }>;
+};
+
+type BatchForm = {
+  siteId: string;
+  materialId: string;
+  category: string;
+  status: string;
+  collectionStartDate: string;
+  collectionEndDate: string;
+  notes: string;
+};
+
+const CATEGORY_OPTIONS = ["BATTERIES", "COPPER", "ALUMINUM", "STEEL", "BRASS", "MIXED", "OTHER"];
+const STATUS_OPTIONS = ["COLLECTING", "READY", "SOLD"];
+
+function getEmptyForm(): BatchForm {
+  return {
+    siteId: "",
+    materialId: "__none",
+    category: "MIXED",
+    status: "COLLECTING",
+    collectionStartDate: new Date().toISOString().slice(0, 16),
+    collectionEndDate: "",
+    notes: "",
+  };
+}
 
 async function fetchBatches(): Promise<Batch[]> {
   const response = await fetchJson<{ data: Batch[] }>("/api/scrap-metal/batches?limit=200");
@@ -45,16 +114,132 @@ async function fetchBatches(): Promise<Batch[]> {
 }
 
 export default function ScrapMetalBatchesPage() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const { data: batches = [], isLoading, error, refetch } = useQuery({
+  const [formOpen, setFormOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
+  const [editing, setEditing] = useState<Batch | null>(null);
+  const [batchForItems, setBatchForItems] = useState<Batch | null>(null);
+  const [selectedPurchaseIds, setSelectedPurchaseIds] = useState<string[]>([]);
+  const [form, setForm] = useState<BatchForm>(getEmptyForm);
+
+  const batchesQuery = useQuery({
     queryKey: ["scrap-metal-batches"],
     queryFn: fetchBatches,
   });
+  const sitesQuery = useQuery({
+    queryKey: ["sites", "scrap-batches"],
+    queryFn: fetchSites,
+  });
+  const materialsQuery = useQuery({
+    queryKey: ["scrap-materials", "batch-form"],
+    queryFn: () => fetchJson<{ data: MaterialOption[] }>("/api/scrap-metal/materials?active=true&limit=500"),
+  });
+  const purchasesQuery = useQuery({
+    queryKey: ["scrap-unbatched-purchases", batchForItems?.id],
+    queryFn: () => fetchJson<{ data: PurchaseOption[] }>("/api/scrap-metal/purchases?limit=500&unbatched=true"),
+    enabled: Boolean(batchForItems),
+  });
 
+  const sites = sitesQuery.data ?? [];
+  const materials = materialsQuery.data?.data ?? [];
   const filteredBatches = useMemo(() => {
-    if (statusFilter === "all") return batches;
-    return batches.filter((batch) => batch.status === statusFilter);
-  }, [batches, statusFilter]);
+    const records = batchesQuery.data ?? [];
+    if (statusFilter === "all") return records;
+    return records.filter((batch) => batch.status === statusFilter);
+  }, [batchesQuery.data, statusFilter]);
+
+  const availablePurchases = useMemo(() => {
+    if (!batchForItems) return [];
+    return (purchasesQuery.data?.data ?? []).filter((purchase) => {
+      if (purchase.site.id !== batchForItems.site.id) return false;
+      if ((purchase.material?.id ?? "__none") === (batchForItems.material?.id ?? "__none")) return true;
+      return purchase.category === batchForItems.category;
+    });
+  }, [batchForItems, purchasesQuery.data?.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: BatchForm) => {
+      const body = {
+        siteId: payload.siteId,
+        materialId: payload.materialId === "__none" ? undefined : payload.materialId,
+        category: payload.category,
+        status: payload.status,
+        collectionStartDate: new Date(payload.collectionStartDate).toISOString(),
+        collectionEndDate: payload.collectionEndDate ? new Date(payload.collectionEndDate).toISOString() : null,
+        notes: payload.notes || undefined,
+      };
+
+      if (editing) {
+        return fetchJson(`/api/scrap-metal/batches/${editing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      }
+
+      return fetchJson("/api/scrap-metal/batches", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: editing ? "Batch updated" : "Batch created", variant: "success" });
+      setFormOpen(false);
+      setEditing(null);
+      setForm(getEmptyForm());
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
+    },
+    onError: (error) => {
+      toast({
+        title: editing ? "Unable to update batch" : "Unable to create batch",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/scrap-metal/batches/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Batch removed", variant: "success" });
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to remove batch",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addItemsMutation = useMutation({
+    mutationFn: async (input: { batchId: string; purchaseIds: string[] }) =>
+      fetchJson(`/api/scrap-metal/batches/${input.batchId}/items`, {
+        method: "POST",
+        body: JSON.stringify({ purchaseIds: input.purchaseIds }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Purchases added to batch", variant: "success" });
+      setBatchForItems(null);
+      setSelectedPurchaseIds([]);
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-unbatched-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to add purchases",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
 
   const columns = useMemo<ColumnDef<Batch>[]>(
     () => [
@@ -122,27 +307,93 @@ export default function ScrapMetalBatchesPage() {
         cell: ({ row }) => <Badge variant="outline">{row.original.site.code}</Badge>,
         size: 80,
       },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            {row.original.status === "COLLECTING" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBatchForItems(row.original);
+                  setSelectedPurchaseIds([]);
+                }}
+              >
+                Add Purchases
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              onClick={() => {
+                setEditing(row.original);
+                setForm({
+                  siteId: row.original.site.id,
+                  materialId: row.original.material?.id ?? "__none",
+                  category: row.original.material?.category ?? row.original.category,
+                  status: row.original.status,
+                  collectionStartDate: row.original.collectionStartDate.slice(0, 16),
+                  collectionEndDate: row.original.collectionEndDate?.slice(0, 16) ?? "",
+                  notes: row.original.notes ?? "",
+                });
+                setFormOpen(true);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="destructive"
+              onClick={() => setDeleteTarget(row.original)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+        size: 180,
+      },
     ],
     [],
   );
 
   return (
     <ScrapShell
-      title="Yard Stock"
-      description="Track open batches, ready stock, and lot consolidation across the yard."
+      title="Yard Lots"
+      description="Create lots, pull in intake, and move ready material into trading."
       actions={
-        <Button asChild size="sm" variant="outline">
-          <Link href="/scrap-metal/trading/sales">Bulk Sales</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setForm(getEmptyForm());
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New Batch
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/stores/inventory">Stock on Hand</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/scrap-metal/trading/sales">Bulk Sales</Link>
+          </Button>
+        </div>
       }
     >
-      {error ? (
+      {batchesQuery.error ? (
         <StatusState
           variant="error"
           title="Unable to load batches"
-          description={getApiErrorMessage(error)}
+          description={getApiErrorMessage(batchesQuery.error)}
           action={
-            <Button onClick={() => refetch()} variant="outline" size="sm">
+            <Button onClick={() => batchesQuery.refetch()} variant="outline" size="sm">
               Try Again
             </Button>
           }
@@ -162,7 +413,7 @@ export default function ScrapMetalBatchesPage() {
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground">
-              {filteredBatches.length} of {batches.length} batches
+              {filteredBatches.length} of {(batchesQuery.data ?? []).length} batches
             </span>
           </div>
 
@@ -173,10 +424,220 @@ export default function ScrapMetalBatchesPage() {
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading batches..." : "No batches created yet"}
+            emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches created yet"}
           />
         </>
       )}
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Batch" : "New Batch"}</DialogTitle>
+            <DialogDescription>Create the lot first, then add intake into it from the yard queue.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveMutation.mutate(form);
+            }}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                value={form.siteId || "__none"}
+                onValueChange={(value) => setForm((current) => ({ ...current, siteId: value === "__none" ? "" : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Site" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Site</SelectItem>
+                  {sites.map((site: Site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name} ({site.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="datetime-local"
+                value={form.collectionStartDate}
+                onChange={(event) => setForm((current) => ({ ...current, collectionStartDate: event.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Select
+                value={form.materialId}
+                onValueChange={(value) => {
+                  const material = materials.find((entry) => entry.id === value);
+                  setForm((current) => ({
+                    ...current,
+                    materialId: value,
+                    category: material?.category ?? current.category,
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Material" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Category only</SelectItem>
+                  {materials.map((material) => (
+                    <SelectItem key={material.id} value={material.id}>
+                      {material.name} ({material.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={form.category} onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Input
+              type="datetime-local"
+              value={form.collectionEndDate}
+              onChange={(event) => setForm((current) => ({ ...current, collectionEndDate: event.target.value }))}
+              placeholder="Close date"
+            />
+
+            <Textarea
+              rows={4}
+              value={form.notes}
+              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              placeholder="Batch notes"
+            />
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saveMutation.isPending || !form.siteId}>
+                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Batch"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(batchForItems)} onOpenChange={(open) => !open && setBatchForItems(null)}>
+        <DialogContent size="xl">
+          <DialogHeader>
+            <DialogTitle>Add Purchases to Batch</DialogTitle>
+            <DialogDescription>
+              {batchForItems ? `Assign intake into ${batchForItems.batchNumber}.` : "Assign purchases to batch."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              {availablePurchases.length} matching unbatched purchases
+            </div>
+            <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl bg-[var(--surface-muted)] p-3">
+              {availablePurchases.map((purchase) => {
+                const checked = selectedPurchaseIds.includes(purchase.id);
+                return (
+                  <label
+                    key={purchase.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg bg-background px-3 py-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) =>
+                        setSelectedPurchaseIds((current) =>
+                          event.target.checked
+                            ? [...current, purchase.id]
+                            : current.filter((id) => id !== purchase.id),
+                        )
+                      }
+                      className="mt-1 h-4 w-4 rounded border-[var(--table-divider)] accent-[var(--action-primary-bg)]"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {purchase.purchaseNumber} · {purchase.material?.name ?? purchase.category}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {purchase.employee.name} · {purchase.sellerName || "Walk-in seller"}
+                          </p>
+                        </div>
+                        <NumericCell>{purchase.weight.toFixed(2)} kg</NumericCell>
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+              {purchasesQuery.isLoading ? <div className="text-sm text-muted-foreground">Loading purchases...</div> : null}
+              {!purchasesQuery.isLoading && availablePurchases.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No matching unbatched purchases found.</div>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBatchForItems(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={addItemsMutation.isPending || !batchForItems || selectedPurchaseIds.length === 0}
+              onClick={() =>
+                batchForItems &&
+                addItemsMutation.mutate({ batchId: batchForItems.id, purchaseIds: selectedPurchaseIds })
+              }
+            >
+              {addItemsMutation.isPending ? "Adding..." : `Add ${selectedPurchaseIds.length || ""} Purchases`.trim()}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Remove Batch</DialogTitle>
+            <DialogDescription>
+              {deleteTarget ? `Remove ${deleteTarget.batchNumber}?` : "Remove this batch?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || !deleteTarget}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ScrapShell>
   );
 }

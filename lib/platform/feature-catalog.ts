@@ -392,7 +392,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_SCRAP_METAL_SUITE",
     name: "Scrap Metal Suite",
-    description: "Complete scrap metal buying, batching, and sales operations.",
+    description: "Complete scrap and recycling buying, yard, stock, and trading operations.",
     monthlyPrice: 150,
     additionalSiteMonthlyPrice: 20,
     features: [
@@ -401,6 +401,10 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "scrap-metal.batches",
       "scrap-metal.sales",
       "scrap-metal.pricing",
+      "stores.inventory",
+      "stores.movements",
+      "stores.issue",
+      "stores.receive",
     ],
   },
 ];

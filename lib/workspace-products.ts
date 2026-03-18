@@ -205,7 +205,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
         },
       },
       stores: {
-        description: "Track consumables, fuel, and stock movements that support yard and transport work.",
+        description: "Track scrap stock, yard movements, receipts, and issues through shared inventory controls.",
       },
       accounting: {
         description: "Run buyer settlements, receivables, payables, and close controls for scrap trading.",

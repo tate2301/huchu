@@ -13,9 +13,12 @@ import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
   Select,
@@ -25,14 +28,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusChip } from "@/components/ui/status-chip";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Pencil, Plus, Trash2 } from "@/lib/icons";
 
 type Sale = {
   id: string;
   saleNumber: string;
   saleDate: string;
   buyerName: string;
+  buyerContact?: string | null;
   recordedWeight: number;
   soldWeight: number;
   weightDiscrepancy: number;
@@ -40,9 +46,14 @@ type Sale = {
   totalAmount: number;
   currency: string;
   status: string;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
+  notes?: string | null;
   batch: {
+    id: string;
     batchNumber: string;
     category: string;
+    totalWeight: number;
   };
   material?: {
     id: string;
@@ -51,10 +62,57 @@ type Sale = {
     category: string;
   } | null;
   site: {
+    id: string;
     name: string;
     code: string;
   };
 };
+
+type BatchOption = {
+  id: string;
+  batchNumber: string;
+  category: string;
+  totalWeight: number;
+  status: string;
+  material?: { id: string; code: string; name: string; category: string } | null;
+  site: {
+    id: string;
+    name: string;
+    code: string;
+  };
+};
+
+type SaleForm = {
+  saleDate: string;
+  batchId: string;
+  buyerName: string;
+  buyerContact: string;
+  recordedWeight: string;
+  soldWeight: string;
+  pricePerKg: string;
+  currency: string;
+  paymentMethod: string;
+  paymentReference: string;
+  overrideReason: string;
+  notes: string;
+};
+
+function getEmptyForm(): SaleForm {
+  return {
+    saleDate: new Date().toISOString().slice(0, 16),
+    batchId: "__none",
+    buyerName: "",
+    buyerContact: "",
+    recordedWeight: "",
+    soldWeight: "",
+    pricePerKg: "",
+    currency: "USD",
+    paymentMethod: "",
+    paymentReference: "",
+    overrideReason: "",
+    notes: "",
+  };
+}
 
 async function fetchSales(): Promise<Sale[]> {
   const response = await fetchJson<{ data: Sale[] }>("/api/scrap-metal/sales?limit=200");
@@ -67,27 +125,113 @@ export default function ScrapMetalSalesPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [cancelReason, setCancelReason] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Sale | null>(null);
+  const [editing, setEditing] = useState<Sale | null>(null);
+  const [form, setForm] = useState<SaleForm>(getEmptyForm);
 
-  const {
-    data: sales = [],
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const salesQuery = useQuery({
     queryKey: ["scrap-metal-sales"],
     queryFn: fetchSales,
   });
+  const batchOptionsQuery = useQuery({
+    queryKey: ["scrap-ready-batches"],
+    queryFn: () => fetchJson<{ data: BatchOption[] }>("/api/scrap-metal/batches?limit=500"),
+  });
+
+  const batches = (batchOptionsQuery.data?.data ?? []).filter((batch) =>
+    ["COLLECTING", "READY"].includes(batch.status),
+  );
+  const selectedBatch = batches.find((batch) => batch.id === form.batchId) ?? null;
 
   const filteredSales = useMemo(() => {
-    if (statusFilter === "all") return sales;
-    return sales.filter((sale) => sale.status === statusFilter);
-  }, [sales, statusFilter]);
+    const records = salesQuery.data ?? [];
+    if (statusFilter === "all") return records;
+    return records.filter((sale) => sale.status === statusFilter);
+  }, [salesQuery.data, statusFilter]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: SaleForm) => {
+      const hasOverride =
+        selectedBatch && Number(payload.soldWeight || 0) * Number(payload.pricePerKg || 0) !== 0 && payload.overrideReason.trim();
+      const noteParts = [payload.notes.trim()];
+      if (hasOverride) {
+        noteParts.push(`Deal note: ${payload.overrideReason.trim()}`);
+      }
+
+      const body = {
+        saleDate: new Date(payload.saleDate).toISOString(),
+        siteId: editing?.site.id ?? selectedBatch?.site.id,
+        batchId: payload.batchId,
+        materialId: editing?.material?.id ?? selectedBatch?.material?.id,
+        buyerName: payload.buyerName,
+        buyerContact: payload.buyerContact || undefined,
+        recordedWeight: Number(payload.recordedWeight),
+        soldWeight: Number(payload.soldWeight),
+        pricePerKg: Number(payload.pricePerKg),
+        currency: payload.currency,
+        paymentMethod: payload.paymentMethod || undefined,
+        paymentReference: payload.paymentReference || undefined,
+        notes: noteParts.filter(Boolean).join("\n") || undefined,
+      };
+
+      if (!body.siteId) {
+        throw new Error("Select a batch first.");
+      }
+
+      if (editing) {
+        return fetchJson(`/api/scrap-metal/sales/${editing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      }
+
+      return fetchJson("/api/scrap-metal/sales", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: editing ? "Sale updated" : "Sale recorded", variant: "success" });
+      setFormOpen(false);
+      setEditing(null);
+      setForm(getEmptyForm());
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
+    },
+    onError: (error) => {
+      toast({
+        title: editing ? "Unable to update sale" : "Unable to record sale",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/scrap-metal/sales/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Sale removed", variant: "success" });
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to remove sale",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
 
   const approveSaleMutation = useMutation({
     mutationFn: (saleId: string) =>
       fetchJson(`/api/scrap-metal/sales/${saleId}/approve`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
       toast({
         title: "Sale approved",
         description: "The sale has been approved successfully",
@@ -95,10 +239,10 @@ export default function ScrapMetalSalesPage() {
       });
       setSelectedSale(null);
     },
-    onError: (mutationError) => {
+    onError: (error) => {
       toast({
         title: "Approval failed",
-        description: getApiErrorMessage(mutationError),
+        description: getApiErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -109,6 +253,7 @@ export default function ScrapMetalSalesPage() {
       fetchJson(`/api/scrap-metal/sales/${saleId}/complete`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
       toast({
         title: "Sale completed",
         description: "The sale has been marked as completed",
@@ -116,10 +261,10 @@ export default function ScrapMetalSalesPage() {
       });
       setSelectedSale(null);
     },
-    onError: (mutationError) => {
+    onError: (error) => {
       toast({
         title: "Unable to complete sale",
-        description: getApiErrorMessage(mutationError),
+        description: getApiErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -133,6 +278,7 @@ export default function ScrapMetalSalesPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
       toast({
         title: "Sale cancelled",
         description: "The sale has been cancelled",
@@ -141,10 +287,10 @@ export default function ScrapMetalSalesPage() {
       setCancelReason("");
       setSelectedSale(null);
     },
-    onError: (mutationError) => {
+    onError: (error) => {
       toast({
         title: "Unable to cancel sale",
-        description: getApiErrorMessage(mutationError),
+        description: getApiErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -251,7 +397,44 @@ export default function ScrapMetalSalesPage() {
         id: "actions",
         header: "",
         cell: ({ row }) => (
-          <div className="flex gap-2">
+          <div className="flex justify-end gap-2">
+            {["DRAFT", "PENDING_APPROVAL"].includes(row.original.status) ? (
+              <>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(row.original);
+                    setForm({
+                      saleDate: row.original.saleDate.slice(0, 16),
+                      batchId: row.original.batch.id,
+                      buyerName: row.original.buyerName,
+                      buyerContact: row.original.buyerContact ?? "",
+                      recordedWeight: String(row.original.recordedWeight),
+                      soldWeight: String(row.original.soldWeight),
+                      pricePerKg: String(row.original.pricePerKg),
+                      currency: row.original.currency,
+                      paymentMethod: row.original.paymentMethod ?? "",
+                      paymentReference: row.original.paymentReference ?? "",
+                      overrideReason: "",
+                      notes: row.original.notes ?? "",
+                    });
+                    setFormOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="destructive"
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            ) : null}
             {["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) ? (
               <Button size="sm" variant="outline" onClick={() => setSelectedSale(row.original)}>
                 {row.original.status === "APPROVED" ? "Close" : "Review"}
@@ -259,7 +442,7 @@ export default function ScrapMetalSalesPage() {
             ) : null}
           </div>
         ),
-        size: 100,
+        size: 180,
       },
     ],
     [],
@@ -268,20 +451,36 @@ export default function ScrapMetalSalesPage() {
   return (
     <ScrapShell
       title="Bulk Sales"
-      description="Review buyer deals and move approved sales to close."
+      description="Capture buyer deals, review weight acceptance, and close approved sales."
       actions={
-        <Button asChild size="sm" variant="outline">
-          <Link href="/scrap-metal/yard/batches">Yard Stock</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setForm(getEmptyForm());
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New Sale
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/scrap-metal/yard/batches">Yard Lots</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/stores/movements">Stock Movements</Link>
+          </Button>
+        </div>
       }
     >
-      {error ? (
+      {salesQuery.error ? (
         <StatusState
           variant="error"
           title="Unable to load sales"
-          description={getApiErrorMessage(error)}
+          description={getApiErrorMessage(salesQuery.error)}
           action={
-            <Button onClick={() => refetch()} variant="outline" size="sm">
+            <Button onClick={() => salesQuery.refetch()} variant="outline" size="sm">
               Try Again
             </Button>
           }
@@ -299,6 +498,7 @@ export default function ScrapMetalSalesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
                   <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
                   <SelectItem value="APPROVED">Approved</SelectItem>
                   <SelectItem value="COMPLETED">Completed</SelectItem>
@@ -307,7 +507,7 @@ export default function ScrapMetalSalesPage() {
               </Select>
             </div>
             <div className="text-sm text-muted-foreground">
-              {filteredSales.length} of {sales.length} sales
+              {filteredSales.length} of {(salesQuery.data ?? []).length} sales
             </div>
           </div>
 
@@ -319,7 +519,7 @@ export default function ScrapMetalSalesPage() {
             tableClassName="text-sm"
             pagination={{ enabled: true }}
             emptyState={
-              isLoading
+              salesQuery.isLoading
                 ? "Loading sales..."
                 : statusFilter === "all"
                   ? "No sales recorded yet"
@@ -328,6 +528,153 @@ export default function ScrapMetalSalesPage() {
           />
         </>
       )}
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Sale" : "New Sale"}</DialogTitle>
+            <DialogDescription>Lock the buyer deal, accepted weight, and final sale value.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveMutation.mutate(form);
+            }}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                type="datetime-local"
+                value={form.saleDate}
+                onChange={(event) => setForm((current) => ({ ...current, saleDate: event.target.value }))}
+                required
+              />
+              <Select
+                value={form.batchId}
+                onValueChange={(value) => {
+                  const batch = batches.find((entry) => entry.id === value) ?? null;
+                  setForm((current) => ({
+                    ...current,
+                    batchId: value,
+                    recordedWeight: batch ? String(batch.totalWeight) : current.recordedWeight,
+                    soldWeight: batch ? String(batch.totalWeight) : current.soldWeight,
+                  }));
+                }}
+                disabled={Boolean(editing)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Batch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Batch</SelectItem>
+                  {batches.map((batch) => (
+                    <SelectItem key={batch.id} value={batch.id}>
+                      {batch.batchNumber} · {batch.material?.name ?? batch.category} · {batch.totalWeight.toFixed(2)} kg
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                value={form.buyerName}
+                onChange={(event) => setForm((current) => ({ ...current, buyerName: event.target.value }))}
+                placeholder="Buyer name"
+                required
+              />
+              <Input
+                value={form.buyerContact}
+                onChange={(event) => setForm((current) => ({ ...current, buyerContact: event.target.value }))}
+                placeholder="Buyer contact"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-4">
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.recordedWeight}
+                onChange={(event) => setForm((current) => ({ ...current, recordedWeight: event.target.value }))}
+                placeholder="Recorded kg"
+                required
+              />
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.soldWeight}
+                onChange={(event) => setForm((current) => ({ ...current, soldWeight: event.target.value }))}
+                placeholder="Accepted kg"
+                required
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.pricePerKg}
+                onChange={(event) => setForm((current) => ({ ...current, pricePerKg: event.target.value }))}
+                placeholder="Price per kg"
+                required
+              />
+              <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Deal value</div>
+                <div className="font-mono font-semibold">
+                  {form.currency || "USD"}{" "}
+                  {((Number(form.soldWeight) || 0) * (Number(form.pricePerKg) || 0)).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                value={form.currency}
+                onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
+                placeholder="Currency"
+                required
+              />
+              <Input
+                value={form.overrideReason}
+                onChange={(event) => setForm((current) => ({ ...current, overrideReason: event.target.value }))}
+                placeholder="Negotiation or weight variance note"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                value={form.paymentMethod}
+                onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                placeholder="Payment method"
+              />
+              <Input
+                value={form.paymentReference}
+                onChange={(event) => setForm((current) => ({ ...current, paymentReference: event.target.value }))}
+                placeholder="Payment reference"
+              />
+            </div>
+
+            <Textarea
+              rows={4}
+              value={form.notes}
+              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              placeholder="Notes"
+            />
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={saveMutation.isPending || !form.buyerName || form.batchId === "__none"}
+              >
+                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Sale"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {selectedSale ? (
         <Dialog open={Boolean(selectedSale)} onOpenChange={() => setSelectedSale(null)}>
@@ -420,6 +767,30 @@ export default function ScrapMetalSalesPage() {
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Remove Sale</DialogTitle>
+            <DialogDescription>
+              {deleteTarget ? `Remove ${deleteTarget.saleNumber}?` : "Remove this sale?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || !deleteTarget}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ScrapShell>
   );
 }

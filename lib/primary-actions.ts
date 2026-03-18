@@ -2,6 +2,7 @@ import type { NavItem } from "@/lib/navigation";
 import { hasRole } from "@/lib/roles";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import {
+  ArrowDownward,
   Building2,
   Calendar,
   Coins,
@@ -66,9 +67,10 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
     { href: "/gold/settlement/receipts/new", icon: ReceiptLong, label: "Record Receipt" },
   ],
   SCRAP_METAL: [
-    { href: "/scrap-metal/purchases", icon: Payments, label: "Record Purchase" },
-    { href: "/scrap-metal/batches", icon: Package, label: "Open Batch" },
-    { href: "/scrap-metal/sales", icon: ReceiptLong, label: "Record Sale" },
+    { href: "/scrap-metal/buying/purchases", icon: Payments, label: "Record Purchase" },
+    { href: "/scrap-metal/yard/batches", icon: Package, label: "Open Batch" },
+    { href: "/scrap-metal/trading/sales", icon: ReceiptLong, label: "Record Sale" },
+    { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
   ],
   SCHOOLS: [
     { href: "/schools/admissions", icon: Building2, label: "Admissions" },

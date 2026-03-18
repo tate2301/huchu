@@ -13,6 +13,7 @@ import {
   type WorkspaceProfile,
 } from "@/lib/workspace-products";
 import {
+  ArrowDownward,
   Building2,
   Calendar,
   Coins,
@@ -262,6 +263,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       roleItem("/scrap-metal/buying/purchases", "Record Purchase", Payments),
       roleItem("/scrap-metal/yard/batches", "Open Batch", Package),
       roleItem("/scrap-metal/trading/sales", "Record Sale", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
+      roleItem("/stores/receive", "Receive Stock", ArrowDownward),
     ],
     nativeModules: ["scrap-metal", "reporting"],
     sections: [
@@ -284,6 +286,11 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         id: "scrap-people",
         title: "Settlements",
         refs: SCRAP_OPERATIONS_SECTIONS.settlements.map((href) => ({ moduleId: "scrap-metal" as const, href })),
+      },
+      {
+        id: "scrap-stock",
+        title: "Stock Tracking",
+        refs: SCRAP_OPERATIONS_SECTIONS.stock.map((href) => ({ moduleId: "stores" as const, href })),
       },
       {
         id: "scrap-control",

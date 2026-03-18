@@ -1,11 +1,14 @@
 import {
   BarChart3,
   Coins,
+  History,
   Package,
   Payments,
   ReceiptLong,
   Recycle,
   TableRows,
+  ArrowDownward,
+  ArrowUpward,
   Wallet,
   type LucideIcon,
 } from "@/lib/icons";
@@ -17,6 +20,10 @@ export type ScrapTabId =
   | "yard-batches"
   | "trading-sales"
   | "settlements"
+  | "stock-inventory"
+  | "stock-movements"
+  | "stock-receive"
+  | "stock-issue"
   | "reports"
   | "setup-materials";
 
@@ -60,6 +67,30 @@ export const SCRAP_TABS: ScrapTabItem[] = [
     icon: Wallet,
   },
   {
+    id: "stock-inventory",
+    label: "Stock on Hand",
+    href: "/stores/inventory",
+    icon: Package,
+  },
+  {
+    id: "stock-movements",
+    label: "Movements",
+    href: "/stores/movements",
+    icon: History,
+  },
+  {
+    id: "stock-receive",
+    label: "Receive Stock",
+    href: "/stores/receive",
+    icon: ArrowDownward,
+  },
+  {
+    id: "stock-issue",
+    label: "Issue Stock",
+    href: "/stores/issue",
+    icon: ArrowUpward,
+  },
+  {
     id: "reports",
     label: "Reports",
     href: "/scrap-metal/reports",
@@ -78,6 +109,7 @@ export const SCRAP_OPERATIONS_SECTIONS = {
   yard: ["/scrap-metal/yard/batches"],
   trading: ["/scrap-metal/trading/sales"],
   settlements: ["/scrap-metal/settlements"],
+  stock: ["/stores/inventory", "/stores/movements", "/stores/receive", "/stores/issue"],
   reporting: ["/scrap-metal/reports"],
   setup: ["/scrap-metal/setup/materials"],
 } as const;

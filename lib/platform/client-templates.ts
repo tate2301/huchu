@@ -70,6 +70,12 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     featureKeys: [],
     verticalProductId: "scrap-recycling",
     disabledFeatureKeys: [
+      "stores.fuel-ledger",
+      "maintenance.dashboard",
+      "maintenance.equipment",
+      "maintenance.work-orders",
+      "maintenance.breakdowns",
+      "maintenance.schedule",
       "gold.home",
       "gold.intake.pours",
       "gold.dispatches",

@@ -466,11 +466,6 @@ export function AppSidebar() {
 
         {additionalSections.length > 0 ? (
           <SidebarGroup className="mb-0.5">
-            {!isCollapsed ? (
-              <SidebarGroupLabel className="px-2 text-xs uppercase">
-                Additional Modules
-              </SidebarGroupLabel>
-            ) : null}
             <SidebarGroupContent className="mt-0">
               {additionalSections.map((section) =>
                 FLAT_SECTION_IDS.has(section.id)

@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
     const employeeId = searchParams.get("employeeId");
     const category = searchParams.get("category");
     const materialId = searchParams.get("materialId");
+    const unbatched = searchParams.get("unbatched") === "true";
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
     if (employeeId) where.employeeId = employeeId;
     if (category) where.category = category;
     if (materialId) where.materialId = materialId;
+    if (unbatched) where.batchItems = { none: {} };
 
     const [purchases, total] = await Promise.all([
       prisma.scrapMetalPurchase.findMany({
@@ -67,6 +69,7 @@ export async function GET(request: NextRequest) {
           site: { select: { id: true, name: true, code: true } },
           employee: { select: { id: true, name: true, employeeId: true } },
           material: { select: { id: true, code: true, name: true, category: true } },
+          batchItems: { select: { batchId: true } },
           createdBy: { select: { id: true, name: true } },
         },
         orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
