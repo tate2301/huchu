@@ -89,7 +89,6 @@ const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GOLD_MINE";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["hr", "accounting", "management"];
 const STRICT_WORKSPACE_MODULE_FEATURE_KEYS: Partial<Record<WorkspaceModuleId, string>> = {
   "scrap-metal": "scrap-metal.home",
-  retail: "retail.core",
 };
 const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, WorkspaceModuleId> = {
   GOLD_MINE: "gold",
@@ -480,14 +479,19 @@ function buildContext(args: WorkspaceModelArgs): WorkspaceBuildContext {
 }
 
 function getVisibleModules(context: WorkspaceBuildContext): Map<WorkspaceModuleId, NavItem[]> {
+  const normalizedEnabled = new Set((context.enabledFeatures ?? []).map((feature) => normalizeFeatureKey(feature)));
   const entries = WORKSPACE_MODULE_ORDER.map((moduleId) => {
     const moduleDefinition = WORKSPACE_MODULES[moduleId];
     return [moduleId, moduleDefinition.getItems(context)] as const;
   }).filter((entry) => {
     if (entry[1].length === 0) return false;
+    if (entry[0] === "retail") {
+      return Array.from(normalizedEnabled).some(
+        (feature) => feature.startsWith("retail.") || feature === "portal.pos",
+      );
+    }
     const strictFeatureKey = STRICT_WORKSPACE_MODULE_FEATURE_KEYS[entry[0]];
     if (!strictFeatureKey) return true;
-    const normalizedEnabled = new Set((context.enabledFeatures ?? []).map((feature) => normalizeFeatureKey(feature)));
     return normalizedEnabled.has(normalizeFeatureKey(strictFeatureKey));
   });
 
