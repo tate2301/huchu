@@ -33,6 +33,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Purchase = {
   id: string;
@@ -150,6 +151,15 @@ export default function ScrapMetalPurchasesPage() {
   const [editing, setEditing] = useState<Purchase | null>(null);
   const [form, setForm] = useState<PurchaseForm>(getEmptyForm);
   const [priceTouched, setPriceTouched] = useState(false);
+  const {
+    reservedId: purchaseNumber,
+    isReserving: reservingPurchaseNumber,
+    error: reservePurchaseNumberError,
+  } = useReservedId({
+    entity: "SCRAP_METAL_PURCHASE",
+    enabled: formOpen && !editing && Boolean(form.siteId),
+    siteId: form.siteId || undefined,
+  });
 
   const purchasesQuery = useQuery({
     queryKey: ["scrap-metal-purchases"],
@@ -195,6 +205,7 @@ export default function ScrapMetalPurchasesPage() {
       }
 
       const body = {
+        purchaseNumber: purchaseNumber || undefined,
         purchaseDate: new Date(payload.purchaseDate).toISOString(),
         siteId: payload.siteId,
         employeeId: payload.employeeId,
@@ -443,6 +454,17 @@ export default function ScrapMetalPurchasesPage() {
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
+                value={editing?.purchaseNumber ?? purchaseNumber}
+                readOnly
+                placeholder={
+                  editing
+                    ? "Purchase number"
+                    : reservingPurchaseNumber
+                      ? "Reserving purchase number..."
+                      : "Purchase number"
+                }
+              />
+              <Input
                 type="datetime-local"
                 value={form.purchaseDate}
                 onChange={(event) =>
@@ -627,6 +649,7 @@ export default function ScrapMetalPurchasesPage() {
                 type="submit"
                 disabled={
                   saveMutation.isPending ||
+                  (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
                   !form.siteId ||
                   !form.employeeId ||
                   !form.weight ||
@@ -636,6 +659,9 @@ export default function ScrapMetalPurchasesPage() {
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Purchase"}
               </Button>
             </DialogFooter>
+            {!editing && reservePurchaseNumberError ? (
+              <p className="text-sm text-destructive">{reservePurchaseNumberError}</p>
+            ) : null}
           </form>
         </DialogContent>
       </Dialog>

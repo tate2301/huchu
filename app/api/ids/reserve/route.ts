@@ -29,6 +29,9 @@ const reserveSchema = z.object({
     "GOLD_POUR",
     "GOLD_RECEIPT",
     "GOLD_PURCHASE",
+    "SCRAP_METAL_PURCHASE",
+    "SCRAP_METAL_BATCH",
+    "SCRAP_METAL_SALE",
   ]),
   siteId: z.string().uuid().optional(),
 });

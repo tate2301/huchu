@@ -2087,7 +2087,10 @@ export type ReserveIdEntity =
   | "STOCK_MOVEMENT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
-  | "GOLD_PURCHASE";
+  | "GOLD_PURCHASE"
+  | "SCRAP_METAL_PURCHASE"
+  | "SCRAP_METAL_BATCH"
+  | "SCRAP_METAL_SALE";
 
 export async function reserveEntityId(
   entity: ReserveIdEntity,

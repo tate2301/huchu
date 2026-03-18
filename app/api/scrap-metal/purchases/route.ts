@@ -173,6 +173,7 @@ export async function POST(request: NextRequest) {
       : await reserveIdentifier(prisma, {
           companyId: session.user.companyId,
           entity: "SCRAP_METAL_PURCHASE",
+          siteId: validated.siteId,
         });
 
     const existingPurchaseNumber = await prisma.scrapMetalPurchase.findFirst({

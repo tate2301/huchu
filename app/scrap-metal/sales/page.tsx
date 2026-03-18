@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Sale = {
   id: string;
@@ -143,6 +144,15 @@ export default function ScrapMetalSalesPage() {
     ["COLLECTING", "READY"].includes(batch.status),
   );
   const selectedBatch = batches.find((batch) => batch.id === form.batchId) ?? null;
+  const {
+    reservedId: saleNumber,
+    isReserving: reservingSaleNumber,
+    error: reserveSaleNumberError,
+  } = useReservedId({
+    entity: "SCRAP_METAL_SALE",
+    enabled: formOpen && !editing && Boolean(selectedBatch?.site.id),
+    siteId: selectedBatch?.site.id,
+  });
 
   const filteredSales = useMemo(() => {
     const records = salesQuery.data ?? [];
@@ -160,6 +170,7 @@ export default function ScrapMetalSalesPage() {
       }
 
       const body = {
+        saleNumber: saleNumber || undefined,
         saleDate: new Date(payload.saleDate).toISOString(),
         siteId: editing?.site.id ?? selectedBatch?.site.id,
         batchId: payload.batchId,
@@ -544,6 +555,17 @@ export default function ScrapMetalSalesPage() {
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
+                value={editing?.saleNumber ?? saleNumber}
+                readOnly
+                placeholder={
+                  editing
+                    ? "Sale number"
+                    : reservingSaleNumber
+                      ? "Reserving sale number..."
+                      : "Sale number"
+                }
+              />
+              <Input
                 type="datetime-local"
                 value={form.saleDate}
                 onChange={(event) => setForm((current) => ({ ...current, saleDate: event.target.value }))}
@@ -667,11 +689,19 @@ export default function ScrapMetalSalesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={saveMutation.isPending || !form.buyerName || form.batchId === "__none"}
+                disabled={
+                  saveMutation.isPending ||
+                  (!editing && (!saleNumber || reservingSaleNumber)) ||
+                  !form.buyerName ||
+                  form.batchId === "__none"
+                }
               >
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Sale"}
               </Button>
             </DialogFooter>
+            {!editing && reserveSaleNumberError ? (
+              <p className="text-sm text-destructive">{reserveSaleNumberError}</p>
+            ) : null}
           </form>
         </DialogContent>
       </Dialog>

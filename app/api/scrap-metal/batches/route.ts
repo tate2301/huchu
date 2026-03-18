@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
       : await reserveIdentifier(prisma, {
           companyId: session.user.companyId,
           entity: "SCRAP_METAL_BATCH",
+          siteId: validated.siteId,
         });
 
     const existingBatchNumber = await prisma.scrapMetalBatch.findFirst({

@@ -34,6 +34,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Batch = {
   id: string;
@@ -123,6 +124,15 @@ export default function ScrapMetalBatchesPage() {
   const [batchForItems, setBatchForItems] = useState<Batch | null>(null);
   const [selectedPurchaseIds, setSelectedPurchaseIds] = useState<string[]>([]);
   const [form, setForm] = useState<BatchForm>(getEmptyForm);
+  const {
+    reservedId: batchNumber,
+    isReserving: reservingBatchNumber,
+    error: reserveBatchNumberError,
+  } = useReservedId({
+    entity: "SCRAP_METAL_BATCH",
+    enabled: formOpen && !editing && Boolean(form.siteId),
+    siteId: form.siteId || undefined,
+  });
 
   const batchesQuery = useQuery({
     queryKey: ["scrap-metal-batches"],
@@ -162,6 +172,7 @@ export default function ScrapMetalBatchesPage() {
   const saveMutation = useMutation({
     mutationFn: async (payload: BatchForm) => {
       const body = {
+        batchNumber: batchNumber || undefined,
         siteId: payload.siteId,
         materialId: payload.materialId === "__none" ? undefined : payload.materialId,
         category: payload.category,
@@ -443,6 +454,17 @@ export default function ScrapMetalBatchesPage() {
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                value={editing?.batchNumber ?? batchNumber}
+                readOnly
+                placeholder={
+                  editing
+                    ? "Batch number"
+                    : reservingBatchNumber
+                      ? "Reserving batch number..."
+                      : "Batch number"
+                }
+              />
               <Select
                 value={form.siteId || "__none"}
                 onValueChange={(value) => setForm((current) => ({ ...current, siteId: value === "__none" ? "" : value }))}
@@ -535,10 +557,20 @@ export default function ScrapMetalBatchesPage() {
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saveMutation.isPending || !form.siteId}>
+              <Button
+                type="submit"
+                disabled={
+                  saveMutation.isPending ||
+                  (!editing && (!batchNumber || reservingBatchNumber)) ||
+                  !form.siteId
+                }
+              >
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Batch"}
               </Button>
             </DialogFooter>
+            {!editing && reserveBatchNumberError ? (
+              <p className="text-sm text-destructive">{reserveBatchNumberError}</p>
+            ) : null}
           </form>
         </DialogContent>
       </Dialog>
