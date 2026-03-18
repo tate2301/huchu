@@ -83,11 +83,11 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 10 }),
   f({ key: "gold.payouts", name: "Gold Payouts", description: "Gold payout workflows.", domain: "gold", defaultEnabled: true, isBillable: true, monthlyPrice: 18 }),
 
-  f({ key: "scrap-metal.home", name: "Scrap & Recycling Overview", description: "Scrap and recycling command center, dashboards, and operational queues.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Buying", description: "Scrap and recycling buying, intake, and purchase tracking.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.batches", name: "Scrap & Recycling Yard", description: "Scrap and recycling yard stock, batching, and ready-to-sell control.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.sales", name: "Scrap & Recycling Trading", description: "Scrap and recycling sales, bulk trading, and approval workflows.", domain: "scrap-metal", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
-  f({ key: "scrap-metal.pricing", name: "Scrap & Recycling Price Board", description: "Scrap and recycling material catalog and pricing controls.", domain: "scrap-metal", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.home", name: "Scrap & Recycling Overview", description: "Scrap and recycling command center, dashboards, and operational queues.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Buying", description: "Scrap and recycling buying, intake, and purchase tracking.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.batches", name: "Scrap & Recycling Yard", description: "Scrap and recycling yard stock, batching, and ready-to-sell control.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.sales", name: "Scrap & Recycling Trading", description: "Scrap and recycling sales, bulk trading, and approval workflows.", domain: "scrap-metal", defaultEnabled: false, isBillable: true, monthlyPrice: 12 }),
+  f({ key: "scrap-metal.pricing", name: "Scrap & Recycling Price Board", description: "Scrap and recycling material catalog and pricing controls.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
 
   f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
   f({ key: "hr.incidents", name: "HR Incidents", description: "HR incident management.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 10 }),

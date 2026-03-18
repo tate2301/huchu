@@ -66,7 +66,8 @@ export const SCRAP_TABS: ScrapTabItem[] = [
 ];
 
 export const SCRAP_OPERATIONS_SECTIONS = {
-  buying: ["/scrap-metal", "/scrap-metal/buying/purchases", "/scrap-metal/buying/pricing"],
+  overview: ["/scrap-metal"],
+  buying: ["/scrap-metal/buying/purchases", "/scrap-metal/buying/pricing"],
   yard: ["/scrap-metal/yard/batches"],
   trading: ["/scrap-metal/trading/sales"],
   settlements: ["/scrap-metal/settlements"],
