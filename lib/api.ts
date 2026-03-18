@@ -2088,6 +2088,7 @@ export type ReserveIdEntity =
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE"
+  | "SCRAP_MATERIAL"
   | "SCRAP_METAL_PURCHASE"
   | "SCRAP_METAL_BATCH"
   | "SCRAP_METAL_SALE";

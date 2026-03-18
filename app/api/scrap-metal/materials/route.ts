@@ -8,10 +8,11 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 
 const materialSchema = z.object({
-  code: z.string().trim().min(1).max(40),
+  code: z.string().trim().min(1).max(40).optional(),
   name: z.string().trim().min(1).max(120),
   category: z.enum([
     "BATTERIES",
@@ -89,7 +90,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = materialSchema.parse(body);
-    const code = validated.code.toUpperCase();
+    const code = validated.code
+      ? normalizeProvidedId(validated.code, "SCRAP_MATERIAL")
+      : await reserveIdentifier(prisma, {
+          companyId: session.user.companyId,
+          entity: "SCRAP_MATERIAL",
+        });
     const currency = validated.currency?.trim().toUpperCase() || "USD";
 
     const existing = await prisma.scrapMaterial.findFirst({

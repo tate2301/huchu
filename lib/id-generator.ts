@@ -26,6 +26,7 @@ export type ReservableIdEntity =
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE"
+  | "SCRAP_MATERIAL"
   | "SCRAP_METAL_PURCHASE"
   | "SCRAP_METAL_BATCH"
   | "SCRAP_METAL_SALE";
@@ -64,6 +65,7 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
+  SCRAP_MATERIAL: { prefix: "SCMAT", requiresSiteId: false },
   SCRAP_METAL_PURCHASE: { prefix: "SCPUR", requiresSiteId: true },
   SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: true },
   SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: true },
@@ -297,6 +299,13 @@ async function findEntityMaxExistingCode(
         select: { purchaseNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
+    }
+    case "SCRAP_MATERIAL": {
+      const records = await db.scrapMaterial.findMany({
+        where: { companyId },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     case "SCRAP_METAL_PURCHASE": {
       if (!siteId) return 0;

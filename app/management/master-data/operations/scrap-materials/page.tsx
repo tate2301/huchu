@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { useReservedId } from "@/hooks/use-reserved-id";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 
@@ -88,6 +89,15 @@ export default function ScrapMaterialsMasterDataPage() {
   const [deleteTarget, setDeleteTarget] = useState<MaterialRecord | null>(null);
   const [editing, setEditing] = useState<MaterialRecord | null>(null);
   const [form, setForm] = useState<MaterialForm>(emptyForm);
+  const {
+    reservedId,
+    isReserving,
+    error: reserveError,
+  } = useReservedId({
+    entity: "SCRAP_MATERIAL",
+    enabled: formOpen && !editing,
+  });
+  const resolvedCode = editing ? form.code : reservedId;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["management", "master-data", "scrap-materials", queryState.search],
@@ -99,7 +109,7 @@ export default function ScrapMaterialsMasterDataPage() {
   const saveMutation = useMutation({
     mutationFn: async (payload: MaterialForm) => {
       const body = {
-        code: payload.code,
+        code: editing ? payload.code : resolvedCode,
         name: payload.name,
         category: payload.category,
         defaultPricePerKg: Number(payload.defaultPricePerKg),
@@ -301,13 +311,37 @@ export default function ScrapMaterialsMasterDataPage() {
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
+              if (!editing && !resolvedCode.trim()) {
+                toast({
+                  title: "Material code unavailable",
+                  description: reserveError ?? "Code reservation is still in progress.",
+                  variant: "destructive",
+                });
+                return;
+              }
               saveMutation.mutate(form);
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input value={form.code} onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))} placeholder="Code" required />
+              <Input
+                value={resolvedCode}
+                readOnly
+                placeholder={
+                  editing
+                    ? "Material code"
+                    : isReserving
+                      ? "Reserving material code..."
+                      : "Auto-generated"
+                }
+                required
+              />
               <Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Material name" required />
             </div>
+            {!editing ? (
+              <p className="text-xs text-muted-foreground">
+                {reserveError ?? "Material code is generated automatically."}
+              </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-3">
               <Select value={form.category} onValueChange={(value) => setForm((prev) => ({ ...prev, category: value }))}>
                 <SelectTrigger>
