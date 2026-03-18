@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import type { SearchableOption } from "@/app/gold/types";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +66,7 @@ const emptyForm: PriceForm = {
 
 export default function ScrapMetalPricingPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<PriceRecord | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -213,7 +217,23 @@ export default function ScrapMetalPricingPage() {
   );
 
   const prices = pricesQuery.data?.data ?? [];
-  const materials = materialsQuery.data?.data ?? [];
+  const materials = useMemo(() => materialsQuery.data?.data ?? [], [materialsQuery.data?.data]);
+  const materialOptions = useMemo<SearchableOption[]>(
+    () => [
+      {
+        value: "__none",
+        label: "Category default",
+        description: "Apply the board rate to the whole category.",
+      },
+      ...materials.map((material) => ({
+        value: material.id,
+        label: material.name,
+        description: material.category,
+        meta: material.code,
+      })),
+    ],
+    [materials],
+  );
 
   return (
     <ScrapShell
@@ -268,8 +288,12 @@ export default function ScrapMetalPricingPage() {
               saveMutation.mutate(form);
             }}
           >
-            <Select
+            <SearchableSelect
+              label="Material Scope"
               value={form.materialId}
+              options={materialOptions}
+              placeholder={materialsQuery.isLoading ? "Loading materials..." : "Select material scope"}
+              searchPlaceholder="Search materials..."
               onValueChange={(value) => {
                 const selected = materials.find((material) => material.id === value);
                 setForm((prev) => ({
@@ -278,19 +302,9 @@ export default function ScrapMetalPricingPage() {
                   category: selected?.category ?? prev.category,
                 }));
               }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Scope to a material or keep category-wide" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">Category default</SelectItem>
-                {materials.map((material) => (
-                  <SelectItem key={material.id} value={material.id}>
-                    {material.name} ({material.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onAddOption={() => router.push("/management/master-data/operations/scrap-materials")}
+              addLabel="Add new material"
+            />
             <div className="grid gap-4 sm:grid-cols-3">
               <Select
                 value={form.category}

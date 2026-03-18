@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { Site } from "@/lib/api";
+import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import type { SearchableOption } from "@/app/gold/types";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
+import { FieldHelp } from "@/components/shared/field-help";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,6 +119,7 @@ async function fetchBatches(): Promise<Batch[]> {
 
 export default function ScrapMetalBatchesPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
@@ -152,8 +156,33 @@ export default function ScrapMetalBatchesPage() {
     enabled: Boolean(batchForItems),
   });
 
-  const sites = sitesQuery.data ?? [];
-  const materials = materialsQuery.data?.data ?? [];
+  const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
+  const materials = useMemo(() => materialsQuery.data?.data ?? [], [materialsQuery.data?.data]);
+  const siteOptions = useMemo<SearchableOption[]>(
+    () =>
+      sites.map((site) => ({
+        value: site.id,
+        label: site.name,
+        meta: site.code,
+      })),
+    [sites],
+  );
+  const materialOptions = useMemo<SearchableOption[]>(
+    () => [
+      {
+        value: "__none",
+        label: "Category only",
+        description: "Create a yard lot without tying it to a material record.",
+      },
+      ...materials.map((material) => ({
+        value: material.id,
+        label: material.name,
+        description: material.category,
+        meta: material.code,
+      })),
+    ],
+    [materials],
+  );
   const filteredBatches = useMemo(() => {
     const records = batchesQuery.data ?? [];
     if (statusFilter === "all") return records;
@@ -454,44 +483,50 @@ export default function ScrapMetalBatchesPage() {
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={editing?.batchNumber ?? batchNumber}
-                readOnly
-                placeholder={
-                  editing
-                    ? "Batch number"
-                    : reservingBatchNumber
-                      ? "Reserving batch number..."
-                      : "Batch number"
-                }
-              />
-              <Select
-                value={form.siteId || "__none"}
-                onValueChange={(value) => setForm((current) => ({ ...current, siteId: value === "__none" ? "" : value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Site</SelectItem>
-                  {sites.map((site: Site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name} ({site.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="datetime-local"
-                value={form.collectionStartDate}
-                onChange={(event) => setForm((current) => ({ ...current, collectionStartDate: event.target.value }))}
-                required
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Batch Number</label>
+                <Input
+                  value={editing?.batchNumber ?? batchNumber}
+                  readOnly
+                  aria-readonly="true"
+                  placeholder={editing ? "Batch number" : reservingBatchNumber ? "Reserving..." : "Auto-generated"}
+                />
+                <FieldHelp
+                  hint={
+                    editing
+                      ? "Batch number stays locked after creation."
+                      : reserveBatchNumberError ?? "Batch number is generated automatically after site selection."
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Collection Start</label>
+                <Input
+                  type="datetime-local"
+                  value={form.collectionStartDate}
+                  onChange={(event) => setForm((current) => ({ ...current, collectionStartDate: event.target.value }))}
+                  required
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <Select
+              <SearchableSelect
+                label="Site *"
+                value={form.siteId || undefined}
+                options={siteOptions}
+                placeholder={sitesQuery.isLoading ? "Loading sites..." : "Select site"}
+                searchPlaceholder="Search sites..."
+                onValueChange={(value) => setForm((current) => ({ ...current, siteId: value }))}
+                onAddOption={() => router.push("/management/master-data/operations/sites")}
+                addLabel="Add new site"
+              />
+              <SearchableSelect
+                label="Material"
                 value={form.materialId}
+                options={materialOptions}
+                placeholder={materialsQuery.isLoading ? "Loading materials..." : "Select material"}
+                searchPlaceholder="Search materials..."
                 onValueChange={(value) => {
                   const material = materials.find((entry) => entry.id === value);
                   setForm((current) => ({
@@ -500,19 +535,9 @@ export default function ScrapMetalBatchesPage() {
                     category: material?.category ?? current.category,
                   }));
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Material" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Category only</SelectItem>
-                  {materials.map((material) => (
-                    <SelectItem key={material.id} value={material.id}>
-                      {material.name} ({material.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onAddOption={() => router.push("/management/master-data/operations/scrap-materials")}
+                addLabel="Add new material"
+              />
               <Select value={form.category} onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}>
                 <SelectTrigger>
                   <SelectValue />
@@ -568,9 +593,6 @@ export default function ScrapMetalBatchesPage() {
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Batch"}
               </Button>
             </DialogFooter>
-            {!editing && reserveBatchNumberError ? (
-              <p className="text-sm text-destructive">{reserveBatchNumberError}</p>
-            ) : null}
           </form>
         </DialogContent>
       </Dialog>

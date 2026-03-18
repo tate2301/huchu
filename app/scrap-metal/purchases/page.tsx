@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { EmployeeSummary, Site } from "@/lib/api";
+import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import type { SearchableOption } from "@/app/gold/types";
 import { fetchEmployees, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
+import { FieldHelp } from "@/components/shared/field-help";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -157,6 +160,7 @@ function applySuggestedPrice(nextForm: PurchaseForm, prices: PriceRecord[], pric
 
 export default function ScrapMetalPurchasesPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
@@ -198,11 +202,55 @@ export default function ScrapMetalPurchasesPage() {
     queryFn: () => fetchJson<{ data: PriceRecord[] }>("/api/scrap-metal/pricing?limit=500"),
   });
 
-  const materials = materialsQuery.data?.data ?? [];
-  const sellerProfiles = sellerProfilesQuery.data?.data ?? [];
-  const sites = sitesQuery.data ?? [];
-  const employees = employeesQuery.data?.data ?? [];
+  const materials = useMemo(() => materialsQuery.data?.data ?? [], [materialsQuery.data?.data]);
+  const sellerProfiles = useMemo(() => sellerProfilesQuery.data?.data ?? [], [sellerProfilesQuery.data?.data]);
+  const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
+  const employees = useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data?.data]);
   const purchases = purchasesQuery.data ?? [];
+  const siteOptions = useMemo<SearchableOption[]>(
+    () =>
+      sites.map((site) => ({
+        value: site.id,
+        label: site.name,
+        meta: site.code,
+      })),
+    [sites],
+  );
+  const employeeOptions = useMemo<SearchableOption[]>(
+    () =>
+      employees.map((employee) => ({
+        value: employee.id,
+        label: employee.name,
+        meta: employee.employeeId,
+      })),
+    [employees],
+  );
+  const sellerOptions = useMemo<SearchableOption[]>(
+    () =>
+      sellerProfiles.map((sellerProfile) => ({
+        value: sellerProfile.id,
+        label: sellerProfile.fullName,
+        description: sellerProfile.phone,
+        meta: sellerProfile.nationalId,
+      })),
+    [sellerProfiles],
+  );
+  const materialOptions = useMemo<SearchableOption[]>(
+    () => [
+      {
+        value: "__none",
+        label: "Category only",
+        description: "Use the selected category without a material profile.",
+      },
+      ...materials.map((material) => ({
+        value: material.id,
+        label: material.name,
+        description: material.category,
+        meta: material.code,
+      })),
+    ],
+    [materials],
+  );
   const selectedSellerProfile =
     sellerProfiles.find((sellerProfile) => sellerProfile.id === form.sellerProfileId) ?? null;
   const suggestedPrice = useMemo(
@@ -480,84 +528,81 @@ export default function ScrapMetalPurchasesPage() {
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={editing?.purchaseNumber ?? purchaseNumber}
-                readOnly
-                placeholder={
-                  editing
-                    ? "Purchase number"
-                    : reservingPurchaseNumber
-                      ? "Reserving purchase number..."
-                      : "Purchase number"
-                }
-              />
-              <Input
-                type="datetime-local"
-                value={form.purchaseDate}
-                onChange={(event) =>
-                  setForm((current) =>
-                    applySuggestedPrice(
-                      { ...current, purchaseDate: event.target.value },
-                      pricesQuery.data?.data ?? [],
-                      priceTouched,
-                    ),
-                  )
-                }
-                required
-              />
-              <Select
-                value={form.siteId || "__none"}
-                onValueChange={(value) => setForm((current) => ({ ...current, siteId: value === "__none" ? "" : value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Site</SelectItem>
-                  {sites.map((site: Site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name} ({site.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Purchase Number</label>
+                <Input
+                  value={editing?.purchaseNumber ?? purchaseNumber}
+                  readOnly
+                  aria-readonly="true"
+                  placeholder={editing ? "Purchase number" : reservingPurchaseNumber ? "Reserving..." : "Auto-generated"}
+                />
+                <FieldHelp
+                  hint={
+                    editing
+                      ? "Purchase number stays locked after creation."
+                      : reservePurchaseNumberError ?? "Purchase number is generated automatically after site selection."
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Purchase Date</label>
+                <Input
+                  type="datetime-local"
+                  value={form.purchaseDate}
+                  onChange={(event) =>
+                    setForm((current) =>
+                      applySuggestedPrice(
+                        { ...current, purchaseDate: event.target.value },
+                        pricesQuery.data?.data ?? [],
+                        priceTouched,
+                      ),
+                    )
+                  }
+                  required
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <Select
-                value={form.employeeId || "__none"}
-                onValueChange={(value) => setForm((current) => ({ ...current, employeeId: value === "__none" ? "" : value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Operator" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Operator</SelectItem>
-                  {employees.map((employee: EmployeeSummary) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name} ({employee.employeeId})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={form.sellerProfileId}
+              <SearchableSelect
+                label="Site *"
+                value={form.siteId || undefined}
+                options={siteOptions}
+                placeholder={sitesQuery.isLoading ? "Loading sites..." : "Select site"}
+                searchPlaceholder="Search sites..."
+                onValueChange={(value) => setForm((current) => ({ ...current, siteId: value }))}
+                onAddOption={() => router.push("/management/master-data/operations/sites")}
+                addLabel="Add new site"
+              />
+              <SearchableSelect
+                label="Operator *"
+                value={form.employeeId || undefined}
+                options={employeeOptions}
+                placeholder={employeesQuery.isLoading ? "Loading operators..." : "Select operator"}
+                searchPlaceholder="Search operators..."
+                onValueChange={(value) => setForm((current) => ({ ...current, employeeId: value }))}
+                onAddOption={() => router.push("/human-resources")}
+                addLabel="Add new operator"
+              />
+              <SearchableSelect
+                label="Seller Profile *"
+                value={form.sellerProfileId === "__none" ? undefined : form.sellerProfileId}
+                options={sellerOptions}
+                placeholder={sellerProfilesQuery.isLoading ? "Loading seller profiles..." : "Select seller profile"}
+                searchPlaceholder="Search sellers..."
                 onValueChange={(value) => setForm((current) => ({ ...current, sellerProfileId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seller profile" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Seller profile</SelectItem>
-                  {sellerProfiles.map((sellerProfile) => (
-                    <SelectItem key={sellerProfile.id} value={sellerProfile.id}>
-                      {sellerProfile.fullName} ({sellerProfile.nationalId})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
+                onAddOption={() => router.push("/management/master-data/operations/scrap-sellers")}
+                addLabel="Add new seller"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <SearchableSelect
+                label="Material"
                 value={form.materialId}
+                options={materialOptions}
+                placeholder={materialsQuery.isLoading ? "Loading materials..." : "Select material"}
+                searchPlaceholder="Search materials..."
                 onValueChange={(value) => {
                   const material = materials.find((entry) => entry.id === value);
                   setPriceTouched(false);
@@ -574,19 +619,9 @@ export default function ScrapMetalPurchasesPage() {
                     ),
                   );
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Material" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Category only</SelectItem>
-                  {materials.map((material) => (
-                    <SelectItem key={material.id} value={material.id}>
-                      {material.name} ({material.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onAddOption={() => router.push("/management/master-data/operations/scrap-materials")}
+                addLabel="Add new material"
+              />
               <Select
                 value={form.category}
                 onValueChange={(value) => {
@@ -696,9 +731,6 @@ export default function ScrapMetalPurchasesPage() {
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Purchase"}
               </Button>
             </DialogFooter>
-            {!editing && reservePurchaseNumberError ? (
-              <p className="text-sm text-destructive">{reservePurchaseNumberError}</p>
-            ) : null}
           </form>
         </DialogContent>
       </Dialog>

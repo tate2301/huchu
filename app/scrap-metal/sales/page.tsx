@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import type { SearchableOption } from "@/app/gold/types";
 import { SaleCalculator } from "@/components/scrap-metal/sale-calculator";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
+import { FieldHelp } from "@/components/shared/field-help";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -122,6 +126,7 @@ async function fetchSales(): Promise<Sale[]> {
 
 export default function ScrapMetalSalesPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -142,6 +147,16 @@ export default function ScrapMetalSalesPage() {
 
   const batches = (batchOptionsQuery.data?.data ?? []).filter((batch) =>
     ["COLLECTING", "READY"].includes(batch.status),
+  );
+  const batchOptions = useMemo<SearchableOption[]>(
+    () =>
+      batches.map((batch) => ({
+        value: batch.id,
+        label: batch.batchNumber,
+        description: `${batch.material?.name ?? batch.category} · ${batch.totalWeight.toFixed(2)} kg`,
+        meta: batch.site.code,
+      })),
+    [batches],
   );
   const selectedBatch = batches.find((batch) => batch.id === form.batchId) ?? null;
   const {
@@ -554,49 +569,52 @@ export default function ScrapMetalSalesPage() {
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={editing?.saleNumber ?? saleNumber}
-                readOnly
-                placeholder={
-                  editing
-                    ? "Sale number"
-                    : reservingSaleNumber
-                      ? "Reserving sale number..."
-                      : "Sale number"
-                }
-              />
-              <Input
-                type="datetime-local"
-                value={form.saleDate}
-                onChange={(event) => setForm((current) => ({ ...current, saleDate: event.target.value }))}
-                required
-              />
-              <Select
-                value={form.batchId}
-                onValueChange={(value) => {
-                  const batch = batches.find((entry) => entry.id === value) ?? null;
-                  setForm((current) => ({
-                    ...current,
-                    batchId: value,
-                    recordedWeight: batch ? String(batch.totalWeight) : current.recordedWeight,
-                    soldWeight: batch ? String(batch.totalWeight) : current.soldWeight,
-                  }));
-                }}
-                disabled={Boolean(editing)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Batch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Batch</SelectItem>
-                  {batches.map((batch) => (
-                    <SelectItem key={batch.id} value={batch.id}>
-                      {batch.batchNumber} · {batch.material?.name ?? batch.category} · {batch.totalWeight.toFixed(2)} kg
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Sale Number</label>
+                <Input
+                  value={editing?.saleNumber ?? saleNumber}
+                  readOnly
+                  aria-readonly="true"
+                  placeholder={editing ? "Sale number" : reservingSaleNumber ? "Reserving..." : "Auto-generated"}
+                />
+                <FieldHelp
+                  hint={
+                    editing
+                      ? "Sale number stays locked after creation."
+                      : reserveSaleNumberError ?? "Sale number is generated automatically after a batch is selected."
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Sale Date</label>
+                <Input
+                  type="datetime-local"
+                  value={form.saleDate}
+                  onChange={(event) => setForm((current) => ({ ...current, saleDate: event.target.value }))}
+                  required
+                />
+              </div>
             </div>
+
+            <SearchableSelect
+              label="Batch *"
+              value={form.batchId === "__none" ? undefined : form.batchId}
+              options={batchOptions}
+              placeholder={batchOptionsQuery.isLoading ? "Loading yard lots..." : "Select batch"}
+              searchPlaceholder="Search yard lots..."
+              onValueChange={(value) => {
+                const batch = batches.find((entry) => entry.id === value) ?? null;
+                setForm((current) => ({
+                  ...current,
+                  batchId: value,
+                  recordedWeight: batch ? String(batch.totalWeight) : current.recordedWeight,
+                  soldWeight: batch ? String(batch.totalWeight) : current.soldWeight,
+                }));
+              }}
+              onAddOption={() => router.push("/scrap-metal/yard/batches")}
+              addLabel="Create yard lot"
+              disabled={Boolean(editing)}
+            />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -699,9 +717,6 @@ export default function ScrapMetalSalesPage() {
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Sale"}
               </Button>
             </DialogFooter>
-            {!editing && reserveSaleNumberError ? (
-              <p className="text-sm text-destructive">{reserveSaleNumberError}</p>
-            ) : null}
           </form>
         </DialogContent>
       </Dialog>
