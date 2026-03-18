@@ -29,6 +29,9 @@ export function filterNavSectionsByEnabledFeatures(
   enabledFeatures: string[] | undefined,
 ): NavSection[] {
   return sections
+    .filter((section) =>
+      section.featureKey ? hasTokenFeature(enabledFeatures, section.featureKey) : true,
+    )
     .map((section) => ({
       ...section,
       items: filterHrefItemsByEnabledFeatures(section.items, enabledFeatures),

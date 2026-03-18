@@ -53,6 +53,7 @@ export type NavSection = {
   id: string;
   title: string;
   description?: string;
+  featureKey?: string;
   items: NavItem[];
 };
 
@@ -111,6 +112,7 @@ export const navSections: NavSection[] = [
     id: "reporting",
     title: "Reports",
     description: "Open report pages across operations",
+    featureKey: "reports.dashboard",
     items: [
       { href: "/reports", icon: FileCheck, label: "Reports Dashboard" },
       { href: "/reports/shift", icon: EventNote, label: "Shift Reports" },
@@ -163,6 +165,7 @@ export const navSections: NavSection[] = [
     id: "hr",
     title: "Human Resources",
     description: "Employee records and attendance roster",
+    featureKey: "hr.employees",
     items: HR_TABS.map((tab) => ({
       href: tab.href,
       icon: tab.icon,
@@ -174,6 +177,7 @@ export const navSections: NavSection[] = [
     id: "maintenance",
     title: "Maintenance & Assets",
     description: "Equipment, work orders, scheduling",
+    featureKey: "maintenance.dashboard",
     items: [
       { href: "/maintenance", icon: Dashboard, label: "Overview" },
       {
@@ -198,6 +202,7 @@ export const navSections: NavSection[] = [
     id: "stores",
     title: "Stores & Inventory",
     description: "Inventory and fuel control",
+    featureKey: "stores.dashboard",
     items: [
       { href: "/stores/dashboard", icon: Dashboard, label: "Overview" },
       { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
@@ -211,6 +216,7 @@ export const navSections: NavSection[] = [
     id: "schools",
     title: "School Operations",
     description: "Full school management operations and portals",
+    featureKey: "schools.core",
     items: [
       { href: "/schools", icon: Building2, label: "School Overview" },
       { href: "/schools/students", icon: Users, label: "Students" },
@@ -236,6 +242,7 @@ export const navSections: NavSection[] = [
     id: "car-sales",
     title: "Auto Sales",
     description: "Vehicle sales pipeline and deal operations",
+    featureKey: "autos.core",
     items: [
       { href: "/car-sales", icon: LocalShipping, label: "Auto Overview" },
       { href: "/car-sales/leads", icon: Users, label: "Leads" },
@@ -248,6 +255,7 @@ export const navSections: NavSection[] = [
     id: "thrift",
     title: "Retail & Thrift",
     description: "Shop operations, checkout, and POS",
+    featureKey: "thrift.core",
     items: [
       { href: "/thrift", icon: Wallet, label: "Overview" },
       { href: "/thrift/intake", icon: ArrowDownward, label: "Intake" },
@@ -260,6 +268,7 @@ export const navSections: NavSection[] = [
     id: "gold",
     title: "Gold Operations",
     description: "Production, settlement, and control tasks",
+    featureKey: "gold.home",
     items: [
       { href: "/gold", icon: Coins, label: "Overview" },
       {
@@ -290,6 +299,7 @@ export const navSections: NavSection[] = [
     id: "scrap-metal",
     title: "Scrap & Recycling",
     description: "Buying, yard, trading, settlements, and material controls",
+    featureKey: "scrap-metal.home",
     items: SCRAP_TABS.map((tab) => ({
       href: tab.href,
       icon: tab.icon,
@@ -301,6 +311,7 @@ export const navSections: NavSection[] = [
     id: "cctv",
     title: "CCTV",
     description: "Surveillance and stream control",
+    featureKey: "cctv.overview",
     items: [
       {
         href: "/cctv/overview",
@@ -350,6 +361,7 @@ export const navSections: NavSection[] = [
     id: "accounting",
     title: "Accounting",
     description: "Ledger, journals, and finance controls",
+    featureKey: "accounting.core",
     items: [
       { href: "/accounting", icon: Scale, label: "Accounting Overview" },
       { href: "/accounting/receivables", icon: ReceiptLong, label: "Receivables" },
