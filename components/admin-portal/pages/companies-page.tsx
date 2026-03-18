@@ -9,7 +9,7 @@ import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-conte
 import type { CommercialCenterData, CompanyWorkspace } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
   DropdownMenu,
@@ -193,9 +193,7 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Workspaces</h1>
-            <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-              Full-bleed workspace directory for health, subscription context, and the next action. Search, filters, and pagination stay in one controls row.
-            </p>
+            <p className="max-w-3xl text-sm text-[var(--text-muted)]">Directory, plans, status, actions.</p>
           </div>
         </div>
 
@@ -220,9 +218,6 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg">Workspace registry</CardTitle>
-              <CardDescription>
-                Keep plan, status, and workspace ownership visible while you move into the right operational context.
-              </CardDescription>
             </div>
             <Badge variant="outline" className="rounded-full px-3 py-1">
               {filteredRows.length} visible
@@ -233,7 +228,7 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
           <DataTable
             data={filteredRows}
             columns={columns}
-            searchPlaceholder="Search workspace, slug, plan, or status"
+            searchPlaceholder="Search workspace, slug, plan, status"
             searchSubmitLabel="Search"
             noResultsText={isLoadingCompanies || isLoadingCommercial ? "Loading live workspace directory..." : "No workspaces match the current filters."}
             toolbar={

@@ -17,7 +17,7 @@ import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-conte
 import type { AdminMetricCard } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -81,7 +81,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         label: "Escalations",
         value: incidentCount,
         tone: incidentCount > 0 ? "Need changes" : "Passing",
-        hint: incidentCount > 0 ? `${incidentCount} incident(s) need review in reliability.` : "No open reliability incidents right now.",
+        hint: incidentCount > 0 ? `${incidentCount} open incident${incidentCount === 1 ? "" : "s"}` : "No open incidents",
         href: scopeCompanyId ? `/admin/company/${scopeCompanyId}/reliability` : "/admin/reliability",
         icon: AlertTriangle,
       },
@@ -90,7 +90,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         label: "Support sessions",
         value: supportCount,
         tone: supportCount > 0 ? "In progress" : "Pending",
-        hint: supportCount > 0 ? `${supportCount} active support session(s) are live.` : "No live support sessions are running.",
+        hint: supportCount > 0 ? `${supportCount} active session${supportCount === 1 ? "" : "s"}` : "No live sessions",
         href: scopeCompanyId ? `/admin/company/${scopeCompanyId}/support-access` : "/admin/support-access",
         icon: LifeBuoy,
       },
@@ -99,7 +99,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         label: "Audit review",
         value: auditCount,
         tone: auditCount > 0 ? "In review" : "Pending",
-        hint: auditCount > 0 ? `${auditCount} recent audit event(s) are available for review.` : "No recent audit events were returned.",
+        hint: auditCount > 0 ? `${auditCount} recent event${auditCount === 1 ? "" : "s"}` : "No recent events",
         href: scopeCompanyId ? `/admin/company/${scopeCompanyId}/reliability?view=audit` : "/admin/reliability?view=audit",
         icon: ShieldAlert,
       },
@@ -129,18 +129,13 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <Badge variant="secondary" className="rounded-full px-3 py-1">
               {scopeCompanyId ? "Workspace scope" : "Platform scope"}
             </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">
-              Operations first
-            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{isLoadingCompanies ? "Loading" : `${companies.length} workspaces`}</Badge>
           </div>
           <div>
             <h2 className="text-3xl font-semibold tracking-tight">
               {scopeCompanyId ? `${activeCompany?.name ?? "Workspace"} command center` : "Operator command center"}
             </h2>
-            <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-              Start with active queues, workspace state, and the next safe action. This surface is optimized for support,
-              incident triage, and workspace management.
-            </p>
+            <p className="max-w-3xl text-sm text-[var(--text-muted)]">{scopeCompanyId ? activeCompany?.slug ?? scopeCompanyId : "Platform queues, workspace jump, and next actions."}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -160,8 +155,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card className="border-[var(--border)]">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Core signals</CardTitle>
-            <CardDescription>Revenue, clients, support, and reliability metrics for the active scope.</CardDescription>
+            <CardTitle className="text-lg">Signals</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoadingMetrics ? (
@@ -186,7 +180,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
                     <p className="mt-2 font-mono text-3xl font-semibold text-[var(--text-strong)]">
                       {metricPresentation(metric)}
                     </p>
-                    <p className="mt-2 text-xs text-[var(--text-muted)]">{metric.hint ?? "Live metric"}</p>
+                    {metric.hint ? <p className="mt-2 text-xs text-[var(--text-muted)]">{metric.hint}</p> : null}
                   </div>
                 ))}
               </div>
@@ -197,7 +191,6 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         <Card className="border-[var(--border)]">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Quick actions</CardTitle>
-            <CardDescription>Launch the highest-confidence workflows without browsing the full portal.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {quickActions.map((action) => (
@@ -208,9 +201,9 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
                 className="h-auto justify-between rounded-2xl px-4 py-3 text-left"
               >
                 <Link href={action.href}>
-                  <span>
+                  <span className="flex items-center gap-2">
                     <span className="block text-sm font-semibold">{action.label}</span>
-                    <span className="mt-1 block text-xs font-normal text-[var(--text-muted)]">{action.description}</span>
+                    <Badge variant="outline" className="rounded-full">{action.scope}</Badge>
                   </span>
                   <ArrowRight className="h-4 w-4 shrink-0" />
                 </Link>
@@ -225,8 +218,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-lg">Operator backlog</CardTitle>
-                <CardDescription>Review the queues that most often drive production intervention.</CardDescription>
+                <CardTitle className="text-lg">Queues</CardTitle>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setWorkspaceQuery("")}>
                 <RefreshCcw className="mr-2 h-4 w-4" />
@@ -267,7 +259,6 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">Workspace jump</CardTitle>
-                <CardDescription>Recent and matching workspaces for fast triage handoffs.</CardDescription>
               </div>
               <Badge variant="outline" className="rounded-full px-3 py-1">
                 {companies.length} workspaces
@@ -278,7 +269,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
               <Input
                 value={workspaceQuery}
                 onChange={(event) => setWorkspaceQuery(event.target.value)}
-                placeholder="Search workspace name, slug, or id"
+                placeholder="Search workspace"
                 className="h-11 rounded-2xl pl-10"
               />
             </div>

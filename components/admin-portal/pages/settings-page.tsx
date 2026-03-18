@@ -1,7 +1,7 @@
 "use client";
 
 import { BellRing, Palette, ShieldAlert } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,9 +11,7 @@ export function SettingsPage() {
     <section className="space-y-5">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-          Keep the control plane aligned with platform defaults, operator notifications, and production-safe presentation rules.
-        </p>
+        <p className="max-w-3xl text-sm text-[var(--text-muted)]">Defaults, notifications, safeguards.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -23,7 +21,6 @@ export function SettingsPage() {
               <Palette className="h-4 w-4 text-[var(--text-muted)]" />
               <CardTitle className="text-lg">Portal presentation</CardTitle>
             </div>
-            <CardDescription>Warm-paper branding and operator-facing defaults used across the admin portal.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -44,7 +41,6 @@ export function SettingsPage() {
               <BellRing className="h-4 w-4 text-[var(--text-muted)]" />
               <CardTitle className="text-lg">Operator notifications</CardTitle>
             </div>
-            <CardDescription>Configure the channels used for support, billing, and reliability escalations.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -66,12 +62,11 @@ export function SettingsPage() {
             <ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />
             <CardTitle className="text-lg">Production safeguards</CardTitle>
           </div>
-          <CardDescription>Keep risky operations explicit, guided, and out of the everyday operator path.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
-          <p>Raw execution is intentionally excluded from the primary navigation and command surfaces.</p>
-          <p>Workspace switching, support sessions, and guided write flows should remain the default operator experience.</p>
-          <p>Destructive changes belong behind confirmed modal flows with audit context, not inline controls.</p>
+          <p>Keep raw execution out of primary navigation.</p>
+          <p>Keep workspace switching and guided flows as the default path.</p>
+          <p>Keep destructive changes behind confirmed modal flows.</p>
         </CardContent>
       </Card>
     </section>

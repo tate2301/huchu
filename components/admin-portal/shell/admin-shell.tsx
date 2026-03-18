@@ -1,11 +1,81 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { AdminCommandBar, AdminCommandBarHint } from "./admin-command-bar";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import { AdminCommandBar } from "./admin-command-bar";
 import { AdminOperatorContext } from "./admin-operator-context";
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminShellProvider, useAdminShell } from "./admin-shell-context";
-import { WorkspaceSwitcher } from "./workspace-switcher";
+
+type Crumb = {
+  label: string;
+  href?: string;
+};
+
+const LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  clients: "Workspaces",
+  identity: "Identity",
+  "support-access": "Support Access",
+  reliability: "Reliability",
+  commercial: "Commercial",
+  settings: "Settings",
+};
+
+function buildCrumbs(pathname: string, activeCompanyName?: string, activeCompanyId?: string): Crumb[] {
+  const normalizedPath = pathname.replace(/^\/portal/, "");
+  const segments = normalizedPath.split("/").filter(Boolean);
+  const crumbs: Crumb[] = [{ label: "Admin", href: "/admin/dashboard" }];
+
+  if (segments[1] === "clients") {
+    crumbs.push({ label: "Workspaces", href: "/admin/clients" });
+    if (segments[2]) {
+      crumbs.push({ label: activeCompanyName ?? "Workspace", href: activeCompanyId ? `/admin/clients/${activeCompanyId}` : undefined });
+    }
+    return crumbs;
+  }
+
+  if (segments[1] === "company") {
+    crumbs.push({ label: activeCompanyName ?? "Workspace", href: activeCompanyId ? `/admin/clients/${activeCompanyId}` : undefined });
+    if (segments[3]) {
+      crumbs.push({ label: LABELS[segments[3]] ?? segments[3] });
+    }
+    return crumbs;
+  }
+
+  if (segments[1]) {
+    crumbs.push({ label: LABELS[segments[1]] ?? segments[1] });
+  }
+
+  return crumbs;
+}
+
+function AdminBreadcrumbs({ activeCompanyId }: { activeCompanyId?: string }) {
+  const pathname = usePathname();
+  const { activeCompany } = useAdminShell();
+  const crumbs = buildCrumbs(pathname, activeCompany?.name, activeCompanyId);
+
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 overflow-x-auto text-xs text-[var(--text-muted)]">
+      {crumbs.map((crumb, index) => {
+        const isLast = index === crumbs.length - 1;
+        return (
+          <span key={`${crumb.label}-${index}`} className="flex items-center gap-2">
+            {index > 0 ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" /> : null}
+            {crumb.href && !isLast ? (
+              <Link href={crumb.href} className="whitespace-nowrap hover:text-[var(--text-strong)]">
+                {crumb.label}
+              </Link>
+            ) : (
+              <span className={`whitespace-nowrap ${isLast ? "font-semibold text-[var(--text-strong)]" : ""}`}>{crumb.label}</span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
 
 function AdminShellFrame({
   activeCompanyId,
@@ -14,48 +84,26 @@ function AdminShellFrame({
   activeCompanyId?: string;
   children: React.ReactNode;
 }) {
-  const { companies, activeCompany, activeScope, isLoadingCompanies } = useAdminShell();
+  const { companies } = useAdminShell();
 
   return (
-    <div className="min-h-screen bg-[var(--surface-canvas)] text-[var(--text-strong)]">
-      <div className="mx-auto grid min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 md:px-6 xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-start">
-        <AdminSidebar activeCompanyId={activeCompanyId} />
-        <div className="min-w-0">
-          <header className="mb-6 rounded-[1.75rem] border border-[var(--border)] bg-[rgba(255,255,255,0.78)] p-4 shadow-none backdrop-blur md:p-5">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0 flex-1 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="rounded-full px-3 py-1">
-                      {activeScope === "platform" ? "Platform control plane" : "Workspace control plane"}
-                    </Badge>
-                    <Badge variant="secondary" className="rounded-full px-3 py-1">
-                      {isLoadingCompanies ? "Loading workspaces" : `${companies.length} workspaces`}
-                    </Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-base font-semibold text-[var(--text-strong)]">
-                      {activeCompany ? activeCompany.name : "Admin Control Plane"}
-                    </p>
-                    <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-                      Production operations workspace for support, identity, reliability, and commercial control.
-                    </p>
-                  </div>
-                  <AdminCommandBarHint />
-                </div>
-
-                <div className="grid gap-3 xl:grid-cols-[20rem_minmax(0,1fr)]">
-                  <WorkspaceSwitcher activeCompanyId={activeCompanyId} companies={companies} />
-                  <AdminCommandBar />
-                </div>
+    <div className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[18rem_minmax(0,1fr)]">
+      <AdminSidebar activeCompanyId={activeCompanyId} companies={companies} />
+      <div className="min-w-0">
+        <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[rgba(252,252,244,0.94)] backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 md:px-6">
+            <div className="min-w-0 flex-1">
+              <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
+            </div>
+            <div className="flex w-full items-center justify-end gap-2 md:w-auto md:max-w-[30rem] md:flex-none">
+              <div className="min-w-0 flex-1 md:w-[22rem]">
+                <AdminCommandBar />
               </div>
-
               <AdminOperatorContext />
             </div>
-          </header>
-
-          <main className="min-w-0 pb-10">{children}</main>
-        </div>
+          </div>
+        </header>
+        <main className="min-w-0 px-4 py-6 md:px-6">{children}</main>
       </div>
     </div>
   );

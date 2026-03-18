@@ -40,14 +40,12 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-11 w-full justify-between rounded-2xl border-[var(--border)] bg-[var(--surface-base)] px-4 shadow-none">
+        <Button variant="outline" className="h-10 w-full justify-between rounded-xl border-[var(--border)] bg-[var(--surface-base)] px-3 shadow-none">
           <span className="flex min-w-0 items-center gap-2 text-left">
             <Layers3 className="h-4 w-4 shrink-0" />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold">{activeCompany?.name ?? "Platform"}</span>
-              <span className="block truncate text-xs text-[var(--text-muted)]">
-                {activeCompany ? activeCompany.slug ?? activeCompany.id : "Cross-workspace scope"}
-              </span>
+              <span className="block truncate text-xs text-[var(--text-muted)]">{activeCompany ? activeCompany.slug ?? activeCompany.id : "All workspaces"}</span>
             </span>
           </span>
           <span className="flex items-center gap-2">
@@ -60,17 +58,14 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
       </PopoverTrigger>
         <PopoverContent className="w-[24rem] p-0" align="start">
           <Command shouldFilter={false}>
-            <CommandInput value={query} onValueChange={setQuery} placeholder="Search clients, slugs, and workspace ids" />
+            <CommandInput value={query} onValueChange={setQuery} placeholder="Search workspaces" />
             <CommandList className="max-h-[24rem]">
               <CommandEmpty>No matching workspace.</CommandEmpty>
 
               <CommandGroup heading="Platform">
                 <CommandItem value="platform global control plane" onSelect={() => selectWorkspace()}>
                   <Sparkles className="h-4 w-4 text-[var(--text-muted)]" />
-                  <div className="flex-1">
-                    <p className="font-medium">Platform</p>
-                    <p className="text-xs text-[var(--text-muted)]">Dashboard, catalogs, health, and cross-company actions</p>
-                  </div>
+                  <div className="flex-1"><p className="font-medium">Platform</p></div>
                   {!activeCompany ? <Check className="h-4 w-4" /> : null}
                 </CommandItem>
               </CommandGroup>
@@ -88,7 +83,6 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                         <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
                         <div className="flex-1">
                           <p className="font-medium">{company.name}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{company.slug ?? company.id}</p>
                         </div>
                         {company.id === activeCompanyId ? <Check className="h-4 w-4" /> : null}
                       </CommandItem>
@@ -111,7 +105,6 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                         <p className="font-medium">{company.name}</p>
                         {company.status ? <Badge variant="outline">{company.status}</Badge> : null}
                       </div>
-                      <p className="text-xs text-[var(--text-muted)]">{company.slug ?? company.id}</p>
                     </div>
                     {company.id === activeCompanyId ? <Check className="h-4 w-4" /> : null}
                   </CommandItem>

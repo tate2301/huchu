@@ -128,10 +128,10 @@ export function AdminCommandBar() {
       }}
     >
       <DialogTrigger>
-        <Button variant="outline" className="h-11 w-full justify-between rounded-2xl border-[var(--border)] bg-[var(--surface-base)] px-4 text-[var(--text-muted)] md:w-[28rem]">
+        <Button variant="outline" className="h-10 w-full justify-between rounded-xl border-[var(--border)] bg-[var(--surface-base)] px-3 text-[var(--text-muted)] shadow-none">
           <span className="flex items-center gap-2">
             <Search className="h-4 w-4" />
-            Search workspaces, people, incidents, and actions
+            Search
           </span>
           <span className="hidden items-center gap-1 text-xs md:inline-flex">
             <kbd className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono">Ctrl</kbd>
@@ -147,7 +147,7 @@ export function AdminCommandBar() {
             <CommandInput
               value={query}
               onValueChange={handleQueryChange}
-              placeholder="Search organizations, users, ids, incidents, and quick actions"
+              placeholder="Search workspaces, people, actions"
             />
           <CommandList className="max-h-[34rem]">
             <CommandEmpty>No matching commands or records.</CommandEmpty>
@@ -160,10 +160,7 @@ export function AdminCommandBar() {
                   onSelect={() => navigate(action.href)}
                 >
                   <Sparkles className="h-4 w-4 text-[var(--text-muted)]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{action.label}</p>
-                    <p className="truncate text-xs text-[var(--text-muted)]">{action.description}</p>
-                  </div>
+                  <p className="min-w-0 flex-1 truncate font-medium">{action.label}</p>
                   <Badge variant="secondary" className="rounded-full">
                     {action.scope}
                   </Badge>

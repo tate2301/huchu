@@ -140,9 +140,6 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">{company.name}</h1>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Workspace summary for health, pricing, identity, support posture, and the next operational action.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
             <span>{company.slug}</span>
@@ -180,31 +177,29 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="border-[var(--border)]">
           <CardHeader className="pb-2">
-            <CardDescription>Monthly total</CardDescription>
+            <CardDescription>Monthly</CardDescription>
             <CardTitle className="font-mono text-2xl">{pricing ? `${formatCurrency(pricing.total)}/mo` : "No plan"}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[var(--text-muted)]">{subscription?.planName ?? "No plan assigned"}</CardContent>
+          <CardContent className="text-sm text-[var(--text-muted)]">{subscription?.planName ?? "Unassigned"}</CardContent>
         </Card>
         <Card className="border-[var(--border)]">
           <CardHeader className="pb-2">
-            <CardDescription>Support posture</CardDescription>
-            <CardTitle className="text-2xl">{activeSessions.length}</CardTitle>
+            <CardDescription>Support</CardDescription>
+            <CardTitle className="font-mono text-2xl">{activeSessions.length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[var(--text-muted)]">
-            {activeSessions.length > 0 ? "Active support sessions" : "No active support sessions"}
-          </CardContent>
+          <CardContent className="text-sm text-[var(--text-muted)]">{activeSessions.length > 0 ? "Active sessions" : "No live sessions"}</CardContent>
         </Card>
         <Card className="border-[var(--border)]">
           <CardHeader className="pb-2">
-            <CardDescription>Identity footprint</CardDescription>
-            <CardTitle className="text-2xl">{admins.length + users.length}</CardTitle>
+            <CardDescription>Identity</CardDescription>
+            <CardTitle className="font-mono text-2xl">{admins.length + users.length}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[var(--text-muted)]">{admins.length} admins | {users.length} users</CardContent>
         </Card>
         <Card className="border-[var(--border)]">
           <CardHeader className="pb-2">
-            <CardDescription>Open incidents</CardDescription>
-            <CardTitle className="text-2xl">{incidents.length}</CardTitle>
+            <CardDescription>Incidents</CardDescription>
+            <CardTitle className="font-mono text-2xl">{incidents.length}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[var(--text-muted)]">
             {subscriptionHealth?.reason ?? "No blocking subscription signal"}
@@ -221,7 +216,6 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                   <TriangleAlert className="h-5 w-5 text-[#EC442C]" />
                   Attention needed
                 </CardTitle>
-                <CardDescription>These items can affect access, support safety, or commercial state for this workspace.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {subscriptionHealth?.shouldBlock ? (
@@ -245,8 +239,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
 
           <Card className="border-[var(--border)]">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Workspace state</CardTitle>
-              <CardDescription>Summary of operational readiness, access posture, and delivery context.</CardDescription>
+              <CardTitle className="text-lg">State</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
@@ -267,7 +260,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Commercial footprint</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{enabledAddons.length} enabled add-ons</p>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">{featurePreview.length} effective features shown below</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{featurePreview.length} enabled features</p>
               </div>
             </CardContent>
           </Card>
@@ -275,8 +268,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="border-[var(--border)]">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Sites and reach</CardTitle>
-                <CardDescription>Current operating locations and activation state.</CardDescription>
+                <CardTitle className="text-lg">Sites</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {sites.length === 0 ? (
@@ -301,8 +293,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
 
             <Card className="border-[var(--border)]">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Feature access snapshot</CardTitle>
-                <CardDescription>Enabled features that define the current workspace footprint.</CardDescription>
+                <CardTitle className="text-lg">Features</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {featurePreview.length === 0 ? (
@@ -327,7 +318,6 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
           <Card className="border-[var(--border)]">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Next actions</CardTitle>
-              <CardDescription>Use the focused route for the job you need to do next.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
               <Button asChild className="justify-between rounded-2xl">
@@ -360,7 +350,6 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
           <Card className="border-[var(--border)]">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Context</CardTitle>
-              <CardDescription>Keep operational evidence visible while you work.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
