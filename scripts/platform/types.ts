@@ -166,6 +166,7 @@ export interface ProvisionBundlePreview {
   subdomainAvailable: boolean;
   subdomainSuggestions: SubdomainSuggestion[];
   featuresToEnable: string[];
+  disabledFeatureKeys: string[];
   actionPreview: string;
   warnings: string[];
 }

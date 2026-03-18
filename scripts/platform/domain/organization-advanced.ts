@@ -5,6 +5,7 @@ import { prisma } from "../prisma";
 import { FEATURE_BUNDLES, FEATURE_CATALOG } from "../../../lib/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
+  getClientTemplateDisabledFeatureKeys,
   getClientTemplateDefinition,
   getClientTemplateFeatureKeys,
 } from "../../../lib/platform/client-templates";
@@ -237,6 +238,7 @@ function resolveTemplateSelection(featureTemplate: string, tierCodeInput?: strin
     .toUpperCase();
   const bundleCodes = getClientTemplateBundleCodes(template.code);
   const featuresToEnable = getClientTemplateFeatureKeys(template.code, tierCode);
+  const disabledFeatureKeys = getClientTemplateDisabledFeatureKeys(template.code);
 
   return {
     tierCode,
@@ -244,6 +246,7 @@ function resolveTemplateSelection(featureTemplate: string, tierCodeInput?: strin
     templateLabel: template.label,
     bundleCodes,
     featuresToEnable,
+    disabledFeatureKeys,
     warnings,
   };
 }
@@ -269,6 +272,7 @@ type BundleDefinition = (typeof FEATURE_BUNDLES)[number];
 interface PreparedProvisioningCatalog {
   bundleRows: BundleRow[];
   featureRowsForCompany: FeatureRow[];
+  featureRowsForDisable: FeatureRow[];
 }
 
 function uniquePreserveOrder(values: string[]): string[] {
@@ -304,11 +308,13 @@ function getBundleDefinitions(bundleCodes: string[]): BundleDefinition[] {
 async function prepareProvisioningCatalog(input: {
   bundleCodesToEnable: string[];
   featuresToEnable: string[];
+  featuresToDisable: string[];
 }): Promise<PreparedProvisioningCatalog> {
   const bundleDefinitions = getBundleDefinitions(input.bundleCodesToEnable);
   const allFeatureKeys = uniquePreserveOrder(
     [
       ...input.featuresToEnable,
+      ...input.featuresToDisable,
       ...bundleDefinitions.flatMap((bundle) => bundle.features),
     ]
       .map((featureKey) => toCanonicalFeatureKey(featureKey))
@@ -394,7 +400,13 @@ async function prepareProvisioningCatalog(input: {
     .map((featureKey) => featureByKey.get(featureKey))
     .filter((feature): feature is FeatureRow => Boolean(feature));
 
-  return { bundleRows, featureRowsForCompany };
+  const featureRowsForDisable = uniquePreserveOrder(
+    input.featuresToDisable.map((featureKey) => toCanonicalFeatureKey(featureKey)).filter(Boolean),
+  )
+    .map((featureKey) => featureByKey.get(featureKey))
+    .filter((feature): feature is FeatureRow => Boolean(feature));
+
+  return { bundleRows, featureRowsForCompany, featureRowsForDisable };
 }
 
 function isTransientProvisioningTransactionError(error: unknown): boolean {
@@ -525,6 +537,7 @@ export async function previewProvisionBundle(input: ProvisionBundleInput): Promi
   const availability = await isSubdomainAvailable(subdomainCandidate);
   const suggestions = await suggestSubdomains(subdomainCandidate, 6);
   const featuresToEnable = templateSelection.featuresToEnable;
+  const disabledFeatureKeys = templateSelection.disabledFeatureKeys;
   const warnings: string[] = [...templateSelection.warnings];
   if (!availability.available) {
     warnings.push(`Subdomain "${subdomainCandidate}" is unavailable.`);
@@ -543,6 +556,7 @@ export async function previewProvisionBundle(input: ProvisionBundleInput): Promi
     subdomainAvailable: availability.available,
     subdomainSuggestions: suggestions,
     featuresToEnable,
+    disabledFeatureKeys,
     actionPreview: "",
     warnings,
   };
@@ -572,6 +586,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
   if (existingEmail) throw new Error(`User email already exists: ${preview.adminEmail}`);
 
   const featuresToEnable = uniquePreserveOrder(preview.featuresToEnable.map((featureKey) => toCanonicalFeatureKey(featureKey)).filter(Boolean));
+  const featuresToDisable = uniquePreserveOrder(preview.disabledFeatureKeys.map((featureKey) => toCanonicalFeatureKey(featureKey)).filter(Boolean));
   const bundleCodesToEnable = uniquePreserveOrder(preview.bundleCodes);
   const [plan, passwordHash, preparedCatalog] = await Promise.all([
     ensurePlan(preview.tierCode),
@@ -579,6 +594,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     prepareProvisioningCatalog({
       bundleCodesToEnable,
       featuresToEnable,
+      featuresToDisable,
     }),
   ]);
 
@@ -659,6 +675,18 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
                 featureId: feature.id,
                 isEnabled: true,
                 reason: `Provision template ${preview.featureTemplate}`,
+              })),
+              skipDuplicates: true,
+            });
+          }
+
+          if (preparedCatalog.featureRowsForDisable.length > 0) {
+            await trx.companyFeatureFlag.createMany({
+              data: preparedCatalog.featureRowsForDisable.map((feature) => ({
+                companyId: company.id,
+                featureId: feature.id,
+                isEnabled: false,
+                reason: `Provision template ${preview.featureTemplate} disabled feature`,
               })),
               skipDuplicates: true,
             });

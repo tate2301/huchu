@@ -71,6 +71,7 @@ import { getTierDefinition } from "../../lib/platform/feature-catalog";
 import {
   CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateBundleCodes,
+  getClientTemplateDisabledFeatureKeys,
   getClientTemplateDefinition,
   getClientTemplateFeatureKeys,
   getClientTemplateWorkspaceProfile,
@@ -976,6 +977,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
 
   const bundleCodes = getClientTemplateBundleCodes(template.code);
   const featureKeys = getClientTemplateFeatureKeys(template.code, tierCode);
+  const disabledFeatureKeys = getClientTemplateDisabledFeatureKeys(template.code);
 
   const beforeSubscription = await prisma.companySubscription.findFirst({
     where: { companyId: input.companyId },
@@ -1031,6 +1033,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
   }
 
   const enabledFeatures: string[] = [];
+  const disabledFeatures: string[] = [];
   for (const featureKey of featureKeys) {
     const result = await setFeature({
       companyId: input.companyId,
@@ -1041,6 +1044,18 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
     });
     if (result.enabled) {
       enabledFeatures.push(result.feature);
+    }
+  }
+  for (const featureKey of disabledFeatureKeys) {
+    const result = await setFeature({
+      companyId: input.companyId,
+      featureKey,
+      enabled: false,
+      actor: input.actor,
+      reason: input.reason ?? `Template ${template.code} disabled feature`,
+    });
+    if (!result.enabled) {
+      disabledFeatures.push(result.feature);
     }
   }
 
@@ -1069,6 +1084,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
       enabledBundles,
       disabledBundles,
       enabledFeatureCount: enabledFeatures.length,
+      disabledFeatureCount: disabledFeatures.length,
       workspaceProfile,
     },
   });
