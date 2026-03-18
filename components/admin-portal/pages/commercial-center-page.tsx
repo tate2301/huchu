@@ -6,12 +6,6 @@ import { RefreshCcw, TriangleAlert } from "lucide-react";
 import { executeOperation, fetchCommercialCenter, fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { CommercialCenterData, WorkspaceOverview } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import {
   AddonStateDialog,
   ApplyTemplateDialog,
@@ -22,29 +16,265 @@ import {
   RecomputePricingDialog,
   SubscriptionStatusDialog,
 } from "@/components/admin-portal/wizards/commercial-center-wizards";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { cn } from "@/lib/utils";
 
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString()}`;
+type PlatformCommercialRow = CommercialCenterData["overview"]["workspaces"][number];
+
+function formatCurrency(value: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "Not available";
+  if (!value) return "No date";
   return new Date(value).toLocaleDateString();
 }
 
 function getPlatformInitialView(view?: string) {
-  if (view === "templates" || view === "bundles" || view === "catalog") return view;
-  return "subscriptions";
+  if (["overview", "due", "renewals", "workspaces", "templates", "bundles", "catalog"].includes(view ?? "")) {
+    return view ?? "overview";
+  }
+  return "overview";
 }
 
 function getCompanyInitialView(view?: string) {
-  if (view === "templates" || view === "addons" || view === "features") return view;
-  return "subscription";
+  if (["overview", "templates", "addons", "features"].includes(view ?? "")) {
+    return view ?? "overview";
+  }
+  return "overview";
 }
 
 function featureGroupKey(featureKey: string) {
   const [domain] = featureKey.split(".");
   return domain?.toUpperCase() || "GENERAL";
+}
+
+function selectClassName() {
+  return "h-9 rounded-xl border-none bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-strong)] shadow-none outline-none";
+}
+
+function bucketLabel(value: PlatformCommercialRow["dueBucket"]) {
+  switch (value) {
+    case "OVERDUE":
+      return "Overdue";
+    case "DUE_THIS_MONTH":
+      return "This month";
+    case "NEXT_30_DAYS":
+      return "Next 30d";
+    case "FUTURE":
+      return "Future";
+    case "NO_SCHEDULE":
+      return "No schedule";
+    default:
+      return "No subscription";
+  }
+}
+
+function riskLabel(value: PlatformCommercialRow["riskBucket"]) {
+  switch (value) {
+    case "HEALTHY":
+      return "Healthy";
+    case "AT_RISK":
+      return "At risk";
+    case "OVERDUE":
+      return "Overdue";
+    default:
+      return "Missing";
+  }
+}
+
+function bucketTone(value: PlatformCommercialRow["riskBucket"] | PlatformCommercialRow["dueBucket"]) {
+  if (value === "OVERDUE") return "bg-[#fff2ef] text-[#9a2c1d]";
+  if (value === "AT_RISK" || value === "DUE_THIS_MONTH" || value === "NEXT_30_DAYS") return "bg-[#fff7dd] text-[#8a6300]";
+  if (value === "HEALTHY" || value === "FUTURE") return "bg-[#ecf8f2] text-[#1d6a4d]";
+  return "bg-[var(--surface-muted)] text-[var(--text-muted)]";
+}
+
+function relativeDueLabel(row: PlatformCommercialRow) {
+  if (row.daysOverdue !== null) return `${row.daysOverdue}d overdue`;
+  if (row.daysUntilEnd !== null) return `${row.daysUntilEnd}d`;
+  return "No schedule";
+}
+
+function CompactPill({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode;
+  tone?: "muted" | "strong" | "warning" | "danger" | "success";
+}) {
+  const className =
+    tone === "danger"
+      ? "bg-[#fff2ef] text-[#9a2c1d]"
+      : tone === "warning"
+        ? "bg-[#fff7dd] text-[#8a6300]"
+        : tone === "success"
+          ? "bg-[#ecf8f2] text-[#1d6a4d]"
+          : tone === "strong"
+            ? "bg-[var(--surface-base)] text-[var(--text-strong)]"
+            : "bg-[var(--surface-muted)] text-[var(--text-muted)]";
+
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium", className)}>
+      {children}
+    </span>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 shadow-none">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{label}</p>
+      <p className="mt-1 font-mono text-lg font-semibold text-[var(--text-strong)]">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-[var(--text-muted)]">{hint}</p> : null}
+    </div>
+  );
+}
+
+function ProjectionStrip({ projections }: { projections: CommercialCenterData["overview"]["projections"] }) {
+  const peak = Math.max(...projections.map((bucket) => bucket.committedAmount), 1);
+
+  return (
+    <div className="grid gap-2 md:grid-cols-4">
+      {projections.map((bucket) => {
+        const committedHeight = Math.max(8, Math.round((bucket.committedAmount / peak) * 52));
+        const atRiskHeight = Math.max(0, Math.round((bucket.atRiskAmount / peak) * 52));
+
+        return (
+          <div key={bucket.id} className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 shadow-none">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{bucket.label}</p>
+              <p className="font-mono text-xs text-[var(--text-muted)]">{bucket.workspaceCount} ws</p>
+            </div>
+            <div className="mt-3 flex h-14 items-end gap-1.5">
+              <div className="w-6 rounded-full bg-[var(--surface-muted)]" style={{ height: committedHeight }} />
+              <div className="w-6 rounded-full bg-[#f3c453]" style={{ height: atRiskHeight }} />
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs">
+              <span className="text-[var(--text-muted)]">Committed</span>
+              <span className="font-mono text-[var(--text-strong)]">{formatCurrency(bucket.committedAmount)}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-xs">
+              <span className="text-[var(--text-muted)]">At risk</span>
+              <span className="font-mono text-[var(--text-strong)]">{formatCurrency(bucket.atRiskAmount)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorkspaceRevenueTable({
+  rows,
+  actorEmail,
+  companies,
+  plans,
+  refresh,
+}: {
+  rows: PlatformCommercialRow[];
+  actorEmail: string;
+  companies: ReturnType<typeof useAdminShell>["companies"];
+  plans: CommercialCenterData["plans"];
+  refresh: () => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[980px] text-sm">
+        <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <tr>
+            <th className="px-3 py-2">Workspace</th>
+            <th className="px-3 py-2">Commercial</th>
+            <th className="px-3 py-2">Due</th>
+            <th className="px-3 py-2">Health</th>
+            <th className="px-3 py-2 text-right">Footprint</th>
+            <th className="px-3 py-2 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+          {rows.map((row) => (
+            <tr key={row.companyId} className="align-top">
+              <td className="px-3 py-3">
+                <Link href={`/admin/company/${row.companyId}/commercial`} className="font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+                  {row.companyName}
+                </Link>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">{row.companySlug ?? row.companyId}</p>
+              </td>
+              <td className="px-3 py-3">
+                <p className="font-medium text-[var(--text-strong)]">{row.planName ?? "No plan"}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs text-[var(--text-muted)]">{formatCurrency(row.monthlyAmount, row.currency)}/mo</span>
+                  {row.subscriptionStatus ? <CompactPill>{row.subscriptionStatus}</CompactPill> : <CompactPill tone="danger">No subscription</CompactPill>}
+                </div>
+              </td>
+              <td className="px-3 py-3">
+                <p className="font-mono text-xs text-[var(--text-strong)]">{formatDate(row.currentPeriodEnd)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium", bucketTone(row.dueBucket))}>{bucketLabel(row.dueBucket)}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{relativeDueLabel(row)}</span>
+                </div>
+              </td>
+              <td className="px-3 py-3">
+                <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium", bucketTone(row.riskBucket))}>{riskLabel(row.riskBucket)}</span>
+                <p className="mt-1 max-w-[18rem] text-xs text-[var(--text-muted)]">{row.healthReason}</p>
+              </td>
+              <td className="px-3 py-3 text-right">
+                <p className="font-mono text-xs text-[var(--text-strong)]">{row.siteCount} sites</p>
+                <p className="mt-1 font-mono text-xs text-[var(--text-muted)]">{row.addonCount} add-ons</p>
+              </td>
+              <td className="px-3 py-3">
+                <div className="flex flex-wrap justify-end gap-2">
+                  {row.subscriptionId ? (
+                    <RecomputePricingDialog
+                      companyId={row.companyId}
+                      companyName={row.companyName}
+                      triggerLabel="Recompute"
+                      buttonVariant="outline"
+                      onCompleted={refresh}
+                    />
+                  ) : null}
+                  <SubscriptionStatusDialog
+                    actorEmail={actorEmail}
+                    companies={companies}
+                    fixedCompanyId={row.companyId}
+                    defaultStatus={row.subscriptionStatus}
+                    triggerLabel="Status"
+                    buttonVariant="outline"
+                    onCompleted={refresh}
+                  />
+                  <AssignTierDialog
+                    actorEmail={actorEmail}
+                    companies={companies}
+                    plans={plans}
+                    fixedCompanyId={row.companyId}
+                    defaultTierCode={row.planCode}
+                    triggerLabel="Tier"
+                    buttonVariant="outline"
+                    onCompleted={refresh}
+                  />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function CommercialCenterPage({
@@ -60,7 +290,12 @@ export function CommercialCenterPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [subscriptionSearch, setSubscriptionSearch] = useState("");
+  const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [riskFilter, setRiskFilter] = useState("all");
+  const [dueFilter, setDueFilter] = useState("all");
+  const [planFilter, setPlanFilter] = useState("all");
+  const [renewalWindow, setRenewalWindow] = useState("90");
   const [templateSearch, setTemplateSearch] = useState("");
   const [bundleSearch, setBundleSearch] = useState("");
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -69,7 +304,6 @@ export function CommercialCenterPage({
   const [featureReason, setFeatureReason] = useState("");
   const [featureDraft, setFeatureDraft] = useState<Record<string, boolean>>({});
   const [savingFeatures, setSavingFeatures] = useState(false);
-
   const isCompanyScope = Boolean(companyId);
   const [view, setView] = useState(() => (companyId ? getCompanyInitialView(initialView) : getPlatformInitialView(initialView)));
 
@@ -122,31 +356,25 @@ export function CommercialCenterPage({
 
   const items = isCompanyScope
     ? [
-        { id: "subscription", label: "Subscription" },
+        { id: "overview", label: "Overview" },
         { id: "templates", label: "Templates", count: commercial?.templates.length ?? 0 },
         { id: "addons", label: "Add-ons", count: overview?.addons.length ?? 0 },
         { id: "features", label: "Feature Access", count: overview?.features.length ?? 0 },
       ]
     : [
-        { id: "subscriptions", label: "Subscriptions", count: commercial?.subscriptions.length ?? 0 },
+        { id: "overview", label: "Overview" },
+        { id: "due", label: "Due now", count: commercial?.overview.dueNow.length ?? 0 },
+        { id: "renewals", label: "Renewals", count: commercial?.overview.renewals.length ?? 0 },
+        { id: "workspaces", label: "Workspaces", count: commercial?.overview.workspaces.length ?? 0 },
         { id: "templates", label: "Templates", count: commercial?.templates.length ?? 0 },
         { id: "bundles", label: "Bundles", count: commercial?.bundleCatalog.length ?? 0 },
-        { id: "catalog", label: "Feature Catalog", count: commercial?.featureCatalog.length ?? 0 },
+        { id: "catalog", label: "Catalog", count: commercial?.featureCatalog.length ?? 0 },
       ];
 
   const pendingFeatureChanges = useMemo(() => {
     if (!overview) return 0;
     return overview.features.filter((feature) => featureDraft[feature.feature] !== feature.enabled).length;
   }, [featureDraft, overview]);
-
-  const filteredSubscriptions = useMemo(() => {
-    const normalized = subscriptionSearch.trim().toLowerCase();
-    return commercial?.subscriptions.filter((subscription) => {
-      if (!normalized) return true;
-      const haystack = `${subscription.companyName ?? ""} ${subscription.companySlug ?? ""} ${subscription.planName ?? ""} ${subscription.planCode ?? ""} ${subscription.status}`.toLowerCase();
-      return haystack.includes(normalized);
-    }) ?? [];
-  }, [commercial?.subscriptions, subscriptionSearch]);
 
   const filteredTemplates = useMemo(() => {
     const normalized = templateSearch.trim().toLowerCase();
@@ -195,6 +423,63 @@ export function CommercialCenterPage({
     });
   }, [featureSearch, overview]);
 
+  const filteredPlatformRows = useMemo(() => {
+    const normalized = workspaceSearch.trim().toLowerCase();
+    const rows = commercial?.overview.workspaces ?? [];
+
+    return rows
+      .filter((row) => {
+        const matchesSearch =
+          !normalized ||
+          `${row.companyName} ${row.companySlug ?? ""} ${row.planName ?? ""} ${row.planCode ?? ""} ${row.subscriptionStatus ?? ""}`.toLowerCase().includes(normalized);
+        const matchesStatus = statusFilter === "all" || row.subscriptionStatus === statusFilter;
+        const matchesRisk = riskFilter === "all" || row.riskBucket === riskFilter;
+        const matchesDue = dueFilter === "all" || row.dueBucket === dueFilter;
+        const matchesPlan = planFilter === "all" || row.planCode === planFilter;
+        return matchesSearch && matchesStatus && matchesRisk && matchesDue && matchesPlan;
+      })
+      .sort((left, right) => {
+        const riskRank = { OVERDUE: 0, AT_RISK: 1, MISSING: 2, HEALTHY: 3 } as const;
+        const leftRank = riskRank[left.riskBucket];
+        const rightRank = riskRank[right.riskBucket];
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return right.monthlyAmount - left.monthlyAmount;
+      });
+  }, [commercial?.overview.workspaces, dueFilter, planFilter, riskFilter, statusFilter, workspaceSearch]);
+
+  const filteredDueRows = useMemo(() => {
+    const rows = commercial?.overview.dueNow ?? [];
+    const normalized = workspaceSearch.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      const matchesSearch =
+        !normalized ||
+        `${row.companyName} ${row.companySlug ?? ""} ${row.planName ?? ""} ${row.subscriptionStatus ?? ""}`.toLowerCase().includes(normalized);
+      const matchesRisk = riskFilter === "all" || row.riskBucket === riskFilter;
+      const matchesStatus = statusFilter === "all" || row.subscriptionStatus === statusFilter;
+      return matchesSearch && matchesRisk && matchesStatus;
+    });
+  }, [commercial?.overview.dueNow, riskFilter, statusFilter, workspaceSearch]);
+
+  const filteredRenewals = useMemo(() => {
+    const rows = commercial?.overview.renewals ?? [];
+    const normalized = workspaceSearch.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      const matchesSearch =
+        !normalized ||
+        `${row.companyName} ${row.companySlug ?? ""} ${row.planName ?? ""} ${row.subscriptionStatus ?? ""}`.toLowerCase().includes(normalized);
+      const matchesStatus = statusFilter === "all" || row.subscriptionStatus === statusFilter;
+      const matchesPlan = planFilter === "all" || row.planCode === planFilter;
+      const matchesWindow =
+        renewalWindow === "all" ||
+        (renewalWindow === "7" && (row.daysUntilEnd ?? 999) <= 7) ||
+        (renewalWindow === "30" && (row.daysUntilEnd ?? 999) <= 30) ||
+        (renewalWindow === "90" && (row.daysUntilEnd ?? 999) <= 90);
+      return matchesSearch && matchesStatus && matchesPlan && matchesWindow;
+    });
+  }, [commercial?.overview.renewals, planFilter, renewalWindow, statusFilter, workspaceSearch]);
+
   const saveFeatureDraft = async () => {
     if (!overview || !companyId || pendingFeatureChanges === 0) return;
 
@@ -224,27 +509,17 @@ export function CommercialCenterPage({
     }
   };
 
-  const discardFeatureDraft = () => {
-    if (!overview) return;
-    setFeatureDraft(Object.fromEntries(overview.features.map((feature) => [feature.feature, feature.enabled])));
-    setFeatureReason("");
-  };
-
-  const resetFeatureDraft = () => {
-    refresh();
-  };
-
   if (loading) {
     return (
-      <Card className="bg-[var(--surface-base)] shadow-none">
-        <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading commercial center...</CardContent>
+      <Card className="border-none bg-[var(--surface-base)] shadow-none">
+        <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading commercial...</CardContent>
       </Card>
     );
   }
 
   if (error || !commercial || (isCompanyScope && !overview)) {
     return (
-      <Card className="bg-[var(--surface-base)] shadow-none">
+      <Card className="border-none bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Commercial center data is unavailable."}</p>
           <Button variant="outline" onClick={refresh}>Retry</Button>
@@ -253,47 +528,28 @@ export function CommercialCenterPage({
     );
   }
 
-  const scopeTitle = isCompanyScope ? `${overview?.company.name ?? "Workspace"} commercial center` : "Commercial Center";
+  const scopeTitle = isCompanyScope ? overview?.company.name ?? "Workspace commercial" : "Commercial";
+  const planOptions = Array.from(new Set((commercial.overview.workspaces ?? []).map((row) => row.planCode).filter(Boolean))) as string[];
+  const summary = commercial.overview.summary;
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">{isCompanyScope ? "Organization scope" : "Platform scope"}</Badge>
-            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">Commercial center</Badge>
+          <div className="flex items-center gap-2">
+            <CompactPill tone="muted">{isCompanyScope ? "Workspace" : "Platform"}</CompactPill>
+            <CompactPill tone="strong">Commercial</CompactPill>
           </div>
-          <h1 className="text-2xl font-semibold">{scopeTitle}</h1>
+          <h1 className="text-2xl font-semibold text-[var(--text-strong)]">{scopeTitle}</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {isCompanyScope ? (
             <>
-              <AssignTierDialog
-                actorEmail={actorEmail}
-                companies={companies}
-                plans={commercial.plans}
-                fixedCompanyId={companyId}
-                defaultTierCode={overview?.subscription?.planCode}
-                triggerLabel="Change tier"
-                onCompleted={refresh}
-              />
-              <ApplyTemplateDialog
-                actorEmail={actorEmail}
-                companies={companies}
-                templates={commercial.templates}
-                fixedCompanyId={companyId}
-                triggerLabel="Apply template"
-                buttonVariant="outline"
-                onCompleted={refresh}
-              />
-              <RecomputePricingDialog
-                companyId={companyId!}
-                companyName={overview?.company.name ?? "Workspace"}
-                triggerLabel="Recompute pricing"
-                buttonVariant="outline"
-                onCompleted={refresh}
-              />
+              <AssignTierDialog actorEmail={actorEmail} companies={companies} plans={commercial.plans} fixedCompanyId={companyId} defaultTierCode={overview?.subscription?.planCode} triggerLabel="Change tier" onCompleted={refresh} />
+              <SubscriptionStatusDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} defaultStatus={overview?.subscription?.status} triggerLabel="Set status" onCompleted={refresh} />
+              <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={companyId} triggerLabel="Apply template" onCompleted={refresh} />
+              <RecomputePricingDialog companyId={companyId!} companyName={overview?.company.name ?? "Workspace"} triggerLabel="Recompute" onCompleted={refresh} />
             </>
           ) : (
             <>
@@ -309,102 +565,215 @@ export function CommercialCenterPage({
         </div>
       </div>
 
-      <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Commercial views">
-        {!isCompanyScope && view === "subscriptions" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+      <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Commercial">
+        {!isCompanyScope && view === "overview" ? (
+          <div className="space-y-3">
+            <div className="grid gap-2 xl:grid-cols-5">
+              <MetricTile label="Committed MRR" value={formatCurrency(summary.committedMrr)} hint={`${summary.subscribedWorkspaceCount} subscribed`} />
+              <MetricTile label="Due This Month" value={formatCurrency(summary.dueThisMonth)} hint="Current cycle due" />
+              <MetricTile label="Overdue" value={formatCurrency(summary.overdueExposure)} hint="Past period end" />
+              <MetricTile label="At Risk" value={formatCurrency(summary.atRiskRevenue)} hint="Grace, expiry, or past due" />
+              <MetricTile label="Next 30d Renewals" value={formatCurrency(summary.next30RenewalValue)} hint={`${summary.next30RenewalCount} workspaces`} />
+            </div>
+
+            <ProjectionStrip projections={commercial.overview.projections} />
+
+            <div className="flex flex-wrap items-center gap-2">
+              {commercial.overview.planMix.slice(0, 6).map((plan) => (
+                <CompactPill key={plan.planCode}>
+                  {plan.planName} · {plan.workspaceCount} · {formatCurrency(plan.monthlyAmount)}
+                </CompactPill>
+              ))}
+            </div>
+
+            <Card className="border-none bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 pb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-base">Revenue pipeline</CardTitle>
+                  <CompactPill>{filteredPlatformRows.length} workspaces</CompactPill>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
+                    <option value="all">All statuses</option>
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="TRIALING">TRIALING</option>
+                    <option value="PAST_DUE">PAST_DUE</option>
+                    <option value="CANCELED">CANCELED</option>
+                    <option value="EXPIRED">EXPIRED</option>
+                  </select>
+                  <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} className={selectClassName()}>
+                    <option value="all">All risk</option>
+                    <option value="HEALTHY">Healthy</option>
+                    <option value="AT_RISK">At risk</option>
+                    <option value="OVERDUE">Overdue</option>
+                    <option value="MISSING">Missing</option>
+                  </select>
+                  <select value={dueFilter} onChange={(event) => setDueFilter(event.target.value)} className={selectClassName()}>
+                    <option value="all">All due buckets</option>
+                    <option value="OVERDUE">Overdue</option>
+                    <option value="DUE_THIS_MONTH">This month</option>
+                    <option value="NEXT_30_DAYS">Next 30d</option>
+                    <option value="FUTURE">Future</option>
+                    <option value="NO_SCHEDULE">No schedule</option>
+                    <option value="NO_SUBSCRIPTION">No subscription</option>
+                  </select>
+                  <select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)} className={selectClassName()}>
+                    <option value="all">All plans</option>
+                    {planOptions.map((plan) => (
+                      <option key={plan} value={plan}>{plan}</option>
+                    ))}
+                  </select>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <WorkspaceRevenueTable rows={filteredPlatformRows} actorEmail={actorEmail} companies={companies} plans={commercial.plans} refresh={refresh} />
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
+
+        {!isCompanyScope && view === "due" ? (
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Workspace subscriptions</CardTitle>
-                  </div>
-                <Badge variant="outline" className="font-mono">{filteredSubscriptions.length} workspaces</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Due now</CardTitle>
+                <CompactPill tone="warning">{filteredDueRows.length} workspaces</CompactPill>
               </div>
-              <div className="w-full md:w-80">
-                <Input value={subscriptionSearch} onChange={(event) => setSubscriptionSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+              <div className="flex flex-wrap items-center gap-2">
+                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All statuses</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="TRIALING">TRIALING</option>
+                  <option value="PAST_DUE">PAST_DUE</option>
+                  <option value="CANCELED">CANCELED</option>
+                  <option value="EXPIRED">EXPIRED</option>
+                </select>
+                <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All risk</option>
+                  <option value="AT_RISK">At risk</option>
+                  <option value="OVERDUE">Overdue</option>
+                  <option value="HEALTHY">Healthy</option>
+                </select>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-4 py-3">Workspace</th>
-                    <th className="px-4 py-3">Plan</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Period End</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSubscriptions.map((subscription) => (
-                    <tr key={subscription.id} className="border-t border-[var(--border)] align-top">
-                      <td className="px-4 py-3">
-                        <Link href={`/admin/clients/${subscription.companyId}`} className="font-medium underline-offset-4 hover:underline">
-                          {subscription.companyName ?? subscription.companyId}
-                        </Link>
-                        <p className="text-xs text-[var(--text-muted)]">{subscription.companySlug ?? subscription.companyId}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p>{subscription.planName ?? "No plan"}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{subscription.planCode ?? "No code"}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline">{subscription.status}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(subscription.currentPeriodEnd)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <AssignTierDialog actorEmail={actorEmail} companies={companies} plans={commercial.plans} fixedCompanyId={subscription.companyId} defaultTierCode={subscription.planCode} triggerLabel="Change tier" onCompleted={refresh} />
-                          <SubscriptionStatusDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={subscription.companyId} defaultStatus={subscription.status} triggerLabel="Set status" onCompleted={refresh} />
-                          <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={subscription.companyId} triggerLabel="Apply template" onCompleted={refresh} />
-                        </div>
-                      </td>
-                    </tr>
+            <CardContent className="p-0">
+              <WorkspaceRevenueTable rows={filteredDueRows} actorEmail={actorEmail} companies={companies} plans={commercial.plans} refresh={refresh} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!isCompanyScope && view === "renewals" ? (
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Renewals</CardTitle>
+                <CompactPill tone="warning">{filteredRenewals.length} workspaces</CompactPill>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                <select value={renewalWindow} onChange={(event) => setRenewalWindow(event.target.value)} className={selectClassName()}>
+                  <option value="90">Next 90d</option>
+                  <option value="30">Next 30d</option>
+                  <option value="7">Next 7d</option>
+                  <option value="all">All</option>
+                </select>
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All statuses</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="TRIALING">TRIALING</option>
+                  <option value="PAST_DUE">PAST_DUE</option>
+                </select>
+                <select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All plans</option>
+                  {planOptions.map((plan) => (
+                    <option key={plan} value={plan}>{plan}</option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <WorkspaceRevenueTable rows={filteredRenewals} actorEmail={actorEmail} companies={companies} plans={commercial.plans} refresh={refresh} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!isCompanyScope && view === "workspaces" ? (
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Workspace commercial base</CardTitle>
+                <CompactPill>{filteredPlatformRows.length} workspaces</CompactPill>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All statuses</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="TRIALING">TRIALING</option>
+                  <option value="PAST_DUE">PAST_DUE</option>
+                  <option value="CANCELED">CANCELED</option>
+                  <option value="EXPIRED">EXPIRED</option>
+                </select>
+                <select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All plans</option>
+                  {planOptions.map((plan) => (
+                    <option key={plan} value={plan}>{plan}</option>
+                  ))}
+                </select>
+                <select value={dueFilter} onChange={(event) => setDueFilter(event.target.value)} className={selectClassName()}>
+                  <option value="all">All due buckets</option>
+                  <option value="OVERDUE">Overdue</option>
+                  <option value="DUE_THIS_MONTH">This month</option>
+                  <option value="NEXT_30_DAYS">Next 30d</option>
+                  <option value="FUTURE">Future</option>
+                  <option value="NO_SCHEDULE">No schedule</option>
+                  <option value="NO_SUBSCRIPTION">No subscription</option>
+                </select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <WorkspaceRevenueTable rows={filteredPlatformRows} actorEmail={actorEmail} companies={companies} plans={commercial.plans} refresh={refresh} />
             </CardContent>
           </Card>
         ) : null}
 
         {view === "templates" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Template catalog</CardTitle>
-                  </div>
-                <Badge variant="outline" className="font-mono">{filteredTemplates.length} templates</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Templates</CardTitle>
+                <CompactPill>{filteredTemplates.length} templates</CompactPill>
               </div>
-              <div className="w-full md:w-80">
-                <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-              </div>
+              <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   <tr>
-                    <th className="px-4 py-3">Template</th>
-                    <th className="px-4 py-3">Recommended tier</th>
-                    <th className="px-4 py-3">Bundles</th>
-                    <th className="px-4 py-3">Features</th>
-                    <th className="px-4 py-3">Description</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-3 py-2">Template</th>
+                    <th className="px-3 py-2">Tier</th>
+                    <th className="px-3 py-2">Bundles</th>
+                    <th className="px-3 py-2">Features</th>
+                    <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
                   {filteredTemplates.map((template) => (
-                    <tr key={template.code} className="border-t border-[var(--border)] align-top">
-                      <td className="px-4 py-3">
+                    <tr key={template.code} className="align-top">
+                      <td className="px-3 py-3">
                         <p className="font-medium">{template.label}</p>
                         <p className="text-xs text-[var(--text-muted)]">{template.code}</p>
                       </td>
-                      <td className="px-4 py-3"><Badge variant="outline">{template.recommendedTierCode}</Badge></td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">{template.bundleCodes.join(", ") || "No bundles"}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{template.featureCount}</td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">{template.description}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3"><CompactPill>{template.recommendedTierCode}</CompactPill></td>
+                      <td className="px-3 py-3 text-[var(--text-muted)]">{template.bundleCodes.join(", ") || "No bundles"}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-[var(--text-muted)]">{template.featureCount}</td>
+                      <td className="px-3 py-3 text-[var(--text-muted)]">{template.description}</td>
+                      <td className="px-3 py-3">
                         <div className="flex justify-end">
-                          <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={companyId} defaultTemplateCode={template.code} triggerLabel={isCompanyScope ? "Apply to workspace" : "Apply template"} onCompleted={refresh} />
+                          <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={companyId} defaultTemplateCode={template.code} triggerLabel={isCompanyScope ? "Apply" : "Apply template"} onCompleted={refresh} />
                         </div>
                       </td>
                     </tr>
@@ -416,21 +785,17 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "bundles" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Bundle catalog</CardTitle>
-                  </div>
-                <Badge variant="outline" className="font-mono">{filteredBundles.length} bundles</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Bundles</CardTitle>
+                <CompactPill>{filteredBundles.length} bundles</CompactPill>
               </div>
-              <div className="w-full md:w-80">
-                <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-              </div>
+              <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   <tr>
                     <th className="px-3 py-2">Bundle</th>
                     <th className="px-3 py-2">Pricing</th>
@@ -440,21 +805,21 @@ export function CommercialCenterPage({
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
                   {filteredBundles.map((bundle) => (
-                    <tr key={bundle.code} className="border-t border-[var(--border)] align-top">
-                      <td className="px-4 py-3">
+                    <tr key={bundle.code} className="align-top">
+                      <td className="px-3 py-3">
                         <p className="font-medium">{bundle.name}</p>
                         <p className="text-xs text-[var(--text-muted)]">{bundle.code}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <p className="font-mono">{formatCurrency(bundle.monthlyPrice)}</p>
                         <p className="text-xs text-[var(--text-muted)]">{formatCurrency(bundle.additionalSiteMonthlyPrice)}/site</p>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{bundle.featureKeys.length}</td>
-                      <td className="px-4 py-3"><Badge variant="outline">{bundle.source}</Badge></td>
-                      <td className="px-4 py-3"><Badge variant={bundle.isActive ? "secondary" : "outline"}>{bundle.isActive ? "ACTIVE" : "INACTIVE"}</Badge></td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 font-mono text-xs text-[var(--text-muted)]">{bundle.featureKeys.length}</td>
+                      <td className="px-3 py-3"><CompactPill>{bundle.source}</CompactPill></td>
+                      <td className="px-3 py-3"><CompactPill tone={bundle.isActive ? "success" : "muted"}>{bundle.isActive ? "Active" : "Inactive"}</CompactPill></td>
+                      <td className="px-3 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           <BundleUpsertDialog actorEmail={actorEmail} bundle={bundle} triggerLabel="Edit" onCompleted={refresh} />
                           <BundleFeatureMapDialog actorEmail={actorEmail} bundle={bundle} featureCatalog={commercial.featureCatalog} triggerLabel="Map features" onCompleted={refresh} />
@@ -469,33 +834,29 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "catalog" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Feature catalog</CardTitle>
-                  </div>
-                <Badge variant="outline" className="font-mono">{filteredCatalog.length} features</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Feature catalog</CardTitle>
+                <CompactPill>{filteredCatalog.length} features</CompactPill>
               </div>
-              <div className="w-full md:w-80">
-                <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-              </div>
+              <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   <tr>
                     <th className="px-3 py-2">Feature</th>
                     <th className="px-3 py-2">Key</th>
-                    <th className="px-3 py-2">Platform active</th>
+                    <th className="px-3 py-2">Platform</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
                   {filteredCatalog.map((feature) => (
-                    <tr key={feature.feature} className="border-t border-[var(--border)]">
-                      <td className="px-4 py-3">{feature.featureLabel}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{feature.feature}</td>
-                      <td className="px-4 py-3"><Badge variant={feature.platformActive ? "secondary" : "outline"}>{feature.platformActive ? "ACTIVE" : "INACTIVE"}</Badge></td>
+                    <tr key={feature.feature}>
+                      <td className="px-3 py-3">{feature.featureLabel}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-[var(--text-muted)]">{feature.feature}</td>
+                      <td className="px-3 py-3"><CompactPill tone={feature.platformActive ? "success" : "muted"}>{feature.platformActive ? "Active" : "Inactive"}</CompactPill></td>
                     </tr>
                   ))}
                 </tbody>
@@ -504,75 +865,116 @@ export function CommercialCenterPage({
           </Card>
         ) : null}
 
-        {isCompanyScope && view === "subscription" ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-            <Card className="bg-[var(--surface-base)] shadow-none">
-              <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Subscription review</CardTitle>
-                  </div>
-                  <Badge variant="outline" className="font-mono">{overview?.subscription?.status ?? "No record"}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="overflow-x-auto p-0">
-                <table className="w-full text-sm">
-                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                    <tr>
-                      <th className="px-4 py-3">Plan</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3 text-right">Period End</th>
-                      <th className="px-4 py-3 text-right">Monthly total</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-[var(--border)] align-top">
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{overview?.subscription?.planName ?? "No plan assigned"}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{overview?.subscription?.planCode ?? "No plan code"}</p>
-                      </td>
-                      <td className="px-4 py-3"><Badge variant="outline">{overview?.subscription?.status ?? "UNASSIGNED"}</Badge></td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(overview?.subscription?.currentPeriodEnd)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <AssignTierDialog actorEmail={actorEmail} companies={companies} plans={commercial.plans} fixedCompanyId={companyId} defaultTierCode={overview?.subscription?.planCode} triggerLabel="Change tier" onCompleted={refresh} />
-                          <SubscriptionStatusDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} defaultStatus={overview?.subscription?.status} triggerLabel="Set status" onCompleted={refresh} />
-                          <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} fixedCompanyId={companyId} triggerLabel="Apply template" onCompleted={refresh} />
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+        {isCompanyScope && view === "overview" ? (
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-4">
+                <MetricTile label="Monthly total" value={overview?.pricing ? formatCurrency(overview.pricing.total, overview.pricing.currency) : "N/A"} hint={overview?.subscription?.planName ?? "No plan"} />
+                <MetricTile label="Next cycle" value={formatDate(overview?.subscription?.currentPeriodEnd)} hint={overview?.subscription?.status ?? "No record"} />
+                <MetricTile label="Snapshot" value={overview?.pricing?.snapshotTotal !== null && overview?.pricing?.snapshotTotal !== undefined ? formatCurrency(overview.pricing.snapshotTotal, overview.pricing.currency) : "Not stored"} hint="Last stored total" />
+                <MetricTile label="Footprint" value={`${overview?.sites.filter((site) => site.isActive).length ?? 0} sites`} hint={`${overview?.addons.filter((addon) => addon.enabled).length ?? 0} add-ons`} />
+              </div>
 
-            <div className="space-y-3 xl:sticky xl:top-20">
-              <Card className="bg-[var(--surface-base)] shadow-none">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-base">Pricing snapshot</CardTitle>
+              <Card className="border-none bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="gap-3 pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-base">Billing position</CardTitle>
+                    <CompactPill tone={overview?.subscriptionHealth?.shouldBlock ? "danger" : overview?.subscriptionHealth?.state === "EXPIRING_SOON" || overview?.subscriptionHealth?.state === "IN_GRACE" ? "warning" : "success"}>
+                      {overview?.subscriptionHealth?.state ?? "No signal"}
+                    </CompactPill>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Monthly total</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</span></div>
-                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Tier base</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.tierBase) : "N/A"}</span></div>
-                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Add-ons</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.addonBaseTotal + overview.pricing.addonSiteTotal) : "N/A"}</span></div>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                        <tr>
+                          <th className="px-3 py-2">Plan</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Period</th>
+                          <th className="px-3 py-2 text-right">Monthly</th>
+                          <th className="px-3 py-2 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="align-top">
+                          <td className="px-3 py-3">
+                            <p className="font-medium">{overview?.subscription?.planName ?? "No plan assigned"}</p>
+                            <p className="text-xs text-[var(--text-muted)]">{overview?.subscription?.planCode ?? "No plan code"}</p>
+                          </td>
+                          <td className="px-3 py-3"><CompactPill tone={overview?.subscriptionHealth?.shouldBlock ? "danger" : "muted"}>{overview?.subscription?.status ?? "UNASSIGNED"}</CompactPill></td>
+                          <td className="px-3 py-3">
+                            <p className="font-mono text-xs text-[var(--text-strong)]">{formatDate(overview?.subscription?.currentPeriodStart)}</p>
+                            <p className="mt-1 font-mono text-xs text-[var(--text-muted)]">{formatDate(overview?.subscription?.currentPeriodEnd)}</p>
+                          </td>
+                          <td className="px-3 py-3 text-right font-mono text-xs text-[var(--text-muted)]">
+                            {overview?.pricing ? `${formatCurrency(overview.pricing.total, overview.pricing.currency)}/mo` : "Unavailable"}
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <AssignTierDialog actorEmail={actorEmail} companies={companies} plans={commercial.plans} fixedCompanyId={companyId} defaultTierCode={overview?.subscription?.planCode} triggerLabel="Tier" onCompleted={refresh} />
+                              <SubscriptionStatusDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} defaultStatus={overview?.subscription?.status} triggerLabel="Status" onCompleted={refresh} />
+                              <RecomputePricingDialog companyId={companyId!} companyName={overview?.company.name ?? "Workspace"} triggerLabel="Recompute" onCompleted={refresh} />
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
-              <Card className="bg-[var(--surface-base)] shadow-none">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-base">Subscription health</CardTitle>
+
+              <Card className="border-none bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Pricing mix</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
-                  <p className="font-medium text-[var(--text-strong)]">{overview?.subscriptionHealth?.state ?? "No signal"}</p>
-                  <p>{overview?.subscriptionHealth?.reason ?? "No record."}</p>
-                  {overview?.subscriptionHealth?.shouldBlock ? (
-                    <div className="flex items-start gap-2 rounded-xl bg-[#fff2ef] px-3 py-2.5 text-[#8a1c12]">
-                      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{overview.subscriptionHealth.reason}</span>
+                <CardContent className="space-y-2">
+                  {overview?.pricing?.lineItems.map((item) => (
+                    <div key={item.code} className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--text-strong)]">{item.label}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{item.type}</p>
+                      </div>
+                      <span className="font-mono text-sm text-[var(--text-strong)]">{formatCurrency(item.amount, overview.pricing?.currency ?? "USD")}</span>
                     </div>
-                  ) : null}
-                  <RecomputePricingDialog companyId={companyId!} companyName={overview?.company.name ?? "Workspace"} triggerLabel="Recompute pricing" onCompleted={refresh} />
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-3 xl:sticky xl:top-20">
+              <Card className="border-none bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Billing health</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
+                    <p className="font-medium text-[var(--text-strong)]">{overview?.subscriptionHealth?.reason ?? "No subscription signal."}</p>
+                    {overview?.subscriptionHealth?.shouldBlock ? (
+                      <div className="mt-2 flex items-start gap-2 text-[#9a2c1d]">
+                        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span className="text-xs">Access is currently at commercial risk.</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2 rounded-2xl bg-[var(--surface-muted)] px-3 py-3 text-xs text-[var(--text-muted)]">
+                    <div className="flex items-center justify-between"><span>Started</span><span className="font-mono text-[var(--text-strong)]">{formatDate(overview?.subscription?.startedAt)}</span></div>
+                    <div className="flex items-center justify-between"><span>Period start</span><span className="font-mono text-[var(--text-strong)]">{formatDate(overview?.subscription?.currentPeriodStart)}</span></div>
+                    <div className="flex items-center justify-between"><span>Period end</span><span className="font-mono text-[var(--text-strong)]">{formatDate(overview?.subscription?.currentPeriodEnd)}</span></div>
+                    <div className="flex items-center justify-between"><span>Pricing computed</span><span className="font-mono text-[var(--text-strong)]">{formatDate(overview?.pricing?.computedAt)}</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Commercial footprint</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-2.5 text-sm"><span className="text-[var(--text-muted)]">Tier base</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.tierBase, overview.pricing.currency) : "N/A"}</span></div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-2.5 text-sm"><span className="text-[var(--text-muted)]">Site overage</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.siteOverage, overview.pricing.currency) : "N/A"}</span></div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-2.5 text-sm"><span className="text-[var(--text-muted)]">Add-ons</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.addonBaseTotal + overview.pricing.addonSiteTotal, overview.pricing.currency) : "N/A"}</span></div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-2.5 text-sm"><span className="text-[var(--text-muted)]">Feature charges</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.featureTotal, overview.pricing.currency) : "N/A"}</span></div>
                 </CardContent>
               </Card>
             </div>
@@ -580,21 +982,17 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "addons" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Workspace add-ons</CardTitle>
-                  </div>
-                <Badge variant="outline" className="font-mono">{filteredAddons.length} add-ons</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Workspace add-ons</CardTitle>
+                <CompactPill>{filteredAddons.length} add-ons</CompactPill>
               </div>
-              <div className="w-full md:w-80">
-                <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-              </div>
+              <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   <tr>
                     <th className="px-3 py-2">Add-on</th>
                     <th className="px-3 py-2">Pricing</th>
@@ -603,28 +1001,14 @@ export function CommercialCenterPage({
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
                   {filteredAddons.map((addon) => (
-                    <tr key={addon.code} className="border-t border-[var(--border)] align-top">
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{addon.name}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{addon.code}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-mono">{formatCurrency(addon.monthlyPrice)}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{formatCurrency(addon.additionalSiteMonthlyPrice)}/site</p>
-                      </td>
-                      <td className="px-4 py-3"><Badge variant={addon.enabled ? "secondary" : "outline"}>{addon.enabled ? "ENABLED" : "DISABLED"}</Badge></td>
-                      <td className="px-4 py-3 text-xs text-[var(--text-muted)]">{addon.reason ?? "No note"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end">
-                          {addon.enabled ? (
-                            <AddonStateDialog actorEmail={actorEmail} companyId={companyId!} addon={addon} enable={false} triggerLabel="Disable" onCompleted={refresh} />
-                          ) : (
-                            <AddonStateDialog actorEmail={actorEmail} companyId={companyId!} addon={addon} enable={true} triggerLabel="Enable" onCompleted={refresh} />
-                          )}
-                        </div>
-                      </td>
+                    <tr key={addon.code} className="align-top">
+                      <td className="px-3 py-3"><p className="font-medium">{addon.name}</p><p className="text-xs text-[var(--text-muted)]">{addon.code}</p></td>
+                      <td className="px-3 py-3"><p className="font-mono">{formatCurrency(addon.monthlyPrice)}</p><p className="text-xs text-[var(--text-muted)]">{formatCurrency(addon.additionalSiteMonthlyPrice)}/site</p></td>
+                      <td className="px-3 py-3"><CompactPill tone={addon.enabled ? "success" : "muted"}>{addon.enabled ? "Enabled" : "Disabled"}</CompactPill></td>
+                      <td className="px-3 py-3 text-xs text-[var(--text-muted)]">{addon.reason ?? "No note"}</td>
+                      <td className="px-3 py-3"><div className="flex justify-end">{addon.enabled ? <AddonStateDialog actorEmail={actorEmail} companyId={companyId!} addon={addon} enable={false} triggerLabel="Disable" onCompleted={refresh} /> : <AddonStateDialog actorEmail={actorEmail} companyId={companyId!} addon={addon} enable={true} triggerLabel="Enable" onCompleted={refresh} />}</div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -634,65 +1018,49 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "features" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="border-none bg-[var(--surface-base)] shadow-none">
             <CardHeader className="space-y-3 pb-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base">Feature access draft</CardTitle>
-                  </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base">Feature access draft</CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="font-mono">{pendingFeatureChanges} pending</Badge>
-                  <Button size="sm" variant="outline" onClick={discardFeatureDraft} disabled={pendingFeatureChanges === 0 || savingFeatures}>Discard</Button>
-                  <Button size="sm" variant="outline" onClick={resetFeatureDraft} disabled={savingFeatures}>Reset</Button>
-                  <Button size="sm" onClick={() => void saveFeatureDraft()} disabled={pendingFeatureChanges === 0 || savingFeatures}>
-                    {savingFeatures ? "Saving..." : "Save"}
-                  </Button>
+                  <CompactPill>{pendingFeatureChanges} pending</CompactPill>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    if (!overview) return;
+                    setFeatureDraft(Object.fromEntries(overview.features.map((feature) => [feature.feature, feature.enabled])));
+                    setFeatureReason("");
+                  }} disabled={pendingFeatureChanges === 0 || savingFeatures}>Discard</Button>
+                  <Button size="sm" onClick={() => void saveFeatureDraft()} disabled={pendingFeatureChanges === 0 || savingFeatures}>{savingFeatures ? "Saving..." : "Save"}</Button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                <div className="space-y-1">
-                  <Label className="sr-only">Search features</Label>
-                  <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="sr-only">Reason for changes</Label>
-                  <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch of changes" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-                </div>
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+                <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   <tr>
-                    <th className="px-4 py-3">Feature</th>
-                    <th className="px-4 py-3">Group</th>
-                    <th className="px-4 py-3">Current</th>
-                    <th className="px-4 py-3">Draft</th>
-                    <th className="px-4 py-3">Reason</th>
-                    <th className="px-4 py-3 text-right">Action</th>
+                    <th className="px-3 py-2">Feature</th>
+                    <th className="px-3 py-2">Group</th>
+                    <th className="px-3 py-2">Current</th>
+                    <th className="px-3 py-2">Draft</th>
+                    <th className="px-3 py-2">Reason</th>
+                    <th className="px-3 py-2 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
                   {filteredFeatures.map((feature) => {
                     const value = featureDraft[feature.feature] ?? feature.enabled;
                     const changed = value !== feature.enabled;
                     return (
-                      <tr key={feature.feature} className={`border-t border-[var(--border)] align-top ${changed ? "bg-[var(--surface-muted)]" : ""}`}>
-                        <td className="px-4 py-3">
-                          <p className="font-medium">{feature.featureLabel}</p>
-                          <p className="font-mono text-xs text-[var(--text-muted)]">{feature.feature}</p>
-                        </td>
-                        <td className="px-4 py-3"><Badge variant="outline">{featureGroupKey(feature.feature)}</Badge></td>
-                        <td className="px-4 py-3"><Badge variant={feature.enabled ? "secondary" : "outline"}>{feature.enabled ? "Enabled" : "Disabled"}</Badge></td>
-                        <td className="px-4 py-3"><Badge variant={value ? "secondary" : "outline"}>{value ? "Enabled" : "Disabled"}</Badge></td>
-                        <td className="px-4 py-3 text-[var(--text-muted)]">{feature.reason ?? "No restriction note"}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end">
-                            <Button size="sm" variant="outline" onClick={() => setFeatureDraft((current) => ({ ...current, [feature.feature]: !value }))}>
-                              {value ? "Disable" : "Enable"}
-                            </Button>
-                          </div>
-                        </td>
+                      <tr key={feature.feature} className={changed ? "bg-[var(--surface-muted)]" : ""}>
+                        <td className="px-3 py-3"><p className="font-medium">{feature.featureLabel}</p><p className="font-mono text-xs text-[var(--text-muted)]">{feature.feature}</p></td>
+                        <td className="px-3 py-3"><CompactPill>{featureGroupKey(feature.feature)}</CompactPill></td>
+                        <td className="px-3 py-3"><CompactPill tone={feature.enabled ? "success" : "muted"}>{feature.enabled ? "Enabled" : "Disabled"}</CompactPill></td>
+                        <td className="px-3 py-3"><CompactPill tone={value ? "success" : "muted"}>{value ? "Enabled" : "Disabled"}</CompactPill></td>
+                        <td className="px-3 py-3 text-[var(--text-muted)]">{feature.reason ?? "No restriction note"}</td>
+                        <td className="px-3 py-3"><div className="flex justify-end"><Button size="sm" variant="outline" onClick={() => setFeatureDraft((current) => ({ ...current, [feature.feature]: !value }))}>{value ? "Disable" : "Enable"}</Button></div></td>
                       </tr>
                     );
                   })}

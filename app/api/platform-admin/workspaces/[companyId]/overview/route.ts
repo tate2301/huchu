@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { createPlatformServices } from "@/scripts/platform/services";
+import { computeSubscriptionPricing } from "@/scripts/platform/domain/commercial-service";
 import { requirePlatformAdminAccess } from "../../../_auth";
 
 export const runtime = "nodejs";
@@ -21,7 +23,6 @@ export async function GET(request: Request, context: { params: Params }) {
       reservation,
       contractState,
       subscriptions,
-      plans,
       addons,
       features,
       admins,
@@ -35,7 +36,6 @@ export async function GET(request: Request, context: { params: Params }) {
       services.org.getSubdomainReservation(companyId),
       services.contract.getState(companyId),
       services.subscription.list({ companyId, limit: 5 }),
-      services.subscription.listPlans(),
       services.subscription.listAddons({ companyId }),
       services.feature.list({ companyId }),
       services.admin.list({ companyId, limit: 50 }),
@@ -48,16 +48,17 @@ export async function GET(request: Request, context: { params: Params }) {
 
     const subscription = subscriptions[0] ?? null;
     const subscriptionHealth = subscription ? await services.subscription.health(companyId) : null;
-    const plan = subscription?.planCode ? plans.find((row) => row.code === subscription.planCode) ?? null : null;
-    const activeSiteCount = sites.filter((site) => site.isActive).length;
-    const enabledAddons = addons.filter((addon) => addon.enabled);
-
-    const tierBase = plan?.monthlyPrice ?? 0;
-    const siteOverageRate = plan?.additionalSiteMonthlyPrice ?? 0;
-    const includedSites = plan?.includedSites ?? 0;
-    const siteOverage = Math.max(0, activeSiteCount - includedSites) * siteOverageRate;
-    const addonBaseTotal = enabledAddons.reduce((sum, row) => sum + row.monthlyPrice, 0);
-    const addonSiteTotal = enabledAddons.reduce((sum, row) => sum + row.additionalSiteMonthlyPrice * activeSiteCount, 0);
+    const latestPricingSnapshot = subscription
+      ? await prisma.companySubscription.findFirst({
+          where: { companyId },
+          orderBy: [{ updatedAt: "desc" }],
+          select: {
+            effectiveMonthlyAmount: true,
+            lastPriceComputedAt: true,
+          },
+        })
+      : null;
+    const pricingSummary = subscription ? await computeSubscriptionPricing(companyId) : null;
 
     return NextResponse.json({
       company,
@@ -65,13 +66,18 @@ export async function GET(request: Request, context: { params: Params }) {
       contractState,
       subscription,
       subscriptionHealth,
-      pricing: subscription
+      pricing: pricingSummary
         ? {
-            tierBase,
-            siteOverage,
-            addonBaseTotal,
-            addonSiteTotal,
-            total: tierBase + siteOverage + addonBaseTotal + addonSiteTotal,
+            tierBase: pricingSummary.baseAmount,
+            siteOverage: pricingSummary.tierSiteOverageAmount,
+            addonBaseTotal: pricingSummary.addonBaseAmount,
+            addonSiteTotal: pricingSummary.addonSiteAmount,
+            featureTotal: pricingSummary.featureAmount,
+            total: pricingSummary.totalAmount,
+            currency: pricingSummary.currency,
+            computedAt: latestPricingSnapshot?.lastPriceComputedAt?.toISOString() ?? pricingSummary.computedAt,
+            snapshotTotal: latestPricingSnapshot?.effectiveMonthlyAmount ?? null,
+            lineItems: pricingSummary.lineItems,
           }
         : null,
       addons,

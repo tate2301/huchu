@@ -49,7 +49,17 @@ export type WorkspacePricingSummary = {
   siteOverage: number;
   addonBaseTotal: number;
   addonSiteTotal: number;
+  featureTotal: number;
   total: number;
+  currency: string;
+  computedAt: string | null;
+  snapshotTotal: number | null;
+  lineItems: Array<{
+    code: string;
+    label: string;
+    amount: number;
+    type: "tier" | "site-overage" | "addon" | "addon-site" | "feature";
+  }>;
 };
 
 export type WorkspaceOverview = {
@@ -75,6 +85,104 @@ export type CommercialCenterData = {
   templates: import("@/scripts/platform/types").ClientTemplateSummary[];
   bundleCatalog: import("@/scripts/platform/types").BundleCatalogSummary[];
   featureCatalog: import("@/scripts/platform/types").FeatureSummary[];
+  overview: {
+    summary: {
+      workspaceCount: number;
+      subscribedWorkspaceCount: number;
+      committedMrr: number;
+      dueThisMonth: number;
+      overdueExposure: number;
+      atRiskRevenue: number;
+      next30RenewalCount: number;
+      next30RenewalValue: number;
+    };
+    projections: Array<{
+      id: string;
+      label: string;
+      monthStart: string;
+      committedAmount: number;
+      atRiskAmount: number;
+      workspaceCount: number;
+    }>;
+    planMix: Array<{
+      planCode: string;
+      planName: string;
+      workspaceCount: number;
+      monthlyAmount: number;
+    }>;
+    workspaces: Array<{
+      companyId: string;
+      companyName: string;
+      companySlug: string | null;
+      companyStatus: string | null;
+      subscriptionId: string | null;
+      subscriptionStatus: string | null;
+      planCode: string | null;
+      planName: string | null;
+      monthlyAmount: number;
+      currency: string;
+      currentPeriodEnd: string | null;
+      lastPriceComputedAt: string | null;
+      pricingSource: "SNAPSHOT" | "COMPUTED" | "NONE";
+      siteCount: number;
+      addonCount: number;
+      healthState: string;
+      healthReason: string;
+      shouldBlock: boolean;
+      daysUntilEnd: number | null;
+      daysOverdue: number | null;
+      dueBucket: "OVERDUE" | "DUE_THIS_MONTH" | "NEXT_30_DAYS" | "FUTURE" | "NO_SCHEDULE" | "NO_SUBSCRIPTION";
+      riskBucket: "HEALTHY" | "AT_RISK" | "OVERDUE" | "MISSING";
+    }>;
+    dueNow: Array<{
+      companyId: string;
+      companyName: string;
+      companySlug: string | null;
+      companyStatus: string | null;
+      subscriptionId: string | null;
+      subscriptionStatus: string | null;
+      planCode: string | null;
+      planName: string | null;
+      monthlyAmount: number;
+      currency: string;
+      currentPeriodEnd: string | null;
+      lastPriceComputedAt: string | null;
+      pricingSource: "SNAPSHOT" | "COMPUTED" | "NONE";
+      siteCount: number;
+      addonCount: number;
+      healthState: string;
+      healthReason: string;
+      shouldBlock: boolean;
+      daysUntilEnd: number | null;
+      daysOverdue: number | null;
+      dueBucket: "OVERDUE" | "DUE_THIS_MONTH" | "NEXT_30_DAYS" | "FUTURE" | "NO_SCHEDULE" | "NO_SUBSCRIPTION";
+      riskBucket: "HEALTHY" | "AT_RISK" | "OVERDUE" | "MISSING";
+    }>;
+    renewals: Array<{
+      companyId: string;
+      companyName: string;
+      companySlug: string | null;
+      companyStatus: string | null;
+      subscriptionId: string | null;
+      subscriptionStatus: string | null;
+      planCode: string | null;
+      planName: string | null;
+      monthlyAmount: number;
+      currency: string;
+      currentPeriodEnd: string | null;
+      lastPriceComputedAt: string | null;
+      pricingSource: "SNAPSHOT" | "COMPUTED" | "NONE";
+      siteCount: number;
+      addonCount: number;
+      healthState: string;
+      healthReason: string;
+      shouldBlock: boolean;
+      daysUntilEnd: number | null;
+      daysOverdue: number | null;
+      dueBucket: "OVERDUE" | "DUE_THIS_MONTH" | "NEXT_30_DAYS" | "FUTURE" | "NO_SCHEDULE" | "NO_SUBSCRIPTION";
+      riskBucket: "HEALTHY" | "AT_RISK" | "OVERDUE" | "MISSING";
+    }>;
+  };
 };
 
 export type ReliabilityClusterData = {
