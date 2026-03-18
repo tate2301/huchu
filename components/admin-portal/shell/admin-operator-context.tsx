@@ -26,14 +26,14 @@ export function AdminOperatorContext() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-10 min-w-0 justify-between rounded-xl border-[var(--border)] bg-[var(--surface-base)] px-2.5 shadow-none">
-          <span className="flex min-w-0 items-center gap-2.5 text-left">
-            <Avatar className="border border-[var(--border)] bg-[var(--surface-muted)]">
+        <Button variant="ghost" className="h-9 min-w-0 gap-2 rounded-xl bg-[var(--surface-muted)] px-2.5 text-[var(--text-strong)] shadow-none hover:bg-[rgba(255,255,255,0.82)]">
+          <span className="flex min-w-0 items-center gap-2 text-left">
+            <Avatar className="h-6 w-6 bg-[rgba(255,255,255,0.88)]">
               <AvatarFallback>{initials(actorLabel)}</AvatarFallback>
             </Avatar>
-            <span className="max-w-[10rem] truncate text-sm font-semibold text-[var(--text-strong)]">{actorLabel}</span>
+            <span className="max-w-[9rem] truncate text-[13px] font-medium text-[var(--text-strong)]">{actorLabel}</span>
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">

@@ -127,11 +127,11 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
   const featurePreview = features.filter((feature) => feature.enabled).slice(0, 6);
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">
               Workspace overview
             </Badge>
             <StatusBadge value={company.tenantStatus} />
@@ -174,30 +174,30 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="space-y-1 pb-1">
             <CardDescription>Monthly</CardDescription>
             <CardTitle className="font-mono text-2xl">{pricing ? `${formatCurrency(pricing.total)}/mo` : "No plan"}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[var(--text-muted)]">{subscription?.planName ?? "Unassigned"}</CardContent>
         </Card>
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-2">
+        <Card className="bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="space-y-1 pb-1">
             <CardDescription>Support</CardDescription>
             <CardTitle className="font-mono text-2xl">{activeSessions.length}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[var(--text-muted)]">{activeSessions.length > 0 ? "Active sessions" : "No live sessions"}</CardContent>
         </Card>
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-2">
+        <Card className="bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="space-y-1 pb-1">
             <CardDescription>Identity</CardDescription>
             <CardTitle className="font-mono text-2xl">{admins.length + users.length}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[var(--text-muted)]">{admins.length} admins | {users.length} users</CardContent>
         </Card>
-        <Card className="border-[var(--border)]">
-          <CardHeader className="pb-2">
+        <Card className="bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="space-y-1 pb-1">
             <CardDescription>Incidents</CardDescription>
             <CardTitle className="font-mono text-2xl">{incidents.length}</CardTitle>
           </CardHeader>
@@ -207,25 +207,25 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="space-y-4">
           {subscriptionHealth?.shouldBlock || incidents.length > 0 ? (
-            <Card className="border-[var(--border)]">
-              <CardHeader className="pb-3">
+            <Card className="bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="pb-1">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <TriangleAlert className="h-5 w-5 text-[#EC442C]" />
                   Attention needed
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2">
                 {subscriptionHealth?.shouldBlock ? (
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                     <p className="text-sm font-semibold text-[var(--text-strong)]">{subscriptionHealth.state.replaceAll("_", " ")}</p>
                     <p className="mt-1 text-sm text-[var(--text-muted)]">{subscriptionHealth.reason}</p>
                   </div>
                 ) : null}
                 {incidents.slice(0, 3).map((incident) => (
-                  <div key={incident.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                  <div key={incident.id} className="rounded-xl bg-[var(--surface-muted)] p-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-[var(--text-strong)]">{incident.metricKey}</p>
                       <StatusBadge value={incident.status} />
@@ -237,27 +237,27 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
             </Card>
           ) : null}
 
-          <Card className="border-[var(--border)]">
-            <CardHeader className="pb-3">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="pb-1">
               <CardTitle className="text-lg">State</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Subscription</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{subscription?.planName ?? "No plan assigned"}</p>
                 <p className="mt-1 text-sm text-[var(--text-muted)]">{subscription?.status ?? "No record"}</p>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Subdomain</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{reservation?.subdomain ?? company.slug}</p>
                 <p className="mt-1 text-sm text-[var(--text-muted)]">{reservation ? `${reservation.status} via ${reservation.provider}` : "No record"}</p>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Provisioning</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{company.isProvisioned ? "Provisioned" : "Provisioning pending"}</p>
                 <p className="mt-1 text-sm text-[var(--text-muted)]">Created {formatDate(company.createdAt)}</p>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Commercial footprint</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{enabledAddons.length} enabled add-ons</p>
                 <p className="mt-1 text-sm text-[var(--text-muted)]">{featurePreview.length} enabled features</p>
@@ -265,19 +265,19 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Card className="border-[var(--border)]">
-              <CardHeader className="pb-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card className="bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="pb-1">
                 <CardTitle className="text-lg">Sites</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {sites.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                  <p className="rounded-xl bg-[var(--surface-muted)] px-3 py-5 text-sm text-[var(--text-muted)]">
                     No sites.
                   </p>
                 ) : (
                   sites.slice(0, 4).map((site) => (
-                    <div key={site.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                    <div key={site.id} className="rounded-xl bg-[var(--surface-muted)] p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-[var(--text-strong)]">{site.name}</p>
@@ -291,18 +291,18 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
               </CardContent>
             </Card>
 
-            <Card className="border-[var(--border)]">
-              <CardHeader className="pb-3">
+            <Card className="bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="pb-1">
                 <CardTitle className="text-lg">Features</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {featurePreview.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
+                  <p className="rounded-xl bg-[var(--surface-muted)] px-3 py-5 text-sm text-[var(--text-muted)]">
                     No enabled features.
                   </p>
                 ) : (
                   featurePreview.map((feature) => (
-                    <div key={feature.feature} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
+                    <div key={feature.feature} className="rounded-xl bg-[var(--surface-muted)] p-3">
                       <p className="text-sm font-semibold text-[var(--text-strong)]">{feature.featureLabel}</p>
                       <p className="mt-1 font-mono text-xs text-[var(--text-muted)]">{feature.feature}</p>
                       <p className="mt-2 text-sm text-[var(--text-muted)]">{feature.reason ?? "Enabled"}</p>
@@ -314,31 +314,31 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
           </div>
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-[6.25rem] xl:self-start">
-          <Card className="border-[var(--border)]">
-            <CardHeader className="pb-3">
+        <aside className="space-y-3 xl:sticky xl:top-[5rem] xl:self-start">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="pb-1">
               <CardTitle className="text-lg">Next actions</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button asChild className="justify-between rounded-2xl">
+            <CardContent className="grid gap-2">
+              <Button asChild className="justify-between rounded-xl shadow-none">
                 <Link href={`/admin/company/${companyId}/identity`}>
                   Identity hub
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="justify-between rounded-2xl">
+              <Button asChild variant="outline" className="justify-between rounded-xl shadow-none">
                 <Link href={`/admin/company/${companyId}/support-access`}>
                   Support access
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="justify-between rounded-2xl">
+              <Button asChild variant="outline" className="justify-between rounded-xl shadow-none">
                 <Link href={`/admin/company/${companyId}/reliability`}>
                   Reliability
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="justify-between rounded-2xl">
+              <Button asChild variant="outline" className="justify-between rounded-xl shadow-none">
                 <Link href={`/admin/company/${companyId}/commercial`}>
                   Commercial
                   <ArrowRight className="h-4 w-4" />
@@ -347,12 +347,12 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
             </CardContent>
           </Card>
 
-          <Card className="border-[var(--border)]">
-            <CardHeader className="pb-3">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="pb-1">
               <CardTitle className="text-lg">Context</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+            <CardContent className="space-y-2.5 text-sm">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
                   <LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />
                   Support state
@@ -361,21 +361,21 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                   {activeSessions.length > 0 ? `${activeSessions.length} active` : "None"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
                   <ShieldCheck className="h-4 w-4 text-[var(--text-muted)]" />
                   Identity state
                 </div>
                 <p className="mt-2 text-[var(--text-muted)]">{admins.length} admins | {users.length} users</p>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
                   <Globe className="h-4 w-4 text-[var(--text-muted)]" />
                   Domain posture
                 </div>
                 <p className="mt-2 text-[var(--text-muted)]">{reservation ? `${reservation.status}` : "None"}</p>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+              <div className="rounded-xl bg-[var(--surface-muted)] p-3">
                 <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
                   <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
                   Audit trail

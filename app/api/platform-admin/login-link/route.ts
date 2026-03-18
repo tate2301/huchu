@@ -17,16 +17,19 @@ export async function POST(request: Request) {
   }
 
   let callbackUrl = "/admin/dashboard";
+  let email = "";
   try {
-    const body = (await request.json()) as { callbackUrl?: string } | null;
+    const body = (await request.json()) as { callbackUrl?: string; email?: string } | null;
     callbackUrl = normalizeCallbackUrl(body?.callbackUrl, "/admin/dashboard");
+    email = body?.email?.trim().toLowerCase() ?? "";
   } catch {
     callbackUrl = "/admin/dashboard";
+    email = "";
   }
 
   try {
     const origin = new URL(request.url).origin;
-    await requestAdminMagicLink({ origin, callbackUrl });
+    await requestAdminMagicLink({ origin, callbackUrl, email });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to send admin sign-in link.";

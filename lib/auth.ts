@@ -46,8 +46,12 @@ type AuthenticatedUserLike = {
 
 const AUTH_RUNTIME_CONFIG = getAuthRuntimeConfig();
 
-function getAdminPortalEmail() {
-  return AUTH_RUNTIME_CONFIG.adminPortalEmail;
+function getAdminPortalAllowedEmails() {
+  return AUTH_RUNTIME_CONFIG.adminPortalAllowedEmails;
+}
+
+function isAllowedAdminPortalEmail(email: string) {
+  return getAdminPortalAllowedEmails().includes(email.trim().toLowerCase());
 }
 
 async function resolveAdminPortalCompanyId() {
@@ -68,16 +72,17 @@ async function resolveAdminPortalCompanyId() {
 }
 
 async function upsertAdminPortalUser(email: string) {
-  const adminEmail = getAdminPortalEmail();
-  if (email.trim().toLowerCase() !== adminEmail) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isAllowedAdminPortalEmail(normalizedEmail)) {
     return null;
   }
 
   const companyId = await resolveAdminPortalCompanyId();
-  const name = AUTH_RUNTIME_CONFIG.adminPortalActorName || "Platform Superuser";
+  const emailName = normalizedEmail.split("@")[0]?.replace(/[._-]+/g, " ").trim();
+  const name = AUTH_RUNTIME_CONFIG.adminPortalActorName || emailName || "Platform Superuser";
 
   return prisma.user.upsert({
-    where: { email: adminEmail },
+    where: { email: normalizedEmail },
     update: {
       role: UserRole.SUPERADMIN,
       companyId,
@@ -85,7 +90,7 @@ async function upsertAdminPortalUser(email: string) {
       name,
     },
     create: {
-      email: adminEmail,
+      email: normalizedEmail,
       name,
       role: UserRole.SUPERADMIN,
       companyId,
@@ -106,11 +111,10 @@ const adminPortalAdapter = {
     return adminUser ?? null;
   },
   async createUser(user: Parameters<NonNullable<Adapter["createUser"]>>[0]) {
-    const adminEmail = getAdminPortalEmail();
     const typedUser = user as { email?: string };
     const normalized = typedUser.email?.trim().toLowerCase();
-    if (normalized === adminEmail) {
-      const adminUser = await upsertAdminPortalUser(adminEmail);
+    if (normalized && isAllowedAdminPortalEmail(normalized)) {
+      const adminUser = await upsertAdminPortalUser(normalized);
       if (adminUser) return adminUser;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -207,16 +211,16 @@ export const authOptions: NextAuthOptions = {
       async sendVerificationRequest({ identifier, url }: { identifier: string; url: string }) {
         assertStrategyEnabled("admin-email-link");
 
-        const adminPortalEmail = getAdminPortalEmail();
-        if (identifier.trim().toLowerCase() !== adminPortalEmail) {
+        const normalizedIdentifier = identifier.trim().toLowerCase();
+        if (!isAllowedAdminPortalEmail(normalizedIdentifier)) {
           await logAuthEvent({
             eventType: "auth.email-link.rejected",
-            actor: identifier,
-            reason: "ADMIN_EMAIL_MISMATCH",
+            actor: normalizedIdentifier,
+            reason: "ADMIN_EMAIL_NOT_ALLOWED",
             entityType: "auth-strategy",
             entityId: "admin-email-link",
           });
-          throw new Error("Magic link is restricted to the configured admin email.");
+          throw new Error("This email is not allowed for admin sign-in.");
         }
 
         const parsedUrl = new URL(url);
@@ -262,7 +266,7 @@ export const authOptions: NextAuthOptions = {
             },
             body: JSON.stringify({
               from: AUTH_RUNTIME_CONFIG.adminMagicLinkFrom,
-              to: [identifier],
+              to: [normalizedIdentifier],
               subject,
               text,
               html,
@@ -294,7 +298,7 @@ export const authOptions: NextAuthOptions = {
           await fetch(webhookUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: identifier, subject, text, html }),
+            body: JSON.stringify({ to: normalizedIdentifier, subject, text, html }),
           });
 
           await logAuthEvent({
@@ -552,12 +556,11 @@ export const authOptions: NextAuthOptions = {
       }
 
       const normalizedEmail = user.email?.trim().toLowerCase();
-      const adminPortalEmail = getAdminPortalEmail();
-      if (!normalizedEmail || normalizedEmail !== adminPortalEmail) {
+      if (!normalizedEmail || !isAllowedAdminPortalEmail(normalizedEmail)) {
         await logAuthEvent({
           eventType: "auth.login.failed",
           actor: normalizedEmail ?? user.email ?? null,
-          reason: "ADMIN_EMAIL_MISMATCH",
+          reason: "ADMIN_EMAIL_NOT_ALLOWED",
           entityType: "auth-strategy",
           entityId: "admin-email-link",
         });

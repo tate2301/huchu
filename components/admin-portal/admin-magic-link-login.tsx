@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, ArrowRight, MailCheck, Shield, TimerReset } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertCircle, ArrowRight, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 
 export function AdminMagicLinkLogin({
@@ -11,6 +13,7 @@ export function AdminMagicLinkLogin({
 }: {
   callbackUrl?: string;
 }) {
+  const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,102 +30,71 @@ export function AdminMagicLinkLogin({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ callbackUrl: resolvedCallbackUrl }),
+        body: JSON.stringify({ callbackUrl: resolvedCallbackUrl, email }),
       });
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
         setError(
           payload.error === "AUTH_RATE_LIMITED"
-            ? "Too many sign-in link requests. Please wait a few minutes and try again."
-            : payload.error || "Unable to send secure sign-in link.",
+            ? "Too many requests. Try again in a few minutes."
+            : payload.error || "Unable to send sign-in link.",
         );
         return;
       }
+
       setSent(true);
     } catch {
-      setError("Unable to send secure sign-in link.");
+      setError("Unable to send sign-in link.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ffffff_0%,#fcfcf4_46%,#f4f5ef_100%)] px-4 py-8">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl gap-8 lg:grid-cols-[minmax(0,1.1fr)_28rem] lg:items-center">
-        <section className="space-y-8 rounded-[2rem] border border-[var(--border)] bg-[rgba(255,255,255,0.72)] p-6 shadow-[var(--elevation-3)] backdrop-blur md:p-10">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] text-[var(--action-primary-bg)]">
-            <Shield className="h-7 w-7" />
-          </div>
-          <div className="space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              Pagka Control Plane
-            </p>
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-[var(--text-strong)] [text-wrap:balance]">
-              Admin access.
-            </h1>
-            <p className="max-w-2xl text-base text-[var(--text-muted)] [text-wrap:pretty]">Secure email link only.</p>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-strong)]">Restricted</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Authorized operators only.</p>
-            </div>
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-strong)]">Single-use</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Short expiry.</p>
-            </div>
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-strong)]">Audited</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Sign-ins are logged.</p>
-            </div>
-          </div>
-        </section>
-
-        <Card className="border-[var(--border)] bg-[var(--surface-base)] shadow-[var(--elevation-3)]">
-          <CardHeader className="space-y-3 pb-4">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              Secure sign-in
-            </div>
-            <CardTitle className="text-2xl">Admin login</CardTitle>
-            <CardDescription>Request link.</CardDescription>
+    <div className="min-h-screen bg-[var(--surface-canvas)] px-4 py-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
+        <Card className="w-full bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="space-y-1 pb-2">
+            <CardTitle className="text-2xl">Admin sign in</CardTitle>
+            <p className="text-sm text-[var(--text-muted)]">Email magic link.</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {sent ? (
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                  <div className="flex items-start gap-3">
-                    <MailCheck className="mt-0.5 h-5 w-5 text-[var(--action-primary-bg)]" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-[var(--text-strong)]">Secure link sent</p>
-                      <p className="text-sm text-[var(--text-muted)]">Check inbox.</p>
-                    </div>
+              <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-3">
+                <div className="flex items-start gap-2.5">
+                  <MailCheck className="mt-0.5 h-4 w-4 text-[var(--action-primary-bg)]" />
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-strong)]">Link sent</p>
+                    <p className="text-sm text-[var(--text-muted)]">{email}</p>
                   </div>
-                </div>
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4 text-sm text-[var(--text-muted)]">
-                  Wait before retrying.
                 </div>
               </div>
             ) : (
               <form className="space-y-4" onSubmit={submit}>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">Email</Label>
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="name@company.com"
+                    className="h-10 rounded-xl border-none bg-[var(--surface-muted)] shadow-none"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+
                 {error ? (
-                  <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>{error}</p>
                   </div>
                 ) : null}
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-muted)]">
-                  <div className="flex items-start gap-3">
-                    <TimerReset className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-muted)]" />
-                    <div className="space-y-1">
-                      <p className="font-medium text-[var(--text-strong)]">Server-side delivery.</p>
-                      <p>No mailbox shown.</p>
-                    </div>
-                  </div>
-                </div>
-                <Button className="h-11 w-full justify-between rounded-xl px-4" disabled={loading}>
-                  <span>{loading ? "Sending secure link..." : "Send secure sign-in link"}</span>
+
+                <Button className="h-10 w-full justify-between rounded-xl px-3 shadow-none" disabled={loading}>
+                  <span>{loading ? "Sending..." : "Send magic link"}</span>
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </form>

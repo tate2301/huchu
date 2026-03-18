@@ -47,7 +47,7 @@ function StatusBadge({ value }: { value: string }) {
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-[var(--border)] px-5 py-10 text-center">
+    <div className="rounded-xl bg-[var(--surface-muted)] px-4 py-6 text-center">
       <p className="text-sm font-semibold text-[var(--text-strong)]">{title}</p>
       <p className="mt-2 text-sm text-[var(--text-muted)]">{hint}</p>
     </div>
@@ -56,12 +56,12 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
 
 function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <Card className="border-[var(--border)] shadow-none">
-      <CardHeader className="space-y-2 pb-3">
+    <Card className="bg-[var(--surface-base)] shadow-none">
+      <CardHeader className="space-y-1 pb-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="font-mono text-2xl">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 text-xs text-[var(--text-muted)]">{hint}</CardContent>
+      <CardContent className="pt-0 text-[11px] text-[var(--text-muted)]">{hint}</CardContent>
     </Card>
   );
 }
@@ -78,7 +78,7 @@ function SearchField({
   return (
     <div className="relative w-full md:w-80">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-10 rounded-xl pl-10" />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-9 rounded-xl border-none bg-[var(--surface-muted)] pl-10 shadow-none" />
     </div>
   );
 }
@@ -145,14 +145,14 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
   const activeSessions = data?.sessions.filter((session) => session.status === "ACTIVE").length ?? 0;
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">
               {companyId ? "Organization scope" : "Platform scope"}
             </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">
+            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
               Identity hub
             </Badge>
           </div>
@@ -190,7 +190,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Active admins" value={activeAdmins} hint="Online" />
         <MetricCard label="Active users" value={activeUsers} hint="Enabled" />
         <MetricCard label="Pending requests" value={pendingRequests} hint="Awaiting review" />
@@ -199,18 +199,18 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
 
       <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as IdentityView)} railLabel="Identity views">
         {loading ? (
-          <Card className="border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
             <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading identity data...</CardContent>
           </Card>
         ) : error ? (
-          <Card className="border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
             <CardContent className="py-10 text-sm text-red-700">{error}</CardContent>
           </Card>
         ) : null}
 
         {!loading && !error && view === "admins" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Admin operators</CardTitle>
@@ -299,8 +299,8 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "users" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Workspace users</CardTitle>
@@ -379,8 +379,8 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "requests" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Support approvals</CardTitle>
@@ -458,8 +458,8 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "sessions" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Support sessions</CardTitle>

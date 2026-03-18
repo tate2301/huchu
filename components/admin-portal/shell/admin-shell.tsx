@@ -57,12 +57,12 @@ function AdminBreadcrumbs({ activeCompanyId }: { activeCompanyId?: string }) {
   const crumbs = buildCrumbs(pathname, activeCompany?.name, activeCompanyId);
 
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 overflow-x-auto text-xs text-[var(--text-muted)]">
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-[11px] text-[var(--text-muted)]">
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1;
         return (
-          <span key={`${crumb.label}-${index}`} className="flex items-center gap-2">
-            {index > 0 ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" /> : null}
+          <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
+            {index > 0 ? <ChevronRight className="h-3 w-3 shrink-0 text-[var(--text-muted)]" /> : null}
             {crumb.href && !isLast ? (
               <Link href={crumb.href} className="whitespace-nowrap hover:text-[var(--text-strong)]">
                 {crumb.label}
@@ -87,23 +87,23 @@ function AdminShellFrame({
   const { companies } = useAdminShell();
 
   return (
-    <div className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[18rem_minmax(0,1fr)]">
+    <div className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[15rem_minmax(0,1fr)]">
       <AdminSidebar activeCompanyId={activeCompanyId} companies={companies} />
       <div className="min-w-0">
-        <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[rgba(252,252,244,0.94)] backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 md:px-6">
+        <header className="sticky top-0 z-20 bg-[rgba(252,252,244,0.92)] shadow-[0_1px_0_rgba(28,34,43,0.06)] backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-4">
             <div className="min-w-0 flex-1">
               <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
             </div>
-            <div className="flex w-full items-center justify-end gap-2 md:w-auto md:max-w-[30rem] md:flex-none">
-              <div className="min-w-0 flex-1 md:w-[22rem]">
+            <div className="flex w-full items-center justify-end gap-1.5 md:w-auto md:max-w-[27rem] md:flex-none">
+              <div className="min-w-0 flex-1 md:w-[19rem]">
                 <AdminCommandBar />
               </div>
               <AdminOperatorContext />
             </div>
           </div>
         </header>
-        <main className="min-w-0 px-4 py-6 md:px-6">{children}</main>
+        <main className="min-w-0 px-3 py-4 md:px-4">{children}</main>
       </div>
     </div>
   );

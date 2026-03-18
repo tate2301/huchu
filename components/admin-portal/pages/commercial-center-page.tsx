@@ -236,7 +236,7 @@ export function CommercialCenterPage({
 
   if (loading) {
     return (
-      <Card className="border-[var(--border)]">
+      <Card className="bg-[var(--surface-base)] shadow-none">
         <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading commercial center...</CardContent>
       </Card>
     );
@@ -244,7 +244,7 @@ export function CommercialCenterPage({
 
   if (error || !commercial || (isCompanyScope && !overview)) {
     return (
-      <Card className="border-[var(--border)]">
+      <Card className="bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Commercial center data is unavailable."}</p>
           <Button variant="outline" onClick={refresh}>Retry</Button>
@@ -256,12 +256,12 @@ export function CommercialCenterPage({
   const scopeTitle = isCompanyScope ? `${overview?.company.name ?? "Workspace"} commercial center` : "Commercial Center";
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">{isCompanyScope ? "Organization scope" : "Platform scope"}</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">Commercial center</Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">{isCompanyScope ? "Organization scope" : "Platform scope"}</Badge>
+            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">Commercial center</Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeTitle}</h1>
         </div>
@@ -311,8 +311,8 @@ export function CommercialCenterPage({
 
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Commercial views">
         {!isCompanyScope && view === "subscriptions" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Workspace subscriptions</CardTitle>
@@ -320,7 +320,7 @@ export function CommercialCenterPage({
                 <Badge variant="outline" className="font-mono">{filteredSubscriptions.length} workspaces</Badge>
               </div>
               <div className="w-full md:w-80">
-                <Input value={subscriptionSearch} onChange={(event) => setSubscriptionSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-10 rounded-xl" />
+                <Input value={subscriptionSearch} onChange={(event) => setSubscriptionSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -367,8 +367,8 @@ export function CommercialCenterPage({
         ) : null}
 
         {view === "templates" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Template catalog</CardTitle>
@@ -376,7 +376,7 @@ export function CommercialCenterPage({
                 <Badge variant="outline" className="font-mono">{filteredTemplates.length} templates</Badge>
               </div>
               <div className="w-full md:w-80">
-                <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-10 rounded-xl" />
+                <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -416,8 +416,8 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "bundles" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Bundle catalog</CardTitle>
@@ -425,7 +425,7 @@ export function CommercialCenterPage({
                 <Badge variant="outline" className="font-mono">{filteredBundles.length} bundles</Badge>
               </div>
               <div className="w-full md:w-80">
-                <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-10 rounded-xl" />
+                <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -469,8 +469,8 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "catalog" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Feature catalog</CardTitle>
@@ -478,7 +478,7 @@ export function CommercialCenterPage({
                 <Badge variant="outline" className="font-mono">{filteredCatalog.length} features</Badge>
               </div>
               <div className="w-full md:w-80">
-                <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-10 rounded-xl" />
+                <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -505,9 +505,9 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "subscription" ? (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <Card className="border-[var(--border)] shadow-none">
-              <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+            <Card className="bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Subscription review</CardTitle>
@@ -548,26 +548,26 @@ export function CommercialCenterPage({
               </CardContent>
             </Card>
 
-            <div className="space-y-4 xl:sticky xl:top-24">
-              <Card className="border-[var(--border)] shadow-none">
-                <CardHeader>
+            <div className="space-y-3 xl:sticky xl:top-20">
+              <Card className="bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-1">
                   <CardTitle className="text-base">Pricing snapshot</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Monthly total</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Tier base</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.tierBase) : "N/A"}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Add-ons</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.addonBaseTotal + overview.pricing.addonSiteTotal) : "N/A"}</span></div>
+                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Monthly total</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</span></div>
+                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Tier base</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.tierBase) : "N/A"}</span></div>
+                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Add-ons</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? formatCurrency(overview.pricing.addonBaseTotal + overview.pricing.addonSiteTotal) : "N/A"}</span></div>
                 </CardContent>
               </Card>
-              <Card className="border-[var(--border)] shadow-none">
-                <CardHeader>
+              <Card className="bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-1">
                   <CardTitle className="text-base">Subscription health</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
                   <p className="font-medium text-[var(--text-strong)]">{overview?.subscriptionHealth?.state ?? "No signal"}</p>
                   <p>{overview?.subscriptionHealth?.reason ?? "No record."}</p>
                   {overview?.subscriptionHealth?.shouldBlock ? (
-                    <div className="flex items-start gap-2 rounded-2xl border border-[#f5c2b7] bg-[#fff2ef] px-3 py-3 text-[#8a1c12]">
+                    <div className="flex items-start gap-2 rounded-xl bg-[#fff2ef] px-3 py-2.5 text-[#8a1c12]">
                       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                       <span>{overview.subscriptionHealth.reason}</span>
                     </div>
@@ -580,8 +580,8 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "addons" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Workspace add-ons</CardTitle>
@@ -589,7 +589,7 @@ export function CommercialCenterPage({
                 <Badge variant="outline" className="font-mono">{filteredAddons.length} add-ons</Badge>
               </div>
               <div className="w-full md:w-80">
-                <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-10 rounded-xl" />
+                <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -634,8 +634,8 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "features" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="space-y-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="space-y-3 pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Feature access draft</CardTitle>
@@ -652,11 +652,11 @@ export function CommercialCenterPage({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
                 <div className="space-y-1">
                   <Label className="sr-only">Search features</Label>
-                  <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-10 rounded-xl" />
+                  <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
                 </div>
                 <div className="space-y-1">
                   <Label className="sr-only">Reason for changes</Label>
-                  <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch of changes" className="h-10 rounded-xl" />
+                  <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch of changes" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
                 </div>
               </div>
             </CardHeader>

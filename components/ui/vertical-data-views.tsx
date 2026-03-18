@@ -30,24 +30,29 @@ export function VerticalDataViews({
 }: VerticalDataViewsProps) {
   return (
     <section
-      className={cn("grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]", className)}
+      className={cn("grid gap-4 lg:grid-cols-[190px_minmax(0,1fr)]", className)}
     >
-      <aside className="section-shell space-y-2">
-        <h3 className="text-xs font-semibold tracking-[0.08em] text-foreground">
+      <aside className="space-y-1.5">
+        <h3 className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
           {railLabel}
         </h3>
-        <div className="space-y-2">
+        <div className="space-y-0.5">
           {items.map((item) => (
             <Button
               key={item.id}
               type="button"
-              variant={item.id === value ? "default" : "outline"}
-              className="h-[var(--control-height-md)] w-full justify-between"
+              variant="ghost"
+              className={cn(
+                "h-9 w-full justify-between rounded-xl px-2.5 text-[13px] shadow-none",
+                item.id === value
+                  ? "bg-[var(--surface-base)] text-[var(--text-strong)] hover:bg-[var(--surface-base)]"
+                  : "text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-strong)]",
+              )}
               onClick={() => onValueChange(item.id)}
             >
               <span className="truncate text-left">{item.label}</span>
               {typeof item.count === "number" ? (
-                <Badge variant="outline" className="font-mono">
+                <Badge variant={item.id === value ? "secondary" : "outline"} className="rounded-full px-2 py-0 font-mono text-[10px]">
                   {item.count}
                 </Badge>
               ) : null}
@@ -55,7 +60,7 @@ export function VerticalDataViews({
           ))}
         </div>
       </aside>
-      <div className="space-y-3">{children}</div>
+      <div className="space-y-2.5">{children}</div>
     </section>
   );
 }

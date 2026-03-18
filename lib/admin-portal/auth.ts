@@ -54,16 +54,21 @@ function hashVerificationToken(token: string, provider: EmailProviderLike) {
 export async function requestAdminMagicLink(options: {
   origin: string;
   callbackUrl: string;
+  email: string;
 }) {
   assertStrategyEnabled("admin-email-link");
 
   const runtimeConfig = getAuthRuntimeConfig();
   const provider = getAdminEmailProvider();
   const adapter = getVerificationAdapter();
-  const identifier = runtimeConfig.adminPortalEmail;
+  const identifier = options.email.trim().toLowerCase();
 
   if (!identifier) {
-    throw new Error("ADMIN_PORTAL_EMAIL is required for admin sign-in.");
+    throw new Error("Email is required.");
+  }
+
+  if (!runtimeConfig.adminPortalAllowedEmails.includes(identifier)) {
+    throw new Error("This email is not allowed for admin sign-in.");
   }
 
   const token = (await provider.generateVerificationToken?.()) ?? randomBytes(32).toString("hex");

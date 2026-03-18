@@ -180,14 +180,14 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
   );
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">
               Platform scope
             </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">
+            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
               Workspace directory
             </Badge>
           </div>
@@ -205,20 +205,20 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
       </div>
 
       {commercialError ? (
-        <Card className="border-[var(--border)]">
-          <CardContent className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <Card className="bg-[var(--surface-base)] shadow-none">
+          <CardContent className="rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-800">
             {commercialError}
           </CardContent>
         </Card>
       ) : null}
 
-      <Card className="overflow-hidden border-[var(--border)]">
-        <CardHeader className="border-b border-[var(--border)] bg-[var(--surface-base)]">
+      <Card className="overflow-hidden bg-[var(--surface-base)] shadow-none">
+        <CardHeader className="pb-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg">Workspace registry</CardTitle>
             </div>
-            <Badge variant="outline" className="rounded-full px-3 py-1">
+            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
               {filteredRows.length} visible
             </Badge>
           </div>

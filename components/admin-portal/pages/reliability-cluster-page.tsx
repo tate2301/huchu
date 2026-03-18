@@ -44,7 +44,7 @@ function statusBadgeVariant(value: string) {
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-[var(--border)] px-5 py-10 text-center">
+    <div className="rounded-xl bg-[var(--surface-muted)] px-4 py-6 text-center">
       <p className="text-sm font-semibold text-[var(--text-strong)]">{title}</p>
       <p className="mt-2 text-sm text-[var(--text-muted)]">{hint}</p>
     </div>
@@ -53,12 +53,12 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
 
 function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <Card className="border-[var(--border)] shadow-none">
-      <CardHeader className="space-y-2 pb-3">
+    <Card className="bg-[var(--surface-base)] shadow-none">
+      <CardHeader className="space-y-1 pb-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="font-mono text-2xl">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 text-xs text-[var(--text-muted)]">{hint}</CardContent>
+      <CardContent className="pt-0 text-[11px] text-[var(--text-muted)]">{hint}</CardContent>
     </Card>
   );
 }
@@ -143,11 +143,11 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
   const activeRunbooks = data?.runbooks.filter((runbook) => runbook.enabled).length ?? 0;
 
   if (loading) {
-    return <Card className="border-[var(--border)]"><CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading reliability cluster...</CardContent></Card>;
+    return <Card className="bg-[var(--surface-base)] shadow-none"><CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading reliability cluster...</CardContent></Card>;
   }
   if (!data || error) {
     return (
-      <Card className="border-[var(--border)]">
+      <Card className="bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Reliability data is unavailable."}</p>
           <Button variant="outline" onClick={refresh}>Retry</Button>
@@ -157,12 +157,12 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
   }
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">{companyId ? "Organization scope" : "Platform scope"}</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">Reliability cluster</Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">{companyId ? "Organization scope" : "Platform scope"}</Badge>
+            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">Reliability cluster</Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeTitle}</h1>
         </div>
@@ -181,7 +181,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Open incidents" value={openIncidentCount} hint="Open" />
         <MetricCard label="High risk" value={highRiskCount} hint="High" />
         <MetricCard label="Suspended contracts" value={suspendedContracts} hint="Blocked" />
@@ -190,9 +190,9 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
 
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Reliability views">
         {view === "health" ? (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <Card className="border-[var(--border)] shadow-none">
-              <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+            <Card className="bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Incident queue</CardTitle>
@@ -204,7 +204,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 </div>
                 <div className="w-full md:w-80">
                   <Label className="sr-only">Search incidents</Label>
-                  <Input value={healthSearch} onChange={(event) => setHealthSearch(event.target.value)} placeholder="Search workspace, metric, status, or message" className="h-10 rounded-xl" />
+                    <Input value={healthSearch} onChange={(event) => setHealthSearch(event.target.value)} placeholder="Search workspace, metric, status, or message" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
@@ -252,25 +252,25 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               </CardContent>
             </Card>
 
-            <div className="space-y-4 xl:sticky xl:top-24">
-              <Card className="border-[var(--border)] shadow-none">
-                <CardHeader>
+            <div className="space-y-3 xl:sticky xl:top-20">
+              <Card className="bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-1">
                   <CardTitle className="text-base">Posture summary</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Open incidents</span><span className="font-mono text-[var(--text-strong)]">{openIncidentCount}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">High risk</span><span className="font-mono text-[var(--text-strong)]">{highRiskCount}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Enabled runbooks</span><span className="font-mono text-[var(--text-strong)]">{activeRunbooks}</span></div>
+                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Open incidents</span><span className="font-mono text-[var(--text-strong)]">{openIncidentCount}</span></div>
+                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">High risk</span><span className="font-mono text-[var(--text-strong)]">{highRiskCount}</span></div>
+                  <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"><span className="text-[var(--text-muted)]">Enabled runbooks</span><span className="font-mono text-[var(--text-strong)]">{activeRunbooks}</span></div>
                 </CardContent>
               </Card>
 
-              <Card className="border-[var(--border)] shadow-none">
-                <CardHeader>
+              <Card className="bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-1">
                   <CardTitle className="text-base">Recent metric snapshots</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {data.metrics.slice(0, 5).map((metric) => (
-                    <div key={metric.id} className="rounded-2xl bg-[var(--surface-muted)] p-3 text-sm">
+                    <div key={metric.id} className="rounded-xl bg-[var(--surface-muted)] p-2.5 text-sm">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{metric.metricKey}</p>
                         <Badge variant="outline">{metric.status}</Badge>
@@ -285,8 +285,8 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
           </div>
         ) : null}
         {view === "contracts" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Contract posture</CardTitle>
@@ -298,7 +298,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               </div>
               <div className="w-full md:w-80">
                 <Label className="sr-only">Search contracts</Label>
-                <Input value={contractSearch} onChange={(event) => setContractSearch(event.target.value)} placeholder="Search workspace, state, or warning" className="h-10 rounded-xl" />
+                <Input value={contractSearch} onChange={(event) => setContractSearch(event.target.value)} placeholder="Search workspace, state, or warning" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -344,9 +344,9 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
           </Card>
         ) : null}
         {view === "runbooks" ? (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <Card className="border-[var(--border)] shadow-none">
-              <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+            <Card className="bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Runbook catalog</CardTitle>
@@ -355,7 +355,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 </div>
                 <div className="w-full md:w-80">
                   <Label className="sr-only">Search runbooks</Label>
-                  <Input value={runbookSearch} onChange={(event) => setRunbookSearch(event.target.value)} placeholder="Search runbook name, action type, or schedule" className="h-10 rounded-xl" />
+                  <Input value={runbookSearch} onChange={(event) => setRunbookSearch(event.target.value)} placeholder="Search runbook name, action type, or schedule" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
@@ -401,9 +401,9 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               </CardContent>
             </Card>
 
-            <div className="space-y-4 xl:sticky xl:top-24">
-              <Card className="border-[var(--border)] shadow-none">
-                <CardHeader>
+            <div className="space-y-3 xl:sticky xl:top-20">
+              <Card className="bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-1">
                   <CardTitle className="text-base">Recent executions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -411,7 +411,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                     <p className="text-sm text-[var(--text-muted)]">No recent executions.</p>
                   ) : (
                     runbookExecutions.map((execution) => (
-                      <div key={execution.id} className="rounded-2xl bg-[var(--surface-muted)] p-3 text-sm">
+                      <div key={execution.id} className="rounded-xl bg-[var(--surface-muted)] p-2.5 text-sm">
                         <div className="flex items-center justify-between gap-3">
                           <p className="font-medium">{execution.runbookName ?? execution.runbookId}</p>
                           <Badge variant={statusBadgeVariant(execution.status)}>{execution.status}</Badge>
@@ -428,8 +428,8 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         ) : null}
 
         {view === "audit" ? (
-          <Card className="border-[var(--border)] shadow-none">
-            <CardHeader className="gap-4 border-b border-[var(--border)]">
+          <Card className="bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Audit ledger</CardTitle>
@@ -442,12 +442,12 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
                 <div className="space-y-1">
                   <Label className="sr-only">Search audit</Label>
-                  <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Search actor, action, target, or reason" className="h-10 rounded-xl" />
+                  <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Search actor, action, target, or reason" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
                 </div>
                 <div className="space-y-1">
                   <Label className="sr-only">Actor</Label>
                   <Select value={auditActorFilter} onValueChange={setAuditActorFilter}>
-                    <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="All actors" /></SelectTrigger>
+                    <SelectTrigger className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none"><SelectValue placeholder="All actors" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All actors</SelectItem>
                       {auditActors.map((actor) => <SelectItem key={actor} value={actor}>{actor}</SelectItem>)}

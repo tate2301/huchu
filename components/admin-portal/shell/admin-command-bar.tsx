@@ -128,26 +128,27 @@ export function AdminCommandBar() {
       }}
     >
       <DialogTrigger>
-        <Button variant="outline" className="h-10 w-full justify-between rounded-xl border-[var(--border)] bg-[var(--surface-base)] px-3 text-[var(--text-muted)] shadow-none">
-          <span className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
+        <Button variant="ghost" className="h-9 w-full justify-between rounded-xl bg-[var(--surface-muted)] px-3 text-[var(--text-muted)] shadow-none hover:bg-[rgba(255,255,255,0.82)]">
+          <span className="flex items-center gap-2 text-[13px]">
+            <Search className="h-3.5 w-3.5" />
             Search
           </span>
-          <span className="hidden items-center gap-1 text-xs md:inline-flex">
-            <kbd className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono">Ctrl</kbd>
-            <kbd className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono">K</kbd>
+          <span className="hidden items-center gap-1 text-[10px] md:inline-flex">
+            <kbd className="rounded-md bg-[rgba(255,255,255,0.78)] px-1.5 py-0.5 font-mono">Ctrl</kbd>
+            <kbd className="rounded-md bg-[rgba(255,255,255,0.78)] px-1.5 py-0.5 font-mono">K</kbd>
           </span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl overflow-hidden p-0">
+      <DialogContent className="max-w-[46rem] overflow-hidden rounded-2xl border-none p-0 shadow-[0_16px_48px_rgba(15,23,42,0.16)]">
         <DialogHeader className="sr-only">
           <DialogTitle>Control plane command bar</DialogTitle>
         </DialogHeader>
-        <Command className="rounded-none">
+        <Command className="rounded-none bg-[var(--surface-base)]">
             <CommandInput
               value={query}
               onValueChange={handleQueryChange}
               placeholder="Search workspaces, people, actions"
+              className="h-11"
             />
           <CommandList className="max-h-[34rem]">
             <CommandEmpty>No matching commands or records.</CommandEmpty>
@@ -158,10 +159,11 @@ export function AdminCommandBar() {
                   key={action.id}
                   value={`${action.label} ${action.description}`}
                   onSelect={() => navigate(action.href)}
+                  className="rounded-xl px-2 py-2"
                 >
-                  <Sparkles className="h-4 w-4 text-[var(--text-muted)]" />
-                  <p className="min-w-0 flex-1 truncate font-medium">{action.label}</p>
-                  <Badge variant="secondary" className="rounded-full">
+                  <Sparkles className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                  <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{action.label}</p>
+                  <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">
                     {action.scope}
                   </Badge>
                 </CommandItem>
@@ -176,13 +178,14 @@ export function AdminCommandBar() {
                   key={company.id}
                   value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                   onSelect={() => navigate(`/admin/clients/${company.id}`)}
+                  className="rounded-xl px-2 py-2"
                 >
-                  <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
+                  <Building2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{company.name}</p>
-                    <p className="truncate text-xs text-[var(--text-muted)]">{company.slug ?? company.id}</p>
+                    <p className="text-[13px] font-medium">{company.name}</p>
+                    <p className="truncate text-[11px] text-[var(--text-muted)]">{company.slug ?? company.id}</p>
                   </div>
-                  {company.status ? <Badge variant="outline">{company.status}</Badge> : null}
+                  {company.status ? <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">{company.status}</Badge> : null}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -196,11 +199,12 @@ export function AdminCommandBar() {
                       key={`workspace:${company.id}`}
                       value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                       onSelect={() => navigate(`/admin/clients/${company.id}`)}
+                      className="rounded-xl px-2 py-2"
                     >
-                      <ArrowRight className="h-4 w-4 text-[var(--text-muted)]" />
+                      <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium">{company.name}</p>
-                        <p className="truncate text-xs text-[var(--text-muted)]">{company.slug ?? company.id}</p>
+                        <p className="text-[13px] font-medium">{company.name}</p>
+                        <p className="truncate text-[11px] text-[var(--text-muted)]">{company.slug ?? company.id}</p>
                       </div>
                     </CommandItem>
                   ))}
@@ -217,16 +221,17 @@ export function AdminCommandBar() {
                       key={result.id}
                       value={`${result.label} ${result.detail} ${result.keywords.join(" ")}`}
                       onSelect={() => navigate(searchResultHref(result, activeCompanyId))}
+                      className="rounded-xl px-2 py-2"
                     >
-                      <Shield className="h-4 w-4 text-[var(--text-muted)]" />
+                      <Shield className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium">{result.label}</p>
-                          <Badge variant="outline" className="rounded-full">
+                          <p className="text-[13px] font-medium">{result.label}</p>
+                          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">
                             {resultBadgeLabel(result)}
                           </Badge>
                         </div>
-                        <p className="truncate text-xs text-[var(--text-muted)]">{result.detail}</p>
+                        <p className="truncate text-[11px] text-[var(--text-muted)]">{result.detail}</p>
                       </div>
                     </CommandItem>
                   ))}

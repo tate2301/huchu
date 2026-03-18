@@ -40,32 +40,29 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-10 w-full justify-between rounded-xl border-[var(--border)] bg-[var(--surface-base)] px-3 shadow-none">
+        <Button variant="ghost" className="h-12 w-full justify-between rounded-2xl bg-[var(--surface-muted)] px-3 text-left shadow-none hover:bg-[rgba(255,255,255,0.82)]">
           <span className="flex min-w-0 items-center gap-2 text-left">
-            <Layers3 className="h-4 w-4 shrink-0" />
+            <Layers3 className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{activeCompany?.name ?? "Platform"}</span>
-              <span className="block truncate text-xs text-[var(--text-muted)]">{activeCompany ? activeCompany.slug ?? activeCompany.id : "All workspaces"}</span>
+              <span className="block truncate text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                {activeCompany ? "Workspace" : "Platform"}
+              </span>
+              <span className="block truncate text-[13px] font-medium">{activeCompany?.name ?? "Platform"}</span>
             </span>
           </span>
-          <span className="flex items-center gap-2">
-            <Badge variant="secondary" className="hidden rounded-full px-2.5 py-1 md:inline-flex">
-              {activeCompany ? "Workspace" : "Platform"}
-            </Badge>
-            <ChevronsUpDown className="h-4 w-4 text-[var(--text-muted)]" />
-          </span>
+          <ChevronsUpDown className="h-3.5 w-3.5 text-[var(--text-muted)]" />
         </Button>
       </PopoverTrigger>
-        <PopoverContent className="w-[24rem] p-0" align="start">
+        <PopoverContent className="w-[22rem] rounded-2xl border-none p-1 shadow-[0_12px_40px_rgba(15,23,42,0.12)]" align="start">
           <Command shouldFilter={false}>
-            <CommandInput value={query} onValueChange={setQuery} placeholder="Search workspaces" />
+            <CommandInput value={query} onValueChange={setQuery} placeholder="Search workspaces" className="h-10" />
             <CommandList className="max-h-[24rem]">
               <CommandEmpty>No matching workspace.</CommandEmpty>
 
               <CommandGroup heading="Platform">
-                <CommandItem value="platform global control plane" onSelect={() => selectWorkspace()}>
-                  <Sparkles className="h-4 w-4 text-[var(--text-muted)]" />
-                  <div className="flex-1"><p className="font-medium">Platform</p></div>
+                <CommandItem value="platform global control plane" onSelect={() => selectWorkspace()} className="rounded-xl px-2 py-2">
+                  <Sparkles className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                  <div className="flex-1"><p className="text-[13px] font-medium">Platform</p></div>
                   {!activeCompany ? <Check className="h-4 w-4" /> : null}
                 </CommandItem>
               </CommandGroup>
@@ -79,10 +76,11 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                         key={`recent:${company.id}`}
                         value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                         onSelect={() => selectWorkspace(company.id)}
+                        className="rounded-xl px-2 py-2"
                       >
-                        <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
+                        <Building2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                         <div className="flex-1">
-                          <p className="font-medium">{company.name}</p>
+                          <p className="text-[13px] font-medium">{company.name}</p>
                         </div>
                         {company.id === activeCompanyId ? <Check className="h-4 w-4" /> : null}
                       </CommandItem>
@@ -98,12 +96,13 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                     key={company.id}
                     value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                     onSelect={() => selectWorkspace(company.id)}
+                    className="rounded-xl px-2 py-2"
                   >
-                    <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
+                    <Building2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{company.name}</p>
-                        {company.status ? <Badge variant="outline">{company.status}</Badge> : null}
+                        <p className="text-[13px] font-medium">{company.name}</p>
+                        {company.status ? <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">{company.status}</Badge> : null}
                       </div>
                     </div>
                     {company.id === activeCompanyId ? <Check className="h-4 w-4" /> : null}
