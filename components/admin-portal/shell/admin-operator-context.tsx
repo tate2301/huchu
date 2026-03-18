@@ -1,32 +1,24 @@
 "use client";
 
-import { Fingerprint, ShieldCheck, UserRound, Users } from "lucide-react";
+import Link from "next/link";
+import { signOut } from "next-auth/react";
+import { Fingerprint, LogOut, Settings2, ShieldCheck } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAdminShell } from "./admin-shell-context";
 
-function ContextTile({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: typeof UserRound;
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{label}</p>
-        <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{value}</p>
-        {detail ? <p className="truncate text-xs text-[var(--text-muted)]">{detail}</p> : null}
-      </div>
-    </div>
-  );
+function initials(value: string) {
+  const parts = value.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "SU";
 }
 
 export function AdminOperatorContext() {
@@ -37,43 +29,66 @@ export function AdminOperatorContext() {
   const accessModeDetail = activeSession
     ? `${activeSession.scope} until ${activeSession.expiresAt ? new Date(activeSession.expiresAt).toLocaleString() : "manual end"}`
     : pendingRequestCount > 0
-      ? `${pendingRequestCount} support request${pendingRequestCount === 1 ? "" : "s"} awaiting approval`
+      ? `${pendingRequestCount} request${pendingRequestCount === 1 ? "" : "s"} awaiting approval`
       : activeScope === "platform"
-        ? "No impersonation session active"
-        : "Workspace ready for support or impersonation actions";
-  const accessModeBadge = activeSession
-    ? "Active session"
-    : pendingRequestCount > 0
-      ? "Pending"
-      : activeScope === "platform"
-        ? "Platform"
-        : "Organization";
+        ? "Platform control plane"
+        : activeCompany?.name ?? "Workspace scope";
+  const accessModeBadge = activeSession ? "Active session" : pendingRequestCount > 0 ? "Pending" : activeScope === "platform" ? "Platform" : "Workspace";
 
   return (
-    <section className="grid grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-4">
-      <ContextTile icon={UserRound} label="Signed In" value={actorLabel} detail={actorEmail} />
-      <ContextTile icon={ShieldCheck} label="Actor" value={actorEmail} detail={roleLabel} />
-      <ContextTile
-        icon={Users}
-        label="Workspace"
-        value={activeCompany?.name ?? "Platform"}
-        detail={activeCompany ? activeCompany.slug ?? activeCompany.id : "Global control plane scope"}
-      />
-      <div className="flex min-w-0 items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="flex flex-col items-stretch gap-3 xl:items-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-[17rem] items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
             <Fingerprint className="h-4 w-4" />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Access Mode</p>
-            <p className="text-sm font-semibold text-[var(--text-strong)]">{isLoadingSupportState ? "Loading support state" : accessModeLabel}</p>
-            <p className="text-xs text-[var(--text-muted)]">{isLoadingSupportState ? "Checking live support session state" : accessModeDetail}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Access mode</p>
+            <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{isLoadingSupportState ? "Loading support state" : accessModeLabel}</p>
+            <p className="truncate text-xs text-[var(--text-muted)]">{isLoadingSupportState ? "Checking live support state" : accessModeDetail}</p>
           </div>
+          <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
+            {accessModeBadge}
+          </Badge>
         </div>
-        <Badge variant="secondary" className="ml-3 rounded-full px-3 py-1 font-medium">
-          {accessModeBadge}
-        </Badge>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="h-12 min-w-[15rem] justify-between rounded-2xl border-[var(--border)] bg-[var(--surface-base)] px-3 shadow-none">
+              <span className="flex min-w-0 items-center gap-3 text-left">
+                <Avatar size="lg" className="border border-[var(--border)] bg-[var(--surface-muted)]">
+                  <AvatarFallback>{initials(actorLabel)}</AvatarFallback>
+                </Avatar>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-[var(--text-strong)]">{actorLabel}</span>
+                  <span className="block truncate text-xs text-[var(--text-muted)]">{roleLabel}</span>
+                </span>
+              </span>
+              <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuLabel>
+              <div>
+                <p className="truncate text-sm font-semibold">{actorLabel}</p>
+                <p className="truncate text-xs text-[var(--text-muted)]">{actorEmail}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/admin/settings">
+                <Settings2 className="h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => void signOut({ callbackUrl: "/admin/login" })}>
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </section>
+    </div>
   );
 }
