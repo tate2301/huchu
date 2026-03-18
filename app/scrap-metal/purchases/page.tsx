@@ -48,6 +48,12 @@ type Purchase = {
   sellerName?: string;
   sellerPhone?: string;
   notes?: string | null;
+  sellerProfile?: {
+    id: string;
+    fullName: string;
+    phone: string;
+    nationalId: string;
+  } | null;
   material?: { id: string; code: string; name: string; category: string } | null;
   employee: {
     id: string;
@@ -77,17 +83,24 @@ type PriceRecord = {
   currency: string;
 };
 
+type SellerProfileOption = {
+  id: string;
+  fullName: string;
+  phone: string;
+  nationalId: string;
+  isActive: boolean;
+};
+
 type PurchaseForm = {
   purchaseDate: string;
   siteId: string;
   employeeId: string;
+  sellerProfileId: string;
   materialId: string;
   category: string;
   weight: string;
   pricePerKg: string;
   currency: string;
-  sellerName: string;
-  sellerPhone: string;
   overrideReason: string;
   notes: string;
 };
@@ -99,13 +112,12 @@ function getEmptyForm(): PurchaseForm {
     purchaseDate: new Date().toISOString().slice(0, 16),
     siteId: "",
     employeeId: "",
+    sellerProfileId: "__none",
     materialId: "__none",
     category: "MIXED",
     weight: "",
     pricePerKg: "",
     currency: "USD",
-    sellerName: "",
-    sellerPhone: "",
     overrideReason: "",
     notes: "",
   };
@@ -177,15 +189,22 @@ export default function ScrapMetalPurchasesPage() {
     queryKey: ["scrap-materials", "purchase-form"],
     queryFn: () => fetchJson<{ data: MaterialOption[] }>("/api/scrap-metal/materials?active=true&limit=500"),
   });
+  const sellerProfilesQuery = useQuery({
+    queryKey: ["scrap-seller-profiles", "purchase-form"],
+    queryFn: () => fetchJson<{ data: SellerProfileOption[] }>("/api/scrap-metal/sellers?active=true&limit=500"),
+  });
   const pricesQuery = useQuery({
     queryKey: ["scrap-prices", "purchase-form"],
     queryFn: () => fetchJson<{ data: PriceRecord[] }>("/api/scrap-metal/pricing?limit=500"),
   });
 
   const materials = materialsQuery.data?.data ?? [];
+  const sellerProfiles = sellerProfilesQuery.data?.data ?? [];
   const sites = sitesQuery.data ?? [];
   const employees = employeesQuery.data?.data ?? [];
   const purchases = purchasesQuery.data ?? [];
+  const selectedSellerProfile =
+    sellerProfiles.find((sellerProfile) => sellerProfile.id === form.sellerProfileId) ?? null;
   const suggestedPrice = useMemo(
     () => findSuggestedPrice(form, pricesQuery.data?.data ?? []),
     [form, pricesQuery.data?.data],
@@ -209,13 +228,12 @@ export default function ScrapMetalPurchasesPage() {
         purchaseDate: new Date(payload.purchaseDate).toISOString(),
         siteId: payload.siteId,
         employeeId: payload.employeeId,
+        sellerProfileId: payload.sellerProfileId,
         materialId: payload.materialId === "__none" ? undefined : payload.materialId,
         category: payload.category,
         weight: Number(payload.weight),
         pricePerKg: Number(payload.pricePerKg),
         currency: payload.currency,
-        sellerName: payload.sellerName || undefined,
-        sellerPhone: payload.sellerPhone || undefined,
         notes: noteParts.filter(Boolean).join("\n") || undefined,
       };
 
@@ -307,7 +325,14 @@ export default function ScrapMetalPurchasesPage() {
         id: "sellerName",
         header: "Seller",
         accessorKey: "sellerName",
-        cell: ({ row }) => row.original.sellerName || "-",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.sellerName || "-"}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.sellerProfile?.nationalId ?? row.original.sellerPhone ?? "No profile"}
+            </div>
+          </div>
+        ),
         size: 150,
       },
       {
@@ -358,13 +383,12 @@ export default function ScrapMetalPurchasesPage() {
                   purchaseDate: row.original.purchaseDate.slice(0, 16),
                   siteId: row.original.site.id,
                   employeeId: row.original.employee.id,
+                  sellerProfileId: row.original.sellerProfile?.id ?? "__none",
                   materialId: row.original.material?.id ?? "__none",
                   category: row.original.material?.category ?? row.original.category,
                   weight: String(row.original.weight),
                   pricePerKg: String(row.original.pricePerKg),
                   currency: row.original.currency,
-                  sellerName: row.original.sellerName ?? "",
-                  sellerPhone: row.original.sellerPhone ?? "",
                   overrideReason: "",
                   notes: row.original.notes ?? "",
                 });
@@ -408,7 +432,10 @@ export default function ScrapMetalPurchasesPage() {
             New Purchase
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/setup/materials">Materials</Link>
+            <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/management/master-data/operations/scrap-sellers">Seller Profiles</Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/stores/inventory">Stock on Hand</Link>
@@ -514,6 +541,22 @@ export default function ScrapMetalPurchasesPage() {
                 </SelectContent>
               </Select>
               <Select
+                value={form.sellerProfileId}
+                onValueChange={(value) => setForm((current) => ({ ...current, sellerProfileId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seller profile" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Seller profile</SelectItem>
+                  {sellerProfiles.map((sellerProfile) => (
+                    <SelectItem key={sellerProfile.id} value={sellerProfile.id}>
+                      {sellerProfile.fullName} ({sellerProfile.nationalId})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
                 value={form.materialId}
                 onValueChange={(value) => {
                   const material = materials.find((entry) => entry.id === value);
@@ -570,6 +613,11 @@ export default function ScrapMetalPurchasesPage() {
               </Select>
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input value={selectedSellerProfile?.phone ?? ""} readOnly placeholder="Seller phone" />
+              <Input value={selectedSellerProfile?.nationalId ?? ""} readOnly placeholder="Seller national ID" />
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-4">
               <Input
                 type="number"
@@ -623,18 +671,6 @@ export default function ScrapMetalPurchasesPage() {
               />
             ) : null}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={form.sellerName}
-                onChange={(event) => setForm((current) => ({ ...current, sellerName: event.target.value }))}
-                placeholder="Seller name"
-              />
-              <Input
-                value={form.sellerPhone}
-                onChange={(event) => setForm((current) => ({ ...current, sellerPhone: event.target.value }))}
-                placeholder="Seller phone"
-              />
-            </div>
             <Textarea
               rows={4}
               value={form.notes}
@@ -652,6 +688,7 @@ export default function ScrapMetalPurchasesPage() {
                   (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
                   !form.siteId ||
                   !form.employeeId ||
+                  form.sellerProfileId === "__none" ||
                   !form.weight ||
                   !form.pricePerKg
                 }

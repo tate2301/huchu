@@ -401,6 +401,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "scrap-metal.batches",
       "scrap-metal.sales",
       "scrap-metal.pricing",
+      "stores.dashboard",
       "stores.inventory",
       "stores.movements",
       "stores.issue",

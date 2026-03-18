@@ -6,6 +6,10 @@ import {
   ShieldCheck,
   Users,
 } from "@/lib/icons";
+import {
+  canViewHrefWithEnabledFeatures,
+  filterHrefItemsByEnabledFeatures,
+} from "@/lib/platform/gating/nav-filter";
 
 export type ManagementArea =
   | "branding"
@@ -19,6 +23,7 @@ export type ManagementNavItem = {
   label: string;
   href: string;
   icon?: LucideIcon;
+  description?: string;
 };
 
 export type ManagementModuleItem = ManagementNavItem & {
@@ -85,6 +90,18 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
       label: "Gold Expense Types",
       href: "/management/master-data/operations/gold-expense-types",
     },
+    {
+      id: "scrap-materials",
+      label: "Scrap Materials",
+      href: "/management/master-data/operations/scrap-materials",
+      description: "Material catalog and recyclable definitions for scrap operations.",
+    },
+    {
+      id: "scrap-sellers",
+      label: "Scrap Sellers",
+      href: "/management/master-data/operations/scrap-sellers",
+      description: "Seller identity records used by scrap purchases and compliance checks.",
+    },
   ],
   compliance: [
     { id: "permits", label: "Permits", href: "/compliance/permits" },
@@ -118,6 +135,35 @@ const areaLabels: Record<ManagementArea, string> = {
 
 export function getAreaNavItems(area: ManagementArea): ManagementNavItem[] {
   return areaNavItems[area];
+}
+
+export function getVisibleManagementAreaNavItems(
+  area: ManagementArea,
+  enabledFeatures: string[] | undefined,
+): ManagementNavItem[] {
+  return filterHrefItemsByEnabledFeatures(getAreaNavItems(area), enabledFeatures);
+}
+
+export function getVisibleManagementModuleItems(
+  enabledFeatures: string[] | undefined,
+): ManagementModuleItem[] {
+  return managementModuleItems.flatMap((item) => {
+    if (item.id !== "master-data") {
+      return canViewHrefWithEnabledFeatures(item.href, enabledFeatures) ? [item] : [];
+    }
+
+    const visibleMasterDataItems = getVisibleManagementAreaNavItems("master-data", enabledFeatures);
+    if (visibleMasterDataItems.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        ...item,
+        href: visibleMasterDataItems[0].href,
+      },
+    ];
+  });
 }
 
 export function getAreaLabel(area: ManagementArea): string {

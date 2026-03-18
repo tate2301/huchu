@@ -20,6 +20,7 @@ const scrapMetalPurchaseSchema = z.object({
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   siteId: z.string().uuid(),
   employeeId: z.string().uuid(),
+  sellerProfileId: z.string().uuid(),
   materialId: z.string().uuid().optional(),
   category: z.enum([
     "BATTERIES",
@@ -68,6 +69,7 @@ export async function GET(request: NextRequest) {
         include: {
           site: { select: { id: true, name: true, code: true } },
           employee: { select: { id: true, name: true, employeeId: true } },
+          sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
           material: { select: { id: true, code: true, name: true, category: true } },
           batchItems: { select: { batchId: true } },
           createdBy: { select: { id: true, name: true } },
@@ -95,7 +97,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = scrapMetalPurchaseSchema.parse(body);
 
-    const [site, employee, material] = await Promise.all([
+    const [site, employee, sellerProfile, material] = await Promise.all([
       prisma.site.findUnique({
         where: { id: validated.siteId },
         select: { id: true, companyId: true, isActive: true },
@@ -103,6 +105,13 @@ export async function POST(request: NextRequest) {
       prisma.employee.findUnique({
         where: { id: validated.employeeId },
         select: { id: true, companyId: true, isActive: true },
+      }),
+      prisma.scrapSellerProfile.findFirst({
+        where: {
+          id: validated.sellerProfileId,
+          companyId: session.user.companyId,
+        },
+        select: { id: true, fullName: true, phone: true, isActive: true },
       }),
       validated.materialId
         ? prisma.scrapMaterial.findFirst({
@@ -124,6 +133,12 @@ export async function POST(request: NextRequest) {
 
     if (!employee || employee.companyId !== session.user.companyId || !employee.isActive) {
       return errorResponse("Invalid employee", 400);
+    }
+    if (!sellerProfile) {
+      return errorResponse("Invalid seller profile", 404);
+    }
+    if (!sellerProfile.isActive) {
+      return errorResponse("Seller profile is inactive", 400);
     }
 
     if (validated.materialId && !material) {
@@ -200,20 +215,22 @@ export async function POST(request: NextRequest) {
           purchaseNumber,
           purchaseDate,
           employeeId: validated.employeeId,
+          sellerProfileId: validated.sellerProfileId,
           materialId: validated.materialId,
           category: validated.category,
           weight: validated.weight,
           pricePerKg: validated.pricePerKg,
           totalAmount,
           currency,
-          sellerName: validated.sellerName?.trim() || undefined,
-          sellerPhone: validated.sellerPhone?.trim() || undefined,
+          sellerName: sellerProfile.fullName,
+          sellerPhone: sellerProfile.phone,
           notes: validated.notes?.trim() || undefined,
           createdById: session.user.id,
         },
         include: {
           site: { select: { id: true, name: true, code: true } },
           employee: { select: { id: true, name: true, employeeId: true } },
+          sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
           material: { select: { id: true, code: true, name: true, category: true } },
           createdBy: { select: { id: true, name: true } },
         },

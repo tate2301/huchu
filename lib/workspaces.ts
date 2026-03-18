@@ -2,7 +2,7 @@ import { ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import type { NavItem, NavSection } from "@/lib/navigation";
 import { getNavSectionsForRole } from "@/lib/navigation";
-import { filterHrefItemsByEnabledFeatures, filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import type { UserRole } from "@/lib/roles";
 import {
@@ -27,7 +27,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "@/lib/icons";
-import { managementModuleItems } from "@/lib/settings/management-nav";
+import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
 import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
 
 export { WORKSPACE_PROFILES };
@@ -85,6 +85,13 @@ type WorkspaceProfileRecipe = {
 
 const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GOLD_MINE";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["hr", "accounting", "management"];
+const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, WorkspaceModuleId> = {
+  GOLD_MINE: "gold",
+  SCRAP_METAL: "scrap-metal",
+  SCHOOLS: "schools",
+  AUTOS: "car-sales",
+  THRIFT: "thrift",
+};
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "gold",
   "scrap-metal",
@@ -207,7 +214,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     label: "Management",
     homeHref: "/management/master-data",
     getItems(context) {
-      return filterHrefItemsByEnabledFeatures(managementModuleItems, context.enabledFeatures).map((item) => ({
+      return getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
         href: item.href,
         label: item.label,
         icon: item.icon ?? FileText,
@@ -288,17 +295,9 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         refs: SCRAP_OPERATIONS_SECTIONS.settlements.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
-        id: "scrap-stock",
-        title: "Stock Tracking",
-        refs: SCRAP_OPERATIONS_SECTIONS.stock.map((href) => ({ moduleId: "stores" as const, href })),
-      },
-      {
         id: "scrap-control",
-        title: "Reports & Setup",
-        refs: [
-          ...SCRAP_OPERATIONS_SECTIONS.reporting.map((href) => ({ moduleId: "scrap-metal" as const, href })),
-          ...SCRAP_OPERATIONS_SECTIONS.setup.map((href) => ({ moduleId: "scrap-metal" as const, href })),
-        ],
+        title: "Reports",
+        refs: SCRAP_OPERATIONS_SECTIONS.reporting.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
     ],
   },
@@ -581,27 +580,34 @@ function getPrimarySections(
   ];
 }
 
+function resolveEffectiveWorkspaceProfile(
+  requestedProfile: WorkspaceProfile,
+  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+): WorkspaceProfile {
+  if (requestedProfile === "GENERAL") {
+    return requestedProfile;
+  }
+
+  const ownerModule = PROFILE_OWNER_MODULES[requestedProfile];
+  return visibleModules.has(ownerModule) ? requestedProfile : "GENERAL";
+}
+
 function getSupportItems(context: WorkspaceBuildContext): NavItem[] {
   const overviewSection = context.navSectionById.get("overview");
   return overviewSection?.items.filter((item) => item.href !== "/") ?? SUPPORT_ITEMS;
 }
 
 function getQuickActions(
-  context: WorkspaceBuildContext,
-  recipe: WorkspaceProfileRecipe,
+  args: {
+    role: string | null | undefined;
+    enabledFeatures: string[] | undefined;
+    workspaceProfile: WorkspaceProfile;
+  },
 ): NavItem[] {
-  if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
-    return getPrimaryQuickActions({
-      workspaceProfile: context.workspaceProfile,
-      role: context.role,
-      enabledFeatures: context.enabledFeatures,
-    });
-  }
-
   return getPrimaryQuickActions({
-    workspaceProfile: context.workspaceProfile,
-    role: context.role,
-    enabledFeatures: context.enabledFeatures,
+    workspaceProfile: args.workspaceProfile,
+    role: args.role,
+    enabledFeatures: args.enabledFeatures,
   });
 }
 
@@ -654,14 +660,15 @@ export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
 }
 
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
-  const profile = normalizeWorkspaceProfile(args.workspaceProfile);
+  const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
+  const context = buildContext(args);
+  const visibleModules = getVisibleModules(context);
+  const profile = resolveEffectiveWorkspaceProfile(requestedProfile, visibleModules);
   const recipe = WORKSPACE_PROFILE_RECIPES[profile];
   const verticalProduct = resolveWorkspaceVerticalProductBundle({
     enabledFeatures: args.enabledFeatures,
-    workspaceProfile: args.workspaceProfile,
+    workspaceProfile: profile,
   });
-  const context = buildContext(args);
-  const visibleModules = getVisibleModules(context);
   const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct);
   const usedPrimaryHrefs = collectSectionHrefs(primarySections);
   const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
@@ -678,7 +685,11 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     homeHref: homeTarget.href,
     homeLabel: homeTarget.label,
     workspaceLabel: verticalProduct.workspaceLabel || recipe.label,
-    quickActions: getQuickActions(context, recipe),
+    quickActions: getQuickActions({
+      role: args.role,
+      enabledFeatures: args.enabledFeatures,
+      workspaceProfile: profile,
+    }),
     sections,
     supportItems: getSupportItems(context),
   };

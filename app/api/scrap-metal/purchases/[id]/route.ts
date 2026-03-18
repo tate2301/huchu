@@ -12,6 +12,7 @@ const purchaseUpdateSchema = z.object({
     .optional(),
   siteId: z.string().uuid().optional(),
   employeeId: z.string().uuid().optional(),
+  sellerProfileId: z.string().uuid().nullable().optional(),
   materialId: z.string().uuid().nullable().optional(),
   category: z
     .enum(["BATTERIES", "COPPER", "ALUMINUM", "STEEL", "BRASS", "MIXED", "OTHER"])
@@ -44,6 +45,7 @@ export async function PATCH(
         category: true,
         weight: true,
         pricePerKg: true,
+        sellerProfileId: true,
       },
     });
     if (!existing) return errorResponse("Purchase not found", 404);
@@ -57,16 +59,35 @@ export async function PATCH(
     const nextWeight = validated.weight ?? existing.weight;
     const nextPricePerKg = validated.pricePerKg ?? existing.pricePerKg;
 
+    const [material, sellerProfile] = await Promise.all([
+      validated.materialId
+        ? prisma.scrapMaterial.findFirst({
+            where: { id: validated.materialId, companyId: session.user.companyId },
+            select: { id: true, category: true, isActive: true },
+          })
+        : Promise.resolve(null),
+      validated.sellerProfileId
+        ? prisma.scrapSellerProfile.findFirst({
+            where: { id: validated.sellerProfileId, companyId: session.user.companyId },
+            select: { id: true, fullName: true, phone: true, isActive: true },
+          })
+        : validated.sellerProfileId === null
+          ? Promise.resolve(null)
+          : Promise.resolve(null),
+    ]);
+
     if (validated.materialId) {
-      const material = await prisma.scrapMaterial.findFirst({
-        where: { id: validated.materialId, companyId: session.user.companyId },
-        select: { id: true, category: true, isActive: true },
-      });
       if (!material) return errorResponse("Invalid material", 404);
       if (!material.isActive) return errorResponse("Material is inactive", 400);
       if (material.category !== nextCategory) {
         return errorResponse("Material category does not match the selected category", 400);
       }
+    }
+    if (validated.sellerProfileId && !sellerProfile) {
+      return errorResponse("Invalid seller profile", 404);
+    }
+    if (validated.sellerProfileId && sellerProfile && !sellerProfile.isActive) {
+      return errorResponse("Seller profile is inactive", 400);
     }
 
     const purchase = await prisma.scrapMetalPurchase.update({
@@ -75,20 +96,33 @@ export async function PATCH(
         purchaseDate: validated.purchaseDate ? new Date(validated.purchaseDate) : undefined,
         siteId: validated.siteId,
         employeeId: validated.employeeId,
+        sellerProfileId:
+          validated.sellerProfileId === undefined ? undefined : validated.sellerProfileId,
         materialId: validated.materialId === null ? null : validated.materialId,
         category: validated.category,
         weight: validated.weight,
         pricePerKg: validated.pricePerKg,
         totalAmount: nextWeight * nextPricePerKg,
         currency: validated.currency?.trim().toUpperCase(),
-        sellerName: validated.sellerName === null ? null : validated.sellerName,
-        sellerPhone: validated.sellerPhone === null ? null : validated.sellerPhone,
+        sellerName:
+          validated.sellerProfileId === undefined
+            ? validated.sellerName === null
+              ? null
+              : validated.sellerName
+            : sellerProfile?.fullName ?? null,
+        sellerPhone:
+          validated.sellerProfileId === undefined
+            ? validated.sellerPhone === null
+              ? null
+              : validated.sellerPhone
+            : sellerProfile?.phone ?? null,
         notes: validated.notes === null ? null : validated.notes,
         status: validated.status,
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
         employee: { select: { id: true, name: true, employeeId: true } },
+        sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
         material: { select: { id: true, code: true, name: true, category: true } },
         createdBy: { select: { id: true, name: true } },
       },
@@ -103,6 +137,7 @@ export async function PATCH(
     return errorResponse("Failed to update scrap purchase");
   }
 }
+
 
 export async function DELETE(
   request: NextRequest,

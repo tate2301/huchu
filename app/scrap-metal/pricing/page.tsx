@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -219,17 +220,22 @@ export default function ScrapMetalPricingPage() {
       title="Price Board"
       description="Manage category defaults, material-specific price overrides, and effective-date history."
       actions={
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setForm(emptyForm);
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New Price
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setForm(emptyForm);
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New Price
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
+          </Button>
+        </div>
       }
     >
       {pricesQuery.error ? (

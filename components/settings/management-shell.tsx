@@ -5,13 +5,12 @@ import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { PageHeading } from "@/components/layout/page-heading";
-import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import {
   getAreaLabel,
-  getAreaNavItems,
+  getVisibleManagementAreaNavItems,
+  getVisibleManagementModuleItems,
   isActiveHref,
   isPathMatchingPrefix,
-  managementModuleItems,
   type ManagementArea,
 } from "@/lib/settings/management-nav";
 import { cn } from "@/lib/utils";
@@ -50,11 +49,11 @@ export function ManagementShell({
   );
 
   const visibleModules = useMemo(
-    () => filterHrefItemsByEnabledFeatures(managementModuleItems, enabledFeatures),
+    () => getVisibleManagementModuleItems(enabledFeatures),
     [enabledFeatures],
   );
   const visibleAreaTabs = useMemo(
-    () => filterHrefItemsByEnabledFeatures(getAreaNavItems(area), enabledFeatures),
+    () => getVisibleManagementAreaNavItems(area, enabledFeatures),
     [area, enabledFeatures],
   );
   const areaLabel = getAreaLabel(area);

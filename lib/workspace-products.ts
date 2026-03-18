@@ -85,8 +85,8 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
     },
   },
   "scrap-metal": {
-    title: "Scrap Metal",
-    description: "Run buying, pricing, yard batching, and sales from a single scrap operations surface.",
+    title: "Scrap & Recycling",
+    description: "Run buying, pricing, yard batching, settlements, and trading from a single scrap operations surface.",
   },
   schools: {
     title: "School Operations",

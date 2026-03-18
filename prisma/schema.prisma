@@ -145,6 +145,7 @@ model Company {
   irregularPayoutBatches IrregularPayoutBatch[]
   scrapMaterials       ScrapMaterial[]
   scrapMetalPrices    ScrapMetalPrice[]
+  scrapSellerProfiles ScrapSellerProfile[]
   scrapMetalEmployeeBalances ScrapMetalEmployeeBalance[]
   scrapMetalBalanceEntries   ScrapMetalBalanceEntry[]
   scrapMetalPurchases ScrapMetalPurchase[]
@@ -2275,6 +2276,26 @@ model ScrapMaterial {
   @@index([companyId, category])
 }
 
+model ScrapSellerProfile {
+  id         String   @id @default(uuid())
+  companyId  String
+  fullName   String
+  phone      String
+  nationalId String
+  address    String?
+  notes      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchases ScrapMetalPurchase[]
+
+  @@index([companyId, isActive])
+  @@index([companyId, fullName])
+  @@index([companyId, nationalId])
+}
+
 model ScrapMetalPrice {
   id              String   @id @default(uuid())
   companyId       String
@@ -2341,6 +2362,7 @@ model ScrapMetalPurchase {
   siteId           String
   employeeId       String // Employee who made the purchase
   materialId       String?
+  sellerProfileId  String?
   vendorId         String?
   purchaseDate     DateTime
   category         ScrapMetalCategory
@@ -2364,6 +2386,7 @@ model ScrapMetalPurchase {
   site            Site                       @relation(fields: [siteId], references: [id])
   employee        Employee                   @relation("ScrapMetalPurchaseEmployee", fields: [employeeId], references: [id])
   material        ScrapMaterial?             @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  sellerProfile   ScrapSellerProfile?        @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
   vendor          Vendor?                    @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   purchaseBill    PurchaseBill?              @relation("ScrapMetalPurchaseBill", fields: [purchaseBillId], references: [id], onDelete: SetNull)
   purchasePayment PurchasePayment?           @relation("ScrapMetalPurchasePayment", fields: [purchasePaymentId], references: [id], onDelete: SetNull)
@@ -2375,6 +2398,7 @@ model ScrapMetalPurchase {
   @@index([siteId, purchaseDate])
   @@index([employeeId])
   @@index([materialId])
+  @@index([sellerProfileId])
   @@index([vendorId])
   @@index([status])
 }

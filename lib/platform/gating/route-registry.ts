@@ -144,6 +144,8 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/master-data/operations/sections", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/master-data/operations/downtime-codes", featureKey: "maintenance.breakdowns" },
   { scope: "page", prefix: "/management/master-data/operations/gold-expense-types", featureKey: "gold.payouts" },
+  { scope: "page", prefix: "/management/master-data/operations/scrap-materials", featureKey: "scrap-metal.pricing" },
+  { scope: "page", prefix: "/management/master-data/operations/scrap-sellers", featureKey: "scrap-metal.purchases" },
   { scope: "page", prefix: "/management/master-data", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/users/create", featureKey: "admin.user-management.create" },
   { scope: "page", prefix: "/management/users/status", featureKey: "admin.user-management.status" },
@@ -234,6 +236,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/scrap-metal/sales", featureKey: "scrap-metal.sales" },
   { scope: "api", prefix: "/api/scrap-metal/employee-balances", featureKey: "scrap-metal.purchases" },
   { scope: "api", prefix: "/api/scrap-metal/materials", featureKey: "scrap-metal.pricing" },
+  { scope: "api", prefix: "/api/scrap-metal/sellers", featureKey: "scrap-metal.purchases" },
   { scope: "api", prefix: "/api/scrap-metal/dashboard", featureKey: "scrap-metal.home" },
   { scope: "api", prefix: "/api/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
 

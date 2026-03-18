@@ -9,7 +9,9 @@ export type MasterDataTab =
   | "sites"
   | "sections"
   | "downtime-codes"
-  | "gold-expense-types";
+  | "gold-expense-types"
+  | "scrap-materials"
+  | "scrap-sellers";
 
 type MasterDataShellProps = {
   activeTab: MasterDataTab;
