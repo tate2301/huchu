@@ -202,7 +202,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
             <CardTitle className="font-mono text-2xl">{incidents.length}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[var(--text-muted)]">
-            {subscriptionHealth?.reason ?? "No blocking subscription signal"}
+            {subscriptionHealth?.reason ?? "Clear"}
           </CardContent>
         </Card>
       </div>
@@ -245,12 +245,12 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Subscription</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{subscription?.planName ?? "No plan assigned"}</p>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">{subscription?.status ?? "No subscription record"}</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{subscription?.status ?? "No record"}</p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Subdomain</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--text-strong)]">{reservation?.subdomain ?? company.slug}</p>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">{reservation ? `${reservation.status} via ${reservation.provider}` : "No reservation recorded"}</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{reservation ? `${reservation.status} via ${reservation.provider}` : "No record"}</p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Provisioning</p>
@@ -273,7 +273,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
               <CardContent className="space-y-3">
                 {sites.length === 0 ? (
                   <p className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
-                    No sites exist for this workspace yet.
+                    No sites.
                   </p>
                 ) : (
                   sites.slice(0, 4).map((site) => (
@@ -281,7 +281,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-[var(--text-strong)]">{site.name}</p>
-                          <p className="mt-1 text-xs text-[var(--text-muted)]">{site.code} | {site.location ?? "Location not set"}</p>
+                          <p className="mt-1 text-xs text-[var(--text-muted)]">{site.code} | {site.location ?? "No location"}</p>
                         </div>
                         <StatusBadge value={site.isActive ? "ACTIVE" : "INACTIVE"} />
                       </div>
@@ -298,14 +298,14 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
               <CardContent className="space-y-3">
                 {featurePreview.length === 0 ? (
                   <p className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-muted)]">
-                    No enabled features were returned for this workspace.
+                    No enabled features.
                   </p>
                 ) : (
                   featurePreview.map((feature) => (
                     <div key={feature.feature} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
                       <p className="text-sm font-semibold text-[var(--text-strong)]">{feature.featureLabel}</p>
                       <p className="mt-1 font-mono text-xs text-[var(--text-muted)]">{feature.feature}</p>
-                      <p className="mt-2 text-sm text-[var(--text-muted)]">{feature.reason ?? "Enabled through tier, template, or direct access."}</p>
+                      <p className="mt-2 text-sm text-[var(--text-muted)]">{feature.reason ?? "Enabled"}</p>
                     </div>
                   ))
                 )}
@@ -358,7 +358,7 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                   Support state
                 </div>
                 <p className="mt-2 text-[var(--text-muted)]">
-                  {activeSessions.length > 0 ? `${activeSessions.length} active support session(s)` : "No active support sessions"}
+                  {activeSessions.length > 0 ? `${activeSessions.length} active` : "None"}
                 </p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
@@ -366,21 +366,21 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                   <ShieldCheck className="h-4 w-4 text-[var(--text-muted)]" />
                   Identity state
                 </div>
-                <p className="mt-2 text-[var(--text-muted)]">{admins.length} admins and {users.length} users in this workspace.</p>
+                <p className="mt-2 text-[var(--text-muted)]">{admins.length} admins | {users.length} users</p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                 <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
                   <Globe className="h-4 w-4 text-[var(--text-muted)]" />
                   Domain posture
                 </div>
-                <p className="mt-2 text-[var(--text-muted)]">{reservation ? `${reservation.status} subdomain reservation` : "No subdomain reservation recorded"}</p>
+                <p className="mt-2 text-[var(--text-muted)]">{reservation ? `${reservation.status}` : "None"}</p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                 <div className="flex items-center gap-2 font-semibold text-[var(--text-strong)]">
                   <Building2 className="h-4 w-4 text-[var(--text-muted)]" />
                   Audit trail
                 </div>
-                <p className="mt-2 text-[var(--text-muted)]">{auditEvents.length} recent audit event(s) available for review.</p>
+                <p className="mt-2 text-[var(--text-muted)]">{auditEvents.length} events</p>
               </div>
             </CardContent>
           </Card>

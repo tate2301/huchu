@@ -165,7 +165,6 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
             <Badge variant="outline" className="rounded-full px-3 py-1">Reliability cluster</Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeTitle}</h1>
-          <p className="max-w-3xl text-sm text-[var(--text-muted)]">Work incidents, contract posture, automation, and audit evidence from one operational shell without splitting context across separate pages.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <RunbookUpsertDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} triggerLabel="Create runbook" onCompleted={refresh} />
@@ -183,10 +182,10 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Open incidents" value={openIncidentCount} hint="Live incident work that still needs a response or remediation." />
-        <MetricCard label="High risk" value={highRiskCount} hint="Visible reliability issues flagged at the highest severity level." />
-        <MetricCard label="Suspended contracts" value={suspendedContracts} hint="Workspaces currently failing contract posture enforcement." />
-        <MetricCard label="Enabled runbooks" value={activeRunbooks} hint="Automation that is ready to execute without additional setup." />
+        <MetricCard label="Open incidents" value={openIncidentCount} hint="Open" />
+        <MetricCard label="High risk" value={highRiskCount} hint="High" />
+        <MetricCard label="Suspended contracts" value={suspendedContracts} hint="Blocked" />
+        <MetricCard label="Enabled runbooks" value={activeRunbooks} hint="Ready" />
       </div>
 
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Reliability views">
@@ -197,7 +196,6 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Incident queue</CardTitle>
-                    <CardDescription>Operational incidents with remediation entry points and enough context to act quickly.</CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="font-mono">{filteredIncidents.length} incidents</Badge>
@@ -212,7 +210,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               <CardContent className="overflow-x-auto p-0">
                 {filteredIncidents.length === 0 ? (
                   <div className="p-6">
-                    <EmptyState title="No incidents found" hint="Broaden the search or wait for new health signals to appear." />
+                    <EmptyState title="No incidents found" hint="Adjust search." />
                   </div>
                 ) : (
                   <table className="w-full text-sm">
@@ -258,7 +256,6 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">Posture summary</CardTitle>
-                  <CardDescription>Keep the live risk picture beside the queue instead of below it.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Open incidents</span><span className="font-mono text-[var(--text-strong)]">{openIncidentCount}</span></div>
@@ -270,7 +267,6 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">Recent metric snapshots</CardTitle>
-                  <CardDescription>Latest reliability samples tied to the visible incident context.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {data.metrics.slice(0, 5).map((metric) => (
@@ -291,11 +287,10 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         {view === "contracts" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Contract posture</CardTitle>
-                  <CardDescription>Current and recommended contract states with direct operator controls where action is available.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Contract posture</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">{filteredContracts.length} workspaces</Badge>
                   <Badge variant={suspendedContracts > 0 ? "secondary" : "outline"} className="font-mono">{suspendedContracts} suspended</Badge>
@@ -309,7 +304,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
             <CardContent className="overflow-x-auto p-0">
               {filteredContracts.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No contract records found" hint="Try a broader search or revisit once commercial posture updates complete." />
+                  <EmptyState title="No contract records found" hint="Adjust search." />
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -355,7 +350,6 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Runbook catalog</CardTitle>
-                    <CardDescription>Automation definitions with explicit enablement and execution controls only where they apply.</CardDescription>
                   </div>
                   <Badge variant="outline" className="font-mono">{filteredRunbooks.length} runbooks</Badge>
                 </div>
@@ -367,7 +361,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               <CardContent className="overflow-x-auto p-0">
                 {filteredRunbooks.length === 0 ? (
                   <div className="p-6">
-                    <EmptyState title="No runbooks found" hint="Create a runbook or broaden the current search." />
+                    <EmptyState title="No runbooks found" hint="Create one or adjust search." />
                   </div>
                 ) : (
                   <table className="w-full text-sm">
@@ -411,11 +405,10 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
               <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">Recent executions</CardTitle>
-                  <CardDescription>Latest runs tied to the runbooks currently in view.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {runbookExecutions.length === 0 ? (
-                    <p className="text-sm text-[var(--text-muted)]">No recent executions match the current runbook selection.</p>
+                    <p className="text-sm text-[var(--text-muted)]">No recent executions.</p>
                   ) : (
                     runbookExecutions.map((execution) => (
                       <div key={execution.id} className="rounded-2xl bg-[var(--surface-muted)] p-3 text-sm">
@@ -437,11 +430,10 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         {view === "audit" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Audit ledger</CardTitle>
-                  <CardDescription>Evidence-ready operator activity with actor filtering and export in the same working surface.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Audit ledger</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <AuditVerifyDialog fixedCompanyId={companyId} triggerLabel="Verify chain" onCompleted={refresh} />
                   <AuditExportDialog fixedCompanyId={companyId} events={data.auditEvents} triggerLabel="Export" onCompleted={refresh} />
@@ -467,7 +459,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
             <CardContent className="overflow-x-auto p-0">
               {filteredAudit.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No audit events found" hint="Broaden the filters or export the full ledger from a wider scope." />
+                  <EmptyState title="No audit events found" hint="Adjust filters." />
                 </div>
               ) : (
                 <table className="w-full text-sm">

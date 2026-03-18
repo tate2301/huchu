@@ -11,7 +11,6 @@ export function SettingsPage() {
     <section className="space-y-5">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="max-w-3xl text-sm text-[var(--text-muted)]">Defaults, notifications, safeguards.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -29,7 +28,7 @@ export function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="support-copy">Support banner copy</Label>
-              <Input id="support-copy" placeholder="Short operator-facing guidance" />
+              <Input id="support-copy" placeholder="Banner text" />
             </div>
             <Button size="sm">Save presentation settings</Button>
           </CardContent>
@@ -64,9 +63,9 @@ export function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
-          <p>Keep raw execution out of primary navigation.</p>
-          <p>Keep workspace switching and guided flows as the default path.</p>
-          <p>Keep destructive changes behind confirmed modal flows.</p>
+          <p>Raw execution stays out of primary navigation.</p>
+          <p>Workspace switching stays primary.</p>
+          <p>Destructive changes stay confirmed.</p>
         </CardContent>
       </Card>
     </section>

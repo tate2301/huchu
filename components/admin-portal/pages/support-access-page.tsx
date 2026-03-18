@@ -151,9 +151,6 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
             </Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeLabel}</h1>
-          <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-            Request, approve, launch, and end support sessions from a single queue with explicit mode, scope, and expiry context.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -172,10 +169,10 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Open requests" value={requestQueue} hint="Approvals waiting on an operator decision." />
-        <MetricCard label="Ready to launch" value={approvedRequests.length} hint="Approved requests that can become a live support session." />
-        <MetricCard label="Active sessions" value={activeSessions.length} hint="Sessions still visible in the operator context and subject to expiry." />
-        <MetricCard label="Shadow sessions" value={shadowSessions} hint="Observation-only sessions that avoid direct user action." />
+        <MetricCard label="Open requests" value={requestQueue} hint="Pending" />
+        <MetricCard label="Ready to launch" value={approvedRequests.length} hint="Approved" />
+        <MetricCard label="Active sessions" value={activeSessions.length} hint="Live" />
+        <MetricCard label="Shadow sessions" value={shadowSessions} hint="Observe only" />
       </div>
 
       <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as SupportView)} railLabel="Support views">
@@ -192,11 +189,10 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         {!loading && !error && view === "requests" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Support request queue</CardTitle>
-                  <CardDescription>Time-bound access requests with clear approval and denial actions only when valid.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Support request queue</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {requestRows.length} requests
@@ -215,7 +211,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {requestRows.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No support requests found" hint="New support requests will appear here once submitted." />
+                  <EmptyState title="No support requests found" hint="Requests will appear here." />
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -276,7 +272,6 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Approved requests ready to launch</CardTitle>
-                    <CardDescription>Only approved requests appear here so operators can move straight into the correct session flow.</CardDescription>
                   </div>
                   <Badge variant={approvedRequests.length > 0 ? "secondary" : "outline"} className="font-mono">
                     {approvedRequests.length} ready
@@ -291,7 +286,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
               <CardContent className="overflow-x-auto p-0">
                 {approvedRequests.length === 0 ? (
                   <div className="p-6">
-                    <EmptyState title="No approved requests" hint="Approved requests will appear here when they are ready to launch." />
+                    <EmptyState title="No approved requests" hint="Nothing ready." />
                   </div>
                 ) : (
                   <table className="w-full text-sm">
@@ -340,29 +335,28 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
             <div className="space-y-4 xl:sticky xl:top-24">
               <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
-                  <CardTitle className="text-base">Launch guidance</CardTitle>
-                  <CardDescription>Keep the safer support mode closest to the action instead of burying it in a separate page.</CardDescription>
+                  <CardTitle className="text-base">Launch modes</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm text-[var(--text-muted)]">
                   <div className="flex items-start gap-3 rounded-2xl bg-[var(--surface-muted)] p-3">
                     <CircleUserRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-strong)]" />
                     <div>
-                      <p className="font-medium text-[var(--text-strong)]">Impersonate when action is required</p>
-                      <p>Use full impersonation only when you need to reproduce and directly resolve the user issue.</p>
+                      <p className="font-medium text-[var(--text-strong)]">Impersonate</p>
+                      <p>Act as user.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 rounded-2xl bg-[var(--surface-muted)] p-3">
                     <Eye className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-strong)]" />
                     <div>
-                      <p className="font-medium text-[var(--text-strong)]">Shadow when observation is enough</p>
-                      <p>Prefer shadow mode for investigation, walkthroughs, and support coaching without acting as the user.</p>
+                      <p className="font-medium text-[var(--text-strong)]">Shadow</p>
+                      <p>Observe only.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 rounded-2xl bg-[var(--surface-muted)] p-3">
                     <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-strong)]" />
                     <div>
-                      <p className="font-medium text-[var(--text-strong)]">Every session is time-bound</p>
-                      <p>Live sessions expire automatically and remain visible in the shell until explicitly ended.</p>
+                      <p className="font-medium text-[var(--text-strong)]">Expiry</p>
+                      <p>Time-bound.</p>
                     </div>
                   </div>
                 </CardContent>
@@ -374,11 +368,10 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         {!loading && !error && view === "sessions" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Active and recent sessions</CardTitle>
-                  <CardDescription>Track live support work with actor visibility, mode clarity, and end-session controls.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Active and recent sessions</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {sessionRows.length} sessions
@@ -397,7 +390,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {sessionRows.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No support sessions found" hint="Approved support sessions will appear here once started." />
+                  <EmptyState title="No support sessions found" hint="Sessions will appear here." />
                 </div>
               ) : (
                 <table className="w-full text-sm">

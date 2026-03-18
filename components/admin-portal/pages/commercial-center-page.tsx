@@ -8,7 +8,7 @@ import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-conte
 import type { CommercialCenterData, WorkspaceOverview } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -264,9 +264,6 @@ export function CommercialCenterPage({
             <Badge variant="outline" className="rounded-full px-3 py-1">Commercial center</Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeTitle}</h1>
-          <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-            Manage plans, templates, bundles, add-ons, and effective feature access with typed flows and pricing-aware reviews.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -316,11 +313,10 @@ export function CommercialCenterPage({
         {!isCompanyScope && view === "subscriptions" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Workspace subscriptions</CardTitle>
-                  <CardDescription>Subscription state, plan posture, and direct commercial actions in one platform table.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Workspace subscriptions</CardTitle>
+                  </div>
                 <Badge variant="outline" className="font-mono">{filteredSubscriptions.length} workspaces</Badge>
               </div>
               <div className="w-full md:w-80">
@@ -373,11 +369,10 @@ export function CommercialCenterPage({
         {view === "templates" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Template catalog</CardTitle>
-                  <CardDescription>Commercial templates ordered for quick review and direct application without card sprawl.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Template catalog</CardTitle>
+                  </div>
                 <Badge variant="outline" className="font-mono">{filteredTemplates.length} templates</Badge>
               </div>
               <div className="w-full md:w-80">
@@ -423,11 +418,10 @@ export function CommercialCenterPage({
         {!isCompanyScope && view === "bundles" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Bundle catalog</CardTitle>
-                  <CardDescription>Global bundle definitions, pricing, and feature mapping in one full-width table.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Bundle catalog</CardTitle>
+                  </div>
                 <Badge variant="outline" className="font-mono">{filteredBundles.length} bundles</Badge>
               </div>
               <div className="w-full md:w-80">
@@ -477,11 +471,10 @@ export function CommercialCenterPage({
         {!isCompanyScope && view === "catalog" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Feature catalog</CardTitle>
-                  <CardDescription>Platform feature definitions used by bundles, templates, and entitlements.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Feature catalog</CardTitle>
+                  </div>
                 <Badge variant="outline" className="font-mono">{filteredCatalog.length} features</Badge>
               </div>
               <div className="w-full md:w-80">
@@ -518,7 +511,6 @@ export function CommercialCenterPage({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-base">Subscription review</CardTitle>
-                    <CardDescription>Keep the live subscription record, pricing, and change actions in one focused workspace view.</CardDescription>
                   </div>
                   <Badge variant="outline" className="font-mono">{overview?.subscription?.status ?? "No record"}</Badge>
                 </div>
@@ -560,7 +552,6 @@ export function CommercialCenterPage({
               <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">Pricing snapshot</CardTitle>
-                  <CardDescription>Commercial context stays beside the primary record instead of above it.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center justify-between rounded-2xl bg-[var(--surface-muted)] px-3 py-3"><span className="text-[var(--text-muted)]">Monthly total</span><span className="font-mono text-[var(--text-strong)]">{overview?.pricing ? `${formatCurrency(overview.pricing.total)}/mo` : "Unavailable"}</span></div>
@@ -571,11 +562,10 @@ export function CommercialCenterPage({
               <Card className="border-[var(--border)] shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">Subscription health</CardTitle>
-                  <CardDescription>Workspace commercial risk stays visible while you change the plan.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-[var(--text-muted)]">
-                  <p className="font-medium text-[var(--text-strong)]">{overview?.subscriptionHealth?.state ?? "No health signal"}</p>
-                  <p>{overview?.subscriptionHealth?.reason ?? "No subscription health record found."}</p>
+                  <p className="font-medium text-[var(--text-strong)]">{overview?.subscriptionHealth?.state ?? "No signal"}</p>
+                  <p>{overview?.subscriptionHealth?.reason ?? "No record."}</p>
                   {overview?.subscriptionHealth?.shouldBlock ? (
                     <div className="flex items-start gap-2 rounded-2xl border border-[#f5c2b7] bg-[#fff2ef] px-3 py-3 text-[#8a1c12]">
                       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -592,11 +582,10 @@ export function CommercialCenterPage({
         {isCompanyScope && view === "addons" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Workspace add-ons</CardTitle>
-                  <CardDescription>Review enabled bundles, pricing impact, and valid next actions from one table.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Workspace add-ons</CardTitle>
+                  </div>
                 <Badge variant="outline" className="font-mono">{filteredAddons.length} add-ons</Badge>
               </div>
               <div className="w-full md:w-80">
@@ -647,11 +636,10 @@ export function CommercialCenterPage({
         {isCompanyScope && view === "features" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="space-y-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Feature access draft</CardTitle>
-                  <CardDescription>Advanced workspace entitlements in a reviewable table so operators can see current and draft state together.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Feature access draft</CardTitle>
+                  </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="font-mono">{pendingFeatureChanges} pending</Badge>
                   <Button size="sm" variant="outline" onClick={discardFeatureDraft} disabled={pendingFeatureChanges === 0 || savingFeatures}>Discard</Button>

@@ -193,7 +193,6 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Workspaces</h1>
-            <p className="max-w-3xl text-sm text-[var(--text-muted)]">Directory, plans, status, actions.</p>
           </div>
         </div>
 

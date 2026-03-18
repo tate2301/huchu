@@ -59,26 +59,23 @@ export function AdminMagicLinkLogin({
               Pagka Control Plane
             </p>
             <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-[var(--text-strong)] [text-wrap:balance]">
-              Production operations access for platform administrators.
+              Admin access.
             </h1>
-            <p className="max-w-2xl text-base text-[var(--text-muted)] [text-wrap:pretty]">
-              Use a secure email link to enter the admin control plane. Identity, support access, commercial controls,
-              and reliability actions stay scoped, audited, and time-bound.
-            </p>
+            <p className="max-w-2xl text-base text-[var(--text-muted)] [text-wrap:pretty]">Secure email link only.</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-strong)]">Restricted surface</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Only authorized operators can request access from the admin host.</p>
+              <p className="text-sm font-semibold text-[var(--text-strong)]">Restricted</p>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Authorized operators only.</p>
             </div>
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-strong)]">Single-use entry</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Magic links expire quickly and are issued for the current control-plane session.</p>
+              <p className="text-sm font-semibold text-[var(--text-strong)]">Single-use</p>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Short expiry.</p>
             </div>
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-strong)]">Audited actions</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Sign-in and support activity remain visible to the platform audit trail.</p>
+              <p className="text-sm font-semibold text-[var(--text-strong)]">Audited</p>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Sign-ins are logged.</p>
             </div>
           </div>
         </section>
@@ -89,9 +86,7 @@ export function AdminMagicLinkLogin({
               Secure sign-in
             </div>
             <CardTitle className="text-2xl">Admin login</CardTitle>
-            <CardDescription>
-              Request a secure sign-in link for the authorized admin inbox configured for this environment.
-            </CardDescription>
+            <CardDescription>Request link.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {sent ? (
@@ -101,14 +96,12 @@ export function AdminMagicLinkLogin({
                     <MailCheck className="mt-0.5 h-5 w-5 text-[var(--action-primary-bg)]" />
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-[var(--text-strong)]">Secure link sent</p>
-                      <p className="text-sm text-[var(--text-muted)]">
-                        Check the authorized admin inbox and continue from the emailed link on this host.
-                      </p>
+                      <p className="text-sm text-[var(--text-muted)]">Check inbox.</p>
                     </div>
                   </div>
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] p-4 text-sm text-[var(--text-muted)]">
-                  If you do not receive the email shortly, wait a few minutes before requesting another link.
+                  Wait before retrying.
                 </div>
               </div>
             ) : (
@@ -123,8 +116,8 @@ export function AdminMagicLinkLogin({
                   <div className="flex items-start gap-3">
                     <TimerReset className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-muted)]" />
                     <div className="space-y-1">
-                      <p className="font-medium text-[var(--text-strong)]">Email link delivery is handled server-side.</p>
-                      <p>No mailbox details are shown in the browser or entered manually on this page.</p>
+                      <p className="font-medium text-[var(--text-strong)]">Server-side delivery.</p>
+                      <p>No mailbox shown.</p>
                     </div>
                   </div>
                 </div>

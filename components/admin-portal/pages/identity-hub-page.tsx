@@ -157,9 +157,6 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
             </Badge>
           </div>
           <h1 className="text-2xl font-semibold">{scopeLabel}</h1>
-          <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-            Manage people, support approvals, and live access sessions from one workspace-aware identity surface with guided next actions only.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -194,10 +191,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Active admins" value={activeAdmins} hint="Operators who can access admin workflows right now." />
-        <MetricCard label="Active users" value={activeUsers} hint="Current user identities available across the visible scope." />
-        <MetricCard label="Pending requests" value={pendingRequests} hint="Support approvals waiting for a decision." />
-        <MetricCard label="Live sessions" value={activeSessions} hint="Explicit support sessions still active or awaiting termination." />
+        <MetricCard label="Active admins" value={activeAdmins} hint="Online" />
+        <MetricCard label="Active users" value={activeUsers} hint="Enabled" />
+        <MetricCard label="Pending requests" value={pendingRequests} hint="Awaiting review" />
+        <MetricCard label="Live sessions" value={activeSessions} hint="Open" />
       </div>
 
       <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as IdentityView)} railLabel="Identity views">
@@ -214,11 +211,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         {!loading && !error && view === "admins" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Admin operators</CardTitle>
-                  <CardDescription>Platform and workspace administrators with activation and password controls.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Admin operators</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.admins.length ?? 0} total
@@ -244,7 +240,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {!data || data.admins.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No admins found" hint="Create the first workspace admin or broaden the active search." />
+                  <EmptyState title="No admins found" hint="Create one or adjust search." />
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -305,11 +301,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         {!loading && !error && view === "users" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Workspace users</CardTitle>
-                  <CardDescription>Users with role, activation, and password controls in a single operational table.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Workspace users</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.users.length ?? 0} total
@@ -328,7 +323,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {!data || data.users.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No users found" hint="Create a user or widen the active identity search." />
+                  <EmptyState title="No users found" hint="Create one or adjust search." />
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -386,11 +381,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         {!loading && !error && view === "requests" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Support approvals</CardTitle>
-                  <CardDescription>Review request context, approve or deny access, and start sessions only when valid.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Support approvals</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.requests.length ?? 0} requests
@@ -409,7 +403,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {!data || data.requests.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No support requests found" hint="New support requests will appear here after submission." />
+                  <EmptyState title="No support requests found" hint="Requests will appear here." />
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -466,11 +460,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         {!loading && !error && view === "sessions" ? (
           <Card className="border-[var(--border)] shadow-none">
             <CardHeader className="gap-4 border-b border-[var(--border)]">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Support sessions</CardTitle>
-                  <CardDescription>Track impersonation and shadow sessions with clear actor visibility and end-session controls.</CardDescription>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Support sessions</CardTitle>
+                  </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.sessions.length ?? 0} sessions
@@ -489,7 +482,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {!data || data.sessions.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No support sessions found" hint="Approved access sessions will appear here once started." />
+                  <EmptyState title="No support sessions found" hint="Sessions will appear here." />
                 </div>
               ) : (
                 <table className="w-full text-sm">

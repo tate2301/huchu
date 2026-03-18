@@ -135,7 +135,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             <h2 className="text-3xl font-semibold tracking-tight">
               {scopeCompanyId ? `${activeCompany?.name ?? "Workspace"} command center` : "Operator command center"}
             </h2>
-            <p className="max-w-3xl text-sm text-[var(--text-muted)]">{scopeCompanyId ? activeCompany?.slug ?? scopeCompanyId : "Platform queues, workspace jump, and next actions."}</p>
+            {scopeCompanyId ? <p className="text-sm text-[var(--text-muted)]">{activeCompany?.slug ?? scopeCompanyId}</p> : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
