@@ -183,7 +183,7 @@ enum WorkspaceProfile {
   SCRAP_METAL
   SCHOOLS
   AUTOS
-  THRIFT
+  RETAIL @map("THRIFT")
   GENERAL
 }
 
@@ -1541,7 +1541,7 @@ enum EmployeeModule {
   GOLD
   SCRAP_METAL
   CAR_SALES
-  THRIFT
+  RETAIL @map("THRIFT")
 }
 
 enum IrregularPayoutSource {
@@ -2572,6 +2572,237 @@ model StockMovement {
   @@index([createdAt])
 }
 
+model RetailRegister {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  siteId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId, siteId, isActive])
+}
+
+model RetailCatalogItem {
+  id              String   @id @default(uuid())
+  companyId       String
+  catalogCode     String
+  inventoryItemId String
+  siteId          String
+  name            String
+  sku             String
+  barcode         String?
+  description     String?
+  unitPrice       Float    @default(0)
+  compareAtPrice  Float?
+  taxPercent      Float    @default(0)
+  acquisitionMode String   @default("PURCHASE")
+  imageUrl        String?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, catalogCode])
+  @@unique([companyId, sku])
+  @@index([companyId, siteId, status])
+  @@index([inventoryItemId])
+}
+
+model RetailPromotion {
+  id          String   @id @default(uuid())
+  companyId   String
+  promoCode   String
+  name        String
+  type        String
+  value       Float    @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      String   @default("ACTIVE")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, promoCode])
+  @@index([companyId, status])
+}
+
+model RetailPurchaseOrder {
+  id           String   @id @default(uuid())
+  companyId    String
+  poNo         String
+  siteId       String
+  supplierName String
+  status       String   @default("DRAFT")
+  expectedDate DateTime?
+  notes        String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lines RetailPurchaseOrderLine[]
+
+  @@unique([companyId, poNo])
+  @@index([companyId, siteId, status])
+}
+
+model RetailPurchaseOrderLine {
+  id              String   @id @default(uuid())
+  purchaseOrderId String
+  inventoryItemId String?
+  itemName        String
+  quantity        Float    @default(0)
+  unitCost        Float    @default(0)
+  lineTotal       Float    @default(0)
+  receivedQuantity Float   @default(0)
+  createdAt       DateTime @default(now())
+
+  purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+}
+
+model RetailGoodsReceipt {
+  id              String   @id @default(uuid())
+  companyId       String
+  receiptNo       String
+  purchaseOrderId String?
+  siteId          String
+  supplierName    String
+  status          String   @default("POSTED")
+  notes           String?
+  receivedById    String?
+  createdAt       DateTime @default(now())
+  postedAt        DateTime?
+  updatedAt       DateTime @updatedAt
+
+  lines RetailGoodsReceiptLine[]
+
+  @@unique([companyId, receiptNo])
+  @@index([companyId, siteId, status])
+}
+
+model RetailGoodsReceiptLine {
+  id             String   @id @default(uuid())
+  receiptId      String
+  inventoryItemId String
+  itemName       String
+  quantity       Float    @default(0)
+  unitCost       Float    @default(0)
+  lineTotal      Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+}
+
+model RetailShift {
+  id           String   @id @default(uuid())
+  companyId    String
+  shiftNo      String
+  registerCode String
+  registerName String
+  siteId       String
+  cashierId    String
+  cashierName  String
+  openingFloat Float    @default(0)
+  status       String   @default("OPEN")
+  openedAt     DateTime @default(now())
+  closedAt     DateTime?
+  expectedCash Float    @default(0)
+  countedCash  Float?
+  variance     Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, shiftNo])
+  @@index([companyId, siteId, status])
+  @@index([cashierId, status])
+}
+
+model RetailHeldCart {
+  id           String   @id @default(uuid())
+  companyId    String
+  holdNo       String
+  shiftId      String
+  cashierId    String
+  label        String?
+  cartSnapshot Json
+  status       String   @default("HELD")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, holdNo])
+  @@index([companyId, shiftId, status])
+}
+
+model RetailSale {
+  id             String   @id @default(uuid())
+  companyId      String
+  saleNo         String
+  shiftId        String?
+  sourceSaleId   String?
+  siteId         String
+  cashierId      String?
+  cashierName    String?
+  customerName   String?
+  saleType       String   @default("SALE")
+  subtotal       Float    @default(0)
+  discountAmount Float    @default(0)
+  taxAmount      Float    @default(0)
+  totalAmount    Float    @default(0)
+  tenderedAmount Float?
+  changeAmount   Float?
+  tenderSummary  Json?
+  status         String   @default("POSTED")
+  notes          String?
+  postedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lines    RetailSaleLine[]
+  payments RetailSalePayment[]
+
+  @@unique([companyId, saleNo])
+  @@index([companyId, siteId, status, postedAt])
+  @@index([shiftId])
+}
+
+model RetailSaleLine {
+  id              String   @id @default(uuid())
+  saleId          String
+  inventoryItemId String
+  catalogItemId   String?
+  itemName        String
+  quantity        Float    @default(0)
+  unitPrice       Float    @default(0)
+  discountAmount  Float    @default(0)
+  taxAmount       Float    @default(0)
+  lineTotal       Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+}
+
+model RetailSalePayment {
+  id          String   @id @default(uuid())
+  saleId      String
+  tenderType  String
+  amount      Float    @default(0)
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+}
+
 model Equipment {
   id            String  @id @default(uuid())
   equipmentCode String
@@ -2705,6 +2936,10 @@ enum AccountingSourceType {
   SCRAP_METAL_PURCHASE
   SCRAP_METAL_BATCH
   SCRAP_METAL_SALE
+  RETAIL_GOODS_RECEIPT
+  RETAIL_SALE
+  RETAIL_REFUND
+  RETAIL_SHIFT_VARIANCE
 }
 
 enum InvoiceStatus {

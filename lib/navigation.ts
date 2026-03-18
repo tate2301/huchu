@@ -39,6 +39,7 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 import { HR_TABS } from "@/lib/hr/tab-config";
+import { RETAIL_TABS } from "@/lib/retail/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
 import { SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 
@@ -252,17 +253,15 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    id: "thrift",
-    title: "Retail & Thrift",
-    description: "Shop operations, checkout, and POS",
-    featureKey: "thrift.core",
-    items: [
-      { href: "/thrift", icon: Wallet, label: "Overview" },
-      { href: "/thrift/intake", icon: ArrowDownward, label: "Intake" },
-      { href: "/thrift/catalog", icon: Package, label: "Catalog" },
-      { href: "/thrift/sales", icon: ReceiptLong, label: "Sales" },
-      { href: "/portal/pos", icon: Payments, label: "Point of Sale" },
-    ],
+    id: "retail",
+    title: "Retail",
+    description: "Point of sale, catalog, purchasing, merchandising, and cash-up",
+    featureKey: "retail.core",
+    items: RETAIL_TABS.map((tab) => ({
+      href: tab.href,
+      icon: tab.icon,
+      label: tab.label,
+    })),
   },
   {
     id: "gold",

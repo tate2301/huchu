@@ -36,12 +36,15 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "autos.leads": ["autos.core"],
   "autos.deals": ["autos.core"],
   "autos.financing": ["autos.core"],
-  "thrift.intake": ["thrift.core"],
-  "thrift.catalog": ["thrift.core"],
-  "thrift.checkout": ["thrift.core"],
+  "retail.pos": ["retail.core"],
+  "retail.catalog": ["retail.core"],
+  "retail.purchasing": ["retail.core"],
+  "retail.promotions": ["retail.core"],
+  "retail.shifts": ["retail.core"],
+  "retail.reports": ["retail.core"],
   "portal.schools": ["portal.core", "schools.core"],
   "portal.autos": ["portal.core", "autos.core"],
-  "portal.thrift": ["portal.core", "thrift.core"],
+  "portal.pos": ["portal.core", "retail.pos"],
 };
 
 export function getFeatureDependencies(featureKey: string): string[] {

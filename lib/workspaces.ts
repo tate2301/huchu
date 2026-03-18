@@ -28,6 +28,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "@/lib/icons";
+import { RETAIL_OPERATIONS_SECTIONS } from "@/lib/retail/tab-config";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
 import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
 
@@ -88,20 +89,21 @@ const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GOLD_MINE";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["hr", "accounting", "management"];
 const STRICT_WORKSPACE_MODULE_FEATURE_KEYS: Partial<Record<WorkspaceModuleId, string>> = {
   "scrap-metal": "scrap-metal.home",
+  retail: "retail.core",
 };
 const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, WorkspaceModuleId> = {
   GOLD_MINE: "gold",
   SCRAP_METAL: "scrap-metal",
   SCHOOLS: "schools",
   AUTOS: "car-sales",
-  THRIFT: "thrift",
+  RETAIL: "retail",
 };
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "gold",
   "scrap-metal",
   "schools",
   "car-sales",
-  "thrift",
+  "retail",
   "hr",
   "stores",
   "maintenance",
@@ -165,11 +167,11 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     sectionId: "car-sales",
     homeHref: "/car-sales",
   }),
-  thrift: createSectionModule({
-    id: "thrift",
-    label: "Retail & Thrift",
-    sectionId: "thrift",
-    homeHref: "/thrift",
+  retail: createSectionModule({
+    id: "retail",
+    label: "Retail",
+    sectionId: "retail",
+    homeHref: "/retail",
   }),
   hr: createSectionModule({
     id: "hr",
@@ -381,32 +383,51 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
     ],
   },
-  THRIFT: {
-    label: "Retail & Thrift",
-    preferredHomeHref: "/thrift",
+  RETAIL: {
+    label: "Retail",
+    preferredHomeHref: "/retail",
     quickActions: [
-      roleItem("/thrift/intake", "Intake", Package),
-      roleItem("/thrift/catalog", "Catalog", TableRows),
-      roleItem("/thrift/sales", "Sales", ReceiptLong),
+      roleItem("/portal/pos", "Point of Sale", Payments),
+      roleItem("/retail/catalog", "Catalog", TableRows),
+      roleItem("/retail/purchasing/orders", "Purchase Order", ReceiptLong),
+      roleItem("/retail/shifts", "Shifts", Wallet),
     ],
-    nativeModules: ["thrift"],
+    nativeModules: ["retail", "reporting"],
     sections: [
       {
-        id: "thrift-floor",
-        title: "Shop Floor",
-        refs: [
-          { moduleId: "thrift", href: "/thrift" },
-          { moduleId: "thrift", href: "/thrift/intake" },
-          { moduleId: "thrift", href: "/thrift/catalog" },
-        ],
+        id: "retail-overview",
+        title: "Overview",
+        refs: RETAIL_OPERATIONS_SECTIONS.overview.map((href) => ({ moduleId: "retail" as const, href })),
       },
       {
-        id: "thrift-commerce",
-        title: "Sales Channels",
-        refs: [
-          { moduleId: "thrift", href: "/thrift/sales" },
-          { moduleId: "thrift", href: "/portal/pos" },
-        ],
+        id: "retail-pos",
+        title: "Point of Sale",
+        refs: RETAIL_OPERATIONS_SECTIONS.pos.map((href) => ({ moduleId: "retail" as const, href })),
+      },
+      {
+        id: "retail-catalog",
+        title: "Catalog",
+        refs: RETAIL_OPERATIONS_SECTIONS.catalog.map((href) => ({ moduleId: "retail" as const, href })),
+      },
+      {
+        id: "retail-purchasing",
+        title: "Purchasing",
+        refs: RETAIL_OPERATIONS_SECTIONS.purchasing.map((href) => ({ moduleId: "retail" as const, href })),
+      },
+      {
+        id: "retail-merchandising",
+        title: "Merchandising",
+        refs: RETAIL_OPERATIONS_SECTIONS.merchandising.map((href) => ({ moduleId: "retail" as const, href })),
+      },
+      {
+        id: "retail-shifts",
+        title: "Shifts",
+        refs: RETAIL_OPERATIONS_SECTIONS.shifts.map((href) => ({ moduleId: "retail" as const, href })),
+      },
+      {
+        id: "retail-reports",
+        title: "Reports",
+        refs: RETAIL_OPERATIONS_SECTIONS.reporting.map((href) => ({ moduleId: "retail" as const, href })),
       },
     ],
   },
@@ -434,7 +455,7 @@ export function getWorkspaceProfileForTemplate(code: string | null | undefined):
   if (normalized.includes("SCRAP")) return "SCRAP_METAL";
   if (normalized.includes("SCHOOL")) return "SCHOOLS";
   if (normalized.includes("AUTO") || normalized.includes("CAR_SALES") || normalized.includes("CAR-SALES")) return "AUTOS";
-  if (normalized.includes("THRIFT")) return "THRIFT";
+  if (normalized.includes("THRIFT") || normalized.includes("RETAIL")) return "RETAIL";
   if (normalized.includes("CORE") || normalized.includes("ALL_FEATURES")) return "GENERAL";
   return null;
 }

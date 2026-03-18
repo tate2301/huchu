@@ -13,6 +13,7 @@ type V2CollectionResource =
   | "autos"
   | "pos"
   | "thrift"
+  | "retail"
   | "portal-parent"
   | "portal-student"
   | "portal-teacher";

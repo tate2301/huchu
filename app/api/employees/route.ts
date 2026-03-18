@@ -10,7 +10,7 @@ import {
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/hr-payroll"
-import { Prisma } from "@prisma/client"
+import { EmployeeModule, Prisma } from "@prisma/client"
 
 const employeeSchema = z.object({
   name: z.string().min(1).max(200),
@@ -52,7 +52,7 @@ const employeeSchema = z.object({
   moduleAssignments: z
     .array(
       z.object({
-        module: z.enum(["HR", "GOLD", "SCRAP_METAL", "CAR_SALES", "THRIFT"]),
+        module: z.enum(["HR", "GOLD", "SCRAP_METAL", "CAR_SALES", "RETAIL"]),
         accessRole: z
           .enum([
             "MANAGER",
@@ -414,8 +414,8 @@ export async function POST(request: NextRequest) {
           companyId: session.user.companyId,
           moduleAssignments: {
             create: normalizedModuleAssignments.map((assignment) => ({
-              companyId: session.user.companyId,
-              module: assignment.module,
+              company: { connect: { id: session.user.companyId } },
+              module: EmployeeModule[assignment.module],
               accessRole: assignment.accessRole,
               requiresUserAccess: assignment.requiresUserAccess,
               isPrimary: assignment.isPrimary,

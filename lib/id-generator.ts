@@ -29,7 +29,15 @@ export type ReservableIdEntity =
   | "SCRAP_MATERIAL"
   | "SCRAP_METAL_PURCHASE"
   | "SCRAP_METAL_BATCH"
-  | "SCRAP_METAL_SALE";
+  | "SCRAP_METAL_SALE"
+  | "RETAIL_REGISTER"
+  | "RETAIL_CATALOG_ITEM"
+  | "RETAIL_PURCHASE_ORDER"
+  | "RETAIL_GOODS_RECEIPT"
+  | "RETAIL_SHIFT"
+  | "RETAIL_HELD_CART"
+  | "RETAIL_SALE"
+  | "RETAIL_PROMOTION";
 
 type EntityConfig = {
   prefix: string;
@@ -69,6 +77,14 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   SCRAP_METAL_PURCHASE: { prefix: "SCPUR", requiresSiteId: true },
   SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: true },
   SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: true },
+  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
+  RETAIL_CATALOG_ITEM: { prefix: "RTL", requiresSiteId: true },
+  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
+  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
+  RETAIL_SHIFT: { prefix: "RSH", requiresSiteId: true },
+  RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
+  RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
+  RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
 };
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -330,6 +346,68 @@ async function findEntityMaxExistingCode(
         select: { saleNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.saleNumber), prefix);
+    }
+    case "RETAIL_REGISTER": {
+      if (!siteId) return 0;
+      const records = await db.retailRegister.findMany({
+        where: { companyId, siteId },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_CATALOG_ITEM": {
+      if (!siteId) return 0;
+      const records = await db.retailCatalogItem.findMany({
+        where: { companyId, siteId },
+        select: { catalogCode: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.catalogCode), prefix);
+    }
+    case "RETAIL_PURCHASE_ORDER": {
+      if (!siteId) return 0;
+      const records = await db.retailPurchaseOrder.findMany({
+        where: { companyId, siteId },
+        select: { poNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.poNo), prefix);
+    }
+    case "RETAIL_GOODS_RECEIPT": {
+      if (!siteId) return 0;
+      const records = await db.retailGoodsReceipt.findMany({
+        where: { companyId, siteId },
+        select: { receiptNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
+    }
+    case "RETAIL_SHIFT": {
+      if (!siteId) return 0;
+      const records = await db.retailShift.findMany({
+        where: { companyId, siteId },
+        select: { shiftNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.shiftNo), prefix);
+    }
+    case "RETAIL_HELD_CART": {
+      const records = await db.retailHeldCart.findMany({
+        where: { companyId },
+        select: { holdNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.holdNo), prefix);
+    }
+    case "RETAIL_SALE": {
+      if (!siteId) return 0;
+      const records = await db.retailSale.findMany({
+        where: { companyId, siteId },
+        select: { saleNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.saleNo), prefix);
+    }
+    case "RETAIL_PROMOTION": {
+      const records = await db.retailPromotion.findMany({
+        where: { companyId },
+        select: { promoCode: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.promoCode), prefix);
     }
     default:
       return 0;

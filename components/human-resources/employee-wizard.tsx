@@ -89,10 +89,10 @@ const moduleOptions = [
     featureMatcher: (feature: string) => feature.startsWith("autos."),
   },
   {
-    value: "THRIFT",
-    label: "Thrift",
-    description: "Retail intake, catalog, checkout, and POS operations.",
-    featureMatcher: (feature: string) => feature.startsWith("thrift."),
+    value: "RETAIL",
+    label: "Retail",
+    description: "Retail merchandising, purchasing, cash-up, and POS operations.",
+    featureMatcher: (feature: string) => feature.startsWith("retail."),
   },
 ] as const
 

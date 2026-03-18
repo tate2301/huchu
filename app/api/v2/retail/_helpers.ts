@@ -1,0 +1,209 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { errorResponse, validateSession } from "@/lib/api-utils";
+import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { prisma } from "@/lib/prisma";
+
+export type RetailSession = Awaited<ReturnType<typeof validateSession>> extends infer TResult
+  ? TResult extends NextResponse
+    ? never
+    : TResult extends { session: infer TSession }
+      ? TSession
+      : never
+  : never;
+
+export async function requireRetailSession(request: NextRequest) {
+  const sessionResult = await validateSession(request);
+  if (sessionResult instanceof NextResponse) {
+    return { response: sessionResult, session: null as RetailSession | null };
+  }
+  return { response: null, session: sessionResult.session as RetailSession };
+}
+
+export async function ensureSiteAccess(companyId: string, siteId: string) {
+  const site = await prisma.site.findUnique({
+    where: { id: siteId },
+    select: { id: true, companyId: true, isActive: true, name: true, code: true },
+  });
+
+  if (!site || site.companyId !== companyId || !site.isActive) {
+    return null;
+  }
+
+  return site;
+}
+
+export async function ensureLocationAccess(siteId: string, locationId: string) {
+  const location = await prisma.stockLocation.findUnique({
+    where: { id: locationId },
+    select: { id: true, siteId: true, isActive: true, name: true, code: true },
+  });
+
+  if (!location || location.siteId !== siteId || !location.isActive) {
+    return null;
+  }
+
+  return location;
+}
+
+export async function ensureInventoryItemAccess(companyId: string, inventoryItemId: string) {
+  const item = await prisma.inventoryItem.findUnique({
+    where: { id: inventoryItemId },
+    include: {
+      site: { select: { companyId: true, name: true, code: true } },
+      location: { select: { id: true, name: true, code: true } },
+    },
+  });
+
+  if (!item || item.site.companyId !== companyId) {
+    return null;
+  }
+
+  return item;
+}
+
+export async function upsertRetailRegister(input: {
+  companyId: string;
+  siteId: string;
+  registerName: string;
+  registerCode?: string | null;
+}) {
+  const normalizedName = input.registerName.trim();
+  if (!normalizedName) {
+    throw new Error("Register name is required.");
+  }
+
+  const existing = await prisma.retailRegister.findFirst({
+    where: {
+      companyId: input.companyId,
+      siteId: input.siteId,
+      name: { equals: normalizedName, mode: "insensitive" },
+    },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const code = input.registerCode
+    ? normalizeProvidedId(input.registerCode, "RETAIL_REGISTER")
+    : await reserveIdentifier(prisma, {
+        companyId: input.companyId,
+        entity: "RETAIL_REGISTER",
+        siteId: input.siteId,
+      });
+
+  return prisma.retailRegister.create({
+    data: {
+      companyId: input.companyId,
+      siteId: input.siteId,
+      code,
+      name: normalizedName,
+    },
+  });
+}
+
+export async function recordRetailInventoryMovement(input: {
+  companyId: string;
+  userId: string;
+  itemId: string;
+  movementType: "RECEIPT" | "ISSUE" | "ADJUSTMENT" | "TRANSFER";
+  quantity: number;
+  unit: string;
+  unitCost?: number | null;
+  notes?: string | null;
+  toLocationId?: string | null;
+  sourceType:
+    | "RETAIL_GOODS_RECEIPT"
+    | "RETAIL_SALE"
+    | "RETAIL_REFUND"
+    | "RETAIL_SHIFT_VARIANCE";
+  sourceId: string;
+  entryDate?: Date;
+}) {
+  const item = await prisma.inventoryItem.findUnique({
+    where: { id: input.itemId },
+    include: { site: { select: { companyId: true } } },
+  });
+
+  if (!item || item.site.companyId !== input.companyId) {
+    throw new Error("Invalid inventory item.");
+  }
+
+  if (item.unit !== input.unit) {
+    throw new Error("Stock unit mismatch.");
+  }
+
+  const absoluteQuantity = Math.abs(input.quantity);
+  if (input.movementType === "ISSUE" && item.currentStock < absoluteQuantity) {
+    throw new Error("Insufficient stock.");
+  }
+
+  let nextStock = item.currentStock;
+  if (input.movementType === "RECEIPT") nextStock += absoluteQuantity;
+  if (input.movementType === "ISSUE") nextStock -= absoluteQuantity;
+  if (input.movementType === "ADJUSTMENT") nextStock += input.quantity;
+
+  if (nextStock < 0) {
+    throw new Error("Stock cannot be negative.");
+  }
+
+  const referenceId = await reserveIdentifier(prisma, {
+    companyId: input.companyId,
+    entity: "STOCK_MOVEMENT",
+  });
+
+  const createdAt = input.entryDate ?? new Date();
+  const movement = await prisma.$transaction(async (tx) => {
+    const created = await tx.stockMovement.create({
+      data: {
+        referenceId,
+        itemId: input.itemId,
+        toLocationId: input.toLocationId ?? undefined,
+        movementType: input.movementType,
+        quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
+        unit: input.unit,
+        notes: input.notes ?? undefined,
+        issuedById: input.userId,
+        createdAt,
+      },
+    });
+
+    await tx.inventoryItem.update({
+      where: { id: input.itemId },
+      data: {
+        currentStock: nextStock,
+        ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
+      },
+    });
+
+    return created;
+  });
+
+  const unitCost = input.unitCost ?? item.unitCost ?? 0;
+  const amount = Math.abs(absoluteQuantity * unitCost);
+  if (amount > 0) {
+    try {
+      await createJournalEntryFromSource({
+        companyId: input.companyId,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        entryDate: createdAt,
+        description: `Retail ${input.movementType.toLowerCase()} - ${item.name}`,
+        createdById: input.userId,
+        amount,
+        netAmount: amount,
+        taxAmount: 0,
+        grossAmount: amount,
+      });
+    } catch (error) {
+      console.error("[Accounting] Retail stock movement auto-post failed:", error);
+    }
+  }
+
+  return movement;
+}
+
+export function retailValidationError(message: string, status = 400, details?: unknown) {
+  return errorResponse(message, status, details);
+}

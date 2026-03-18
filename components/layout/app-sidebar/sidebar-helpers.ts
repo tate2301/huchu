@@ -28,12 +28,12 @@ const sectionIcons: Record<string, LucideIcon> = {
   settings: Dashboard,
   schools: Building2,
   "car-sales": Package,
-  thrift: Coins,
+  retail: Coins,
   accounting: Scale,
   management: ManageAccounts,
 };
 
-const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "thrift"]);
+const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "retail"]);
 
 export function matchesNavHref(href: string, pathname: string, view: string | null) {
   if (href === "/") return pathname === "/";

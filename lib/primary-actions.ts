@@ -28,7 +28,7 @@ type WorkspaceProfileKey =
   | "SCRAP_METAL"
   | "SCHOOLS"
   | "AUTOS"
-  | "THRIFT"
+  | "RETAIL"
   | "GENERAL";
 
 function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceProfileKey {
@@ -37,10 +37,11 @@ function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceP
     case "SCRAP_METAL":
     case "SCHOOLS":
     case "AUTOS":
+    case "RETAIL":
     case "THRIFT":
     case "GENERAL":
     case "GOLD_MINE":
-      return normalized;
+      return normalized === "THRIFT" ? "RETAIL" : normalized;
     default:
       return "GOLD_MINE";
   }
@@ -82,11 +83,11 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
     { href: "/car-sales/inventory", icon: Package, label: "Inventory" },
     { href: "/car-sales/deals", icon: Wallet, label: "Deals" },
   ],
-  THRIFT: [
+  RETAIL: [
     { href: "/portal/pos", icon: Payments, label: "Point of Sale" },
-    { href: "/thrift/intake", icon: Package, label: "Intake" },
-    { href: "/thrift/catalog", icon: TableRows, label: "Catalog" },
-    { href: "/thrift/sales", icon: ReceiptLong, label: "Sales" },
+    { href: "/retail/catalog", icon: TableRows, label: "Catalog" },
+    { href: "/retail/purchasing/orders", icon: Package, label: "Purchasing" },
+    { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
   ],
 };
 

@@ -13,7 +13,7 @@ export type FeatureDomain =
   | "cctv"
   | "schools"
   | "autos"
-  | "thrift"
+  | "retail"
   | "portal"
   | "reports"
   | "admin";
@@ -155,15 +155,18 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "autos.deals", name: "Deals", description: "Deal progression and close-out workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "autos.financing", name: "Financing", description: "Vehicle financing and installment workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
-  f({ key: "thrift.core", name: "Smart Shop Core", description: "Shop module landing and shared setup.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "thrift.intake", name: "Shop Intake", description: "Intake and receiving workflows for shop stock.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "thrift.catalog", name: "Shop Catalog", description: "Cataloging and merchandising for shop items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "thrift.checkout", name: "Shop Checkout", description: "Point-of-sale and checkout workflows for shop items.", domain: "thrift", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.core", name: "Retail Core", description: "Retail module landing and shared setup.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.pos", name: "Retail POS", description: "Point-of-sale and cashier workflows.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.catalog", name: "Retail Catalog", description: "Cataloging, pricing, barcodes, and sellable item management.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.purchasing", name: "Retail Purchasing", description: "Purchase orders, receipts, and receiving workflows.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.promotions", name: "Retail Promotions", description: "Price lists, markdowns, and promotion rules.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.shifts", name: "Retail Shifts", description: "Shift control, cash-up, and register reconciliation.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.reports", name: "Retail Reports", description: "Retail dashboards and reporting surfaces.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.autos", name: "Auto Sales Portal", description: "Auto sales-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "portal.thrift", name: "Shop Portal", description: "Smart Shop-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "portal.pos", name: "POS Portal", description: "Point-of-sale portal access for cashier surfaces.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "reports.dashboard", name: "Reports Dashboard", description: "Top-level reports dashboard.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
   f({ key: "reports.shift", name: "Shift Reports", description: "Shift reports analytics pages.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
@@ -425,16 +428,20 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     ],
   },
   {
-    code: "ADDON_THRIFT_SUITE",
-    name: "Smart Shop Suite",
-    description: "Placeholder bundle for smart shop inventory and checkout flows.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
+    code: "ADDON_RETAIL_SUITE",
+    name: "Retail Suite",
+    description: "Retail operations, merchandising, shifts, and POS for shop businesses.",
+    monthlyPrice: 180,
+    additionalSiteMonthlyPrice: 20,
     features: [
-      "thrift.core",
-      "thrift.intake",
-      "thrift.catalog",
-      "thrift.checkout",
+      "retail.core",
+      "retail.pos",
+      "retail.catalog",
+      "retail.purchasing",
+      "retail.promotions",
+      "retail.shifts",
+      "retail.reports",
+      "portal.pos",
     ],
   },
   {
@@ -447,7 +454,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "portal.core",
       "portal.schools",
       "portal.autos",
-      "portal.thrift",
+      "portal.pos",
     ],
   },
   {

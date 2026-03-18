@@ -15,13 +15,13 @@ export function PosPortalLoginClient({
   return (
     <PortalLoginForm
       portalTitle="Point of Sale"
-      portalDescription="Sign in to process sales and manage transactions."
+      portalDescription="Sign in to sell and manage your shift."
       portalIcon={<ReceiptLong className="h-7 w-7" />}
       companyLabel={companyLabel}
       redirectTo="/portal/pos"
       callbackUrl={callbackUrl}
       rememberMeEnabled={rememberMeEnabled}
-      helpText="Contact your store manager if you need cashier access."
+      helpText="Contact your manager if you need cashier access."
     />
   );
 }

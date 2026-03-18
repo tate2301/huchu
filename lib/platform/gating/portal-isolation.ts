@@ -43,6 +43,7 @@ const BLOCKED_ROUTES_FOR_PORTAL_USERS = [
   "/",
   "/schools",
   "/car-sales",
+  "/retail",
   "/thrift",
   "/accounting",
   "/human-resources",

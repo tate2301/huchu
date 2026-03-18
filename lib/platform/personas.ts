@@ -1,4 +1,4 @@
-export type PersonaDomain = "schools" | "autos" | "thrift" | "portal";
+export type PersonaDomain = "schools" | "autos" | "retail" | "portal";
 
 export type PersonaCode =
   | "SCHOOL_ADMIN"
@@ -14,7 +14,7 @@ export type PersonaCode =
   | "LOT_MANAGER"
   | "CASHIER"
   | "STOCK_CLERK"
-  | "THRIFT_MANAGER";
+  | "RETAIL_MANAGER";
 
 export interface PersonaDefinition {
   code: PersonaCode;
@@ -40,9 +40,9 @@ export const PERSONAS: PersonaDefinition[] = [
   { code: "SALES_MANAGER", domain: "autos", label: "Sales Manager", description: "Car sales deals, approvals, and pipeline oversight." },
   { code: "SALES_EXEC", domain: "autos", label: "Sales Executive", description: "Lead handling and deal progression." },
   { code: "LOT_MANAGER", domain: "autos", label: "Lot Manager", description: "Vehicle inventory and lot control." },
-  { code: "CASHIER", domain: "thrift", label: "Cashier", description: "POS selling, shift open/close, and tender capture." },
-  { code: "STOCK_CLERK", domain: "thrift", label: "Stock Clerk", description: "Item intake, catalog upkeep, and stock movements." },
-  { code: "THRIFT_MANAGER", domain: "thrift", label: "Thrift Manager", description: "Markdown rules, settlements, and thrift governance." },
+  { code: "CASHIER", domain: "retail", label: "Cashier", description: "POS selling, shift open/close, and tender capture." },
+  { code: "STOCK_CLERK", domain: "retail", label: "Stock Clerk", description: "Catalog upkeep, receiving coordination, and stock movement support." },
+  { code: "RETAIL_MANAGER", domain: "retail", label: "Retail Manager", description: "Pricing, promotions, cash-up approvals, and retail governance." },
 ];
 
 const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
@@ -86,17 +86,17 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
     { resource: "autos.inventory", actions: ["view", "create", "edit", "transfer"] },
   ],
   CASHIER: [
-    { resource: "thrift.checkout", actions: ["view", "sell", "close-shift"] },
-    { resource: "thrift.reversals", actions: ["request"] },
+    { resource: "retail.pos", actions: ["view", "sell", "close-shift"] },
+    { resource: "retail.refunds", actions: ["request"] },
   ],
   STOCK_CLERK: [
-    { resource: "thrift.intake", actions: ["view", "create", "grade"] },
-    { resource: "thrift.catalog", actions: ["view", "edit"] },
+    { resource: "retail.purchasing", actions: ["view", "create", "receive"] },
+    { resource: "retail.catalog", actions: ["view", "edit"] },
   ],
-  THRIFT_MANAGER: [
-    { resource: "thrift.checkout", actions: ["view", "sell", "override"] },
-    { resource: "thrift.settlement", actions: ["view", "run", "approve"] },
-    { resource: "thrift.markdown", actions: ["view", "edit", "apply"] },
+  RETAIL_MANAGER: [
+    { resource: "retail.pos", actions: ["view", "sell", "override"] },
+    { resource: "retail.shifts", actions: ["view", "run", "approve"] },
+    { resource: "retail.promotions", actions: ["view", "edit", "apply"] },
   ],
 };
 

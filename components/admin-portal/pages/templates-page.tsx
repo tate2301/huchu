@@ -11,7 +11,7 @@ const templates = [
   { name: "Tech Workshop", tier: "Standard", bundles: ["Maintenance Pro", "Analytics Pro"], highlights: ["Work orders", "Preventive schedule", "Downtime analytics"] },
   { name: "Schools", tier: "Enterprise", bundles: ["Schools Suite", "Portal Suite"], highlights: ["Admissions", "Results", "Parent/Student portals"] },
   { name: "Car Sales", tier: "Standard", bundles: ["Auto Sales Suite", "Portal Suite"], highlights: ["Inventory", "Leads", "Deals"] },
-  { name: "Thrift", tier: "Standard", bundles: ["Smart Shop Suite", "Portal Suite"], highlights: ["Catalog", "Checkout", "Portals"] },
+  { name: "Retail", tier: "Standard", bundles: ["Retail Suite", "Portal Suite"], highlights: ["POS", "Catalog", "Cash-up"] },
   { name: "All Features", tier: "Enterprise", bundles: ["All bundles"], highlights: ["Everything on"] },
 ];
 

@@ -4,9 +4,9 @@ import { buildV2CollectionResponse } from "../_shared";
 
 export async function GET(request: NextRequest) {
   try {
-    return await buildV2CollectionResponse(request, "thrift");
+    return await buildV2CollectionResponse(request, "retail");
   } catch (error) {
     console.error("[API] GET /api/v2/thrift error:", error);
-    return errorResponse("Failed to fetch thrift v2 data");
+    return errorResponse("Failed to fetch retail v2 data");
   }
 }

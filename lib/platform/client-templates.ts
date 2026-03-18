@@ -107,10 +107,10 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "gold.payouts",
       "schools.core",
       "autos.core",
-      "thrift.core",
+      "retail.core",
       "portal.schools",
       "portal.autos",
-      "portal.thrift",
+      "portal.pos",
     ],
   },
   {
@@ -190,12 +190,15 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "autos.leads",
       "autos.deals",
       "autos.financing",
-      "thrift.core",
-      "thrift.intake",
-      "thrift.catalog",
-      "thrift.checkout",
+      "retail.core",
+      "retail.catalog",
+      "retail.pos",
+      "retail.purchasing",
+      "retail.promotions",
+      "retail.shifts",
+      "retail.reports",
       "portal.autos",
-      "portal.thrift",
+      "portal.pos",
     ],
   },
   {
@@ -207,18 +210,44 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     bundleCodes: ["ADDON_AUTOS_SUITE", "ADDON_PORTAL_SUITE"],
     featureKeys: [],
     verticalProductId: "auto-sales",
-    disabledFeatureKeys: ["schools.core", "thrift.core", "portal.schools", "portal.thrift"],
+    disabledFeatureKeys: ["schools.core", "retail.core", "portal.schools", "portal.pos"],
   },
   {
-    code: "TEMPLATE_THRIFT",
-    label: "Retail & Thrift",
-    description: "Intake, cataloging, sales, and POS workflows for thrift, resale, and shop operators.",
+    code: "TEMPLATE_RETAIL",
+    label: "Retail",
+    description: "Retail, POS, purchasing, merchandising, and cash-up workflows for shop operators.",
     targetClients: ["Small retailers", "Second-hand retail", "Resale marketplaces"],
-    recommendedTierCode: "BASIC",
-    bundleCodes: ["ADDON_THRIFT_SUITE", "ADDON_PORTAL_SUITE"],
+    recommendedTierCode: "STANDARD",
+    bundleCodes: [
+      "ADDON_RETAIL_SUITE",
+      "ADDON_STORES_CORE",
+      "ADDON_WORKFORCE_CORE",
+      "ADDON_ACCOUNTING_CORE",
+      "ADDON_ACCOUNTING_ADVANCED",
+      "ADDON_MAINTENANCE_PRO",
+    ],
     featureKeys: [],
-    verticalProductId: "retail-thrift",
-    disabledFeatureKeys: ["schools.core", "autos.core", "portal.schools", "portal.autos"],
+    verticalProductId: "retail-operations",
+    disabledFeatureKeys: [
+      "stores.fuel-ledger",
+      "schools.core",
+      "autos.core",
+      "gold.home",
+      "gold.intake.pours",
+      "gold.dispatches",
+      "gold.receipts",
+      "gold.reconciliation",
+      "gold.exceptions",
+      "gold.audit-trail",
+      "gold.payouts",
+      "scrap-metal.home",
+      "scrap-metal.purchases",
+      "scrap-metal.batches",
+      "scrap-metal.sales",
+      "scrap-metal.pricing",
+      "portal.schools",
+      "portal.autos",
+    ],
   },
   {
     code: "TEMPLATE_ALL_FEATURES",
@@ -243,7 +272,8 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   AUTOS: "TEMPLATE_CAR_SALES",
   "CAR-SALES": "TEMPLATE_CAR_SALES",
   CAR_SALES: "TEMPLATE_CAR_SALES",
-  THRIFT: "TEMPLATE_THRIFT",
+  THRIFT: "TEMPLATE_RETAIL",
+  RETAIL: "TEMPLATE_RETAIL",
   FULL: "TEMPLATE_ALL_FEATURES",
   ALL: "TEMPLATE_ALL_FEATURES",
 };
@@ -351,8 +381,8 @@ export function getClientTemplateWorkspaceProfile(code: string | null | undefine
       return "SCHOOLS";
     case "TEMPLATE_CAR_SALES":
       return "AUTOS";
-    case "TEMPLATE_THRIFT":
-      return "THRIFT";
+    case "TEMPLATE_RETAIL":
+      return "RETAIL";
     case "TEMPLATE_CORE_STARTER":
     case "TEMPLATE_ALL_FEATURES":
       return "GENERAL";

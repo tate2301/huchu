@@ -5,7 +5,7 @@ export const WORKSPACE_PROFILES = [
   "SCRAP_METAL",
   "SCHOOLS",
   "AUTOS",
-  "THRIFT",
+  "RETAIL",
   "GENERAL",
 ] as const;
 
@@ -16,7 +16,7 @@ export type WorkspaceModuleId =
   | "scrap-metal"
   | "schools"
   | "car-sales"
-  | "thrift"
+  | "retail"
   | "hr"
   | "stores"
   | "maintenance"
@@ -30,7 +30,7 @@ export type VerticalProductId =
   | "scrap-recycling"
   | "school-operations"
   | "auto-sales"
-  | "retail-thrift"
+  | "retail-operations"
   | "service-workshop"
   | "multi-site-operations"
   | "general-business";
@@ -96,9 +96,9 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
     title: "Auto Sales",
     description: "Manage leads, vehicle stock, financing, and deal execution across the sales pipeline.",
   },
-  thrift: {
-    title: "Retail & Thrift",
-    description: "Run intake, cataloging, checkout, and point-of-sale workflows for resale and shop operations.",
+  retail: {
+    title: "Retail",
+    description: "Run merchandising, POS, purchasing, cash-up, and store operations for modern retail teams.",
   },
   hr: {
     title: "Human Resources",
@@ -254,18 +254,18 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     },
   },
   {
-    id: "retail-thrift",
-    label: "Retail & Thrift",
-    workspaceLabel: "Retail & Thrift",
-    description: "Intake, cataloging, checkout, and POS operations for shops, resale, and thrift businesses.",
-    customerExamples: ["Second-hand retailers", "Boutiques", "Resale marketplaces"],
-    templateCodes: ["TEMPLATE_THRIFT"],
-    preferredHomeHref: "/thrift",
-    primaryModules: ["thrift"],
+    id: "retail-operations",
+    label: "Retail",
+    workspaceLabel: "Retail",
+    description: "Retail, POS, purchasing, merchandising, and cash-up operations for small to medium shop businesses.",
+    customerExamples: ["Retail stores", "Boutiques", "Small chains"],
+    templateCodes: ["TEMPLATE_RETAIL"],
+    preferredHomeHref: "/retail",
+    primaryModules: ["retail"],
     foundationalModules: ["stores", "accounting", "management", "hr"],
     moduleCopy: {
       stores: {
-        description: "Track receiving, stock on hand, movements, and fuel for shop and back-room operations.",
+        description: "Track receiving, stock on hand, movements, and replenishment for store and back-room operations.",
       },
       accounting: {
         description: "Manage sales, receivables, payables, banking, and tax from the shop finance workspace.",
@@ -379,8 +379,8 @@ export function resolveWorkspaceVerticalProductBundle(
       return getBundleById("school-operations");
     case "AUTOS":
       return getBundleById("auto-sales");
-    case "THRIFT":
-      return getBundleById("retail-thrift");
+    case "RETAIL":
+      return getBundleById("retail-operations");
     case "GENERAL":
     default:
       return getBundleById(resolveGeneralVerticalProduct(args.enabledFeatures));

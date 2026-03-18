@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { PageHeading } from "@/components/layout/page-heading";
-import { PosPortalContent } from "@/components/thrift/portal/pos-portal-content";
+import { PosPortalContent } from "@/components/retail/portal/pos-portal-content";
 import { requirePageAuth } from "@/lib/auth-core/guards";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
 
@@ -17,8 +17,8 @@ export default async function PosPortalPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
-        title="Smart Shop POS"
-        description="Process checkout, monitor shifts, and reconcile takings."
+        title="Retail POS"
+        description="Sell, hold, and close shifts."
       />
       <PosPortalContent />
     </div>

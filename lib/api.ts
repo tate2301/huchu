@@ -86,7 +86,7 @@ export type EmployeeSummary = {
   } | null;
   moduleAssignments?: Array<{
     id: string;
-    module: "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "THRIFT";
+    module: "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL";
     accessRole?: string | null;
     requiresUserAccess: boolean;
     isPrimary: boolean;
@@ -2091,7 +2091,15 @@ export type ReserveIdEntity =
   | "SCRAP_MATERIAL"
   | "SCRAP_METAL_PURCHASE"
   | "SCRAP_METAL_BATCH"
-  | "SCRAP_METAL_SALE";
+  | "SCRAP_METAL_SALE"
+  | "RETAIL_REGISTER"
+  | "RETAIL_CATALOG_ITEM"
+  | "RETAIL_PURCHASE_ORDER"
+  | "RETAIL_GOODS_RECEIPT"
+  | "RETAIL_SHIFT"
+  | "RETAIL_HELD_CART"
+  | "RETAIL_SALE"
+  | "RETAIL_PROMOTION";
 
 export async function reserveEntityId(
   entity: ReserveIdEntity,
