@@ -82,9 +82,15 @@ export async function GET(request: NextRequest) {
     (item) => item.minStock !== null && item.currentStock <= (item.minStock ?? 0),
   );
 
-  const grossSales = sum(sales.map((sale) => sale.totalAmount));
-  const discountValue = sum(sales.map((sale) => sale.discountAmount));
-  const taxValue = sum(sales.map((sale) => sale.taxAmount));
+  const postedSales = sales.filter((sale) => sale.saleType === "SALE" && sale.status === "POSTED");
+  const refunds = sales.filter((sale) => sale.saleType === "REFUND" && sale.status === "POSTED");
+  const voids = sales.filter((sale) => sale.saleType === "VOID" && sale.status === "POSTED");
+  const grossSales = sum(postedSales.map((sale) => sale.totalAmount));
+  const netSales = sum(sales.map((sale) => sale.totalAmount));
+  const refundValue = Math.abs(sum(refunds.map((sale) => sale.totalAmount)));
+  const voidValue = Math.abs(sum(voids.map((sale) => sale.totalAmount)));
+  const discountValue = sum(postedSales.map((sale) => sale.discountAmount));
+  const taxValue = sum(postedSales.map((sale) => sale.taxAmount));
   const goodsReceivedValue = sum(
     receipts.flatMap((receipt) => receipt.lines).map((line) => line.lineTotal),
   );
@@ -136,6 +142,9 @@ export async function GET(request: NextRequest) {
   return successResponse({
     summary: {
       grossSales,
+      netSales,
+      refundValue,
+      voidValue,
       discountValue,
       taxValue,
       goodsReceivedValue,
@@ -144,8 +153,8 @@ export async function GET(request: NextRequest) {
       activePromotionCount: promotions.length,
       openShiftCount: openShifts.length,
       lowStockCount: lowStock.length,
-      ticketCount: sales.length,
-      averageTicket: sales.length > 0 ? grossSales / sales.length : 0,
+      ticketCount: postedSales.length,
+      averageTicket: postedSales.length > 0 ? sum(postedSales.map((sale) => sale.totalAmount)) / postedSales.length : 0,
       sevenDaySales: sum(dailySales.map((sale) => sale.totalAmount)),
     },
     salesTrend,
@@ -177,6 +186,8 @@ export async function GET(request: NextRequest) {
     recentSales: recentSales.map((sale) => ({
       id: sale.id,
       saleNo: sale.saleNo,
+      saleType: sale.saleType,
+      status: sale.status,
       postedAt: sale.postedAt ?? sale.createdAt,
       cashierName: sale.cashierName,
       totalAmount: sale.totalAmount,

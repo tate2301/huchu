@@ -85,9 +85,10 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
   ],
   RETAIL: [
     { href: "/portal/pos", icon: Payments, label: "Point of Sale" },
+    { href: "/retail/sales", icon: ReceiptLong, label: "Sales" },
     { href: "/retail/catalog", icon: TableRows, label: "Catalog" },
     { href: "/retail/purchasing/orders", icon: Package, label: "Purchasing" },
-    { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
+    { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts & Cash-up" },
   ],
 };
 

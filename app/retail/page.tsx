@@ -16,6 +16,9 @@ import { BarChart3, Package, Payments, ReceiptLong, Wallet } from "@/lib/icons";
 type RetailDashboardPayload = {
   summary: {
     grossSales: number;
+    netSales: number;
+    refundValue: number;
+    voidValue: number;
     discountValue: number;
     taxValue: number;
     goodsReceivedValue: number;
@@ -50,6 +53,8 @@ type RetailDashboardPayload = {
   recentSales: Array<{
     id: string;
     saleNo: string;
+    saleType: string;
+    status: string;
     postedAt: string;
     cashierName: string | null;
     totalAmount: number;
@@ -103,7 +108,12 @@ export default function RetailOverviewPage() {
       {
         id: "saleNo",
         header: "Sale #",
-        cell: ({ row }) => <span className="font-mono font-semibold">{row.original.saleNo}</span>,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono font-semibold">{row.original.saleNo}</div>
+            <div className="text-xs text-[var(--text-muted)]">{row.original.saleType}</div>
+          </div>
+        ),
       },
       {
         id: "postedAt",
@@ -242,8 +252,8 @@ export default function RetailOverviewPage() {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Sales this month"
-          value={money(data?.summary.grossSales ?? 0)}
-          hint={`${data?.summary.ticketCount ?? 0} tickets · avg ${money(data?.summary.averageTicket ?? 0)}`}
+          value={money(data?.summary.netSales ?? 0)}
+          hint={`${data?.summary.ticketCount ?? 0} tickets · gross ${money(data?.summary.grossSales ?? 0)}`}
           icon={<Wallet className="h-4 w-4" />}
         />
         <MetricCard
@@ -255,7 +265,7 @@ export default function RetailOverviewPage() {
         <MetricCard
           label="Shift activity"
           value={`${data?.summary.openShiftCount ?? 0}`}
-          hint={`${data?.summary.lowStockCount ?? 0} low-stock alerts`}
+          hint={`${money(data?.summary.refundValue ?? 0)} refunds · ${money(data?.summary.voidValue ?? 0)} voids`}
           icon={<Payments className="h-4 w-4" />}
         />
         <MetricCard
@@ -280,6 +290,7 @@ export default function RetailOverviewPage() {
             <div className="text-right text-xs text-[var(--text-muted)]">
               <div>Discounts {money(data?.summary.discountValue ?? 0)}</div>
               <div>Tax {money(data?.summary.taxValue ?? 0)}</div>
+              <div>Low stock {data?.summary.lowStockCount ?? 0}</div>
             </div>
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-7">

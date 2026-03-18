@@ -2758,6 +2758,9 @@ model RetailSale {
   tenderedAmount Float?
   changeAmount   Float?
   tenderSummary  Json?
+  promotionCode  String?
+  overrideReason String?
+  voidReason     String?
   status         String   @default("POSTED")
   notes          String?
   postedAt       DateTime?
@@ -2775,6 +2778,7 @@ model RetailSale {
 model RetailSaleLine {
   id              String   @id @default(uuid())
   saleId          String
+  sourceLineId    String?
   inventoryItemId String
   catalogItemId   String?
   itemName        String
@@ -2788,6 +2792,7 @@ model RetailSaleLine {
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
+  @@index([sourceLineId])
 }
 
 model RetailSalePayment {

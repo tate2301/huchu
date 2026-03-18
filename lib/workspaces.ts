@@ -383,15 +383,16 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
     ],
   },
-  RETAIL: {
-    label: "Retail",
-    preferredHomeHref: "/retail",
-    quickActions: [
-      roleItem("/portal/pos", "Point of Sale", Payments),
-      roleItem("/retail/catalog", "Catalog", TableRows),
-      roleItem("/retail/purchasing/orders", "Purchase Order", ReceiptLong),
-      roleItem("/retail/shifts", "Shifts", Wallet),
-    ],
+    RETAIL: {
+      label: "Retail",
+      preferredHomeHref: "/retail",
+      quickActions: [
+        roleItem("/portal/pos", "Point of Sale", Payments),
+        roleItem("/retail/sales", "Sales", ReceiptLong),
+        roleItem("/retail/catalog", "Catalog", TableRows),
+        roleItem("/retail/purchasing/orders", "Purchase Order", ReceiptLong),
+        roleItem("/retail/shifts", "Shifts & Cash-up", Wallet),
+      ],
     nativeModules: ["retail", "reporting"],
     sections: [
       {
@@ -399,16 +400,21 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         title: "Overview",
         refs: RETAIL_OPERATIONS_SECTIONS.overview.map((href) => ({ moduleId: "retail" as const, href })),
       },
-      {
-        id: "retail-pos",
-        title: "Point of Sale",
-        refs: RETAIL_OPERATIONS_SECTIONS.pos.map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-catalog",
-        title: "Catalog",
-        refs: RETAIL_OPERATIONS_SECTIONS.catalog.map((href) => ({ moduleId: "retail" as const, href })),
-      },
+        {
+          id: "retail-pos",
+          title: "Point of Sale",
+          refs: RETAIL_OPERATIONS_SECTIONS.pos.map((href) => ({ moduleId: "retail" as const, href })),
+        },
+        {
+          id: "retail-sales",
+          title: "Sales",
+          refs: RETAIL_OPERATIONS_SECTIONS.sales.map((href) => ({ moduleId: "retail" as const, href })),
+        },
+        {
+          id: "retail-catalog",
+          title: "Catalog",
+          refs: RETAIL_OPERATIONS_SECTIONS.catalog.map((href) => ({ moduleId: "retail" as const, href })),
+        },
       {
         id: "retail-purchasing",
         title: "Purchasing",
@@ -419,11 +425,11 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         title: "Merchandising",
         refs: RETAIL_OPERATIONS_SECTIONS.merchandising.map((href) => ({ moduleId: "retail" as const, href })),
       },
-      {
-        id: "retail-shifts",
-        title: "Shifts",
-        refs: RETAIL_OPERATIONS_SECTIONS.shifts.map((href) => ({ moduleId: "retail" as const, href })),
-      },
+        {
+          id: "retail-shifts",
+          title: "Shifts & Cash-up",
+          refs: RETAIL_OPERATIONS_SECTIONS.shifts.map((href) => ({ moduleId: "retail" as const, href })),
+        },
       {
         id: "retail-reports",
         title: "Reports",

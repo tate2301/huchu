@@ -3,6 +3,7 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
+import { hasRole, type UserRole } from "@/lib/roles";
 
 export type RetailSession = Awaited<ReturnType<typeof validateSession>> extends infer TResult
   ? TResult extends NextResponse
@@ -18,6 +19,21 @@ export async function requireRetailSession(request: NextRequest) {
     return { response: sessionResult, session: null as RetailSession | null };
   }
   return { response: null, session: sessionResult.session as RetailSession };
+}
+
+const RETAIL_MANAGER_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"];
+
+export function canManageRetailTransactions(role: string | null | undefined) {
+  return hasRole(role, RETAIL_MANAGER_ROLES);
+}
+
+export function getCashNetFromPayments(
+  payments: Array<{ tenderType: string; amount: number }>,
+  changeAmount = 0,
+) {
+  return payments
+    .filter((payment) => payment.tenderType === "CASH")
+    .reduce((total, payment) => total + payment.amount, 0) - changeAmount;
 }
 
 export async function ensureSiteAccess(companyId: string, siteId: string) {

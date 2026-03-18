@@ -1,0 +1,259 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { errorResponse, successResponse } from "@/lib/api-utils";
+import { reserveIdentifier } from "@/lib/id-generator";
+import { prisma } from "@/lib/prisma";
+import {
+  canManageRetailTransactions,
+  getCashNetFromPayments,
+  recordRetailInventoryMovement,
+  requireRetailSession,
+} from "../../../../_helpers";
+
+const refundLineSchema = z.object({
+  saleLineId: z.string().uuid(),
+  quantity: z.number().positive(),
+});
+
+const refundPaymentSchema = z.object({
+  tenderType: z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"]),
+  amount: z.number().positive(),
+  reference: z.string().max(120).optional().nullable(),
+});
+
+const refundSchema = z.object({
+  shiftId: z.string().uuid(),
+  reason: z.string().min(3).max(240),
+  notes: z.string().max(500).optional().nullable(),
+  lines: z.array(refundLineSchema).min(1),
+  payments: z.array(refundPaymentSchema).min(1),
+});
+
+function round(value: number) {
+  return Number(value.toFixed(2));
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { response, session } = await requireRetailSession(request);
+  if (response || !session) {
+    return response as NextResponse;
+  }
+
+  if (!canManageRetailTransactions(session.user.role)) {
+    return errorResponse("Only retail managers can process refunds", 403);
+  }
+
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const input = refundSchema.parse(body);
+
+    const [sourceSale, shift] = await Promise.all([
+      prisma.retailSale.findFirst({
+        where: { id, companyId: session.user.companyId },
+        include: { lines: true, payments: true },
+      }),
+      prisma.retailShift.findFirst({
+        where: {
+          id: input.shiftId,
+          companyId: session.user.companyId,
+          status: "OPEN",
+          cashierId: session.user.id,
+        },
+      }),
+    ]);
+
+    if (!sourceSale) {
+      return errorResponse("Sale not found", 404);
+    }
+    if (!shift) {
+      return errorResponse("Open shift not found for this cashier", 409);
+    }
+    if (sourceSale.saleType !== "SALE" || sourceSale.status !== "POSTED") {
+      return errorResponse("Only posted sales can be refunded", 409);
+    }
+    const priorRefunds = await prisma.retailSale.findMany({
+      where: {
+        companyId: session.user.companyId,
+        sourceSaleId: sourceSale.id,
+        saleType: { in: ["REFUND", "VOID"] },
+      },
+      include: { lines: true },
+    });
+
+    const refundedByLine = priorRefunds
+      .flatMap((sale) => sale.lines)
+      .reduce<Map<string, number>>((accumulator, line) => {
+        if (!line.sourceLineId) return accumulator;
+        accumulator.set(line.sourceLineId, (accumulator.get(line.sourceLineId) ?? 0) + Math.abs(line.quantity));
+        return accumulator;
+      }, new Map());
+
+    const requestedLines = input.lines.map((line) => {
+      const sourceLine = sourceSale.lines.find((entry) => entry.id === line.saleLineId);
+      if (!sourceLine) {
+        throw new Error("One or more refund lines are invalid.");
+      }
+      const alreadyRefunded = refundedByLine.get(sourceLine.id) ?? 0;
+      const refundableQty = round(Math.max(sourceLine.quantity - alreadyRefunded, 0));
+      if (line.quantity > refundableQty) {
+        throw new Error(`Refund quantity exceeds remaining quantity for ${sourceLine.itemName}.`);
+      }
+
+      const ratio = sourceLine.quantity > 0 ? line.quantity / sourceLine.quantity : 0;
+      const baseAmount = round(sourceLine.unitPrice * line.quantity);
+      const discountAmount = -round(Math.abs(sourceLine.discountAmount) * ratio);
+      const taxAmount = -round(Math.abs(sourceLine.taxAmount) * ratio);
+      const lineTotal = -round(Math.abs(sourceLine.lineTotal) * ratio);
+
+      return {
+        sourceLine,
+        quantity: line.quantity,
+        baseAmount,
+        discountAmount,
+        taxAmount,
+        lineTotal,
+      };
+    });
+
+    const subtotal = -round(requestedLines.reduce((total, line) => total + line.baseAmount, 0));
+    const discountAmount = round(
+      requestedLines.reduce((total, line) => total + line.discountAmount, 0),
+    );
+    const taxAmount = round(requestedLines.reduce((total, line) => total + line.taxAmount, 0));
+    const totalAmount = round(requestedLines.reduce((total, line) => total + line.lineTotal, 0));
+    const refundValue = round(Math.abs(totalAmount));
+    const paymentTotal = round(input.payments.reduce((total, payment) => total + payment.amount, 0));
+
+    if (Math.abs(paymentTotal - refundValue) > 0.01) {
+      return errorResponse("Refund payments must match the refund value", 400);
+    }
+
+    const refundNo = await reserveIdentifier(prisma, {
+      companyId: session.user.companyId,
+      entity: "RETAIL_SALE",
+      siteId: sourceSale.siteId,
+    });
+
+    const negativePayments = input.payments.map((payment) => ({
+      ...payment,
+      amount: -round(payment.amount),
+    }));
+
+    const refund = await prisma.retailSale.create({
+      data: {
+        companyId: session.user.companyId,
+        saleNo: refundNo,
+        shiftId: shift.id,
+        sourceSaleId: sourceSale.id,
+        siteId: sourceSale.siteId,
+        cashierId: session.user.id,
+        cashierName: session.user.name || session.user.email || "Cashier",
+        customerName: sourceSale.customerName,
+        saleType: "REFUND",
+        subtotal,
+        discountAmount,
+        taxAmount,
+        totalAmount,
+        tenderedAmount: -paymentTotal,
+        changeAmount: 0,
+        overrideReason: input.reason.trim(),
+        status: "POSTED",
+        notes: input.notes?.trim() || null,
+        postedAt: new Date(),
+        tenderSummary: negativePayments,
+        lines: {
+          create: requestedLines.map((line) => ({
+            sourceLineId: line.sourceLine.id,
+            inventoryItemId: line.sourceLine.inventoryItemId,
+            catalogItemId: line.sourceLine.catalogItemId,
+            itemName: line.sourceLine.itemName,
+            quantity: line.quantity,
+            unitPrice: line.sourceLine.unitPrice,
+            discountAmount: line.discountAmount,
+            taxAmount: line.taxAmount,
+            lineTotal: line.lineTotal,
+          })),
+        },
+        payments: {
+          create: negativePayments.map((payment) => ({
+            tenderType: payment.tenderType,
+            amount: payment.amount,
+            reference: payment.reference?.trim() || null,
+          })),
+        },
+      },
+      include: { lines: true, payments: true },
+    });
+
+    for (const line of requestedLines) {
+      const item = await prisma.inventoryItem.findUnique({
+        where: { id: line.sourceLine.inventoryItemId },
+        select: { id: true, unit: true, unitCost: true },
+      });
+      if (!item) {
+        throw new Error(`Inventory item missing for ${line.sourceLine.itemName}.`);
+      }
+      await recordRetailInventoryMovement({
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        itemId: item.id,
+        movementType: "RECEIPT",
+        quantity: line.quantity,
+        unit: item.unit,
+        unitCost: item.unitCost ?? 0,
+        notes: `Retail refund ${refund.saleNo}`,
+        sourceType: "RETAIL_REFUND",
+        sourceId: `${refund.id}:${item.id}`,
+        entryDate: refund.postedAt ?? new Date(),
+      });
+    }
+
+    const netCash = getCashNetFromPayments(negativePayments, 0);
+    if (netCash !== 0) {
+      await prisma.retailShift.update({
+        where: { id: shift.id },
+        data: {
+          expectedCash: {
+            increment: netCash,
+          },
+        },
+      });
+    }
+
+    try {
+      await createJournalEntryFromSource({
+        companyId: session.user.companyId,
+        sourceType: "RETAIL_REFUND",
+        sourceId: refund.id,
+        entryDate: refund.postedAt ?? new Date(),
+        description: `Retail refund ${refund.saleNo}`,
+        createdById: session.user.id,
+        amount: refundValue,
+        netAmount: Math.abs(subtotal - discountAmount),
+        taxAmount: Math.abs(taxAmount),
+        grossAmount: refundValue,
+        invertDirection: true,
+      });
+    } catch (error) {
+      console.error("[Accounting] Retail refund posting failed:", error);
+    }
+
+    return successResponse({
+      id: refund.id,
+      saleNo: refund.saleNo,
+      saleType: refund.saleType,
+      totalAmount: refund.totalAmount,
+      postedAt: refund.postedAt ?? refund.createdAt,
+    }, 201);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues);
+    }
+    return errorResponse(error instanceof Error ? error.message : "Failed to post refund", 400);
+  }
+}
