@@ -13,6 +13,17 @@ import { ensureApproverRole } from "@/lib/hr-payroll"
 import { EMPLOYEE_POSITION_VALUES, getDefaultEmployeePosition } from "@/lib/platform/vertical-defaults"
 import { EmployeeModule, Prisma } from "@prisma/client"
 
+const EMPLOYEE_MODULE_INPUT_VALUES = [
+  "HR",
+  "GOLD",
+  "SCRAP_METAL",
+  "CAR_SALES",
+  "RETAIL",
+  "THRIFT",
+] as const
+
+type EmployeeModuleInput = (typeof EMPLOYEE_MODULE_INPUT_VALUES)[number]
+
 const employeeSchema = z.object({
   name: z.string().min(1).max(200),
   phone: z.string().min(1).max(30),
@@ -46,7 +57,7 @@ const employeeSchema = z.object({
   moduleAssignments: z
     .array(
       z.object({
-        module: z.enum(["HR", "GOLD", "SCRAP_METAL", "CAR_SALES", "RETAIL"]),
+        module: z.enum(EMPLOYEE_MODULE_INPUT_VALUES),
         accessRole: z
           .enum([
             "MANAGER",
@@ -85,6 +96,10 @@ const employeeSchema = z.object({
 
 const EMPLOYEE_ID_PREFIX = "EMP-"
 const EMPLOYEE_ID_PAD = 4
+
+function normalizeEmployeeModule(module: EmployeeModuleInput): keyof typeof EmployeeModule {
+  return module === "THRIFT" ? "RETAIL" : module
+}
 
 async function generateEmployeeId(companyId: string) {
   const employees = await prisma.employee.findMany({
@@ -347,9 +362,10 @@ export async function POST(request: NextRequest) {
     const normalizedModuleAssignments = Array.from(
       new Map(
         moduleAssignments.map((assignment, index) => [
-          assignment.module,
+          normalizeEmployeeModule(assignment.module),
           {
             ...assignment,
+            module: normalizeEmployeeModule(assignment.module),
             isPrimary: assignment.isPrimary ?? (index === 0 || assignment.module === "HR"),
             isActive: assignment.isActive ?? true,
             requiresUserAccess: assignment.requiresUserAccess ?? validated.createUserAccount ?? false,
@@ -414,7 +430,7 @@ export async function POST(request: NextRequest) {
           moduleAssignments: {
             create: normalizedModuleAssignments.map((assignment) => ({
               company: { connect: { id: session.user.companyId } },
-              module: EmployeeModule[assignment.module],
+              module: assignment.module,
               accessRole: assignment.accessRole,
               requiresUserAccess: assignment.requiresUserAccess,
               isPrimary: assignment.isPrimary,
