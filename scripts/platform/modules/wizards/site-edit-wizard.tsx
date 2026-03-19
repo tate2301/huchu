@@ -1,7 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { OrganizationListItem, PlatformServices, SiteMeasurementUnit, SiteSummary } from "../../types";
+import {
+  SITE_MEASUREMENT_UNITS,
+  type OrganizationListItem,
+  type PlatformServices,
+  type SiteMeasurementUnit,
+  type SiteSummary,
+} from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
@@ -19,7 +25,7 @@ type Step = 0 | 1 | 2 | 3;
 type Field = "name" | "code" | "location" | "measurementUnit" | "reason";
 
 const FIELDS: Field[] = ["name", "code", "location", "measurementUnit", "reason"];
-const UNITS: SiteMeasurementUnit[] = ["tonnes", "trips", "wheelbarrows"];
+const UNITS: SiteMeasurementUnit[] = [...SITE_MEASUREMENT_UNITS];
 
 function cycleUnit(current: SiteMeasurementUnit, direction: 1 | -1): SiteMeasurementUnit {
   const index = UNITS.indexOf(current);
@@ -56,7 +62,7 @@ export function SiteEditWizard({
     name: "",
     code: "",
     location: "",
-    measurementUnit: "tonnes" as SiteMeasurementUnit,
+    measurementUnit: UNITS[0] ?? ("units" as SiteMeasurementUnit),
     reason: "",
   });
   const [loading, setLoading] = useState(false);

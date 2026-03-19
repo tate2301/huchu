@@ -12,12 +12,13 @@ const maintenanceRoutes: Record<MaintenanceView, string> = {
   schedule: "/maintenance/schedule",
 };
 
-export default function MaintenanceDashboardPage({
+export default async function MaintenanceDashboardPage({
   searchParams,
 }: {
-  searchParams?: { view?: string };
+  searchParams?: Promise<{ view?: string }>;
 }) {
-  const viewParam = searchParams?.view as MaintenanceView | undefined;
+  const resolvedSearchParams = await searchParams;
+  const viewParam = resolvedSearchParams?.view as MaintenanceView | undefined;
   if (viewParam && maintenanceRoutes[viewParam]) {
     redirect(maintenanceRoutes[viewParam]);
   }

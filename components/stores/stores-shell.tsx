@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Fuel, History, Home, Minus, Package, Plus } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
+import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 
 export type StoresTab =
   | "dashboard"
@@ -59,6 +60,14 @@ export function StoresShell({
     [session],
   );
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const verticalDefaults = useMemo(
+    () =>
+      resolveVerticalDefaults({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  );
   const modulePresentation = useMemo(
     () =>
       getWorkspaceModulePresentation({
@@ -69,8 +78,12 @@ export function StoresShell({
     [enabledFeatures, workspaceProfile],
   );
   const visibleTabs = useMemo(
-    () => filterHrefItemsByEnabledFeatures(storesTabs, enabledFeatures),
-    [enabledFeatures],
+    () =>
+      filterHrefItemsByEnabledFeatures(
+        storesTabs.filter((tab) => tab.id !== "fuel" || verticalDefaults.stores.allowFuel),
+        enabledFeatures,
+      ),
+    [enabledFeatures, verticalDefaults.stores.allowFuel],
   );
 
   const buildHref = (href: string) => {

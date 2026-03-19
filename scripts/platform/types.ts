@@ -5,7 +5,20 @@ export const ADMIN_ROLES = ["SUPERADMIN", "MANAGER"] as const;
 export const USER_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
 export const USER_ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const;
 export const USER_MANAGEMENT_ROLES = ["MANAGER", "CLERK"] as const;
-export const SITE_MEASUREMENT_UNITS = ["tonnes", "trips", "wheelbarrows"] as const;
+export const SITE_MEASUREMENT_UNITS = [
+  "units",
+  "assets",
+  "jobs",
+  "kilograms",
+  "loads",
+  "registers",
+  "rooms",
+  "shelves",
+  "tonnes",
+  "trips",
+  "vehicles",
+  "wheelbarrows",
+] as const;
 export const SUBDOMAIN_RESERVATION_STATUSES = ["RESERVED", "ACTIVE", "RELEASED"] as const;
 export const SUPPORT_ACCESS_STATUSES = ["REQUESTED", "APPROVED", "ACTIVE", "EXPIRED", "REVOKED", "DENIED"] as const;
 export const SUPPORT_ACCESS_SCOPES = ["READ_ONLY", "READ_WRITE"] as const;
@@ -74,6 +87,7 @@ export interface OrganizationDetail {
   id: string;
   name: string;
   slug: string;
+  workspaceProfile: string | null;
   tenantStatus: OrganizationStatus;
   isProvisioned: boolean;
   suspendedAt: string | null;
@@ -94,6 +108,7 @@ export interface OrganizationProvisionResult {
     id: string;
     name: string;
     slug: string;
+    workspaceProfile: string | null;
     tenantStatus: OrganizationStatus;
     isProvisioned: boolean;
   };
@@ -730,6 +745,7 @@ export interface ListOrganizationsInput {
 export interface ProvisionOrganizationInput {
   name: string;
   slug?: string;
+  workspaceProfile?: string;
   adminEmail: string;
   adminName: string;
   adminPassword: string;

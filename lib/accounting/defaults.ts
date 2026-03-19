@@ -1,4 +1,5 @@
 import type { AccountType, AccountingSourceType, PostingBasis, PostingDirection } from "@prisma/client";
+import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 
 export type DefaultAccount = {
   code: string;
@@ -29,13 +30,12 @@ export type DefaultPostingRule = {
   }>;
 };
 
-export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
+const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1000", name: "Cash on Hand", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1010", name: "Bank", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1020", name: "Bank Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1100", name: "Accounts Receivable", type: "ASSET", category: "Receivables", systemManaged: true },
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
-  { code: "1300", name: "Gold In Transit", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2100", name: "Payroll Liabilities", type: "LIABILITY", category: "Payroll", systemManaged: true },
   { code: "2110", name: "Payroll Deductions", type: "LIABILITY", category: "Payroll", systemManaged: true },
@@ -44,7 +44,6 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "2300", name: "Stock Clearing", type: "LIABILITY", category: "Inventory", systemManaged: true },
   { code: "3000", name: "Owner's Equity", type: "EQUITY", category: "Equity", systemManaged: true },
   { code: "4000", name: "Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
-  { code: "4100", name: "Gold Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4200", name: "Other Income", type: "INCOME", category: "Other Income", systemManaged: true },
   { code: "5000", name: "Cost of Goods Sold", type: "EXPENSE", category: "COGS", systemManaged: true },
   { code: "5100", name: "Consumables Expense", type: "EXPENSE", category: "Operations", systemManaged: true },
@@ -53,6 +52,13 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "5400", name: "Inventory Adjustments", type: "EXPENSE", category: "Inventory", systemManaged: true },
   { code: "5600", name: "Bad Debt Expense", type: "EXPENSE", category: "Receivables", systemManaged: true },
 ];
+
+const GOLD_CHART_OF_ACCOUNTS: DefaultAccount[] = [
+  { code: "1300", name: "Gold In Transit", type: "ASSET", category: "Inventory", systemManaged: true },
+  { code: "4100", name: "Gold Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
+];
+
+export const DEFAULT_CHART_OF_ACCOUNTS = BASE_CHART_OF_ACCOUNTS;
 
 export const DEFAULT_TAX_CODES: DefaultTaxCode[] = [
   {
@@ -73,7 +79,7 @@ export const DEFAULT_TAX_CODES: DefaultTaxCode[] = [
   { code: "EXEMPT", name: "VAT Exempt", rate: 0, type: "VAT" },
 ];
 
-export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
+const BASE_POSTING_RULES: DefaultPostingRule[] = [
   {
     name: "Stock Receipt",
     sourceType: "STOCK_RECEIPT",
@@ -121,30 +127,6 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountCode: "2100", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
       { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
-    ],
-  },
-  {
-    name: "Gold Purchase",
-    sourceType: "GOLD_PURCHASE",
-    lines: [
-      { accountCode: "1200", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
-      { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
-    ],
-  },
-  {
-    name: "Gold Receipt",
-    sourceType: "GOLD_RECEIPT",
-    lines: [
-      { accountCode: "1010", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
-      { accountCode: "4100", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
-    ],
-  },
-  {
-    name: "Gold Dispatch",
-    sourceType: "GOLD_DISPATCH",
-    lines: [
-      { accountCode: "1300", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
-      { accountCode: "1200", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
     ],
   },
   {
@@ -232,3 +214,57 @@ export const DEFAULT_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
 ];
+
+const GOLD_POSTING_RULES: DefaultPostingRule[] = [
+  {
+    name: "Gold Purchase",
+    sourceType: "GOLD_PURCHASE",
+    lines: [
+      { accountCode: "1200", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Gold Receipt",
+    sourceType: "GOLD_RECEIPT",
+    lines: [
+      { accountCode: "1010", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "4100", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+  {
+    name: "Gold Dispatch",
+    sourceType: "GOLD_DISPATCH",
+    lines: [
+      { accountCode: "1300", direction: "DEBIT", basis: "AMOUNT", allocationPercent: 100 },
+      { accountCode: "1200", direction: "CREDIT", basis: "AMOUNT", allocationPercent: 100 },
+    ],
+  },
+];
+
+export const DEFAULT_POSTING_RULES = BASE_POSTING_RULES;
+
+type AccountingDefaultArgs = {
+  workspaceProfile: string | null | undefined;
+  enabledFeatures?: string[] | undefined;
+};
+
+function includeGoldFlows(args: AccountingDefaultArgs): boolean {
+  return resolveVerticalDefaults(args).accounting.includeGoldFlows;
+}
+
+export function getDefaultChartOfAccounts(args: AccountingDefaultArgs): DefaultAccount[] {
+  const defaults = [...BASE_CHART_OF_ACCOUNTS];
+  if (includeGoldFlows(args)) {
+    defaults.push(...GOLD_CHART_OF_ACCOUNTS);
+  }
+  return defaults;
+}
+
+export function getDefaultPostingRules(args: AccountingDefaultArgs): DefaultPostingRule[] {
+  const defaults = [...BASE_POSTING_RULES];
+  if (includeGoldFlows(args)) {
+    defaults.push(...GOLD_POSTING_RULES);
+  }
+  return defaults;
+}

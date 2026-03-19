@@ -86,7 +86,7 @@ type WorkspaceProfileRecipe = {
   sections: WorkspaceProfileSectionSpec[];
 };
 
-const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GOLD_MINE";
+const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["hr", "accounting", "management"];
 const STRICT_WORKSPACE_MODULE_FEATURE_KEYS: Partial<Record<WorkspaceModuleId, string>> = {
   "scrap-metal": "scrap-metal.home",

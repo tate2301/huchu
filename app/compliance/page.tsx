@@ -9,16 +9,17 @@ function toRoute(tab: string | undefined): ComplianceTab {
   return "permits";
 }
 
-export default function ComplianceIndexPage({
+export default async function ComplianceIndexPage({
   searchParams,
 }: {
-  searchParams?: { tab?: string; createdId?: string; createdAt?: string; source?: string };
+  searchParams?: Promise<{ tab?: string; createdId?: string; createdAt?: string; source?: string }>;
 }) {
-  const route = toRoute(searchParams?.tab);
+  const resolvedSearchParams = await searchParams;
+  const route = toRoute(resolvedSearchParams?.tab);
   const params = new URLSearchParams();
-  if (searchParams?.createdId) params.set("createdId", searchParams.createdId);
-  if (searchParams?.createdAt) params.set("createdAt", searchParams.createdAt);
-  if (searchParams?.source) params.set("source", searchParams.source);
+  if (resolvedSearchParams?.createdId) params.set("createdId", resolvedSearchParams.createdId);
+  if (resolvedSearchParams?.createdAt) params.set("createdAt", resolvedSearchParams.createdAt);
+  if (resolvedSearchParams?.source) params.set("source", resolvedSearchParams.source);
   const query = params.toString();
   redirect(query ? `/compliance/${route}?${query}` : `/compliance/${route}`);
 }

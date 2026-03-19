@@ -6,6 +6,7 @@ import {
   nextCycleAnchor,
   startOfDayUtc,
 } from "@/lib/hr-payroll"
+import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults"
 
 type SeedInput = {
   companyId: string
@@ -28,11 +29,12 @@ type PeriodDraft = {
   createdById: string
 }
 
-function domainsToSeed(inputDomains?: RunDomain[]) {
+function domainsToSeed(inputDomains?: RunDomain[], includeGoldFlows?: boolean) {
   if (inputDomains && inputDomains.length > 0) {
-    return Array.from(new Set(inputDomains))
+    const unique = Array.from(new Set(inputDomains))
+    return includeGoldFlows ? unique : unique.filter((domain) => domain !== "GOLD_PAYOUT")
   }
-  return ["PAYROLL", "GOLD_PAYOUT"] as RunDomain[]
+  return includeGoldFlows ? (["PAYROLL", "GOLD_PAYOUT"] as RunDomain[]) : (["PAYROLL"] as RunDomain[])
 }
 
 function cycleForDomain(input: {
@@ -93,6 +95,15 @@ export async function ensureAutoPeriods(
   const company = await prisma.company.findUnique({
     where: { id: input.companyId },
     select: {
+      workspaceProfile: true,
+      featureFlags: {
+        where: { isEnabled: true },
+        select: {
+          feature: {
+            select: { key: true },
+          },
+        },
+      },
       payrollCycle: true,
       goldPayoutCycle: true,
       autoGeneratePayrollPeriods: true,
@@ -104,12 +115,21 @@ export async function ensureAutoPeriods(
     throw new Error("Company not found while seeding payroll periods")
   }
 
+  const enabledFeatures = company.featureFlags.map((flag) => flag.feature.key)
+  const verticalDefaults = resolveVerticalDefaults({
+    workspaceProfile: company.workspaceProfile,
+    enabledFeatures,
+  })
   const horizon = Math.max(1, Math.min(company.periodGenerationHorizon, 12))
   const now = input.now ?? new Date()
-  const targetDomains = domainsToSeed(input.domains)
+  const targetDomains = domainsToSeed(input.domains, verticalDefaults.accounting.includeGoldFlows)
   const drafts: PeriodDraft[] = []
 
   for (const domain of targetDomains) {
+    if (domain === "GOLD_PAYOUT" && !verticalDefaults.accounting.includeGoldFlows) {
+      continue
+    }
+
     if (
       !autoEnabledForDomain({
         domain,

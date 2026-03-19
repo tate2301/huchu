@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { differenceInMinutes, format } from "date-fns";
 import {
   Pencil,
@@ -59,6 +60,7 @@ import { exportElementToDocument } from "@/lib/pdf";
 import { EmployeePosition } from "@prisma/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 
 export const maintenanceViews = [
   "dashboard",
@@ -77,16 +79,6 @@ const maintenanceRoutes: Record<MaintenanceView, string> = {
   breakdown: "/maintenance/breakdown",
   schedule: "/maintenance/schedule",
 };
-
-const equipmentCategories = [
-  "CRUSHER",
-  "MILL",
-  "PUMP",
-  "GENERATOR",
-  "VEHICLE",
-  "OTHER",
-] as const;
-const measurementUnits = ["tonnes", "trips", "wheelbarrows"] as const;
 
 const formatDate = (value?: string | null) => {
   if (!value) return "—";
@@ -150,10 +142,29 @@ export function MaintenanceContent({
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const { toast } = useToast();
   const equipmentPdfRef = useRef<HTMLDivElement | null>(null);
   const workOrdersPdfRef = useRef<HTMLDivElement | null>(null);
   const schedulePdfRef = useRef<HTMLDivElement | null>(null);
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const verticalDefaults = useMemo(
+    () =>
+      resolveVerticalDefaults({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  );
+  const equipmentCategories = verticalDefaults.maintenance.equipmentCategories;
+  const measurementUnits = verticalDefaults.maintenance.measurementUnits;
+  const defaultMeasurementUnit = measurementUnits[0] ?? "units";
+  const siteNamePlaceholder = verticalDefaults.maintenance.siteNamePlaceholder;
+  const technicianPosition = verticalDefaults.maintenance.technicianPosition;
   const [selectedSiteId, setSelectedSiteId] = useState(
     () => searchParams.get("siteId") ?? "",
   );
@@ -173,7 +184,7 @@ export function MaintenanceContent({
     name: "",
     code: "",
     location: "",
-    measurementUnit: "tonnes",
+    measurementUnit: defaultMeasurementUnit,
   });
   const [technicianForm, setTechnicianForm] = useState({
     name: "",
@@ -344,7 +355,7 @@ export function MaintenanceContent({
       name: "",
       code: "",
       location: "",
-      measurementUnit: "tonnes",
+      measurementUnit: defaultMeasurementUnit,
       ...overrides,
     });
   };
@@ -651,7 +662,7 @@ export function MaintenanceContent({
         method: "POST",
         body: JSON.stringify({
           ...payload,
-          position: "ENGINEERS" as EmployeePosition,
+          position: technicianPosition as EmployeePosition,
         }),
       }),
     onSuccess: (technician) => {
@@ -2722,7 +2733,7 @@ export function MaintenanceContent({
                 <Input
                   value={siteForm.name}
                   onChange={handleSiteFormChange("name")}
-                  placeholder="Mine Site"
+                  placeholder={siteNamePlaceholder}
                   required
                 />
               </div>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 type StoresPageProps = {
-  searchParams?: { view?: string };
+  searchParams?: Promise<{ view?: string }>;
 };
 
 const viewToRoute: Record<string, string> = {
@@ -13,8 +13,9 @@ const viewToRoute: Record<string, string> = {
   receive: "/stores/receive",
 };
 
-export default function StoresIndexPage({ searchParams }: StoresPageProps) {
-  const view = searchParams?.view;
+export default async function StoresIndexPage({ searchParams }: StoresPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const view = resolvedSearchParams?.view;
   if (view && viewToRoute[view]) {
     redirect(viewToRoute[view]);
   }

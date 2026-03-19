@@ -19,11 +19,24 @@ type OnboardingPayload = {
   departments: DepartmentData[];
   organizationPrefs?: {
     payrollCycle?: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
-    goldPayoutCycle?: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
-    goldSettlementMode?: "CURRENT_PERIOD" | "NEXT_PERIOD";
     cashDisbursementOnly?: boolean;
   };
 };
+
+function getWorkspaceOnboardingDefaults(workspaceProfile: string | null | undefined) {
+  const profile = String(workspaceProfile || "").trim().toUpperCase();
+  if (profile === "GOLD_MINE") {
+    return {
+      goldPayoutCycle: "FORTNIGHTLY" as const,
+      goldSettlementMode: "CURRENT_PERIOD" as const,
+    };
+  }
+
+  return {
+    goldPayoutCycle: "MONTHLY" as const,
+    goldSettlementMode: "CURRENT_PERIOD" as const,
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,7 +94,7 @@ export async function POST(request: NextRequest) {
     // Check if company is already provisioned
     const company = await prisma.company.findUnique({
       where: { id: user.companyId },
-      select: { isProvisioned: true },
+      select: { isProvisioned: true, workspaceProfile: true },
     });
 
     if (!company) {
@@ -94,6 +107,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const onboardingDefaults = getWorkspaceOnboardingDefaults(company.workspaceProfile);
 
     // Create sites and departments in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -138,9 +153,9 @@ export async function POST(request: NextRequest) {
           isProvisioned: true,
           tenantStatus: "ACTIVE",
           payrollCycle: body.organizationPrefs?.payrollCycle ?? "MONTHLY",
-          goldPayoutCycle: body.organizationPrefs?.goldPayoutCycle ?? "FORTNIGHTLY",
-          goldSettlementMode:
-            body.organizationPrefs?.goldSettlementMode ?? "CURRENT_PERIOD",
+          goldPayoutCycle:
+            onboardingDefaults.goldPayoutCycle,
+          goldSettlementMode: onboardingDefaults.goldSettlementMode,
           cashDisbursementOnly:
             body.organizationPrefs?.cashDisbursementOnly ?? true,
         },

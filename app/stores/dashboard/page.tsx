@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -18,6 +20,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import {
   Minus,
   Plus,
@@ -65,6 +68,7 @@ function MetricTile({
 }
 
 export default function StoresDashboardPage() {
+  const { data: session } = useSession();
   const {
     data: inventoryData,
     isLoading: inventoryLoading,
@@ -85,6 +89,11 @@ export default function StoresDashboardPage() {
 
   const inventoryItems = inventoryData?.data ?? [];
   const recentMovements = movementsData?.data ?? [];
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const hasFuelLedger = hasTokenFeature(enabledFeatures, "stores.fuel-ledger");
 
   const lowStockItems = inventoryItems.filter(
     (item) =>
@@ -98,7 +107,7 @@ export default function StoresDashboardPage() {
     0,
   );
 
-  const fuelItems = inventoryItems.filter((item) => item.category === "FUEL");
+  const fuelItems = hasFuelLedger ? inventoryItems.filter((item) => item.category === "FUEL") : [];
   const fuelStock = fuelItems.reduce((sum, item) => sum + item.currentStock, 0);
   const fuelMin = fuelItems.reduce((sum, item) => sum + (item.minStock ?? 0), 0);
   const fuelVariance = fuelStock - fuelMin;
@@ -168,7 +177,7 @@ export default function StoresDashboardPage() {
         <StatusState
           variant="empty"
           title="No inventory items yet"
-          description="Add inventory items to start tracking stock, fuel, and movements."
+          description="Add inventory items to start tracking stock and movements."
         />
       ) : null}
 
@@ -186,7 +195,7 @@ export default function StoresDashboardPage() {
               <div>
                 <CardTitle className="text-[1.1rem]">Stock Command Center</CardTitle>
                 <CardDescription>
-                  Inventory risk, valuation, fuel posture, and movement pulse across stores.
+                  Inventory risk, valuation, and movement pulse across stores.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -194,9 +203,11 @@ export default function StoresDashboardPage() {
                 <Badge variant={criticalItems.length > 0 ? "danger" : "success"}>
                   Stock Outs: {criticalItems.length}
                 </Badge>
-                <Badge variant={fuelBelowMin ? "warning" : "success"}>
-                  Fuel: {fuelBelowMin ? "Watch" : "Healthy"}
-                </Badge>
+                {hasFuelLedger ? (
+                  <Badge variant={fuelBelowMin ? "warning" : "success"}>
+                    Fuel: {fuelBelowMin ? "Watch" : "Healthy"}
+                  </Badge>
+                ) : null}
               </div>
             </div>
           </CardHeader>
@@ -226,14 +237,25 @@ export default function StoresDashboardPage() {
                 loading={inventoryLoading}
                 negativeIsBetter
               />
-              <MetricTile
-                label="Fuel Balance"
-                valueLabel={`${fuelStock.toLocaleString()} ${fuelUnit}`}
-                valueNumber={fuelStock}
-                detail={coverageDaysLabel}
-                tone={fuelBelowMin ? "warning" : "success"}
-                loading={inventoryLoading}
-              />
+              {hasFuelLedger ? (
+                <MetricTile
+                  label="Fuel Balance"
+                  valueLabel={`${fuelStock.toLocaleString()} ${fuelUnit}`}
+                  valueNumber={fuelStock}
+                  detail={coverageDaysLabel}
+                  tone={fuelBelowMin ? "warning" : "success"}
+                  loading={inventoryLoading}
+                />
+              ) : (
+                <MetricTile
+                  label="Recent Movements"
+                  valueLabel={`${recentMovements.length}`}
+                  valueNumber={recentMovements.length}
+                  detail={recentMovements.length > 0 ? "Latest stock activity captured" : "No recent movements"}
+                  tone="neutral"
+                  loading={movementsLoading}
+                />
+              )}
             </div>
           </CardContent>
         </Card>
@@ -353,27 +375,29 @@ export default function StoresDashboardPage() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-12">
-          <Card className="overflow-hidden xl:col-span-4">
-            <CardHeader className="border-b border-border/60">
-              <CardTitle className="text-base">Fuel Control</CardTitle>
-              <CardDescription>Fuel inventory posture against minimum reserve levels.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              {inventoryLoading ? (
-                <Skeleton className="h-28 w-full" />
-              ) : (
-                <FrappeStatCard
-                  label="Fuel Coverage"
-                  value={fuelCoveragePercent}
-                  valueLabel={`${fuelCoveragePercent}%`}
-                  detail={`Current ${fuelStock.toLocaleString()} ${fuelUnit} | Min ${fuelMin.toLocaleString()} ${fuelUnit} | Variance ${fuelVariance >= 0 ? "+" : ""}${fuelVariance.toLocaleString()} ${fuelUnit}`}
-                  tone={fuelBelowMin ? "warning" : "success"}
-                />
-              )}
-            </CardContent>
-          </Card>
+          {hasFuelLedger ? (
+            <Card className="overflow-hidden xl:col-span-4">
+              <CardHeader className="border-b border-border/60">
+                <CardTitle className="text-base">Fuel Control</CardTitle>
+                <CardDescription>Fuel inventory posture against minimum reserve levels.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {inventoryLoading ? (
+                  <Skeleton className="h-28 w-full" />
+                ) : (
+                  <FrappeStatCard
+                    label="Fuel Coverage"
+                    value={fuelCoveragePercent}
+                    valueLabel={`${fuelCoveragePercent}%`}
+                    detail={`Current ${fuelStock.toLocaleString()} ${fuelUnit} | Min ${fuelMin.toLocaleString()} ${fuelUnit} | Variance ${fuelVariance >= 0 ? "+" : ""}${fuelVariance.toLocaleString()} ${fuelUnit}`}
+                    tone={fuelBelowMin ? "warning" : "success"}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
-          <Card className="overflow-hidden xl:col-span-8">
+          <Card className={`overflow-hidden ${hasFuelLedger ? "xl:col-span-8" : "xl:col-span-12"}`}>
             <CardHeader className="border-b border-border/60">
               <CardTitle className="text-base">Top Value Inventory</CardTitle>
               <CardDescription>Highest on-hand value items requiring tighter oversight.</CardDescription>

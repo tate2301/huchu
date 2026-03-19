@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_CHART_OF_ACCOUNTS, DEFAULT_POSTING_RULES, DEFAULT_TAX_CODES } from "@/lib/accounting/defaults";
+import {
+  DEFAULT_TAX_CODES,
+  getDefaultChartOfAccounts,
+  getDefaultPostingRules,
+} from "@/lib/accounting/defaults";
 
 type BootstrapSummary = {
   createdAccounts: number;
@@ -14,13 +18,35 @@ export async function ensureAccountingDefaults(companyId: string): Promise<Boots
     create: { companyId },
   });
 
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      workspaceProfile: true,
+      featureFlags: {
+        where: { isEnabled: true },
+        select: {
+          feature: {
+            select: { key: true },
+          },
+        },
+      },
+    },
+  });
+  if (!company) {
+    throw new Error("Company not found while seeding accounting defaults");
+  }
+
+  const enabledFeatures = company.featureFlags.map((flag) => flag.feature.key);
   const existingAccounts = await prisma.chartOfAccount.findMany({
     where: { companyId },
     select: { id: true, code: true },
   });
   const accountCodeSet = new Set(existingAccounts.map((account) => account.code));
 
-  const missingAccounts = DEFAULT_CHART_OF_ACCOUNTS.filter((account) => !accountCodeSet.has(account.code));
+  const missingAccounts = getDefaultChartOfAccounts({
+    workspaceProfile: company.workspaceProfile,
+    enabledFeatures,
+  }).filter((account) => !accountCodeSet.has(account.code));
   if (missingAccounts.length > 0) {
     await prisma.chartOfAccount.createMany({
       data: missingAccounts.map((account) => ({
@@ -77,7 +103,10 @@ export async function ensureAccountingDefaults(companyId: string): Promise<Boots
   const ruleSourceTypeSet = new Set(existingRules.map((rule) => rule.sourceType));
 
   let createdPostingRules = 0;
-  for (const rule of DEFAULT_POSTING_RULES) {
+  for (const rule of getDefaultPostingRules({
+    workspaceProfile: company.workspaceProfile,
+    enabledFeatures,
+  })) {
     if (ruleSourceTypeSet.has(rule.sourceType)) continue;
 
     const lines = rule.lines

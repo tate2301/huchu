@@ -52,7 +52,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK",
     label: "Multi-Site Operations",
-    description: "People, stock, CCTV, and fuel controls for smaller companies operating across several sites.",
+    description: "People, stock, CCTV, and shared controls for smaller companies operating across several sites.",
     targetClients: ["Shops", "SMEs", "Small multi-site company"],
     recommendedTierCode: "STANDARD",
     bundleCodes: [

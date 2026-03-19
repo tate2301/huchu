@@ -87,8 +87,9 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
     },
     {
       id: "gold-expense-types",
-      label: "Gold Expense Types",
+      label: "Settlement Types",
       href: "/management/master-data/operations/gold-expense-types",
+      description: "Settlement and variable payout category master data.",
     },
     {
       id: "scrap-materials",

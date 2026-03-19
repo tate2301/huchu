@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { StepProgress } from "@/components/ui/step-progress";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 
 type OnboardingStep = 0 | 1 | 2 | 3 | 4;
 
@@ -45,8 +47,6 @@ type OnboardingDialogProps = {
 
 type OrganizationPrefs = {
   payrollCycle: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
-  goldPayoutCycle: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY";
-  goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD";
   cashDisbursementOnly: boolean;
 };
 
@@ -60,13 +60,25 @@ const ONBOARDING_STEPS = [
 
 export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingDialogProps) {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(0);
   const [sites, setSites] = useState<SiteFormData[]>([{ name: "", code: "", location: "" }]);
   const [departments, setDepartments] = useState<DepartmentFormData[]>([{ name: "", code: "" }]);
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const verticalDefaults = useMemo(
+    () =>
+      resolveVerticalDefaults({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  );
   const [organizationPrefs, setOrganizationPrefs] = useState<OrganizationPrefs>({
     payrollCycle: "MONTHLY",
-    goldPayoutCycle: "FORTNIGHTLY",
-    goldSettlementMode: "CURRENT_PERIOD",
     cashDisbursementOnly: true,
   });
 
@@ -183,7 +195,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
             </div>
             <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Defaults</p>
-              <p className="mt-2 text-sm font-medium">Set payroll and payout preferences</p>
+              <p className="mt-2 text-sm font-medium">Set payroll and cash preferences</p>
             </div>
           </div>
         );
@@ -221,7 +233,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       id={`site-name-${index}`}
                       value={site.name}
                       onChange={(e) => handleSiteChange(index, "name", e.target.value)}
-                      placeholder="e.g., Main Mine, Processing Plant"
+                      placeholder={`e.g., ${verticalDefaults.workspace.siteNamePlaceholder}`}
                     />
                   </div>
                   <div className="space-y-2">
@@ -232,7 +244,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       id={`site-code-${index}`}
                       value={site.code}
                       onChange={(e) => handleSiteChange(index, "code", e.target.value.toUpperCase())}
-                      placeholder="e.g., MAIN, PROC"
+                      placeholder={`e.g., ${verticalDefaults.workspace.siteCodeExample}`}
                       maxLength={10}
                     />
                   </div>
@@ -242,7 +254,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       id={`site-location-${index}`}
                       value={site.location}
                       onChange={(e) => handleSiteChange(index, "location", e.target.value)}
-                      placeholder="e.g., Kadoma, Zimbabwe"
+                      placeholder={`e.g., ${verticalDefaults.workspace.locationPlaceholder}`}
                     />
                   </div>
                 </div>
@@ -283,7 +295,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       id={`dept-name-${index}`}
                       value={dept.name}
                       onChange={(e) => handleDepartmentChange(index, "name", e.target.value)}
-                      placeholder="e.g., Mining, Processing, Administration"
+                      placeholder={`e.g., ${verticalDefaults.workspace.departmentNamePlaceholder}`}
                     />
                   </div>
                   <div className="space-y-2">
@@ -292,7 +304,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       id={`dept-code-${index}`}
                       value={dept.code}
                       onChange={(e) => handleDepartmentChange(index, "code", e.target.value.toUpperCase())}
-                      placeholder="e.g., MIN, PROC, ADMIN"
+                      placeholder={`e.g., ${verticalDefaults.workspace.departmentCodeExample}`}
                       maxLength={10}
                     />
                   </div>
@@ -309,7 +321,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
         return (
           <div className="space-y-4">
             <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3">
-              <p className="text-sm font-medium">Set operating defaults</p>
+              <p className="text-sm font-medium">Set payroll and cash defaults</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -331,42 +343,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Irregular payout cycle</Label>
-                <Select
-                  value={organizationPrefs.goldPayoutCycle}
-                  onValueChange={(value: OrganizationPrefs["goldPayoutCycle"]) =>
-                    setOrganizationPrefs((prev) => ({ ...prev, goldPayoutCycle: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WEEKLY">Weekly</SelectItem>
-                    <SelectItem value="FORTNIGHTLY">Fortnightly</SelectItem>
-                    <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Gold settlement mode</Label>
-                <Select
-                  value={organizationPrefs.goldSettlementMode}
-                  onValueChange={(value: OrganizationPrefs["goldSettlementMode"]) =>
-                    setOrganizationPrefs((prev) => ({ ...prev, goldSettlementMode: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CURRENT_PERIOD">Current period</SelectItem>
-                    <SelectItem value="NEXT_PERIOD">Next period</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Disbursement mode</Label>
+                <Label>Cash handling</Label>
                 <Select
                   value={organizationPrefs.cashDisbursementOnly ? "cash" : "mixed"}
                   onValueChange={(value) =>
@@ -419,7 +396,7 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       .filter((site) => site.name && site.code)
                       .map((site, index) => (
                         <li key={index} className="text-sm">
-                          • {site.name} ({site.code})
+                          {"•"} {site.name} ({site.code})
                           {site.location && ` - ${site.location}`}
                         </li>
                       ))}
@@ -445,11 +422,25 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
                       .filter((dept) => dept.name && dept.code)
                       .map((dept, index) => (
                         <li key={index} className="text-sm">
-                          • {dept.name} ({dept.code})
+                          {"•"} {dept.name} ({dept.code})
                         </li>
                       ))}
                   </ul>
                 )}
+              </div>
+
+              <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium">Defaults</h4>
+                    <p className="text-xs text-muted-foreground">Payroll and cash handling</p>
+                  </div>
+                  <Badge variant="secondary">Ready</Badge>
+                </div>
+                <div className="mt-3 space-y-1 text-sm">
+                  <p>Payroll cycle: {organizationPrefs.payrollCycle.toLowerCase()}</p>
+                  <p>Cash handling: {organizationPrefs.cashDisbursementOnly ? "Cash only" : "Cash + transfer"}</p>
+                </div>
               </div>
             </div>
 

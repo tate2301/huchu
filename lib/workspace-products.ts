@@ -65,7 +65,7 @@ type ResolveWorkspaceProductArgs = {
   enabledFeatures: string[] | undefined;
 };
 
-const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GOLD_MINE";
+const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
 const GENERAL_GENERAL_PRODUCT_ID: VerticalProductId = "general-business";
 
 const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePresentation> = {
@@ -118,7 +118,7 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   stores: {
     title: "Stores & Inventory",
-    description: "Control stock, movements, receipts, issues, and fuel from one inventory workspace.",
+    description: "Control stock, movements, receipts, issues, and replenishment from one inventory workspace.",
     tabLabels: {
       dashboard: "Overview",
       inventory: "Stock on Hand",
@@ -180,7 +180,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
         description: "Track plant, equipment, work orders, and breakdown response across the mine.",
       },
       stores: {
-        description: "Manage spares, consumables, fuel, and movement controls across mining sites.",
+        description: "Manage spares, consumables, and movement controls across mining sites.",
       },
       accounting: {
         description: "Run settlements, receivables, payables, tax, and close controls behind gold operations.",
@@ -291,7 +291,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
       },
       stores: {
         title: "Parts & Stores",
-        description: "Control spare parts, consumables, fuel, and job-linked stock movements.",
+        description: "Control spare parts, consumables, and job-linked stock movements.",
       },
       hr: {
         description: "Manage technicians, attendance patterns, salaries, payroll, and workshop approvals.",
@@ -313,7 +313,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["accounting", "management", "reporting"],
     moduleCopy: {
       stores: {
-        description: "Track stock, movements, receipts, and fuel across sites with tighter operating visibility.",
+        description: "Track stock, movements, and receipts across sites with tighter operating visibility.",
       },
       hr: {
         description: "Manage staff records, salaries, payroll, and approvals across multiple branches or depots.",

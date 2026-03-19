@@ -123,7 +123,7 @@ async function isSubdomainAvailable(candidate: string, excludeCompanyId?: string
 
 function buildSuggestions(seed: string, limit = 6): string[] {
   const sub = normalizeSubdomain(seed);
-  const candidates = [sub, `${sub}-mine`, `${sub}-zw`];
+  const candidates = [sub, `${sub}-ops`, `${sub}-hq`, `${sub}-group`];
   for (let i = 2; i < limit + 2; i += 1) {
     candidates.push(`${sub}-${i}`);
   }
