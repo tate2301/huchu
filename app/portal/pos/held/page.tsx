@@ -1,4 +1,4 @@
-import { PosPortalContent } from "@/components/retail/portal/pos-portal-content";
+import { PosHeldView } from "@/components/retail/portal/pos-held-view";
 import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
 
 export default async function PosPortalHeldPage() {
@@ -8,7 +8,7 @@ export default async function PosPortalHeldPage() {
       title="Held Carts"
       description="Recall parked baskets without losing register flow."
     >
-      <PosPortalContent initialView="held" />
+      <PosHeldView />
     </PosPortalPageFrame>
   );
 }

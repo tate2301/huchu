@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type CatalogItem = {
@@ -271,17 +272,37 @@ export default function RetailCatalogPage() {
       title="Catalog"
       description="Create retail items on top of shared Stores inventory records."
       actions={
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setForm(emptyForm());
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New item
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setForm(emptyForm());
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New item
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/merchandising/pricing">
+              <Wallet className="h-4 w-4" />
+              Pricing
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/merchandising/promotions">
+              <ReceiptLong className="h-4 w-4" />
+              Promotions
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/purchasing/orders">
+              <ReceiptLong className="h-4 w-4" />
+              Purchase Orders
+            </Link>
+          </Button>
+        </div>
       }
     >
       <DataTable

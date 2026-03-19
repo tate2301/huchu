@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailSession } from "../../../_helpers";
+import { canManageRetailTransactions, requireRetailSession } from "../../../_helpers";
 
 const closeShiftSchema = z.object({
   countedCash: z.number().min(0),
@@ -29,6 +29,10 @@ export async function POST(
     }
     if (existing.status !== "OPEN") {
       return errorResponse("Only open shifts can be closed", 409);
+    }
+    const canManage = canManageRetailTransactions(session.user.role);
+    if (existing.cashierId !== session.user.id && !canManage) {
+      return errorResponse("Only the shift owner or a manager can close this shift", 403);
     }
 
     const body = await request.json();

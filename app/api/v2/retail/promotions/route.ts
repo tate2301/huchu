@@ -26,9 +26,15 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
   const status = searchParams.get("status")?.trim();
+  const includeUnsupported = searchParams.get("includeUnsupported") === "true";
+  const posOnly =
+    searchParams.get("pos") === "1" || (status === "ACTIVE" && !includeUnsupported);
 
   const where: Prisma.RetailPromotionWhereInput = { companyId: session.user.companyId };
   if (status && status !== "all") where.status = status;
+  if (posOnly) {
+    where.type = { in: ["PERCENT", "AMOUNT"] };
+  }
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },

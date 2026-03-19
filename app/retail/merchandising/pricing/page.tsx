@@ -1,16 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useState } from "react";
+import { BarChart3, Package, ReceiptLong } from "@/lib/icons";
 
 type CatalogItem = {
   id: string;
@@ -157,6 +157,28 @@ export default function RetailPricingPage() {
     <RetailShell
       title="Pricing"
       description="Adjust shelf prices without leaving the retail workbench."
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/catalog">
+              <Package className="h-4 w-4" />
+              Catalog
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/merchandising/promotions">
+              <ReceiptLong className="h-4 w-4" />
+              Promotions
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/reports">
+              <BarChart3 className="h-4 w-4" />
+              Reports
+            </Link>
+          </Button>
+        </div>
+      }
     >
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">

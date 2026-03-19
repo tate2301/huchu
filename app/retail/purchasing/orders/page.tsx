@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { LocalShipping, Package, Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type PurchaseOrderLine = {
@@ -265,17 +266,31 @@ export default function RetailPurchaseOrdersPage() {
       title="Purchasing"
       description="Raise POs and feed receiving into shared stock."
       actions={
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setForm(emptyForm(sites[0]?.id ?? ""));
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New PO
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setForm(emptyForm(sites[0]?.id ?? ""));
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New PO
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/purchasing/receipts">
+              <LocalShipping className="h-4 w-4" />
+              Post Receipt
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/stores/inventory">
+              <Package className="h-4 w-4" />
+              Stock on Hand
+            </Link>
+          </Button>
+        </div>
       }
     >
       <DataTable

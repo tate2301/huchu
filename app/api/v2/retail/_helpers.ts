@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -22,9 +23,18 @@ export async function requireRetailSession(request: NextRequest) {
 }
 
 const RETAIL_MANAGER_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"];
+const POS_SUPPORTED_PROMOTION_TYPES = ["PERCENT", "AMOUNT"] as const;
 
 export function canManageRetailTransactions(role: string | null | undefined) {
   return hasRole(role, RETAIL_MANAGER_ROLES);
+}
+
+export function isPosSupportedPromotionType(type: string | null | undefined) {
+  return POS_SUPPORTED_PROMOTION_TYPES.includes((type ?? "") as (typeof POS_SUPPORTED_PROMOTION_TYPES)[number]);
+}
+
+export function getPosSupportedPromotionTypes() {
+  return [...POS_SUPPORTED_PROMOTION_TYPES];
 }
 
 export function getCashNetFromPayments(
@@ -136,8 +146,11 @@ export async function recordRetailInventoryMovement(input: {
     | "RETAIL_SHIFT_VARIANCE";
   sourceId: string;
   entryDate?: Date;
+  tx?: Prisma.TransactionClient;
+  postAccounting?: boolean;
 }) {
-  const item = await prisma.inventoryItem.findUnique({
+  const db = input.tx ?? prisma;
+  const item = await db.inventoryItem.findUnique({
     where: { id: input.itemId },
     include: { site: { select: { companyId: true } } },
   });
@@ -170,7 +183,7 @@ export async function recordRetailInventoryMovement(input: {
   });
 
   const createdAt = input.entryDate ?? new Date();
-  const movement = await prisma.$transaction(async (tx) => {
+  const writeMovement = async (tx: Prisma.TransactionClient) => {
     const created = await tx.stockMovement.create({
       data: {
         referenceId,
@@ -194,11 +207,13 @@ export async function recordRetailInventoryMovement(input: {
     });
 
     return created;
-  });
+  };
+  const movement = input.tx ? await writeMovement(input.tx) : await prisma.$transaction(writeMovement);
 
   const unitCost = input.unitCost ?? item.unitCost ?? 0;
   const amount = Math.abs(absoluteQuantity * unitCost);
-  if (amount > 0) {
+  const shouldPostAccounting = input.postAccounting ?? !input.tx;
+  if (amount > 0 && shouldPostAccounting) {
     try {
       await createJournalEntryFromSource({
         companyId: input.companyId,

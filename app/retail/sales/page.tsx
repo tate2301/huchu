@@ -17,7 +17,7 @@ import {
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Payments } from "@/lib/icons";
+import { BarChart3, Package, Payments, ReceiptLong } from "@/lib/icons";
 
 type SaleRow = {
   id: string;
@@ -167,12 +167,32 @@ export default function RetailSalesPage() {
       title="Sales"
       description="Track posted sales, reversals, and cashier exceptions."
       actions={
-        <Button asChild size="sm">
-          <Link href="/portal/pos">
-            <Payments className="h-4 w-4" />
-            Open POS
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href="/portal/pos">
+              <Payments className="h-4 w-4" />
+              Open POS
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/shifts">
+              <ReceiptLong className="h-4 w-4" />
+              Shifts & Cash-up
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/catalog">
+              <Package className="h-4 w-4" />
+              Catalog
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/reports">
+              <BarChart3 className="h-4 w-4" />
+              Reports
+            </Link>
+          </Button>
+        </div>
       }
     >
       {salesQuery.error ? (

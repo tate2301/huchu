@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { BarChart3, Pencil, Plus, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Promotion = {
@@ -208,17 +209,31 @@ export default function RetailPromotionsPage() {
       title="Promotions"
       description="Manage discounts and campaign windows from one queue."
       actions={
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setForm(emptyForm());
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New promotion
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setForm(emptyForm());
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New promotion
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/merchandising/pricing">
+              <Wallet className="h-4 w-4" />
+              Pricing
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/reports">
+              <BarChart3 className="h-4 w-4" />
+              Reports
+            </Link>
+          </Button>
+        </div>
       }
     >
       <DataTable

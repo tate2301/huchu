@@ -198,6 +198,7 @@ export function getPortalNavigation(role: PortalRole): PortalNavItem[] {
       { href: "/portal/teacher/reports", label: "Department Reports" },
     ],
     POS_CASHIER: [
+      { href: "/portal/pos/overview", label: "Overview" },
       { href: "/portal/pos", label: "POS" },
       { href: "/portal/pos/held", label: "Held Carts" },
       { href: "/portal/pos/shift", label: "Shift Management" },

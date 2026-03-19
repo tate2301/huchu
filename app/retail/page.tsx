@@ -234,9 +234,27 @@ export default function RetailOverviewPage() {
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
+            <Link href="/retail/purchasing/orders">
+              <ReceiptLong className="h-4 w-4" />
+              New PO
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
             <Link href="/retail/purchasing/receipts">
               <ReceiptLong className="h-4 w-4" />
               Receive Stock
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/merchandising/pricing">
+              <Wallet className="h-4 w-4" />
+              Update Pricing
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/reports">
+              <BarChart3 className="h-4 w-4" />
+              Open Reports
             </Link>
           </Button>
         </div>

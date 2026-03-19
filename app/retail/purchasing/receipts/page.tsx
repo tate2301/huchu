@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { History, Plus, ReceiptLong } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Receipt = {
@@ -202,16 +203,30 @@ export default function RetailReceiptsPage() {
       title="Receipts"
       description="Receive stock into Stores without leaving retail operations."
       actions={
-        <Button
-          size="sm"
-          onClick={() => {
-            setForm(emptyForm(sites[0]?.id ?? ""));
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New receipt
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setForm(emptyForm(sites[0]?.id ?? ""));
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New receipt
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/purchasing/orders">
+              <ReceiptLong className="h-4 w-4" />
+              Purchase Orders
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/stores/movements">
+              <History className="h-4 w-4" />
+              Stock Movements
+            </Link>
+          </Button>
+        </div>
       }
     >
       <DataTable

@@ -2,9 +2,11 @@ import type { NavItem } from "@/lib/navigation";
 import { hasRole } from "@/lib/roles";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import {
+  BarChart3,
   ArrowDownward,
   Building2,
   Calendar,
+  ClipboardList,
   Coins,
   Dataset,
   Factory,
@@ -84,11 +86,15 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
     { href: "/car-sales/deals", icon: Wallet, label: "Deals" },
   ],
   RETAIL: [
-    { href: "/portal/pos", icon: Payments, label: "Point of Sale" },
-    { href: "/retail/sales", icon: ReceiptLong, label: "Sales" },
-    { href: "/retail/catalog", icon: TableRows, label: "Catalog" },
-    { href: "/retail/purchasing/orders", icon: Package, label: "Purchasing" },
+    { href: "/portal/pos", icon: Payments, label: "Open POS" },
+    { href: "/retail/sales", icon: ClipboardList, label: "Sales Queue" },
     { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts & Cash-up" },
+    { href: "/retail/catalog", icon: TableRows, label: "Catalog Items" },
+    { href: "/retail/merchandising/pricing", icon: Wallet, label: "Pricing Updates" },
+    { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
+    { href: "/retail/purchasing/orders", icon: Package, label: "Purchase Orders" },
+    { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Receive Stock" },
+    { href: "/retail/reports", icon: BarChart3, label: "Retail Reports" },
   ],
 };
 

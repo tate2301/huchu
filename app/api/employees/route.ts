@@ -97,7 +97,9 @@ const employeeSchema = z.object({
 const EMPLOYEE_ID_PREFIX = "EMP-"
 const EMPLOYEE_ID_PAD = 4
 
-function normalizeEmployeeModule(module: EmployeeModuleInput): keyof typeof EmployeeModule {
+function normalizeEmployeeModule(
+  module: EmployeeModuleInput,
+): "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL" {
   return module === "THRIFT" ? "RETAIL" : module
 }
 
@@ -430,7 +432,7 @@ export async function POST(request: NextRequest) {
           moduleAssignments: {
             create: normalizedModuleAssignments.map((assignment) => ({
               company: { connect: { id: session.user.companyId } },
-              module: assignment.module,
+              module: assignment.module as unknown as EmployeeModule,
               accessRole: assignment.accessRole,
               requiresUserAccess: assignment.requiresUserAccess,
               isPrimary: assignment.isPrimary,

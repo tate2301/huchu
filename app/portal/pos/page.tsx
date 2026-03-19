@@ -1,4 +1,4 @@
-import { PosPortalContent } from "@/components/retail/portal/pos-portal-content";
+import { PosCheckoutView } from "@/components/retail/portal/pos-checkout-view";
 import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
 
 export default async function PosPortalPage() {
@@ -8,7 +8,7 @@ export default async function PosPortalPage() {
       title="Point of Sale"
       description="Sell, hold, and tender from a touch-first register."
     >
-      <PosPortalContent initialView="checkout" />
+      <PosCheckoutView />
     </PosPortalPageFrame>
   );
 }

@@ -1,4 +1,4 @@
-import { PosPortalContent } from "@/components/retail/portal/pos-portal-content";
+import { PosShiftView } from "@/components/retail/portal/pos-shift-view";
 import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
 
 export default async function PosPortalShiftPage() {
@@ -8,7 +8,7 @@ export default async function PosPortalShiftPage() {
       title="Shift Management"
       description="Open, review, and close tills with cash-up controls."
     >
-      <PosPortalContent initialView="shift" />
+      <PosShiftView />
     </PosPortalPageFrame>
   );
 }

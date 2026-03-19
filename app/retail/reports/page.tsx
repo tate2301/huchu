@@ -1,13 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { RetailShell } from "@/components/retail/retail-shell";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson } from "@/lib/api-client";
+import { ClipboardList, LocalShipping, ReceiptLong } from "@/lib/icons";
 
 type RetailDashboardPayload = {
   salesTrend: Array<{ id: string; label: string; sales: number; tickets: number }>;
@@ -58,6 +61,28 @@ export default function RetailReportsPage() {
     <RetailShell
       title="Reports"
       description="Scan retail performance, tender mix, and stock exceptions."
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/sales">
+              <ClipboardList className="h-4 w-4" />
+              Sales Queue
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/purchasing/receipts">
+              <LocalShipping className="h-4 w-4" />
+              Receipts
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/shifts">
+              <ReceiptLong className="h-4 w-4" />
+              Shifts & Cash-up
+            </Link>
+          </Button>
+        </div>
+      }
     >
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4">

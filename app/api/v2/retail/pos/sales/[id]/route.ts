@@ -25,7 +25,7 @@ export async function GET(
     return errorResponse("Sale not found", 404);
   }
 
-  const [sourceSale, relatedSales] = await Promise.all([
+  const [sourceSale, relatedSales, shift, site] = await Promise.all([
     sale.sourceSaleId
       ? prisma.retailSale.findUnique({
           where: { id: sale.sourceSaleId },
@@ -44,13 +44,58 @@ export async function GET(
       },
       orderBy: { postedAt: "desc" },
     }),
+    sale.shiftId
+      ? prisma.retailShift.findFirst({
+          where: { id: sale.shiftId, companyId: session.user.companyId },
+          select: {
+            id: true,
+            shiftNo: true,
+            registerName: true,
+            siteId: true,
+            status: true,
+            openedAt: true,
+            closedAt: true,
+          },
+        })
+      : Promise.resolve(null),
+    prisma.site.findFirst({
+      where: { id: sale.siteId, companyId: session.user.companyId },
+      select: { id: true, name: true, code: true },
+    }),
   ]);
+  const reversalLineRows = relatedSales.length
+    ? await prisma.retailSaleLine.findMany({
+        where: {
+          saleId: { in: relatedSales.map((relatedSale) => relatedSale.id) },
+          sourceLineId: { not: null },
+        },
+        select: { sourceLineId: true, quantity: true },
+      })
+    : [];
+  const refundedBySourceLine = reversalLineRows.reduce<Map<string, number>>((accumulator, line) => {
+    if (!line.sourceLineId) return accumulator;
+    accumulator.set(
+      line.sourceLineId,
+      (accumulator.get(line.sourceLineId) ?? 0) + Math.abs(line.quantity),
+    );
+    return accumulator;
+  }, new Map());
 
   return successResponse({
     data: {
       ...sale,
+      shift,
+      site,
       sourceSale,
       reversals: relatedSales,
+      lines: sale.lines.map((line) => {
+        const refundedQuantity = refundedBySourceLine.get(line.id) ?? 0;
+        return {
+          ...line,
+          refundedQuantity,
+          refundableQuantity: Math.max(line.quantity - refundedQuantity, 0),
+        };
+      }),
     },
   });
 }

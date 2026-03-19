@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
 
   const where: Prisma.RetailHeldCartWhereInput = {
     companyId: session.user.companyId,
-    status: { in: ["HELD", "RECALLED"] },
+    status: "HELD",
+    cashierId: session.user.id,
   };
   if (shiftId) where.shiftId = shiftId;
 
@@ -52,10 +53,11 @@ export async function POST(request: NextRequest) {
         id: input.shiftId,
         companyId: session.user.companyId,
         status: "OPEN",
+        cashierId: session.user.id,
       },
     });
     if (!shift) {
-      return errorResponse("Open shift not found", 404);
+      return errorResponse("Open shift not found for this cashier", 404);
     }
 
     const providedCode = input.holdNo

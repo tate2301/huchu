@@ -39,7 +39,7 @@ export async function POST(
     const body = await request.json();
     const input = voidSchema.parse(body);
 
-    const [sourceSale, shift, existingReversals] = await Promise.all([
+    const [sourceSale, shift] = await Promise.all([
       prisma.retailSale.findFirst({
         where: { id, companyId: session.user.companyId },
         include: { lines: true, payments: true },
@@ -52,10 +52,6 @@ export async function POST(
           cashierId: session.user.id,
         },
       }),
-      prisma.retailSale.findMany({
-        where: { companyId: session.user.companyId, sourceSaleId: id },
-        select: { id: true, saleType: true },
-      }),
     ]);
 
     if (!sourceSale) {
@@ -67,8 +63,8 @@ export async function POST(
     if (sourceSale.saleType !== "SALE" || sourceSale.status !== "POSTED") {
       return errorResponse("Only posted sales can be voided", 409);
     }
-    if (existingReversals.length > 0) {
-      return errorResponse("Sales with refunds or existing reversals cannot be voided", 409);
+    if (shift.siteId !== sourceSale.siteId) {
+      return errorResponse("Void shift site does not match sale site", 409);
     }
 
     const voidNo = await reserveIdentifier(prisma, {
@@ -77,38 +73,58 @@ export async function POST(
       siteId: sourceSale.siteId,
     });
 
-    const negativePayments = sourceSale.payments.map((payment) => ({
-      tenderType: payment.tenderType,
-      amount: -round(Math.abs(payment.amount)),
-      reference: payment.reference,
-    }));
-
     const reversal = await prisma.$transaction(async (tx) => {
+      const currentSourceSale = await tx.retailSale.findFirst({
+        where: { id, companyId: session.user.companyId },
+        include: { lines: true, payments: true },
+      });
+      if (!currentSourceSale || currentSourceSale.saleType !== "SALE" || currentSourceSale.status !== "POSTED") {
+        throw new Error("Only posted sales can be voided");
+      }
+
+      const existingReversals = await tx.retailSale.findMany({
+        where: {
+          companyId: session.user.companyId,
+          sourceSaleId: id,
+          saleType: { in: ["REFUND", "VOID"] },
+        },
+        select: { id: true },
+      });
+      if (existingReversals.length > 0) {
+        throw new Error("Sales with refunds or existing reversals cannot be voided");
+      }
+
+      const negativePayments = currentSourceSale.payments.map((payment) => ({
+        tenderType: payment.tenderType,
+        amount: -round(Math.abs(payment.amount)),
+        reference: payment.reference?.trim() || null,
+      }));
+
       const created = await tx.retailSale.create({
         data: {
           companyId: session.user.companyId,
           saleNo: voidNo,
           shiftId: shift.id,
-          sourceSaleId: sourceSale.id,
-          siteId: sourceSale.siteId,
+          sourceSaleId: currentSourceSale.id,
+          siteId: currentSourceSale.siteId,
           cashierId: session.user.id,
           cashierName: session.user.name || session.user.email || "Cashier",
-          customerName: sourceSale.customerName,
+          customerName: currentSourceSale.customerName,
           saleType: "VOID",
-          subtotal: -round(Math.abs(sourceSale.subtotal)),
-          discountAmount: -round(Math.abs(sourceSale.discountAmount)),
-          taxAmount: -round(Math.abs(sourceSale.taxAmount)),
-          totalAmount: -round(Math.abs(sourceSale.totalAmount)),
-          tenderedAmount: -round(Math.abs(sourceSale.tenderedAmount ?? sourceSale.totalAmount)),
+          subtotal: -round(Math.abs(currentSourceSale.subtotal)),
+          discountAmount: -round(Math.abs(currentSourceSale.discountAmount)),
+          taxAmount: -round(Math.abs(currentSourceSale.taxAmount)),
+          totalAmount: -round(Math.abs(currentSourceSale.totalAmount)),
+          tenderedAmount: -round(Math.abs(currentSourceSale.tenderedAmount ?? currentSourceSale.totalAmount)),
           changeAmount: 0,
-          promotionCode: sourceSale.promotionCode,
+          promotionCode: currentSourceSale.promotionCode,
           overrideReason: input.reason.trim(),
           status: "POSTED",
           notes: input.notes?.trim() || null,
           postedAt: new Date(),
           tenderSummary: negativePayments,
           lines: {
-            create: sourceSale.lines.map((line) => ({
+            create: currentSourceSale.lines.map((line) => ({
               sourceLineId: line.id,
               inventoryItemId: line.inventoryItemId,
               catalogItemId: line.catalogItemId,
@@ -127,8 +143,52 @@ export async function POST(
         include: { lines: true, payments: true },
       });
 
+      for (const line of currentSourceSale.lines) {
+        const item = await tx.inventoryItem.findUnique({
+          where: { id: line.inventoryItemId },
+          select: { id: true, unit: true, unitCost: true },
+        });
+        if (!item) {
+          throw new Error(`Inventory item missing for ${line.itemName}.`);
+        }
+        await recordRetailInventoryMovement({
+          companyId: session.user.companyId,
+          userId: session.user.id,
+          itemId: item.id,
+          movementType: "RECEIPT",
+          quantity: line.quantity,
+          unit: item.unit,
+          unitCost: item.unitCost ?? 0,
+          notes: `Retail sale void ${created.saleNo}`,
+          sourceType: "RETAIL_REFUND",
+          sourceId: `${created.id}:${item.id}`,
+          entryDate: created.postedAt ?? new Date(),
+          tx,
+          postAccounting: false,
+        });
+      }
+
+      const netCash = getCashNetFromPayments(negativePayments, 0);
+      if (netCash !== 0) {
+        const updatedShift = await tx.retailShift.updateMany({
+          where: {
+            id: shift.id,
+            companyId: session.user.companyId,
+            status: "OPEN",
+          },
+          data: {
+            expectedCash: {
+              increment: netCash,
+            },
+          },
+        });
+        if (updatedShift.count !== 1) {
+          throw new Error("Shift is no longer open.");
+        }
+      }
+
       await tx.retailSale.update({
-        where: { id: sourceSale.id },
+        where: { id: currentSourceSale.id },
         data: {
           status: "VOIDED",
           voidReason: input.reason.trim(),
@@ -137,41 +197,6 @@ export async function POST(
 
       return created;
     });
-
-    for (const line of sourceSale.lines) {
-      const item = await prisma.inventoryItem.findUnique({
-        where: { id: line.inventoryItemId },
-        select: { id: true, unit: true, unitCost: true },
-      });
-      if (!item) {
-        throw new Error(`Inventory item missing for ${line.itemName}.`);
-      }
-      await recordRetailInventoryMovement({
-        companyId: session.user.companyId,
-        userId: session.user.id,
-        itemId: item.id,
-        movementType: "RECEIPT",
-        quantity: line.quantity,
-        unit: item.unit,
-        unitCost: item.unitCost ?? 0,
-        notes: `Retail sale void ${reversal.saleNo}`,
-        sourceType: "RETAIL_REFUND",
-        sourceId: `${reversal.id}:${item.id}`,
-        entryDate: reversal.postedAt ?? new Date(),
-      });
-    }
-
-    const netCash = getCashNetFromPayments(negativePayments, 0);
-    if (netCash !== 0) {
-      await prisma.retailShift.update({
-        where: { id: shift.id },
-        data: {
-          expectedCash: {
-            increment: netCash,
-          },
-        },
-      });
-    }
 
     try {
       await createJournalEntryFromSource({
@@ -195,8 +220,17 @@ export async function POST(
       id: reversal.id,
       saleNo: reversal.saleNo,
       saleType: reversal.saleType,
+      status: reversal.status,
+      shiftId: reversal.shiftId,
+      siteId: reversal.siteId,
+      sourceSaleId: reversal.sourceSaleId,
       totalAmount: reversal.totalAmount,
+      tenderedAmount: reversal.tenderedAmount,
       postedAt: reversal.postedAt ?? reversal.createdAt,
+      lines: reversal.lines,
+      payments: reversal.payments,
+      overrideReason: reversal.overrideReason,
+      notes: reversal.notes,
     }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {

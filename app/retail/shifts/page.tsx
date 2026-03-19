@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { BarChart3, Payments, Plus, ReceiptLong } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Shift = {
@@ -187,16 +188,36 @@ export default function RetailShiftsPage() {
       title="Shifts & Cash-up"
       description="Open tills, monitor expected cash, and close with variance tracking."
       actions={
-        <Button
-          size="sm"
-          onClick={() => {
-            setForm(emptyForm(sitesQuery.data?.[0]?.id ?? ""));
-            setOpenDialog(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Open shift
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setForm(emptyForm(sitesQuery.data?.[0]?.id ?? ""));
+              setOpenDialog(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Open shift
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/portal/pos">
+              <Payments className="h-4 w-4" />
+              POS
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/sales">
+              <ReceiptLong className="h-4 w-4" />
+              Sales
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/reports">
+              <BarChart3 className="h-4 w-4" />
+              Reports
+            </Link>
+          </Button>
+        </div>
       }
     >
       <DataTable

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   ClipboardList,
+  LocalShipping,
   Package,
   Payments,
   ReceiptLong,
@@ -15,6 +16,7 @@ export type RetailTabId =
   | "sales"
   | "catalog"
   | "purchasing-orders"
+  | "purchasing-receipts"
   | "merchandising-pricing"
   | "merchandising-promotions"
   | "shifts"
@@ -34,9 +36,15 @@ export const RETAIL_TABS: RetailTabItem[] = [
   { id: "catalog", label: "Catalog", href: "/retail/catalog", icon: Package },
   {
     id: "purchasing-orders",
-    label: "Purchasing",
+    label: "Purchase Orders",
     href: "/retail/purchasing/orders",
-    icon: ReceiptLong,
+    icon: Package,
+  },
+  {
+    id: "purchasing-receipts",
+    label: "Receipts",
+    href: "/retail/purchasing/receipts",
+    icon: LocalShipping,
   },
   {
     id: "merchandising-pricing",
