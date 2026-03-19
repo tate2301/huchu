@@ -170,7 +170,7 @@ export default function ApprovalsPage() {
           <SelectItem value="ADJUSTMENT_ENTRY">Adjustments</SelectItem>
           <SelectItem value="COMPENSATION_PROFILE">Compensation profiles</SelectItem>
           <SelectItem value="COMPENSATION_RULE">Compensation rules</SelectItem>
-          <SelectItem value="GOLD_SHIFT_ALLOCATION">Gold payout allocations</SelectItem>
+          <SelectItem value="GOLD_SHIFT_ALLOCATION">Settlement allocations</SelectItem>
           <SelectItem value="DISCIPLINARY_ACTION">Disciplinary actions</SelectItem>
         </SelectContent>
       </Select>
@@ -288,4 +288,3 @@ export default function ApprovalsPage() {
     </HrShell>
   );
 }
-

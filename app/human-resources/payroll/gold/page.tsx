@@ -280,7 +280,7 @@ export default function GoldPayrollPage() {
         periodGenerationHorizon: Number(payload.periodGenerationHorizon),
       }),
     onSuccess: () => {
-      toast({ title: "Gold payroll settings updated", variant: "success" });
+      toast({ title: "Settlement payroll settings updated", variant: "success" });
       setSettingsOpen(false);
       setSettingsOverrides({});
       queryClient.invalidateQueries({ queryKey: ["payroll-config"] });
@@ -330,7 +330,7 @@ export default function GoldPayrollPage() {
         method: "POST",
       }),
     onSuccess: () => {
-      toast({ title: "Gold payout run generated", variant: "success" });
+      toast({ title: "Settlement run generated", variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
     },
@@ -815,7 +815,7 @@ export default function GoldPayrollPage() {
     <HrShell
       activeTab="payroll"
       title="Payroll"
-      description="Gold payout payroll with guided period selection, run generation, and approvals."
+      description="Settlement payroll with guided period selection, run generation, and approvals."
     >
       {(configError || periodsError || runsError) && (
         <Alert variant="destructive">
@@ -832,7 +832,7 @@ export default function GoldPayrollPage() {
             Payroll Modes
           </h2>
           <p className="text-sm text-muted-foreground">
-            Keep salary payroll and irregular payout payroll separated by design.
+            Keep salary payroll and settlement payroll separated by design.
           </p>
         </header>
         <div className="section-shell">
@@ -1129,7 +1129,7 @@ export default function GoldPayrollPage() {
                   Valuation Basis
                 </div>
                 <div className="font-semibold">
-                  Recorded gold price on each allocation date
+                  Recorded settlement rate on each allocation date
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Runs are generated in USD using historical snapshots, not a
@@ -1162,7 +1162,7 @@ export default function GoldPayrollPage() {
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>Gold Payroll Settings</SheetTitle>
+            <SheetTitle>Settlement Payroll Settings</SheetTitle>
             <SheetDescription>
               Configure recurring periods and settlement behavior.
             </SheetDescription>
@@ -1229,7 +1229,7 @@ export default function GoldPayrollPage() {
               </div>
               <div>
                 <label className="mb-2 block text-sm font-semibold">
-                  Auto Generate Gold Periods
+                  Auto Generate Settlement Periods
                 </label>
                 <Select
                   value={settingsForm.autoGenerateGoldPayoutPeriods}
@@ -1286,7 +1286,7 @@ export default function GoldPayrollPage() {
       <Sheet open={manualPeriodOpen} onOpenChange={setManualPeriodOpen}>
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>Create Manual Gold Period</SheetTitle>
+            <SheetTitle>Create Manual Settlement Period</SheetTitle>
             <SheetDescription>
               Use manual periods for contractor or one-off exceptions.
             </SheetDescription>

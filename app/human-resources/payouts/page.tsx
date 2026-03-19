@@ -83,8 +83,8 @@ const SOURCE_META: Record<
   { label: string; description: string; groupLabel: string }
 > = {
   GOLD: {
-    label: "Gold payouts",
-    description: "Approved gold shift allocations flow into the irregular payout pipeline here.",
+    label: "Settlements",
+    description: "Approved settlement allocations flow into the irregular payout pipeline here.",
     groupLabel: "Shift",
   },
   SCRAP: {
@@ -507,7 +507,7 @@ export default function HrPayoutsPage() {
               }}>
                 <SelectTrigger size="sm" className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="GOLD">Gold payouts</SelectItem>
+                  <SelectItem value="GOLD">Settlements</SelectItem>
                   <SelectItem value="SCRAP">Scrap settlements</SelectItem>
                   <SelectItem value="COMMISSION">Commission payouts</SelectItem>
                   <SelectItem value="OTHER">Other payouts</SelectItem>

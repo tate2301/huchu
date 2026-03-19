@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/hr-payroll"
+import { EMPLOYEE_POSITION_VALUES, getDefaultEmployeePosition } from "@/lib/platform/vertical-defaults"
 import { EmployeeModule, Prisma } from "@prisma/client"
 
 const employeeSchema = z.object({
@@ -22,14 +23,7 @@ const employeeSchema = z.object({
   nationalIdDocumentUrl: z.string().min(1).max(2048).optional(),
   villageOfOrigin: z.string().min(1).max(200),
   jobTitle: z.string().trim().max(200).optional(),
-  position: z.enum([
-    "MANAGER",
-    "CLERK",
-    "SUPPORT_STAFF",
-    "ENGINEERS",
-    "CHEMIST",
-    "MINERS",
-  ]),
+  position: z.enum(EMPLOYEE_POSITION_VALUES).optional(),
   departmentId: z.string().uuid().optional(),
   gradeId: z.string().uuid().optional(),
   supervisorId: z.string().uuid().optional(),
@@ -370,6 +364,11 @@ export async function POST(request: NextRequest) {
       ? new Date(validated.terminationDate)
       : undefined
 
+    const defaultPosition = getDefaultEmployeePosition({
+      workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
+      enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+    })
+
     const result = await prisma.$transaction(async (tx) => {
       let linkedUserId: string | undefined
       if (validated.createUserAccount && validated.userEmail && validated.userPassword && validated.userRole) {
@@ -402,7 +401,7 @@ export async function POST(request: NextRequest) {
           nationalIdDocumentUrl: validated.nationalIdDocumentUrl,
           villageOfOrigin: validated.villageOfOrigin,
           jobTitle: validated.jobTitle?.trim() || undefined,
-          position: validated.position,
+          position: validated.position ?? defaultPosition,
           departmentId: validated.departmentId,
           gradeId: validated.gradeId,
           supervisorId: validated.supervisorId,

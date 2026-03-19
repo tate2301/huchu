@@ -215,7 +215,7 @@ function normalizeSiteLocation(value: string | null | undefined): string | null 
 }
 
 function normalizeSiteMeasurementUnit(value: string | undefined): SiteMeasurementUnit {
-  const normalized = String(value || "tonnes").trim().toLowerCase();
+  const normalized = String(value || "units").trim().toLowerCase();
   if (!SITE_MEASUREMENT_UNITS.includes(normalized as SiteMeasurementUnit)) {
     throw new Error(
       `Invalid measurement unit: ${value}. Use ${SITE_MEASUREMENT_UNITS.join(", ")}.`,
@@ -354,6 +354,7 @@ async function getOrganization(companyId: string): Promise<OrganizationDetail> {
       id: true,
       name: true,
       slug: true,
+      workspaceProfile: true,
       tenantStatus: true,
       isProvisioned: true,
       suspendedAt: true,
@@ -380,6 +381,7 @@ async function getOrganization(companyId: string): Promise<OrganizationDetail> {
   return {
     ...company,
     tenantStatus: company.tenantStatus as OrganizationStatus,
+    workspaceProfile: company.workspaceProfile,
     createdAt: formatDate(company.createdAt),
     updatedAt: formatDate(company.updatedAt),
     suspendedAt: formatDate(company.suspendedAt),
@@ -397,6 +399,7 @@ async function provisionOrganization(input: ProvisionOrganizationInput): Promise
   const adminName = String(input.adminName || "").trim();
   if (!adminName) throw new Error("Admin name cannot be empty.");
   const normalizedAdminPassword = normalizePasswordInput(input.adminPassword, "Admin password");
+  const workspaceProfile = String(input.workspaceProfile || "GENERAL").trim().toUpperCase() as Prisma.CompanyCreateInput["workspaceProfile"];
 
   const existingSlug = await prisma.company.findUnique({ where: { slug }, select: { id: true } });
   if (existingSlug) throw new Error(`Slug already exists: ${slug}`);
@@ -408,8 +411,18 @@ async function provisionOrganization(input: ProvisionOrganizationInput): Promise
 
   const result = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
-      data: { name, slug, tenantStatus: "ACTIVE", isProvisioned: true },
-      select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true },
+      data: {
+        name,
+        slug,
+        tenantStatus: "ACTIVE",
+        isProvisioned: true,
+        workspaceProfile: workspaceProfile as Prisma.CompanyCreateInput["workspaceProfile"],
+        payrollCycle: "MONTHLY",
+        goldPayoutCycle: "MONTHLY",
+        goldSettlementMode: "CURRENT_PERIOD",
+        cashDisbursementOnly: true,
+      },
+      select: { id: true, name: true, slug: true, workspaceProfile: true, tenantStatus: true, isProvisioned: true },
     });
 
     const adminUser = await tx.user.create({

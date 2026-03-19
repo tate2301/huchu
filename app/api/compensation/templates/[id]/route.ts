@@ -3,6 +3,7 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/hr-payroll"
+import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
 
 const patchTemplateSchema = z
   .object({
@@ -12,10 +13,7 @@ const patchTemplateSchema = z
       .enum(["FULL_TIME", "PART_TIME", "CONTRACT", "CASUAL"])
       .nullable()
       .optional(),
-    position: z
-      .enum(["MANAGER", "CLERK", "SUPPORT_STAFF", "ENGINEERS", "CHEMIST", "MINERS"])
-      .nullable()
-      .optional(),
+    position: z.enum(EMPLOYEE_POSITION_VALUES).nullable().optional(),
     baseAmount: z.number().min(0).optional(),
     currency: z.string().trim().min(1).max(10).optional(),
     isActive: z.boolean().optional(),

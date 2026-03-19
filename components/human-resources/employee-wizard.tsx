@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 
@@ -26,17 +26,14 @@ import type {
   JobGradeRecord,
 } from "@/lib/api"
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import {
+  getDefaultEmployeePosition,
+  getEmployeePositionOptions,
+  resolveVerticalDefaults,
+  type EmployeePositionValue,
+} from "@/lib/platform/vertical-defaults"
 import { X } from "@/lib/icons"
 import { cn } from "@/lib/utils"
-
-const employeePositions = [
-  { value: "MANAGER", label: "Manager" },
-  { value: "CLERK", label: "Clerk" },
-  { value: "SUPPORT_STAFF", label: "Support Staff" },
-  { value: "ENGINEERS", label: "Engineers" },
-  { value: "CHEMIST", label: "Chemist" },
-  { value: "MINERS", label: "Miners" },
-] as const
 
 const employmentTypes = [
   { value: "FULL_TIME", label: "Full Time" },
@@ -54,7 +51,7 @@ const payoutPaths = [
   {
     value: "HYBRID",
     label: "Salary and irregular payouts",
-    description: "Use salary payroll and still allow irregular gold, commission, or other payouts.",
+    description: "Use salary payroll and still allow irregular settlement, commission, or other payouts.",
   },
   {
     value: "IRREGULAR",
@@ -72,14 +69,14 @@ const moduleOptions = [
   },
   {
     value: "GOLD",
-    label: "Gold",
-    description: "Gold settlement and gold-linked irregular payouts.",
-    featureMatcher: (feature: string) => feature === "gold.payouts" || feature.startsWith("gold."),
+    label: "Settlements",
+    description: "Settlement and irregular payout workflows.",
+    featureMatcher: (feature: string) => feature === "hr.gold-payouts" || feature === "gold.payouts" || feature.startsWith("gold."),
   },
   {
     value: "SCRAP_METAL",
-    label: "Scrap Metal",
-    description: "Scrap-metal purchasing and related operational assignment.",
+    label: "Scrap & Recycling",
+    description: "Scrap buying, yard, and trading assignment.",
     featureMatcher: (feature: string) => feature.startsWith("scrap-metal."),
   },
   {
@@ -107,7 +104,7 @@ const userRoleOptions = [
   { value: "STOCK_CLERK", label: "Stock Clerk" },
 ] as const
 
-type EmployeePosition = (typeof employeePositions)[number]["value"]
+type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
 type EmployeeModule = (typeof moduleOptions)[number]["value"]
 type PayoutPath = (typeof payoutPaths)[number]["value"]
@@ -175,7 +172,7 @@ const emptyForm: EmployeeWizardForm = {
   nationalIdDocumentUrl: "",
   villageOfOrigin: "",
   jobTitle: "",
-  position: "MINERS",
+  position: "SUPPORT_STAFF",
   departmentId: "",
   gradeId: "",
   supervisorId: "",
@@ -222,10 +219,6 @@ function getPayoutPathLabel(path: PayoutPath) {
 
 function getEmploymentTypeLabel(type: EmploymentType) {
   return employmentTypes.find((option) => option.value === type)?.label ?? type
-}
-
-function getPositionLabel(position: EmployeePosition) {
-  return employeePositions.find((option) => option.value === position)?.label ?? position
 }
 
 function FieldLabel({
@@ -512,12 +505,16 @@ function RoleStep({
   departments,
   grades,
   employees,
+  positionOptions,
+  jobTitlePlaceholder,
   onChange,
 }: {
   form: EmployeeWizardForm
   departments: DepartmentRecord[]
   grades: JobGradeRecord[]
   employees: EmployeeSummary[]
+  positionOptions: ReturnType<typeof getEmployeePositionOptions>
+  jobTitlePlaceholder: string
   onChange: (updates: Partial<EmployeeWizardForm>) => void
 }) {
   return (
@@ -535,7 +532,7 @@ function RoleStep({
           <Input
             value={form.jobTitle}
             onChange={(event) => onChange({ jobTitle: event.target.value })}
-            placeholder="Foreman, Gold Buyer, Sales Executive"
+            placeholder={jobTitlePlaceholder}
           />
         </div>
 
@@ -546,7 +543,7 @@ function RoleStep({
               <SelectValue placeholder="Select position" />
             </SelectTrigger>
             <SelectContent>
-              {employeePositions.map((option) => (
+              {positionOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -991,6 +988,7 @@ function ReviewStep({
   grades,
   templates,
   employees,
+  positionOptions,
   canProvisionUser,
 }: {
   form: EmployeeWizardForm
@@ -998,6 +996,7 @@ function ReviewStep({
   grades: JobGradeRecord[]
   templates: CompensationTemplateRecord[]
   employees: EmployeeSummary[]
+  positionOptions: ReturnType<typeof getEmployeePositionOptions>
   canProvisionUser: boolean
 }) {
   const department = departments.find((item) => item.id === form.departmentId)
@@ -1017,7 +1016,7 @@ function ReviewStep({
       <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
         <ReviewRow label="Employee" value={form.name} />
         <ReviewRow label="Job title" value={form.jobTitle} />
-        <ReviewRow label="Position" value={getPositionLabel(form.position)} />
+        <ReviewRow label="Position" value={positionOptions.find((option) => option.value === form.position)?.label ?? form.position} />
         <ReviewRow label="Employment type" value={getEmploymentTypeLabel(form.employmentType)} />
         <ReviewRow label="Payout path" value={getPayoutPathLabel(form.payoutPath)} />
         <ReviewRow label="Modules" value={form.moduleAssignments.map(getModuleLabel).join(", ")} />
@@ -1089,7 +1088,32 @@ export function EmployeeWizard({
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures ?? [],
     [session],
   )
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
   const canProvisionUser = session?.user?.role === "SUPERADMIN"
+  const positionOptions = useMemo(
+    () =>
+      getEmployeePositionOptions({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  )
+  const defaultPosition = useMemo(
+    () =>
+      getDefaultEmployeePosition({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  )
+  const verticalDefaults = useMemo(
+    () =>
+      resolveVerticalDefaults({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  )
   const availableModules = useMemo(
     () =>
       moduleOptions.filter(
@@ -1102,6 +1126,7 @@ export function EmployeeWizard({
 
   const [form, setForm] = useState<EmployeeWizardForm>({
     ...emptyForm,
+    position: defaultPosition,
     compensationTemplateId: initialTemplateId ?? "",
   })
   const [stepIndex, setStepIndex] = useState(0)
@@ -1119,19 +1144,26 @@ export function EmployeeWizard({
     [visibleStepIds],
   )
 
-  const resetWizard = () => {
+  const resetWizard = useCallback(() => {
     const nextPrimaryModule = availableModules.some((module) => module.value === "HR")
       ? "HR"
       : availableModules[0]?.value ?? "HR"
     setForm({
       ...emptyForm,
+      position: defaultPosition,
       compensationTemplateId: initialTemplateId ?? "",
       moduleAssignments: [nextPrimaryModule],
       primaryModule: nextPrimaryModule,
     })
     setStepIndex(0)
     setStepError(null)
-  }
+  }, [availableModules, defaultPosition, initialTemplateId])
+
+  useEffect(() => {
+    if (open) {
+      resetWizard()
+    }
+  }, [open, resetWizard])
 
   const handleClose = () => {
     onOpenChange(false)
@@ -1283,6 +1315,8 @@ export function EmployeeWizard({
             departments={departments}
             grades={grades}
             employees={employees}
+            positionOptions={positionOptions}
+            jobTitlePlaceholder={verticalDefaults.workspace.jobTitlePlaceholder}
             onChange={handleChange}
           />
         )
@@ -1304,6 +1338,7 @@ export function EmployeeWizard({
             grades={grades}
             templates={templates}
             employees={employees}
+            positionOptions={positionOptions}
             canProvisionUser={canProvisionUser}
           />
         )

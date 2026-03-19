@@ -26,9 +26,9 @@ const items: Array<{
   },
   {
     id: "gold",
-    label: "Irregular Payout Payroll",
+    label: "Settlements",
     href: "/human-resources/payroll/gold",
-    description: "Variable payout runs (currently gold allocations) prepared for disbursement.",
+    description: "Variable settlement runs and irregular payouts prepared for disbursement.",
     icon: Coins,
   },
 ]

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { ArrowRight, Plus } from "@/lib/icons";
 
 import { HrShell } from "@/components/human-resources/hr-shell";
@@ -53,6 +54,10 @@ import {
   fetchJobGrades,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  getEmployeePositionOptions,
+  type EmployeePositionValue,
+} from "@/lib/platform/vertical-defaults";
 
 type ProfileForm = {
   employeeId: string;
@@ -81,14 +86,7 @@ type TemplateForm = {
   name: string;
   description: string;
   employmentType: "FULL_TIME" | "PART_TIME" | "CONTRACT" | "CASUAL" | "ALL";
-  position:
-    | "MANAGER"
-    | "CLERK"
-    | "SUPPORT_STAFF"
-    | "ENGINEERS"
-    | "CHEMIST"
-    | "MINERS"
-    | "ALL";
+  position: EmployeePositionValue | "ALL";
   baseAmount: string;
   currency: string;
   isActive: boolean;
@@ -139,6 +137,7 @@ const emptyTemplateForm: TemplateForm = {
 
 export default function CompensationPage() {
   const { toast } = useToast();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [activeView, setActiveView] = useState<CompensationView>("templates");
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -181,6 +180,19 @@ export default function CompensationPage() {
     queryKey: ["job-grades", "compensation"],
     queryFn: () => fetchJobGrades({ active: true, limit: 500 }),
   });
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures ?? [],
+    [session],
+  );
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const employeePositionOptions = useMemo(
+    () =>
+      getEmployeePositionOptions({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  );
   const {
     data: templatesData,
     isLoading: templatesLoading,
@@ -510,7 +522,10 @@ export default function CompensationPage() {
           <div>
             <div>{row.original.employmentType || "All employment types"}</div>
             <div className="text-xs text-muted-foreground">
-              {row.original.position || "All positions"}
+              {row.original.position
+                ? employeePositionOptions.find((position) => position.value === row.original.position)?.label ??
+                  row.original.position
+                : "All positions"}
             </div>
           </div>
         ),
@@ -974,12 +989,11 @@ export default function CompensationPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All positions</SelectItem>
-                    <SelectItem value="MANAGER">Manager</SelectItem>
-                    <SelectItem value="CLERK">Clerk</SelectItem>
-                    <SelectItem value="SUPPORT_STAFF">Support Staff</SelectItem>
-                    <SelectItem value="ENGINEERS">Engineers</SelectItem>
-                    <SelectItem value="CHEMIST">Chemist</SelectItem>
-                    <SelectItem value="MINERS">Miners</SelectItem>
+                    {employeePositionOptions.map((position) => (
+                      <SelectItem key={position.value} value={position.value}>
+                        {position.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

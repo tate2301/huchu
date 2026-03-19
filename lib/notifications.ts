@@ -524,17 +524,17 @@ function buildWorkflowCopy(input: {
       }
     case NotificationType.HR_GOLD_PAYOUT_SUBMITTED:
       return {
-        title: "Gold payout allocation pending approval",
+        title: "Settlement allocation pending approval",
         summary: `${input.actorName} submitted ${input.label}.`,
       }
     case NotificationType.HR_GOLD_PAYOUT_APPROVED:
       return {
-        title: "Gold payout allocation approved",
+        title: "Settlement allocation approved",
         summary: `${input.actorName} approved ${input.label}.`,
       }
     case NotificationType.HR_GOLD_PAYOUT_REJECTED:
       return {
-        title: "Gold payout allocation rejected",
+        title: "Settlement allocation rejected",
         summary: `${input.actorName} rejected ${input.label}.`,
       }
     case NotificationType.HR_DISCIPLINARY_SUBMITTED:
@@ -1136,7 +1136,7 @@ function approvalApiActions(type: NotificationType, entityId: string) {
         method: "POST" as const,
         variant: "destructive" as const,
         confirmMessage:
-          "Reject this gold payout allocation? You can add a note from the allocation screen.",
+          "Reject this settlement allocation? You can add a note from the allocation screen.",
       },
     ]
   }

@@ -3,6 +3,7 @@ import { validateSession, successResponse, errorResponse } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
+import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
 
 const employeeUpdateSchema = z
   .object({
@@ -15,16 +16,7 @@ const employeeUpdateSchema = z
     nationalIdDocumentUrl: z.union([z.string().min(1).max(2048), z.null()]).optional(),
     villageOfOrigin: z.string().min(1).max(200).optional(),
     jobTitle: z.string().trim().max(200).nullable().optional(),
-    position: z
-      .enum([
-        "MANAGER",
-        "CLERK",
-        "SUPPORT_STAFF",
-        "ENGINEERS",
-        "CHEMIST",
-        "MINERS",
-      ])
-      .optional(),
+    position: z.enum(EMPLOYEE_POSITION_VALUES).optional(),
     departmentId: z.string().uuid().nullable().optional(),
     gradeId: z.string().uuid().nullable().optional(),
     supervisorId: z.string().uuid().nullable().optional(),

@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/api-client";
+import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";
 
 export type PaginationMeta = {
   page: number;
@@ -69,7 +70,7 @@ export type EmployeeSummary = {
   nationalIdDocumentUrl?: string | null;
   villageOfOrigin: string;
   jobTitle?: string | null;
-  position: string;
+  position: EmployeePositionValue;
   departmentId?: string | null;
   gradeId?: string | null;
   supervisorId?: string | null;
@@ -238,12 +239,7 @@ export type CompensationTemplateRecord = {
   description?: string | null;
   employmentType?: "FULL_TIME" | "PART_TIME" | "CONTRACT" | "CASUAL" | null;
   position?:
-    | "MANAGER"
-    | "CLERK"
-    | "SUPPORT_STAFF"
-    | "ENGINEERS"
-    | "CHEMIST"
-    | "MINERS"
+    | EmployeePositionValue
     | null;
   baseAmount: number;
   currency: string;
@@ -1709,13 +1705,7 @@ export async function fetchCompensationTemplates(
     search?: string;
     active?: boolean;
     employmentType?: "FULL_TIME" | "PART_TIME" | "CONTRACT" | "CASUAL";
-    position?:
-      | "MANAGER"
-      | "CLERK"
-      | "SUPPORT_STAFF"
-      | "ENGINEERS"
-      | "CHEMIST"
-      | "MINERS";
+    position?: EmployeePositionValue;
     page?: number;
     limit?: number;
   } = {},

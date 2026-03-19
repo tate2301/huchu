@@ -18,7 +18,7 @@ model Company {
   name                 String
   slug                 String             @unique
   tenantStatus         TenantStatus       @default(PROVISIONING)
-  workspaceProfile     WorkspaceProfile   @default(GOLD_MINE)
+  workspaceProfile     WorkspaceProfile   @default(GENERAL)
   isProvisioned        Boolean            @default(false)
   suspendedAt          DateTime?
   disabledAt           DateTime?
@@ -854,7 +854,7 @@ model Employee {
   nationalIdDocumentUrl String?
   villageOfOrigin  String
   jobTitle         String?
-  position         EmployeePosition @default(MINERS)
+  position         EmployeePosition @default(SUPPORT_STAFF)
   departmentId     String?
   gradeId          String?
   supervisorId     String?
@@ -1502,11 +1502,22 @@ enum WorkType {
 
 enum EmployeePosition {
   MANAGER
+  SUPERVISOR
   CLERK
   SUPPORT_STAFF
+  ACCOUNTANT
+  ADMINISTRATOR
+  STOREKEEPER
+  BUYER
+  CASHIER
+  SALES_REP
+  DRIVER
+  TECHNICIAN
+  OPERATOR
   ENGINEERS
   CHEMIST
   MINERS
+  TEACHER
 }
 
 enum ReportStatus {

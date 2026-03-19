@@ -400,7 +400,7 @@ export default function DisbursementsPage() {
         header: "Type",
         cell: ({ row }) => (
           <Badge variant="neutral">
-            {row.original.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
+            {row.original.domain === "GOLD_PAYOUT" ? "Settlements" : "Salary Payroll"}
           </Badge>
         ),
         size: 160,
@@ -462,7 +462,7 @@ export default function DisbursementsPage() {
         header: "Type",
         cell: ({ row }) => (
           <Badge variant="neutral">
-            {row.original.payrollRun.domain === "GOLD_PAYOUT" ? "Gold Payout" : "Salary Payroll"}
+            {row.original.payrollRun.domain === "GOLD_PAYOUT" ? "Settlements" : "Salary Payroll"}
           </Badge>
         ),
         size: 160,
@@ -651,7 +651,7 @@ export default function DisbursementsPage() {
   return (
     <HrShell
       activeTab="disbursements"
-      description="Cash disbursement batches from approved salary and gold payout runs."
+      description="Cash disbursement batches from approved salary and settlement runs."
       actions={
         <Button asChild size="sm" variant="outline">
           <Link href="/human-resources/salaries/outstanding">
@@ -685,8 +685,8 @@ export default function DisbursementsPage() {
           title="Approved Runs Ready for Disbursement"
           description={
             runsLoading
-              ? "Loading approved salary and gold payout runs."
-              : "Salary and gold payout runs are disbursed from one workflow."
+              ? "Loading approved salary and settlement runs."
+              : "Salary and settlement runs are disbursed from one workflow."
           }
           badge={runsLoading ? "..." : availableRuns.length}
           actions={
@@ -787,7 +787,7 @@ export default function DisbursementsPage() {
                   ) : (
                     availableRuns.map((run) => (
                       <SelectItem key={run.id} value={run.id}>
-                        {run.domain === "GOLD_PAYOUT" ? "Gold" : "Salary"} - Run
+                        {run.domain === "GOLD_PAYOUT" ? "Settlement" : "Salary"} - Run
                         #{run.runNumber} ({run.period.periodKey})
                       </SelectItem>
                     ))
@@ -862,7 +862,7 @@ export default function DisbursementsPage() {
                 <div className="font-medium">Preview</div>
                 <div className="text-muted-foreground">
                   {selectedRun.domain === "GOLD_PAYOUT"
-                    ? "Gold payout"
+                    ? "Settlement"
                     : "Salary payroll"}{" "}
                   run #{selectedRun.runNumber} ({selectedRun.period.periodKey})
                 </div>

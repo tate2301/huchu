@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Pencil, Plus, Trash2 } from "@/lib/icons"
 
 import { EmployeeWizard } from "@/components/human-resources/employee-wizard"
@@ -41,15 +42,11 @@ import {
   type EmployeeSummary,
 } from "@/lib/api"
 import { fetchJson, getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client"
-
-const employeePositions = [
-  { value: "MANAGER", label: "Manager" },
-  { value: "CLERK", label: "Clerk" },
-  { value: "SUPPORT_STAFF", label: "Support Staff" },
-  { value: "ENGINEERS", label: "Engineers" },
-  { value: "CHEMIST", label: "Chemist" },
-  { value: "MINERS", label: "Miners" },
-] as const
+import {
+  getDefaultEmployeePosition,
+  getEmployeePositionOptions,
+  type EmployeePositionValue,
+} from "@/lib/platform/vertical-defaults"
 
 const employmentTypes = [
   { value: "FULL_TIME", label: "Full Time" },
@@ -58,7 +55,7 @@ const employmentTypes = [
   { value: "CASUAL", label: "Casual" },
 ] as const
 
-type EmployeePosition = (typeof employeePositions)[number]["value"]
+type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
 
 type EmployeeForm = {
@@ -91,7 +88,7 @@ const emptyEmployee: EmployeeForm = {
   nationalIdNumber: "",
   nationalIdDocumentUrl: "",
   villageOfOrigin: "",
-  position: "MINERS",
+  position: "SUPPORT_STAFF",
   departmentId: "",
   gradeId: "",
   supervisorId: "",
@@ -106,6 +103,7 @@ const emptyEmployee: EmployeeForm = {
 export default function HumanResourcesPage() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState<EmployeeForm>(emptyEmployee)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -148,6 +146,27 @@ export default function HumanResourcesPage() {
     queryKey: ["compensation-templates", "hr"],
     queryFn: () => fetchCompensationTemplates({ active: true, limit: 500 }),
   })
+  const enabledFeatures = useMemo(
+    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures ?? [],
+    [session],
+  )
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
+  const employeePositionOptions = useMemo(
+    () =>
+      getEmployeePositionOptions({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  )
+  const defaultPosition = useMemo(
+    () =>
+      getDefaultEmployeePosition({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
+  )
 
   const employees = useMemo(() => data?.data ?? [], [data])
   const departments = useMemo(() => departmentsData?.data ?? [], [departmentsData])
@@ -279,6 +298,12 @@ export default function HumanResourcesPage() {
   const handleSelectPosition = (value: string) => {
     setFormData((prev) => ({ ...prev, position: value as EmployeeForm["position"] }))
   }
+
+  const getPositionLabel = useCallback(
+    (position: EmployeePosition) =>
+      employeePositionOptions.find((item) => item.value === position)?.label ?? position,
+    [employeePositionOptions],
+  )
 
   const handleSelectDepartment = (value: string) => {
     setFormData((prev) => ({ ...prev, departmentId: value === "none" ? "" : value }))
@@ -427,7 +452,7 @@ export default function HumanResourcesPage() {
       nationalIdNumber: employee.nationalIdNumber ?? "",
       nationalIdDocumentUrl: employee.nationalIdDocumentUrl ?? "",
       villageOfOrigin: employee.villageOfOrigin,
-      position: employee.position as EmployeePosition,
+      position: employee.position,
       departmentId: employee.departmentId ?? "",
       gradeId: employee.gradeId ?? "",
       supervisorId: employee.supervisorId ?? "",
@@ -452,7 +477,10 @@ export default function HumanResourcesPage() {
 
   const resetForm = () => {
     setEditingId(null)
-    setFormData(emptyEmployee)
+    setFormData({
+      ...emptyEmployee,
+      position: defaultPosition,
+    })
     setPassportUploading(false)
     setNationalIdUploading(false)
   }
@@ -527,12 +555,10 @@ export default function HumanResourcesPage() {
         header: "Position",
         meta: {
           exportValue: (row: EmployeeSummary) =>
-            employeePositions.find((position) => position.value === row.position)?.label ??
-            row.position,
+            getPositionLabel(row.position),
         },
         cell: ({ row }) =>
-          employeePositions.find((position) => position.value === row.original.position)?.label ??
-          row.original.position,
+          getPositionLabel(row.original.position),
         size: 160,
         minSize: 160,
         maxSize: 160},
@@ -706,7 +732,7 @@ export default function HumanResourcesPage() {
         minSize: 108,
         maxSize: 108},
     ],
-    [deleteEmployeeMutation.isPending, handleDelete, handleEdit],
+    [deleteEmployeeMutation.isPending, getPositionLabel, handleDelete, handleEdit],
   )
 
   return (
@@ -797,7 +823,7 @@ export default function HumanResourcesPage() {
                     <SelectValue placeholder="Select position" />
                   </SelectTrigger>
                   <SelectContent>
-                    {employeePositions.map((position) => (
+                    {employeePositionOptions.map((position) => (
                       <SelectItem key={position.value} value={position.value}>
                         {position.label}
                       </SelectItem>

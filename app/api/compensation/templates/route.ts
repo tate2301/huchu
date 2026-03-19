@@ -9,14 +9,13 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/hr-payroll"
+import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
 
 const templateSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().max(1000).optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "CASUAL"]).optional(),
-  position: z
-    .enum(["MANAGER", "CLERK", "SUPPORT_STAFF", "ENGINEERS", "CHEMIST", "MINERS"])
-    .optional(),
+  position: z.enum(EMPLOYEE_POSITION_VALUES).optional(),
   baseAmount: z.number().min(0),
   currency: z.string().trim().min(1).max(10).optional(),
   isActive: z.boolean().optional(),
