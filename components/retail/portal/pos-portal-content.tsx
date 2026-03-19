@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
@@ -94,10 +95,13 @@ function getPaymentSummary(payments: PaymentRow[], total: number) {
   return { parsed, nonCashTotal, tenderedTotal, changeAmount };
 }
 
-export function PosPortalContent({ initialView = "checkout" }: { initialView?: "checkout" | "history" }) {
+type PosPortalView = "checkout" | "history" | "held" | "shift";
+
+export function PosPortalContent({ initialView = "checkout" }: { initialView?: PosPortalView }) {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const [panel, setPanel] = useState<"checkout" | "history" | "held">(initialView);
+  const [panel, setPanel] = useState<PosPortalView>(initialView);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -243,7 +247,7 @@ export function PosPortalContent({ initialView = "checkout" }: { initialView?: "
       setCustomerName("");
       setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
       queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
-      setPanel("held");
+      router.push("/portal/pos/held");
     },
     onError: (error) => toast({ title: "Unable to hold cart", description: getApiErrorMessage(error), variant: "destructive" }),
   });
@@ -273,7 +277,7 @@ export function PosPortalContent({ initialView = "checkout" }: { initialView?: "
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
       queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
-      setPanel("history");
+      router.push("/portal/pos/history");
     },
     onError: (error) => toast({ title: "Unable to post sale", description: getApiErrorMessage(error), variant: "destructive" }),
   });
@@ -331,9 +335,9 @@ export function PosPortalContent({ initialView = "checkout" }: { initialView?: "
     setCart((heldCart.cartSnapshot.items ?? []).map((item) => ({ ...item })));
     setCustomerName(heldCart.cartSnapshot.customerName ?? "");
     setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
-    setPanel("checkout");
     await fetchJson(`/api/v2/retail/pos/held-carts/${heldCart.id}/recall`, { method: "POST" });
     queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
+    router.push("/portal/pos");
   };
 
   const addToCart = (item: PosCatalogItem) => {
@@ -419,8 +423,8 @@ export function PosPortalContent({ initialView = "checkout" }: { initialView?: "
 
         <section className="space-y-3">
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-[var(--surface-muted)] p-2">
-            {["checkout", "history", "held"].map((item) => (
-              <button key={item} type="button" onClick={() => setPanel(item as "checkout" | "history" | "held")} className={`rounded-xl px-3 py-2 text-sm ${panel === item ? "bg-[var(--surface-base)] text-[var(--text-strong)]" : "text-[var(--text-muted)]"}`}>{item === "checkout" ? "Checkout" : item === "history" ? "History" : "Held"}</button>
+            {[..."checkout,history,held".split(","), ...(panel === "shift" ? ["shift"] : [])].map((item) => (
+              <button key={item} type="button" onClick={() => setPanel(item as PosPortalView)} className={`rounded-xl px-3 py-2 text-sm ${panel === item ? "bg-[var(--surface-base)] text-[var(--text-strong)]" : "text-[var(--text-muted)]"}`}>{item === "checkout" ? "Checkout" : item === "history" ? "History" : item === "held" ? "Held" : "Shift"}</button>
             ))}
           </div>
 
@@ -491,6 +495,8 @@ export function PosPortalContent({ initialView = "checkout" }: { initialView?: "
           {panel === "history" ? <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4"><div className="flex items-center justify-between gap-3"><div className="text-sm font-medium">Recent transactions</div><Button size="sm" variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] })}><RefreshCcw className="h-4 w-4" />Refresh</Button></div><div className="mt-3 space-y-2">{(salesQuery.data?.data ?? []).length === 0 ? <div className="rounded-2xl bg-[var(--surface-base)] px-3 py-8 text-center text-sm text-[var(--text-muted)]">No transactions yet.</div> : (salesQuery.data?.data ?? []).map((sale) => <button key={sale.id} type="button" onClick={() => { setSelectedSaleId(sale.id); setSaleDialog(true); }} className="flex w-full items-center justify-between gap-3 rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-left"><div><div className="font-mono font-semibold">{sale.saleNo}</div><div className="text-xs text-[var(--text-muted)]">{sale.saleType} · {sale.customerName ?? "Walk-in"} · {sale.itemCount} items</div></div><div className="text-right"><div className="font-mono text-sm font-semibold">{money(sale.totalAmount)}</div><div className="text-xs text-[var(--text-muted)]">{new Date(sale.postedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></div></button>)}</div></div> : null}
 
           {panel === "held" ? <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4"><div className="text-sm font-medium">Held carts</div><div className="mt-3 space-y-2">{(heldCartsQuery.data?.data ?? []).slice(0, 12).map((heldCart) => <button key={heldCart.id} type="button" onClick={() => recallCart(heldCart)} className="flex w-full items-center justify-between gap-3 rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-left"><div><div className="font-medium">{heldCart.label || heldCart.holdNo}</div><div className="font-mono text-xs text-[var(--text-muted)]">{heldCart.holdNo}</div></div><span className="text-xs text-[var(--text-muted)]">{(heldCart.cartSnapshot.items?.length ?? 0)} lines</span></button>)}</div></div> : null}
+
+          {panel === "shift" ? <div className="space-y-3"><div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm"><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Shift</div><div className="mt-2 font-mono text-base font-semibold">{currentShift?.shiftNo ?? "Not open"}</div></div><div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm"><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Register</div><div className="mt-2 text-base font-semibold">{currentShift?.registerName ?? "No register"}</div></div><div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm"><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Opening float</div><div className="mt-2 font-mono text-base font-semibold">{money(currentShift?.openingFloat ?? 0)}</div></div><div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm"><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Expected cash</div><div className="mt-2 font-mono text-base font-semibold">{money(currentShift?.expectedCash ?? 0)}</div></div><div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm"><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Net sales</div><div className="mt-2 font-mono text-base font-semibold">{money(currentShift?.netSalesValue ?? 0)}</div></div><div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm"><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Refunds</div><div className="mt-2 font-mono text-base font-semibold">{money(currentShift?.refundValue ?? 0)}</div></div></div></div><div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4"><div className="flex items-center justify-between gap-3"><div className="text-sm font-medium">Shift controls</div><div className="text-xs text-[var(--text-muted)]">{salesQuery.data?.data?.length ?? 0} transactions</div></div><div className="mt-3 flex flex-wrap gap-2">{!currentShift ? <Button size="sm" onClick={() => setOpenShiftDialog(true)}>Open shift</Button> : <><Button size="sm" variant="outline" onClick={() => setCloseShiftDialog(true)}>Close shift</Button><Button size="sm" variant="outline" onClick={() => router.push("/portal/pos")}>Back to checkout</Button></>}</div></div></div> : null}
         </section>
       </div>
 

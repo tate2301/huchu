@@ -1,14 +1,14 @@
 import { PosPortalContent } from "@/components/retail/portal/pos-portal-content";
 import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
 
-export default async function PosPortalPage() {
+export default async function PosPortalHeldPage() {
   return (
     <PosPortalPageFrame
-      pathname="/portal/pos"
-      title="Point of Sale"
-      description="Sell, hold, and tender from a touch-first register."
+      pathname="/portal/pos/held"
+      title="Held Carts"
+      description="Recall parked baskets without losing register flow."
     >
-      <PosPortalContent initialView="checkout" />
+      <PosPortalContent initialView="held" />
     </PosPortalPageFrame>
   );
 }

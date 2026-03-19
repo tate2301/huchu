@@ -7,6 +7,7 @@ import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-fi
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import type { UserRole } from "@/lib/roles";
 import {
+  inferWorkspaceProfileFromEnabledFeatures,
   resolveWorkspaceVerticalProductBundle,
   type VerticalProductBundleDefinition,
   WORKSPACE_PROFILES,
@@ -647,15 +648,36 @@ function getPrimarySections(
 }
 
 function resolveEffectiveWorkspaceProfile(
+  enabledFeatures: string[] | undefined,
   requestedProfile: WorkspaceProfile,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
 ): WorkspaceProfile {
   if (requestedProfile === "GENERAL") {
-    return requestedProfile;
+    return inferWorkspaceProfileFromEnabledFeatures(enabledFeatures) ?? requestedProfile;
   }
 
   const ownerModule = PROFILE_OWNER_MODULES[requestedProfile];
-  return visibleModules.has(ownerModule) ? requestedProfile : "GENERAL";
+  if (visibleModules.has(ownerModule)) {
+    return requestedProfile;
+  }
+
+  const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(enabledFeatures);
+  if (inferredProfile && inferredProfile !== "GENERAL") {
+    const inferredOwnerModule = PROFILE_OWNER_MODULES[inferredProfile];
+    if (visibleModules.has(inferredOwnerModule)) {
+      return inferredProfile;
+    }
+  }
+
+  for (const profile of WORKSPACE_PROFILES) {
+    if (profile === "GENERAL") continue;
+    const candidateModule = PROFILE_OWNER_MODULES[profile];
+    if (visibleModules.has(candidateModule)) {
+      return profile;
+    }
+  }
+
+  return "GENERAL";
 }
 
 function getSupportItems(context: WorkspaceBuildContext): NavItem[] {
@@ -730,7 +752,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
   const context = buildContext(args);
   const visibleModules = getVisibleModules(context);
-  const profile = resolveEffectiveWorkspaceProfile(requestedProfile, visibleModules);
+  const profile = resolveEffectiveWorkspaceProfile(args.enabledFeatures, requestedProfile, visibleModules);
   const recipe = WORKSPACE_PROFILE_RECIPES[profile];
   const verticalProduct = resolveWorkspaceVerticalProductBundle({
     enabledFeatures: args.enabledFeatures,

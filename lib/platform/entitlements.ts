@@ -1,3 +1,4 @@
+import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { prisma } from "@/lib/prisma";
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
@@ -29,10 +30,6 @@ export interface CompanyPricingResult {
   totalAmount: number;
   lineItems: PricingLineItem[];
   computedAt: string;
-}
-
-function normalizeFeatureKey(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 function normalizeLegacyFeatureKey(value: string): string {

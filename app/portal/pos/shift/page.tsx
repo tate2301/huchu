@@ -1,14 +1,14 @@
 import { PosPortalContent } from "@/components/retail/portal/pos-portal-content";
 import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
 
-export default async function PosPortalPage() {
+export default async function PosPortalShiftPage() {
   return (
     <PosPortalPageFrame
-      pathname="/portal/pos"
-      title="Point of Sale"
-      description="Sell, hold, and tender from a touch-first register."
+      pathname="/portal/pos/shift"
+      title="Shift Management"
+      description="Open, review, and close tills with cash-up controls."
     >
-      <PosPortalContent initialView="checkout" />
+      <PosPortalContent initialView="shift" />
     </PosPortalPageFrame>
   );
 }

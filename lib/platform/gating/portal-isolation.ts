@@ -199,6 +199,7 @@ export function getPortalNavigation(role: PortalRole): PortalNavItem[] {
     ],
     POS_CASHIER: [
       { href: "/portal/pos", label: "POS" },
+      { href: "/portal/pos/held", label: "Held Carts" },
       { href: "/portal/pos/shift", label: "Shift Management" },
       { href: "/portal/pos/history", label: "Sales History" },
     ],

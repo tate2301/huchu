@@ -345,6 +345,32 @@ function getBundleById(id: VerticalProductId): VerticalProductBundleDefinition {
   return VERTICAL_PRODUCT_BUNDLES.find((bundle) => bundle.id === id) ?? VERTICAL_PRODUCT_BUNDLES[0];
 }
 
+export function inferWorkspaceProfileFromEnabledFeatures(
+  enabledFeatures: string[] | undefined,
+): WorkspaceProfile | null {
+  if (hasTokenFeature(enabledFeatures, "retail.core") || hasTokenFeature(enabledFeatures, "portal.pos")) {
+    return "RETAIL";
+  }
+
+  if (hasTokenFeature(enabledFeatures, "scrap-metal.home")) {
+    return "SCRAP_METAL";
+  }
+
+  if (hasTokenFeature(enabledFeatures, "schools.core")) {
+    return "SCHOOLS";
+  }
+
+  if (hasTokenFeature(enabledFeatures, "autos.core")) {
+    return "AUTOS";
+  }
+
+  if (hasTokenFeature(enabledFeatures, "gold.home")) {
+    return "GOLD_MINE";
+  }
+
+  return null;
+}
+
 function resolveGeneralVerticalProduct(enabledFeatures: string[] | undefined): VerticalProductId {
   const hasMultiSiteSignals =
     hasTokenFeature(enabledFeatures, "cctv.overview") &&
@@ -370,7 +396,14 @@ function resolveGeneralVerticalProduct(enabledFeatures: string[] | undefined): V
 export function resolveWorkspaceVerticalProductBundle(
   args: ResolveWorkspaceProductArgs,
 ): VerticalProductBundleDefinition {
-  switch (normalizeWorkspaceProfile(args.workspaceProfile)) {
+  const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
+  const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
+  const effectiveProfile =
+    requestedProfile === "GENERAL" && inferredProfile
+      ? inferredProfile
+      : requestedProfile;
+
+  switch (effectiveProfile) {
     case "GOLD_MINE":
       return getBundleById("gold-operations");
     case "SCRAP_METAL":

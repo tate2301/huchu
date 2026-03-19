@@ -1,7 +1,16 @@
 import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 
+const FEATURE_KEY_ALIASES: Record<string, string> = {
+  "thrift.core": "retail.core",
+  "thrift.catalog": "retail.catalog",
+  "thrift.checkout": "retail.pos",
+  "thrift.intake": "retail.purchasing",
+  "portal.thrift": "portal.pos",
+};
+
 export function normalizeFeatureKey(value: string): string {
-  return value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase();
+  return FEATURE_KEY_ALIASES[normalized] ?? normalized;
 }
 
 export function getCatalogFeatureKeys(): string[] {
