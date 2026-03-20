@@ -72,7 +72,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section className="mt-12">
         <div className={styles.pricingCardGrid}>
           {pricingTiers.map((tier, index) => (
             <article key={tier.tier} className={`${styles.pricingCard} ${index === 1 ? styles.pricingCardFeatured : ""}`}>
@@ -107,7 +107,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="mt-14 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+      <section className="mt-16 grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>How teams buy</p>
           <h3 className="text-[clamp(1.9rem,3.7vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
@@ -128,7 +128,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section id="add-ons" className="mt-14 grid gap-8 lg:grid-cols-[0.74fr_1.26fr]">
+      <section id="add-ons" className="mt-16 grid gap-10 lg:grid-cols-[0.74fr_1.26fr]">
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Add-ons</p>
           <h3 className="text-[clamp(1.9rem,3.7vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
@@ -170,7 +170,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className={`mt-14 ${styles.pricingClosing} px-6 py-8 text-white lg:px-10`}>
+      <section className={`mt-16 ${styles.pricingClosing} px-6 py-10 text-white lg:px-10`}>
         <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Commercial walkthrough</p>

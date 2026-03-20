@@ -76,9 +76,9 @@ export default function BookDemoPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-20">
-        <section className="grid gap-12 lg:grid-cols-[0.94fr_1.06fr] lg:items-start">
-          <div className="space-y-8 text-white">
+      <main className="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-24">
+        <section className="grid gap-14 lg:grid-cols-[0.94fr_1.06fr] lg:items-start">
+          <div className="space-y-10 text-white">
             <div className={styles.demoHeader}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/58">Tailored walkthrough</p>
               <h1 className="max-w-3xl text-[clamp(2.8rem,5vw,5rem)] font-semibold leading-[0.95] tracking-[-0.055em] text-balance">
