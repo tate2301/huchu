@@ -1,271 +1,247 @@
-import { Building2, CheckCircle2, Gem, ShieldCheck, Wrench } from "@/lib/icons";
+import { CheckCircle2 } from "@/lib/icons";
+import { audienceSignals, showcaseCards, trustClaims, valuePillars } from "@/components/marketing/marketing-data";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  audienceSignals,
-  showcaseCards,
-  trustClaims,
-  valuePillars,
-  verticalCards,
-} from "@/components/marketing/marketing-data";
 import styles from "@/components/marketing/marketing-site.module.css";
+
+const operatingSequence = [
+  {
+    step: "01",
+    title: "Choose the pack that fits the business",
+    description:
+      "Gold, schools, retail, auto sales, recycling, and broader multi-site operations all sit on the same platform foundation.",
+  },
+  {
+    step: "02",
+    title: "Run operations and finance on shared rails",
+    description:
+      "Workflows, reporting, accounting, branding, and administration stay aligned instead of being split across disconnected systems.",
+  },
+  {
+    step: "03",
+    title: "Expand without replacing the stack",
+    description:
+      "Turn on add-ons for accounting, CCTV, maintenance, compliance, portals, and advanced workflow control as the business matures.",
+  },
+];
 
 export function MarketingCoreSections() {
   return (
-    <>
-      <section id="platform" className="scroll-mt-24">
-        <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-24">
-          <div className="mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl space-y-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                Why Huchu
+    <div className={styles.body}>
+      <section id="platform" className={styles.bodySection}>
+        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8 lg:py-28">
+          <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="space-y-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Platform model
               </p>
-              <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-foreground">
-                A product story built on live platform capabilities, not generic ERP language.
+              <h2 className="text-[clamp(2.5rem,5vw,4.6rem)] font-semibold leading-[0.96] tracking-[-0.05em] text-balance text-slate-950">
+                Built for operators who have real handoffs, controls, and site complexity.
               </h2>
-            </div>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground">
-              Huchu is strongest when the buyer has multiple sites, operational handoffs, control requirements, compliance pressure, and the need to roll out pack by pack rather than all at once.
-            </p>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {valuePillars.map((pillar) => {
-              const Icon = pillar.icon;
-              return (
-                <Card
-                  key={pillar.title}
-                  className={`${styles.marqueeCard} rounded-[26px] border-white/70 bg-white/80 shadow-[0_18px_50px_rgba(24,32,48,0.08)]`}
-                >
-                  <CardHeader className="space-y-4">
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-[rgba(216,168,84,0.14)] text-[var(--action-primary-bg)]">
-                      <Icon className="size-6" />
-                    </div>
-                    <CardTitle className="text-[1.35rem] tracking-[-0.03em]">{pillar.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm leading-7 text-muted-foreground">{pillar.description}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-white/50 bg-[rgba(255,255,255,0.48)]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1fr_1.25fr] lg:px-8 lg:py-16">
-          <div className="space-y-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Safe to claim today
-            </p>
-            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-balance text-foreground">
-              Modern product aesthetics, grounded in what the system already does.
-            </h2>
-            <p className="text-base leading-7 text-muted-foreground">
-              The marketing story here is anchored to the live product: multi-tenant controls, vertical workspaces, portals, commercial packaging, reporting, branding, accounting, and admin tooling.
-            </p>
-          </div>
-          <div className="grid gap-3">
-            {trustClaims.map((claim) => (
-              <div
-                key={claim}
-                className="flex items-start gap-3 rounded-[20px] border border-white/70 bg-white/72 px-4 py-4 shadow-[0_16px_35px_rgba(24,32,48,0.05)]"
-              >
-                <CheckCircle2 className="mt-0.5 size-5 text-emerald-700" />
-                <p className="text-sm leading-7 text-slate-700">{claim}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="solutions" className="scroll-mt-24">
-        <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-24">
-          <div className="mb-10 max-w-3xl space-y-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Industry packs
-            </p>
-            <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-foreground">
-              One operating platform with multiple sector stories already built in.
-            </h2>
-          </div>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {verticalCards.map((vertical) => {
-              const Icon = vertical.icon;
-              return (
-                <Card
-                  key={vertical.title}
-                  className={`${styles.marqueeCard} rounded-[28px] border-white/70 bg-white/78 shadow-[0_18px_45px_rgba(24,32,48,0.08)]`}
-                >
-                  <CardHeader className="space-y-4">
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-[rgba(59,93,145,0.11)] text-sky-700">
-                      <Icon className="size-6" />
-                    </div>
-                    <CardTitle className="text-[1.35rem] tracking-[-0.03em]">{vertical.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm leading-7 text-muted-foreground">{vertical.description}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-[rgba(112,126,148,0.12)] bg-[rgba(246,242,234,0.74)]">
-        <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-24">
-          <div className="mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl space-y-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                Product surfaces
+              <p className="max-w-xl text-base leading-8 text-slate-600">
+                Huchu is strongest when the buyer has multiple sites, operational handoffs between departments, cash or stock controls, audit pressure, and a need to roll out capabilities pack by pack.
               </p>
-              <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-foreground">
-                Placeholder product visuals that mirror the strongest demo stories.
-              </h2>
             </div>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground">
-              These showcase blocks are ready to swap with real screenshots later, but they already map to the gold, school, retail, and platform-admin stories documented in the commercial guide.
-            </p>
-          </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {showcaseCards.map((card, index) => (
-              <Card
-                key={card.title}
-                className="overflow-hidden rounded-[30px] border-white/70 bg-white/82 shadow-[0_22px_55px_rgba(24,32,48,0.09)]"
-              >
-                <CardHeader className="space-y-3 pb-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    {card.eyebrow}
-                  </p>
-                  <CardTitle className="text-[1.55rem] leading-tight tracking-[-0.04em]">
-                    {card.title}
-                  </CardTitle>
-                  <CardDescription className="text-sm leading-7 text-muted-foreground">
-                    {card.copy}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5 pt-6">
-                  <div className={`${styles.browserWindow} overflow-hidden rounded-[24px]`}>
-                    <div className={styles.browserToolbar}>
-                      <div className={styles.browserDots} aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                      </div>
-                      <div className={styles.browserAddress}>
-                        {index === 0
-                          ? "gold / dispatches / receipts / payouts"
-                          : index === 1
-                            ? "schools / admissions / finance / portals"
-                            : "admin / subscriptions / reliability / support"}
-                      </div>
-                    </div>
-                    <div className="grid gap-4 p-4">
-                      <div className="grid grid-cols-[0.65fr_0.35fr] gap-3">
-                        <div className="rounded-[18px] border border-[var(--edge-default)] bg-white/85 p-4">
-                          <div className="mb-4 flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                Snapshot
-                              </p>
-                              <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-foreground">
-                                Workflow view
-                              </p>
-                            </div>
-                            {index === 0 ? (
-                              <Gem className="size-6 text-amber-700" />
-                            ) : index === 1 ? (
-                              <Building2 className="size-6 text-sky-700" />
-                            ) : (
-                              <Wrench className="size-6 text-slate-700" />
-                            )}
-                          </div>
-                          <div className={styles.placeholderBars}>
-                            <span />
-                            <span />
-                            <span />
-                            <span />
-                          </div>
-                        </div>
-                        <div className="grid gap-3">
-                          {["Ops", "Finance", "Audit"].map((tag) => (
-                            <div
-                              key={tag}
-                              className="rounded-[18px] border border-[var(--edge-default)] bg-[rgba(248,244,236,0.92)] p-4"
-                            >
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                {tag}
-                              </p>
-                              <p className="mt-2 font-mono text-xl font-semibold tracking-[-0.03em] text-foreground">
-                                {tag === "Ops" ? "24" : tag === "Finance" ? "$128k" : "98%"}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="rounded-[18px] border border-[var(--edge-default)] bg-[rgba(247,242,234,0.96)] p-4">
-                        <div className="mb-4 flex items-center justify-between">
-                          <p className="text-sm font-semibold text-foreground">Control timeline</p>
-                          <ShieldCheck className="size-5 text-emerald-700" />
-                        </div>
-                        <div className="space-y-3">
-                          {["Capture", "Review", "Approve", "Report"].map((step, stepIndex) => (
-                            <div key={step} className="flex items-center gap-3">
-                              <div className="flex size-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-700">
-                                {stepIndex + 1}
-                              </div>
-                              <div className="h-px flex-1 bg-[rgba(117,132,156,0.25)]" />
-                              <p className="min-w-20 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                                {step}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+            <div className={styles.processLine}>
+              {operatingSequence.map((item) => (
+                <div key={item.step} className={styles.processStep}>
+                  <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
+                    <span className="font-mono text-sm font-semibold tracking-[0.18em] text-slate-400">
+                      {item.step}
+                    </span>
+                    <div>
+                      <p className="text-2xl font-semibold tracking-[-0.04em] text-slate-950">{item.title}</p>
+                      <p className="mt-3 max-w-2xl text-base leading-8 text-slate-600">{item.description}</p>
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.bodySection}>
+        <div className="mx-auto max-w-7xl px-6 py-18 lg:px-8 lg:py-24">
+          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="space-y-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Why buyers care
+              </p>
+              <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-slate-950">
+                Replace fragmented tools with one platform that actually holds together under growth.
+              </h2>
+            </div>
+            <div className="grid gap-8 md:grid-cols-2">
+              {valuePillars.map((pillar) => {
+                const Icon = pillar.icon;
+                return (
+                  <div key={pillar.title} className="border-t border-slate-200 pt-5">
+                    <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-slate-950 text-white">
+                      <Icon className="size-6" />
+                    </div>
+                    <p className="text-xl font-semibold tracking-[-0.03em] text-slate-950">{pillar.title}</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">{pillar.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="showcase" className={styles.bodySection}>
+        <div className="mx-auto max-w-7xl px-6 py-18 lg:px-8 lg:py-24">
+          <div className="mb-12 max-w-3xl space-y-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Showcase
+            </p>
+            <h2 className="text-[clamp(2.4rem,4vw,4.3rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-balance text-slate-950">
+              The story is the product surface, not a stack of feature cards.
+            </h2>
+          </div>
+
+          <div className="space-y-14">
+            {showcaseCards.map((card, index) => (
+              <div
+                key={card.title}
+                className={`grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:items-center ${index % 2 === 1 ? "lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1" : ""}`}
+              >
+                <div className="space-y-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    {card.eyebrow}
+                  </p>
+                  <h3 className="text-3xl font-semibold leading-tight tracking-[-0.04em] text-slate-950">
+                    {card.title}
+                  </h3>
+                  <p className="max-w-xl text-base leading-8 text-slate-600">{card.copy}</p>
                   <div className="flex flex-wrap gap-2">
                     {card.chips.map((chip) => (
-                      <Badge key={chip} variant="outline" className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em]">
+                      <Badge key={chip} variant="outline" className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-700">
                         {chip}
                       </Badge>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+                </div>
 
-      <section className="border-y border-white/60 bg-[rgba(255,255,255,0.48)]">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
-          <div className="space-y-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Best fit
-            </p>
-            <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-foreground">
-              Strongest for operators with real handoffs, controls, and growth complexity.
-            </h2>
-            <p className="text-base leading-7 text-muted-foreground">
-              Huchu is designed for organizations that need more than task tracking or generic bookkeeping, but do not want to stitch together separate systems for every department.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {audienceSignals.map((signal) => (
-              <div
-                key={signal}
-                className="rounded-[22px] border border-white/70 bg-white/78 px-5 py-4 shadow-[0_16px_40px_rgba(24,32,48,0.06)]"
-              >
-                <p className="text-sm leading-7 text-slate-700">{signal}</p>
+                <div className={styles.showcaseVisual}>
+                  <div className="flex items-center gap-3 border-b border-slate-200 bg-white/72 px-4 py-4">
+                    <div className="flex items-center gap-2" aria-hidden="true">
+                      <span className="size-2.5 rounded-full bg-slate-300" />
+                      <span className="size-2.5 rounded-full bg-slate-300" />
+                      <span className="size-2.5 rounded-full bg-slate-300" />
+                    </div>
+                    <div className="ml-auto max-w-64 overflow-hidden rounded-full bg-slate-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      {index === 0
+                        ? "gold / dispatches / receipts / payouts"
+                        : index === 1
+                          ? "schools / admissions / finance / portals"
+                          : "admin / subscriptions / reliability / support"}
+                    </div>
+                  </div>
+                  <div className={styles.showcaseInner}>
+                    <div className={styles.showcaseTop}>
+                      <div className={styles.tableMock}>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Workflow
+                        </p>
+                        <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-slate-950">
+                          Controlled surface
+                        </p>
+                        <div className={`${styles.bars} mt-5`}>
+                          <span />
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      </div>
+                      <div className={`${styles.stackMock} space-y-3`}>
+                        {["Ops", "Finance", "Audit"].map((tag) => (
+                          <div
+                            key={tag}
+                            className="rounded-[16px] border border-slate-200 bg-white px-4 py-3"
+                          >
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              {tag}
+                            </p>
+                            <p className="mt-2 font-mono text-xl font-semibold tracking-[-0.04em] text-slate-950">
+                              {tag === "Ops" ? "24" : tag === "Finance" ? "$128k" : "98%"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={styles.tableMock}>
+                      <div className="mb-4 flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-950">Control sequence</p>
+                        <CheckCircle2 className="size-5 text-emerald-700" />
+                      </div>
+                      <div className={styles.timeline}>
+                        {["Capture", "Review", "Approve", "Report"].map((step, stepIndex) => (
+                          <div key={step} className={styles.timelineRow}>
+                            <em>{stepIndex + 1}</em>
+                            <span />
+                            <strong>{step}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
-    </>
+
+      <section className={styles.bodySection}>
+        <div className="mx-auto max-w-7xl px-6 py-18 lg:px-8 lg:py-24">
+          <div className="grid gap-12 lg:grid-cols-[0.92fr_1.08fr]">
+            <div className="space-y-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                What is live
+              </p>
+              <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-slate-950">
+                Marketing-safe proof points, not vapor.
+              </h2>
+            </div>
+            <div className="grid gap-3">
+              {trustClaims.map((claim) => (
+                <div
+                  key={claim}
+                  className="flex items-start gap-3 border-t border-slate-200 py-4"
+                >
+                  <CheckCircle2 className="mt-0.5 size-5 text-emerald-700" />
+                  <p className="text-sm leading-7 text-slate-600">{claim}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.bodySection}>
+        <div className="mx-auto max-w-7xl px-6 py-18 lg:px-8 lg:py-24">
+          <div className="mb-8 max-w-3xl space-y-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Best fit
+            </p>
+            <h2 className="text-4xl font-semibold tracking-[-0.04em] text-balance text-slate-950">
+              Strongest for buyers with operational pressure and real governance needs.
+            </h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {audienceSignals.map((signal) => (
+              <div
+                key={signal}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-[0_10px_30px_rgba(24,32,48,0.05)]"
+              >
+                {signal}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
