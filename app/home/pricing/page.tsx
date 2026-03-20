@@ -3,7 +3,14 @@ import Link from "next/link";
 
 import { ArrowRight } from "@/lib/icons";
 import { MarketingSubpageShell } from "@/components/marketing/marketing-subpage-shell";
-import { addOns, featuredAddOns, pricingTiers } from "@/components/marketing/marketing-data";
+import {
+  addOns,
+  featuredAddOns,
+  pricingConfidencePoints,
+  pricingSelectionNotes,
+  pricingTiers,
+  rolloutPaths,
+} from "@/components/marketing/marketing-data";
 import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
 
@@ -17,46 +24,39 @@ export default function PricingPage() {
   return (
     <MarketingSubpageShell
       title="Pricing shaped around rollout scope, not seat counts."
-      description="Customer-facing bundles carry explicit monthly pricing, while foundational packs and add-ons stay tied to the live commercial catalog."
+      description="Customer-facing bundles carry explicit pricing. Foundational packs and add-ons stay tied to the live catalog."
     >
       <section className={styles.pricingHero}>
         <div className={styles.pricingNarrative}>
           <p className={styles.stripeEyebrow}>Commercial model</p>
           <h2 className="max-w-3xl text-[clamp(2.2rem,4.6vw,4.3rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-            Plans that start simple and stay coherent as the rollout gets larger.
+            Simple plans, clear site math, and a clean path to expansion.
           </h2>
           <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/84">
-            Pricing is in USD. Each tier maps to a practical rollout shape, so procurement can see the base footprint, the included sites, and the cost of expansion before anything is signed.
+            Pricing is in USD. Each tier maps to a practical rollout shape.
           </p>
 
           <div className={styles.pricingNoteList}>
-            <div className={styles.pricingNoteItem}>Every tier keeps operations, finance, reporting, and governance on the same control plane.</div>
-            <div className={styles.pricingNoteItem}>Additional sites are priced explicitly, which makes phased rollout planning easier to approve.</div>
-            <div className={styles.pricingNoteItem}>Add-ons can be layered independently, so you only buy the capability the team is ready to use.</div>
+            {pricingSelectionNotes.map((item) => (
+              <div key={item} className={styles.pricingNoteItem}>
+                {item}
+              </div>
+            ))}
           </div>
         </div>
 
         <div className="rounded-[28px] border border-[#d6def5] bg-white px-6 py-6 shadow-[0_18px_48px_rgba(29,39,79,0.08)]">
           <div className={styles.pricingCardTop}>
-            <span className={styles.pricingPill}>What the numbers mean</span>
+            <span className={styles.pricingPill}>Commercial facts</span>
             <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Live catalog</span>
           </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-[#e3e8f6] bg-[#f8faff] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Base monthly</p>
-              <p className="mt-2 font-mono text-2xl font-semibold tracking-[-0.05em] text-[#102252]">$450+</p>
-              <p className="mt-2 text-sm leading-6 text-[#30406a]/80">Starts with one site and scales from there.</p>
-            </div>
-            <div className="rounded-2xl border border-[#e3e8f6] bg-[#f8faff] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Implementation shape</p>
-              <p className="mt-2 font-mono text-2xl font-semibold tracking-[-0.05em] text-[#102252]">1 / 3 / 8</p>
-              <p className="mt-2 text-sm leading-6 text-[#30406a]/80">Included-site counts by tier.</p>
-            </div>
-            <div className="rounded-2xl border border-[#e3e8f6] bg-[#f8faff] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Expansion</p>
-              <p className="mt-2 font-mono text-2xl font-semibold tracking-[-0.05em] text-[#102252]">Add-ons</p>
-              <p className="mt-2 text-sm leading-6 text-[#30406a]/80">Layer finance, compliance, portals, and vertical depth.</p>
-            </div>
+            {pricingConfidencePoints.map((item) => (
+              <div key={item} className="rounded-2xl border border-[#e3e8f6] bg-[#f8faff] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Included</p>
+                <p className="mt-2 text-sm leading-6 text-[#30406a]/86">{item}</p>
+              </div>
+            ))}
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button asChild className="rounded-full">
@@ -107,14 +107,35 @@ export default function PricingPage() {
         </div>
       </section>
 
+      <section className="mt-14 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+        <div className="space-y-4">
+          <p className={styles.stripeEyebrow}>How teams buy</p>
+          <h3 className="text-[clamp(1.9rem,3.7vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
+            Start with the milestone that matters now.
+          </h3>
+          <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
+            Most teams start with the smallest pack that solves the current problem.
+          </p>
+        </div>
+        <div className={styles.rolloutGrid}>
+          {rolloutPaths.map((path) => (
+            <article key={path.title} className={styles.rolloutCard}>
+              <p className={styles.productFeatureEyebrow}>{path.title}</p>
+              <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{path.start}</p>
+              <p className="mt-4 font-medium tracking-[-0.02em] text-[#102252]">{path.expand}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section id="add-ons" className="mt-14 grid gap-8 lg:grid-cols-[0.74fr_1.26fr]">
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Add-ons</p>
           <h3 className="text-[clamp(1.9rem,3.7vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Layer in the capabilities the rollout needs next.
+            Layer in what the rollout needs next.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            The add-on catalog keeps the commercial story honest. Teams can start with a narrow operating footprint, then expand into finance, compliance, portals, or vertical depth when the business is ready.
+            Start narrow, then add finance, compliance, portals, or vertical depth as needed.
           </p>
         </div>
 
@@ -134,7 +155,7 @@ export default function PricingPage() {
           </div>
 
           <div className="rounded-[26px] border border-[#d6def5] bg-white p-5">
-            <p className={styles.pricingPill}>All available add-ons</p>
+            <p className={styles.pricingPill}>Featured add-ons</p>
             <div className="mt-4 flex flex-wrap gap-2.5">
               {addOns.map((item) => (
                 <span key={item} className={styles.pricingTag}>
@@ -143,7 +164,7 @@ export default function PricingPage() {
               ))}
             </div>
             <p className="mt-5 max-w-xl text-sm leading-7 text-[#4c5f86]">
-              Use the add-on list as a rollout checklist. It shows the expansion surface without making the base plan feel overloaded.
+              Shortlist of the bundles most often paired with the tiers above.
             </p>
           </div>
         </div>
@@ -157,7 +178,7 @@ export default function PricingPage() {
               We can map your sites, controls, and add-ons into a phased plan.
             </h3>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/74">
-              Bring the footprint, the workflows, and the teams involved. We will turn that into a recommended pack, a rollout sequence, and the right commercial starting point.
+              Bring the footprint and the workflows. We will turn that into a recommended pack and rollout sequence.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">

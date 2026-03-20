@@ -9,15 +9,14 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Solutions",
-  description:
-    "See how Avenra supports gold, schools, retail, and platform-admin operations with sector-specific workflows on a shared control plane.",
+  description: "See how Avenra supports gold, schools, retail, and platform admin on one shared control plane.",
 };
 
 export default function SolutionsPage() {
   return (
     <MarketingSubpageShell
-      title="Sector solutions built as operating stories, not disconnected products."
-      description="Each solution runs on the same platform foundation so operations, reporting, and finance stay aligned as the rollout expands."
+      title="Sector solutions, not disconnected products."
+      description="Each solution keeps the same platform foundation while the workflow changes."
     >
       <section className="grid gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
         <div className="space-y-6">
@@ -26,8 +25,7 @@ export default function SolutionsPage() {
             One platform, different operating realities.
           </h2>
           <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-            Avenra is strongest when the team has to handle sector-specific workflows without losing the integrity of the shared control plane. That means the
-            solution story can be specific, while the underlying product remains consistent.
+            The solution story should be specific, while the underlying product stays consistent.
           </p>
 
           <div className="flex flex-wrap gap-2.5">
@@ -41,9 +39,9 @@ export default function SolutionsPage() {
 
         <div className={styles.solutionPreludeCard}>
           <p className={styles.solutionPreludeEyebrow}>Best fit signals</p>
-          <div className="grid gap-3">
+          <div className={styles.solutionSignalGrid}>
             {audienceSignals.map((signal) => (
-              <div key={signal} className={styles.solutionSignalRow}>
+              <div key={signal} className={styles.solutionSignalCard}>
                 <span className={styles.solutionSignalDot} aria-hidden="true" />
                 <p className="text-sm leading-7 text-[#2d3d66]/84">{signal}</p>
               </div>
@@ -52,8 +50,7 @@ export default function SolutionsPage() {
           <div className="mt-6 rounded-[22px] border border-[#dbe3f6] bg-white/76 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Why it matters</p>
             <p className="mt-2 text-sm leading-7 text-[#31436f]/88">
-              The best solution pages do not sell the same thing in different words. They show how the same platform behaves differently when the operating model
-              changes.
+              The best solution pages show how the same platform behaves differently when the operating model changes.
             </p>
           </div>
         </div>
@@ -61,10 +58,7 @@ export default function SolutionsPage() {
 
       <section className="mt-16 space-y-16">
         {solutionStories.map((row, index) => (
-          <article
-            key={row.eyebrow}
-            className={`${styles.solutionStoryRow} ${index % 2 === 1 ? styles.solutionStoryRowReverse : ""}`}
-          >
+          <article key={row.eyebrow} className={`${styles.solutionStoryRow} ${index % 2 === 1 ? styles.solutionStoryRowReverse : ""}`}>
             <div className="space-y-5">
               <p className={styles.stripeEyebrow}>{row.eyebrow}</p>
               <h3 className="max-w-2xl text-[clamp(1.95rem,3.7vw,3.3rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-[#0b1945] text-balance">
@@ -98,13 +92,15 @@ export default function SolutionsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="grid gap-2 border-t border-[#dce4f7] pt-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7383a9]">Workflow markers</p>
-                  {row.points.map((point) => (
-                    <p key={point} className="text-sm leading-7 text-[#324774]/82">
-                      {point}
-                    </p>
-                  ))}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className={styles.solutionPathCard}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7383a9]">Start with</p>
+                    <p className="mt-2 text-sm leading-7 text-[#31436f]/84">{row.start}</p>
+                  </div>
+                  <div className={styles.solutionPathCard}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7383a9]">Expand into</p>
+                    <p className="mt-2 text-sm leading-7 text-[#31436f]/84">{row.expand}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -116,18 +112,18 @@ export default function SolutionsPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Rollout fit</p>
           <h3 className="max-w-xl text-[clamp(1.95rem,3.4vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            A good solution page helps buyers see themselves in the rollout.
+            A good solution page should show the next step.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            The strongest deployment stories are the ones that show what starts first, what expands later, and why that order works for the team.
+            The strongest deployment stories show what starts first and what comes next.
           </p>
         </div>
 
         <div className={styles.solutionFitCard}>
           <div className="grid gap-4 md:grid-cols-2">
-            {demoHighlights.map((item) => (
+            {demoHighlights.map((item, index) => (
               <div key={item} className={styles.solutionFitStep}>
-                <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Step</p>
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">0{index + 1}</p>
                 <p className="mt-2 text-sm leading-7 text-[#31436f]/88">{item}</p>
               </div>
             ))}

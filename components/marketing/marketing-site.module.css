@@ -406,6 +406,25 @@
   box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
 }
 
+.productControlCard {
+  border-radius: 24px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(125, 176, 255, 0.1), transparent 28%),
+    rgba(255, 255, 255, 0.94);
+  padding: 1rem 1.05rem;
+  min-height: 100%;
+  box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
+}
+
+.productControlLabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(43, 56, 89, 0.58);
+}
+
 .productShowcaseCardWide {
   grid-column: 1 / -1;
 }
@@ -646,7 +665,7 @@
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
   gap: 2rem;
-  align-items: end;
+  align-items: start;
 }
 
 .pricingNarrative {
@@ -827,6 +846,37 @@
   font-size: 0.82rem;
   line-height: 1.55;
   color: rgba(50, 67, 111, 0.76);
+}
+
+.demoConfidenceStrip {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.demoConfidenceItem {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.85rem 0.95rem;
+}
+
+.demoConfidenceItem span {
+  margin-top: 0.45rem;
+  height: 0.38rem;
+  width: 0.38rem;
+  flex: none;
+  border-radius: 999px;
+  background: rgba(216, 220, 255, 0.82);
+}
+
+.demoConfidenceItem p {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: rgba(240, 244, 255, 0.84);
 }
 
 .demoAgendaGrid {
@@ -1087,6 +1137,11 @@
   padding: 1rem;
 }
 
+.productControlGrid {
+  display: grid;
+  gap: 0.9rem;
+}
+
 .productShowcaseCardWide {
   grid-column: span 2;
 }
@@ -1096,11 +1151,28 @@
   gap: 0.9rem;
 }
 
-.solutionSignalRow {
+.solutionSignalGrid {
   display: grid;
+  gap: 0.7rem;
+}
+
+.solutionSignalCard,
+.solutionPathCard {
+  display: grid;
+  gap: 0.55rem;
+  border-radius: 20px;
+  border: 1px solid rgba(21, 36, 70, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.9rem 0.95rem;
+}
+
+.solutionSignalCard {
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.75rem;
   align-items: start;
+}
+
+.solutionPathCard {
+  min-height: 100%;
 }
 
 .solutionSignalDot {
@@ -1176,7 +1248,9 @@
   }
 
   .rolloutGrid,
-  .pricingCardGrid {
+  .pricingCardGrid,
+  .productControlGrid,
+  .solutionSignalGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1198,7 +1272,8 @@
   .heroMetrics,
   .statBand,
   .demoMetrics,
-  .demoFormStats {
+  .demoFormStats,
+  .demoConfidenceStrip {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -1211,7 +1286,8 @@
   .heroMetrics,
   .statBand,
   .demoMetrics,
-  .demoFormStats {
+  .demoFormStats,
+  .demoConfidenceStrip {
     grid-template-columns: 1fr;
     gap: 0.8rem;
   }

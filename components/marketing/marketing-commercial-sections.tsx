@@ -19,15 +19,14 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           <div className="space-y-5">
             <p className={styles.stripeEyebrow}>Pricing</p>
             <h2 className="max-w-3xl text-[clamp(2.2rem,4vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-              Commercial packaging that mirrors the rollout instead of hiding it.
+              Pricing that tracks rollout scope.
             </h2>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              All prices are in USD. Customer-facing bundles carry explicit pricing, while the zero-priced packs stay inside the platform as internal
-              foundations for templates and entitlements.
+              USD pricing. Base plans, included sites, and add-ons all map to the live catalog.
             </p>
             <div className={styles.pricingNote}>
-              <p>Choose the tier that matches your current footprint, then add operational packs as the rollout expands.</p>
-              <p>Every tier already maps to the live commercial catalog, so packaging, entitlement, and implementation scope stay aligned.</p>
+              <p>Pick the tier for your current footprint.</p>
+              <p>Add packs as you go. The catalog stays aligned with rollout and implementation scope.</p>
             </div>
             <div className="pt-1">
               <Button asChild className="rounded-full">
@@ -83,9 +82,9 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
 
         <div className="mt-12 grid gap-8 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>How teams usually buy</p>
+            <p className={styles.stripeEyebrow}>How rollout starts</p>
             <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Most teams start with the pack that solves the immediate operating problem, then layer in finance, compliance, portals, and maintenance as rollout confidence grows.
+              Most teams start with the pack that solves the immediate problem, then layer in finance, compliance, portals, and maintenance.
             </p>
           </div>
           <div className={styles.rolloutGrid}>
@@ -105,7 +104,7 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           <div className="space-y-4">
             <p className={styles.stripeEyebrow}>Frequently paired add-ons</p>
             <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Expand into advanced accounting, CCTV, compliance, maintenance, branding, portals, and vertical-specific flows as requirements mature.
+              Add advanced accounting, CCTV, compliance, maintenance, branding, portals, and vertical depth as needed.
             </p>
           </div>
           <div className="space-y-4">
@@ -135,11 +134,10 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
             <div className="space-y-5 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Demo</p>
               <h2 className="max-w-3xl text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
-                Show us the operating model and Avenra will show the right implementation path.
+                Show the rollout shape. We’ll map the path.
               </h2>
               <p className="max-w-2xl text-sm leading-7 text-white/74">
-                Bring the handoffs, approvals, and sites that matter most. We will shape the session around the workflow and commercial path that actually
-                fit your rollout.
+                Bring the handoffs, approvals, and sites that matter most. We will shape the session around the workflow and commercial path that fits.
               </p>
               <ul className={`${styles.simpleListInverse} mt-6`}>
                 {demoHighlights.map((item) => (

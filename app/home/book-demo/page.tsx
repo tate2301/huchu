@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ArrowRight, Calendar, CheckCircle2, Gem, ReceiptLong, Users, Wrench } from "@/lib/icons";
+import { ArrowRight, Gem, ReceiptLong, Users, Wrench } from "@/lib/icons";
 import { getMarketingSiteConfig } from "@/lib/marketing-site";
-import { demoHighlights, marketingNavItems } from "@/components/marketing/marketing-data";
+import {
+  demoConfidencePoints,
+  demoOutcomeItems,
+  demoPreparationItems,
+  marketingNavItems,
+} from "@/components/marketing/marketing-data";
 import { DemoBookingForm } from "@/components/marketing/demo-booking-form";
 import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
@@ -77,30 +82,39 @@ export default function BookDemoPage() {
             <div className={styles.demoHeader}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/58">Tailored walkthrough</p>
               <h1 className="max-w-3xl text-[clamp(2.8rem,5vw,5rem)] font-semibold leading-[0.95] tracking-[-0.055em] text-balance">
-                Book the workflow walkthrough your team actually needs.
+                Book the walkthrough your team needs.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-white/74">
-                Tell us your operating model, your sites, and the controls you care about. We will shape the session around the packs, workflows, finance surfaces, and reporting stories that matter most.
+                Tell us your sites, roles, and rollout shape. We will tailor the session to the workflows that matter.
               </p>
               <div className={styles.demoMetrics}>
                 <div className={styles.demoMetric}>
                   <strong>45 min</strong>
-                  <span>Structured walkthrough with time for specific workflow questions.</span>
+                  <span>Focused walkthrough.</span>
                 </div>
                 <div className={styles.demoMetric}>
-                  <strong>Live scope</strong>
-                  <span>We focus on what already ships, not speculative roadmap theater.</span>
+                  <strong>Live</strong>
+                  <span>Only shipped capability.</span>
                 </div>
                 <div className={styles.demoMetric}>
-                  <strong>Rollout fit</strong>
-                  <span>Expect a recommendation on phase-one scope, expansion path, and packaging.</span>
+                  <strong>Next step</strong>
+                  <span>A clear rollout path.</span>
                 </div>
               </div>
             </div>
 
+            <div className={styles.demoConfidenceStrip}>
+              {demoConfidencePoints.map((item) => (
+                <div key={item} className={styles.demoConfidenceItem}>
+                  <span />
+                  <p>{item}</p>
+                </div>
+              ))}
+            </div>
+
             <div className="rounded-[28px] border border-white/10 bg-white/6 p-6 backdrop-blur-sm">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/54">
-                What we can show
+                Coverage
               </p>
               <div className="mt-4 grid gap-3">
                 {walkthroughTracks.map((track, index) => {
@@ -123,45 +137,29 @@ export default function BookDemoPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[0.88fr_1.12fr]">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/54">
-                Before the session
-                </p>
-                <div className="mt-4 grid gap-4 text-sm leading-7 text-white/74">
-                  {[
-                  "Sites, branches, campuses, or yards",
-                  "Key handoffs between operations and finance",
-                  "Current spreadsheets or tools you want to replace",
-                  "Reporting, audit, and governance needs",
-                ].map((item) => (
-                    <div key={item} className="flex items-start gap-3 border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
-                    <CheckCircle2 className="mt-0.5 size-5 text-emerald-300" />
-                    <p>{item}</p>
-                  </div>
-                ))}
+            <div className={styles.demoAgendaGrid}>
+              <div className={styles.demoSupportItem}>
+                <p className={styles.demoSupportTitle}>What to bring</p>
+                <div className={styles.demoChecklistList}>
+                  {demoPreparationItems.map((item) => (
+                    <div key={item} className={styles.demoChecklistItem}>
+                      <span className={styles.demoChecklistDot} aria-hidden="true" />
+                      <p>{item}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className={styles.demoSupportRail}>
-                {demoHighlights.map((item) => (
-                  <div key={item} className={styles.demoSupportItem}>
-                    <p className={styles.demoSupportTitle}>{item}</p>
-                    <p className={styles.demoSupportCopy}>
-                      We use this as a working agenda so the session stays relevant to your team.
-                    </p>
-                  </div>
-                ))}
-                <Button variant="secondary" asChild className="rounded-full bg-white text-[#091127] hover:bg-white/90 hover:text-[#091127]">
-                  <a
-                    href={config.schedulerHref}
-                    target={config.schedulerExternal ? "_blank" : undefined}
-                    rel={config.schedulerExternal ? "noreferrer" : undefined}
-                  >
-                    Schedule instantly
-                    <Calendar className="size-4" />
-                  </a>
-                </Button>
+              <div className={styles.demoSupportItem}>
+                <p className={styles.demoSupportTitle}>What you leave with</p>
+                <div className={styles.demoChecklistList}>
+                  {demoOutcomeItems.map((item) => (
+                    <div key={item} className={styles.demoChecklistItem}>
+                      <span className={styles.demoChecklistDot} aria-hidden="true" />
+                      <p>{item}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -170,22 +168,22 @@ export default function BookDemoPage() {
             <div className={styles.demoFormHeader}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/58">Request details</p>
               <span className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/66">
-                Response within one business day
+                Reply in one day
               </span>
             </div>
             <div className="px-6 pb-6 pt-4 lg:px-8">
               <div className={styles.demoFormStats}>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Format</span>
-                  <span className={styles.demoFormStatValue}>Live product walkthrough</span>
+                  <span className={styles.demoFormStatValue}>Live walkthrough</span>
                 </div>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Focus</span>
-                  <span className={styles.demoFormStatValue}>Real handoffs, controls, and rollout risks</span>
+                  <span className={styles.demoFormStatValue}>Handoffs and controls</span>
                 </div>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Output</span>
-                  <span className={styles.demoFormStatValue}>Recommended phase-one path</span>
+                  <span className={styles.demoFormStatValue}>Phase-one path</span>
                 </div>
               </div>
 
@@ -193,8 +191,8 @@ export default function BookDemoPage() {
                 schedulerHref={config.schedulerHref}
                 schedulerExternal={config.schedulerExternal}
                 className="self-start"
-                title="Tell us your stack, your workflows, and what you want to see"
-                description="We will use this to tailor the session around the operational packs, control flows, reporting surfaces, and pricing path that fit your team."
+                title="Tell us what to cover"
+                description="We will tailor the session to your sites and rollout path."
               />
             </div>
           </div>

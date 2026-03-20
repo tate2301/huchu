@@ -39,8 +39,8 @@ const INITIAL_STATE: DemoFormState = {
 export function DemoBookingForm({
   schedulerHref,
   schedulerExternal,
-  title = "See the operating model your team could run next quarter",
-  description = "Share your rollout shape and we will tailor the session around the workflows, controls, and reporting surfaces that matter most.",
+  title = "See the workflow your team needs next.",
+  description = "Share your rollout shape and we will tailor the walkthrough.",
   source = "marketing-site",
   className,
 }: DemoBookingFormProps) {
@@ -118,15 +118,15 @@ export function DemoBookingForm({
         <div className="grid gap-3 border-y border-white/10 py-5 sm:grid-cols-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Format</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">Live walkthrough with your real rollout questions.</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">Live walkthrough.</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Focus</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">Packs, controls, pricing, and implementation fit.</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">Packs, controls, and fit.</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Outcome</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">A clearer rollout path for sites, teams, and modules.</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">A clear rollout path.</p>
           </div>
         </div>
 
@@ -145,7 +145,7 @@ export function DemoBookingForm({
             target={resolvedSchedulerExternal ? "_blank" : undefined}
             rel={resolvedSchedulerExternal ? "noreferrer" : undefined}
           >
-            Schedule instantly
+            Schedule
             <ArrowRight className="size-4" />
           </a>
         </Button>
@@ -159,7 +159,7 @@ export function DemoBookingForm({
               <div>
                 <p className="text-sm font-semibold text-white">Demo request received.</p>
                 <p className="mt-1 text-sm leading-6 text-white/72">
-                  We have your details. You can lock time now, and we will shape the session around the workflows you asked us to cover.
+                  We have your details. You can lock time now, and we will shape the session around your rollout.
                 </p>
               </div>
             </div>
@@ -170,7 +170,7 @@ export function DemoBookingForm({
                   target={resolvedSchedulerExternal ? "_blank" : undefined}
                   rel={resolvedSchedulerExternal ? "noreferrer" : undefined}
                 >
-                  Schedule instantly
+                  Schedule
                   <Calendar className="size-4" />
                 </a>
               </Button>
@@ -287,14 +287,14 @@ export function DemoBookingForm({
             <Field
               label="What should we show in the demo?"
               htmlFor="demo-message"
-              hint="Useful examples: site structure, approval controls, settlement flows, reporting deadlines, and tools you want to replace."
+              hint="Examples: site structure, approvals, settlement flows, or the tool you want to replace."
               required
             >
               <textarea
                 id="demo-message"
                 value={form.message}
                 onChange={handleChange("message")}
-                placeholder="Show us chain-of-custody, finance controls, and reporting across three operating sites with different teams and approval rules."
+                placeholder="Show us the controls, handoffs, and reporting you want to see."
                 className={`${inputClass} min-h-28 resize-y pt-3`}
                 required
                 disabled={isSubmitting}
@@ -303,7 +303,7 @@ export function DemoBookingForm({
 
             <div className="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-xl text-sm leading-6 text-white/74">
-                Every session is tailored around your operating model, not a generic product tour.
+                Tailored to your operating model, not a generic tour.
               </p>
               <Button type="submit" size="lg" className="rounded-full" disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -313,7 +313,7 @@ export function DemoBookingForm({
                   </>
                 ) : (
                   <>
-                    Send request
+                    Send
                     <Send className="size-4" />
                   </>
                 )}

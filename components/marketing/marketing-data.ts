@@ -213,9 +213,9 @@ export const pricingTiers = [
     sites: "1 site included",
     extraSite: "$90 / extra site",
     stage: "Launch one operating model",
-    bestFor: "Single-site teams validating one operational pack.",
-    summary: "Entry point for smaller teams or tightly scoped vertical rollouts.",
-    detail: "Best when you want one live workflow, explicit ownership, and a low-friction starting point.",
+    bestFor: "Single-site teams.",
+    summary: "For focused rollouts.",
+    detail: "One live workflow. Clear ownership.",
   },
   {
     tier: "Standard",
@@ -223,9 +223,9 @@ export const pricingTiers = [
     sites: "3 sites included",
     extraSite: "$140 / extra site",
     stage: "Scale across sites",
-    bestFor: "Operators coordinating branches, campuses, or yards.",
-    summary: "Balanced fit for expanding teams that need multi-site visibility.",
-    detail: "Designed for rollouts across a cluster that want a shared financial spine before complexity multiplies.",
+    bestFor: "Growing multi-site teams.",
+    summary: "For branch clusters.",
+    detail: "Shared financial spine before complexity grows.",
   },
   {
     tier: "Enterprise",
@@ -233,9 +233,9 @@ export const pricingTiers = [
     sites: "8 sites included",
     extraSite: "$220 / extra site",
     stage: "Run the broader group",
-    bestFor: "Larger organizations that need governance and rollout planning.",
-    summary: "Broad operating suite for more complex organizations.",
-    detail: "Fits groups that need deeper controls, broader workflow coverage, and a cleaner path to phased expansion.",
+    bestFor: "Larger groups.",
+    summary: "For broader governance.",
+    detail: "Deeper controls and phased expansion.",
   },
 ];
 
@@ -270,32 +270,32 @@ export const featuredAddOns = [
   {
     name: "Accounting Core",
     price: "$250/mo",
-    note: "Foundational finance controls for posting-aware operations and a tighter month-end.",
+    note: "Posting-aware finance controls.",
   },
   {
     name: "Accounting Advanced",
     price: "$350/mo",
-    note: "AR, AP, banking, budgets, assets, and FX for heavier finance teams.",
+    note: "AR, AP, banking, budgets, FX.",
   },
   {
     name: "Gold Advanced",
     price: "$220/mo",
-    note: "Reconciliation, exception handling, audit, and payout support for gold workflows.",
+    note: "Reconciliation, audit, payouts.",
   },
   {
     name: "Schools Suite",
     price: "$320/mo",
-    note: "Student, academic, boarding, fee, and portal workflows in one expansion pack.",
+    note: "Student, fee, boarding, portal.",
   },
   {
     name: "Compliance Pro",
     price: "$200/mo",
-    note: "Permits, inspections, incidents, and training across regulated sites.",
+    note: "Permits, inspections, training.",
   },
   {
     name: "Maintenance Pro",
     price: "$180/mo",
-    note: "Equipment, work orders, and breakdown coordination for asset-heavy operations.",
+    note: "Equipment, work orders, breakdowns.",
   },
 ];
 

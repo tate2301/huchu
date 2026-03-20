@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { ArrowRight } from "@/lib/icons";
 import {
   proofStats,
+  productControlMap,
   productFeatureCards,
   productSteps,
   showcaseCards,
@@ -16,25 +17,23 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Product",
-  description:
-    "Explore the Avenra product model: one shared control plane for operations, finance, reporting, and governance across multiple vertical packs.",
+  description: "Explore the Avenra product model: one shared control plane across vertical packs.",
 };
 
 export default function ProductPage() {
   return (
     <MarketingSubpageShell
-      title="One shared control plane for operations, finance, and governance."
-      description="Avenra is designed for multi-site operators who need sector-specific workflows and financial integrity in the same system instead of disconnected apps."
+      title="One shared control plane."
+      description="Avenra keeps sector workflows and financial integrity in the same system."
     >
       <section className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
         <div className="space-y-6">
           <p className={styles.stripeEyebrow}>Product</p>
           <h2 className="max-w-3xl text-[clamp(2.1rem,4.4vw,4.25rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-[#0b1945] text-balance">
-            The platform stays coherent because the same primitives repeat everywhere.
+            Same rails. Different workflows.
           </h2>
           <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-            The product is built around a single operating spine: identity, tenancy, branding, document output, and commercial packaging stay stable while
-            the workflow surface changes by sector. That keeps rollout conversations clean and the software easier to trust.
+            Identity, tenancy, branding, output, and packaging stay fixed while the workflow changes by sector.
           </p>
 
           <div className="flex flex-wrap gap-2.5">
@@ -58,7 +57,7 @@ export default function ProductPage() {
         <div className={styles.productMatrix}>
           <div className={styles.productMatrixHead}>
             <p className={styles.productMatrixEyebrow}>How it fits together</p>
-            <p className={styles.productMatrixTitle}>The experience reads like one product, not a bundle of unrelated modules.</p>
+            <p className={styles.productMatrixTitle}>One product. Fewer moving parts.</p>
           </div>
           <div className="grid gap-4 p-5">
             {productFeatureCards.map((card) => (
@@ -83,15 +82,34 @@ export default function ProductPage() {
         </div>
       </section>
 
-      <section className="mt-18 grid gap-10 xl:grid-cols-[0.72fr_1.28fr] xl:items-start">
+      <section className="mt-18 grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>What ships together</p>
           <h3 className="max-w-xl text-[clamp(1.9rem,3.6vw,3.25rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            The product feels premium because the same patterns show up in every surface.
+            The same patterns show up in every surface.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Marketing, product, and admin all share the same operating vocabulary. That makes the platform easier to explain to buyers and easier to run once
-            it is live.
+            Marketing, product, and admin share one operating vocabulary.
+          </p>
+        </div>
+        <div className={styles.productControlGrid}>
+          {productControlMap.map((item) => (
+            <article key={item.title} className={styles.productControlCard}>
+              <p className={styles.productFeatureEyebrow}>{item.title}</p>
+              <p className="mt-2 text-sm leading-7 text-[#31436f]/84">{item.copy}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-18 grid gap-10 xl:grid-cols-[0.72fr_1.28fr] xl:items-start">
+        <div className="space-y-4">
+          <p className={styles.stripeEyebrow}>Sector proof</p>
+          <h3 className="max-w-xl text-[clamp(1.9rem,3.6vw,3.25rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
+            The same story reads differently by customer.
+          </h3>
+          <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
+            Buyers want a clear answer to the operating problem in front of them.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
@@ -116,7 +134,7 @@ export default function ProductPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Control pillars</p>
           <h3 className="text-[clamp(1.9rem,3.5vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Four reasons the product does not collapse under growth.
+            Four reasons the product stays coherent as the org grows.
           </h3>
         </div>
         <div className="grid gap-5 md:grid-cols-2">
@@ -139,11 +157,9 @@ export default function ProductPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Live proof</p>
           <h3 className="max-w-2xl text-[clamp(1.95rem,3.5vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Claims grounded in shipped platform capability.
+            Claims grounded in shipped capability.
           </h3>
-          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-            The commercial story stays honest. These claims are constrained to the product, admin, and workflow surface that already exists in the platform.
-          </p>
+          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">The story stays honest. These claims are in production now.</p>
         </div>
         <div className={styles.productProofCard}>
           <div className="grid gap-3">
@@ -156,13 +172,32 @@ export default function ProductPage() {
           <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#d6def5] pt-5">
             <Button asChild className="rounded-full">
               <Link href="/home/book-demo">
-                See the platform in context
+                See it live
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
             <Link href="/home/pricing" className="text-sm font-medium text-[#2d3d66] underline-offset-4 hover:underline">
-              Review commercial packaging
+              Review pricing
             </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-18 grid gap-8 lg:grid-cols-[0.76fr_1.24fr] lg:items-end">
+        <div className="space-y-4">
+          <p className={styles.stripeEyebrow}>Best fit</p>
+          <h3 className="text-[clamp(1.9rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
+            Built for operators with more than one site, team, or workflow.
+          </h3>
+        </div>
+        <div className="space-y-5">
+          <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">Avenra fits teams that are outgrowing spreadsheets and siloed tools.</p>
+          <div className="flex flex-wrap gap-2.5">
+            {["Multiple sites", "Operational handoffs", "Cash or stock control", "Audit pressure", "Pack-by-pack rollout"].map((signal) => (
+              <span key={signal} className={styles.productChip}>
+                {signal}
+              </span>
+            ))}
           </div>
         </div>
       </section>
