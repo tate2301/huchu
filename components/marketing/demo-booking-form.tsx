@@ -39,8 +39,8 @@ const INITIAL_STATE: DemoFormState = {
 export function DemoBookingForm({
   schedulerHref,
   schedulerExternal,
-  title = "See the workflow your team needs next.",
-  description = "Share your rollout shape and we will tailor the walkthrough.",
+  title = "See the workflow you need next.",
+  description = "Share your rollout shape. We will tailor the walkthrough.",
   source = "marketing-site",
   className,
 }: DemoBookingFormProps) {
@@ -159,7 +159,7 @@ export function DemoBookingForm({
               <div>
                 <p className="text-sm font-semibold text-white">Demo request received.</p>
                 <p className="mt-1 text-sm leading-6 text-white/72">
-                  We have your details. You can lock time now, and we will shape the session around your rollout.
+                  We have your details. You can lock time now.
                 </p>
               </div>
             </div>

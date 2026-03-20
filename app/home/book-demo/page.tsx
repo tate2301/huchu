@@ -23,22 +23,22 @@ const walkthroughTracks = [
   {
     icon: Gem,
     title: "Gold operations",
-    copy: "Output, purchases, dispatches, receipts, payout-related flows, and gold-chain reporting.",
+    copy: "Output, purchases, dispatches, receipts, payouts.",
   },
   {
     icon: Users,
     title: "School operations",
-    copy: "Admissions, student directory, attendance, finance, boarding, notices, results, and portals.",
+    copy: "Admissions, attendance, finance, boarding, portals.",
   },
   {
     icon: ReceiptLong,
     title: "Retail & POS",
-    copy: "Catalog, POS, held carts, refund and void flows, promotions, purchasing, and shift close.",
+    copy: "Catalog, POS, refunds, promotions, purchasing, close.",
   },
   {
     icon: Wrench,
     title: "Platform admin",
-    copy: "Companies, subscriptions, add-ons, features, support access, reliability, and company-level detail.",
+    copy: "Companies, subscriptions, add-ons, support, health.",
   },
 ];
 
@@ -85,7 +85,7 @@ export default function BookDemoPage() {
                 Book the walkthrough your team needs.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-white/74">
-                Tell us your sites, roles, and rollout shape. We will tailor the session to the workflows that matter.
+                Tell us your sites, roles, and rollout shape. We will tailor the session.
               </p>
               <div className={styles.demoMetrics}>
                 <div className={styles.demoMetric}>
@@ -175,15 +175,15 @@ export default function BookDemoPage() {
               <div className={styles.demoFormStats}>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Format</span>
-                  <span className={styles.demoFormStatValue}>Live walkthrough</span>
+                  <span className={styles.demoFormStatValue}>Live walkthrough.</span>
                 </div>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Focus</span>
-                  <span className={styles.demoFormStatValue}>Handoffs and controls</span>
+                  <span className={styles.demoFormStatValue}>Handoffs and controls.</span>
                 </div>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Output</span>
-                  <span className={styles.demoFormStatValue}>Phase-one path</span>
+                  <span className={styles.demoFormStatValue}>Phase-one path.</span>
                 </div>
               </div>
 

@@ -23,17 +23,17 @@ export const metadata: Metadata = {
 export default function PricingPage() {
   return (
     <MarketingSubpageShell
-      title="Pricing shaped around rollout scope, not seat counts."
-      description="Customer-facing bundles carry explicit pricing. Foundational packs and add-ons stay tied to the live catalog."
+      title="Pricing shaped around rollout scope."
+      description="Bundles carry explicit pricing. Foundational packs and add-ons stay tied to the live catalog."
     >
       <section className={styles.pricingHero}>
         <div className={styles.pricingNarrative}>
           <p className={styles.stripeEyebrow}>Commercial model</p>
           <h2 className="max-w-3xl text-[clamp(2.2rem,4.6vw,4.3rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-            Simple plans, clear site math, and a clean path to expansion.
+            Simple plans, clear site math, room to expand.
           </h2>
           <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/84">
-            Pricing is in USD. Each tier maps to a practical rollout shape.
+            Pricing is in USD. Tiers map to rollout shape.
           </p>
 
           <div className={styles.pricingNoteList}>
@@ -111,10 +111,10 @@ export default function PricingPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>How teams buy</p>
           <h3 className="text-[clamp(1.9rem,3.7vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Start with the milestone that matters now.
+            Start with the milestone that matters.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Most teams start with the smallest pack that solves the current problem.
+            Most teams start with the smallest pack that solves the problem now.
           </p>
         </div>
         <div className={styles.rolloutGrid}>
@@ -135,7 +135,7 @@ export default function PricingPage() {
             Layer in what the rollout needs next.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Start narrow, then add finance, compliance, portals, or vertical depth as needed.
+            Start narrow, then add finance, compliance, portals, or depth.
           </p>
         </div>
 
@@ -178,7 +178,7 @@ export default function PricingPage() {
               We can map your sites, controls, and add-ons into a phased plan.
             </h3>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/74">
-              Bring the footprint and the workflows. We will turn that into a recommended pack and rollout sequence.
+              Bring the footprint and workflows. We will turn that into a recommended pack and rollout sequence.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">

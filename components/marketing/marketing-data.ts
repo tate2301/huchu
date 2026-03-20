@@ -246,9 +246,9 @@ export const pricingConfidencePoints = [
 ];
 
 export const pricingSelectionNotes = [
-  "Start with the pack that fixes the immediate pain.",
-  "Add sites explicitly so scope stays clear.",
-  "Layer depth after the baseline settles.",
+  "Start with the pain point.",
+  "Add sites explicitly.",
+  "Add depth after baseline.",
 ];
 
 export const addOns = [
@@ -302,18 +302,18 @@ export const featuredAddOns = [
 export const rolloutPaths = [
   {
     title: "Gold rollout",
-    start: "Purchasing, stores, and chain-of-custody basics",
-    expand: "Gold Advanced, compliance, maintenance, accounting",
+    start: "Purchasing, stores, chain of custody.",
+    expand: "Gold Advanced, compliance, maintenance, accounting.",
   },
   {
     title: "Schools rollout",
-    start: "Admissions, attendance, fees, and portals",
-    expand: "Boarding, results, reporting, accounting",
+    start: "Admissions, attendance, fees, portals.",
+    expand: "Boarding, results, reporting, accounting.",
   },
   {
     title: "Multi-site rollout",
-    start: "Catalog, POS, stock, and shift close",
-    expand: "Maintenance, CCTV, analytics, branding",
+    start: "Catalog, POS, stock, shift close.",
+    expand: "Maintenance, CCTV, analytics, branding.",
   },
 ];
 
@@ -335,23 +335,23 @@ export const audienceSignals = [
 ];
 
 export const demoHighlights = [
-  "Show the pack that fits your model.",
-  "Walk through the handoffs that matter.",
-  "Review sites, roles, and rollout.",
-  "Compare the tier and add-ons you need.",
+  "Show the pack that fits.",
+  "Walk the handoffs that matter.",
+  "Review sites, roles, rollout.",
+  "Compare the tier and add-ons.",
 ];
 
 export const demoPreparationItems = [
-  "Sites, branches, campuses, or yards",
-  "The handoffs that slow the team down",
-  "The tool or spreadsheet you want to replace",
-  "Any reporting or approval edge case",
+  "Sites, branches, campuses, yards.",
+  "The handoffs that slow you down.",
+  "The tool or sheet to replace.",
+  "Any reporting edge case.",
 ];
 
 export const demoOutcomeItems = [
-  "We reply with a tailored pack and path.",
-  "You leave with a rollout sequence and fit.",
-  "You can lock time from the same page.",
+  "We reply with a pack and path.",
+  "You leave with a rollout sequence.",
+  "You can lock time on the page.",
 ];
 
 export const demoConfidencePoints = [
