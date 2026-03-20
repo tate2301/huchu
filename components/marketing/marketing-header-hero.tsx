@@ -102,13 +102,33 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
                   </div>
                 ))}
               </div>
-              <div className="mt-5 grid gap-3 border-t border-white/10 pt-4">
-                {productSteps.map((step, index) => (
-                  <div key={step} className="flex items-start gap-3">
-                    <span className="font-mono text-[11px] font-semibold tracking-[0.2em] text-white/42">0{index + 1}</span>
-                    <p className="text-sm leading-6 text-white/78">{step}</p>
+              <div className={`${styles.heroFlow} mt-5`}>
+                <div className={styles.heroFlowPanel}>
+                  <p className={styles.heroFlowLabel}>Rollout sequence</p>
+                  <div className={styles.heroFlowList}>
+                    {productSteps.map((step, index) => (
+                      <div key={step} className={styles.heroFlowItem}>
+                        <span>0{index + 1}</span>
+                        <strong>{step}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+                <div className={styles.heroFlowPanel}>
+                  <p className={styles.heroFlowLabel}>Coverage today</p>
+                  <div className={styles.heroFlowList}>
+                    {[
+                      ["Workspaces", "Gold, Schools, Retail"],
+                      ["Admin", "Support and reliability"],
+                      ["Commercial", "Tiers, bundles, add-ons"],
+                    ].map(([label, value]) => (
+                      <div key={label} className={styles.heroFlowItem}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             <div className={styles.heroMiniRail}>
