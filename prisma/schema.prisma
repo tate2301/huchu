@@ -1,5 +1,3 @@
-// Huchu Enterprises - Mine Operations Digitalization System
-// Prisma Schema for 5 small-scale gold mines in Zimbabwe
 
 generator client {
   provider = "prisma-client-js"

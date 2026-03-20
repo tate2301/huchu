@@ -1,0 +1,238 @@
+.page {
+  position: relative;
+  isolation: isolate;
+}
+
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(18, 24, 38, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18, 24, 38, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 85%);
+  pointer-events: none;
+  z-index: -2;
+}
+
+.page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(205, 153, 64, 0.16), transparent 32%),
+    radial-gradient(circle at top right, rgba(43, 92, 157, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(249, 246, 238, 0.98) 0%, rgba(244, 239, 230, 0.94) 100%);
+  pointer-events: none;
+  z-index: -3;
+}
+
+.heroGlowLeft,
+.heroGlowRight {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(68px);
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+.heroGlowLeft {
+  left: -5rem;
+  top: 4rem;
+  height: 20rem;
+  width: 20rem;
+  background: rgba(214, 164, 77, 0.24);
+}
+
+.heroGlowRight {
+  right: -4rem;
+  top: 7rem;
+  height: 18rem;
+  width: 18rem;
+  background: rgba(58, 96, 150, 0.18);
+}
+
+.glassPanel {
+  border: 1px solid rgba(93, 106, 129, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(249, 246, 239, 0.92)),
+    rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 24px 70px rgba(39, 47, 63, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(18px);
+}
+
+.browserWindow {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(93, 106, 129, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 243, 235, 0.97)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 30px 80px rgba(20, 28, 45, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.browserWindow::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(236, 228, 214, 0.72));
+  pointer-events: none;
+}
+
+.browserToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(93, 106, 129, 0.12);
+  padding: 0.95rem 1.15rem;
+  background: rgba(248, 244, 236, 0.9);
+}
+
+.browserDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.browserDots span {
+  height: 0.65rem;
+  width: 0.65rem;
+  border-radius: 999px;
+  background: rgba(125, 138, 162, 0.48);
+}
+
+.browserAddress {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(59, 72, 97, 0.72);
+}
+
+.gridLines {
+  background-image:
+    linear-gradient(rgba(105, 120, 143, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(105, 120, 143, 0.1) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.metricTile {
+  border: 1px solid rgba(95, 108, 133, 0.14);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 20px 50px rgba(39, 47, 63, 0.08);
+}
+
+.darkPanel {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background:
+    radial-gradient(circle at top left, rgba(255, 191, 94, 0.22), transparent 32%),
+    linear-gradient(180deg, rgba(12, 19, 33, 0.98), rgba(24, 33, 52, 0.96));
+  box-shadow:
+    0 24px 70px rgba(17, 24, 39, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.accentRing {
+  position: absolute;
+  inset: 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 172, 94, 0.22);
+  pointer-events: none;
+}
+
+.placeholderBars {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.placeholderBars span {
+  display: block;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(193, 202, 215, 0.88), rgba(224, 228, 236, 0.62));
+}
+
+.placeholderBars span:nth-child(1) {
+  width: 92%;
+}
+
+.placeholderBars span:nth-child(2) {
+  width: 74%;
+}
+
+.placeholderBars span:nth-child(3) {
+  width: 84%;
+}
+
+.placeholderBars span:nth-child(4) {
+  width: 61%;
+}
+
+.mockChart {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(93, 106, 129, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(245, 241, 233, 0.94));
+}
+
+.mockChart::before {
+  content: "";
+  position: absolute;
+  inset: 1.25rem;
+  background:
+    radial-gradient(circle at 18% 68%, rgba(208, 160, 79, 0.18), transparent 14%),
+    radial-gradient(circle at 44% 44%, rgba(63, 116, 177, 0.22), transparent 15%),
+    radial-gradient(circle at 78% 28%, rgba(38, 141, 111, 0.17), transparent 12%),
+    linear-gradient(180deg, rgba(220, 225, 234, 0.45), rgba(220, 225, 234, 0));
+  border-radius: 16px;
+  pointer-events: none;
+}
+
+.heroStat {
+  position: relative;
+  overflow: hidden;
+}
+
+.heroStat::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(216, 168, 84, 0.95), rgba(63, 116, 177, 0.82));
+}
+
+.marqueeCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.marqueeCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(125deg, transparent 22%, rgba(255, 255, 255, 0.22) 50%, transparent 78%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.marqueeCard:hover::after {
+  opacity: 1;
+}

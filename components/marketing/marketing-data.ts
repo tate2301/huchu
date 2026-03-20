@@ -1,0 +1,167 @@
+import {
+  Building2,
+  Camera,
+  Coins,
+  Dashboard,
+  Gem,
+  ReceiptLong,
+  Recycle,
+  ShieldCheck,
+  Users,
+  type LucideIcon,
+} from "@/lib/icons";
+
+export const proofStats = [
+  { label: "Vertical stories ready", value: "6" },
+  { label: "Live platform modules", value: "10+" },
+  { label: "Role-specific portals", value: "5" },
+  { label: "Entry pricing from", value: "$450/mo" },
+];
+
+export const valuePillars: Array<{
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}> = [
+  {
+    icon: ShieldCheck,
+    title: "Operational control",
+    description:
+      "Field, campus, yard, shop, and branch workflows run in one tenant-safe system instead of disconnected spreadsheets and point tools.",
+  },
+  {
+    icon: Coins,
+    title: "Finance integrity",
+    description:
+      "Accounting, tax, fiscalisation, disbursements, and posting-aware flows strengthen controls behind day-to-day operations.",
+  },
+  {
+    icon: Dashboard,
+    title: "Commercial flexibility",
+    description:
+      "Tiers, bundles, templates, and feature entitlements let the product fit different sectors without runtime forks.",
+  },
+  {
+    icon: Users,
+    title: "Role-specific experiences",
+    description:
+      "Portals and workspace-aware navigation keep parents, students, teachers, cashiers, managers, and operators focused on the job to be done.",
+  },
+];
+
+export const showcaseCards = [
+  {
+    eyebrow: "Gold operations",
+    title: "Chain-of-custody, settlement, and reporting from one flow.",
+    copy:
+      "Track output, purchases, dispatches, receipts, payouts, audit surfaces, and related reporting without switching systems.",
+    chips: ["Dispatches", "Receipts", "Payouts", "Exceptions"],
+  },
+  {
+    eyebrow: "School operations",
+    title: "Admissions, academics, finance, boarding, and portals in one workspace.",
+    copy:
+      "Run the student lifecycle end to end while keeping fees, attendance, notices, and publishing workflows aligned.",
+    chips: ["Admissions", "Attendance", "Results", "Parent portal"],
+  },
+  {
+    eyebrow: "Platform admin",
+    title: "A product that is operable as a SaaS platform, not just a tenant app.",
+    copy:
+      "Manage companies, subscriptions, add-ons, support access, reliability, and company-scoped controls through the admin plane.",
+    chips: ["Subscriptions", "Support access", "Reliability", "Features"],
+  },
+];
+
+export const verticalCards: Array<{
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}> = [
+  {
+    icon: Gem,
+    title: "Gold Operations",
+    description: "Chain-of-custody visibility, settlement control, payroll coordination, and reporting for mines and buyers.",
+  },
+  {
+    icon: Recycle,
+    title: "Scrap & Recycling",
+    description: "Buying discipline, yard stock visibility, pricing control, and bulk sales and settlement workflows.",
+  },
+  {
+    icon: Building2,
+    title: "Schools",
+    description: "Student lifecycle, academics, attendance, boarding, fees, and role-based portals in one system.",
+  },
+  {
+    icon: Users,
+    title: "Auto Sales",
+    description: "Lead-to-deal visibility, inventory coordination, financing support, and disciplined deal progression.",
+  },
+  {
+    icon: ReceiptLong,
+    title: "Retail & POS",
+    description: "Catalog, pricing, receiving, purchasing, cashier control, held carts, refund flows, and shift close.",
+  },
+  {
+    icon: Camera,
+    title: "Multi-site operations",
+    description: "People, stock, CCTV, maintenance, and finance controls combined in one shared operating layer.",
+  },
+];
+
+export const pricingTiers = [
+  {
+    tier: "Basic",
+    price: "$450",
+    sites: "1 site included",
+    extraSite: "$90 / extra site",
+    summary: "Entry point for smaller tenants or tightly scoped vertical packs.",
+  },
+  {
+    tier: "Standard",
+    price: "$900",
+    sites: "3 sites included",
+    extraSite: "$140 / extra site",
+    summary: "Best fit for growing operators that need multi-site visibility and pack expansion.",
+  },
+  {
+    tier: "Enterprise",
+    price: "$1,800",
+    sites: "8 sites included",
+    extraSite: "$220 / extra site",
+    summary: "Full operating suite for larger groups with broader controls and deeper rollout scope.",
+  },
+];
+
+export const addOns = [
+  "Accounting Core",
+  "Accounting Advanced",
+  "Gold Advanced",
+  "Schools Suite",
+  "Retail Suite",
+  "Autos Suite",
+  "Scrap Metal Suite",
+  "CCTV Suite",
+  "Maintenance Pro",
+  "Compliance Pro",
+  "Custom Branding",
+  "Portal Suite",
+];
+
+export const trustClaims = [
+  "Multi-tenant platform with tenant-aware host enforcement",
+  "Configurable vertical workspaces and client templates",
+  "Live modules for gold, recycling, schools, auto sales, retail/POS, accounting, HR, maintenance, compliance, CCTV, and reporting",
+  "Role-specific portals for parents, students, teachers, cashiers/POS users, and platform admins",
+  "Branding, document templating, and PDF/document rendering infrastructure",
+  "Platform admin portal plus deeper operator tooling for support, reliability, and audit workflows",
+];
+
+export const audienceSignals = [
+  "Multiple sites, branches, or campuses",
+  "Operational handoffs between departments",
+  "Cash, stock, or settlement control requirements",
+  "Audit and compliance pressure",
+  "A need to stage adoption pack by pack",
+];

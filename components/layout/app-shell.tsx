@@ -12,10 +12,11 @@ import { OnboardingProvider } from "@/components/onboarding/onboarding-provider"
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthRoute = pathname === "/login";
+  const isMarketingRoute = pathname === "/home" || pathname.startsWith("/home/");
   const isPortalRoute = pathname.startsWith("/portal/");
   const isAdminRoute = pathname.startsWith("/admin");
 
-  if (isAuthRoute || isPortalRoute || isAdminRoute) {
+  if (isAuthRoute || isMarketingRoute || isPortalRoute || isAdminRoute) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
 

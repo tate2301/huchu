@@ -20,6 +20,7 @@ import { isAuthExpired } from "@/lib/auth-core/session-policy";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
+const MARKETING_BASE_PATH = "/home";
 const ADMIN_BASE_PATH = "/admin";
 const ADMIN_LOGIN_PATH = `${ADMIN_BASE_PATH}/login`;
 const ADMIN_INTERNAL_BASE_PATH = "/portal/admin";
@@ -170,6 +171,10 @@ export default withAuth(
     }
 
     if (pathname === ACCESS_BLOCKED_PATH) {
+      return NextResponse.next();
+    }
+
+    if (isPathWithinRoute(pathname, MARKETING_BASE_PATH)) {
       return NextResponse.next();
     }
 
@@ -382,6 +387,10 @@ export default withAuth(
         }
 
         if (pathname === LOGIN_PATH || pathname === ACCESS_BLOCKED_PATH) {
+          return true;
+        }
+
+        if (isPathWithinRoute(pathname, MARKETING_BASE_PATH)) {
           return true;
         }
 
