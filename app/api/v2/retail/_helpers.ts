@@ -177,36 +177,50 @@ export async function recordRetailInventoryMovement(input: {
     throw new Error("Stock cannot be negative.");
   }
 
-  const referenceId = await reserveIdentifier(prisma, {
-    companyId: input.companyId,
-    entity: "STOCK_MOVEMENT",
-  });
-
   const createdAt = input.entryDate ?? new Date();
   const writeMovement = async (tx: Prisma.TransactionClient) => {
-    const created = await tx.stockMovement.create({
-      data: {
-        referenceId,
-        itemId: input.itemId,
-        toLocationId: input.toLocationId ?? undefined,
-        movementType: input.movementType,
-        quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
-        unit: input.unit,
-        notes: input.notes ?? undefined,
-        issuedById: input.userId,
-        createdAt,
-      },
-    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const referenceId = await reserveIdentifier(prisma, {
+        companyId: input.companyId,
+        entity: "STOCK_MOVEMENT",
+      });
 
-    await tx.inventoryItem.update({
-      where: { id: input.itemId },
-      data: {
-        currentStock: nextStock,
-        ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
-      },
-    });
+      try {
+        const created = await tx.stockMovement.create({
+          data: {
+            referenceId,
+            itemId: input.itemId,
+            toLocationId: input.toLocationId ?? undefined,
+            movementType: input.movementType,
+            quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
+            unit: input.unit,
+            notes: input.notes ?? undefined,
+            issuedById: input.userId,
+            createdAt,
+          },
+        });
 
-    return created;
+        await tx.inventoryItem.update({
+          where: { id: input.itemId },
+          data: {
+            currentStock: nextStock,
+            ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
+          },
+        });
+
+        return created;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error("Unable to generate stock movement reference.");
   };
   const movement = input.tx ? await writeMovement(input.tx) : await prisma.$transaction(writeMovement);
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { prisma } from '@/lib/prisma';
 import { createJournalEntryFromSource } from '@/lib/accounting/posting';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
 
@@ -102,12 +103,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = stockMovementSchema.parse(body);
-    const referenceId = validated.referenceId
+    const providedReferenceId = validated.referenceId
       ? normalizeProvidedId(validated.referenceId, "STOCK_MOVEMENT")
-      : await reserveIdentifier(prisma, {
-          companyId: session.user.companyId,
-          entity: "STOCK_MOVEMENT",
-        });
+      : null;
 
     // Get item and verify access
     const item = await prisma.inventoryItem.findUnique({
@@ -171,29 +169,58 @@ export async function POST(request: NextRequest) {
       itemUpdateData.unitCost = validated.unitCost;
     }
 
-    const [movement] = await prisma.$transaction([
-      prisma.stockMovement.create({
-        data: {
-          referenceId,
-          itemId: validated.itemId,
-          toLocationId: validated.toLocationId,
-          movementType: validated.movementType,
-          quantity: validated.movementType === 'ADJUSTMENT' ? validated.quantity : Math.abs(validated.quantity),
-          unit: validated.unit,
-          issuedTo: validated.issuedTo,
-          requestedBy: validated.requestedBy,
-          approvedBy: validated.approvedBy,
-          notes: validated.notes,
-          photoUrl: validated.photoUrl,
-          issuedById: session.user.id,
-          createdAt: movementDate,
-        },
-      }),
-      prisma.inventoryItem.update({
-        where: { id: validated.itemId },
-        data: itemUpdateData,
-      }),
-    ]);
+    let movement: Awaited<ReturnType<typeof prisma.stockMovement.create>> | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const referenceId =
+        attempt === 0 && providedReferenceId
+          ? providedReferenceId
+          : await reserveIdentifier(prisma, {
+              companyId: session.user.companyId,
+              entity: "STOCK_MOVEMENT",
+            });
+
+      try {
+        const [createdMovement] = await prisma.$transaction([
+          prisma.stockMovement.create({
+            data: {
+              referenceId,
+              itemId: validated.itemId,
+              toLocationId: validated.toLocationId,
+              movementType: validated.movementType,
+              quantity: validated.movementType === 'ADJUSTMENT' ? validated.quantity : Math.abs(validated.quantity),
+              unit: validated.unit,
+              issuedTo: validated.issuedTo,
+              requestedBy: validated.requestedBy,
+              approvedBy: validated.approvedBy,
+              notes: validated.notes,
+              photoUrl: validated.photoUrl,
+              issuedById: session.user.id,
+              createdAt: movementDate,
+            },
+          }),
+          prisma.inventoryItem.update({
+            where: { id: validated.itemId },
+            data: itemUpdateData,
+          }),
+        ]);
+
+        movement = createdMovement;
+        break;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!movement) {
+      return errorResponse('Unable to generate stock movement reference', 409);
+    }
 
     const resolvedUnitCost = validated.unitCost ?? item.unitCost ?? 0;
     const movementAmount = Math.abs(quantity) * resolvedUnitCost;

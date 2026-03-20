@@ -641,7 +641,10 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
+          error.code === "P2002" &&
+          Array.isArray(error.meta?.target) &&
+          error.meta.target.includes("companyId") &&
+          error.meta.target.includes("saleNo")
         ) {
           if (providedCode) {
             return errorResponse("Sale number already exists", 409);
