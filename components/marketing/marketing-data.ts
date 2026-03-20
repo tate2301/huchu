@@ -35,50 +35,43 @@ export const valuePillars: Array<{
   {
     icon: ShieldCheck,
     title: "Operational control",
-    description:
-      "Field, campus, yard, shop, and branch workflows stay in one tenant-safe system instead of drifting into spreadsheets and point tools.",
+    description: "Field, campus, yard, shop, and branch work stays in one tenant-safe system.",
   },
   {
     icon: Coins,
     title: "Finance integrity",
-    description:
-      "Accounting, tax, fiscalisation, disbursements, and posting-aware flows keep the control layer aligned with daily operations.",
+    description: "Accounting, tax, disbursements, and posting-aware flows stay aligned.",
   },
   {
     icon: Dashboard,
     title: "Commercial flexibility",
-    description:
-      "Tiers, bundles, templates, and feature entitlements let the product fit different sectors without runtime forks or one-off rebuilds.",
+    description: "Tiers, bundles, and entitlements fit sectors without forks.",
   },
   {
     icon: Users,
     title: "Role-specific experiences",
-    description:
-      "Portals and workspace-aware navigation keep parents, students, teachers, cashiers, managers, and operators focused on the job at hand.",
+    description: "Portals keep each role on the job at hand.",
   },
 ];
 
 export const showcaseCards = [
   {
     eyebrow: "Gold operations",
-    title: "Chain-of-custody, settlement, and reporting from one flow.",
-    copy:
-      "Track intake, purchases, dispatches, receipts, payouts, audit surfaces, and related reporting without switching systems.",
-    chips: ["Dispatches", "Receipts", "Payouts", "Exceptions"],
+    title: "Track intake to settlement in one flow.",
+    copy: "Purchases, dispatches, receipts, payouts, and audit trails stay together.",
+    chips: ["Dispatches", "Receipts", "Payouts", "Audit"],
   },
   {
     eyebrow: "School operations",
-    title: "Admissions, academics, finance, boarding, and portals in one workspace.",
-    copy:
-      "Run the student lifecycle end to end while keeping fees, attendance, notices, and publishing workflows aligned.",
-    chips: ["Admissions", "Attendance", "Results", "Parent portal"],
+    title: "Run the student lifecycle in one workspace.",
+    copy: "Admissions, fees, attendance, notices, and portals stay aligned.",
+    chips: ["Admissions", "Attendance", "Fees", "Portal"],
   },
   {
     eyebrow: "Platform admin",
-    title: "A product that is operable as a SaaS platform, not just a tenant app.",
-    copy:
-      "Manage companies, subscriptions, add-ons, support access, reliability, and company-scoped controls through the admin plane.",
-    chips: ["Subscriptions", "Support access", "Reliability", "Features"],
+    title: "Operate the SaaS business, not just each tenant.",
+    copy: "Companies, subscriptions, add-ons, and support tooling stay first-class.",
+    chips: ["Subscriptions", "Support", "Reliability", "Features"],
   },
 ];
 
@@ -92,36 +85,36 @@ export const productFeatureCards = [
   {
     eyebrow: "Foundation rails",
     title: "Identity, tenancy, branding, documents, and notifications stay fixed.",
-    copy: "Every pack inherits the same account structure and permission model.",
+    copy: "Every pack inherits the same account and permission model.",
   },
   {
     eyebrow: "Vertical packs",
-    title: "Gold, schools, retail, scrap, autos, and other workflows ship as focused surfaces.",
-    copy: "Each pack brings its own vocabulary, but the core data model stays shared.",
+    title: "Gold, schools, retail, scrap, and autos ship as focused surfaces.",
+    copy: "Each pack changes the vocabulary, not the core model.",
   },
   {
     eyebrow: "Control surfaces",
-    title: "Admin, support, and reliability tooling stay inside the product loop.",
-    copy: "Operators can review companies, subscriptions, features, and incidents in one place.",
+    title: "Admin, support, and reliability tooling stay in the loop.",
+    copy: "Operators review companies, subscriptions, features, and incidents in one place.",
   },
   {
     eyebrow: "Commercial layer",
-    title: "Bundles, pricing, and add-ons mirror the rollout path.",
-    copy: "The commercial story follows how customers actually adopt the platform.",
+    title: "Bundles and add-ons mirror the rollout path.",
+    copy: "The commercial story follows how customers adopt the platform.",
   },
 ];
 
 export const productControlMap = [
   {
-    title: "What stays constant",
+    title: "Constant",
     copy: "Tenant boundary, permissions, branding, documents.",
   },
   {
-    title: "What changes by sector",
-    copy: "The work changes. Gold, schools, and retail need different operating language.",
+    title: "Variable",
+    copy: "Gold, schools, and retail need different operating language.",
   },
   {
-    title: "What buyers feel",
+    title: "Buyer takeaway",
     copy: "One platform. Clear expansion. Less sprawl.",
   },
 ];
@@ -129,43 +122,43 @@ export const productControlMap = [
 export const solutionStories = [
   {
     eyebrow: "Gold operations",
-    title: "Track the handoff from intake to settlement without changing systems.",
-    copy: "Purchases, dispatches, receipts, exceptions, payouts, and audit trails stay in one control plane.",
+    title: "Track intake to settlement without changing systems.",
+    copy: "Purchases, dispatches, receipts, payouts, and audit trails stay in one control plane.",
     signal: "When cash, production, and settlement cannot drift.",
-    points: ["Chain of custody", "Payout control", "Audit alignment"],
-    outcomes: ["One trail from intake to receipt", "Exceptions tied back to finance"],
-    start: "Purchases, dispatches, receipts.",
-    expand: "Gold advanced, accounting, compliance, maintenance.",
+    points: ["Chain of custody", "Payout control", "Audit trail"],
+    outcomes: ["One trail from intake to receipt", "Exceptions tied to finance"],
+    start: "Purchasing, dispatches, receipts.",
+    expand: "Gold advanced, finance, compliance.",
   },
   {
     eyebrow: "Schools",
-    title: "Run admissions, academics, finance, and portals from the same record set.",
+    title: "Run admissions, finance, and portals from one record set.",
     copy: "Attendance, fees, notices, results, and boarding stay anchored to one student record.",
     signal: "When parent, student, and staff views must stay in sync.",
-    points: ["Admissions to results", "Parent, student, teacher portals", "Fee and boarding controls"],
+    points: ["Admissions to results", "Role-based portals", "Fee and boarding controls"],
     outcomes: ["Cleaner academic and finance handoffs", "No duplicate entry"],
     start: "Admissions, attendance, fees.",
-    expand: "Boarding, results, finance, reporting.",
+    expand: "Boarding, results, reporting.",
   },
   {
     eyebrow: "Retail and POS",
-    title: "Keep pricing, purchasing, receiving, and cash-up inside one daily rhythm.",
-    copy: "Catalog changes, held carts, refunds, stock movements, and shift close stay together.",
+    title: "Keep pricing, purchasing, and cash-up in one rhythm.",
+    copy: "Catalog changes, refunds, stock movements, and shift close stay together.",
     signal: "When the same team owns tills, inventory, and closeout.",
-    points: ["Shift close", "Stock control", "Held carts and refunds"],
-    outcomes: ["Clarity at the till", "Tighter sales and cash-up control"],
+    points: ["Shift close", "Stock control", "Refunds"],
+    outcomes: ["Clarity at the till", "Tighter cash-up control"],
     start: "Catalog, POS, purchasing.",
-    expand: "Accounting, CCTV, maintenance, promotions.",
+    expand: "Accounting, maintenance, promotions.",
   },
   {
     eyebrow: "Platform admin",
-    title: "Operate the SaaS business with company records, entitlements, and support tooling.",
-    copy: "Companies, subscriptions, add-ons, support access, reliability, and health checks stay first-class.",
+    title: "Operate the SaaS business inside the product.",
+    copy: "Companies, subscriptions, add-ons, support access, and health checks stay first-class.",
     signal: "When the platform itself needs governance.",
-    points: ["Subscriptions and entitlements", "Company-scoped support", "Health and audit surfaces"],
+    points: ["Subscriptions and entitlements", "Scoped support", "Health and audit surfaces"],
     outcomes: ["One control plane for operators", "Commercial and support context together"],
     start: "Companies, subscriptions, support.",
-    expand: "Features, insights, reliability, controls.",
+    expand: "Features, reliability, controls.",
   },
 ];
 
@@ -335,10 +328,10 @@ export const audienceSignals = [
 ];
 
 export const demoHighlights = [
-  "Show the pack that fits.",
+  "Show the right pack.",
   "Walk the handoffs that matter.",
-  "Review sites, roles, rollout.",
-  "Compare the tier and add-ons.",
+  "Review sites and roles.",
+  "Set the rollout path.",
 ];
 
 export const demoPreparationItems = [

@@ -25,7 +25,7 @@ export default function SolutionsPage() {
             One platform, different operating realities.
           </h2>
           <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-            The solution story should be specific, while the underlying product stays consistent.
+            The product stays fixed. The story changes by buyer.
           </p>
 
           <div className="flex flex-wrap gap-2.5">
@@ -49,9 +49,7 @@ export default function SolutionsPage() {
           </div>
           <div className="mt-6 rounded-[22px] border border-[#dbe3f6] bg-white/76 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Why it matters</p>
-            <p className="mt-2 text-sm leading-7 text-[#31436f]/88">
-              The best solution pages show how the same platform behaves differently when the operating model changes.
-            </p>
+            <p className="mt-2 text-sm leading-7 text-[#31436f]/88">Show how the platform behaves when the operating model changes.</p>
           </div>
         </div>
       </section>
@@ -112,10 +110,10 @@ export default function SolutionsPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Rollout fit</p>
           <h3 className="max-w-xl text-[clamp(1.95rem,3.4vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            A good solution page should show the next step.
+            Show the next step.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            The strongest deployment stories show what starts first and what comes next.
+            Good deployment stories show what starts first and what comes next.
           </p>
         </div>
 

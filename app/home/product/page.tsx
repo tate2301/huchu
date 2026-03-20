@@ -24,7 +24,7 @@ export default function ProductPage() {
   return (
     <MarketingSubpageShell
       title="One shared control plane."
-      description="Avenra keeps sector workflows and financial integrity in the same system."
+      description="Avenra keeps sector workflows and financial integrity in one system."
     >
       <section className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
         <div className="space-y-6">
@@ -33,7 +33,7 @@ export default function ProductPage() {
             Same rails. Different workflows.
           </h2>
           <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-            Identity, tenancy, branding, output, and packaging stay fixed while the workflow changes by sector.
+            Identity, tenancy, branding, and packaging stay fixed. The workflow changes by sector.
           </p>
 
           <div className="flex flex-wrap gap-2.5">
@@ -86,10 +86,10 @@ export default function ProductPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>What ships together</p>
           <h3 className="max-w-xl text-[clamp(1.9rem,3.6vw,3.25rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            The same patterns show up in every surface.
+            One operating vocabulary.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Marketing, product, and admin share one operating vocabulary.
+            Marketing, product, and admin share the same language.
           </p>
         </div>
         <div className={styles.productControlGrid}>
@@ -106,10 +106,10 @@ export default function ProductPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Sector proof</p>
           <h3 className="max-w-xl text-[clamp(1.9rem,3.6vw,3.25rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            The same story reads differently by customer.
+            Proof by sector.
           </h3>
           <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Buyers want a clear answer to the operating problem in front of them.
+            Each buyer gets a sharper entry point.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
@@ -134,7 +134,7 @@ export default function ProductPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Control pillars</p>
           <h3 className="text-[clamp(1.9rem,3.5vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Four reasons the product stays coherent as the org grows.
+            Four reasons it still feels like one product.
           </h3>
         </div>
         <div className="grid gap-5 md:grid-cols-2">
@@ -159,7 +159,7 @@ export default function ProductPage() {
           <h3 className="max-w-2xl text-[clamp(1.95rem,3.5vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
             Claims grounded in shipped capability.
           </h3>
-          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">The story stays honest. These claims are in production now.</p>
+          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">These claims are in production now.</p>
         </div>
         <div className={styles.productProofCard}>
           <div className="grid gap-3">
@@ -187,11 +187,11 @@ export default function ProductPage() {
         <div className="space-y-4">
           <p className={styles.stripeEyebrow}>Best fit</p>
           <h3 className="text-[clamp(1.9rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Built for operators with more than one site, team, or workflow.
+            Built for operators with more than one site or workflow.
           </h3>
         </div>
         <div className="space-y-5">
-          <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">Avenra fits teams that are outgrowing spreadsheets and siloed tools.</p>
+          <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">Avenra fits teams outgrowing spreadsheets and siloed tools.</p>
           <div className="flex flex-wrap gap-2.5">
             {["Multiple sites", "Operational handoffs", "Cash or stock control", "Audit pressure", "Pack-by-pack rollout"].map((signal) => (
               <span key={signal} className={styles.productChip}>
