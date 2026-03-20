@@ -396,9 +396,9 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_SCHOOLS_SUITE",
     name: "Schools Suite",
-    description: "Placeholder bundle for school operations and administration.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
+    description: "Student lifecycle, academics, boarding, fees, and school role portals.",
+    monthlyPrice: 320,
+    additionalSiteMonthlyPrice: 35,
     features: [
       "schools.core",
       "schools.admissions",
@@ -416,9 +416,9 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_AUTOS_SUITE",
     name: "Auto Sales Suite",
-    description: "Placeholder bundle for car sales operations.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
+    description: "Lead-to-deal, vehicle inventory, financing, and dealership workflow controls.",
+    monthlyPrice: 210,
+    additionalSiteMonthlyPrice: 25,
     features: [
       "autos.core",
       "autos.inventory",
@@ -447,9 +447,9 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_PORTAL_SUITE",
     name: "Client Portal Suite",
-    description: "Placeholder bundle for external portal capabilities across modules.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
+    description: "Shared external portal shell and cross-vertical portal delivery surfaces.",
+    monthlyPrice: 110,
+    additionalSiteMonthlyPrice: 10,
     features: [
       "portal.core",
       "portal.schools",

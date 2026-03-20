@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FEATURE_BUNDLES } from "@/lib/platform/feature-catalog";
 
+const SELLABLE_BUNDLES = FEATURE_BUNDLES.filter(
+  (bundle) => bundle.monthlyPrice > 0 || bundle.additionalSiteMonthlyPrice > 0,
+);
+
 function formatCurrency(value: number) {
   return `$${value.toLocaleString()}`;
 }
@@ -19,7 +23,7 @@ export function AddonsPage() {
     let base = 0;
     let perSite = 0;
     enabled.forEach((code) => {
-      const bundle = FEATURE_BUNDLES.find((item) => item.code === code);
+      const bundle = SELLABLE_BUNDLES.find((item) => item.code === code);
       if (!bundle) return;
       base += bundle.monthlyPrice;
       perSite += bundle.additionalSiteMonthlyPrice * siteCount;
@@ -32,7 +36,7 @@ export function AddonsPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Add-ons</h1>
         <p className="text-sm text-[var(--text-muted)]">
-          Toggle cards aligned with catalog. Enabling auto-enables feature flags and recomputes pricing.
+          Toggle cards aligned with the sellable catalog. Enabling auto-enables feature flags and recomputes pricing.
         </p>
       </div>
 
@@ -49,7 +53,7 @@ export function AddonsPage() {
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {FEATURE_BUNDLES.map((bundle) => {
+          {SELLABLE_BUNDLES.map((bundle) => {
             const isEnabled = enabled.has(bundle.code);
             return (
               <Card key={bundle.code} className="border-[var(--border)]">
@@ -62,7 +66,7 @@ export function AddonsPage() {
                     <Badge variant={isEnabled ? "secondary" : "outline"}>{isEnabled ? "Enabled" : "Disabled"}</Badge>
                   </div>
                   <p className="text-xs text-[var(--text-muted)]">
-                    Base: {formatCurrency(bundle.monthlyPrice)} · Per site: {formatCurrency(bundle.additionalSiteMonthlyPrice)}/site
+                    Base: {formatCurrency(bundle.monthlyPrice)} / Per site: {formatCurrency(bundle.additionalSiteMonthlyPrice)}/site
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">

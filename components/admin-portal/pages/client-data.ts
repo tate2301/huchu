@@ -27,6 +27,10 @@ const ADDON_ROTATION: FeatureBundleDefinition["code"][] = [
   "ADDON_ACCOUNTING_CORE",
   "ADDON_ACCOUNTING_ADVANCED",
   "ADDON_ZIMRA_FISCAL",
+  "ADDON_SCHOOLS_SUITE",
+  "ADDON_AUTOS_SUITE",
+  "ADDON_RETAIL_SUITE",
+  "ADDON_PORTAL_SUITE",
   "ADDON_SCRAP_METAL_SUITE",
 ];
 
@@ -57,7 +61,10 @@ export function enrichClients(companies: CompanyWorkspace[]): EnrichedClient[] {
     const tier = TIERS[index % TIERS.length];
     const status = STATUS_ORDER[index % STATUS_ORDER.length];
     const addonCount = index % 4;
-    const addonCodes = ADDON_ROTATION.slice(0, addonCount);
+    const addonCodes =
+      addonCount === 0
+        ? []
+        : Array.from({ length: addonCount }, (_, offset) => ADDON_ROTATION[(index + offset) % ADDON_ROTATION.length]);
     const activeSites = Math.max(1, (index % 5) + 1);
     const lastUpdated = new Date(Date.now() - index * 86_400_000).toISOString();
     const monthlyAmount = computeMonthlyTotal(tier, addonCodes, activeSites).total;

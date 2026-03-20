@@ -52,8 +52,15 @@ Notes:
 
 Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 
+The catalog includes both sellable add-ons and zero-priced foundation bundles used by templates and entitlement shaping.
+
 | Bundle Code | Name | Base / Month | Additional Site / Month |
 | --- | --- | ---: | ---: |
+| `ADDON_OPERATIONS_CORE` | Operations Core | 0 | 0 |
+| `ADDON_STORES_CORE` | Stores Core | 0 | 0 |
+| `ADDON_WORKFORCE_CORE` | Workforce Core | 0 | 0 |
+| `ADDON_GOLD_CORE` | Gold Core | 0 | 0 |
+| `ADDON_CUSTOM_BRANDING` | Custom Branding | 120 | 0 |
 | `ADDON_CCTV_SUITE` | CCTV Suite | 300 | 40 |
 | `ADDON_ADVANCED_PAYROLL` | Advanced Payroll | 250 | 30 |
 | `ADDON_GOLD_ADVANCED` | Gold Advanced Controls | 220 | 25 |
@@ -64,12 +71,49 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 | `ADDON_ACCOUNTING_CORE` | Accounting Core | 250 | 30 |
 | `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 350 | 40 |
 | `ADDON_ZIMRA_FISCAL` | ZIMRA Tax & Fiscalisation | 120 | 15 |
-| `ADDON_SCHOOLS_SUITE` | Schools Suite (Placeholder) | 0 | 0 |
-| `ADDON_AUTOS_SUITE` | Auto Sales Suite (Placeholder) | 0 | 0 |
-| `ADDON_THRIFT_SUITE` | Thrift Suite (Placeholder) | 0 | 0 |
-| `ADDON_PORTAL_SUITE` | Client Portal Suite (Placeholder) | 0 | 0 |
+| `ADDON_SCHOOLS_SUITE` | Schools Suite | 320 | 35 |
+| `ADDON_AUTOS_SUITE` | Auto Sales Suite | 210 | 25 |
+| `ADDON_RETAIL_SUITE` | Retail Suite | 180 | 20 |
+| `ADDON_PORTAL_SUITE` | Client Portal Suite | 110 | 10 |
+| `ADDON_SCRAP_METAL_SUITE` | Scrap Metal Suite | 150 | 20 |
 
 ### Bundle Feature Mapping
+
+`ADDON_OPERATIONS_CORE`
+
+- `ops.shift-report.submit`
+- `ops.attendance.mark`
+- `ops.plant-report.submit`
+- `reports.dashboard`
+- `reports.shift`
+- `reports.attendance`
+- `reports.plant`
+- `admin.sites-sections`
+
+`ADDON_STORES_CORE`
+
+- `stores.dashboard`
+- `stores.inventory`
+- `stores.movements`
+- `stores.issue`
+- `stores.receive`
+- `reports.stores-movements`
+
+`ADDON_WORKFORCE_CORE`
+
+- `hr.employees`
+
+`ADDON_GOLD_CORE`
+
+- `gold.home`
+- `gold.intake.pours`
+- `gold.dispatches`
+- `gold.receipts`
+
+`ADDON_CUSTOM_BRANDING`
+
+- `core.branding.manage`
+- `core.branding.custom-domain`
 
 `ADDON_CCTV_SUITE`
 
@@ -115,6 +159,7 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 
 `ADDON_MAINTENANCE_PRO`
 
+- `maintenance.dashboard`
 - `maintenance.equipment`
 - `maintenance.work-orders`
 - `maintenance.breakdowns`
@@ -129,14 +174,13 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `admin.user-management.status`
 - `admin.user-management.password-reset`
 - `admin.user-management.role-change`
+- `admin.user-management.feature-access`
 - `admin.user-management.directory`
 
 `ADDON_ANALYTICS_PRO`
 
-- `stores.fuel-ledger`
 - `reports.downtime-analytics`
 - `reports.audit-trails`
-- `reports.fuel-ledger`
 - `core.notifications.push`
 
 `ADDON_ACCOUNTING_CORE`
@@ -172,6 +216,7 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `schools.attendance`
 - `schools.fees`
 - `schools.boarding`
+- `schools.teachers`
 - `schools.results`
 - `schools.portal.parent`
 - `schools.portal.student`
@@ -185,19 +230,36 @@ Defined in `lib/platform/feature-catalog.ts` (`FEATURE_BUNDLES`).
 - `autos.deals`
 - `autos.financing`
 
-`ADDON_THRIFT_SUITE`
+`ADDON_RETAIL_SUITE`
 
-- `thrift.core`
-- `thrift.intake`
-- `thrift.catalog`
-- `thrift.checkout`
+- `retail.core`
+- `retail.pos`
+- `retail.catalog`
+- `retail.purchasing`
+- `retail.promotions`
+- `retail.shifts`
+- `retail.reports`
+- `portal.pos`
 
 `ADDON_PORTAL_SUITE`
 
 - `portal.core`
 - `portal.schools`
 - `portal.autos`
-- `portal.thrift`
+- `portal.pos`
+
+`ADDON_SCRAP_METAL_SUITE`
+
+- `scrap-metal.home`
+- `scrap-metal.purchases`
+- `scrap-metal.batches`
+- `scrap-metal.sales`
+- `scrap-metal.pricing`
+- `stores.dashboard`
+- `stores.inventory`
+- `stores.movements`
+- `stores.issue`
+- `stores.receive`
 
 ### Bundle Behavior in TUI
 
@@ -215,11 +277,12 @@ Current templates:
 
 - `TEMPLATE_CORE_STARTER` (`BASIC`)
 - `TEMPLATE_GOLD_MINE` (`ENTERPRISE`)
-- `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` (`STANDARD`) - HR + CCTV + stock + fuel oriented
+- `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` (`STANDARD`) - HR + CCTV + stock oriented multi-site starter
 - `TEMPLATE_TECH_WORKSHOP` (`STANDARD`) - stock + maintenance + HR/payroll depth
-- `TEMPLATE_SCHOOLS` (`BASIC`) - schools + portal placeholder starter
-- `TEMPLATE_CAR_SALES` (`BASIC`) - car sales + portal placeholder starter
-- `TEMPLATE_THRIFT` (`BASIC`) - thrift + portal placeholder starter
+- `TEMPLATE_SCRAP_METAL` (`STANDARD`) - scrap and recycling operating starter
+- `TEMPLATE_SCHOOLS` (`BASIC`) - schools + portal starter
+- `TEMPLATE_CAR_SALES` (`BASIC`) - auto sales + portal starter
+- `TEMPLATE_RETAIL` (`STANDARD`) - retail/POS + stock + accounting starter
 - `TEMPLATE_ALL_FEATURES` (`ENTERPRISE`) - enables all catalog features
 
 Templates now support `disabledFeatureKeys` to explicitly remove selected features from the template enable-set.
@@ -228,6 +291,10 @@ Template aliases accepted in provisioning:
 
 - `BASE` -> `TEMPLATE_CORE_STARTER`
 - `GOLD` -> `TEMPLATE_GOLD_MINE`
+- `SCHOOL` / `SCHOOLS` -> `TEMPLATE_SCHOOLS`
+- `SCRAP` / `SCRAP_METAL` -> `TEMPLATE_SCRAP_METAL`
+- `AUTOS` / `CAR-SALES` / `CAR_SALES` -> `TEMPLATE_CAR_SALES`
+- `THRIFT` / `RETAIL` -> `TEMPLATE_RETAIL`
 - `FULL` / `ALL` -> `TEMPLATE_ALL_FEATURES`
 
 ## Subscription Lifecycle and Health

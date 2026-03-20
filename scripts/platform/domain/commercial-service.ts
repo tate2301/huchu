@@ -27,6 +27,12 @@ function money(value: unknown): number {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
+function resolveBundleMonthlyPrice(bundleCode: string, value: unknown): number {
+  const normalized = money(value);
+  if (normalized > 0) return normalized;
+  return money(getBundleDefinition(bundleCode)?.monthlyPrice ?? 0);
+}
+
 function resolveBundleAdditionalSiteMonthlyPrice(bundleCode: string, value: unknown): number {
   const normalized = money(value);
   if (normalized > 0) return normalized;
@@ -313,7 +319,7 @@ export async function listAddOnBundles(companyId: string): Promise<AddonBundleSu
       code: bundle.code,
       name: bundle.name,
       description: bundle.description ?? null,
-      monthlyPrice: bundle.monthlyPrice,
+      monthlyPrice: resolveBundleMonthlyPrice(bundle.code, bundle.monthlyPrice),
       additionalSiteMonthlyPrice: resolveBundleAdditionalSiteMonthlyPrice(bundle.code, bundle.additionalSiteMonthlyPrice),
       isActive: bundle.isActive,
       enabled: state?.isEnabled ?? false,
@@ -544,7 +550,7 @@ export async function computeSubscriptionPricing(companyId: string): Promise<Sub
   let addonBaseAmount = 0;
   let addonSiteAmount = 0;
   for (const addon of addons) {
-    const base = money(addon.bundle.monthlyPrice);
+    const base = resolveBundleMonthlyPrice(addon.bundle.code, addon.bundle.monthlyPrice);
     const perSite = resolveBundleAdditionalSiteMonthlyPrice(
       addon.bundle.code,
       addon.bundle.additionalSiteMonthlyPrice,

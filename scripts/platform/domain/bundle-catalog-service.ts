@@ -28,6 +28,13 @@ function money(value: unknown): number {
   return Math.max(0, parsed);
 }
 
+function resolveMonthlyPrice(bundleCode: string, value: unknown): number {
+  const normalized = money(value);
+  if (normalized > 0) return normalized;
+  const fallback = getBundleDefinition(bundleCode);
+  return money(fallback?.monthlyPrice ?? 0);
+}
+
 function resolveAdditionalSiteMonthlyPrice(bundleCode: string, value: unknown): number {
   const normalized = money(value);
   if (normalized > 0) return normalized;
@@ -50,7 +57,7 @@ function mapBundleSummary(row: {
     code: row.code,
     name: row.name,
     description: row.description ?? null,
-    monthlyPrice: money(row.monthlyPrice),
+    monthlyPrice: resolveMonthlyPrice(row.code, row.monthlyPrice),
     additionalSiteMonthlyPrice: resolveAdditionalSiteMonthlyPrice(row.code, row.additionalSiteMonthlyPrice),
     isActive: row.isActive,
     featureKeys,
