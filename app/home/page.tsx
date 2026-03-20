@@ -3,9 +3,9 @@ import { getMarketingSiteConfig } from "@/lib/marketing-site";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Avenra",
+  title: { absolute: "Avenra" },
   description:
-    "Avenra is a multi-site operations and finance platform with vertical packs, transparent pricing, and tailored demo booking.",
+    "Avenra is a multi-site operations platform with shared control, finance integrity, and vertical packs.",
 };
 
 export default function MarketingHomePage() {

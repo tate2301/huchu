@@ -18,7 +18,7 @@ export const marketingNavItems = [
   { label: "Demo", href: "/home/book-demo" },
 ];
 
-export const marketingSiteHighlights = ["Shared control plane", "Vertical packs", "Role-specific portals"];
+export const marketingSiteHighlights = ["Shared rails", "Vertical packs", "Role portals"];
 
 export const proofStats = [
   { label: "Vertical packs ready", value: "6" },
@@ -83,35 +83,46 @@ export const showcaseCards = [
 ];
 
 export const productSteps = [
-  "Start with the pack that matches the operating model and the immediate risk.",
-  "Run operations, finance, reporting, and governance on shared rails.",
+  "Start with the pack that matches the operating model.",
+  "Keep operations, finance, and reporting on the same rails.",
   "Expand with add-ons and portals without forcing a replatform.",
 ];
 
 export const productFeatureCards = [
   {
     eyebrow: "Foundation rails",
-    title: "Identity, tenancy, branding, documents, and notifications stay consistent across the stack.",
-    copy:
-      "The core platform gives every pack the same account structure, permission model, and output surface so the experience does not fragment as the rollout expands.",
+    title: "Identity, tenancy, branding, documents, and notifications stay fixed.",
+    copy: "Every pack inherits the same account structure and permission model.",
   },
   {
     eyebrow: "Vertical packs",
-    title: "Gold, schools, retail, scrap, autos, and other workflows ship as focused operating surfaces.",
-    copy:
-      "Each pack is opinionated enough to work in the real world, while still inheriting the same data model and control conventions.",
+    title: "Gold, schools, retail, scrap, autos, and other workflows ship as focused surfaces.",
+    copy: "Each pack brings its own vocabulary, but the core data model stays shared.",
   },
   {
     eyebrow: "Control surfaces",
-    title: "Admin, support, and reliability tooling sit beside the product instead of living outside it.",
-    copy:
-      "Platform operators can review companies, subscriptions, feature access, and incident context without stitching together separate tooling.",
+    title: "Admin, support, and reliability tooling stay inside the product loop.",
+    copy: "Operators can review companies, subscriptions, features, and incidents in one place.",
   },
   {
     eyebrow: "Commercial layer",
-    title: "Bundles, pricing, and add-ons mirror the actual rollout path, not a feature maze.",
-    copy:
-      "The marketing story stays aligned with the commercial model, which makes procurement and rollout conversations much cleaner.",
+    title: "Bundles, pricing, and add-ons mirror the rollout path.",
+    copy: "The commercial story follows how customers actually adopt the platform.",
+  },
+];
+
+export const productControlMap = [
+  {
+    title: "What stays constant",
+    copy: "Tenant boundary, permissions, branding, documents.",
+  },
+  {
+    title: "What changes by sector",
+    copy: "The work changes. Gold, schools, and retail need different operating language.",
+  },
+  {
+    title: "What buyers feel",
+    copy: "One platform. Clear expansion. Less sprawl.",
   },
 ];
 
@@ -119,38 +130,42 @@ export const solutionStories = [
   {
     eyebrow: "Gold operations",
     title: "Track the handoff from intake to settlement without changing systems.",
-    copy:
-      "Gold teams need more than a generic workflow. This path keeps purchases, dispatches, receipts, exceptions, payouts, and audit trails in one control plane so finance and operations see the same reality.",
-    signal: "When cash handling, production, and settlement cannot drift apart.",
-    points: ["Chain-of-custody handoff", "Payout and exception control", "Audit surface aligned to finance"],
-    outcomes: ["One operating trail from site intake to receipt", "Exception review tied back to payout and finance"],
+    copy: "Purchases, dispatches, receipts, exceptions, payouts, and audit trails stay in one control plane.",
+    signal: "When cash, production, and settlement cannot drift.",
+    points: ["Chain of custody", "Payout control", "Audit alignment"],
+    outcomes: ["One trail from intake to receipt", "Exceptions tied back to finance"],
+    start: "Purchases, dispatches, receipts.",
+    expand: "Gold advanced, accounting, compliance, maintenance.",
   },
   {
     eyebrow: "Schools",
     title: "Run admissions, academics, finance, and portals from the same record set.",
-    copy:
-      "Schools work best when attendance, fees, notices, results, and boarder workflows are all anchored to the same student record instead of spread across disconnected tools and spreadsheets.",
-    signal: "When parent, student, and staff views all need to stay in sync.",
-    points: ["Admissions through results", "Parent, student, teacher portals", "Fee and boarding controls"],
-    outcomes: ["Cleaner handoffs between academic and finance teams", "Role-specific views without duplicate entry"],
+    copy: "Attendance, fees, notices, results, and boarding stay anchored to one student record.",
+    signal: "When parent, student, and staff views must stay in sync.",
+    points: ["Admissions to results", "Parent, student, teacher portals", "Fee and boarding controls"],
+    outcomes: ["Cleaner academic and finance handoffs", "No duplicate entry"],
+    start: "Admissions, attendance, fees.",
+    expand: "Boarding, results, finance, reporting.",
   },
   {
     eyebrow: "Retail and POS",
     title: "Keep pricing, purchasing, receiving, and cash-up inside one daily rhythm.",
-    copy:
-      "Retail and branch teams need predictable control over catalog changes, held carts, refunds, stock movements, and shift close. The solution keeps those flows together so cashier work and back-office discipline stay aligned.",
+    copy: "Catalog changes, held carts, refunds, stock movements, and shift close stay together.",
     signal: "When the same team owns tills, inventory, and closeout.",
-    points: ["Shift close discipline", "Stock and pricing control", "Held carts and refunds"],
-    outcomes: ["Operational clarity at the till and in the back office", "A tighter link between sales, stock, and cash-up"],
+    points: ["Shift close", "Stock control", "Held carts and refunds"],
+    outcomes: ["Clarity at the till", "Tighter sales and cash-up control"],
+    start: "Catalog, POS, purchasing.",
+    expand: "Accounting, CCTV, maintenance, promotions.",
   },
   {
     eyebrow: "Platform admin",
     title: "Operate the SaaS business with company records, entitlements, and support tooling.",
-    copy:
-      "The admin plane lets platform teams manage companies, subscriptions, add-ons, support access, reliability, and health checks as first-class workflows rather than hidden internal scripts.",
-    signal: "When the platform itself needs operational governance.",
-    points: ["Subscription and entitlement control", "Company-scoped support access", "Health and audit surfaces"],
-    outcomes: ["A clearer control plane for operations teams", "Commercial and support context in one place"],
+    copy: "Companies, subscriptions, add-ons, support access, reliability, and health checks stay first-class.",
+    signal: "When the platform itself needs governance.",
+    points: ["Subscriptions and entitlements", "Company-scoped support", "Health and audit surfaces"],
+    outcomes: ["One control plane for operators", "Commercial and support context together"],
+    start: "Companies, subscriptions, support.",
+    expand: "Features, insights, reliability, controls.",
   },
 ];
 
@@ -224,6 +239,18 @@ export const pricingTiers = [
   },
 ];
 
+export const pricingConfidencePoints = [
+  "3 tiers with site math",
+  "20 add-on bundles",
+  "USD pricing",
+];
+
+export const pricingSelectionNotes = [
+  "Start with the pack that fixes the immediate pain.",
+  "Add sites explicitly so scope stays clear.",
+  "Layer depth after the baseline settles.",
+];
+
 export const addOns = [
   "Accounting Core",
   "Accounting Advanced",
@@ -275,41 +302,60 @@ export const featuredAddOns = [
 export const rolloutPaths = [
   {
     title: "Gold rollout",
-    start: "Operations core, purchasing, and settlement control",
-    expand: "Gold Advanced, Compliance Pro, Maintenance Pro, and Accounting",
+    start: "Purchasing, stores, and chain-of-custody basics",
+    expand: "Gold Advanced, compliance, maintenance, accounting",
   },
   {
     title: "Schools rollout",
     start: "Admissions, attendance, fees, and portals",
-    expand: "Boarding, results, reporting, and accounting as the institution matures",
+    expand: "Boarding, results, reporting, accounting",
   },
   {
     title: "Multi-site rollout",
     start: "Catalog, POS, stock, and shift close",
-    expand: "Maintenance, CCTV, analytics, and branding once the baseline is stable",
+    expand: "Maintenance, CCTV, analytics, branding",
   },
 ];
 
 export const trustClaims = [
-  "Multi-tenant platform with tenant-aware host enforcement",
-  "Vertical workspaces and client templates are already wired into the product",
-  "Live modules for gold, schools, retail/POS, autos, scrap, accounting, HR, maintenance, compliance, CCTV, and reporting",
-  "Role-specific portals for parents, students, teachers, cashiers, and platform admins",
-  "Branding, document templating, and PDF rendering are part of the stack",
-  "Support, reliability, and audit tooling live in the admin plane instead of as afterthoughts",
+  "Tenant-aware host routing and workspace scoping are in production",
+  "Client templates, feature gates, and bundle logic drive rollout setup",
+  "Live modules cover gold, schools, retail/POS, autos, scrap, accounting, HR, maintenance, compliance, CCTV, and reporting",
+  "Role-specific portals cover parents, students, teachers, cashiers, and admins",
+  "Branding, templates, versioned PDF rendering, and artifacts are live",
+  "Support access, reliability, health, and audit tooling live in the admin plane",
 ];
 
 export const audienceSignals = [
-  "Multiple sites, branches, or campuses",
-  "Operational handoffs between departments",
-  "Cash, stock, or settlement control requirements",
-  "Audit and compliance pressure",
-  "A need to stage adoption pack by pack",
+  "Multiple sites, one finance owner",
+  "Operational handoffs between teams",
+  "Cash, stock, or settlement control",
+  "Audit, compliance, or reporting pressure",
+  "Pack-by-pack rollout",
 ];
 
 export const demoHighlights = [
-  "Show the pack that maps to your operating model.",
-  "Walk through approvals, handoffs, and exceptions.",
-  "Review sites, roles, and rollout sequence.",
-  "Compare pricing and add-ons for phase one.",
+  "Show the pack that fits your model.",
+  "Walk through the handoffs that matter.",
+  "Review sites, roles, and rollout.",
+  "Compare the tier and add-ons you need.",
+];
+
+export const demoPreparationItems = [
+  "Sites, branches, campuses, or yards",
+  "The handoffs that slow the team down",
+  "The tool or spreadsheet you want to replace",
+  "Any reporting or approval edge case",
+];
+
+export const demoOutcomeItems = [
+  "We reply with a tailored pack and path.",
+  "You leave with a rollout sequence and fit.",
+  "You can lock time from the same page.",
+];
+
+export const demoConfidencePoints = [
+  "Built from the live product",
+  "Tailored to your sites and roles",
+  "Clear next step before you leave",
 ];

@@ -44,14 +44,12 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
 
       <section className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-16 lg:grid-cols-[1.03fr_0.97fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-24">
         <div className="max-w-3xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/62">
-            Backed by A16z and Y Combinator
-          </p>
-          <h1 className="mt-5 max-w-[11ch] text-[clamp(3.35rem,7.25vw,6.8rem)] font-medium leading-[0.92] tracking-[-0.07em] text-white text-balance">
-            Run every site on one operating system.
+          <p className={styles.heroEyebrow}>Production platform, not concept art</p>
+          <h1 className="mt-5 max-w-[12ch] text-[clamp(3.2rem,7vw,6.5rem)] font-medium leading-[0.9] tracking-[-0.07em] text-white text-balance">
+            One control plane for every site.
           </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-            Avenra combines sector-specific workflows, shared accounting, branded documents, and role-based control for multi-site operators.
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-white/76">
+            Vertical packs, shared accounting, and role-specific portals keep the rollout coherent as the business grows.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className="h-12 rounded-full bg-white px-6 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
@@ -76,8 +74,8 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
               </a>
             </Button>
           </div>
-          <p className="mt-5 text-sm leading-6 text-white/54">
-            Built for gold, schools, retail, auto sales, scrap, and platform admin without stitching together disconnected tools.
+          <p className="mt-6 max-w-xl text-sm leading-6 text-white/58">
+            Built for gold, schools, retail, auto sales, scrap, and platform admin.
           </p>
         </div>
 

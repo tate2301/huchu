@@ -50,10 +50,10 @@ export function LandingPage({ config }: LandingPageProps) {
             <div className="space-y-4">
               <p className={styles.stripeEyebrow}>Operating coverage</p>
               <h2 className="max-w-3xl text-[clamp(2.1rem,4.2vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-                Different workflows. One commercial and control system.
+                Specific coverage. One product.
               </h2>
               <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-                The story should feel broad without becoming vague. These coverage cards show where the platform is already credible today.
+                Each pack stays opinionated without turning the platform into a bundle of separate apps.
               </p>
             </div>
             <div className={styles.rolloutPreviewRail}>
