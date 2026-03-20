@@ -23,12 +23,6 @@
 - Auto-syncs when connected
 - Clear sync status indicators
 
-### Speed & Adoption
-- Shift report in 2 minutes max
-- WhatsApp-friendly exports
-- One-page cheat sheets
-- Parallel paper tracking during rollout
-
 ## 🔒 Security
 
 - Role-based access control (RBAC)
@@ -36,27 +30,12 @@
 - Immutable records after approval
 - Append-only audit log for sensitive operations
 - Corrections tracked, not silent edits
-
-### Monthly
-- Mine-to-market reconciliation
-- Cost-per-gram analysis
-- Compliance dashboard
-- Permit expiries
-
+- 
 ## 🛠️ Development
 
 ### Project Structure
 ```
 /app                    # Next.js app directory
-  /shift-report        # Shift reporting module
-  /attendance          # Attendance tracking
-  /plant-report        # Plant operations
-  /gold                # Gold control (high security)
-  /stores              # Inventory management
-  /maintenance         # Equipment & work orders
-  /compliance          # Safety & regulatory
-  /dashboard           # Analytics
-  /reports             # Exports
 /components            # Reusable UI components
   /ui                  # Base UI components
 /lib                   # Utilities and helpers
@@ -114,6 +93,45 @@ pnpm manage-platform org activate --id <uuid> --actor ops@huchu.com --reason "re
 # Up/Down select, Left/Right pane, Enter action
 # / or p command palette, g Organizations, r read-only toggle, q quit
 ```
+
+### Local DNS
+Use this shape :
+
+- app root: `apps.pagka.local`
+- tenant app: `<tenant>.apps.pagka.local`
+- POS: `pos.<tenant>.apps.pagka.local`
+- parent portal: `parents.<tenant>.apps.pagka.local`
+- student portal: `students.<tenant>.apps.pagka.local`
+- teacher portal: `staff.<tenant>.apps.pagka.local`
+- admin: `portal.admin.pagka.local`
+
+Your .env should look like this:
+```
+NEXTAUTH_URL=http://apps.pagka.local:3000
+PLATFORM_ROOT_DOMAIN=apps.pagka.local
+PLATFORM_ROOT_HOSTS=apps.pagka.local,apps.pagka.local:3000
+ADMIN_ROOT_DOMAIN=admin.pagka.local
+```
+Then add exact entries to C:\Windows\System32\drivers\etc\hosts, for example:
+```
+127.0.0.1 apps.pagka.local
+127.0.0.1 acme.apps.pagka.local
+127.0.0.1 pos.acme.apps.pagka.local
+127.0.0.1 parents.acme.apps.pagka.local
+127.0.0.1 students.acme.apps.pagka.local
+127.0.0.1 staff.acme.apps.pagka.local
+127.0.0.1 portal.admin.pagka.local
+```
+Then run pnpm dev and open:
+
+- http://acme.apps.pagka.local:3000/login
+- http://pos.acme.apps.pagka.local:3000/login
+- http://parents.acme.apps.pagka.local:3000/login
+- http://students.acme.apps.pagka.local:3000/login
+- http://staff.acme.apps.pagka.local:3000/login
+- http://portal.admin.pagka.local:3000/admin/login
+
+One caution: .local can sometimes clash with mDNS on some systems. If you hit weird DNS behavior, switch to pagka.test or pagka.localhost.
 
 ## 📖 Deployment
 
