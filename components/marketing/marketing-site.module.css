@@ -276,6 +276,154 @@
   color: rgba(28, 42, 77, 0.68);
 }
 
+.shellPill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.42rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(237, 242, 255, 0.76);
+}
+
+.shellRail {
+  display: grid;
+  gap: 1rem;
+}
+
+.shellCard,
+.shellCardAlt {
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 56px rgba(3, 8, 24, 0.16);
+}
+
+.shellCard {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1rem;
+}
+
+.shellCardAlt {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1rem;
+}
+
+.shellEyebrow,
+.shellEyebrowAlt {
+  margin-bottom: 0.8rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.shellEyebrow {
+  color: rgba(221, 228, 248, 0.58);
+}
+
+.shellEyebrowAlt {
+  margin-bottom: 0.55rem;
+  color: rgba(221, 228, 248, 0.5);
+}
+
+.shellMicroLink {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.42rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(240, 244, 255, 0.82);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.shellMicroLink:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+.productPill {
+  border-radius: 999px;
+  border: 1px solid rgba(14, 28, 66, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(34, 49, 84, 0.78);
+  box-shadow: 0 10px 28px rgba(29, 39, 79, 0.06);
+}
+
+.productStepsCard,
+.productMatrix,
+.productProofCard {
+  border-radius: 28px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.96));
+  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
+}
+
+.productStepsCard {
+  margin-top: 1.1rem;
+  padding: 1.1rem 1.15rem 1.15rem;
+}
+
+.productMatrixHead {
+  padding: 1.15rem 1.15rem 0;
+}
+
+.productMatrixEyebrow,
+.productFeatureEyebrow {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(43, 56, 89, 0.58);
+}
+
+.productMatrixTitle {
+  margin-top: 0.5rem;
+  max-width: 22ch;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  color: #102252;
+  text-wrap: balance;
+}
+
+.productFeatureCard,
+.productShowcaseCard,
+.productValueCard {
+  border-radius: 24px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 1rem 1.05rem;
+  box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
+}
+
+.productShowcaseCardWide {
+  grid-column: 1 / -1;
+}
+
+.productChip {
+  border-radius: 999px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: rgba(241, 244, 255, 0.9);
+  padding: 0.38rem 0.72rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(45, 61, 105, 0.86);
+}
+
+.productProofCard {
+  padding: 1.15rem;
+}
+
 .stripeRow {
   display: grid;
   grid-template-columns: 0.47fr 0.53fr;
@@ -406,6 +554,81 @@
   color: rgba(49, 61, 106, 0.88);
 }
 
+.pricingNote {
+  display: grid;
+  gap: 0.7rem;
+  border-top: 1px solid rgba(214, 222, 245, 0.9);
+  padding-top: 1.2rem;
+  color: rgba(75, 93, 134, 0.92);
+}
+
+.pricingMatrix {
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.96));
+  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
+}
+
+.pricingRowHeader,
+.pricingRow {
+  display: grid;
+  grid-template-columns: 0.9fr 0.68fr 0.64fr 0.86fr 1.28fr;
+  gap: 0.95rem;
+  padding: 1rem 1.2rem;
+}
+
+.pricingRowHeader {
+  border-bottom: 1px solid rgba(18, 32, 64, 0.06);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(33, 49, 84, 0.58);
+}
+
+.pricingRow {
+  border-bottom: 1px solid rgba(18, 32, 64, 0.07);
+}
+
+.pricingRow:last-of-type {
+  border-bottom: none;
+}
+
+.rolloutGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.rolloutCard,
+.addonCard {
+  border-radius: 24px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
+}
+
+.rolloutCard {
+  padding: 1rem 1.05rem;
+}
+
+.addonCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: start;
+  padding: 1rem 1.05rem;
+}
+
+.simpleListInverse li {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.simpleListInverse li::before {
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .ctaWrap {
   border-radius: 30px;
   background:
@@ -419,11 +642,550 @@
   background: #0e1a40;
 }
 
+.pricingHero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 2rem;
+  align-items: end;
+}
+
+.pricingNarrative {
+  display: grid;
+  gap: 1rem;
+}
+
+.pricingNoteList {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 0 0;
+  border-top: 1px solid rgba(21, 36, 70, 0.1);
+}
+
+.pricingNoteItem {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  color: rgba(41, 56, 94, 0.82);
+  line-height: 1.65;
+}
+
+.pricingNoteItem::before {
+  content: "";
+  margin-top: 0.55rem;
+  height: 0.4rem;
+  width: 0.4rem;
+  flex: none;
+  border-radius: 999px;
+  background: #5d64ff;
+}
+
+.pricingCardGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pricingCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+  border-radius: 28px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(125, 176, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.95));
+  padding: 1.35rem;
+  box-shadow: 0 18px 48px rgba(29, 39, 79, 0.07);
+}
+
+.pricingCardFeatured {
+  border-color: rgba(93, 100, 255, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(93, 100, 255, 0.14), transparent 25%),
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(240, 244, 255, 0.98));
+  box-shadow: 0 22px 60px rgba(29, 39, 79, 0.1);
+}
+
+.pricingCardTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pricingPill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(93, 100, 255, 0.16);
+  background: rgba(93, 100, 255, 0.08);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(36, 48, 87, 0.84);
+}
+
+.pricingPrice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.pricingPrice strong {
+  font-size: clamp(2.3rem, 4vw, 3.35rem);
+  letter-spacing: -0.06em;
+  color: #0c1c49;
+}
+
+.pricingPrice span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(70, 86, 124, 0.58);
+}
+
+.pricingTagRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pricingTag {
+  border-radius: 999px;
+  border: 1px solid rgba(21, 36, 70, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.42rem 0.74rem;
+  font-size: 0.76rem;
+  color: rgba(49, 61, 106, 0.88);
+}
+
+.pricingAddonGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+  align-items: start;
+}
+
+.pricingAddonList {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.pricingAddonItem {
+  display: grid;
+  gap: 0.3rem;
+  border-top: 1px solid rgba(21, 36, 70, 0.08);
+  padding-top: 0.85rem;
+}
+
+.pricingAddonPrice {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: #0c1c49;
+}
+
+.pricingClosing {
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at top right, rgba(122, 134, 255, 0.26), transparent 36%),
+    linear-gradient(155deg, #152251, #0e1a40);
+  box-shadow: 0 26px 80px rgba(8, 15, 42, 0.34);
+}
+
+.demoHeader {
+  display: grid;
+  gap: 1rem;
+}
+
+.demoMetrics {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.demoMetric {
+  border-top: 1px solid rgba(21, 36, 70, 0.08);
+  padding-top: 0.8rem;
+}
+
+.demoMetric strong {
+  display: block;
+  font-size: 0.98rem;
+  letter-spacing: -0.03em;
+  color: #102252;
+}
+
+.demoMetric span {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: rgba(50, 67, 111, 0.76);
+}
+
+.demoAgendaGrid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.demoAgendaCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+  border-top: 1px solid rgba(21, 36, 70, 0.08);
+  padding-top: 0.9rem;
+}
+
+.demoAgendaIndex {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgba(93, 100, 255, 0.78);
+}
+
+.demoAgendaCopy {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: rgba(45, 61, 102, 0.84);
+}
+
+.demoSupportRail {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.demoSupportItem {
+  border-radius: 18px;
+  border: 1px solid rgba(21, 36, 70, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.95rem 1rem;
+}
+
+.demoSupportTitle {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #102252;
+}
+
+.demoSupportCopy {
+  margin-top: 0.25rem;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: rgba(50, 67, 111, 0.78);
+}
+
+.demoFormFrame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 32px;
+  border: 1px solid rgba(21, 36, 70, 0.1);
+  background:
+    radial-gradient(circle at top right, rgba(125, 176, 255, 0.14), transparent 22%),
+    linear-gradient(180deg, rgba(10, 16, 37, 0.98), rgba(9, 14, 32, 0.96));
+  box-shadow: 0 28px 78px rgba(8, 15, 42, 0.3);
+}
+
+.demoFormHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 1rem 1rem 0;
+}
+
+.demoFormStats {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem 0;
+}
+
+.demoFormStat {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.demoFormStatLabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(215, 224, 251, 0.58);
+}
+
+.demoFormStatValue {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgba(240, 244, 255, 0.84);
+}
+
+.demoFormFooter {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1rem;
+}
+
+.marketingQuickNav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid rgba(21, 36, 70, 0.12);
+  border-bottom: 1px solid rgba(21, 36, 70, 0.12);
+  padding: 1rem 0;
+  color: rgba(56, 80, 125, 0.78);
+}
+
+.marketingQuickNavLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  font-size: 0.95rem;
+}
+
+.verticalCard {
+  border-radius: 28px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(125, 176, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.95));
+  padding: 1.4rem;
+  box-shadow: 0 18px 48px rgba(29, 39, 79, 0.07);
+}
+
+.rolloutPreviewRail {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.rolloutPreviewCard {
+  border-top: 1px solid rgba(21, 36, 70, 0.08);
+  padding-top: 0.85rem;
+}
+
+.shellPill,
+.productPill,
+.productChip,
+.shellMicroLink {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(93, 100, 255, 0.14);
+  background: rgba(93, 100, 255, 0.08);
+  padding: 0.38rem 0.72rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(49, 61, 106, 0.88);
+}
+
+.shellPill,
+.shellMicroLink {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(240, 244, 255, 0.84);
+}
+
+.shellRail {
+  display: grid;
+  gap: 1rem;
+}
+
+.shellCard,
+.shellCardAlt {
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1.2rem;
+  backdrop-filter: blur(18px);
+}
+
+.shellCardAlt {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.shellEyebrow,
+.shellEyebrowAlt,
+.productMatrixEyebrow,
+.productFeatureEyebrow,
+.solutionPreludeEyebrow {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.shellEyebrow,
+.shellEyebrowAlt {
+  color: rgba(240, 244, 255, 0.58);
+}
+
+.productStepsCard,
+.productProofCard,
+.solutionPreludeCard,
+.solutionFitCard {
+  border-radius: 28px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.95));
+  padding: 1.35rem;
+  box-shadow: 0 18px 48px rgba(29, 39, 79, 0.06);
+}
+
+.productMatrix {
+  overflow: hidden;
+  border-radius: 30px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(125, 176, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(243, 247, 255, 0.96));
+  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
+}
+
+.productMatrixHead {
+  border-bottom: 1px solid rgba(21, 36, 70, 0.08);
+  padding: 1.25rem 1.25rem 1rem;
+}
+
+.productMatrixEyebrow,
+.productFeatureEyebrow,
+.solutionPreludeEyebrow {
+  color: rgba(115, 131, 169, 0.88);
+}
+
+.productMatrixTitle {
+  margin-top: 0.55rem;
+  max-width: 20ch;
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  color: #102252;
+}
+
+.productFeatureCard,
+.productValueCard,
+.productShowcaseCard,
+.solutionPointCard,
+.solutionOutcomeCard,
+.solutionFitStep {
+  border-radius: 22px;
+  border: 1px solid rgba(21, 36, 70, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 1rem;
+}
+
+.productShowcaseCardWide {
+  grid-column: span 2;
+}
+
+.solutionPreludeCard {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.solutionSignalRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.solutionSignalDot {
+  margin-top: 0.7rem;
+  height: 0.42rem;
+  width: 0.42rem;
+  border-radius: 999px;
+  background: #5d64ff;
+}
+
+.solutionStoryRow {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+  align-items: start;
+}
+
+.solutionStoryRowReverse > :first-child {
+  order: 2;
+}
+
+.solutionStoryRowReverse > :last-child {
+  order: 1;
+}
+
+.solutionWorkflowCard {
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(18, 32, 64, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(125, 176, 255, 0.18), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.96));
+  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
+}
+
+.solutionWorkflowHead {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.95rem 1rem;
+  border-bottom: 1px solid rgba(18, 32, 64, 0.06);
+  background: rgba(238, 242, 255, 0.68);
+}
+
+.solutionWorkflowHead span {
+  height: 0.56rem;
+  width: 0.56rem;
+  border-radius: 999px;
+  background: rgba(108, 127, 167, 0.52);
+}
+
+.solutionWorkflowHead p {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(68, 84, 122, 0.82);
+}
+
 @media (max-width: 1100px) {
   .stripeRow,
-  .heroFlow {
+  .heroFlow,
+  .solutionStoryRow {
     grid-template-columns: 1fr;
     gap: 1.35rem;
+  }
+
+  .shellRail,
+  .pricingHero,
+  .pricingAddonGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rolloutGrid,
+  .pricingCardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .productShowcaseCardWide {
+    grid-column: auto;
+  }
+
+  .pricingRowHeader {
+    display: none;
   }
 
   .pricingRow {
@@ -434,14 +1196,22 @@
 
 @media (max-width: 900px) {
   .heroMetrics,
-  .statBand {
+  .statBand,
+  .demoMetrics,
+  .demoFormStats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .productShowcaseCardWide {
+    grid-column: auto;
   }
 }
 
 @media (max-width: 640px) {
   .heroMetrics,
-  .statBand {
+  .statBand,
+  .demoMetrics,
+  .demoFormStats {
     grid-template-columns: 1fr;
     gap: 0.8rem;
   }
@@ -479,5 +1249,9 @@
   .statCell:first-child {
     border-top: none;
     padding-top: 0;
+  }
+
+  .addonCard {
+    grid-template-columns: 1fr;
   }
 }
