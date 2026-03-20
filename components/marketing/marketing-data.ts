@@ -11,8 +11,15 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 
+export const marketingNavItems = [
+  { label: "Product", href: "/home#product" },
+  { label: "Solutions", href: "/home#solutions" },
+  { label: "Pricing", href: "/home#pricing" },
+  { label: "Demo", href: "/home/book-demo" },
+];
+
 export const proofStats = [
-  { label: "Vertical stories ready", value: "6" },
+  { label: "Vertical packs ready", value: "6" },
   { label: "Live platform modules", value: "10+" },
   { label: "Role-specific portals", value: "5" },
   { label: "Entry pricing from", value: "$450/mo" },
@@ -70,6 +77,43 @@ export const showcaseCards = [
     copy:
       "Manage companies, subscriptions, add-ons, support access, reliability, and company-scoped controls through the admin plane.",
     chips: ["Subscriptions", "Support access", "Reliability", "Features"],
+  },
+];
+
+export const productSteps = [
+  "Start with the vertical pack that fits the operating model.",
+  "Run operations, finance, reporting, and administration on shared rails.",
+  "Expand with add-ons and portals without replacing the stack.",
+];
+
+export const solutionStories = [
+  {
+    eyebrow: "Gold operations",
+    title: "Chain-of-custody, settlement, and reporting from one flow.",
+    copy:
+      "Track output, purchases, dispatches, receipts, payouts, audit surfaces, and related reporting without switching systems.",
+    points: ["Dispatches and receipts", "Payout-linked visibility", "Exceptions and audit trace"],
+  },
+  {
+    eyebrow: "Schools",
+    title: "Admissions, academics, finance, and portals aligned.",
+    copy:
+      "Run the student lifecycle with attendance, fees, boarding, notices, and role-specific portals without splitting work across disconnected tools.",
+    points: ["Admissions to results publishing", "Finance and fee workflows", "Parent, student, teacher portals"],
+  },
+  {
+    eyebrow: "Retail and POS",
+    title: "Cashier control, stock discipline, and shift close in one model.",
+    copy:
+      "Keep pricing, purchasing, receiving, returns, cash-up, and held carts inside the same daily operating rhythm.",
+    points: ["POS and cashier control", "Stock and pricing discipline", "Shift and cash-up visibility"],
+  },
+  {
+    eyebrow: "Platform admin",
+    title: "A product that is operable as a SaaS platform, not just a tenant app.",
+    copy:
+      "Manage companies, subscriptions, add-ons, support access, reliability, and company-scoped controls from a dedicated control layer.",
+    points: ["Subscriptions and bundles", "Support access controls", "Reliability and health views"],
   },
 ];
 
@@ -164,4 +208,10 @@ export const audienceSignals = [
   "Cash, stock, or settlement control requirements",
   "Audit and compliance pressure",
   "A need to stage adoption pack by pack",
+];
+
+export const demoHighlights = [
+  "Show the pack that matches your business.",
+  "Walk through the workflow you want to replace.",
+  "Talk through rollout scope, sites, and add-ons.",
 ];
