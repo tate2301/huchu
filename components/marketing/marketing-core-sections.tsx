@@ -8,12 +8,12 @@ export function MarketingCoreSections() {
         <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="space-y-5">
             <p className={styles.stripeEyebrow}>Product</p>
-            <h2 className="text-[clamp(2.4rem,4.8vw,4.8rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-[#0b1945] text-balance">
-              One platform for operators that want structure without software sprawl.
-            </h2>
-            <p className="text-base leading-8 text-[#2c3b63]/80">
-              Huchu gives multi-site businesses one shared control plane for operations, finance, reporting, and administration so adoption can begin with one pack and expand as the business grows.
-            </p>
+          <h2 className="text-[clamp(2.4rem,4.8vw,4.8rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-[#0b1945] text-balance">
+            One platform for operators that want structure without software sprawl.
+          </h2>
+          <p className="text-base leading-8 text-[#2c3b63]/80">
+            Avenra gives multi-site teams one operating layer for workflows, finance, reporting, and administration, so rollout can start with one pack and expand without replacing the system underneath.
+          </p>
           </div>
 
           <div className="space-y-5">
@@ -61,6 +61,9 @@ export function MarketingCoreSections() {
           <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-[#0b1945] text-balance">
             Clear sector stories, laid out as rows instead of promo tiles.
           </h2>
+          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/80">
+            Each solution sits on the same shared foundation, so teams can move across operations, finance, and reporting without stitching together separate tools for every business line.
+          </p>
         </div>
 
         <div className="space-y-18">
@@ -128,6 +131,9 @@ export function MarketingCoreSections() {
             <h3 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-[#0b1945] text-balance">
               Marketing-safe claims grounded in the shipped platform.
             </h3>
+            <p className="mt-4 max-w-2xl text-base leading-8 text-[#2d3d66]/80">
+              The story here is intentionally constrained to what is already represented in the live product, catalog, and workflow model.
+            </p>
           </div>
           <div className="space-y-3">
             {trustClaims.map((claim) => (
@@ -141,6 +147,11 @@ export function MarketingCoreSections() {
 
       <section className="mx-auto max-w-7xl px-6 pb-18 lg:px-8 lg:pb-24">
         <p className={styles.stripeEyebrow}>Best fit</p>
+        <div className="mt-4 max-w-3xl">
+          <p className="text-base leading-8 text-[#2d3d66]/80">
+            Avenra is a strong fit for operators managing multiple sites, multiple teams, or multiple workflow surfaces that still need one financial and reporting spine.
+          </p>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2.5">
           {audienceSignals.map((signal) => (
             <span key={signal} className="rounded-full bg-[#e8edff] px-4 py-2 text-sm text-[#2f3f68]">

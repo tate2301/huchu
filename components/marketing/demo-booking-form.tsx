@@ -39,8 +39,8 @@ const INITIAL_STATE: DemoFormState = {
 export function DemoBookingForm({
   schedulerHref,
   schedulerExternal,
-  title = "Book a working session with the Huchu team",
-  description = "Tell us your operating model, the workflows you want to replace, and the packs you want to evaluate.",
+  title = "See the operating model your team could run next quarter",
+  description = "Share your rollout shape and we will tailor the session around the workflows, controls, and reporting surfaces that matter most.",
   source = "marketing-site",
   className,
 }: DemoBookingFormProps) {
@@ -115,7 +115,22 @@ export function DemoBookingForm({
           <p className="mt-3 text-sm leading-7 text-white/74">{description}</p>
         </div>
 
-        <div className="space-y-4 border-t border-white/10 pt-5">
+        <div className="grid gap-3 border-y border-white/10 py-5 sm:grid-cols-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Format</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">Live walkthrough with your real rollout questions.</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Focus</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">Packs, controls, pricing, and implementation fit.</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Outcome</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">A clearer rollout path for sites, teams, and modules.</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
           {demoHighlights.map((item, index) => (
             <div key={item} className="flex gap-3 text-sm leading-6 text-white/78">
               <span className="font-mono text-[10px] font-semibold tracking-[0.18em] text-white/38">0{index + 1}</span>
@@ -144,7 +159,7 @@ export function DemoBookingForm({
               <div>
                 <p className="text-sm font-semibold text-white">Demo request received.</p>
                 <p className="mt-1 text-sm leading-6 text-white/72">
-                  We captured your request and you can move straight into scheduling if you want to lock time now.
+                  We have your details. You can lock time now, and we will shape the session around the workflows you asked us to cover.
                 </p>
               </div>
             </div>
@@ -272,14 +287,14 @@ export function DemoBookingForm({
             <Field
               label="What should we show in the demo?"
               htmlFor="demo-message"
-              hint="Tell us your workflows, sites, reporting needs, or the systems you are replacing."
+              hint="Useful examples: site structure, approval controls, settlement flows, reporting deadlines, and tools you want to replace."
               required
             >
               <textarea
                 id="demo-message"
                 value={form.message}
                 onChange={handleChange("message")}
-                placeholder="We want to see gold chain-of-custody, payroll-linked settlement flows, and reporting across multiple sites."
+                placeholder="Show us chain-of-custody, finance controls, and reporting across three operating sites with different teams and approval rules."
                 className={`${inputClass} min-h-28 resize-y pt-3`}
                 required
                 disabled={isSubmitting}
@@ -288,7 +303,7 @@ export function DemoBookingForm({
 
             <div className="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-xl text-sm leading-6 text-white/74">
-                We tailor each session around the packs, workflows, controls, and reporting surfaces that matter most to your team.
+                Every session is tailored around your operating model, not a generic product tour.
               </p>
               <Button type="submit" size="lg" className="rounded-full" disabled={isSubmitting}>
                 {isSubmitting ? (

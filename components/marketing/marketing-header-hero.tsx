@@ -18,8 +18,8 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4 lg:px-8">
           <Link href="/home" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-white">
-            <span className="flex size-9 items-center justify-center rounded-full bg-white text-[#1b2558]">H</span>
-            Huchu
+            <span className="flex size-9 items-center justify-center rounded-full bg-white text-[#1b2558]">A</span>
+            Avenra
           </Link>
           <nav className="hidden flex-1 items-center gap-8 text-sm text-white/68 lg:flex">
             {marketingNavItems.map((item) => (
@@ -51,7 +51,7 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
             Run every site on one operating system.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-            Huchu combines sector-specific workflows, shared accounting, branded documents, and role-based control for multi-site operators.
+            Avenra combines sector-specific workflows, shared accounting, branded documents, and role-based control for multi-site operators.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className="h-12 rounded-full bg-white px-6 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
@@ -86,7 +86,7 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
             <span />
             <span />
             <span />
-            <div className={styles.heroFrameAddress}>huchu.app / control plane</div>
+            <div className={styles.heroFrameAddress}>avenra.app / control plane</div>
           </div>
           <div className={styles.heroSurface}>
             <div className={styles.heroStripePane}>
