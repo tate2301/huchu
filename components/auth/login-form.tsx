@@ -23,6 +23,12 @@ type LoginFormProps = {
   rememberMeEnabled?: boolean;
 };
 
+type AuthErrorPayload = {
+  code?: string;
+  error?: string;
+  message?: string;
+};
+
 function getAuthErrorMessage(rawError: string) {
   switch (rawError) {
     case "TENANT_HOST_REQUIRED":
@@ -47,6 +53,24 @@ function getAuthErrorMessage(rawError: string) {
   }
 }
 
+async function getCredentialsPrecheckError(): Promise<string | null> {
+  try {
+    const response = await fetch("/api/auth/credentials-precheck", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as AuthErrorPayload;
+    return payload.code || payload.error || payload.message || "An error occurred. Please try again.";
+  } catch {
+    return null;
+  }
+}
+
 export function LoginForm({
   companyLabel,
   productLabel,
@@ -67,6 +91,12 @@ export function LoginForm({
     setLoading(true);
 
     try {
+      const precheckError = await getCredentialsPrecheckError();
+      if (precheckError) {
+        setError(getAuthErrorMessage(precheckError));
+        return;
+      }
+
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
