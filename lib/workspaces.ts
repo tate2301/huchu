@@ -1,4 +1,4 @@
-import { ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
+import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import type { NavItem, NavSection } from "@/lib/navigation";
 import { getNavSectionsForRole } from "@/lib/navigation";
@@ -590,6 +590,43 @@ function buildModuleSections(
     return sections;
   }
 
+  if (moduleId === "accounting") {
+    const buildAccountingSection = (
+      id: string,
+      title: string,
+      hrefs: readonly string[],
+    ): WorkspaceNavSection | null => {
+      const items: NavItem[] = [];
+      const moduleItems = visibleModules.get("accounting") ?? [];
+
+      for (const href of hrefs) {
+        if (excludedHrefs?.has(href)) continue;
+        const item = moduleItems.find((i) => i.href === href);
+        if (item) {
+          items.push(item);
+        }
+      }
+
+      if (items.length === 0) return null;
+
+      return {
+        id: `accounting-${id}`,
+        title,
+        items,
+        workspaceGroup,
+      };
+    };
+
+    return [
+      buildAccountingSection("overview", "Overview", ACCOUNTING_OPERATIONS_SECTIONS.overview),
+      buildAccountingSection("receivables", "Receivables", ACCOUNTING_OPERATIONS_SECTIONS.receivables),
+      buildAccountingSection("payables", "Payables", ACCOUNTING_OPERATIONS_SECTIONS.payables),
+      buildAccountingSection("reporting", "Financial Reporting", ACCOUNTING_OPERATIONS_SECTIONS.reporting),
+      buildAccountingSection("banking", "Payments & Banking", ACCOUNTING_OPERATIONS_SECTIONS.banking),
+      buildAccountingSection("master", "Accounting Master", ACCOUNTING_OPERATIONS_SECTIONS.master),
+    ].filter((section): section is WorkspaceNavSection => section !== null);
+  }
+
   const section = buildModuleSection(moduleId, visibleModules, workspaceGroup, excludedHrefs);
   return section ? [section] : [];
 }
@@ -609,8 +646,7 @@ function buildCanonicalCoreSections(
 ): WorkspaceNavSection[] {
   return getOrderedModuleIds(verticalProduct)
     .filter((moduleId): moduleId is WorkspaceModuleId => CANONICAL_MODULE_IDS.includes(moduleId))
-    .map((moduleId) => buildModuleSection(moduleId, visibleModules, "primary", excludedHrefs))
-    .filter((section): section is WorkspaceNavSection => section !== null);
+    .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, "primary", excludedHrefs));
 }
 
 function buildAdditionalSections(

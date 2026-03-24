@@ -229,3 +229,27 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
     categoryId: "reports",
   },
 ];
+
+export const ACCOUNTING_OPERATIONS_SECTIONS = {
+  overview: ["/accounting"],
+  receivables: ["/accounting/receivables", "/accounting/sales"],
+  payables: ["/accounting/payables", "/accounting/purchases"],
+  reporting: [
+    "/accounting/financial-reports",
+    "/accounting/trial-balance",
+    "/accounting/financial-statements",
+  ],
+  banking: ["/accounting/banking"],
+  master: [
+    "/accounting/chart-of-accounts",
+    "/accounting/periods",
+    "/accounting/journals",
+    "/accounting/posting-rules",
+    "/accounting/cost-centers",
+    "/accounting/budgets",
+    "/accounting/currency",
+    "/accounting/tax",
+    "/accounting/assets",
+    "/accounting/fiscalisation",
+  ],
+} as const;
