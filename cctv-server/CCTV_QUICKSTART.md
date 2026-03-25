@@ -139,9 +139,9 @@ npx prisma db push
 ## Next Steps
 
 1. **Deploy Conversion Server** (see `CCTV_CONVERSION_SERVER.md`)
-   - Choose WebRTC (low latency) or HLS (high compatibility)
-   - Install Mediamtx or FFmpeg+Nginx
-   - Configure authentication
+   - Configure BIOS for automatic power-on.
+   - Install MediaMTX and the Signaling Gateway as Windows Services.
+   - Configure firewall and networking.
 
 2. **Database Migration**
    ```bash

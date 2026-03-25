@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       },
       camera.channelNumber,
       streamType as StreamType,
-      false,
+      true, // Changed to true for ISAPI compatibility
     )
 
     const playback = resolvePlaybackUrls({

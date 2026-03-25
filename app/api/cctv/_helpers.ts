@@ -51,36 +51,38 @@ export function resolvePlaybackUrls({
   fallbackPlayUrl: string | null
   gatewayConfigured: boolean
 } {
-  const gatewayBase = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "")
-  const hlsBase =
-    process.env.CCTV_HLS_BASE_URL?.trim().replace(/\/+$/, "") ||
-    (gatewayBase ? `${gatewayBase}/hls` : null)
-  const gatewayConfigured = Boolean(gatewayBase)
-  const hlsUrl = hlsBase ? `${hlsBase}/${cameraId}/${streamType}/index.m3u8?token=${encodeURIComponent(token)}` : null
-  const webrtcUrl = gatewayBase ? `${gatewayBase}/webrtc?token=${encodeURIComponent(token)}` : null
-
-  if (preferredProtocol === "WEBRTC" && webrtcUrl) {
+  const gatewayUrl = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "")
+  const webrtcBase = process.env.CCTV_WEBRTC_URL?.trim().replace(/\/+$/, "")
+  const hlsBase = process.env.CCTV_HLS_BASE_URL?.trim().replace(/\/+$/, "")
+  
+  const gatewayConfigured = Boolean(gatewayUrl)
+  
+  // HLS URL (MediaMTX format: base/path/index.m3u8)
+  const hlsUrl = hlsBase 
+    ? `${hlsBase}/camera-${cameraId}-${streamType}/index.m3u8?token=${encodeURIComponent(token)}` 
+    : null
+    
+  // WebRTC URL (MediaMTX format: base/path/whep)
+  // We prioritize the Gateway (port 8888) for the initial WHEP request
+  // so that it can "prime" the path in MediaMTX.
+  const webrtcUrl = gatewayUrl
+    ? `${gatewayUrl}/whep/camera-${cameraId}-${streamType}?token=${encodeURIComponent(token)}`
+    : webrtcBase 
+      ? `${webrtcBase}/camera-${cameraId}-${streamType}/whep?token=${encodeURIComponent(token)}` 
+      : null
+  if (preferredProtocol === "WEBRTC" && (webrtcUrl || gatewayConfigured)) {
     return {
       protocol: StreamProtocol.WEBRTC,
-      playUrl: webrtcUrl,
+      playUrl: webrtcUrl || gatewayUrl, // Use gateway for signaling if direct WebRTC URL isn't enough
       fallbackPlayUrl: hlsUrl,
       gatewayConfigured,
     }
   }
 
-  if (hlsUrl) {
-    return {
-      protocol: StreamProtocol.HLS,
-      playUrl: hlsUrl,
-      fallbackPlayUrl: webrtcUrl,
-      gatewayConfigured,
-    }
-  }
-
   return {
-    protocol: StreamProtocol.WEBRTC,
-    playUrl: webrtcUrl,
-    fallbackPlayUrl: null,
+    protocol: hlsUrl ? StreamProtocol.HLS : StreamProtocol.WEBRTC,
+    playUrl: hlsUrl || webrtcUrl || gatewayUrl,
+    fallbackPlayUrl: hlsUrl ? webrtcUrl : null,
     gatewayConfigured,
   }
 }

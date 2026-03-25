@@ -157,7 +157,6 @@ Comprehensive guide for building the streaming gateway:
 - Health checks
 - Prometheus metrics
 - Common issues and solutions
-
 ## Architecture
 
 ```
@@ -168,10 +167,10 @@ Comprehensive guide for building the streaming gateway:
          │ RTSP/ISAPI
          │
 ┌────────▼────────────────┐
-│  Conversion Server      │
-│  (Not implemented -     │
-│   See guide)            │
-│  - Mediamtx/FFmpeg      │
+│  CCTV Gateway           │
+│  (Windows Service)      │
+│  - MediaMTX             │
+│  - Node.js Signaling    │
 │  - RTSP → WebRTC/HLS    │
 └────────┬────────────────┘
          │ WebRTC/HLS
@@ -207,6 +206,7 @@ Comprehensive guide for building the streaming gateway:
 - Role-based access control (RBAC)
 - MANAGER+ required for camera/NVR management
 - Token-based streaming access
+- Shared `GATEWAY_KEY` for secure communication between ERP and Windows Gateway
 
 ### 2. Audit Trail
 Complete tracking in `CameraAccessLog`:
@@ -356,10 +356,10 @@ curl -X POST http://localhost:3000/api/cctv/playback/search \
 ## What's NOT Implemented (Intentionally)
 
 ### 1. Conversion Server
-The RTSP-to-WebRTC/HLS conversion server is **documented but not built**.
+The RTSP-to-WebRTC/HLS conversion server is **completely documented as a Windows Service setup**.
 - See `CCTV_CONVERSION_SERVER.md` for build instructions
-- Requires separate deployment
-- Can be Mediamtx, FFmpeg, or commercial solution
+- Requires separate deployment on a Windows machine
+- Built using MediaMTX and a Node.js Signaling Gateway
 
 ### 2. Front-End UI
 No camera viewer pages built.
@@ -391,10 +391,10 @@ Webhook endpoint exists but no NVR configuration guide.
 ## Next Steps (When Ready)
 
 ### Phase 1: Deploy Conversion Server
-1. Follow `CCTV_CONVERSION_SERVER.md`
-2. Choose WebRTC or HLS based on requirements
-3. Test with one camera
-4. Scale to all cameras
+1. Follow the definitive Windows setup guide in `CCTV_CONVERSION_SERVER.md`
+2. Configure BIOS for automatic power-on
+3. Install MediaMTX and the Signaling Gateway as Windows Services
+4. Configure firewall and networking
 
 ### Phase 2: Build Front-End
 1. Create `/app/cctv` directory

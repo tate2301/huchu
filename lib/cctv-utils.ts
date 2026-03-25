@@ -53,7 +53,7 @@ export function generateRTSPUrl(
     ? `/ISAPI/Streaming/channels/${channelId}`
     : `/Streaming/channels/${channelId}`
 
-  // Build URL with credentials
+  // Build URL with literal credentials
   const url = `rtsp://${config.username}:${config.password}@${config.host}:${config.port}${path}`
   
   return url

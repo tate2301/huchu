@@ -317,6 +317,11 @@ export default withAuth(
     const tenantHostEnforcementEnabled = tenantHostEnforcementDecision.allowed;
 
     if (isApiRequest) {
+      // Whitelist internal CCTV endpoints that use GATEWAY_KEY for internal authentication
+      if (pathname === "/api/cctv/streams/config") {
+        return NextResponse.next();
+      }
+
       if (!token?.companyId) {
         return NextResponse.json(
           { error: "Missing tenant context", code: token ? "MISSING_TENANT_CONTEXT" : "UNAUTHORIZED", path: pathname },
@@ -383,6 +388,10 @@ export default withAuth(
         }
 
         if (hostContext.portalPath) {
+          return true;
+        }
+
+        if (pathname === "/api/cctv/streams/config") {
           return true;
         }
 

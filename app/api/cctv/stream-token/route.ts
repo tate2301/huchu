@@ -76,8 +76,6 @@ export async function POST(request: NextRequest) {
 
     if (!camera.nvr.isOnline) {
       return NextResponse.json({ error: "NVR is offline" }, { status: 503 })
-    }
-
     const rtspUrl = generateRTSPUrl(
       {
         host: camera.nvr.ipAddress,
@@ -87,7 +85,10 @@ export async function POST(request: NextRequest) {
       },
       camera.channelNumber,
       streamType as StreamType,
-      false,
+      true, // Changed to true for ISAPI compatibility
+    )
+
+      true, // Changed to true for ISAPI compatibility
     )
 
     const tokenData = generateStreamToken(camera.id, streamType as StreamType, expiresInMinutes)
