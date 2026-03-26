@@ -132,13 +132,46 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingSession) {
+      const refreshedSession = await prisma.streamSession.update({
+        where: { id: existingSession.id },
+        data: {
+          streamType,
+          protocol: playback.protocol,
+          playUrl: playback.playUrl,
+          purpose: purpose || existingSession.purpose || "Live monitoring",
+          clientMeta: clientMeta ? JSON.stringify(clientMeta) : existingSession.clientMeta,
+        },
+        include: {
+          camera: {
+            select: {
+              id: true,
+              name: true,
+              area: true,
+              site: {
+                select: {
+                  id: true,
+                  name: true,
+                  code: true,
+                },
+              },
+              nvr: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      })
+
       return NextResponse.json({
-        session: existingSession,
+        session: refreshedSession,
         token: tokenData.token,
         rtspUrl,
         expiresAt: tokenData.expiresAt,
-        protocol: existingSession.protocol,
-        playUrl: existingSession.playUrl,
+        protocol: playback.protocol,
+        playUrl: playback.playUrl,
         fallbackPlayUrl: playback.fallbackPlayUrl,
         gatewayConfigured: playback.gatewayConfigured,
       })

@@ -267,7 +267,16 @@ export function parseStreamToken(token: string): {
 } | null {
   try {
     const decoded = Buffer.from(token, "base64").toString("utf-8")
-    const [cameraId, streamType, expiresAt] = decoded.split(":")
+    const firstSeparator = decoded.indexOf(":")
+    const secondSeparator = decoded.indexOf(":", firstSeparator + 1)
+
+    if (firstSeparator === -1 || secondSeparator === -1) {
+      return null
+    }
+
+    const cameraId = decoded.slice(0, firstSeparator)
+    const streamType = decoded.slice(firstSeparator + 1, secondSeparator)
+    const expiresAt = decoded.slice(secondSeparator + 1)
     
     // Check if expired
     if (new Date(expiresAt) < new Date()) {

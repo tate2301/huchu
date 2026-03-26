@@ -293,7 +293,7 @@ function CCTVTileStream({
     const setup = async () => {
       try {
         setRenderState("connecting");
-        if (protocol === "WEBRTC" || isLikelyWhepUrl(streamUrl)) {
+        if (isLikelyWhepUrl(streamUrl)) {
           await attachWhepStream();
         } else {
           await attachDirectVideo();
@@ -561,8 +561,12 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   useEffect(() => {
     visibleWallCameras.forEach((camera) => {
       if (!camera.isOnline) return;
-      if (activeSessionByCamera.has(camera.id)) return;
       if (autoStartLocksRef.current.has(camera.id)) return;
+      const hasStreamHint = Boolean(
+        streamHintsByCamera[camera.id]?.playUrl ||
+          streamHintsByCamera[camera.id]?.fallbackPlayUrl,
+      );
+      if (activeSessionByCamera.has(camera.id) && hasStreamHint) return;
 
       autoStartLocksRef.current.add(camera.id);
       startSessionMutation.mutate({
@@ -570,7 +574,13 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         streamType: wallStreamType,
       });
     });
-  }, [activeSessionByCamera, startSessionMutation, visibleWallCameras, wallStreamType]);
+  }, [
+    activeSessionByCamera,
+    startSessionMutation,
+    streamHintsByCamera,
+    visibleWallCameras,
+    wallStreamType,
+  ]);
 
   const activeSessionsCount = visibleWallCameras.filter((camera) =>
     activeSessionByCamera.has(camera.id),
