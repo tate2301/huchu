@@ -254,6 +254,32 @@ export function generateStreamToken(
   }
 }
 
+type PlaybackTokenPayload = {
+  playbackRecordId: string
+  cameraId: string
+  expiresAt: string
+}
+
+export function generatePlaybackToken(
+  playbackRecordId: string,
+  cameraId: string,
+  expiresInMinutes: number = 60,
+): PlaybackTokenPayload & { token: string } {
+  const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString()
+  const payload: PlaybackTokenPayload = {
+    playbackRecordId,
+    cameraId,
+    expiresAt,
+  }
+
+  const token = Buffer.from(JSON.stringify(payload)).toString("base64url")
+
+  return {
+    token,
+    ...payload,
+  }
+}
+
 /**
  * Parse stream token
  * 
@@ -291,6 +317,35 @@ export function parseStreamToken(token: string): {
   } catch {
     return null
   }
+}
+
+export function parsePlaybackToken(token: string): PlaybackTokenPayload | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token, "base64url").toString("utf-8")) as PlaybackTokenPayload
+
+    if (!payload.playbackRecordId || !payload.cameraId || !payload.expiresAt) {
+      return null
+    }
+
+    if (new Date(payload.expiresAt) < new Date()) {
+      return null
+    }
+
+    return payload
+  } catch {
+    return null
+  }
+}
+
+export function buildAuthenticatedPlaybackRtspUrl(
+  playbackUri: string,
+  username: string,
+  password: string,
+): string {
+  const parsedUrl = new URL(playbackUri)
+  parsedUrl.username = username
+  parsedUrl.password = password
+  return parsedUrl.toString()
 }
 
 /**

@@ -139,10 +139,51 @@ export type PlaybackSearchParams = {
 
 export type PlaybackSearchResult = {
   clips: Array<{
+    id: string
     startTime: string
     endTime: string
     fileSize: number
+    duration: number
     playbackUri: string
+    recordingType: string
+    playUrl: string | null
+    fallbackPlayUrl: string | null
+    protocol: "WEBRTC" | "HLS"
+    streamPath: string
+    gatewayConfigured: boolean
+    token: string
+    expiresAt: string
   }>
   totalClips: number
+}
+
+export type PlaybackSessionStartResult = {
+  playbackRecord: {
+    id: string
+    cameraId: string
+    startTime: string
+    endTime: string
+    duration: number
+    fileSize: number
+    playbackUri: string | null
+    recordingType: string
+    camera: {
+      id: string
+      name: string
+      area: string
+      site: {
+        id: string
+        name: string
+        code: string
+      }
+    }
+  }
+  token: string
+  expiresAt: string
+  protocol: "WEBRTC" | "HLS"
+  playUrl: string | null
+  fallbackPlayUrl: string | null
+  streamPath: string
+  gatewayConfigured: boolean
+  seekTime: string | null
 }

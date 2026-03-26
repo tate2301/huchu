@@ -40,6 +40,12 @@ type PlayUrlInput = {
   preferredProtocol?: StreamProtocol | "WEBRTC" | "HLS"
 }
 
+type PlaybackClipUrlInput = {
+  playbackRecordId: string
+  token: string
+  preferredProtocol?: StreamProtocol | "WEBRTC" | "HLS"
+}
+
 export function resolvePlaybackUrls({
   cameraId,
   streamType,
@@ -84,6 +90,47 @@ export function resolvePlaybackUrls({
     playUrl: hlsUrl || webrtcUrl || gatewayUrl,
     fallbackPlayUrl: hlsUrl ? webrtcUrl : null,
     gatewayConfigured,
+  }
+}
+
+export function resolvePlaybackClipUrls({
+  playbackRecordId,
+  token,
+  preferredProtocol = "HLS",
+}: PlaybackClipUrlInput): {
+  protocol: StreamProtocol
+  playUrl: string | null
+  fallbackPlayUrl: string | null
+  gatewayConfigured: boolean
+} {
+  const gatewayUrl = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "") ?? null
+
+  if (!gatewayUrl) {
+    return {
+      protocol: StreamProtocol.HLS,
+      playUrl: null,
+      fallbackPlayUrl: null,
+      gatewayConfigured: false,
+    }
+  }
+
+  const hlsUrl = `${gatewayUrl}/playback/hls/${playbackRecordId}?token=${encodeURIComponent(token)}`
+  const whepUrl = `${gatewayUrl}/playback/whep/${playbackRecordId}?token=${encodeURIComponent(token)}`
+
+  if (preferredProtocol === "WEBRTC") {
+    return {
+      protocol: StreamProtocol.WEBRTC,
+      playUrl: whepUrl,
+      fallbackPlayUrl: hlsUrl,
+      gatewayConfigured: true,
+    }
+  }
+
+  return {
+    protocol: StreamProtocol.HLS,
+    playUrl: hlsUrl,
+    fallbackPlayUrl: whepUrl,
+    gatewayConfigured: true,
   }
 }
 

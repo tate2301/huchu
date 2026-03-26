@@ -3,14 +3,25 @@ import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { generatePlaybackSearchXML } from "@/lib/cctv-utils"
-import { normalizeIp, parsePagination } from "@/app/api/cctv/_helpers"
+import { generatePlaybackSearchXML, generatePlaybackToken } from "@/lib/cctv-utils"
+import { buildPlaybackRelayUrls } from "@/lib/cctv-playback"
+import {
+  normalizeIp,
+  parsePagination,
+} from "@/app/api/cctv/_helpers"
+
+type GatewayPlaybackClip = {
+  startTime: string
+  endTime: string
+  duration: number
+  fileSize: number
+  playbackUri: string
+  recordingType: string
+}
 
 /**
  * POST /api/cctv/playback/search
- * Search for recorded video clips in a time range.
- *
- * This endpoint currently returns generated mock clips with realistic shape.
+ * Search recorded clips on the NVR via the local playback gateway.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -72,15 +83,70 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Camera not found" }, { status: 404 })
     }
 
-    const searchXML = generatePlaybackSearchXML(camera.channelNumber, startTime, endTime, recordType)
-    const allClips = generateMockPlaybackClips(camera, start, end)
+    if (!camera.nvr.isActive) {
+      return NextResponse.json({ error: "NVR is inactive" }, { status: 400 })
+    }
+
+    if (!camera.nvr.isapiEnabled) {
+      return NextResponse.json(
+        { error: "Playback search requires ISAPI to be enabled on the NVR." },
+        { status: 400 },
+      )
+    }
+
+    const gatewayBase = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "")
+    if (!gatewayBase) {
+      return NextResponse.json(
+        { error: "Playback gateway is not configured. Set CCTV_GATEWAY_URL." },
+        { status: 503 },
+      )
+    }
+
+    const gatewayResponse = await fetch(`${gatewayBase}/api/playback/search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-gateway-key": process.env.GATEWAY_KEY || "default-key",
+      },
+      body: JSON.stringify({
+        cameraId: camera.id,
+        channelNumber: camera.channelNumber,
+        startTime,
+        endTime,
+        recordType,
+        nvr: {
+          ipAddress: camera.nvr.ipAddress,
+          httpPort: camera.nvr.httpPort,
+          rtspPort: camera.nvr.rtspPort,
+          username: camera.nvr.username,
+          password: camera.nvr.password,
+        },
+      }),
+      cache: "no-store",
+    })
+
+    if (!gatewayResponse.ok) {
+      const details = await gatewayResponse.text()
+      return NextResponse.json(
+        {
+          error: "Gateway playback search failed",
+          details: details || `Gateway responded with ${gatewayResponse.status}`,
+        },
+        { status: 502 },
+      )
+    }
+
+    const gatewayPayload = (await gatewayResponse.json()) as {
+      clips: GatewayPlaybackClip[]
+      searchXml?: string
+    }
 
     const paginationParams = new URLSearchParams({
       page: String(page),
       limit: String(limit),
     })
     const { page: parsedPage, limit: parsedLimit, skip } = parsePagination(paginationParams)
-    const pagedClips = allClips.slice(skip, skip + parsedLimit)
+    const pagedClips = gatewayPayload.clips.slice(skip, skip + parsedLimit)
 
     await prisma.cameraAccessLog.create({
       data: {
@@ -94,28 +160,62 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (allClips.length > 0) {
-      await prisma.playbackRecord.create({
-        data: {
-          cameraId: camera.id,
-          startTime: start,
-          endTime: end,
-          recordingType: String(recordType).toUpperCase(),
-          requestedBy: session.user.email || "unknown",
-          purpose: purpose || "Playback search",
-        },
+    const clipRecords = await Promise.all(
+      pagedClips.map((clip) =>
+        prisma.playbackRecord.create({
+          data: {
+            cameraId: camera.id,
+            startTime: new Date(clip.startTime),
+            endTime: new Date(clip.endTime),
+            fileSize: clip.fileSize || null,
+            playbackUri: clip.playbackUri,
+            recordingType: clip.recordingType.toUpperCase(),
+            duration: clip.duration,
+            requestedBy: session.user.email || session.user.id,
+            purpose: purpose || "Playback search",
+          },
+        }),
+      ),
+    )
+
+    const clipResponse = clipRecords.map((record, index) => {
+      const tokenData = generatePlaybackToken(record.id, record.cameraId, 60)
+      const playback = buildPlaybackRelayUrls({
+        playbackRecordId: record.id,
+        cameraId: record.cameraId,
+        clipStartTime: record.startTime.toISOString(),
+        clipEndTime: record.endTime.toISOString(),
+        token: tokenData.token,
+        preferredProtocol: "HLS",
       })
-    }
+
+      return {
+        id: record.id,
+        startTime: record.startTime.toISOString(),
+        endTime: record.endTime.toISOString(),
+        duration: record.duration ?? pagedClips[index]?.duration ?? 0,
+        fileSize: record.fileSize ?? pagedClips[index]?.fileSize ?? 0,
+        playbackUri: record.playbackUri || pagedClips[index]?.playbackUri || "",
+        recordingType: record.recordingType,
+        playUrl: playback.playUrl,
+        fallbackPlayUrl: playback.fallbackPlayUrl,
+        protocol: playback.protocol,
+        streamPath: playback.streamPath,
+        gatewayConfigured: playback.gatewayConfigured,
+        token: tokenData.token,
+        expiresAt: tokenData.expiresAt,
+      }
+    })
 
     return NextResponse.json({
-      clips: pagedClips,
-      totalClips: allClips.length,
+      clips: clipResponse,
+      totalClips: gatewayPayload.clips.length,
       pagination: {
         page: parsedPage,
         limit: parsedLimit,
-        total: allClips.length,
-        pages: Math.ceil(allClips.length / parsedLimit),
-        hasMore: skip + pagedClips.length < allClips.length,
+        total: gatewayPayload.clips.length,
+        pages: Math.ceil(gatewayPayload.clips.length / parsedLimit),
+        hasMore: skip + pagedClips.length < gatewayPayload.clips.length,
       },
       camera: {
         id: camera.id,
@@ -128,57 +228,13 @@ export async function POST(request: NextRequest) {
         endTime,
         recordType,
       },
-      isapiSearchXML: searchXML,
-      note: "Mock clip data. Integrate ISAPI ContentMgmt/search for production recording retrieval.",
+      isapiSearchXML:
+        gatewayPayload.searchXml ||
+        generatePlaybackSearchXML(camera.channelNumber, startTime, endTime, recordType),
+      note: "Playback results loaded from the local gateway and NVR.",
     })
   } catch (error) {
     console.error("Error searching playback:", error)
     return NextResponse.json({ error: "Failed to search playback" }, { status: 500 })
   }
-}
-
-function generateMockPlaybackClips(
-  camera: {
-    nvr: { ipAddress: string; rtspPort: number }
-    channelNumber: number
-  },
-  start: Date,
-  end: Date,
-): Array<{
-  startTime: string
-  endTime: string
-  duration: number
-  fileSize: number
-  playbackUri: string
-  recordingType: string
-}> {
-  const clips: Array<{
-    startTime: string
-    endTime: string
-    duration: number
-    fileSize: number
-    playbackUri: string
-    recordingType: string
-  }> = []
-
-  let currentTime = new Date(start)
-
-  while (currentTime < end) {
-    const clipEnd = new Date(Math.min(currentTime.getTime() + 3600000, end.getTime()))
-    const duration = Math.floor((clipEnd.getTime() - currentTime.getTime()) / 1000)
-    const playbackUri = `rtsp://${camera.nvr.ipAddress}:${camera.nvr.rtspPort}/Streaming/channels/${camera.channelNumber}01?starttime=${currentTime.toISOString()}&endtime=${clipEnd.toISOString()}`
-
-    clips.push({
-      startTime: currentTime.toISOString(),
-      endTime: clipEnd.toISOString(),
-      duration,
-      fileSize: Math.floor(duration * 0.5),
-      playbackUri,
-      recordingType: "CONTINUOUS",
-    })
-
-    currentTime = clipEnd
-  }
-
-  return clips
 }

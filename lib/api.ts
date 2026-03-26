@@ -3692,12 +3692,20 @@ export type CCTVAccessLog = {
 };
 
 export type PlaybackClip = {
+  id: string;
   startTime: string;
   endTime: string;
   duration: number;
   fileSize: number;
   playbackUri: string;
   recordingType: string;
+  playUrl: string | null;
+  fallbackPlayUrl: string | null;
+  protocol: "WEBRTC" | "HLS";
+  streamPath: string;
+  gatewayConfigured: boolean;
+  token: string;
+  expiresAt: string;
 };
 
 export type PlaybackSearchResponse = {
@@ -3717,6 +3725,33 @@ export type PlaybackSearchResponse = {
   };
   isapiSearchXML: string;
   note: string;
+};
+
+export type StartPlaybackSessionResponse = {
+  playbackRecord: {
+    id: string;
+    cameraId: string;
+    startTime: string;
+    endTime: string;
+    duration: number;
+    fileSize: number;
+    playbackUri: string | null;
+    recordingType: string;
+    camera: {
+      id: string;
+      name: string;
+      area: string;
+      site: { id: string; name: string; code: string };
+    };
+  };
+  token: string;
+  expiresAt: string;
+  protocol: "WEBRTC" | "HLS";
+  playUrl: string | null;
+  fallbackPlayUrl: string | null;
+  streamPath: string;
+  gatewayConfigured: boolean;
+  seekTime: string | null;
 };
 
 export type StartStreamSessionResponse = {
@@ -3859,6 +3894,19 @@ export async function searchCCTVPlayback(input: {
   limit?: number;
 }) {
   return fetchJson<PlaybackSearchResponse>("/api/cctv/playback/search", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function startCCTVPlaybackSession(input: {
+  playbackRecordId?: string;
+  token?: string;
+  seekTime?: string;
+  preferredProtocol?: "WEBRTC" | "HLS";
+  purpose?: string;
+}) {
+  return fetchJson<StartPlaybackSessionResponse>("/api/cctv/playback/session/start", {
     method: "POST",
     body: JSON.stringify(input),
   });
