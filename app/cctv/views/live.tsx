@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Hls from "hls.js";
 
 import {
   CCTVStreamSession,
@@ -106,6 +107,10 @@ function isLikelyWhepUrl(url: string) {
   return /\/whep(\/|$|\?)/i.test(url);
 }
 
+function isLikelyHlsUrl(url: string) {
+  return /\.m3u8($|\?)/i.test(url);
+}
+
 function waitForIceGatheringComplete(peerConnection: RTCPeerConnection) {
   if (peerConnection.iceGatheringState === "complete") {
     return Promise.resolve();
@@ -162,11 +167,15 @@ function CCTVTileStream({
     hasVideoFrameRef.current = false;
 
     const attachDirectVideo = async () => {
+      let hls: Hls | null = null;
+
       video.srcObject = null;
-      video.src = streamUrl;
       video.muted = mutedRef.current;
       video.autoplay = true;
       video.playsInline = true;
+      video.preload = "auto";
+      video.setAttribute("playsinline", "true");
+      video.setAttribute("webkit-playsinline", "true");
 
       const markPlaying = () => {
         if (isCancelled) return;
@@ -194,10 +203,38 @@ function CCTVTileStream({
       const onTimeUpdate = () => {
         markPlaying();
       };
+      const onLoadedData = () => {
+        markPlaying();
+      };
+      const onCanPlay = () => {
+        markPlaying();
+      };
 
       video.addEventListener("playing", onPlaying);
       video.addEventListener("error", onError);
       video.addEventListener("timeupdate", onTimeUpdate);
+      video.addEventListener("loadeddata", onLoadedData);
+      video.addEventListener("canplay", onCanPlay);
+
+      if (isLikelyHlsUrl(streamUrl) && Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          void video.play().catch(() => undefined);
+        });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (isCancelled || hasVideoFrameRef.current) return;
+          if (data.fatal) {
+            setRenderState("error");
+          }
+        });
+      } else {
+        video.src = streamUrl;
+      }
 
       try {
         await video.play();
@@ -210,7 +247,11 @@ function CCTVTileStream({
         video.removeEventListener("playing", onPlaying);
         video.removeEventListener("error", onError);
         video.removeEventListener("timeupdate", onTimeUpdate);
+        video.removeEventListener("loadeddata", onLoadedData);
+        video.removeEventListener("canplay", onCanPlay);
+        hls?.destroy();
         video.pause();
+        video.srcObject = null;
         video.removeAttribute("src");
         video.load();
       };
@@ -347,6 +388,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const { toast } = useToast();
   const wallRef = useRef<HTMLDivElement | null>(null);
   const autoStartLocksRef = useRef<Set<string>>(new Set());
+  const [preferredProtocol, setPreferredProtocol] = useState<StreamProtocol | null>(null);
 
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [layoutDensity, setLayoutDensity] = useState<GridDensity>(9);
@@ -367,6 +409,20 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const [streamHintsByCamera, setStreamHintsByCamera] = useState<
     Record<string, StreamHint>
   >({});
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const updatePreferredProtocol = () => {
+      setPreferredProtocol(mediaQuery.matches ? "HLS" : "WEBRTC");
+    };
+
+    updatePreferredProtocol();
+    mediaQuery.addEventListener("change", updatePreferredProtocol);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updatePreferredProtocol);
+    };
+  }, []);
 
   const { data: sessionsData, error: sessionsError } = useQuery({
     queryKey: ["cctv-stream-sessions", "ACTIVE"],
@@ -444,7 +500,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
       startCCTVStreamSession({
         cameraId: input.cameraId,
         streamType: input.streamType,
-        preferredProtocol: "WEBRTC",
+        preferredProtocol: preferredProtocol ?? "WEBRTC",
         purpose: "Live monitor",
       }),
     onMutate: (input) => {
@@ -514,7 +570,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
       switchCCTVStreamProfile({
         sessionId: input.sessionId,
         streamType: input.streamType,
-        preferredProtocol: "WEBRTC",
+        preferredProtocol: preferredProtocol ?? "WEBRTC",
       }),
     onMutate: (input) => {
       setSwitchingSessionIds((prev) => new Set(prev).add(input.sessionId));
@@ -559,6 +615,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   }, [visibleWallCameras]);
 
   useEffect(() => {
+    if (!preferredProtocol) return;
+
     visibleWallCameras.forEach((camera) => {
       if (!camera.isOnline) return;
       if (autoStartLocksRef.current.has(camera.id)) return;
@@ -576,6 +634,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     });
   }, [
     activeSessionByCamera,
+    preferredProtocol,
     startSessionMutation,
     streamHintsByCamera,
     visibleWallCameras,
