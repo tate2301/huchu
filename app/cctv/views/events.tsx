@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -91,13 +91,6 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
 
   const selectedEvent =
     events.find((event) => event.id === selectedEventId) ?? events[0] ?? null;
-
-  useEffect(() => {
-    if (selectedEvent && selectedEvent.id !== selectedEventId) {
-      setSelectedEventId(selectedEvent.id);
-      setAcknowledgeNotes("");
-    }
-  }, [selectedEvent, selectedEventId]);
 
   const resetFilters = () => {
     onSiteChange("");

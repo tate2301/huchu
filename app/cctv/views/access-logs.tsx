@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Camera, Site, fetchCCTVAccessLogs } from "@/lib/api";
@@ -50,7 +51,7 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
       }),
   });
 
-  const logs = data?.data || [];
+  const logs = useMemo(() => data?.data ?? [], [data?.data]);
   const selectedLog = logs.find((log) => log.id === selectedLogId) ?? logs[0] ?? null;
   const accessTypeCounts = useMemo(() => {
     const counts = logs.reduce<Record<string, number>>((acc, log) => {
@@ -60,12 +61,6 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
     return counts;
   }, [logs]);
   const uniqueUsers = new Set(logs.map((log) => log.user?.id || log.user?.email || log.userId || "unknown")).size;
-
-  useEffect(() => {
-    if (selectedLog && selectedLog.id !== selectedLogId) {
-      setSelectedLogId(selectedLog.id);
-    }
-  }, [selectedLog, selectedLogId]);
 
   const siteName = sites.find((site) => site.id === siteId)?.name || "All sites";
   const exportDisabled = isLoading || logs.length === 0;
