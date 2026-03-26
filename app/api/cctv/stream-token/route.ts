@@ -74,8 +74,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "NVR is inactive" }, { status: 400 })
     }
 
-    if (!camera.nvr.isOnline) {
-      return NextResponse.json({ error: "NVR is offline" }, { status: 503 })
+    const tokenData = generateStreamToken(camera.id, streamType as StreamType, expiresInMinutes)
+    if (!camera.nvr.isOnline || !camera.isOnline) {
+      return NextResponse.json(
+        { error: "Camera or NVR is offline. Bring both online before generating a stream token." },
+        { status: 503 },
+      )
+    }
+
     const rtspUrl = generateRTSPUrl(
       {
         host: camera.nvr.ipAddress,
@@ -88,10 +94,6 @@ export async function POST(request: NextRequest) {
       true, // Changed to true for ISAPI compatibility
     )
 
-      true, // Changed to true for ISAPI compatibility
-    )
-
-    const tokenData = generateStreamToken(camera.id, streamType as StreamType, expiresInMinutes)
     const playback = resolvePlaybackUrls({
       cameraId: camera.id,
       streamType,

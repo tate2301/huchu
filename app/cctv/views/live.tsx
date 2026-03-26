@@ -1,29 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  Camera,
   CCTVStreamSession,
+  Camera,
   Site,
+  StartStreamSessionResponse,
+  StreamProfileResponse,
   fetchCCTVStreamSessions,
   startCCTVStreamSession,
   stopCCTVStreamSession,
   switchCCTVStreamProfile,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Building2,
+  ChevronDown,
+  Fullscreen,
+  FullscreenExit,
+  Grid3x3,
+  History,
+  Play,
+  Square,
+  Video,
+  Volume2,
+  VolumeOff,
+} from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
-import { CCTVMetricStrip, CCTVSection, CCTVToolbar } from "@/components/cctv/cctv-panel";
-import { StatusDot } from "@/components/ui/status-dot";
-import { CheckCircle, Grid3x3, Plus, Video, X, XCircle } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 type LiveMonitorViewProps = {
@@ -32,66 +49,342 @@ type LiveMonitorViewProps = {
 };
 
 type GridDensity = 4 | 6 | 9 | 12;
+type StreamType = "main" | "sub" | "third";
+type StreamProtocol = "WEBRTC" | "HLS";
+
+type StreamHint = {
+  playUrl: string | null;
+  fallbackPlayUrl: string | null;
+  protocol: StreamProtocol;
+};
+
+const layoutOptions: Array<{
+  value: GridDensity;
+  label: string;
+}> = [
+  { value: 4, label: "2 x 2 wall" },
+  { value: 6, label: "3 x 2 wall" },
+  { value: 9, label: "3 x 3 wall" },
+  { value: 12, label: "4 x 3 wall" },
+];
+
+const streamProfileOptions: Array<{
+  value: StreamType;
+  label: string;
+}> = [
+  { value: "sub", label: "720p" },
+  { value: "main", label: "1080p" },
+];
 
 function buildSessionMap(sessions: CCTVStreamSession[] | undefined) {
   const map = new Map<string, CCTVStreamSession>();
   if (!sessions) return map;
-  sessions.filter((session) => session.status === "ACTIVE").forEach((session) => {
-    map.set(session.cameraId, session);
-  });
+  sessions
+    .filter((session) => session.status === "ACTIVE")
+    .forEach((session) => {
+      map.set(session.cameraId, session);
+    });
   return map;
 }
 
 function getGridClass(density: GridDensity) {
   switch (density) {
     case 4:
-      return "grid-cols-1 md:grid-cols-2";
+      return "md:grid-cols-2";
     case 6:
-      return "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
+      return "md:grid-cols-2 xl:grid-cols-3";
     case 9:
-      return "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
+      return "md:grid-cols-2 xl:grid-cols-3";
     case 12:
-      return "grid-cols-1 md:grid-cols-2 xl:grid-cols-4";
+      return "md:grid-cols-2 xl:grid-cols-4";
     default:
-      return "grid-cols-1 md:grid-cols-2";
+      return "md:grid-cols-2";
   }
+}
+
+function isLikelyWhepUrl(url: string) {
+  return /\/whep(\/|$|\?)/i.test(url);
+}
+
+function waitForIceGatheringComplete(peerConnection: RTCPeerConnection) {
+  if (peerConnection.iceGatheringState === "complete") {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(() => {
+      peerConnection.removeEventListener("icegatheringstatechange", handler);
+      resolve();
+    }, 1500);
+
+    const handler = () => {
+      if (peerConnection.iceGatheringState === "complete") {
+        window.clearTimeout(timeout);
+        peerConnection.removeEventListener("icegatheringstatechange", handler);
+        resolve();
+      }
+    };
+
+    peerConnection.addEventListener("icegatheringstatechange", handler);
+  });
+}
+
+type CCTVTileStreamProps = {
+  primaryUrl: string;
+  fallbackUrl: string | null;
+  protocol: StreamProtocol;
+  muted: boolean;
+};
+
+function CCTVTileStream({
+  primaryUrl,
+  fallbackUrl,
+  protocol,
+  muted,
+}: CCTVTileStreamProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mutedRef = useRef(muted);
+  const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [renderState, setRenderState] = useState<"connecting" | "playing" | "error">(
+    "connecting",
+  );
+  const [hasVideoFrame, setHasVideoFrame] = useState(false);
+  const hasVideoFrameRef = useRef(false);
+
+  const streamUrl = isUsingFallback && fallbackUrl ? fallbackUrl : primaryUrl;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    let isCancelled = false;
+    let cleanup: (() => void) | undefined;
+    hasVideoFrameRef.current = false;
+
+    const attachDirectVideo = async () => {
+      video.srcObject = null;
+      video.src = streamUrl;
+      video.muted = mutedRef.current;
+      video.autoplay = true;
+      video.playsInline = true;
+
+      const markPlaying = () => {
+        if (isCancelled) return;
+        if (!hasVideoFrameRef.current) {
+          hasVideoFrameRef.current = true;
+          setHasVideoFrame(true);
+        }
+        setRenderState("playing");
+      };
+
+      const onPlaying = () => {
+        markPlaying();
+      };
+      const onError = () => {
+        if (isCancelled || hasVideoFrameRef.current) return;
+        if (
+          video.currentTime > 0 ||
+          video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        ) {
+          markPlaying();
+          return;
+        }
+        setRenderState("error");
+      };
+      const onTimeUpdate = () => {
+        markPlaying();
+      };
+
+      video.addEventListener("playing", onPlaying);
+      video.addEventListener("error", onError);
+      video.addEventListener("timeupdate", onTimeUpdate);
+
+      try {
+        await video.play();
+        markPlaying();
+      } catch {
+        // Browser may block autoplay with audio. Keep state as connecting.
+      }
+
+      cleanup = () => {
+        video.removeEventListener("playing", onPlaying);
+        video.removeEventListener("error", onError);
+        video.removeEventListener("timeupdate", onTimeUpdate);
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      };
+    };
+
+    const attachWhepStream = async () => {
+      const peerConnection = new RTCPeerConnection();
+      let sessionResourceUrl: string | null = null;
+
+      peerConnection.addTransceiver("video", { direction: "recvonly" });
+      peerConnection.addTransceiver("audio", { direction: "recvonly" });
+
+      peerConnection.ontrack = (event) => {
+        const [remoteStream] = event.streams;
+        if (remoteStream) {
+          video.srcObject = remoteStream;
+        } else {
+          const stream = new MediaStream([event.track]);
+          video.srcObject = stream;
+        }
+        video.muted = mutedRef.current;
+        void video.play().catch(() => undefined);
+        if (!isCancelled) {
+          if (!hasVideoFrameRef.current) {
+            hasVideoFrameRef.current = true;
+            setHasVideoFrame(true);
+          }
+          setRenderState("playing");
+        }
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        if (isCancelled) return;
+        const state = peerConnection.iceConnectionState;
+        if ((state === "failed" || state === "closed") && !hasVideoFrameRef.current) {
+          setRenderState("error");
+        }
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      await waitForIceGatheringComplete(peerConnection);
+
+      const localSdp = peerConnection.localDescription?.sdp;
+      if (!localSdp) {
+        throw new Error("Unable to initialize WebRTC offer.");
+      }
+
+      const response = await fetch(streamUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/sdp" },
+        body: localSdp,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Stream signaling failed (${response.status}).`);
+      }
+
+      const answerSdp = await response.text();
+      await peerConnection.setRemoteDescription({
+        type: "answer",
+        sdp: answerSdp,
+      });
+
+      const locationHeader = response.headers.get("location");
+      if (locationHeader) {
+        sessionResourceUrl = new URL(locationHeader, streamUrl).toString();
+      }
+
+      cleanup = () => {
+        peerConnection.close();
+        if (sessionResourceUrl) {
+          void fetch(sessionResourceUrl, { method: "DELETE" }).catch(
+            () => undefined,
+          );
+        }
+      };
+    };
+
+    const setup = async () => {
+      try {
+        setRenderState("connecting");
+        if (protocol === "WEBRTC" || isLikelyWhepUrl(streamUrl)) {
+          await attachWhepStream();
+        } else {
+          await attachDirectVideo();
+        }
+      } catch {
+        if (!isCancelled && fallbackUrl && !isUsingFallback) {
+          setIsUsingFallback(true);
+          return;
+        }
+        if (!isCancelled && !hasVideoFrameRef.current) {
+          setRenderState("error");
+        }
+      }
+    };
+
+    void setup();
+
+    return () => {
+      isCancelled = true;
+      if (cleanup) cleanup();
+    };
+  }, [fallbackUrl, isUsingFallback, protocol, streamUrl]);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = muted;
+  }, [muted]);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-black">
+      <video
+        ref={videoRef}
+        className="h-full w-full object-cover"
+        autoPlay
+        playsInline
+        muted={muted}
+      />
+      {renderState !== "playing" && !hasVideoFrame ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 text-xs text-white/75">
+          {renderState === "error" ? "Stream unavailable" : "Connecting..."}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
-  const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
-  const [pickerCameraId, setPickerCameraId] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [streamProfiles, setStreamProfiles] = useState<Record<string, "main" | "sub" | "third">>({});
-  const [focusedCameraId, setFocusedCameraId] = useState<string>("");
-  const [layoutDensity, setLayoutDensity] = useState<GridDensity>(4);
-  const [startingCameraId, setStartingCameraId] = useState<string | null>(null);
-  const [stoppingSessionId, setStoppingSessionId] = useState<string | null>(null);
-  const [switchingSessionId, setSwitchingSessionId] = useState<string | null>(null);
+  const wallRef = useRef<HTMLDivElement | null>(null);
+  const autoStartLocksRef = useRef<Set<string>>(new Set());
 
-  const { data: sessionsData, isLoading: sessionsLoading, error: sessionsError } = useQuery({
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const [layoutDensity, setLayoutDensity] = useState<GridDensity>(9);
+  const [wallStreamType, setWallStreamType] = useState<StreamType>("sub");
+  const [audibleCameraId, setAudibleCameraId] = useState<string | null>(null);
+  const [focusedCameraId, setFocusedCameraId] = useState<string>("");
+  const [maximizedCameraId, setMaximizedCameraId] = useState<string | null>(null);
+  const [isWallFullscreen, setIsWallFullscreen] = useState(false);
+  const [startingCameraIds, setStartingCameraIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [switchingSessionIds, setSwitchingSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [streamHintsByCamera, setStreamHintsByCamera] = useState<
+    Record<string, StreamHint>
+  >({});
+
+  const { data: sessionsData, error: sessionsError } = useQuery({
     queryKey: ["cctv-stream-sessions", "ACTIVE"],
     queryFn: () => fetchCCTVStreamSessions({ status: "ACTIVE", limit: 200 }),
     refetchInterval: 15_000,
   });
 
-  const activeSessionByCamera = useMemo(() => buildSessionMap(sessionsData?.data), [sessionsData?.data]);
+  const activeSessionByCamera = useMemo(
+    () => buildSessionMap(sessionsData?.data),
+    [sessionsData?.data],
+  );
 
   const filteredCameras = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
     return cameras
       .filter((camera) => camera.isActive)
-      .filter((camera) => (selectedSiteIds.length === 0 ? true : selectedSiteIds.includes(camera.siteId)))
-      .filter((camera) => {
-        if (!term) return true;
-        return (
-          camera.name.toLowerCase().includes(term) ||
-          camera.area.toLowerCase().includes(term) ||
-          (camera.site?.name || "").toLowerCase().includes(term)
-        );
-      })
+      .filter((camera) =>
+        selectedSiteId ? camera.siteId === selectedSiteId : true,
+      )
       .sort((a, b) => {
         const siteNameA = a.site?.name || "";
         const siteNameB = b.site?.name || "";
@@ -99,374 +392,626 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         if (a.area !== b.area) return a.area.localeCompare(b.area);
         return a.name.localeCompare(b.name);
       });
-  }, [cameras, searchTerm, selectedSiteIds]);
+  }, [cameras, selectedSiteId]);
 
-  const defaultCameraIds = useMemo(() => filteredCameras.slice(0, layoutDensity).map((camera) => camera.id), [filteredCameras, layoutDensity]);
-  const activeCameraIds = selectedCameraIds.length > 0 ? selectedCameraIds : defaultCameraIds;
+  const maximizedCamera = useMemo(
+    () =>
+      maximizedCameraId
+        ? filteredCameras.find((camera) => camera.id === maximizedCameraId) || null
+        : null,
+    [filteredCameras, maximizedCameraId],
+  );
 
-  const selectedCameras = useMemo(() => {
-    const byId = new Map(cameras.map((camera) => [camera.id, camera]));
-    return activeCameraIds.map((cameraId) => byId.get(cameraId)).filter((camera): camera is Camera => Boolean(camera));
-  }, [activeCameraIds, cameras]);
+  const wallSlots = useMemo(() => {
+    if (maximizedCamera) {
+      return [maximizedCamera];
+    }
+    return Array.from(
+      { length: layoutDensity },
+      (_, index) => filteredCameras[index] ?? null,
+    );
+  }, [filteredCameras, layoutDensity, maximizedCamera]);
 
-  const availableToAdd = useMemo(() => filteredCameras.filter((camera) => !activeCameraIds.includes(camera.id)), [activeCameraIds, filteredCameras]);
-
-  const effectiveFocusedCameraId = focusedCameraId || selectedCameras[0]?.id || "";
+  const visibleWallCameras = useMemo(
+    () => wallSlots.filter((camera): camera is Camera => Boolean(camera)),
+    [wallSlots],
+  );
 
   const focusedCamera = useMemo(() => {
-    if (selectedCameras.length === 0) return null;
-    return selectedCameras.find((camera) => camera.id === effectiveFocusedCameraId) ?? selectedCameras[0];
-  }, [effectiveFocusedCameraId, selectedCameras]);
+    if (focusedCameraId) {
+      return visibleWallCameras.find((camera) => camera.id === focusedCameraId);
+    }
+    return visibleWallCameras[0];
+  }, [focusedCameraId, visibleWallCameras]);
+
+  const isWallMaximizedToSingleCamera = Boolean(maximizedCamera);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsWallFullscreen(document.fullscreenElement === wallRef.current);
+    };
+
+    handleFullscreenChange();
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   const startSessionMutation = useMutation({
-    mutationFn: (input: { cameraId: string; streamType: "main" | "sub" | "third" }) =>
+    mutationFn: (input: { cameraId: string; streamType: StreamType }) =>
       startCCTVStreamSession({
         cameraId: input.cameraId,
         streamType: input.streamType,
         preferredProtocol: "WEBRTC",
         purpose: "Live monitor",
       }),
-    onMutate: (variables) => {
-      setStartingCameraId(variables.cameraId);
+    onMutate: (input) => {
+      setStartingCameraIds((prev) => new Set(prev).add(input.cameraId));
     },
-    onSuccess: () => {
+    onSuccess: (
+      response: StartStreamSessionResponse,
+      input: { cameraId: string; streamType: StreamType },
+    ) => {
+      setStreamHintsByCamera((prev) => ({
+        ...prev,
+        [input.cameraId]: {
+          playUrl: response.playUrl,
+          fallbackPlayUrl: response.fallbackPlayUrl,
+          protocol: response.protocol,
+        },
+      }));
       queryClient.invalidateQueries({ queryKey: ["cctv-stream-sessions"] });
-      toast({ title: "Live session started", description: "Stream session is now active." });
     },
-    onError: (error) => {
-      toast({ title: "Unable to start stream", description: getApiErrorMessage(error), variant: "destructive" });
+    onError: (error, input) => {
+      autoStartLocksRef.current.delete(input.cameraId);
+      toast({
+        title: "Unable to start stream",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
     },
-    onSettled: () => {
-      setStartingCameraId(null);
+    onSettled: (_, __, input) => {
+      setStartingCameraIds((prev) => {
+        const next = new Set(prev);
+        next.delete(input.cameraId);
+        return next;
+      });
     },
   });
 
   const stopSessionMutation = useMutation({
     mutationFn: (sessionId: string) => stopCCTVStreamSession(sessionId),
     onMutate: (sessionId) => {
-      setStoppingSessionId(sessionId);
+      setStoppingSessionIds((prev) => new Set(prev).add(sessionId));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cctv-stream-sessions"] });
-      toast({ title: "Live session stopped", description: "Camera stream was closed successfully." });
     },
     onError: (error) => {
-      toast({ title: "Unable to stop stream", description: getApiErrorMessage(error), variant: "destructive" });
+      toast({
+        title: "Unable to stop stream",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
     },
-    onSettled: () => {
-      setStoppingSessionId(null);
+    onSettled: (_, __, sessionId) => {
+      setStoppingSessionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(sessionId);
+        return next;
+      });
     },
   });
 
   const switchProfileMutation = useMutation({
-    mutationFn: (input: { sessionId: string; streamType: "main" | "sub" | "third" }) =>
-      switchCCTVStreamProfile({ sessionId: input.sessionId, streamType: input.streamType, preferredProtocol: "WEBRTC" }),
-    onMutate: (variables) => {
-      setSwitchingSessionId(variables.sessionId);
+    mutationFn: (input: {
+      cameraId: string;
+      sessionId: string;
+      streamType: StreamType;
+    }) =>
+      switchCCTVStreamProfile({
+        sessionId: input.sessionId,
+        streamType: input.streamType,
+        preferredProtocol: "WEBRTC",
+      }),
+    onMutate: (input) => {
+      setSwitchingSessionIds((prev) => new Set(prev).add(input.sessionId));
     },
-    onSuccess: () => {
+    onSuccess: (
+      response: StreamProfileResponse,
+      input: { cameraId: string; sessionId: string; streamType: StreamType },
+    ) => {
+      setStreamHintsByCamera((prev) => ({
+        ...prev,
+        [input.cameraId]: {
+          playUrl: response.playUrl,
+          fallbackPlayUrl: response.fallbackPlayUrl,
+          protocol: response.protocol,
+        },
+      }));
       queryClient.invalidateQueries({ queryKey: ["cctv-stream-sessions"] });
-      toast({ title: "Stream profile updated", description: "The live stream quality profile was changed." });
     },
     onError: (error) => {
-      toast({ title: "Unable to switch stream profile", description: getApiErrorMessage(error), variant: "destructive" });
+      toast({
+        title: "Unable to change stream profile",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
     },
-    onSettled: () => {
-      setSwitchingSessionId(null);
+    onSettled: (_, __, input) => {
+      setSwitchingSessionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(input.sessionId);
+        return next;
+      });
     },
   });
 
-  const toggleSite = (siteId: string) => {
-    setSelectedSiteIds((prev) => (prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId]));
-  };
-
-  const addCameraToGrid = () => {
-    if (!pickerCameraId || activeCameraIds.includes(pickerCameraId)) return;
-    setSelectedCameraIds((prev) => {
-      const base = prev.length > 0 ? prev : defaultCameraIds;
-      if (base.includes(pickerCameraId)) return base;
-      return [...base, pickerCameraId];
+  useEffect(() => {
+    const visibleIds = new Set(visibleWallCameras.map((camera) => camera.id));
+    autoStartLocksRef.current.forEach((cameraId) => {
+      if (!visibleIds.has(cameraId)) {
+        autoStartLocksRef.current.delete(cameraId);
+      }
     });
-    setPickerCameraId("");
-  };
+  }, [visibleWallCameras]);
 
-  const removeCameraFromGrid = (cameraId: string) => {
-    setSelectedCameraIds((prev) => {
-      const base = prev.length > 0 ? prev : defaultCameraIds;
-      return base.filter((id) => id !== cameraId);
+  useEffect(() => {
+    visibleWallCameras.forEach((camera) => {
+      if (!camera.isOnline) return;
+      if (activeSessionByCamera.has(camera.id)) return;
+      if (autoStartLocksRef.current.has(camera.id)) return;
+
+      autoStartLocksRef.current.add(camera.id);
+      startSessionMutation.mutate({
+        cameraId: camera.id,
+        streamType: wallStreamType,
+      });
+    });
+  }, [activeSessionByCamera, startSessionMutation, visibleWallCameras, wallStreamType]);
+
+  const activeSessionsCount = visibleWallCameras.filter((camera) =>
+    activeSessionByCamera.has(camera.id),
+  ).length;
+
+  const selectedSiteName =
+    sites.find((site) => site.id === selectedSiteId)?.name || "All sites";
+
+  const startAllVisible = () => {
+    visibleWallCameras.forEach((camera) => {
+      if (activeSessionByCamera.has(camera.id) || !camera.isOnline) return;
+      autoStartLocksRef.current.add(camera.id);
+      startSessionMutation.mutate({
+        cameraId: camera.id,
+        streamType: wallStreamType,
+      });
     });
   };
 
-  const onProfileChange = (cameraId: string, profile: "main" | "sub" | "third") => {
-    setStreamProfiles((prev) => ({ ...prev, [cameraId]: profile }));
-    const activeSession = activeSessionByCamera.get(cameraId);
-    if (activeSession) {
-      switchProfileMutation.mutate({ sessionId: activeSession.id, streamType: profile });
+  const stopAllVisible = () => {
+    visibleWallCameras.forEach((camera) => {
+      const session = activeSessionByCamera.get(camera.id);
+      if (session) {
+        stopSessionMutation.mutate(session.id);
+      }
+    });
+    setAudibleCameraId(null);
+  };
+
+  const applyResolutionVisible = (nextStreamType: StreamType) => {
+    visibleWallCameras.forEach((camera) => {
+      const session = activeSessionByCamera.get(camera.id);
+      if (!session || session.streamType === nextStreamType) return;
+      switchProfileMutation.mutate({
+        cameraId: camera.id,
+        sessionId: session.id,
+        streamType: nextStreamType,
+      });
+    });
+  };
+
+  const handleResolutionSelection = (nextStreamType: StreamType) => {
+    setWallStreamType(nextStreamType);
+    applyResolutionVisible(nextStreamType);
+  };
+
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    if (wallRef.current?.requestFullscreen) {
+      await wallRef.current.requestFullscreen();
     }
   };
 
-  const startAllVisible = () => {
-    selectedCameras.forEach((camera) => {
-      if (activeSessionByCamera.has(camera.id)) return;
-      const profile = streamProfiles[camera.id] || "sub";
-      startSessionMutation.mutate({ cameraId: camera.id, streamType: profile });
-    });
+  const toggleCameraMaximized = (cameraId: string) => {
+    setFocusedCameraId(cameraId);
+    setMaximizedCameraId((previousCameraId) =>
+      previousCameraId === cameraId ? null : cameraId,
+    );
   };
 
-  const stopAllActive = () => {
-    activeSessionByCamera.forEach((session) => {
-      stopSessionMutation.mutate(session.id);
-    });
+  const toggleTileAudio = (cameraId: string) => {
+    setAudibleCameraId((previousCameraId) =>
+      previousCameraId === cameraId ? null : cameraId,
+    );
   };
 
   if (sessionsError) {
-    return <StatusState variant="error" title="Unable to load active stream sessions" description={getApiErrorMessage(sessionsError)} />;
+    return (
+      <StatusState
+        variant="error"
+        title="Unable to load active stream sessions"
+        description={getApiErrorMessage(sessionsError)}
+      />
+    );
   }
 
-  const activeSessionsCount = activeSessionByCamera.size;
-  const onlineVisibleCount = selectedCameras.filter((camera) => camera.isOnline).length;
-  const offlineVisibleCount = selectedCameras.length - onlineVisibleCount;
-
   return (
-    <div className="space-y-5">
-      <section className="rounded-3xl border border-[var(--edge-default)] bg-[linear-gradient(135deg,var(--surface-base)_0%,var(--surface-muted)_100%)] p-5 shadow-[var(--surface-frame-shadow)] sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">CCTV / Live Monitor</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Live Monitor</h1>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              Run and supervise multiple live camera streams across mine sites. Keep the grid lean, keep the focus visible, and move quickly between cameras that matter.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline"><Link href="/cctv/cameras/new">Register Camera</Link></Button>
-            <Button asChild variant="outline"><Link href="/cctv/nvrs/new">Register NVR</Link></Button>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <CCTVMetricStrip
-            stats={[
-              { label: "Visible cameras", value: selectedCameras.length, detail: `${onlineVisibleCount} online, ${offlineVisibleCount} offline` },
-              { label: "Active sessions", value: activeSessionsCount, detail: sessionsLoading ? "Refreshing session list" : "Updated every 15 seconds", tone: activeSessionsCount > 0 ? "success" : "default" },
-              { label: "Selected sites", value: selectedSiteIds.length === 0 ? "All" : selectedSiteIds.length, detail: selectedSiteIds.length === 0 ? "Monitoring all sites" : "Filtered site scope" },
-              { label: "Layout density", value: `${layoutDensity}`, detail: "Controls tile spacing and scan depth" },
-            ]}
-          />
-        </div>
-      </section>
-
-      {!sessionsLoading && activeSessionsCount > 0 ? (
-        <Alert variant="success">
-          <AlertTitle>Live sessions active</AlertTitle>
-          <AlertDescription>{activeSessionsCount} stream session(s) currently running across selected cameras.</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <div className="space-y-4">
-          <CCTVSection
-            eyebrow="monitor wall"
-            title={`Active grid (${selectedCameras.length})`}
-            description="Choose the camera set, tune the tile density, and keep the active feeds in one place."
-            actions={
-              <div className="flex flex-wrap items-center gap-2">
-                {[4, 6, 9, 12].map((density) => (
-                  <Button key={density} type="button" size="sm" variant={layoutDensity === density ? "default" : "outline"} onClick={() => setLayoutDensity(density as GridDensity)} className="gap-1.5">
-                    <Grid3x3 className="h-4 w-4" />
-                    {density}
-                  </Button>
-                ))}
-              </div>
+    <div className="h-[calc(100vh-7rem)]">
+      <div
+        ref={wallRef}
+        className="relative h-full overflow-hidden border border-black/10 bg-black"
+      >
+        <div
+          className={cn(
+            "grid h-[calc(100%-3rem)] grid-cols-1 gap-px bg-black",
+            isWallMaximizedToSingleCamera ? "grid-cols-1" : getGridClass(layoutDensity),
+          )}
+        >
+          {wallSlots.map((camera, index) => {
+            if (!camera) {
+              return (
+                <div
+                  key={`slot-${index}`}
+                  className="relative min-h-[220px] bg-black"
+                />
+              );
             }
-          >
-            <div className="space-y-4 px-4 pb-4 sm:px-5">
-              <CCTVToolbar>
-                <div className="flex flex-1 flex-wrap items-center gap-2">
-                  <Button type="button" size="sm" variant={selectedSiteIds.length === 0 ? "default" : "outline"} onClick={() => setSelectedSiteIds([])}>All Sites</Button>
-                  {sites.map((site) => (
-                    <Button key={site.id} type="button" size="sm" variant={selectedSiteIds.includes(site.id) ? "default" : "outline"} onClick={() => toggleSite(site.id)}>
-                      {site.name}
-                    </Button>
-                  ))}
+
+            const activeSession = activeSessionByCamera.get(camera.id);
+            const streamHint = streamHintsByCamera[camera.id];
+            const streamUrl = streamHint?.playUrl || activeSession?.playUrl || null;
+            const fallbackUrl = streamHint?.fallbackPlayUrl || null;
+            const protocol = (streamHint?.protocol ||
+              (activeSession?.protocol as StreamProtocol | undefined) ||
+              "WEBRTC") as StreamProtocol;
+
+            const isFocused = focusedCamera?.id === camera.id;
+            const isStarting = startingCameraIds.has(camera.id);
+            const isStopping = activeSession
+              ? stoppingSessionIds.has(activeSession.id)
+              : false;
+            const isSwitching = activeSession
+              ? switchingSessionIds.has(activeSession.id)
+              : false;
+            const isAudible = audibleCameraId === camera.id;
+            const isMaximized = maximizedCamera?.id === camera.id;
+
+            const statusLabel = !camera.isOnline
+              ? "Offline"
+              : activeSession
+                ? isSwitching
+                  ? "Switching"
+                  : "Live"
+                : isStarting
+                  ? "Starting"
+                  : "Ready";
+
+            return (
+              <div
+                key={camera.id}
+                className={cn(
+                  "group relative min-h-[220px] overflow-hidden bg-black text-white",
+                  isFocused && "ring-1 ring-white/30",
+                )}
+              >
+                {activeSession && streamUrl ? (
+                  <CCTVTileStream
+                    key={`${activeSession.id}:${streamUrl}:${fallbackUrl || ""}:${protocol}`}
+                    primaryUrl={streamUrl}
+                    fallbackUrl={fallbackUrl}
+                    protocol={protocol}
+                    muted={!isAudible}
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0)_42%)]" />
+                )}
+
+                <button
+                  type="button"
+                  className="absolute inset-0 z-10"
+                  onClick={() => setFocusedCameraId(camera.id)}
+                  aria-label={`Focus ${camera.name}`}
+                />
+
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 px-3 py-2 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
+                  <span className="truncate tabular-nums">
+                    {new Date().toLocaleString()}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
+                      !camera.isOnline
+                        ? "border-rose-400/35 bg-rose-500/10 text-rose-100"
+                        : activeSession
+                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-100"
+                          : "border-white/20 bg-white/10 text-white/80",
+                    )}
+                  >
+                    {statusLabel}
+                  </span>
                 </div>
-                <div className="flex min-w-[240px] flex-1 items-center gap-2">
-                  <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search camera, site, or area" />
-                </div>
-              </CCTVToolbar>
 
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-                <Select value={pickerCameraId} onValueChange={setPickerCameraId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Add another camera to the wall" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableToAdd.map((camera) => (
-                      <SelectItem key={camera.id} value={camera.id}>{camera.site?.name || "Unknown Site"} | {camera.area} | {camera.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button type="button" onClick={addCameraToGrid} disabled={!pickerCameraId}><Plus className="mr-2 h-4 w-4" />Add Camera</Button>
-              </div>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 bg-gradient-to-t from-black via-black/72 to-transparent px-3 pb-3 pt-10">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-white">
+                      {camera.name}
+                    </div>
+                    <div className="truncate text-xs text-white/68">
+                      {camera.area} | {camera.site?.name || "Unknown site"}
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" onClick={startAllVisible} disabled={selectedCameras.length === 0}>Start All</Button>
-                <Button type="button" variant="outline" onClick={stopAllActive} disabled={activeSessionsCount === 0}>Stop All</Button>
-                <p className="text-xs text-muted-foreground">Showing {selectedCameras.length} camera(s) in the grid, with {activeSessionsCount} active session(s).</p>
-              </div>
-
-              {selectedCameras.length === 0 ? (
-                <StatusState variant="empty" title="No cameras in the live grid" description="Add at least one camera or clear the filters to begin live monitoring." />
-              ) : (
-                <div className={cn("grid gap-3", getGridClass(layoutDensity))}>
-                  {selectedCameras.map((camera) => {
-                    const activeSession = activeSessionByCamera.get(camera.id);
-                    const streamProfile = streamProfiles[camera.id] || "sub";
-                    const isStarting = startingCameraId === camera.id;
-                    const isStopping = activeSession ? stoppingSessionId === activeSession.id : false;
-                    const isSwitching = activeSession ? switchingSessionId === activeSession.id : false;
-                    const isFocused = focusedCamera?.id === camera.id;
-
-                    return (
-                      <div key={camera.id} className={cn("rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] p-3 transition-colors duration-200", isFocused ? "ring-2 ring-[var(--action-primary-bg)]/30" : "") }>
-                        <div className="flex items-start justify-between gap-2">
-                          <button type="button" className="min-w-0 text-left" onClick={() => setFocusedCameraId(camera.id)}>
-                            <div className="flex items-center gap-2">
-                              <h3 className="truncate text-sm font-semibold text-foreground">{camera.name}</h3>
-                              {camera.isHighSecurity ? <Badge variant="secondary" className="rounded-full text-[10px]">High security</Badge> : null}
-                            </div>
-                            <p className="mt-1 truncate text-xs text-muted-foreground">{camera.site?.name || "Unknown Site"} | {camera.area}</p>
-                          </button>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={camera.isOnline ? "outline" : "destructive"} className="rounded-full">
-                              {camera.isOnline ? <CheckCircle className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
-                              {camera.isOnline ? "Online" : "Offline"}
-                            </Badge>
-                            <Button type="button" size="icon" variant="ghost" onClick={() => removeCameraFromGrid(camera.id)} aria-label={`Remove ${camera.name} from grid`}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 rounded-xl border border-dashed border-[var(--edge-default)] bg-[var(--surface-muted)]/70 p-3">
-                          <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                            <span>Preview</span>
-                            <span>{streamProfile} stream</span>
-                          </div>
-                          <div className="mt-3 flex min-h-28 items-center justify-center rounded-xl border border-[var(--edge-default)] bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-muted)_100%)] px-3 text-center">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
-                                {activeSession ? <><Video className="h-4 w-4 text-[var(--status-success-text)]" />Live session running</> : <><StatusDot status={camera.isOnline ? "active" : "inactive"} />{camera.isOnline ? "Ready to start" : "Camera offline"}</>}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {activeSession ? `Session active since ${new Date(activeSession.startedAt).toLocaleString()}` : "No active session yet. Start live view to bring this feed online."}
-                              </p>
-                              {activeSession?.playUrl ? (
-                                <Button asChild size="sm" variant="outline"><a href={activeSession.playUrl} target="_blank" rel="noreferrer">Open stream endpoint</a></Button>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 space-y-3">
-                          <div className="space-y-1">
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Stream Profile</div>
-                            <Select value={streamProfile} onValueChange={(value) => onProfileChange(camera.id, value as "main" | "sub" | "third")}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="sub">Sub stream for grid</SelectItem>
-                                <SelectItem value="main">Main stream for detail</SelectItem>
-                                <SelectItem value="third">Third stream</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            {activeSession ? (
-                              <Button type="button" variant="outline" onClick={() => stopSessionMutation.mutate(activeSession.id)} disabled={isStopping}>{isStopping ? "Stopping..." : "Stop Live"}</Button>
-                            ) : (
-                              <Button type="button" onClick={() => startSessionMutation.mutate({ cameraId: camera.id, streamType: streamProfile })} disabled={!camera.isOnline || isStarting}>
-                                <Video className="mr-2 h-4 w-4" />
-                                {isStarting ? "Starting..." : "Start Live"}
-                              </Button>
-                            )}
-                            <Button type="button" variant={isFocused ? "default" : "ghost"} onClick={() => setFocusedCameraId(camera.id)}>Focus</Button>
-                            {isSwitching ? <span className="text-xs text-muted-foreground">Switching profile...</span> : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </CCTVSection>
-        </div>
-
-        <aside className="space-y-4">
-          <CCTVSection eyebrow="session rail" title="Selection" description="Keep the current wall, add cameras, and move quickly between active streams.">
-            <div className="space-y-3 px-4 pb-4 sm:px-5">
-              <div className="rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-muted)]/60 p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Selected cameras</div>
-                <div className="mt-2 space-y-1.5">
-                  {selectedCameras.length > 0 ? selectedCameras.map((camera) => {
-                    const active = focusedCamera?.id === camera.id;
-                    return (
-                      <Button key={camera.id} type="button" variant={active ? "default" : "ghost"} className="h-auto w-full justify-between px-3 py-2 text-left" onClick={() => setFocusedCameraId(camera.id)}>
-                        <span className="min-w-0 truncate text-sm">{camera.name}</span>
-                        <span className="ml-2 text-[10px] text-muted-foreground">{camera.area}</span>
+                  <div className="pointer-events-auto flex shrink-0 items-center gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                    {activeSession ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-md bg-rose-500/20 text-rose-100 hover:bg-rose-500/32"
+                        onClick={() => {
+                          if (isAudible) setAudibleCameraId(null);
+                          stopSessionMutation.mutate(activeSession.id);
+                        }}
+                        disabled={isStopping}
+                        aria-label={`Stop ${camera.name}`}
+                        title="Stop stream"
+                      >
+                        <Square className="h-4 w-4" />
                       </Button>
-                    );
-                  }) : <p className="text-sm text-muted-foreground">No cameras pinned yet.</p>}
+                    ) : (
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="h-8 w-8 rounded-md bg-emerald-500/24 text-emerald-100 hover:bg-emerald-500/34"
+                        onClick={() =>
+                          startSessionMutation.mutate({
+                            cameraId: camera.id,
+                            streamType: wallStreamType,
+                          })
+                        }
+                        disabled={!camera.isOnline || isStarting}
+                        aria-label={`Start ${camera.name}`}
+                        title="Start stream"
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-8 w-8 rounded-md bg-white/12 text-white hover:bg-white/18",
+                        isAudible && "bg-emerald-500/24 text-emerald-100 hover:bg-emerald-500/34",
+                      )}
+                      onClick={() => toggleTileAudio(camera.id)}
+                      disabled={!activeSession}
+                      aria-label={
+                        isAudible ? `Mute ${camera.name}` : `Unmute ${camera.name}`
+                      }
+                      title={isAudible ? "Mute tile" : "Unmute tile"}
+                    >
+                      {isAudible ? (
+                        <Volume2 className="h-4 w-4" />
+                      ) : (
+                        <VolumeOff className="h-4 w-4" />
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-md bg-white/12 text-white hover:bg-white/18"
+                      onClick={() => toggleCameraMaximized(camera.id)}
+                      aria-label={
+                        isMaximized
+                          ? `Return ${camera.name} to grid`
+                          : `Maximize ${camera.name}`
+                      }
+                      title={isMaximized ? "Back to grid" : "Maximize tile"}
+                    >
+                      {isMaximized ? (
+                        <FullscreenExit className="h-4 w-4" />
+                      ) : (
+                        <Fullscreen className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 z-30 h-12 border-t border-white/10 bg-[rgba(12,12,12,0.96)] px-2">
+          <div className="flex h-full min-w-max items-center gap-2 overflow-x-auto text-white">
+            <div className="flex items-center gap-2 pr-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    <span className="ml-1.5 max-w-32 truncate text-xs">
+                      {selectedSiteName}
+                    </span>
+                    <ChevronDown className="ml-1 h-4 w-4 text-white/65" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-60">
+                  <DropdownMenuLabel>Site selector</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioGroup
+                    value={selectedSiteId || "__all__"}
+                    onValueChange={(value) =>
+                      setSelectedSiteId(value === "__all__" ? "" : value)
+                    }
+                  >
+                    <DropdownMenuRadioItem value="__all__">
+                      All sites
+                    </DropdownMenuRadioItem>
+                    {sites.map((site) => (
+                      <DropdownMenuRadioItem key={site.id} value={site.id}>
+                        {site.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-              <div className="rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-muted)]/60 p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Add camera</div>
-                <div className="mt-2 space-y-2">
-                  <Select value={pickerCameraId} onValueChange={setPickerCameraId}>
-                    <SelectTrigger><SelectValue placeholder="Choose camera" /></SelectTrigger>
-                    <SelectContent>
-                      {availableToAdd.map((camera) => (
-                        <SelectItem key={camera.id} value={camera.id}>{camera.site?.name || "Unknown Site"} | {camera.area} | {camera.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button type="button" onClick={addCameraToGrid} disabled={!pickerCameraId} className="w-full"><Plus className="mr-2 h-4 w-4" />Add to wall</Button>
-                </div>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                  >
+                    <Grid3x3 className="h-4 w-4" />
+                    <span className="ml-1.5 text-xs">
+                      {layoutOptions.find((option) => option.value === layoutDensity)
+                        ?.label || "Layout"}
+                    </span>
+                    <ChevronDown className="ml-1 h-4 w-4 text-white/65" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-52">
+                  <DropdownMenuLabel>Grid layout</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioGroup
+                    value={String(layoutDensity)}
+                    onValueChange={(value) =>
+                      setLayoutDensity(Number(value) as GridDensity)
+                    }
+                  >
+                    {layoutOptions.map((option) => (
+                      <DropdownMenuRadioItem
+                        key={option.value}
+                        value={String(option.value)}
+                      >
+                        {option.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={startAllVisible} disabled={selectedCameras.length === 0}>Start all visible</Button>
-                <Button type="button" variant="outline" onClick={stopAllActive} disabled={activeSessionsCount === 0}>Stop all active</Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                  >
+                    <Video className="h-4 w-4" />
+                    <span className="ml-1.5 text-xs">
+                      {streamProfileOptions.find(
+                        (option) => option.value === wallStreamType,
+                      )?.label}
+                    </span>
+                    <ChevronDown className="ml-1 h-4 w-4 text-white/65" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-56">
+                  <DropdownMenuLabel>Stream profile</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioGroup
+                    value={wallStreamType}
+                    onValueChange={(value) =>
+                      handleResolutionSelection(value as StreamType)
+                    }
+                  >
+                    {streamProfileOptions.map((option) => (
+                      <DropdownMenuRadioItem key={option.value} value={option.value}>
+                        {option.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </CCTVSection>
 
-          <CCTVSection eyebrow="focus" title={focusedCamera?.name || "No camera selected"} description={focusedCamera ? `${focusedCamera.site?.name || "Unknown Site"} | ${focusedCamera.area}` : "Choose a camera tile to inspect its state and control the stream."}>
-            <div className="space-y-3 px-4 pb-4 sm:px-5">
-              {focusedCamera ? (
-                <>
-                  <div className="grid gap-2 text-sm">
-                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Status</span><span className="flex items-center gap-2 font-medium"><StatusDot status={focusedCamera.isOnline ? "active" : "inactive"} />{focusedCamera.isOnline ? "Online" : "Offline"}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Current profile</span><span className="font-medium">{streamProfiles[focusedCamera.id] || "sub"}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Active session</span><span className="font-medium">{activeSessionByCamera.has(focusedCamera.id) ? "Running" : "Idle"}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Last seen</span><span className="font-medium">{focusedCamera.lastSeen ? new Date(focusedCamera.lastSeen).toLocaleString() : "Unknown"}</span></div>
-                  </div>
+            {activeSessionsCount > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 rounded-md bg-rose-500/24 px-2.5 text-rose-100 hover:bg-rose-500/34"
+                onClick={stopAllVisible}
+                disabled={activeSessionsCount === 0}
+              >
+                <Square className="mr-1.5 h-4 w-4" />
+                <span className="text-xs">Stop</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 rounded-md bg-emerald-500/24 px-2.5 text-emerald-100 hover:bg-emerald-500/34"
+                onClick={startAllVisible}
+                disabled={visibleWallCameras.length === 0}
+              >
+                <Play className="mr-1.5 h-4 w-4" />
+                <span className="text-xs">Play</span>
+              </Button>
+            )}
 
-                  <div className="flex flex-wrap gap-2">
-                    {activeSessionByCamera.get(focusedCamera.id)?.playUrl ? (
-                      <Button asChild size="sm" variant="outline"><a href={activeSessionByCamera.get(focusedCamera.id)?.playUrl || "#"} target="_blank" rel="noreferrer">Open stream</a></Button>
-                    ) : null}
-                    <Button type="button" size="sm" variant="outline" onClick={() => setFocusedCameraId(focusedCamera.id)}>Keep focus</Button>
-                  </div>
-                </>
+            {isWallMaximizedToSingleCamera ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                onClick={() => setMaximizedCameraId(null)}
+              >
+                <Grid3x3 className="mr-1.5 h-4 w-4" />
+                <span className="text-xs">Grid</span>
+              </Button>
+            ) : null}
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+              onClick={() => void toggleFullscreen()}
+              aria-label="Toggle full screen"
+              title="Full screen"
+            >
+              {isWallFullscreen ? (
+                <FullscreenExit className="h-4 w-4" />
               ) : (
-                <StatusState variant="empty" title="No camera selected" description="Pick a tile from the wall to inspect stream state, profile, and quick actions." />
+                <Fullscreen className="h-4 w-4" />
               )}
-            </div>
-          </CCTVSection>
-        </aside>
+            </Button>
+
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+              aria-label="Open playback"
+              title="Playback"
+            >
+              <Link href="/cctv/playback">
+                <History className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

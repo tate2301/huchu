@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { CCTVShell, type CCTVTab } from "@/components/cctv/cctv-shell";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 
 export default function CCTVLayout({
   children,
@@ -22,5 +25,16 @@ export default function CCTVLayout({
     return "overview";
   }, [pathname]);
 
-  return <CCTVShell activeTab={activeTab}>{children}</CCTVShell>;
+  const navActions = activeTab === "live" ? (
+    <ButtonGroup>
+      <Button asChild variant="outline" size="sm">
+        <Link href="/cctv/cameras/new">Register Camera</Link>
+      </Button>
+      <Button asChild variant="outline" size="sm">
+        <Link href="/cctv/nvrs/new">Register NVR</Link>
+      </Button>
+    </ButtonGroup>
+  ) : null;
+
+  return <CCTVShell activeTab={activeTab} navActions={navActions}>{children}</CCTVShell>;
 }

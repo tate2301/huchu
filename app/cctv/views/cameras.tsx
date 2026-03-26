@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { CheckCircle, Mic, Pencil, Radio, Shield, Trash2, XCircle } from "@/lib/icons";
+import { Trash2 } from "@/lib/icons";
 import { fetchCameras, Site } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
@@ -347,121 +347,78 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
             description={`${filteredCameras.length} camera${filteredCameras.length === 1 ? "" : "s"} in the current view.`}
           >
             <CCTVSurface className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[960px] text-sm">
-                  <thead className="border-b border-border/70 bg-muted/40 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Camera</th>
-                      <th className="px-4 py-3 font-medium">Site / Area</th>
-                      <th className="px-4 py-3 font-medium">Recorder</th>
-                      <th className="px-4 py-3 font-medium">State</th>
-                      <th className="px-4 py-3 font-medium">Last seen</th>
-                      <th className="px-4 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCameras.map((camera) => {
-                      const isSelected = selectedCamera?.id === camera.id;
-                      return (
-                        <tr
-                          key={camera.id}
-                          className={[
-                            "border-b border-border/60 transition-colors hover:bg-muted/40",
-                            isSelected ? "bg-muted/50" : "",
-                            createdId === camera.id ? "bg-emerald-50/60" : "",
-                          ].join(" ")}
-                          onClick={() => setSelectedCameraId(camera.id)}
-                        >
-                          <td className="px-4 py-4">
-                            <div className="flex items-start gap-3">
-                              <div
-                                className={[
-                                  "mt-0.5 h-2.5 w-2.5 rounded-full",
-                                  camera.isOnline ? "bg-emerald-500" : "bg-rose-500",
-                                ].join(" ")}
-                              />
-                              <div className="space-y-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-semibold text-foreground">{camera.name}</span>
-                                  {camera.isHighSecurity ? (
-                                    <Badge variant="outline" className="gap-1">
-                                      <Shield className="h-3 w-3" />
-                                      High security
-                                    </Badge>
-                                  ) : null}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  Channel {camera.channelNumber}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="space-y-1">
-                              <div className="font-medium">{camera.site?.name || "Unknown site"}</div>
-                              <div className="text-xs text-muted-foreground">{camera.area}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="space-y-1">
-                              <div className="font-medium">{camera.nvr?.name || "Unknown NVR"}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {camera.nvr?.ipAddress || "No address"}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant={camera.isOnline ? "outline" : "destructive"}>
-                                {camera.isOnline ? (
-                                  <CheckCircle className="mr-1 h-3 w-3" />
-                                ) : (
-                                  <XCircle className="mr-1 h-3 w-3" />
-                                )}
-                                {camera.isOnline ? "Online" : "Offline"}
-                              </Badge>
-                              <Badge variant={camera.isRecording ? "secondary" : "outline"}>
-                                <Radio className="mr-1 h-3 w-3" />
-                                {camera.isRecording ? "Recording" : "Idle"}
-                              </Badge>
-                              {camera.hasAudio ? (
-                                <Badge variant="secondary">
-                                  <Mic className="mr-1 h-3 w-3" />
-                                  Audio
-                                </Badge>
+              <div className="bg-[var(--surface-base)] text-foreground">
+                <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.1fr)_160px] gap-4 border-b border-[var(--edge-subtle)] px-4 py-3 text-xs text-muted-foreground">
+                  <div>Camera</div>
+                  <div>Last active</div>
+                  <div>Location</div>
+                  <div className="text-right">Actions</div>
+                </div>
+                {filteredCameras.map((camera) => {
+                  const isSelected = selectedCamera?.id === camera.id;
+                  return (
+                    <button
+                      key={camera.id}
+                      type="button"
+                      onClick={() => setSelectedCameraId(camera.id)}
+                      className={[
+                        "grid w-full grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.1fr)_160px] gap-4 border-b border-[var(--edge-subtle)] px-4 py-4 text-left transition-colors",
+                        isSelected ? "bg-[var(--surface-subtle)]" : "bg-transparent hover:bg-[var(--surface-subtle)]/70",
+                        createdId === camera.id ? "ring-1 ring-emerald-400/40" : "",
+                      ].join(" ")}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-start gap-3">
+                          <div className={["mt-1 h-2.5 w-2.5 rounded-full", camera.isOnline ? "bg-emerald-400" : "bg-rose-400"].join(" ")} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate font-semibold text-foreground">{camera.name}</span>
+                              {camera.isHighSecurity ? (
+                                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-700">
+                                  Secure
+                                </span>
                               ) : null}
                             </div>
-                          </td>
-                          <td className="px-4 py-4 text-xs text-muted-foreground">
-                            {formatLastSeen(camera.lastSeen)}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex justify-end gap-2">
-                              <Button asChild size="sm" variant="outline" onClick={(event) => event.stopPropagation()}>
-                                <Link href={`/cctv/cameras/${camera.id}/edit`}>
-                                  <Pencil className="mr-1 h-3 w-3" />
-                                  Edit
-                                </Link>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  deactivateMutation.mutate(camera.id);
-                                }}
-                                disabled={deactivateMutation.isPending}
-                              >
-                                <Trash2 className="mr-1 h-3 w-3" />
-                                Deactivate
-                              </Button>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">
+                              Channel {camera.channelNumber} | {camera.nvr?.name || "No NVR"}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="min-w-0 text-sm text-muted-foreground">
+                        <div>{formatLastSeen(camera.lastSeen)}</div>
+                        <div className="mt-1 text-xs text-muted-foreground/80">
+                          {camera.isRecording ? "Recording active" : "Recording idle"}
+                        </div>
+                      </div>
+                      <div className="min-w-0 text-sm text-muted-foreground">
+                        <div className="truncate">{camera.site?.name || "Unknown site"}</div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground/80">
+                          {camera.area}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button asChild size="sm" variant="outline" className="border-[var(--edge-subtle)] bg-transparent" onClick={(event) => event.stopPropagation()}>
+                          <Link href={`/cctv/cameras/${camera.id}/edit`}>
+                            Edit
+                          </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-muted-foreground hover:bg-[var(--surface-subtle)] hover:text-foreground"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deactivateMutation.mutate(camera.id);
+                          }}
+                          disabled={deactivateMutation.isPending}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </CCTVSurface>
           </CCTVSection>
@@ -527,7 +484,6 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
                   <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline">
                       <Link href={`/cctv/cameras/${selectedCamera.id}/edit`}>
-                        <Pencil className="mr-2 h-4 w-4" />
                         Edit camera
                       </Link>
                     </Button>

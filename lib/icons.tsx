@@ -49,6 +49,7 @@ export const Bell = createMaterialIcon("notifications", "Bell");
 export const Building2 = createMaterialIcon("domain", "Building2");
 export const Calendar = createMaterialIcon("calendar_month", "Calendar");
 export const Camera = createMaterialIcon("videocam", "Camera");
+export const Nvr = createMaterialIcon("router", "Nvr");
 export const ChartLine = createMaterialIcon("monitoring", "ChartLine");
 export const CheckCircle = createMaterialIcon("check_circle", "CheckCircle");
 export const CheckCircle2 = createMaterialIcon("task_alt", "CheckCircle2");
@@ -72,6 +73,11 @@ export const EventNote = createMaterialIcon("event_note", "EventNote");
 export const Factory = createMaterialIcon("factory", "Factory");
 export const FileCheck = createMaterialIcon("task", "FileCheck");
 export const FileText = createMaterialIcon("description", "FileText");
+export const Fullscreen = createMaterialIcon("fullscreen", "Fullscreen");
+export const FullscreenExit = createMaterialIcon(
+  "fullscreen_exit",
+  "FullscreenExit",
+);
 export const Fuel = createMaterialIcon("local_gas_station", "Fuel");
 export const Gem = createMaterialIcon("diamond", "Gem");
 export const Grid3x3 = createMaterialIcon("grid_view", "Grid3x3");
@@ -89,6 +95,7 @@ export const ManageAccounts = createMaterialIcon(
   "ManageAccounts",
 );
 export const Mic = createMaterialIcon("mic", "Mic");
+export const Minimize2 = createMaterialIcon("close_fullscreen", "Minimize2");
 export const Minus = createMaterialIcon("remove", "Minus");
 export const NoteAdd = createMaterialIcon("note_add", "NoteAdd");
 export const Package = createMaterialIcon("inventory_2", "Package");
@@ -97,6 +104,7 @@ export const PanelLeft = createMaterialIcon("left_panel_open", "PanelLeft");
 export const Payments = createMaterialIcon("payments", "Payments");
 export const Pencil = createMaterialIcon("edit", "Pencil");
 export const Plus = createMaterialIcon("add", "Plus");
+export const Play = createMaterialIcon("play_arrow", "Play");
 export const QrCode = createMaterialIcon("qr_code", "QrCode");
 export const Radio = createMaterialIcon("radio", "Radio");
 export const ReceiptLong = createMaterialIcon("receipt_long", "ReceiptLong");
@@ -126,8 +134,12 @@ export const UserRound = createMaterialIcon("account_circle", "UserRound");
 export const UserX = createMaterialIcon("person_off", "UserX");
 export const Users = createMaterialIcon("groups", "Users");
 export const Video = createMaterialIcon("videocam", "Video");
+export const Volume2 = createMaterialIcon("volume_up", "Volume2");
+export const VolumeOff = createMaterialIcon("volume_off", "VolumeOff");
 export const Wallet = createMaterialIcon("account_balance_wallet", "Wallet");
 export const Wrench = createMaterialIcon("build", "Wrench");
 export const X = createMaterialIcon("close", "X");
 export const XCircle = createMaterialIcon("cancel", "XCircle");
 export const Zap = createMaterialIcon("bolt", "Zap");
+export const Square = createMaterialIcon("stop", "Square");
+export const Maximize2 = createMaterialIcon("open_in_full", "Maximize2");

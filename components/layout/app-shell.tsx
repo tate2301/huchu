@@ -15,6 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isMarketingRoute = pathname === "/home" || pathname.startsWith("/home/");
   const isPortalRoute = pathname.startsWith("/portal/");
   const isAdminRoute = pathname.startsWith("/admin");
+  const isCctvRoute = pathname.startsWith("/cctv");
 
   if (isAuthRoute || isMarketingRoute || isPortalRoute || isAdminRoute) {
     return <div className="min-h-screen bg-background">{children}</div>;
@@ -26,7 +27,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <SidebarInset className="flex min-h-screen flex-col bg-background">
           <Navbar />
-          <main className="content-shell min-w-0 flex-1 bg-background py-6">
+          <main
+            className={
+              isCctvRoute
+                ? "min-w-0 flex-1 bg-background py-0"
+                : "content-shell min-w-0 flex-1 bg-background py-6"
+            }
+          >
             <OnboardingProvider>{children}</OnboardingProvider>
           </main>
         </SidebarInset>

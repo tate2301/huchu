@@ -51,9 +51,9 @@ export function resolvePlaybackUrls({
   fallbackPlayUrl: string | null
   gatewayConfigured: boolean
 } {
-  const gatewayUrl = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "")
-  const webrtcBase = process.env.CCTV_WEBRTC_URL?.trim().replace(/\/+$/, "")
-  const hlsBase = process.env.CCTV_HLS_BASE_URL?.trim().replace(/\/+$/, "")
+  const gatewayUrl = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "") ?? null
+  const webrtcBase = process.env.CCTV_WEBRTC_URL?.trim().replace(/\/+$/, "") ?? null
+  const hlsBase = process.env.CCTV_HLS_BASE_URL?.trim().replace(/\/+$/, "") ?? null
   
   const gatewayConfigured = Boolean(gatewayUrl)
   
