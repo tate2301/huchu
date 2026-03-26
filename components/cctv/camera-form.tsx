@@ -8,9 +8,9 @@ import { Camera, NVR, Site } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CCTVSection, CCTVSurface } from "@/components/cctv/cctv-surfaces";
 import { useToast } from "@/components/ui/use-toast";
 
 type CameraFormProps = {
@@ -32,7 +32,6 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
   const [hasPTZ, setHasPTZ] = useState(String(initialValue?.hasPTZ ?? false));
   const [hasAudio, setHasAudio] = useState(String(initialValue?.hasAudio ?? false));
   const [hasMotionDetect, setHasMotionDetect] = useState(String(initialValue?.hasMotionDetect ?? true));
-  const [hasLineDetect, setHasLineDetect] = useState(String(initialValue?.hasLineDetect ?? false));
   const [isHighSecurity, setIsHighSecurity] = useState(String(initialValue?.isHighSecurity ?? false));
   const [isOnline, setIsOnline] = useState(String(initialValue?.isOnline ?? false));
   const [isRecording, setIsRecording] = useState(String(initialValue?.isRecording ?? true));
@@ -46,6 +45,9 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
     [nvrs, siteId],
   );
 
+  const selectedSite = sites.find((site) => site.id === siteId);
+  const selectedNvr = nvrs.find((nvr) => nvr.id === nvrId);
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -58,7 +60,6 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
         hasPTZ: hasPTZ === "true",
         hasAudio: hasAudio === "true",
         hasMotionDetect: hasMotionDetect === "true",
-        hasLineDetect: hasLineDetect === "true",
         isHighSecurity: isHighSecurity === "true",
         isOnline: isOnline === "true",
         isRecording: isRecording === "true",
@@ -120,14 +121,8 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{pageTitle}</CardTitle>
-        <CardDescription>
-          Configure camera details, capabilities, and stream source mapping.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="space-y-6">
         {formError ? (
           <Alert variant="destructive">
             <AlertTitle>Fix required fields</AlertTitle>
@@ -135,162 +130,194 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
           </Alert>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Camera Name</label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Main Gate Camera 1" />
-          </div>
+        <CCTVSurface className="p-5">
+          <CCTVSection
+            title={pageTitle}
+            description="Capture the camera identity, site assignment, and recorder mapping."
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Camera name</label>
+                <Input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Main Gate Camera 1"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Site</label>
-            <Select
-              value={siteId}
-              onValueChange={(value) => {
-                setSiteId(value);
-                if (nvrId && !nvrs.some((nvr) => nvr.id === nvrId && nvr.siteId === value)) {
-                  setNvrId("");
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select site" />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Site</label>
+                <Select
+                  value={siteId}
+                  onValueChange={(value) => {
+                    setSiteId(value);
+                    if (nvrId && !nvrs.some((nvr) => nvr.id === nvrId && nvr.siteId === value)) {
+                      setNvrId("");
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">NVR</label>
-            <Select value={nvrId} onValueChange={setNvrId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select NVR" />
-              </SelectTrigger>
-              <SelectContent>
-                {nvrsBySite.map((nvr) => (
-                  <SelectItem key={nvr.id} value={nvr.id}>
-                    {nvr.name} ({nvr.ipAddress})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Recorder</label>
+                <Select value={nvrId} onValueChange={setNvrId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select NVR" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nvrsBySite.map((nvr) => (
+                      <SelectItem key={nvr.id} value={nvr.id}>
+                        {nvr.name} ({nvr.ipAddress})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Channel Number</label>
-            <Input type="number" value={channelNumber} onChange={(event) => setChannelNumber(event.target.value)} />
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Channel number</label>
+                <Input
+                  type="number"
+                  value={channelNumber}
+                  onChange={(event) => setChannelNumber(event.target.value)}
+                />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Area</label>
-            <Input value={area} onChange={(event) => setArea(event.target.value)} placeholder="Gate" />
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Area</label>
+                <Input value={area} onChange={(event) => setArea(event.target.value)} placeholder="Gate" />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <Input
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Overview of the monitored zone"
-            />
-          </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Description</label>
+                <Input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Overview of the monitored zone"
+                />
+              </div>
+            </div>
+          </CCTVSection>
+        </CCTVSurface>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">PTZ</label>
-            <Select value={hasPTZ} onValueChange={setHasPTZ}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <CCTVSurface className="p-5">
+          <CCTVSection
+            title="Operational state"
+            description="Keep the camera aligned to the current monitoring and recording posture."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">High security</label>
+                <Select value={isHighSecurity} onValueChange={setIsHighSecurity}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Audio</label>
-            <Select value={hasAudio} onValueChange={setHasAudio}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Online status</label>
+                <Select value={isOnline} onValueChange={setIsOnline}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Online</SelectItem>
+                    <SelectItem value="false">Offline</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Motion Detection</label>
-            <Select value={hasMotionDetect} onValueChange={setHasMotionDetect}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Enabled</SelectItem>
-                <SelectItem value="false">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Recording status</label>
+                <Select value={isRecording} onValueChange={setIsRecording}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Recording</SelectItem>
+                    <SelectItem value="false">Not recording</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CCTVSection>
+        </CCTVSurface>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Line Detection</label>
-            <Select value={hasLineDetect} onValueChange={setHasLineDetect}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Enabled</SelectItem>
-                <SelectItem value="false">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <CCTVSurface className="p-5">
+          <details className="group">
+            <summary className="cursor-pointer list-none">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Optional device settings
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Additional fields stay tucked away so the main setup flow stays simple.
+                  </div>
+                </div>
+                <span className="text-sm text-muted-foreground group-open:hidden">Show</span>
+                <span className="hidden text-sm text-muted-foreground group-open:inline">Hide</span>
+              </div>
+            </summary>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">High Security</label>
-            <Select value={isHighSecurity} onValueChange={setIsHighSecurity}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">PTZ</label>
+                <Select value={hasPTZ} onValueChange={setHasPTZ}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Online Status</label>
-            <Select value={isOnline} onValueChange={setIsOnline}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Online</SelectItem>
-                <SelectItem value="false">Offline</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Audio</label>
+                <Select value={hasAudio} onValueChange={setHasAudio}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Recording Status</label>
-            <Select value={isRecording} onValueChange={setIsRecording}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Recording</SelectItem>
-                <SelectItem value="false">Not recording</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Motion detection</label>
+                <Select value={hasMotionDetect} onValueChange={setHasMotionDetect}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Enabled</SelectItem>
+                    <SelectItem value="false">Disabled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </details>
+        </CCTVSurface>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={onSubmit} disabled={submitMutation.isPending}>
@@ -307,7 +334,54 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
           </Button>
           <p className="text-xs text-muted-foreground">Required: name, site, NVR, channel number, area.</p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <aside className="space-y-4 xl:sticky xl:top-6 self-start">
+        <CCTVSurface className="p-4">
+          <div className="space-y-3">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Setup summary
+              </div>
+              <div className="mt-1 text-lg font-semibold">
+                {isEditMode ? "Editing camera" : "New camera"}
+              </div>
+            </div>
+
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Site</span>
+                <span>{selectedSite?.name || "Unselected"}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Recorder</span>
+                <span>{selectedNvr?.name || "Unselected"}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Channel</span>
+                <span className="tabular-nums">{channelNumber || "-"}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Security</span>
+                <span>{isHighSecurity === "true" ? "High security" : "Standard"}</span>
+              </div>
+            </div>
+          </div>
+        </CCTVSurface>
+
+        <CCTVSurface className="p-4">
+          <div className="space-y-3 text-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Field hints
+            </div>
+            <ul className="space-y-2 text-muted-foreground">
+              <li>Pick the site before the recorder so the channel list stays consistent.</li>
+              <li>Use the sub stream for grid monitoring and the main stream for focused review.</li>
+              <li>Optional device settings stay tucked away to keep the main workflow clean.</li>
+            </ul>
+          </div>
+        </CCTVSurface>
+      </aside>
+    </div>
   );
 }

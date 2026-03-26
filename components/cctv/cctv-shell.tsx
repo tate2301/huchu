@@ -11,6 +11,7 @@ import {
   Camera,
   Dashboard,
   FileCheck,
+  Shield,
   History,
   Server,
   Video,
@@ -92,28 +93,48 @@ export function CCTVShell({
 
       <nav
         aria-label="CCTV navigation"
-        className="flex w-full flex-wrap justify-start gap-2 border-b border-[var(--edge-subtle)] pb-1"
+        className="overflow-hidden rounded-[18px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] shadow-[var(--surface-frame-shadow)]"
       >
-        {visibleTabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <Link
-              key={tab.id}
-              href={tab.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap border-b-2 px-3 py-1.5 text-sm font-semibold transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                isActive
-                  ? "border-[var(--action-primary-bg)] text-[var(--action-primary-bg)]"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <tab.icon className="h-4 w-4" />
-              <span className="ml-2">{tab.label}</span>
-            </Link>
-          );
-        })}
+        <div className="flex items-center justify-between gap-4 border-b border-[var(--edge-subtle)] px-5 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,65,70,0.95),rgba(7,33,41,0.98))] text-white shadow-[var(--surface-frame-shadow)]">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Security Operations
+              </p>
+              <p className="text-sm font-medium text-foreground">
+                Cameras, events, audit trails, and public relay monitoring
+              </p>
+            </div>
+          </div>
+          <p className="hidden text-xs text-muted-foreground lg:block">
+            Choose a workspace area below to monitor streams, investigate incidents, or maintain devices.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 px-3 py-3 sm:px-4">
+          {visibleTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <Link
+                key={tab.id}
+                href={tab.href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-10 items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-all",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  isActive
+                    ? "border-[rgba(16,88,84,0.4)] bg-[rgba(16,88,84,0.12)] text-[rgb(16,88,84)] shadow-[var(--surface-frame-shadow)]"
+                    : "border-transparent bg-transparent text-muted-foreground hover:border-[var(--edge-subtle)] hover:bg-[var(--surface-subtle)] hover:text-foreground",
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                <span>{tab.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       {children}

@@ -8,9 +8,9 @@ import { NVR, Site } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CCTVSurface, CCTVSection } from "@/components/cctv/cctv-surfaces";
 import { useToast } from "@/components/ui/use-toast";
 
 type NVRFormProps = {
@@ -40,6 +40,7 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
 
   const nvrId = initialValue?.id;
   const isEditMode = mode === "edit" && Boolean(nvrId);
+  const selectedSite = sites.find((site) => site.id === siteId);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -103,10 +104,7 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
     },
   });
 
-  const pageTitle = useMemo(
-    () => (isEditMode ? "Edit NVR" : "Register NVR"),
-    [isEditMode],
-  );
+  const pageTitle = useMemo(() => (isEditMode ? "Edit NVR" : "Register NVR"), [isEditMode]);
 
   const onSubmit = () => {
     setFormError(null);
@@ -122,14 +120,8 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{pageTitle}</CardTitle>
-        <CardDescription>
-          Fill in recorder details and connection settings. Required fields must be completed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="space-y-6">
         {formError ? (
           <Alert variant="destructive">
             <AlertTitle>Fix required fields</AlertTitle>
@@ -137,106 +129,147 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
           </Alert>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">NVR Name</label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Main Gate NVR" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Site</label>
-            <Select value={siteId} onValueChange={setSiteId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select site" />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">IP Address</label>
-            <Input value={ipAddress} onChange={(event) => setIpAddress(event.target.value)} placeholder="192.168.1.100" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Manufacturer</label>
-            <Input value={manufacturer} onChange={(event) => setManufacturer(event.target.value)} placeholder="Hikvision" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Model</label>
-            <Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="DS-76xx" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Firmware</label>
-            <Input value={firmware} onChange={(event) => setFirmware(event.target.value)} placeholder="v5.x" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">RTSP Port</label>
-            <Input type="number" value={rtspPort} onChange={(event) => setRtspPort(event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">HTTP Port</label>
-            <Input type="number" value={httpPort} onChange={(event) => setHttpPort(event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Service Port</label>
-            <Input type="number" value={port} onChange={(event) => setPort(event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Username</label>
-            <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="viewer" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Password {isEditMode ? "(leave blank to keep current)" : ""}
-            </label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={isEditMode ? "********" : "Secure password"}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">ISAPI Enabled</label>
-            <Select value={isapiEnabled} onValueChange={setIsapiEnabled}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">ONVIF Enabled</label>
-            <Select value={onvifEnabled} onValueChange={setOnvifEnabled}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Online Status</label>
-            <Select value={isOnline} onValueChange={setIsOnline}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Online</SelectItem>
-                <SelectItem value="false">Offline</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <CCTVSurface className="p-5">
+          <CCTVSection
+            title={pageTitle}
+            description="Capture the recorder identity, site assignment, and connection details."
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">NVR name</label>
+                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Main Gate NVR" />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Site</label>
+                <Select value={siteId} onValueChange={setSiteId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Manufacturer</label>
+                <Input
+                  value={manufacturer}
+                  onChange={(event) => setManufacturer(event.target.value)}
+                  placeholder="Hikvision"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Model</label>
+                <Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="DS-76xx" />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Firmware</label>
+                <Input value={firmware} onChange={(event) => setFirmware(event.target.value)} placeholder="v5.x" />
+              </div>
+            </div>
+          </CCTVSection>
+        </CCTVSurface>
+
+        <CCTVSurface className="p-5">
+          <CCTVSection
+            title="Network"
+            description="Keep the recorder address and ports readable for maintenance."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">IP address</label>
+                <Input
+                  value={ipAddress}
+                  onChange={(event) => setIpAddress(event.target.value)}
+                  placeholder="192.168.1.100"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">RTSP port</label>
+                <Input type="number" value={rtspPort} onChange={(event) => setRtspPort(event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">HTTP port</label>
+                <Input type="number" value={httpPort} onChange={(event) => setHttpPort(event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Service port</label>
+                <Input type="number" value={port} onChange={(event) => setPort(event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Username</label>
+                <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="viewer" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Password {isEditMode ? "(leave blank to keep current)" : ""}
+                </label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={isEditMode ? "********" : "Secure password"}
+                />
+              </div>
+            </div>
+          </CCTVSection>
+        </CCTVSurface>
+
+        <CCTVSurface className="p-5">
+          <CCTVSection
+            title="Protocol support"
+            description="Keep integration toggles visible, but not in the way of the main setup flow."
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">ISAPI enabled</label>
+                <Select value={isapiEnabled} onValueChange={setIsapiEnabled}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">ONVIF enabled</label>
+                <Select value={onvifEnabled} onValueChange={setOnvifEnabled}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Online status</label>
+                <Select value={isOnline} onValueChange={setIsOnline}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Online</SelectItem>
+                    <SelectItem value="false">Offline</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CCTVSection>
+        </CCTVSurface>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={onSubmit} disabled={submitMutation.isPending}>
@@ -253,7 +286,54 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
           </Button>
           <p className="text-xs text-muted-foreground">Required: name, site, IP address, username, password.</p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <aside className="space-y-4 xl:sticky xl:top-6 self-start">
+        <CCTVSurface className="p-4">
+          <div className="space-y-3">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Setup summary
+              </div>
+              <div className="mt-1 text-lg font-semibold">
+                {isEditMode ? "Editing recorder" : "New recorder"}
+              </div>
+            </div>
+
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Site</span>
+                <span>{selectedSite?.name || "Unselected"}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Address</span>
+                <span className="font-mono">{ipAddress || "-"}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Ports</span>
+                <span className="tabular-nums">RTSP {rtspPort} / HTTP {httpPort}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <span className="text-muted-foreground">Protocol</span>
+                <span>{isapiEnabled === "true" ? "ISAPI on" : "ISAPI off"}</span>
+              </div>
+            </div>
+          </div>
+        </CCTVSurface>
+
+        <CCTVSurface className="p-4">
+          <div className="space-y-3 text-sm">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Field hints
+            </div>
+            <ul className="space-y-2 text-muted-foreground">
+              <li>Match the recorder site to the cameras that will use it.</li>
+              <li>Keep RTSP and HTTP ports visible so support can diagnose quickly.</li>
+              <li>Leave the password blank on edit if the existing credential should stay in place.</li>
+            </ul>
+          </div>
+        </CCTVSurface>
+      </aside>
+    </div>
   );
 }
