@@ -59,6 +59,7 @@ type DeviceViewport = "phone" | "tablet" | "desktop";
 type StreamHint = {
   playUrl: string | null;
   fallbackPlayUrl: string | null;
+  snapshotUrl: string | null;
   protocol: StreamProtocol;
 };
 
@@ -142,6 +143,7 @@ function waitForIceGatheringComplete(peerConnection: RTCPeerConnection) {
 type CCTVTileStreamProps = {
   primaryUrl: string;
   fallbackUrl: string | null;
+  snapshotUrl: string | null;
   protocol: StreamProtocol;
   muted: boolean;
 };
@@ -149,12 +151,15 @@ type CCTVTileStreamProps = {
 function CCTVTileStream({
   primaryUrl,
   fallbackUrl,
+  snapshotUrl,
   protocol,
   muted,
 }: CCTVTileStreamProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mutedRef = useRef(muted);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [isUsingSnapshotFallback, setIsUsingSnapshotFallback] = useState(false);
+  const [snapshotRefreshTick, setSnapshotRefreshTick] = useState(0);
   const [renderState, setRenderState] = useState<"connecting" | "playing" | "error">(
     "connecting",
   );
@@ -162,14 +167,38 @@ function CCTVTileStream({
   const hasVideoFrameRef = useRef(false);
 
   const streamUrl = isUsingFallback && fallbackUrl ? fallbackUrl : primaryUrl;
+  const snapshotAssetUrl = snapshotUrl
+    ? `${snapshotUrl}${snapshotUrl.includes("?") ? "&" : "?"}_t=${snapshotRefreshTick}`
+    : null;
+
+  useEffect(() => {
+    if (!isUsingSnapshotFallback) return;
+    const interval = window.setInterval(() => {
+      setSnapshotRefreshTick((tick) => tick + 1);
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [isUsingSnapshotFallback]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !streamUrl) return;
+    if (isUsingSnapshotFallback || !video || !streamUrl) return;
 
     let isCancelled = false;
     let cleanup: (() => void) | undefined;
     hasVideoFrameRef.current = false;
+
+    const promoteFallback = () => {
+      if (!isCancelled && fallbackUrl && !isUsingFallback) {
+        setIsUsingFallback(true);
+        return true;
+      }
+      if (!isCancelled && snapshotUrl && !isUsingSnapshotFallback) {
+        setIsUsingSnapshotFallback(true);
+        return true;
+      }
+      return false;
+    };
 
     const attachDirectVideo = async () => {
       let hls: Hls | null = null;
@@ -203,7 +232,9 @@ function CCTVTileStream({
           markPlaying();
           return;
         }
-        setRenderState("error");
+        if (!promoteFallback()) {
+          setRenderState("error");
+        }
       };
       const onTimeUpdate = () => {
         markPlaying();
@@ -234,12 +265,21 @@ function CCTVTileStream({
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (isCancelled || hasVideoFrameRef.current) return;
           if (data.fatal) {
-            setRenderState("error");
+            if (!promoteFallback()) {
+              setRenderState("error");
+            }
           }
         });
       } else {
         video.src = streamUrl;
       }
+
+      const watchdog = window.setTimeout(() => {
+        if (isCancelled || hasVideoFrameRef.current) return;
+        if (!promoteFallback()) {
+          setRenderState("error");
+        }
+      }, 7000);
 
       try {
         await video.play();
@@ -249,6 +289,7 @@ function CCTVTileStream({
       }
 
       cleanup = () => {
+        window.clearTimeout(watchdog);
         video.removeEventListener("playing", onPlaying);
         video.removeEventListener("error", onError);
         video.removeEventListener("timeupdate", onTimeUpdate);
@@ -292,7 +333,9 @@ function CCTVTileStream({
         if (isCancelled) return;
         const state = peerConnection.iceConnectionState;
         if ((state === "failed" || state === "closed") && !hasVideoFrameRef.current) {
-          setRenderState("error");
+          if (!promoteFallback()) {
+            setRenderState("error");
+          }
         }
       };
 
@@ -345,11 +388,7 @@ function CCTVTileStream({
           await attachDirectVideo();
         }
       } catch {
-        if (!isCancelled && fallbackUrl && !isUsingFallback) {
-          setIsUsingFallback(true);
-          return;
-        }
-        if (!isCancelled && !hasVideoFrameRef.current) {
+        if (!promoteFallback() && !isCancelled && !hasVideoFrameRef.current) {
           setRenderState("error");
         }
       }
@@ -361,7 +400,14 @@ function CCTVTileStream({
       isCancelled = true;
       if (cleanup) cleanup();
     };
-  }, [fallbackUrl, isUsingFallback, protocol, streamUrl]);
+  }, [
+    fallbackUrl,
+    isUsingFallback,
+    isUsingSnapshotFallback,
+    protocol,
+    snapshotUrl,
+    streamUrl,
+  ]);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -372,16 +418,31 @@ function CCTVTileStream({
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
-      <video
-        ref={videoRef}
-        className="h-full w-full object-cover"
-        autoPlay
-        playsInline
-        muted={muted}
-      />
+      {isUsingSnapshotFallback && snapshotAssetUrl ? (
+        // Snapshot fallback is an unoptimized authenticated gateway image stream.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={snapshotAssetUrl}
+          alt=""
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          className="h-full w-full object-cover"
+          autoPlay
+          playsInline
+          muted={muted}
+        />
+      )}
       {renderState !== "playing" && !hasVideoFrame ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 text-xs text-white/75">
-          {renderState === "error" ? "Stream unavailable" : "Connecting..."}
+          {isUsingSnapshotFallback
+            ? "Snapshot mode"
+            : renderState === "error"
+              ? "Stream unavailable"
+              : "Connecting..."}
         </div>
       ) : null}
     </div>
@@ -604,6 +665,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         [input.cameraId]: {
           playUrl: response.playUrl,
           fallbackPlayUrl: response.fallbackPlayUrl,
+          snapshotUrl: response.snapshotUrl,
           protocol: response.protocol,
         },
       }));
@@ -700,6 +762,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         [input.cameraId]: {
           playUrl: response.playUrl,
           fallbackPlayUrl: response.fallbackPlayUrl,
+          snapshotUrl: response.snapshotUrl,
           protocol: response.protocol,
         },
       }));
@@ -920,6 +983,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
             const streamHint = streamHintsByCamera[camera.id];
             const streamUrl = streamHint?.playUrl || activeSession?.playUrl || null;
             const fallbackUrl = streamHint?.fallbackPlayUrl || null;
+            const snapshotUrl = streamHint?.snapshotUrl || null;
             const protocol = (streamHint?.protocol ||
               (activeSession?.protocol as StreamProtocol | undefined) ||
               "WEBRTC") as StreamProtocol;
@@ -955,9 +1019,10 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
               >
                 {activeSession && streamUrl ? (
                   <CCTVTileStream
-                    key={`${activeSession.id}:${streamUrl}:${fallbackUrl || ""}:${protocol}`}
+                    key={`${activeSession.id}:${streamUrl}:${fallbackUrl || ""}:${snapshotUrl || ""}:${protocol}`}
                     primaryUrl={streamUrl}
                     fallbackUrl={fallbackUrl}
+                    snapshotUrl={snapshotUrl}
                     protocol={protocol}
                     muted={!isAudible}
                   />

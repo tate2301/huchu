@@ -173,6 +173,7 @@ export async function POST(request: NextRequest) {
         protocol: playback.protocol,
         playUrl: playback.playUrl,
         fallbackPlayUrl: playback.fallbackPlayUrl,
+        snapshotUrl: playback.snapshotUrl,
         gatewayConfigured: playback.gatewayConfigured,
       })
     }
@@ -233,6 +234,7 @@ export async function POST(request: NextRequest) {
       protocol: playback.protocol,
       playUrl: playback.playUrl,
       fallbackPlayUrl: playback.fallbackPlayUrl,
+      snapshotUrl: playback.snapshotUrl,
       gatewayConfigured: playback.gatewayConfigured,
     })
   } catch (error) {

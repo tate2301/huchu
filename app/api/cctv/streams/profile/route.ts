@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
       rtspUrl,
       playUrl: playback.playUrl,
       fallbackPlayUrl: playback.fallbackPlayUrl,
+      snapshotUrl: playback.snapshotUrl,
       protocol: playback.protocol,
       expiresAt: tokenData.expiresAt,
     })

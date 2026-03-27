@@ -55,6 +55,7 @@ export function resolvePlaybackUrls({
   protocol: StreamProtocol
   playUrl: string | null
   fallbackPlayUrl: string | null
+  snapshotUrl: string | null
   gatewayConfigured: boolean
 } {
   const gatewayUrl = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "") ?? null
@@ -76,11 +77,15 @@ export function resolvePlaybackUrls({
     : webrtcBase 
       ? `${webrtcBase}/camera-${cameraId}-${streamType}/whep?token=${encodeURIComponent(token)}` 
       : null
+  const snapshotUrl = gatewayUrl
+    ? `${gatewayUrl}/snapshot/camera-${cameraId}-${streamType}?token=${encodeURIComponent(token)}`
+    : null
   if (preferredProtocol === "WEBRTC" && (webrtcUrl || gatewayConfigured)) {
     return {
       protocol: StreamProtocol.WEBRTC,
       playUrl: webrtcUrl || gatewayUrl, // Use gateway for signaling if direct WebRTC URL isn't enough
       fallbackPlayUrl: hlsUrl,
+      snapshotUrl,
       gatewayConfigured,
     }
   }
@@ -89,6 +94,7 @@ export function resolvePlaybackUrls({
     protocol: hlsUrl ? StreamProtocol.HLS : StreamProtocol.WEBRTC,
     playUrl: hlsUrl || webrtcUrl || gatewayUrl,
     fallbackPlayUrl: hlsUrl ? webrtcUrl : null,
+    snapshotUrl,
     gatewayConfigured,
   }
 }

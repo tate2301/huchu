@@ -13,8 +13,6 @@ export async function POST(request: NextRequest) {
     const gatewayKey = request.headers.get("x-gateway-key");
     const expectedKey = process.env.GATEWAY_KEY || "default-key";
 
-    console.log({ expectedKey, gatewayKey });
-
     if (gatewayKey !== expectedKey) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -61,11 +59,24 @@ export async function POST(request: NextRequest) {
       tokenData.streamType as StreamType,
       true, // Changed to true for ISAPI compatibility
     );
+    const streamTypeCode =
+      tokenData.streamType === StreamType.MAIN
+        ? 1
+        : tokenData.streamType === StreamType.SUB
+          ? 2
+          : 3;
+    const channelId = camera.channelNumber * 100 + streamTypeCode;
+    const snapshotUrl = `http://${camera.nvr.ipAddress}:${camera.nvr.httpPort}/ISAPI/Streaming/channels/${channelId}/picture`;
 
     return NextResponse.json({
       cameraId: camera.id,
       streamType: tokenData.streamType,
       rtspUrl,
+      snapshotConfig: {
+        url: snapshotUrl,
+        username: camera.nvr.username,
+        password: camera.nvr.password,
+      },
     });
   } catch (error) {
     console.error("Error in CCTV gateway config endpoint:", error);

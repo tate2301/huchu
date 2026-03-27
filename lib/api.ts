@@ -3762,6 +3762,7 @@ export type StartStreamSessionResponse = {
   protocol: "WEBRTC" | "HLS";
   playUrl: string | null;
   fallbackPlayUrl: string | null;
+  snapshotUrl: string | null;
   gatewayConfigured: boolean;
 };
 
@@ -3771,6 +3772,7 @@ export type StreamProfileResponse = {
   rtspUrl: string;
   playUrl: string | null;
   fallbackPlayUrl: string | null;
+  snapshotUrl: string | null;
   protocol: "WEBRTC" | "HLS";
   expiresAt: string;
 };
