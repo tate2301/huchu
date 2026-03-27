@@ -16,14 +16,15 @@ export default function CCTVLayout({
   const pathname = usePathname();
 
   const activeTab = useMemo<CCTVTab>(() => {
+    if (pathname.includes("/overview")) return "overview";
     if (pathname.includes("/live")) return "live";
     if (pathname.includes("/nvrs")) return "nvrs";
     if (pathname.includes("/playback")) return "playback";
     if (pathname.includes("/access-logs")) return "access-logs";
-    return "live";
+    return "overview";
   }, [pathname]);
 
-  const navActions = activeTab === "live" ? (
+  const navActions = activeTab === "live" || activeTab === "overview" ? (
     <ButtonGroup>
       <Button asChild variant="outline" size="sm">
         <Link href="/cctv/cameras/new">Register Camera</Link>

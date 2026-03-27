@@ -22,6 +22,11 @@ export interface RTSPConfig {
   password: string
 }
 
+type OverviewTokenPayload = {
+  nvrId: string
+  expiresAt: string
+}
+
 /**
  * Generate RTSP URL for Hikvision camera stream
  * 
@@ -57,6 +62,10 @@ export function generateRTSPUrl(
   const url = `rtsp://${config.username}:${config.password}@${config.host}:${config.port}${path}`
   
   return url
+}
+
+export function generateOverviewRTSPUrl(config: RTSPConfig): string {
+  return `rtsp://${config.username}:${config.password}@${config.host}:${config.port}/Streaming/Channels/001`
 }
 
 /**
@@ -280,6 +289,24 @@ export function generatePlaybackToken(
   }
 }
 
+export function generateOverviewToken(
+  nvrId: string,
+  expiresInMinutes: number = 15,
+): OverviewTokenPayload & { token: string } {
+  const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString()
+  const payload: OverviewTokenPayload = {
+    nvrId,
+    expiresAt,
+  }
+
+  const token = Buffer.from(JSON.stringify(payload)).toString("base64url")
+
+  return {
+    token,
+    ...payload,
+  }
+}
+
 /**
  * Parse stream token
  * 
@@ -324,6 +351,26 @@ export function parsePlaybackToken(token: string): PlaybackTokenPayload | null {
     const payload = JSON.parse(Buffer.from(token, "base64url").toString("utf-8")) as PlaybackTokenPayload
 
     if (!payload.playbackRecordId || !payload.cameraId || !payload.expiresAt) {
+      return null
+    }
+
+    if (new Date(payload.expiresAt) < new Date()) {
+      return null
+    }
+
+    return payload
+  } catch {
+    return null
+  }
+}
+
+export function parseOverviewToken(token: string): OverviewTokenPayload | null {
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token, "base64url").toString("utf-8"),
+    ) as OverviewTokenPayload
+
+    if (!payload.nvrId || !payload.expiresAt) {
       return null
     }
 

@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   Camera,
   FileCheck,
+  Grid3x3,
   History,
   Server,
   Video,
@@ -17,6 +18,7 @@ import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filt
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 export type CCTVTab =
+  | "overview"
   | "live"
   | "nvrs"
   | "playback"
@@ -30,6 +32,7 @@ type CCTVTabItem = {
 };
 
 const cctvTabs: CCTVTabItem[] = [
+  { id: "overview", label: "Overview", href: "/cctv/overview", icon: Grid3x3 },
   { id: "live", label: "Live Monitor", href: "/cctv/live", icon: Video },
   { id: "nvrs", label: "NVRs", href: "/cctv/nvrs", icon: Server },
   { id: "playback", label: "Playback", href: "/cctv/playback", icon: History },

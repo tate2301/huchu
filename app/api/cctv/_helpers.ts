@@ -40,6 +40,12 @@ type PlayUrlInput = {
   preferredProtocol?: StreamProtocol | "WEBRTC" | "HLS"
 }
 
+type OverviewPlayUrlInput = {
+  nvrId: string
+  token: string
+  preferredProtocol?: StreamProtocol | "WEBRTC" | "HLS"
+}
+
 type PlaybackClipUrlInput = {
   playbackRecordId: string
   token: string
@@ -84,6 +90,54 @@ export function resolvePlaybackUrls({
     return {
       protocol: StreamProtocol.WEBRTC,
       playUrl: webrtcUrl || gatewayUrl, // Use gateway for signaling if direct WebRTC URL isn't enough
+      fallbackPlayUrl: hlsUrl,
+      snapshotUrl,
+      gatewayConfigured,
+    }
+  }
+
+  return {
+    protocol: hlsUrl ? StreamProtocol.HLS : StreamProtocol.WEBRTC,
+    playUrl: hlsUrl || webrtcUrl || gatewayUrl,
+    fallbackPlayUrl: hlsUrl ? webrtcUrl : null,
+    snapshotUrl,
+    gatewayConfigured,
+  }
+}
+
+export function resolveOverviewPlaybackUrls({
+  nvrId,
+  token,
+  preferredProtocol = "WEBRTC",
+}: OverviewPlayUrlInput): {
+  protocol: StreamProtocol
+  playUrl: string | null
+  fallbackPlayUrl: string | null
+  snapshotUrl: string | null
+  gatewayConfigured: boolean
+} {
+  const gatewayUrl = process.env.CCTV_GATEWAY_URL?.trim().replace(/\/+$/, "") ?? null
+  const webrtcBase = process.env.CCTV_WEBRTC_URL?.trim().replace(/\/+$/, "") ?? null
+  const hlsBase = process.env.CCTV_HLS_BASE_URL?.trim().replace(/\/+$/, "") ?? null
+
+  const streamPath = `overview-${nvrId}`
+  const gatewayConfigured = Boolean(gatewayUrl)
+  const hlsUrl = hlsBase
+    ? `${hlsBase}/${streamPath}/index.m3u8?token=${encodeURIComponent(token)}`
+    : null
+  const webrtcUrl = gatewayUrl
+    ? `${gatewayUrl}/whep/${streamPath}?token=${encodeURIComponent(token)}`
+    : webrtcBase
+      ? `${webrtcBase}/${streamPath}/whep?token=${encodeURIComponent(token)}`
+      : null
+  const snapshotUrl = gatewayUrl
+    ? `${gatewayUrl}/snapshot/${streamPath}?token=${encodeURIComponent(token)}`
+    : null
+
+  if (preferredProtocol === "WEBRTC" && (webrtcUrl || gatewayConfigured)) {
+    return {
+      protocol: StreamProtocol.WEBRTC,
+      playUrl: webrtcUrl || gatewayUrl,
       fallbackPlayUrl: hlsUrl,
       snapshotUrl,
       gatewayConfigured,

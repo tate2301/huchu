@@ -3766,6 +3766,22 @@ export type StartStreamSessionResponse = {
   gatewayConfigured: boolean;
 };
 
+export type StartOverviewStreamResponse = {
+  token: string;
+  rtspUrl: string;
+  expiresAt: string;
+  protocol: "WEBRTC" | "HLS";
+  playUrl: string | null;
+  fallbackPlayUrl: string | null;
+  snapshotUrl: string | null;
+  gatewayConfigured: boolean;
+  nvr: {
+    id: string;
+    name: string;
+    site?: { id: string; name: string; code: string } | null;
+  };
+};
+
 export type StreamProfileResponse = {
   session: CCTVStreamSession;
   token: string;
@@ -3847,6 +3863,17 @@ export async function startCCTVStreamSession(input: {
   expiresInMinutes?: number;
 }) {
   return fetchJson<StartStreamSessionResponse>("/api/cctv/streams/session/start", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function startCCTVOverviewStream(input: {
+  nvrId: string;
+  preferredProtocol?: "WEBRTC" | "HLS";
+  expiresInMinutes?: number;
+}) {
+  return fetchJson<StartOverviewStreamResponse>("/api/cctv/overview-stream/start", {
     method: "POST",
     body: JSON.stringify(input),
   });

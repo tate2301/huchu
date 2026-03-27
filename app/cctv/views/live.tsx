@@ -8,6 +8,7 @@ import Hls from "hls.js";
 import {
   CCTVStreamSession,
   Camera,
+  NVR,
   Pagination,
   Site,
   StartStreamSessionResponse,
@@ -17,7 +18,7 @@ import {
   stopCCTVStreamSession,
   switchCCTVStreamProfile,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   ArrowRight,
   Building2,
@@ -26,6 +27,7 @@ import {
   FullscreenExit,
   Grid3x3,
   History,
+  Pencil,
   Play,
   Square,
   Video,
@@ -36,6 +38,12 @@ import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
@@ -44,6 +52,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusDot } from "@/components/ui/status-dot";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -51,11 +67,12 @@ import { cn } from "@/lib/utils";
 type LiveMonitorViewProps = {
   sites: Site[];
   cameras: Camera[];
+  nvrs: NVR[];
 };
 
 type GridDensity = 4 | 6 | 9 | 12;
 type StreamType = "main" | "sub" | "third";
-type StreamProtocol = "WEBRTC" | "HLS";
+export type StreamProtocol = "WEBRTC" | "HLS";
 type DeviceViewport = "phone" | "tablet" | "desktop";
 
 type StreamHint = {
@@ -200,7 +217,7 @@ type CCTVTileStreamProps = {
   muted: boolean;
 };
 
-function CCTVTileStream({
+export function CCTVTileStream({
   primaryUrl,
   fallbackUrl,
   snapshotUrl,
@@ -560,7 +577,351 @@ function CCTVTileStream({
   );
 }
 
-export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
+type CameraSettingsModalProps = {
+  camera: Camera | null;
+  sites: Site[];
+  nvrs: NVR[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+function CameraSettingsModal({
+  camera,
+  sites,
+  nvrs,
+  open,
+  onOpenChange,
+}: CameraSettingsModalProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [name, setName] = useState(camera?.name || "");
+  const [siteId, setSiteId] = useState(camera?.siteId || "");
+  const [nvrId, setNvrId] = useState(camera?.nvrId || "");
+  const [channelNumber, setChannelNumber] = useState(
+    String(camera?.channelNumber ?? 1),
+  );
+  const [area, setArea] = useState(camera?.area || "");
+  const [description, setDescription] = useState(camera?.description || "");
+  const [hasAudio, setHasAudio] = useState(String(camera?.hasAudio ?? false));
+  const [hasPTZ, setHasPTZ] = useState(String(camera?.hasPTZ ?? false));
+  const [hasMotionDetect, setHasMotionDetect] = useState(
+    String(camera?.hasMotionDetect ?? true),
+  );
+  const [hasLineDetect, setHasLineDetect] = useState(
+    String(camera?.hasLineDetect ?? false),
+  );
+  const [isHighSecurity, setIsHighSecurity] = useState(
+    String(camera?.isHighSecurity ?? false),
+  );
+  const [isOnline, setIsOnline] = useState(String(camera?.isOnline ?? false));
+  const [isRecording, setIsRecording] = useState(
+    String(camera?.isRecording ?? true),
+  );
+  const [isActive, setIsActive] = useState(String(camera?.isActive ?? true));
+
+  const availableNvrs = useMemo(
+    () =>
+      nvrs.filter(
+        (nvr) => nvr.isActive && (!siteId || nvr.siteId === siteId),
+      ),
+    [nvrs, siteId],
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!camera) throw new Error("No camera selected");
+      return fetchJson<Camera>(`/api/cctv/cameras/${camera.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: name.trim(),
+          siteId,
+          nvrId,
+          channelNumber: Number(channelNumber),
+          area: area.trim(),
+          description: description.trim() || undefined,
+          hasAudio: hasAudio === "true",
+          hasPTZ: hasPTZ === "true",
+          hasMotionDetect: hasMotionDetect === "true",
+          hasLineDetect: hasLineDetect === "true",
+          isHighSecurity: isHighSecurity === "true",
+          isOnline: isOnline === "true",
+          isRecording: isRecording === "true",
+          isActive: isActive === "true",
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cameras"] });
+      toast({
+        title: "Camera saved",
+      });
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to save camera",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    if (!camera) return;
+    if (!name.trim() || !siteId || !nvrId || !area.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Name, site, NVR, area, and channel are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const parsedChannelNumber = Number(channelNumber);
+    if (!Number.isInteger(parsedChannelNumber) || parsedChannelNumber <= 0) {
+      toast({
+        title: "Invalid channel",
+        description: "Channel must be a positive whole number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveMutation.mutate();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        size="md"
+        className="max-w-4xl border border-[var(--edge-default)] bg-[var(--surface-base)]"
+      >
+        <DialogTitle className="text-lg font-semibold">
+          {camera?.name || "Camera"}
+        </DialogTitle>
+
+        <div className="grid gap-4 pt-2 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Name
+            </label>
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Area
+            </label>
+            <Input value={area} onChange={(event) => setArea(event.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Site
+            </label>
+            <Select
+              value={siteId}
+              onValueChange={(value) => {
+                setSiteId(value);
+                if (
+                  nvrId &&
+                  !nvrs.some((nvr) => nvr.id === nvrId && nvr.siteId === value)
+                ) {
+                  setNvrId("");
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select site" />
+              </SelectTrigger>
+              <SelectContent>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              NVR
+            </label>
+            <Select value={nvrId} onValueChange={setNvrId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select NVR" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableNvrs.map((nvr) => (
+                  <SelectItem key={nvr.id} value={nvr.id}>
+                    {nvr.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Channel
+            </label>
+            <Input
+              type="number"
+              value={channelNumber}
+              onChange={(event) => setChannelNumber(event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Description
+            </label>
+            <Input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Audio
+            </label>
+            <Select value={hasAudio} onValueChange={setHasAudio}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              PTZ
+            </label>
+            <Select value={hasPTZ} onValueChange={setHasPTZ}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Motion
+            </label>
+            <Select value={hasMotionDetect} onValueChange={setHasMotionDetect}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Line detect
+            </label>
+            <Select value={hasLineDetect} onValueChange={setHasLineDetect}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Security
+            </label>
+            <Select value={isHighSecurity} onValueChange={setIsHighSecurity}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">High</SelectItem>
+                <SelectItem value="false">Standard</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Online
+            </label>
+            <Select value={isOnline} onValueChange={setIsOnline}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Recording
+            </label>
+            <Select value={isRecording} onValueChange={setIsRecording}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Active
+            </label>
+            <Select value={isActive} onValueChange={setIsActive}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">On</SelectItem>
+                <SelectItem value="false">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter className="border-t border-[var(--edge-subtle)] pt-4">
+          <Button
+            variant="outline"
+            className="border-[var(--edge-subtle)] bg-transparent"
+            onClick={() => onOpenChange(false)}
+          >
+            Close
+          </Button>
+          <Button onClick={handleSave} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function LiveMonitorView({ sites, cameras, nvrs }: LiveMonitorViewProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const wallRef = useRef<HTMLDivElement | null>(null);
@@ -575,6 +936,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const [audibleCameraId, setAudibleCameraId] = useState<string | null>(null);
   const [focusedCameraId, setFocusedCameraId] = useState<string>("");
   const [maximizedCameraId, setMaximizedCameraId] = useState<string | null>(null);
+  const [settingsCameraId, setSettingsCameraId] = useState<string>("");
   const [compactPage, setCompactPage] = useState(0);
   const [isWallFullscreen, setIsWallFullscreen] = useState(false);
   const [manuallyStoppedCameraIds, setManuallyStoppedCameraIds] = useState<Set<string>>(
@@ -681,6 +1043,11 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         ? filteredCameras.find((camera) => camera.id === maximizedCameraId) || null
         : null,
     [filteredCameras, maximizedCameraId],
+  );
+
+  const settingsCamera = useMemo(
+    () => cameras.find((camera) => camera.id === settingsCameraId) || null,
+    [cameras, settingsCameraId],
   );
 
   const compactPageSize = useMemo(() => {
@@ -1202,6 +1569,17 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                       type="button"
                       variant="secondary"
                       size="icon-sm"
+                      onClick={() => setSettingsCameraId(camera.id)}
+                      aria-label={`Manage ${camera.name}`}
+                      title="Camera settings"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon-sm"
                       onClick={() => toggleCameraMaximized(camera.id)}
                       aria-label={
                         isMaximized
@@ -1475,6 +1853,19 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
           ) : null}
         </div>
       </div>
+
+      <CameraSettingsModal
+        key={settingsCamera?.id || "camera-settings"}
+        camera={settingsCamera}
+        sites={sites}
+        nvrs={nvrs}
+        open={Boolean(settingsCamera)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSettingsCameraId("");
+          }
+        }}
+      />
     </div>
   );
 }

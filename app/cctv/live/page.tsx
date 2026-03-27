@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchCameras, fetchSites } from "@/lib/api";
+import { fetchCameras, fetchNVRs, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { StatusState } from "@/components/shared/status-state";
 import { LiveMonitorView } from "@/app/cctv/views/live";
@@ -29,8 +29,20 @@ export default function CCTVLivePage() {
       }),
   });
 
-  const isLoading = sitesLoading || camerasLoading;
-  const pageError = sitesError || camerasError;
+  const {
+    data: nvrsData,
+    isLoading: nvrsLoading,
+    error: nvrsError,
+  } = useQuery({
+    queryKey: ["nvrs", "live-monitor"],
+    queryFn: () =>
+      fetchNVRs({
+        limit: 500,
+      }),
+  });
+
+  const isLoading = sitesLoading || camerasLoading || nvrsLoading;
+  const pageError = sitesError || camerasError || nvrsError;
 
   if (isLoading) {
     return (
@@ -52,5 +64,11 @@ export default function CCTVLivePage() {
     );
   }
 
-  return <LiveMonitorView sites={sites || []} cameras={camerasData?.data || []} />;
+  return (
+    <LiveMonitorView
+      sites={sites || []}
+      cameras={camerasData?.data || []}
+      nvrs={nvrsData?.data || []}
+    />
+  );
 }

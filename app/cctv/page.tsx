@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
 export default function CCTVPage() {
-  redirect("/cctv/live")
+  redirect("/cctv/overview")
 }
