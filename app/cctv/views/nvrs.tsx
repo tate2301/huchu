@@ -18,7 +18,6 @@ import { PdfTemplate } from "@/components/pdf/pdf-template";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -392,6 +391,7 @@ function NVRSettingsModal({
   const [cameraChannel, setCameraChannel] = useState("1");
   const [cameraAudio, setCameraAudio] = useState("false");
   const [cameraSecurity, setCameraSecurity] = useState("false");
+  const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
 
   const { data: cameraData, isLoading: camerasLoading } = useQuery({
     queryKey: ["cameras", "by-nvr", nvr?.id],
@@ -506,47 +506,34 @@ function NVRSettingsModal({
     },
   });
 
-  const sections: Array<{ id: NVRModalSection; label: string; hint: string }> =
-    [
-      {
-        id: "general",
-        label: "General",
-        hint: "Name, site, and recorder identity",
-      },
-      {
-        id: "network",
-        label: "Network",
-        hint: "Address, ports, and credentials",
-      },
-      {
-        id: "protocols",
-        label: "Protocols",
-        hint: "Integration and device state",
-      },
-      {
-        id: "cameras",
-        label: "Attached Cameras",
-        hint: "View and add linked channels",
-      },
-    ];
+  const sections: Array<{ id: NVRModalSection; label: string }> = [
+    { id: "general", label: "General" },
+    { id: "network", label: "Network" },
+    { id: "protocols", label: "Protocols" },
+    { id: "cameras", label: "Cameras" },
+  ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setCameraDialogOpen(false);
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent
         inset={false}
         size="lg"
         className="max-w-[min(1200px,96vw)] overflow-hidden rounded-[1.6rem] border border-[var(--edge-default)] bg-[var(--surface-base)] p-0 text-foreground shadow-[var(--surface-frame-shadow)]"
       >
         <DialogTitle className="sr-only">NVR settings</DialogTitle>
-        <DialogDescription>
-          NVR settings and linked camera management.
-        </DialogDescription>
 
         <div className="grid min-h-[80vh] grid-cols-[260px_minmax(0,1fr)]">
           <aside className="border-r border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-5">
             <div className="mb-6">
-              <div className="text-xs text-muted-foreground">Recorder</div>
-              <div className="mt-2 text-lg font-semibold text-foreground">
+              <div className="text-lg font-semibold text-foreground">
                 {nvr?.name || "NVR settings"}
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
@@ -567,9 +554,6 @@ function NVRSettingsModal({
                   ].join(" ")}
                 >
                   <div className="text-sm font-medium">{section.label}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {section.hint}
-                  </div>
                 </button>
               ))}
             </nav>
@@ -578,29 +562,18 @@ function NVRSettingsModal({
           <div className="overflow-y-auto px-8 py-7">
             <div className="max-w-4xl space-y-8">
               <header className="border-b border-[var(--edge-subtle)] pb-5">
-                <div className="text-xs text-muted-foreground">
-                  {activeSection === "cameras"
-                    ? "Linked channels"
-                    : "NVR settings"}
-                </div>
-                <h2 className="mt-2 text-4xl font-semibold tracking-tight text-foreground">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
                   {
                     sections.find((section) => section.id === activeSection)
                       ?.label
                   }
                 </h2>
-                <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                  {activeSection === "cameras"
-                    ? "Add cameras directly to this recorder and keep the channel register in one place."
-                    : "Configure recorder details without leaving the NVR workspace."}
-                </p>
               </header>
 
               {activeSection === "general" ? (
                 <div className="space-y-6">
                   <ModalSettingField
                     label="Recorder name"
-                    description="Use a clear operational name that matches the site or surveillance zone."
                     control={
                       <Input
                         value={name}
@@ -610,7 +583,6 @@ function NVRSettingsModal({
                   />
                   <ModalSettingField
                     label="Site"
-                    description="The recorder site also becomes the default site for cameras linked here."
                     control={
                       <Select value={siteId} onValueChange={setSiteId}>
                         <SelectTrigger>
@@ -628,7 +600,6 @@ function NVRSettingsModal({
                   />
                   <ModalSettingField
                     label="Manufacturer"
-                    description="Keep the brand visible for support and field maintenance."
                     control={
                       <Input
                         value={manufacturer}
@@ -640,7 +611,6 @@ function NVRSettingsModal({
                   />
                   <ModalSettingField
                     label="Model and firmware"
-                    description="Track the deployed recorder build without opening a separate maintenance screen."
                     control={
                       <div className="grid gap-3 md:grid-cols-2">
                         <Input
@@ -663,7 +633,6 @@ function NVRSettingsModal({
                 <div className="space-y-6">
                   <ModalSettingField
                     label="Recorder address"
-                    description="Primary IP or hostname used to reach the recorder."
                     control={
                       <Input
                         value={ipAddress}
@@ -673,7 +642,6 @@ function NVRSettingsModal({
                   />
                   <ModalSettingField
                     label="Ports"
-                    description="Keep the core service ports visible for setup and support."
                     control={
                       <div className="grid gap-3 md:grid-cols-3">
                         <Input
@@ -701,7 +669,6 @@ function NVRSettingsModal({
                   />
                   <ModalSettingField
                     label="Credentials"
-                    description="Update access details here; leave password empty if it should remain unchanged."
                     control={
                       <div className="grid gap-3 md:grid-cols-2">
                         <Input
@@ -725,7 +692,6 @@ function NVRSettingsModal({
                 <div className="space-y-6">
                   <ModalSettingField
                     label="Integration protocols"
-                    description="Keep only the recorder capabilities we actively use visible."
                     control={
                       <div className="grid gap-3 md:grid-cols-2">
                         <Select
@@ -761,7 +727,6 @@ function NVRSettingsModal({
                   />
                   <ModalSettingField
                     label="Current device state"
-                    description="This status reflects how the recorder should appear in the register."
                     control={
                       <Select value={isOnline} onValueChange={setIsOnline}>
                         <SelectTrigger className="w-full border-white/10 text-white md:w-[240px]">
@@ -794,174 +759,171 @@ function NVRSettingsModal({
               ) : null}
 
               {activeSection === "cameras" ? (
-                <div className="space-y-7">
-                  <section className="border-b border-white/10 pb-6">
-                    <div className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_auto]">
-                      <Input
-                        value={cameraName}
-                        onChange={(event) => setCameraName(event.target.value)}
-                        placeholder="Camera name"
-                      />
-                      <Input
-                        value={cameraArea}
-                        onChange={(event) => setCameraArea(event.target.value)}
-                        placeholder="Area / location"
-                      />
-                      <Input
-                        type="number"
-                        value={cameraChannel}
-                        onChange={(event) =>
-                          setCameraChannel(event.target.value)
-                        }
-                        placeholder="Channel"
-                      />
-                      <Button
-                        type="button"
-                        onClick={() => addCameraMutation.mutate()}
-                        disabled={
-                          !cameraName.trim() ||
-                          !cameraArea.trim() ||
-                          !cameraChannel.trim() ||
-                          addCameraMutation.isPending
-                        }
-                      >
-                        {addCameraMutation.isPending
-                          ? "Adding..."
-                          : "Add camera"}
-                      </Button>
-                    </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <Select
-                        value={cameraAudio}
-                        onValueChange={setCameraAudio}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Audio" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="false">No audio</SelectItem>
-                          <SelectItem value="true">Audio enabled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={cameraSecurity}
-                        onValueChange={setCameraSecurity}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Security" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="false">Standard camera</SelectItem>
-                          <SelectItem value="true">
-                            High-security camera
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </section>
-
-                  <section className="space-y-2">
-                    <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_120px_120px_120px] gap-3 border-b border-[var(--edge-subtle)] pb-3 text-xs text-muted-foreground">
-                      <div>Camera</div>
-                      <div>Area</div>
-                      <div>Channel</div>
-                      <div>Status</div>
-                      <div className="text-right">Action</div>
-                    </div>
-                    {camerasLoading ? (
-                      <div className="py-8 text-sm text-white/50">
-                        Loading linked cameras...
-                      </div>
-                    ) : linkedCameras.length === 0 ? (
-                      <div className="flex min-h-[220px] items-center justify-center bg-[var(--surface-subtle)] text-sm text-muted-foreground">
-                        No cameras linked to this NVR yet.
-                      </div>
-                    ) : (
-                      linkedCameras.map((camera) => (
-                        <div
-                          key={camera.id}
-                          className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_120px_120px_120px] items-center gap-3 border-b border-[var(--edge-subtle)] py-3 text-sm text-foreground"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate font-medium text-foreground">
-                              {camera.name}
-                            </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {camera.site?.name || nvr?.site?.name}
-                            </div>
-                          </div>
-                          <div className="truncate text-muted-foreground">
-                            {camera.area}
-                          </div>
-                          <div className="tabular-nums text-muted-foreground">
-                            {camera.channelNumber}
-                          </div>
-                          <div>{camera.isOnline ? "Online" : "Offline"}</div>
-                          <div className="flex justify-end">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-rose-600 hover:text-rose-700"
-                              onClick={() =>
-                                removeCameraMutation.mutate(camera.id)
-                              }
-                              disabled={removeCameraMutation.isPending}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </section>
+                <div className="space-y-4">
+                  <Button
+                    type="button"
+                    onClick={() => setCameraDialogOpen(true)}
+                  >
+                    Manage cameras
+                  </Button>
+                  <div className="grid gap-4 border-t border-[var(--edge-subtle)] pt-5 md:grid-cols-2">
+                    <ModalStat
+                      label="Linked cameras"
+                      value={String(
+                        nvr?._count?.cameras ?? linkedCameras.length,
+                      )}
+                    />
+                    <ModalStat
+                      label="Last heartbeat"
+                      value={formatHeartbeat(nvr?.lastHeartbeat)}
+                    />
+                  </div>
                 </div>
               ) : null}
 
-              <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--edge-subtle)] pt-5">
-                <div className="text-xs text-muted-foreground">
-                  Recorder workspace for settings and linked camera maintenance.
-                </div>
-                <div className="flex flex-wrap gap-2">
+              <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--edge-subtle)] pt-5">
+                <Button
+                  variant="outline"
+                  className="border-[var(--edge-subtle)] bg-transparent"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Close
+                </Button>
+                {activeSection !== "cameras" ? (
                   <Button
-                    variant="outline"
-                    className="border-[var(--edge-subtle)] bg-transparent"
-                    onClick={() => onOpenChange(false)}
+                    onClick={() => saveMutation.mutate()}
+                    disabled={saveMutation.isPending}
                   >
-                    Close
+                    {saveMutation.isPending ? "Saving..." : "Save"}
                   </Button>
-                  {activeSection !== "cameras" ? (
-                    <Button
-                      onClick={() => saveMutation.mutate()}
-                      disabled={saveMutation.isPending}
-                    >
-                      {saveMutation.isPending ? "Saving..." : "Save settings"}
-                    </Button>
-                  ) : null}
-                </div>
+                ) : null}
               </footer>
             </div>
           </div>
         </div>
       </DialogContent>
+
+      <Dialog open={cameraDialogOpen} onOpenChange={setCameraDialogOpen}>
+        <DialogContent
+          size="md"
+          className="max-w-3xl border border-[var(--edge-default)] bg-[var(--surface-base)]"
+        >
+          <DialogTitle className="text-lg font-semibold">Cameras</DialogTitle>
+          <div className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px]">
+              <Input
+                value={cameraName}
+                onChange={(event) => setCameraName(event.target.value)}
+                placeholder="Name"
+              />
+              <Input
+                value={cameraArea}
+                onChange={(event) => setCameraArea(event.target.value)}
+                placeholder="Area"
+              />
+              <Input
+                type="number"
+                value={cameraChannel}
+                onChange={(event) => setCameraChannel(event.target.value)}
+                placeholder="Channel"
+              />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <Select value={cameraAudio} onValueChange={setCameraAudio}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Audio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">No audio</SelectItem>
+                  <SelectItem value="true">Audio enabled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={cameraSecurity} onValueChange={setCameraSecurity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Security" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">Standard</SelectItem>
+                  <SelectItem value="true">High security</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={() => addCameraMutation.mutate()}
+                disabled={
+                  !cameraName.trim() ||
+                  !cameraArea.trim() ||
+                  !cameraChannel.trim() ||
+                  addCameraMutation.isPending
+                }
+              >
+                {addCameraMutation.isPending ? "Adding..." : "Add camera"}
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_100px] gap-3 border-b border-[var(--edge-subtle)] pb-2 text-xs text-muted-foreground">
+                <div>Camera</div>
+                <div>Area</div>
+                <div>Channel</div>
+                <div>Status</div>
+                <div className="text-right">Action</div>
+              </div>
+              {camerasLoading ? (
+                <div className="py-4 text-sm text-muted-foreground">Loading</div>
+              ) : linkedCameras.length === 0 ? (
+                <div className="py-4 text-sm text-muted-foreground">No cameras</div>
+              ) : (
+                linkedCameras.map((camera) => (
+                  <div
+                    key={camera.id}
+                    className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_100px] items-center gap-3 border-b border-[var(--edge-subtle)] py-2 text-sm"
+                  >
+                    <div className="truncate">{camera.name}</div>
+                    <div className="truncate text-muted-foreground">
+                      {camera.area}
+                    </div>
+                    <div className="tabular-nums text-muted-foreground">
+                      {camera.channelNumber}
+                    </div>
+                    <div>{camera.isOnline ? "Online" : "Offline"}</div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCameraMutation.mutate(camera.id)}
+                        disabled={removeCameraMutation.isPending}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
 
 function ModalSettingField({
   label,
-  description,
   control,
 }: {
   label: string;
-  description: string;
   control: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-4 border-b border-[var(--edge-subtle)] pb-5 md:grid-cols-[minmax(0,1.35fr)_minmax(280px,360px)] md:items-start">
+    <div className="grid gap-4 border-b border-[var(--edge-subtle)] pb-4 md:grid-cols-[minmax(0,1.35fr)_minmax(280px,360px)] md:items-start">
       <div>
-        <div className="text-lg font-medium text-foreground">{label}</div>
-        <div className="mt-1 text-sm text-muted-foreground">{description}</div>
+        <div className="text-base font-medium text-foreground">{label}</div>
       </div>
       <div>{control}</div>
     </div>

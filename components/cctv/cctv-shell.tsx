@@ -5,9 +5,7 @@ import { useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
 import {
-  AlertCircle,
   Camera,
-  Dashboard,
   FileCheck,
   History,
   Server,
@@ -19,11 +17,8 @@ import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filt
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 
 export type CCTVTab =
-  | "overview"
   | "live"
-  | "cameras"
   | "nvrs"
-  | "events"
   | "playback"
   | "access-logs";
 
@@ -35,16 +30,8 @@ type CCTVTabItem = {
 };
 
 const cctvTabs: CCTVTabItem[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    href: "/cctv/overview",
-    icon: Dashboard,
-  },
   { id: "live", label: "Live Monitor", href: "/cctv/live", icon: Video },
-  { id: "cameras", label: "Cameras", href: "/cctv/cameras", icon: Camera },
   { id: "nvrs", label: "NVRs", href: "/cctv/nvrs", icon: Server },
-  { id: "events", label: "Events", href: "/cctv/events", icon: AlertCircle },
   { id: "playback", label: "Playback", href: "/cctv/playback", icon: History },
   {
     id: "access-logs",

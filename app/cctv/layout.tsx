@@ -17,12 +17,10 @@ export default function CCTVLayout({
 
   const activeTab = useMemo<CCTVTab>(() => {
     if (pathname.includes("/live")) return "live";
-    if (pathname.includes("/cameras")) return "cameras";
-    if (pathname.includes("/events")) return "events";
     if (pathname.includes("/nvrs")) return "nvrs";
     if (pathname.includes("/playback")) return "playback";
     if (pathname.includes("/access-logs")) return "access-logs";
-    return "overview";
+    return "live";
   }, [pathname]);
 
   const navActions = activeTab === "live" ? (
