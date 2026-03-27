@@ -17,15 +17,16 @@ export async function POST(request: NextRequest) {
 
     const { nvrId, token } = await request.json();
 
-    if (!nvrId || !token) {
+    if (!token) {
       return NextResponse.json(
-        { error: "nvrId and token are required" },
+        { error: "token is required" },
         { status: 400 },
       );
     }
 
     const tokenData = parseOverviewToken(token);
-    if (!tokenData || tokenData.nvrId !== nvrId) {
+    const resolvedNvrId = nvrId || tokenData?.nvrId;
+    if (!tokenData || !resolvedNvrId || tokenData.nvrId !== resolvedNvrId) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 403 },
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     const nvr = await prisma.nVR.findUnique({
-      where: { id: nvrId },
+      where: { id: resolvedNvrId },
     });
 
     if (!nvr) {
