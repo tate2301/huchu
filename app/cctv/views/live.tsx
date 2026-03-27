@@ -395,6 +395,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const autoStartLocksRef = useRef<Set<string>>(new Set());
   const [preferredProtocol, setPreferredProtocol] = useState<StreamProtocol | null>(null);
   const [deviceViewport, setDeviceViewport] = useState<DeviceViewport>("desktop");
+  const [webrtcSupported, setWebrtcSupported] = useState(false);
 
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [layoutDensity, setLayoutDensity] = useState<GridDensity>(9);
@@ -442,21 +443,28 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     const tabletQuery = window.matchMedia(
       "(min-width: 768px) and (max-width: 1023px)",
     );
+    const supportsWebRtc = () =>
+      typeof window !== "undefined" &&
+      typeof window.RTCPeerConnection !== "undefined";
+
     const updateViewport = () => {
+      const nextWebrtcSupport = supportsWebRtc();
+      setWebrtcSupported(nextWebrtcSupport);
+
       if (phoneQuery.matches) {
         setDeviceViewport("phone");
-        setPreferredProtocol("HLS");
+        setPreferredProtocol(nextWebrtcSupport ? "WEBRTC" : "HLS");
         return;
       }
 
       if (tabletQuery.matches) {
         setDeviceViewport("tablet");
-        setPreferredProtocol("HLS");
+        setPreferredProtocol(nextWebrtcSupport ? "WEBRTC" : "HLS");
         return;
       }
 
       setDeviceViewport("desktop");
-      setPreferredProtocol("WEBRTC");
+      setPreferredProtocol(nextWebrtcSupport ? "WEBRTC" : "HLS");
     };
 
     updateViewport();
@@ -556,6 +564,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
   const isWallMaximizedToSingleCamera = Boolean(maximizedCamera);
   const isCompactViewport = deviceViewport !== "desktop" && !isWallMaximizedToSingleCamera;
+  const shouldAutoStartVisible = deviceViewport === "desktop" || webrtcSupported;
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -722,7 +731,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   }, [visibleWallCameras]);
 
   useEffect(() => {
-    if (!preferredProtocol) return;
+    if (!preferredProtocol || !shouldAutoStartVisible) return;
 
     visibleWallCameras.forEach((camera) => {
       if (!camera.isOnline) return;
@@ -744,6 +753,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     activeSessionByCamera,
     manuallyStoppedCameraIds,
     preferredProtocol,
+    shouldAutoStartVisible,
     startSessionMutation,
     streamHintsByCamera,
     visibleWallCameras,
