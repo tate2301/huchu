@@ -41,6 +41,7 @@ type OverviewFeedViewProps = {
 export function OverviewFeedView({ sites, nvrs }: OverviewFeedViewProps) {
   const { toast } = useToast();
   const wallRef = useRef<HTMLDivElement | null>(null);
+  const startedRequestKeyRef = useRef("");
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [selectedNvrId, setSelectedNvrId] = useState("");
   const [preferredProtocol, setPreferredProtocol] = useState<StreamProtocol | null>(null);
@@ -90,7 +91,7 @@ export function OverviewFeedView({ sites, nvrs }: OverviewFeedViewProps) {
     [filteredNvrs, selectedNvrId],
   );
 
-  const startOverviewMutation = useMutation({
+  const { mutate: startOverview, isPending: isStartingOverview } = useMutation({
     mutationFn: (nvrId: string) =>
       startCCTVOverviewStream({
         nvrId,
@@ -109,9 +110,30 @@ export function OverviewFeedView({ sites, nvrs }: OverviewFeedViewProps) {
   });
 
   useEffect(() => {
-    if (!selectedNvr || !preferredProtocol) return;
-    startOverviewMutation.mutate(selectedNvr.id);
-  }, [preferredProtocol, selectedNvr, startOverviewMutation]);
+    if (!selectedNvr?.id || !preferredProtocol) return;
+
+    const requestKey = `${selectedNvr.id}:${preferredProtocol}`;
+    if (
+      startedRequestKeyRef.current === requestKey ||
+      isStartingOverview
+    ) {
+      return;
+    }
+
+    startedRequestKeyRef.current = requestKey;
+    startOverview(selectedNvr.id, {
+      onError: () => {
+        if (startedRequestKeyRef.current === requestKey) {
+          startedRequestKeyRef.current = "";
+        }
+      },
+    });
+  }, [
+    preferredProtocol,
+    selectedNvr?.id,
+    isStartingOverview,
+    startOverview,
+  ]);
 
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) {
@@ -261,10 +283,10 @@ export function OverviewFeedView({ sites, nvrs }: OverviewFeedViewProps) {
           <div
             className={cn(
               "rounded-md border border-white/10 px-2 py-1 text-xs text-white/72",
-              startOverviewMutation.isPending && "animate-pulse",
+              isStartingOverview && "animate-pulse",
             )}
           >
-            {startOverviewMutation.isPending ? "Starting" : "Operations overview"}
+            {isStartingOverview ? "Starting" : "Operations overview"}
           </div>
         </div>
       </div>
