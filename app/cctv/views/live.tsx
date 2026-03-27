@@ -8,6 +8,7 @@ import Hls from "hls.js";
 import {
   CCTVStreamSession,
   Camera,
+  Pagination,
   Site,
   StartStreamSessionResponse,
   StreamProfileResponse,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
+  ArrowRight,
   Building2,
   ChevronDown,
   Fullscreen,
@@ -52,6 +54,7 @@ type LiveMonitorViewProps = {
 type GridDensity = 4 | 6 | 9 | 12;
 type StreamType = "main" | "sub" | "third";
 type StreamProtocol = "WEBRTC" | "HLS";
+type DeviceViewport = "phone" | "tablet" | "desktop";
 
 type StreamHint = {
   playUrl: string | null;
@@ -83,7 +86,9 @@ function buildSessionMap(sessions: CCTVStreamSession[] | undefined) {
   sessions
     .filter((session) => session.status === "ACTIVE")
     .forEach((session) => {
-      map.set(session.cameraId, session);
+      if (!map.has(session.cameraId)) {
+        map.set(session.cameraId, session);
+      }
     });
   return map;
 }
@@ -389,6 +394,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const wallRef = useRef<HTMLDivElement | null>(null);
   const autoStartLocksRef = useRef<Set<string>>(new Set());
   const [preferredProtocol, setPreferredProtocol] = useState<StreamProtocol | null>(null);
+  const [deviceViewport, setDeviceViewport] = useState<DeviceViewport>("desktop");
 
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [layoutDensity, setLayoutDensity] = useState<GridDensity>(9);
@@ -396,7 +402,11 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   const [audibleCameraId, setAudibleCameraId] = useState<string | null>(null);
   const [focusedCameraId, setFocusedCameraId] = useState<string>("");
   const [maximizedCameraId, setMaximizedCameraId] = useState<string | null>(null);
+  const [compactPage, setCompactPage] = useState(0);
   const [isWallFullscreen, setIsWallFullscreen] = useState(false);
+  const [manuallyStoppedCameraIds, setManuallyStoppedCameraIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [startingCameraIds, setStartingCameraIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -410,17 +420,52 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     Record<string, StreamHint>
   >({});
 
+  const updateStreamSessionsCache = (
+    updater: (
+      sessions: CCTVStreamSession[],
+    ) => CCTVStreamSession[],
+  ) => {
+    queryClient.setQueryData<Pagination<CCTVStreamSession> | undefined>(
+      ["cctv-stream-sessions", "ACTIVE"],
+      (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          data: updater(current.data),
+        };
+      },
+    );
+  };
+
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-    const updatePreferredProtocol = () => {
-      setPreferredProtocol(mediaQuery.matches ? "HLS" : "WEBRTC");
+    const phoneQuery = window.matchMedia("(max-width: 767px)");
+    const tabletQuery = window.matchMedia(
+      "(min-width: 768px) and (max-width: 1023px)",
+    );
+    const updateViewport = () => {
+      if (phoneQuery.matches) {
+        setDeviceViewport("phone");
+        setPreferredProtocol("HLS");
+        return;
+      }
+
+      if (tabletQuery.matches) {
+        setDeviceViewport("tablet");
+        setPreferredProtocol("HLS");
+        return;
+      }
+
+      setDeviceViewport("desktop");
+      setPreferredProtocol("WEBRTC");
     };
 
-    updatePreferredProtocol();
-    mediaQuery.addEventListener("change", updatePreferredProtocol);
+    updateViewport();
+    phoneQuery.addEventListener("change", updateViewport);
+    tabletQuery.addEventListener("change", updateViewport);
 
     return () => {
-      mediaQuery.removeEventListener("change", updatePreferredProtocol);
+      phoneQuery.removeEventListener("change", updateViewport);
+      tabletQuery.removeEventListener("change", updateViewport);
     };
   }, []);
 
@@ -458,15 +503,41 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     [filteredCameras, maximizedCameraId],
   );
 
+  const compactPageSize = useMemo(() => {
+    if (deviceViewport === "phone") return 1;
+    if (deviceViewport === "tablet") return 2;
+    return layoutDensity;
+  }, [deviceViewport, layoutDensity]);
+
+  const compactPageCount = useMemo(() => {
+    if (maximizedCamera) return 1;
+    return Math.max(1, Math.ceil(filteredCameras.length / compactPageSize));
+  }, [compactPageSize, filteredCameras.length, maximizedCamera]);
+
+  const normalizedCompactPage = Math.min(compactPage, compactPageCount - 1);
+
   const wallSlots = useMemo(() => {
     if (maximizedCamera) {
       return [maximizedCamera];
     }
+
+    if (deviceViewport !== "desktop") {
+      const pageStart = normalizedCompactPage * compactPageSize;
+      return filteredCameras.slice(pageStart, pageStart + compactPageSize);
+    }
+
     return Array.from(
       { length: layoutDensity },
       (_, index) => filteredCameras[index] ?? null,
     );
-  }, [filteredCameras, layoutDensity, maximizedCamera]);
+  }, [
+    compactPageSize,
+    deviceViewport,
+    filteredCameras,
+    layoutDensity,
+    maximizedCamera,
+    normalizedCompactPage,
+  ]);
 
   const visibleWallCameras = useMemo(
     () => wallSlots.filter((camera): camera is Camera => Boolean(camera)),
@@ -475,12 +546,16 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
   const focusedCamera = useMemo(() => {
     if (focusedCameraId) {
-      return visibleWallCameras.find((camera) => camera.id === focusedCameraId);
+      return (
+        visibleWallCameras.find((camera) => camera.id === focusedCameraId) ||
+        visibleWallCameras[0]
+      );
     }
     return visibleWallCameras[0];
   }, [focusedCameraId, visibleWallCameras]);
 
   const isWallMaximizedToSingleCamera = Boolean(maximizedCamera);
+  const isCompactViewport = deviceViewport !== "desktop" && !isWallMaximizedToSingleCamera;
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -504,6 +579,11 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         purpose: "Live monitor",
       }),
     onMutate: (input) => {
+      setManuallyStoppedCameraIds((prev) => {
+        const next = new Set(prev);
+        next.delete(input.cameraId);
+        return next;
+      });
       setStartingCameraIds((prev) => new Set(prev).add(input.cameraId));
     },
     onSuccess: (
@@ -518,6 +598,17 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
           protocol: response.protocol,
         },
       }));
+      updateStreamSessionsCache((sessions) => [
+        response.session,
+        ...sessions.filter(
+          (session) =>
+            session.id !== response.session.id &&
+            !(
+              session.cameraId === response.session.cameraId &&
+              session.userId === response.session.userId
+            ),
+        ),
+      ]);
       queryClient.invalidateQueries({ queryKey: ["cctv-stream-sessions"] });
     },
     onError: (error, input) => {
@@ -538,11 +629,27 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
   });
 
   const stopSessionMutation = useMutation({
-    mutationFn: (sessionId: string) => stopCCTVStreamSession(sessionId),
-    onMutate: (sessionId) => {
+    mutationFn: (input: {
+      sessionId: string;
+      cameraId: string;
+      suppressAutoStart?: boolean;
+    }) =>
+      stopCCTVStreamSession(input.sessionId),
+    onMutate: ({ sessionId, cameraId, suppressAutoStart }) => {
+      if (suppressAutoStart) {
+        setManuallyStoppedCameraIds((prev) => new Set(prev).add(cameraId));
+      }
       setStoppingSessionIds((prev) => new Set(prev).add(sessionId));
     },
-    onSuccess: () => {
+    onSuccess: ({ session }, input) => {
+      setStreamHintsByCamera((prev) => {
+        const next = { ...prev };
+        delete next[input.cameraId];
+        return next;
+      });
+      updateStreamSessionsCache((sessions) =>
+        sessions.filter((existingSession) => existingSession.id !== session.id),
+      );
       queryClient.invalidateQueries({ queryKey: ["cctv-stream-sessions"] });
     },
     onError: (error) => {
@@ -552,7 +659,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         variant: "destructive",
       });
     },
-    onSettled: (_, __, sessionId) => {
+    onSettled: (_, __, { sessionId }) => {
       setStoppingSessionIds((prev) => {
         const next = new Set(prev);
         next.delete(sessionId);
@@ -620,6 +727,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     visibleWallCameras.forEach((camera) => {
       if (!camera.isOnline) return;
       if (autoStartLocksRef.current.has(camera.id)) return;
+      if (manuallyStoppedCameraIds.has(camera.id)) return;
       const hasStreamHint = Boolean(
         streamHintsByCamera[camera.id]?.playUrl ||
           streamHintsByCamera[camera.id]?.fallbackPlayUrl,
@@ -634,11 +742,40 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     });
   }, [
     activeSessionByCamera,
+    manuallyStoppedCameraIds,
     preferredProtocol,
     startSessionMutation,
     streamHintsByCamera,
     visibleWallCameras,
     wallStreamType,
+  ]);
+
+  useEffect(() => {
+    if (!isCompactViewport) return;
+
+    const visibleCameraIds = new Set(visibleWallCameras.map((camera) => camera.id));
+    filteredCameras.forEach((camera) => {
+      if (visibleCameraIds.has(camera.id)) return;
+      const activeSession = activeSessionByCamera.get(camera.id);
+      if (!activeSession) return;
+      if (stoppingSessionIds.has(activeSession.id)) return;
+      stopSessionMutation.mutate({
+        sessionId: activeSession.id,
+        cameraId: camera.id,
+        suppressAutoStart: false,
+      });
+      if (audibleCameraId === camera.id) {
+        setAudibleCameraId(null);
+      }
+    });
+  }, [
+    activeSessionByCamera,
+    audibleCameraId,
+    filteredCameras,
+    isCompactViewport,
+    stopSessionMutation,
+    stoppingSessionIds,
+    visibleWallCameras,
   ]);
 
   const activeSessionsCount = visibleWallCameras.filter((camera) =>
@@ -647,6 +784,23 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
   const selectedSiteName =
     sites.find((site) => site.id === selectedSiteId)?.name || "All sites";
+
+  const jumpToCompactCamera = (cameraId: string) => {
+    const cameraIndex = filteredCameras.findIndex((camera) => camera.id === cameraId);
+    if (cameraIndex === -1) return;
+    setFocusedCameraId(cameraId);
+    if (deviceViewport === "desktop") return;
+    setCompactPage(Math.floor(cameraIndex / compactPageSize));
+  };
+
+  const moveCompactPage = (direction: "previous" | "next") => {
+    setCompactPage((previousPage) => {
+      if (direction === "previous") {
+        return previousPage === 0 ? compactPageCount - 1 : previousPage - 1;
+      }
+      return previousPage === compactPageCount - 1 ? 0 : previousPage + 1;
+    });
+  };
 
   const startAllVisible = () => {
     visibleWallCameras.forEach((camera) => {
@@ -663,7 +817,11 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     visibleWallCameras.forEach((camera) => {
       const session = activeSessionByCamera.get(camera.id);
       if (session) {
-        stopSessionMutation.mutate(session.id);
+        stopSessionMutation.mutate({
+          sessionId: session.id,
+          cameraId: camera.id,
+          suppressAutoStart: true,
+        });
       }
     });
     setAudibleCameraId(null);
@@ -729,7 +887,13 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         <div
           className={cn(
             "grid h-[calc(100%-3rem)] grid-cols-1 gap-px bg-black",
-            isWallMaximizedToSingleCamera ? "grid-cols-1" : getGridClass(layoutDensity),
+            isWallMaximizedToSingleCamera
+              ? "grid-cols-1"
+              : deviceViewport === "tablet"
+                ? "md:grid-cols-2"
+                : deviceViewport === "desktop"
+                  ? getGridClass(layoutDensity)
+                  : "grid-cols-1",
           )}
         >
           {wallSlots.map((camera, index) => {
@@ -835,7 +999,11 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                         className="h-8 w-8 rounded-md bg-rose-500/20 text-rose-100 hover:bg-rose-500/32"
                         onClick={() => {
                           if (isAudible) setAudibleCameraId(null);
-                          stopSessionMutation.mutate(activeSession.id);
+                          stopSessionMutation.mutate({
+                            sessionId: activeSession.id,
+                            cameraId: camera.id,
+                            suppressAutoStart: true,
+                          });
                         }}
                         disabled={isStopping}
                         aria-label={`Stop ${camera.name}`}
@@ -909,8 +1077,13 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
             );
           })}
         </div>
-        <div className="absolute inset-x-0 bottom-0 z-30 h-12 border-t border-white/10 bg-[rgba(12,12,12,0.96)] px-2">
-          <div className="flex h-full min-w-max items-center gap-2 overflow-x-auto text-white">
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[rgba(12,12,12,0.96)] px-2",
+            isCompactViewport ? "h-24 py-2" : "h-12",
+          )}
+        >
+          <div className="flex h-10 min-w-max items-center gap-2 overflow-x-auto text-white">
             <div className="flex items-center gap-2 pr-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1080,6 +1253,75 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
               </Link>
             </Button>
           </div>
+
+          {isCompactViewport ? (
+            <div className="mt-2 flex items-center gap-2 text-white">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+                onClick={() => moveCompactPage("previous")}
+                aria-label="Previous camera view"
+                title="Previous"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+              </Button>
+
+              <div className="flex-1 overflow-x-auto">
+                <div className="flex min-w-max items-center gap-2">
+                  {filteredCameras.map((camera) => {
+                    const isVisible = visibleWallCameras.some(
+                      (visibleCamera) => visibleCamera.id === camera.id,
+                    );
+                    const isActive = activeSessionByCamera.has(camera.id);
+                    return (
+                      <button
+                        key={camera.id}
+                        type="button"
+                        onClick={() => jumpToCompactCamera(camera.id)}
+                        className={cn(
+                          "flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-medium transition-colors",
+                          isVisible
+                            ? "border-white/25 bg-white text-black"
+                            : "border-white/10 bg-white/8 text-white hover:bg-white/14",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full",
+                            !camera.isOnline
+                              ? "bg-rose-400"
+                              : isActive
+                                ? "bg-emerald-400"
+                                : "bg-white/35",
+                          )}
+                        />
+                        <span className="max-w-28 truncate">{camera.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/55 tabular-nums">
+                    {normalizedCompactPage + 1}/{compactPageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+                  onClick={() => moveCompactPage("next")}
+                  aria-label="Next camera view"
+                  title="Next"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
