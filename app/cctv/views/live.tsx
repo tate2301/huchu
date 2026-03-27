@@ -33,6 +33,7 @@ import {
   VolumeOff,
 } from "@/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,6 +44,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { StatusDot } from "@/components/ui/status-dot";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +82,56 @@ const streamProfileOptions: Array<{
   { value: "sub", label: "720p" },
   { value: "main", label: "1080p" },
 ];
+
+function getCameraStatusState({
+  isOnline,
+  isActive,
+  isSwitching,
+  isStarting,
+}: {
+  isOnline: boolean;
+  isActive: boolean;
+  isSwitching: boolean;
+  isStarting: boolean;
+}) {
+  if (!isOnline) {
+    return {
+      label: "Offline",
+      badgeVariant: "danger" as const,
+      dotStatus: "failing" as const,
+    };
+  }
+
+  if (isActive) {
+    if (isSwitching) {
+      return {
+        label: "Switching",
+        badgeVariant: "info" as const,
+        dotStatus: "in_review" as const,
+      };
+    }
+
+    return {
+      label: "Live",
+      badgeVariant: "success" as const,
+      dotStatus: "passing" as const,
+    };
+  }
+
+  if (isStarting) {
+    return {
+      label: "Starting",
+      badgeVariant: "info" as const,
+      dotStatus: "in_progress" as const,
+    };
+  }
+
+  return {
+    label: "Ready",
+    badgeVariant: "neutral" as const,
+    dotStatus: "pending" as const,
+  };
+}
 
 function buildSessionMap(sessions: CCTVStreamSession[] | undefined) {
   const map = new Map<string, CCTVStreamSession>();
@@ -157,8 +209,12 @@ function CCTVTileStream({
 }: CCTVTileStreamProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mutedRef = useRef(muted);
+  const reconnectAttemptsRef = useRef(0);
+  const lastProgressAtRef = useRef(0);
+  const stallTimerRef = useRef<number | null>(null);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
   const [isUsingSnapshotFallback, setIsUsingSnapshotFallback] = useState(false);
+  const [reconnectToken, setReconnectToken] = useState(0);
   const [snapshotRefreshTick, setSnapshotRefreshTick] = useState(0);
   const [renderState, setRenderState] = useState<"connecting" | "playing" | "error">(
     "connecting",
@@ -187,6 +243,14 @@ function CCTVTileStream({
     let isCancelled = false;
     let cleanup: (() => void) | undefined;
     hasVideoFrameRef.current = false;
+    lastProgressAtRef.current = 0;
+
+    const clearStallTimer = () => {
+      if (stallTimerRef.current) {
+        window.clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+    };
 
     const promoteFallback = () => {
       if (!isCancelled && fallbackUrl && !isUsingFallback) {
@@ -198,6 +262,19 @@ function CCTVTileStream({
         return true;
       }
       return false;
+    };
+
+    const retryStream = () => {
+      if (isCancelled) return false;
+      clearStallTimer();
+      if (reconnectAttemptsRef.current < 2) {
+        reconnectAttemptsRef.current += 1;
+        setRenderState("connecting");
+        setReconnectToken((current) => current + 1);
+        return true;
+      }
+      reconnectAttemptsRef.current = 0;
+      return promoteFallback();
     };
 
     const attachDirectVideo = async () => {
@@ -217,6 +294,9 @@ function CCTVTileStream({
           hasVideoFrameRef.current = true;
           setHasVideoFrame(true);
         }
+        reconnectAttemptsRef.current = 0;
+        lastProgressAtRef.current = video.currentTime;
+        clearStallTimer();
         setRenderState("playing");
       };
 
@@ -237,6 +317,7 @@ function CCTVTileStream({
         }
       };
       const onTimeUpdate = () => {
+        lastProgressAtRef.current = video.currentTime;
         markPlaying();
       };
       const onLoadedData = () => {
@@ -245,12 +326,32 @@ function CCTVTileStream({
       const onCanPlay = () => {
         markPlaying();
       };
+      const onStalled = () => {
+        if (isCancelled || !hasVideoFrameRef.current) return;
+        clearStallTimer();
+        stallTimerRef.current = window.setTimeout(() => {
+          if (isCancelled) return;
+          const hasProgress =
+            video.currentTime > lastProgressAtRef.current ||
+            video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA;
+          if (hasProgress) {
+            lastProgressAtRef.current = video.currentTime;
+            return;
+          }
+          if (!retryStream()) {
+            setRenderState("error");
+          }
+        }, 3500);
+      };
 
       video.addEventListener("playing", onPlaying);
       video.addEventListener("error", onError);
       video.addEventListener("timeupdate", onTimeUpdate);
       video.addEventListener("loadeddata", onLoadedData);
       video.addEventListener("canplay", onCanPlay);
+      video.addEventListener("waiting", onStalled);
+      video.addEventListener("stalled", onStalled);
+      video.addEventListener("suspend", onStalled);
 
       if (isLikelyHlsUrl(streamUrl) && Hls.isSupported()) {
         hls = new Hls({
@@ -263,9 +364,9 @@ function CCTVTileStream({
           void video.play().catch(() => undefined);
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
-          if (isCancelled || hasVideoFrameRef.current) return;
+          if (isCancelled) return;
           if (data.fatal) {
-            if (!promoteFallback()) {
+            if (!retryStream()) {
               setRenderState("error");
             }
           }
@@ -290,11 +391,15 @@ function CCTVTileStream({
 
       cleanup = () => {
         window.clearTimeout(watchdog);
+        clearStallTimer();
         video.removeEventListener("playing", onPlaying);
         video.removeEventListener("error", onError);
         video.removeEventListener("timeupdate", onTimeUpdate);
         video.removeEventListener("loadeddata", onLoadedData);
         video.removeEventListener("canplay", onCanPlay);
+        video.removeEventListener("waiting", onStalled);
+        video.removeEventListener("stalled", onStalled);
+        video.removeEventListener("suspend", onStalled);
         hls?.destroy();
         video.pause();
         video.srcObject = null;
@@ -332,8 +437,12 @@ function CCTVTileStream({
       peerConnection.oniceconnectionstatechange = () => {
         if (isCancelled) return;
         const state = peerConnection.iceConnectionState;
-        if ((state === "failed" || state === "closed") && !hasVideoFrameRef.current) {
-          if (!promoteFallback()) {
+        if (
+          state === "disconnected" ||
+          state === "failed" ||
+          state === "closed"
+        ) {
+          if (!retryStream()) {
             setRenderState("error");
           }
         }
@@ -398,6 +507,7 @@ function CCTVTileStream({
 
     return () => {
       isCancelled = true;
+      clearStallTimer();
       if (cleanup) cleanup();
     };
   }, [
@@ -405,6 +515,7 @@ function CCTVTileStream({
     isUsingFallback,
     isUsingSnapshotFallback,
     protocol,
+    reconnectToken,
     snapshotUrl,
     streamUrl,
   ]);
@@ -800,11 +911,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
       if (!camera.isOnline) return;
       if (autoStartLocksRef.current.has(camera.id)) return;
       if (manuallyStoppedCameraIds.has(camera.id)) return;
-      const hasStreamHint = Boolean(
-        streamHintsByCamera[camera.id]?.playUrl ||
-          streamHintsByCamera[camera.id]?.fallbackPlayUrl,
-      );
-      if (activeSessionByCamera.has(camera.id) && hasStreamHint) return;
+      if (activeSessionByCamera.has(camera.id)) return;
 
       autoStartLocksRef.current.add(camera.id);
       startSessionMutation.mutate({
@@ -818,37 +925,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
     preferredProtocol,
     shouldAutoStartVisible,
     startSessionMutation,
-    streamHintsByCamera,
     visibleWallCameras,
     wallStreamType,
-  ]);
-
-  useEffect(() => {
-    if (!isCompactViewport) return;
-
-    const visibleCameraIds = new Set(visibleWallCameras.map((camera) => camera.id));
-    filteredCameras.forEach((camera) => {
-      if (visibleCameraIds.has(camera.id)) return;
-      const activeSession = activeSessionByCamera.get(camera.id);
-      if (!activeSession) return;
-      if (stoppingSessionIds.has(activeSession.id)) return;
-      stopSessionMutation.mutate({
-        sessionId: activeSession.id,
-        cameraId: camera.id,
-        suppressAutoStart: false,
-      });
-      if (audibleCameraId === camera.id) {
-        setAudibleCameraId(null);
-      }
-    });
-  }, [
-    activeSessionByCamera,
-    audibleCameraId,
-    filteredCameras,
-    isCompactViewport,
-    stopSessionMutation,
-    stoppingSessionIds,
-    visibleWallCameras,
   ]);
 
   const activeSessionsCount = visibleWallCameras.filter((camera) =>
@@ -999,15 +1077,12 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
             const isAudible = audibleCameraId === camera.id;
             const isMaximized = maximizedCamera?.id === camera.id;
 
-            const statusLabel = !camera.isOnline
-              ? "Offline"
-              : activeSession
-                ? isSwitching
-                  ? "Switching"
-                  : "Live"
-                : isStarting
-                  ? "Starting"
-                  : "Ready";
+            const statusState = getCameraStatusState({
+              isOnline: camera.isOnline,
+              isActive: Boolean(activeSession),
+              isSwitching,
+              isStarting,
+            });
 
             return (
               <div
@@ -1037,28 +1112,29 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                   aria-label={`Focus ${camera.name}`}
                 />
 
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 px-3 py-2 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
-                  <span className="truncate tabular-nums">
-                    {new Date().toLocaleString()}
-                  </span>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
-                      !camera.isOnline
-                        ? "border-rose-400/35 bg-rose-500/10 text-rose-100"
-                        : activeSession
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-100"
-                          : "border-white/20 bg-white/10 text-white/80",
-                    )}
-                  >
-                    {statusLabel}
-                  </span>
-                </div>
-
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 bg-gradient-to-t from-black via-black/72 to-transparent px-3 pb-3 pt-10">
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 bg-gradient-to-b from-black via-black/72 to-transparent px-3 pb-10 pt-3 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white">
-                      {camera.name}
+                    <div className="flex items-center gap-2">
+                      <span className="truncate tabular-nums">
+                        {new Date().toLocaleString()}
+                      </span>
+                      <Badge
+                        variant={statusState.badgeVariant}
+                        className="min-h-4 px-2 py-0 text-[10px] leading-4 shadow-none"
+                      >
+                        {statusState.label}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <StatusDot
+                        status={statusState.dotStatus}
+                        hideLabel
+                        className="text-white"
+                        dotClassName="h-2 w-2"
+                      />
+                      <div className="truncate text-sm font-semibold text-white">
+                        {camera.name}
+                      </div>
                     </div>
                     <div className="truncate text-xs text-white/68">
                       {camera.area} | {camera.site?.name || "Unknown site"}
@@ -1069,9 +1145,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                     {activeSession ? (
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-md bg-rose-500/20 text-rose-100 hover:bg-rose-500/32"
+                        variant="destructive"
+                        size="icon-sm"
                         onClick={() => {
                           if (isAudible) setAudibleCameraId(null);
                           stopSessionMutation.mutate({
@@ -1089,8 +1164,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                     ) : (
                       <Button
                         type="button"
-                        size="icon"
-                        className="h-8 w-8 rounded-md bg-emerald-500/24 text-emerald-100 hover:bg-emerald-500/34"
+                        variant="default"
+                        size="icon-sm"
                         onClick={() =>
                           startSessionMutation.mutate({
                             cameraId: camera.id,
@@ -1107,12 +1182,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-8 w-8 rounded-md bg-white/12 text-white hover:bg-white/18",
-                        isAudible && "bg-emerald-500/24 text-emerald-100 hover:bg-emerald-500/34",
-                      )}
+                      variant={isAudible ? "default" : "secondary"}
+                      size="icon-sm"
                       onClick={() => toggleTileAudio(camera.id)}
                       disabled={!activeSession}
                       aria-label={
@@ -1129,9 +1200,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-md bg-white/12 text-white hover:bg-white/18"
+                      variant="secondary"
+                      size="icon-sm"
                       onClick={() => toggleCameraMaximized(camera.id)}
                       aria-label={
                         isMaximized
@@ -1154,23 +1224,23 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
         </div>
         <div
           className={cn(
-            "absolute inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[rgba(12,12,12,0.96)] px-2",
+            "absolute inset-x-0 bottom-0 z-30 border-t border-[var(--edge-subtle)] bg-[var(--surface-overlay)] px-2 text-[var(--text-strong)] backdrop-blur-sm",
             isCompactViewport ? "h-24 py-2" : "h-12",
           )}
         >
-          <div className="flex h-10 min-w-max items-center gap-2 overflow-x-auto text-white">
+          <div className="flex h-10 min-w-max items-center gap-2 overflow-x-auto">
             <div className="flex items-center gap-2 pr-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
-                    className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                    variant="secondary"
+                    className="h-8 px-2.5 shadow-none"
                   >
                     <Building2 className="h-4 w-4" />
                     <span className="ml-1.5 max-w-32 truncate text-xs">
                       {selectedSiteName}
                     </span>
-                    <ChevronDown className="ml-1 h-4 w-4 text-white/65" />
+                    <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-60">
@@ -1197,15 +1267,15 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
-                    className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                    variant="secondary"
+                    className="h-8 px-2.5 shadow-none"
                   >
                     <Grid3x3 className="h-4 w-4" />
                     <span className="ml-1.5 text-xs">
                       {layoutOptions.find((option) => option.value === layoutDensity)
                         ?.label || "Layout"}
                     </span>
-                    <ChevronDown className="ml-1 h-4 w-4 text-white/65" />
+                    <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-52">
@@ -1232,8 +1302,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
-                    className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                    variant="secondary"
+                    className="h-8 px-2.5 shadow-none"
                   >
                     <Video className="h-4 w-4" />
                     <span className="ml-1.5 text-xs">
@@ -1241,7 +1311,7 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                         (option) => option.value === wallStreamType,
                       )?.label}
                     </span>
-                    <ChevronDown className="ml-1 h-4 w-4 text-white/65" />
+                    <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-56">
@@ -1266,8 +1336,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
             {activeSessionsCount > 0 ? (
               <Button
                 type="button"
-                variant="ghost"
-                className="h-8 rounded-md bg-rose-500/24 px-2.5 text-rose-100 hover:bg-rose-500/34"
+                variant="destructive"
+                className="h-8 px-2.5 shadow-none"
                 onClick={stopAllVisible}
                 disabled={activeSessionsCount === 0}
               >
@@ -1277,8 +1347,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
             ) : (
               <Button
                 type="button"
-                variant="ghost"
-                className="h-8 rounded-md bg-emerald-500/24 px-2.5 text-emerald-100 hover:bg-emerald-500/34"
+                variant="default"
+                className="h-8 px-2.5 shadow-none"
                 onClick={startAllVisible}
                 disabled={visibleWallCameras.length === 0}
               >
@@ -1290,8 +1360,8 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
             {isWallMaximizedToSingleCamera ? (
               <Button
                 type="button"
-                variant="ghost"
-                className="h-8 rounded-md bg-white/8 px-2.5 text-white hover:bg-white/14"
+                variant="secondary"
+                className="h-8 px-2.5 shadow-none"
                 onClick={() => setMaximizedCameraId(null)}
               >
                 <Grid3x3 className="mr-1.5 h-4 w-4" />
@@ -1301,9 +1371,9 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               size="icon"
-              className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+              className="h-8 w-8 shadow-none"
               onClick={() => void toggleFullscreen()}
               aria-label="Toggle full screen"
               title="Full screen"
@@ -1317,9 +1387,9 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
 
             <Button
               asChild
-              variant="ghost"
+              variant="secondary"
               size="icon"
-              className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+              className="h-8 w-8 shadow-none"
               aria-label="Open playback"
               title="Playback"
             >
@@ -1330,12 +1400,12 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
           </div>
 
           {isCompactViewport ? (
-            <div className="mt-2 flex items-center gap-2 text-white">
+            <div className="mt-2 flex items-center gap-2">
               <Button
                 type="button"
-                variant="ghost"
+                variant="secondary"
                 size="icon"
-                className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+                className="h-8 w-8 shadow-none"
                 onClick={() => moveCompactPage("previous")}
                 aria-label="Previous camera view"
                 title="Previous"
@@ -1358,19 +1428,25 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
                         className={cn(
                           "flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-medium transition-colors",
                           isVisible
-                            ? "border-white/25 bg-white text-black"
-                            : "border-white/10 bg-white/8 text-white hover:bg-white/14",
+                            ? "border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] text-[var(--action-primary-fg)]"
+                            : "border-[var(--edge-subtle)] bg-[var(--surface-base)] text-[var(--text-strong)] hover:bg-[var(--surface-subtle)]",
                         )}
                       >
-                        <span
-                          className={cn(
-                            "h-2 w-2 rounded-full",
+                        <StatusDot
+                          status={
                             !camera.isOnline
-                              ? "bg-rose-400"
+                              ? "failing"
                               : isActive
-                                ? "bg-emerald-400"
-                                : "bg-white/35",
+                                ? "passing"
+                                : "pending"
+                          }
+                          hideLabel
+                          className={cn(
+                            isVisible
+                              ? "text-[var(--action-primary-fg)]"
+                              : "text-[var(--text-strong)]",
                           )}
+                          dotClassName="h-2 w-2"
                         />
                         <span className="max-w-28 truncate">{camera.name}</span>
                       </button>
@@ -1380,14 +1456,14 @@ export function LiveMonitorView({ sites, cameras }: LiveMonitorViewProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/55 tabular-nums">
+                <span className="text-xs text-[var(--text-muted)] tabular-nums">
                     {normalizedCompactPage + 1}/{compactPageCount}
                 </span>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   size="icon"
-                  className="h-8 w-8 rounded-md bg-white/8 text-white hover:bg-white/14"
+                  className="h-8 w-8 shadow-none"
                   onClick={() => moveCompactPage("next")}
                   aria-label="Next camera view"
                   title="Next"
