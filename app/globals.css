@@ -437,6 +437,202 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --app-canvas-wash: linear-gradient(180deg, #fcfcf4 0%, #f7f7f2 100%);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Admin portal theme — cool neutral SaaS palette
+   Applied via data-portal="admin" on the admin shell root
+───────────────────────────────────────────────────────────── */
+[data-portal="admin"] {
+    /* Raw palette overrides */
+    --erp-canvas: #f8fafc;
+    --erp-surface: #ffffff;
+    --erp-border: #e2e8f0;
+    --erp-text-primary: #0f172a;
+    --erp-text-secondary: #64748b;
+    --erp-text-muted: #94a3b8;
+
+    /* Primary accent — vibrant indigo */
+    --erp-primary: #4f46e5;
+    --erp-primary-soft: rgba(79, 70, 229, 0.10);
+    --erp-primary-soft-hover: rgba(79, 70, 229, 0.16);
+
+    /* Status colors */
+    --erp-success: #22c55e;
+    --erp-success-soft: rgba(34, 197, 94, 0.12);
+    --erp-danger: #ef4444;
+    --erp-danger-soft: rgba(239, 68, 68, 0.12);
+    --erp-warning: #f59e0b;
+    --erp-warning-soft: rgba(245, 158, 11, 0.12);
+    --erp-in-progress: #f59e0b;
+    --erp-in-progress-soft: rgba(245, 158, 11, 0.12);
+    --erp-in-review: #0ea5e9;
+    --erp-in-review-soft: rgba(14, 165, 233, 0.12);
+    --erp-pending: #94a3b8;
+    --erp-pending-soft: #f1f5f9;
+    --erp-inactive: #94a3b8;
+    --erp-inactive-soft: #f1f5f9;
+
+    /* Surface tokens */
+    --surface-app: #f8fafc;
+    --surface-panel: #ffffff;
+    --surface-elevated: #ffffff;
+    --surface-soft: #f1f5f9;
+    --surface-canvas: #f8fafc;
+    --surface-base: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-muted: #f1f5f9;
+    --surface-subtle: #f8fafc;
+    --surface-overlay: rgba(248, 250, 252, 0.92);
+
+    /* Text tokens */
+    --text-strong: #0f172a;
+    --text-body: #0f172a;
+    --text-muted: #64748b;
+    --text-subtle: #94a3b8;
+    --text-inverse: #ffffff;
+    --text-danger: #dc2626;
+
+    /* Action tokens */
+    --action-primary-bg: #4f46e5;
+    --action-primary-fg: #ffffff;
+    --action-primary-hover: #4338ca;
+    --action-primary-pressed: #3730a3;
+    --action-secondary-bg: rgba(79, 70, 229, 0.10);
+    --action-secondary-fg: #4f46e5;
+    --action-secondary-hover: rgba(79, 70, 229, 0.16);
+    --action-outline-bg: #ffffff;
+    --action-outline-hover-bg: #f8fafc;
+    --action-destructive-bg: #ef4444;
+    --action-destructive-fg: #ffffff;
+    --action-disabled-bg: #f1f5f9;
+    --action-disabled-fg: #94a3b8;
+
+    /* Edge / border tokens */
+    --edge-subtle: #edf2f7;
+    --edge-default: #e2e8f0;
+    --edge-strong: #cbd5e1;
+    --edge-neutral-rest: #e2e8f0;
+    --edge-neutral-hover: #cbd5e1;
+    --edge-neutral-pressed: #b0c0d4;
+    --edge-neutral-focus: rgba(79, 70, 229, 0.25);
+    --edge-outline-sharp: inset 0 0 0 1px #e2e8f0;
+    --edge-outline-sharp-hover: inset 0 0 0 1px #cbd5e1;
+    --surface-frame-shadow: inset 0 0 0 1px #e2e8f0, 0 1px 2px rgba(15, 23, 42, 0.03);
+    --surface-frame-shadow-hover: inset 0 0 0 1px #cbd5e1, 0 2px 6px rgba(15, 23, 42, 0.06);
+    --action-outline-border: transparent;
+    --action-outline-border-hover: transparent;
+    --action-outline-shadow: inset 0 0 0 1px #e2e8f0;
+    --action-outline-shadow-hover: inset 0 0 0 1px #cbd5e1;
+
+    /* Status semantic tokens */
+    --status-success-bg: rgba(34, 197, 94, 0.12);
+    --status-success-border: #22c55e;
+    --status-success-text: #16a34a;
+    --status-warning-bg: rgba(245, 158, 11, 0.12);
+    --status-warning-border: #f59e0b;
+    --status-warning-text: #d97706;
+    --status-error-bg: rgba(239, 68, 68, 0.12);
+    --status-error-border: #ef4444;
+    --status-error-text: #dc2626;
+    --status-info-bg: rgba(14, 165, 233, 0.12);
+    --status-info-border: #0ea5e9;
+    --status-info-text: #0284c7;
+    --status-progress-bg: rgba(245, 158, 11, 0.12);
+    --status-progress-border: #f59e0b;
+    --status-progress-text: #d97706;
+    --status-pending-bg: #f1f5f9;
+    --status-pending-border: #94a3b8;
+    --status-pending-text: #64748b;
+    --status-inactive-bg: #f1f5f9;
+    --status-inactive-border: #cbd5e1;
+    --status-inactive-text: #94a3b8;
+
+    /* Badge tokens */
+    --badge-shadow: none;
+    --badge-neutral-bg: #f1f5f9;
+    --badge-neutral-text: #64748b;
+    --badge-brand-bg: rgba(79, 70, 229, 0.10);
+    --badge-brand-text: #4f46e5;
+    --badge-info-bg: rgba(14, 165, 233, 0.12);
+    --badge-info-text: #0284c7;
+    --badge-success-bg: rgba(34, 197, 94, 0.12);
+    --badge-success-text: #16a34a;
+    --badge-warning-bg: rgba(245, 158, 11, 0.12);
+    --badge-warning-text: #d97706;
+    --badge-danger-bg: rgba(239, 68, 68, 0.12);
+    --badge-danger-text: #dc2626;
+
+    /* Button tokens */
+    --button-shadow-rest: inset 0 0 0 1px #e2e8f0;
+    --button-shadow-hover: inset 0 0 0 1px #cbd5e1, 0 2px 4px rgba(15, 23, 42, 0.04);
+    --button-shadow-pressed: inset 0 0 0 1px #cbd5e1;
+    --button-ghost-hover-bg: #f1f5f9;
+    --button-ghost-active-bg: #e2e8f0;
+
+    /* Card tokens */
+    --card-shadow-rest: inset 0 0 0 1px #e2e8f0;
+    --card-divider: #e2e8f0;
+
+    /* Table tokens */
+    --table-toolbar-bg: rgba(248, 250, 252, 0.92);
+    --table-toolbar-border: #e2e8f0;
+    --table-header-bg: #f8fafc;
+    --table-header-text: #64748b;
+    --table-divider: #e2e8f0;
+    --table-row-bg: #ffffff;
+    --table-row-bg-alt: #f8fafc;
+    --table-row-hover-bg: #f1f5f9;
+    --table-row-selected-bg: rgba(79, 70, 229, 0.06);
+    --datatable-toolbar-bg: rgba(248, 250, 252, 0.92);
+    --datatable-toolbar-border: #e2e8f0;
+    --datatable-expanded-bg: #f8fafc;
+    --datatable-empty-bg: #f8fafc;
+
+    /* Focus ring */
+    --focus-ring: #4f46e5;
+    --focus-ring-offset: #ffffff;
+
+    /* Elevation */
+    --elevation-0: none;
+    --elevation-1: inset 0 0 0 1px #e2e8f0;
+    --elevation-2: inset 0 0 0 1px #e2e8f0, 0 2px 6px rgba(15, 23, 42, 0.04);
+    --elevation-3: 0 12px 24px -12px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.04);
+    --elevation-4: 0 16px 32px -16px rgba(15, 23, 42, 0.16), 0 4px 8px rgba(15, 23, 42, 0.06);
+    --shadow-popover: 0 8px 24px -8px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
+
+    /* Shadcn compat tokens */
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+    --primary: #4f46e5;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --accent: #f1f5f9;
+    --accent-foreground: #0f172a;
+    --destructive: #ef4444;
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #4f46e5;
+
+    /* Sidebar tokens */
+    --sidebar: #ffffff;
+    --sidebar-foreground: #0f172a;
+    --sidebar-primary: #4f46e5;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f1f5f9;
+    --sidebar-accent-foreground: #0f172a;
+    --sidebar-border: #e2e8f0;
+    --sidebar-ring: #4f46e5;
+
+    /* No gradient wash for admin — clean flat background */
+    --app-canvas-wash: none;
+}
+
 .dark {
     --surface-app: #0c1427;
     --surface-panel: #121b32;

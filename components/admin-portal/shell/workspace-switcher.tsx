@@ -40,7 +40,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" className="h-12 w-full justify-between rounded-2xl bg-[var(--surface-muted)] px-3 text-left shadow-none hover:bg-[rgba(255,255,255,0.82)]">
+        <Button variant="ghost" className="h-12 w-full justify-between rounded-[10px] bg-[var(--surface-muted)] px-3 text-left shadow-none hover:bg-[var(--button-ghost-hover-bg)]">
           <span className="flex min-w-0 items-center gap-2 text-left">
             <Layers3 className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
             <span className="min-w-0">

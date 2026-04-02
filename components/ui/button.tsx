@@ -11,8 +11,12 @@ const buttonVariants = cva(
       variant: {
         default:
           "border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] text-[var(--action-primary-fg)] hover:bg-[var(--action-primary-hover)] active:bg-[var(--action-primary-pressed)]",
+        // solid red button — matches design system spec
         destructive:
-          "border-[var(--status-error-border)] bg-[var(--status-error-bg)] text-[var(--status-error-text)] hover:bg-[var(--status-error-bg)] active:bg-[var(--status-error-bg)]",
+          "border-[var(--action-destructive-bg)] bg-[var(--action-destructive-bg)] text-[var(--action-destructive-fg)] hover:bg-[var(--action-destructive-bg)]/90 active:bg-[var(--action-destructive-bg)]/80",
+        // alias used by new design system; identical to destructive
+        danger:
+          "border-[var(--action-destructive-bg)] bg-[var(--action-destructive-bg)] text-[var(--action-destructive-fg)] hover:bg-[var(--action-destructive-bg)]/90 active:bg-[var(--action-destructive-bg)]/80",
         outline:
           "border-[var(--edge-default)] bg-[var(--action-outline-bg)] text-foreground hover:border-[var(--edge-strong)] hover:bg-[var(--action-outline-hover-bg)]",
         secondary:
