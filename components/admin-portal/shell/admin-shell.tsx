@@ -87,10 +87,10 @@ function AdminShellFrame({
   const { companies } = useAdminShell();
 
   return (
-    <div className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[15rem_minmax(0,1fr)]">
+    <div data-portal="admin" className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[15rem_minmax(0,1fr)]">
       <AdminSidebar activeCompanyId={activeCompanyId} companies={companies} />
       <div className="min-w-0">
-        <header className="sticky top-0 z-20 bg-[rgba(252,252,244,0.92)] shadow-[0_1px_0_rgba(28,34,43,0.06)] backdrop-blur">
+        <header className="sticky top-0 z-20 bg-[var(--surface-base)]/95 shadow-[0_1px_0_var(--border-default)] backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-4">
             <div className="min-w-0 flex-1">
               <AdminBreadcrumbs activeCompanyId={activeCompanyId} />

@@ -1,0 +1,362 @@
+/**
+ * Client Portal Theme
+ *
+ * ERP-inspired design system for operational workflows
+ * Warm, professional, data-dense, efficient
+ *
+ * This maintains the existing ERP aesthetic for client-facing portals
+ */
+
+:root {
+  /* ============================================
+     ERP FOUNDATION
+     Warm neutral palette for operational UIs
+     ============================================ */
+
+  /* Surfaces */
+  --surface-canvas: #fcfcf4;        /* Warm off-white background */
+  --surface-base: #ffffff;          /* Card/panel background */
+  --surface-alt: #f7f7f2;           /* Subtle alternate */
+  --surface-elevated: #ffffff;      /* Elevated surfaces */
+  --surface-hover: #fafaf6;         /* Hover states */
+  --surface-pressed: #f3f3ef;       /* Pressed states */
+
+  /* Text hierarchy */
+  --text-primary: #111111;          /* Primary text */
+  --text-secondary: #6b6b6b;        /* Secondary text */
+  --text-muted: #9a9a93;            /* Tertiary text */
+  --text-inverse: #ffffff;          /* On dark backgrounds */
+  --text-strong: #111111;           /* Emphasis */
+
+  /* Borders and dividers */
+  --border-default: #e6e6e0;        /* Standard borders */
+  --border-strong: #dadad3;         /* Emphasized borders */
+  --border-subtle: #e6e6e0;         /* Subtle dividers */
+  --divider: #e6e6e0;               /* Section dividers */
+
+  /* ============================================
+     ERP ACTION COLORS
+     Professional operational palette
+     ============================================ */
+
+  /* Primary - Professional Blue */
+  --primary: #4c64d4;
+  --primary-hover: #3f57c8;
+  --primary-pressed: #344bb3;
+  --primary-soft: #eef0ff;
+  --primary-soft-hover: #e4e8ff;
+
+  /* Semantic Status Colors */
+  --success: #2ca47c;
+  --success-soft: #eaf7f1;
+  --success-border: #2ca47c;
+
+  --warning: #f46414;
+  --warning-soft: #fdf1e8;
+  --warning-border: #f46414;
+
+  --danger: #ec442c;
+  --danger-soft: #fdebe7;
+  --danger-border: #ec442c;
+
+  --info: #4c64d4;
+  --info-soft: #eef0ff;
+  --info-border: #4c64d4;
+
+  /* Operational status colors */
+  --status-in-progress: #fcb414;
+  --status-in-progress-soft: #fff6d6;
+  --status-in-review: #4c64d4;
+  --status-in-review-soft: #eef0ff;
+  --status-pending: #cfcfc6;
+  --status-pending-soft: #f3f3ef;
+  --status-inactive: #9a9a93;
+  --status-inactive-soft: #f3f3ef;
+
+  /* ============================================
+     COMPONENT TOKENS
+     ============================================ */
+
+  /* Actions */
+  --action-primary-bg: var(--primary);
+  --action-primary-fg: var(--text-inverse);
+  --action-primary-hover: var(--primary-hover);
+  --action-primary-pressed: var(--primary-pressed);
+
+  --action-secondary-bg: var(--primary-soft);
+  --action-secondary-fg: var(--primary);
+  --action-secondary-hover: var(--primary-soft-hover);
+  --action-secondary-border: transparent;
+
+  --action-ghost-hover: #f7f7f2;
+  --action-ghost-pressed: #f3f3ef;
+
+  --action-danger-bg: var(--danger);
+  --action-danger-fg: var(--text-inverse);
+  --action-danger-hover: #d93b24;
+
+  /* Focus states */
+  --focus-ring: var(--primary);
+  --focus-ring-offset: var(--surface-canvas);
+
+  /* Status badges */
+  --status-success-bg: var(--success-soft);
+  --status-success-text: var(--success);
+  --status-success-border: var(--success-border);
+
+  --status-warning-bg: var(--warning-soft);
+  --status-warning-text: var(--warning);
+  --status-warning-border: var(--warning-border);
+
+  --status-error-bg: var(--danger-soft);
+  --status-error-text: var(--danger);
+  --status-error-border: var(--danger-border);
+
+  --status-info-bg: var(--info-soft);
+  --status-info-text: var(--info);
+  --status-info-border: var(--info-border);
+
+  --status-neutral-bg: #f7f7f2;
+  --status-neutral-text: var(--text-secondary);
+  --status-neutral-border: var(--border-strong);
+
+  /* ============================================
+     SPACING SYSTEM
+     ============================================ */
+
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+
+  --content-gutter: 1.5rem;
+  --section-spacing: 1.5rem;
+  --table-gutter-x: 0.75rem;
+  --table-row-min-h: 3rem;
+  --table-head-min-h: 2.5rem;
+
+  /* ============================================
+     BORDER RADIUS
+     ============================================ */
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-pill: 9999px;
+
+  /* ============================================
+     SHADOWS - Minimal, ERP-style
+     ============================================ */
+
+  --shadow-xs: inset 0 0 0 1px var(--border-default);
+  --shadow-sm: inset 0 0 0 1px var(--border-default), 0 1px 2px rgb(17 17 17 / 0.02);
+  --shadow-md: inset 0 0 0 1px var(--border-default), 0 2px 6px rgb(17 17 17 / 0.04);
+  --shadow-lg: 0 12px 24px -12px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-popover: 0 12px 24px -12px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+
+  --card-shadow: inset 0 0 0 1px var(--border-default);
+  --card-border: var(--border-default);
+
+  /* ============================================
+     TYPOGRAPHY
+     ============================================ */
+
+  --font-sans: "SS Huchu", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Monaco, Consolas, monospace;
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  --type-page-title-size: var(--text-2xl);
+  --type-page-title-weight: var(--font-bold);
+  --type-page-title-leading: var(--leading-tight);
+
+  --type-section-title-size: var(--text-xl);
+  --type-section-title-weight: var(--font-bold);
+  --type-section-title-leading: var(--leading-tight);
+
+  --type-body-size: var(--text-sm);
+  --type-body-weight: var(--font-regular);
+  --type-body-leading: var(--leading-normal);
+
+  --type-label-size: 0.8125rem;
+  --type-label-weight: 600;
+
+  --type-helper-size: var(--text-xs);
+  --type-helper-weight: var(--font-regular);
+
+  --type-table-text-size: var(--text-sm);
+  --type-table-header-size: var(--text-xs);
+  --type-table-header-weight: 600;
+
+  /* ============================================
+     MOTION
+     ============================================ */
+
+  --motion-duration-instant: 90ms;
+  --motion-duration-fast: 160ms;
+  --motion-duration-normal: 240ms;
+  --motion-duration-slow: 360ms;
+
+  --motion-ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ============================================
+     COMPONENT-SPECIFIC TOKENS
+     ============================================ */
+
+  /* Inputs */
+  --input-bg: var(--surface-base);
+  --input-border: var(--border-default);
+  --input-border-hover: var(--border-strong);
+  --input-border-focus: var(--primary);
+  --input-placeholder: var(--text-muted);
+  --input-height: 2.25rem;
+  --input-height-sm: 2rem;
+  --input-height-lg: 2.5rem;
+
+  /* Buttons */
+  --button-height: 2.375rem;
+  --button-height-sm: 2rem;
+  --button-height-lg: 2.5rem;
+  --button-shadow-rest: inset 0 0 0 1px var(--border-default);
+  --button-shadow-hover: inset 0 0 0 1px var(--border-strong), 0 2px 4px rgb(17 17 17 / 0.04);
+  --button-ghost-hover-bg: var(--action-ghost-hover);
+
+  /* Tables */
+  --table-header-bg: var(--surface-canvas);
+  --table-header-text: var(--text-muted);
+  --table-row-bg: #ffffff;
+  --table-row-bg-alt: #f7f7f2;
+  --table-row-hover: #f3f3ef;
+  --table-border: var(--border-subtle);
+  --table-divider: var(--border-default);
+  --table-toolbar-bg: rgb(252 252 244 / 86%);
+
+  /* Sidebar */
+  --sidebar-bg: var(--surface-canvas);
+  --sidebar-border: var(--border-default);
+  --sidebar-item-hover: rgba(255,255,255,0.72);
+  --sidebar-item-active: var(--surface-alt);
+  --sidebar-item-active-text: var(--text-strong);
+  --sidebar-item-active-border: var(--border-default);
+
+  /* Modals */
+  --modal-backdrop: rgba(17, 17, 17, 0.5);
+  --modal-bg: var(--surface-base);
+  --modal-border: var(--border-default);
+
+  /* Charts */
+  --chart-1: var(--primary);
+  --chart-2: var(--success);
+  --chart-3: var(--warning);
+  --chart-4: var(--danger);
+  --chart-5: var(--status-in-progress);
+  --chart-grid: var(--border-default);
+
+  /* ============================================
+     LEGACY COMPATIBILITY
+     ============================================ */
+
+  --background: var(--surface-canvas);
+  --foreground: var(--text-primary);
+  --card: var(--surface-base);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--text-primary);
+  --primary-foreground: var(--text-inverse);
+  --secondary: var(--surface-alt);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-alt);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--primary-soft);
+  --accent-foreground: var(--primary);
+  --destructive: var(--danger);
+  --border: var(--border-default);
+  --input: var(--input-border);
+  --ring: var(--focus-ring);
+  --radius: var(--radius-md);
+
+  /* Warm paper gradient */
+  --app-canvas-wash: linear-gradient(180deg, #fcfcf4 0%, #f7f7f2 100%);
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+
+.dark {
+  --surface-canvas: #0c1427;
+  --surface-base: #121b32;
+  --surface-alt: #1d2947;
+  --surface-elevated: #17213d;
+  --surface-hover: #1a2744;
+  --surface-pressed: #202f4f;
+
+  --text-primary: #f4f7ff;
+  --text-secondary: #95a7ca;
+  --text-muted: #6f7f98;
+  --text-inverse: #0e1420;
+  --text-strong: #ffffff;
+
+  --border-default: rgb(197 214 242 / 0.16);
+  --border-strong: rgb(197 214 242 / 0.28);
+  --border-subtle: rgb(197 214 242 / 0.1);
+  --divider: rgb(197 214 242 / 0.16);
+
+  --primary: #7d9bff;
+  --primary-hover: #9db3ff;
+  --primary-pressed: #b8c9ff;
+  --primary-soft: #27385d;
+  --primary-soft-hover: #314773;
+
+  --success: #3cd08f;
+  --success-soft: #0f3426;
+  --warning: #f7c45d;
+  --warning-soft: #3a2e10;
+  --danger: #ff8a90;
+  --danger-soft: #3d1f24;
+  --info: #73b2ff;
+  --info-soft: #112f52;
+
+  --shadow-xs: inset 0 0 0 1px rgb(197 214 242 / 0.14);
+  --shadow-sm: inset 0 0 0 1px rgb(197 214 242 / 0.14), 0 1px 1px rgb(0 0 0 / 0.2);
+  --shadow-md: inset 0 0 0 1px rgb(197 214 242 / 0.14), 0 4px 14px rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 12px 24px rgb(0 0 0 / 0.38), 0 4px 8px rgb(0 0 0 / 0.28);
+  --shadow-popover: 0 12px 24px rgb(0 0 0 / 0.38), 0 4px 8px rgb(0 0 0 / 0.28);
+
+  --card-shadow: inset 0 0 0 1px rgb(197 214 242 / 0.14), 0 3px 12px rgb(0 0 0 / 0.24);
+
+  --input-bg: var(--surface-alt);
+  --sidebar-bg: #101d21;
+  --table-header-bg: rgb(26 39 68 / 95%);
+  --table-row-bg: rgb(20 31 57 / 94%);
+  --table-row-bg-alt: rgb(24 37 66 / 94%);
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+
+  --focus-ring-offset: var(--surface-canvas);
+  --app-canvas-wash: none;
+}
