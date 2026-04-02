@@ -13,9 +13,11 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 export function AdminSidebar({
   activeCompanyId,
   companies,
+  onNavigate,
 }: {
   activeCompanyId?: string;
   companies: CompanyWorkspace[];
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const normalizedPath = pathname.replace(/^\/portal/, "");
@@ -47,6 +49,7 @@ export function AdminSidebar({
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onNavigate}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-[var(--motion-duration-fast)]",
                     isActive
@@ -75,6 +78,7 @@ export function AdminSidebar({
                   <Link
                     key={company.id}
                     href={`/admin/clients/${company.id}`}
+                    onClick={onNavigate}
                     className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-[var(--surface-hover)]"
                   >
                     <div className="min-w-0">
