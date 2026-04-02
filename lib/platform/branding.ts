@@ -81,9 +81,9 @@ const DEFAULT_BRANDING: EffectiveBranding = {
   brandingEnabled: false,
   customDomainEnabled: false,
   colors: {
-    primary: "#0f8f86",
-    secondary: "#dcf4f1",
-    accent: "#ebf7f5",
+    primary: "#4f46e5",
+    secondary: "#eef2ff",
+    accent: "#f1f5f9",
   },
 };
 
@@ -320,49 +320,49 @@ export function getBrandingCssVariables(branding: EffectiveBranding): Record<str
     "--sidebar-primary": primary,
     "--sidebar-primary-foreground": getContrastTextColor(primary),
 
-    // Surface colors (warm paper aesthetic)
-    "--surface-canvas": "#FCFCF4",
+    // Surface colors (neutral, admin-first aesthetic)
+    "--surface-canvas": "#F8FAFC",
     "--surface-base": "#FFFFFF",
     "--surface-raised": "#FFFFFF",
-    "--surface-muted": "#F7F7F2",
-    "--surface-subtle": "#F3F3EF",
+    "--surface-muted": "#F1F5F9",
+    "--surface-subtle": "#EDF2F7",
 
     // Border colors
-    "--border": "#E6E6E0",
-    "--border-strong": "#DADAD3",
+    "--border": "#E2E8F0",
+    "--border-strong": "#CBD5E1",
 
     // Text colors
-    "--text-strong": "#111111",
-    "--text-body": "#111111",
-    "--text-muted": "#6B6B6B",
-    "--text-subtle": "#9A9A93",
+    "--text-strong": "#0F172A",
+    "--text-body": "#0F172A",
+    "--text-muted": "#64748B",
+    "--text-subtle": "#94A3B8",
     "--text-inverse": "#FFFFFF",
 
     // Status colors
-    "--status-success-bg": "#EAF7F1",
-    "--status-success-text": "#2CA47C",
-    "--status-warning-bg": "#FDF1E8",
-    "--status-warning-text": "#F46414",
-    "--status-error-bg": "#FDEBE7",
-    "--status-error-text": "#EC442C",
+    "--status-success-bg": "rgba(34, 197, 94, 0.12)",
+    "--status-success-text": "#22C55E",
+    "--status-warning-bg": "rgba(245, 158, 11, 0.12)",
+    "--status-warning-text": "#F59E0B",
+    "--status-error-bg": "rgba(239, 68, 68, 0.12)",
+    "--status-error-text": "#EF4444",
 
     // Chart colors (status-based)
-    "--chart-grid": "#E6E6E0",
-    "--chart-text": "#6B6B6B",
-    "--chart-passing": "#2CA47C",
-    "--chart-failing": "#EC442C",
-    "--chart-need-changes": "#F46414",
+    "--chart-grid": "#E2E8F0",
+    "--chart-text": "#64748B",
+    "--chart-passing": "#22C55E",
+    "--chart-failing": "#EF4444",
+    "--chart-need-changes": "#F59E0B",
     "--chart-in-review": primary,
-    "--chart-in-progress": "#FCB414",
-    "--chart-pending": "#CFCFC6",
-    "--chart-inactive": "#9A9A93",
+    "--chart-in-progress": "#0EA5E9",
+    "--chart-pending": "#CBD5E1",
+    "--chart-inactive": "#94A3B8",
 
     // Chart palette (generic)
     "--chart-1": primary,
     "--chart-2": mixColors(primary, "#ffffff", 0.22),
     "--chart-3": mixColors(primary, "#000000", 0.18),
-    "--chart-4": "#2CA47C",
-    "--chart-5": "#FCB414",
+    "--chart-4": "#22C55E",
+    "--chart-5": "#0EA5E9",
 
     // Shadow
     "--shadow-popover": "0 12px 24px -12px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.06)",

@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { isAdminPortalHost } from "@/lib/admin-portal";
 import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
 
@@ -31,17 +32,18 @@ export default async function RootLayout({
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
   const branding = await getEffectiveBrandingForHost(hostHeader);
+  const isAdminHost = isAdminPortalHost(hostHeader);
   const brandingVars = getBrandingCssVariables(branding);
 
   return (
     <html lang="en">
       <body
-        className="font-sans subpixel-antialiased"
+        className={`font-sans subpixel-antialiased ${isAdminHost ? "theme-admin" : "theme-client"}`}
         style={
           {
             "--font-ibm-plex-mono":
               'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            ...brandingVars,
+            ...(!isAdminHost ? brandingVars : {}),
           } as React.CSSProperties
         }
       >

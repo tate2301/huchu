@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { PageActionsProvider } from "@/components/layout/page-actions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
+import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,14 +17,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPortalRoute = pathname.startsWith("/portal/");
   const isAdminRoute = pathname.startsWith("/admin");
   const isCctvRoute = pathname.startsWith("/cctv");
+  const isAdminPortal = pathname.startsWith("/portal/admin") || isAdminRoute;
+  const themeClass = isAdminPortal ? "theme-admin" : "theme-client";
 
   if (isAuthRoute || isMarketingRoute || isPortalRoute || isAdminRoute) {
-    return <div className="min-h-screen bg-background">{children}</div>;
+    return <div className={cn("min-h-screen bg-background", themeClass)}>{children}</div>;
   }
 
   return (
     <PageActionsProvider>
-      <SidebarProvider>
+      <SidebarProvider className={themeClass}>
         <AppSidebar />
         <SidebarInset className="flex min-h-screen flex-col bg-background">
           <Navbar />

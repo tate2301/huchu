@@ -90,20 +90,22 @@ function AdminShellFrame({
     <div className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[15rem_minmax(0,1fr)]">
       <AdminSidebar activeCompanyId={activeCompanyId} companies={companies} />
       <div className="min-w-0">
-        <header className="sticky top-0 z-20 bg-[rgba(252,252,244,0.92)] shadow-[0_1px_0_rgba(28,34,43,0.06)] backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-4">
+        <header className="sticky top-0 z-20 border-b border-[var(--edge-default)] bg-[var(--surface-base)]/90 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
             <div className="min-w-0 flex-1">
               <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
             </div>
-            <div className="flex w-full items-center justify-end gap-1.5 md:w-auto md:max-w-[27rem] md:flex-none">
-              <div className="min-w-0 flex-1 md:w-[19rem]">
+            <div className="flex w-full items-center justify-end gap-2 md:w-auto md:max-w-[28rem] md:flex-none">
+              <div className="min-w-0 flex-1 md:w-[20rem]">
                 <AdminCommandBar />
               </div>
               <AdminOperatorContext />
             </div>
           </div>
         </header>
-        <main className="min-w-0 px-3 py-4 md:px-4">{children}</main>
+        <main className="min-w-0 bg-[var(--surface-canvas)] px-4 py-6 md:px-6">
+          <div className="mx-auto max-w-7xl space-y-6">{children}</div>
+        </main>
       </div>
     </div>
   );
