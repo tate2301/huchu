@@ -43,7 +43,7 @@ export function VerticalDataViews({
               type="button"
               variant="ghost"
               className={cn(
-                "h-9 w-full justify-between rounded-xl px-2.5 text-[13px] shadow-none",
+                "h-9 w-full justify-between rounded-lg px-2.5 text-[13px] shadow-none",
                 item.id === value
                   ? "bg-[var(--surface-base)] text-[var(--text-strong)] hover:bg-[var(--surface-base)]"
                   : "text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-strong)]",
