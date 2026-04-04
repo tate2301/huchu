@@ -2,15 +2,15 @@
 
 import * as React from "react";
 import { format, setHours, setMinutes } from "date-fns";
-import { CalendarIcon, Clock3 } from "lucide-react";
+import { CalendarIcon, ChevronDown, Clock3 } from "lucide-react";
 import { type DateRange } from "react-day-picker";
 
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export type DatePickerMode = "single" | "range" | "date-time";
@@ -57,6 +57,10 @@ function combineDateAndTime(date: Date, timeValue: string) {
   return setMinutes(withHours, Number.isFinite(minutes) ? minutes : 0);
 }
 
+function buildTimeOptions(limit: number) {
+  return Array.from({ length: limit }, (_, index) => String(index).padStart(2, "0"));
+}
+
 function formatSingleDate(value?: Date) {
   return value ? format(value, "MMM d, yyyy") : "Select date";
 }
@@ -86,7 +90,7 @@ function DatePickerTrigger({
       type="button"
       variant="outline"
       className={cn(
-        "h-9 min-w-[220px] justify-between rounded-[var(--button-radius)] bg-[var(--surface-base)] px-3 text-left text-[13px] font-medium text-[var(--text-strong)] shadow-none",
+        "h-9 w-full min-w-[220px] justify-between rounded-[var(--button-radius)] bg-[var(--surface-base)] px-3 text-left text-[13px] font-medium text-[var(--text-strong)] shadow-none",
         className,
       )}
       {...props}
@@ -95,6 +99,7 @@ function DatePickerTrigger({
         <CalendarIcon className="h-4 w-4 text-[var(--text-muted)]" />
         <span className="truncate">{value ?? placeholder ?? "Select date"}</span>
       </span>
+      <ChevronDown className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
     </Button>
   );
 }
@@ -112,6 +117,8 @@ export function DatePicker(props: DatePickerProps) {
   } = props;
 
   const mode = props.mode ?? "single";
+  const hourOptions = React.useMemo(() => buildTimeOptions(24), []);
+  const minuteOptions = React.useMemo(() => buildTimeOptions(60), []);
   const [open, setOpen] = React.useState(false);
   const [pendingDate, setPendingDate] = React.useState<Date | undefined>(
     mode === "date-time" ? props.value : mode === "range" ? props.value?.from : props.value,
@@ -132,6 +139,11 @@ export function DatePicker(props: DatePickerProps) {
 
     setPendingDate(props.value);
   }, [mode, props.value]);
+
+  const timeParts = React.useMemo(() => {
+    const [hours = "09", minutes = "00"] = timeValue.split(":");
+    return { hours, minutes };
+  }, [timeValue]);
 
   const triggerValue = React.useMemo(() => {
     if (mode === "range") return formatRange(props.value);
@@ -158,6 +170,14 @@ export function DatePicker(props: DatePickerProps) {
     if (!pendingDate) return;
     props.onChange(combineDateAndTime(pendingDate, timeValue));
     setOpen(false);
+  };
+
+  const updateTimePart = (part: "hours" | "minutes", value: string) => {
+    const nextValue =
+      part === "hours"
+        ? `${value}:${timeParts.minutes}`
+        : `${timeParts.hours}:${value}`;
+    setTimeValue(nextValue);
   };
 
   const calendar = (
@@ -235,17 +255,37 @@ export function DatePicker(props: DatePickerProps) {
                 <Separator />
                 <div className="space-y-3 px-4 py-4">
                   <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
-                    <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5">
-                      <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    <div className="grid gap-2 rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5 sm:grid-cols-2">
+                      <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)] sm:col-span-2">
                         <Clock3 className="h-3.5 w-3.5" />
                         Time
                       </p>
-                      <Input
-                        type="time"
-                        value={timeValue}
-                        onChange={(event) => setTimeValue(event.target.value)}
-                        className="h-9 border-none bg-transparent px-0 shadow-none"
-                      />
+                      <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+                        <Select value={timeParts.hours} onValueChange={(value) => updateTimePart("hours", value)}>
+                          <SelectTrigger className="w-full shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {hourOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={timeParts.minutes} onValueChange={(value) => updateTimePart("minutes", value)}>
+                          <SelectTrigger className="w-full shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {minuteOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Preview</p>
