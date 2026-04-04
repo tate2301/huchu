@@ -41,7 +41,7 @@ function StatusBadge({ value }: { value: string }) {
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="rounded-xl bg-[var(--surface-muted)] px-4 py-6 text-center">
+    <div className="rounded-[14px] bg-[var(--surface-muted)] px-4 py-6 text-center">
       <p className="text-sm font-semibold text-[var(--text-strong)]">{title}</p>
       <p className="mt-2 text-sm text-[var(--text-muted)]">{hint}</p>
     </div>
@@ -50,7 +50,7 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
 
 function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <Card className="bg-[var(--surface-base)] shadow-none">
+    <Card className="admin-metric-card shadow-none">
       <CardHeader className="space-y-1 pb-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="font-mono text-2xl">{value}</CardTitle>
@@ -70,9 +70,9 @@ function SearchField({
   placeholder: string;
 }) {
   return (
-    <div className="relative w-full md:w-80">
+    <div className="admin-table-search">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-9 rounded-xl border-none bg-[var(--surface-muted)] pl-10 shadow-none" />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-9 pl-10 shadow-none" />
     </div>
   );
 }
@@ -139,18 +139,15 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
   );
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">
-              {companyId ? "Organization scope" : "Platform scope"}
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
-              Support access
-            </Badge>
+    <section className="admin-page">
+      <div className="admin-page-header">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="admin-page-kicker">
+              {companyId ? activeCompany?.name ?? "Workspace" : "Platform"} support requests, launch readiness, and live sessions
+            </p>
+            <h1 className="admin-page-title">{scopeLabel}</h1>
           </div>
-          <h1 className="text-2xl font-semibold">{scopeLabel}</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -168,7 +165,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="admin-metric-grid">
         <MetricCard label="Open requests" value={requestQueue} hint="Pending" />
         <MetricCard label="Ready to launch" value={approvedRequests.length} hint="Approved" />
         <MetricCard label="Active sessions" value={activeSessions.length} hint="Live" />
@@ -177,21 +174,22 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
 
       <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as SupportView)} railLabel="Support views">
         {loading ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading support access...</CardContent>
           </Card>
         ) : error ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardContent className="py-10 text-sm text-red-700">{error}</CardContent>
           </Card>
         ) : null}
 
         {!loading && !error && view === "requests" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Support request queue</CardTitle>
+                    <p className="admin-panel-subtitle">Queue and approve inbound support access requests.</p>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
@@ -214,8 +212,8 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                   <EmptyState title="No support requests found" hint="Requests will appear here." />
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <table className="admin-reference-table w-full text-sm">
+                  <thead>
                     <tr>
                       <th className="px-4 py-3">Workspace</th>
                       <th className="px-4 py-3">Requested by</th>
@@ -227,7 +225,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                   </thead>
                   <tbody>
                     {requestRows.map((request) => (
-                      <tr key={request.id} className="border-t border-[var(--border)] align-top">
+                      <tr key={request.id} className="align-top">
                         <td className="px-4 py-3">
                           <p className="font-medium">{request.companyName ?? request.companyId}</p>
                           <p className="text-xs text-[var(--text-muted)]">{request.companySlug ?? request.companyId}</p>
@@ -267,11 +265,12 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
 
         {!loading && !error && view === "launch" ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-            <Card className="bg-[var(--surface-base)] shadow-none">
-              <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Approved requests ready to launch</CardTitle>
+                    <p className="admin-panel-subtitle">Start approved sessions and move directly into workspace support.</p>
                   </div>
                   <Badge variant={approvedRequests.length > 0 ? "secondary" : "outline"} className="font-mono">
                     {approvedRequests.length} ready
@@ -289,8 +288,8 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                     <EmptyState title="No approved requests" hint="Nothing ready." />
                   </div>
                 ) : (
-                  <table className="w-full text-sm">
-                    <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <table className="admin-reference-table w-full text-sm">
+                    <thead>
                       <tr>
                         <th className="px-4 py-3">Workspace</th>
                         <th className="px-4 py-3">Requested by</th>
@@ -301,7 +300,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                     </thead>
                     <tbody>
                       {approvedRequests.map((request) => (
-                        <tr key={request.id} className="border-t border-[var(--border)] align-top">
+                        <tr key={request.id} className="align-top">
                           <td className="px-4 py-3">
                             <p className="font-medium">{request.companyName ?? request.companyId}</p>
                             <p className="text-xs text-[var(--text-muted)]">{request.companySlug ?? request.companyId}</p>
@@ -333,7 +332,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
             </Card>
 
             <div className="space-y-3 xl:sticky xl:top-20">
-              <Card className="bg-[var(--surface-base)] shadow-none">
+              <Card className="admin-side-panel bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-base">Launch modes</CardTitle>
                 </CardHeader>
@@ -366,11 +365,12 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         ) : null}
 
         {!loading && !error && view === "sessions" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Active and recent sessions</CardTitle>
+                    <p className="admin-panel-subtitle">Track who is in a workspace, how they entered, and when the session ends.</p>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
@@ -393,8 +393,8 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                   <EmptyState title="No support sessions found" hint="Sessions will appear here." />
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <table className="admin-reference-table w-full text-sm">
+                  <thead>
                     <tr>
                       <th className="px-4 py-3">Workspace</th>
                       <th className="px-4 py-3">Actor</th>
@@ -407,7 +407,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
                   </thead>
                   <tbody>
                     {sessionRows.map((session) => (
-                      <tr key={session.id} className="border-t border-[var(--border)] align-top">
+                      <tr key={session.id} className="align-top">
                         <td className="px-4 py-3">
                           <p className="font-medium">{session.companyName ?? session.companyId}</p>
                           <p className="text-xs text-[var(--text-muted)]">{session.companySlug ?? session.companyId}</p>

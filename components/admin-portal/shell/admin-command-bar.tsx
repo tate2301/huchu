@@ -128,18 +128,18 @@ export function AdminCommandBar() {
       }}
     >
       <DialogTrigger>
-        <Button variant="ghost" className="h-9 w-full justify-between rounded-xl bg-[var(--surface-muted)] px-3 text-[var(--text-muted)] shadow-none hover:bg-[rgba(255,255,255,0.82)]">
+        <Button variant="outline" className="h-10 w-full justify-between rounded-[12px] bg-[var(--surface-base)] px-3 text-[var(--text-muted)]">
           <span className="flex items-center gap-2 text-[13px]">
             <Search className="h-3.5 w-3.5" />
             Search
           </span>
           <span className="hidden items-center gap-1 text-[10px] md:inline-flex">
-            <kbd className="rounded-md bg-[rgba(255,255,255,0.78)] px-1.5 py-0.5 font-mono">Ctrl</kbd>
-            <kbd className="rounded-md bg-[rgba(255,255,255,0.78)] px-1.5 py-0.5 font-mono">K</kbd>
+            <kbd className="rounded-md border border-[var(--edge-default)] bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono">Ctrl</kbd>
+            <kbd className="rounded-md border border-[var(--edge-default)] bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono">K</kbd>
           </span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[46rem] overflow-hidden rounded-2xl border-none p-0 shadow-[0_16px_48px_rgba(15,23,42,0.16)]">
+      <DialogContent className="max-w-[46rem] overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Control plane command bar</DialogTitle>
         </DialogHeader>
@@ -159,7 +159,7 @@ export function AdminCommandBar() {
                   key={action.id}
                   value={`${action.label} ${action.description}`}
                   onSelect={() => navigate(action.href)}
-                  className="rounded-xl px-2 py-2"
+                  className="rounded-[12px] px-2 py-2"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                   <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{action.label}</p>
@@ -178,7 +178,7 @@ export function AdminCommandBar() {
                   key={company.id}
                   value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                   onSelect={() => navigate(`/admin/clients/${company.id}`)}
-                  className="rounded-xl px-2 py-2"
+                  className="rounded-[12px] px-2 py-2"
                 >
                   <Building2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                   <div className="min-w-0 flex-1">
@@ -199,7 +199,7 @@ export function AdminCommandBar() {
                       key={`workspace:${company.id}`}
                       value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                       onSelect={() => navigate(`/admin/clients/${company.id}`)}
-                      className="rounded-xl px-2 py-2"
+                      className="rounded-[12px] px-2 py-2"
                     >
                       <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                       <div className="min-w-0 flex-1">
@@ -221,7 +221,7 @@ export function AdminCommandBar() {
                       key={result.id}
                       value={`${result.label} ${result.detail} ${result.keywords.join(" ")}`}
                       onSelect={() => navigate(searchResultHref(result, activeCompanyId))}
-                      className="rounded-xl px-2 py-2"
+                      className="rounded-[12px] px-2 py-2"
                     >
                       <Shield className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                       <div className="min-w-0 flex-1">

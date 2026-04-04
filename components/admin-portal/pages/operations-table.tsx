@@ -53,13 +53,16 @@ export function OperationsTable({
   const paged = rows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   return (
-    <section className="space-y-3 rounded-xl border bg-[var(--surface-base)] p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <Badge variant="outline" className="font-mono">{rows.length} actions</Badge>
+    <section className="admin-surface overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--edge-subtle)] px-5 py-4">
+        <div>
+          <p className="admin-page-kicker">Operations</p>
+          <h2 className="mt-1 text-lg font-semibold text-[var(--text-strong)]">{title}</h2>
+        </div>
+        <Badge variant="outline" className="rounded-full px-3 py-1 font-mono">{rows.length} actions</Badge>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--edge-subtle)] px-5 py-3">
         <Input
           value={search}
           onChange={(event) => {
@@ -67,7 +70,7 @@ export function OperationsTable({
             setPage(1);
           }}
           placeholder="Search actions"
-          className="h-9 flex-1"
+          className="h-9 flex-1 md:min-w-[220px]"
         />
         <Button className="h-9" onClick={() => setPage(1)}>Search</Button>
 
@@ -99,25 +102,25 @@ export function OperationsTable({
         </Select>
 
         <Button variant="outline" className="h-9" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
-        <Badge variant="outline" className="h-9 rounded-md px-3 font-mono">{currentPage}/{totalPages}</Badge>
+        <Badge variant="outline" className="h-9 rounded-[10px] px-3 font-mono">{currentPage}/{totalPages}</Badge>
         <Button variant="outline" className="h-9" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+      <div className="overflow-x-auto">
+        <table className="admin-reference-table w-full min-w-[720px] text-sm">
+          <thead className="text-left text-[var(--text-muted)]">
             <tr>
-              <th className="px-3 py-2">Module</th>
-              <th className="px-3 py-2">Action</th>
-              <th className="px-3 py-2">Run</th>
+              <th className="px-4 py-3">Module</th>
+              <th className="px-4 py-3">Action</th>
+              <th className="px-4 py-3 text-right">Run</th>
             </tr>
           </thead>
           <tbody>
             {paged.map((row) => (
-              <tr key={`${row.module}.${row.action}`} className="border-t">
-                <td className="px-3 py-2 font-mono">{row.module}</td>
-                <td className="px-3 py-2">{row.action}</td>
-                <td className="px-3 py-2">
+              <tr key={`${row.module}.${row.action}`}>
+                <td className="px-4 py-3 font-mono text-[13px] text-[var(--text-muted)]">{row.module}</td>
+                <td className="px-4 py-3 font-medium text-[var(--text-strong)]">{row.action}</td>
+                <td className="px-4 py-3 text-right">
                   <Button size="sm" onClick={() => setSelected(row)}>Open wizard</Button>
                 </td>
               </tr>

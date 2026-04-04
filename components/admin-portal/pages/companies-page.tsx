@@ -180,19 +180,15 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
   );
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">
-              Platform scope
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
-              Workspace directory
-            </Badge>
-          </div>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Workspaces</h1>
+    <section className="admin-page">
+      <div className="admin-page-header">
+        <div className="space-y-2">
+          <p className="admin-page-kicker">Platform directory</p>
+          <div className="flex flex-col gap-2">
+            <h1 className="admin-page-title">Workspaces</h1>
+            <p className="max-w-2xl text-sm text-[var(--text-muted)]">
+              Manage workspace access, subscription posture, and commercial status from one directory.
+            </p>
           </div>
         </div>
 
@@ -205,20 +201,23 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
       </div>
 
       {commercialError ? (
-        <Card className="bg-[var(--surface-base)] shadow-none">
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
           <CardContent className="rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-800">
             {commercialError}
           </CardContent>
         </Card>
       ) : null}
 
-      <Card className="overflow-hidden bg-[var(--surface-base)] shadow-none">
-        <CardHeader className="pb-2">
+      <Card className="admin-surface overflow-hidden bg-[var(--surface-base)] shadow-none">
+        <CardHeader className="border-b border-[var(--edge-subtle)] pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg">Workspace registry</CardTitle>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Search, filter, and open workspace records without leaving the directory.
+              </p>
             </div>
-            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
+            <Badge variant="neutral" className="rounded-full px-2 py-0.5 text-[10px]">
               {filteredRows.length} visible
             </Badge>
           </div>

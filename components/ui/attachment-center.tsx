@@ -62,7 +62,7 @@ export function AttachmentCenter({
   return (
     <section
       className={cn(
-        "space-y-4 rounded-lg border border-[var(--edge-subtle)] bg-card p-4 text-card-foreground shadow-[var(--card-shadow-rest)]",
+        "space-y-4 rounded-[var(--card-radius)] border border-[var(--border-default)] bg-card p-4 text-card-foreground shadow-[var(--card-shadow-rest)]",
         className,
       )}
     >
@@ -73,9 +73,9 @@ export function AttachmentCenter({
 
       <div
         className={cn(
-          "rounded-lg border border-dashed p-4 transition-colors",
-          canUpload ? "cursor-pointer border-border bg-muted/20" : "border-border/70 bg-muted/10",
-          canUpload && isDragging ? "border-primary bg-primary/5" : null,
+          "rounded-[var(--card-radius)] border border-dashed p-4 transition-colors",
+          canUpload ? "cursor-pointer border-[var(--border-default)] bg-[var(--surface-subtle)]" : "border-[var(--border-default)]/80 bg-[var(--surface-soft)]",
+          canUpload && isDragging ? "border-[var(--action-primary-bg)] bg-[var(--status-info-bg)]" : null,
         )}
         onDragEnter={(event) => {
           event.preventDefault();
@@ -99,7 +99,7 @@ export function AttachmentCenter({
         }}
       >
         <div className="flex items-center gap-3">
-          <span className="rounded-md bg-muted p-2 text-muted-foreground">
+          <span className="rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] p-2 text-[var(--text-muted)] shadow-[var(--surface-frame-shadow)]">
             <ArrowUpward />
           </span>
           <div className="min-w-0">
@@ -133,11 +133,11 @@ export function AttachmentCenter({
           items.map((item) => (
             <div
               key={item.id}
-              className="flex items-start justify-between gap-3 rounded-md border border-border/80 bg-muted/10 px-3 py-2"
+              className="flex items-start justify-between gap-3 rounded-[12px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5 shadow-[var(--surface-frame-shadow)]"
             >
               <div className="min-w-0 space-y-1">
                 <div className="flex items-center gap-2">
-                  <FileText className="text-muted-foreground" />
+                  <FileText className="text-[var(--text-subtle)]" />
                   {item.href ? (
                     <a
                       href={item.href}

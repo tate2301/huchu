@@ -57,7 +57,7 @@ function featureGroupKey(featureKey: string) {
 }
 
 function selectClassName() {
-  return "h-9 rounded-xl border-none bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-strong)] shadow-none outline-none";
+  return "h-9 rounded-[12px] border border-[var(--edge-default)] bg-[var(--surface-base)] px-3 text-sm text-[var(--text-strong)] shadow-none outline-none";
 }
 
 function bucketLabel(value: PlatformCommercialRow["dueBucket"]) {
@@ -138,7 +138,7 @@ function MetricTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 shadow-none">
+    <div className="admin-surface rounded-[14px] px-3 py-3 shadow-none">
       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{label}</p>
       <p className="mt-1 font-mono text-lg font-semibold text-[var(--text-strong)]">{value}</p>
       {hint ? <p className="mt-1 text-xs text-[var(--text-muted)]">{hint}</p> : null}
@@ -156,7 +156,7 @@ function ProjectionStrip({ projections }: { projections: CommercialCenterData["o
         const atRiskHeight = Math.max(0, Math.round((bucket.atRiskAmount / peak) * 52));
 
         return (
-          <div key={bucket.id} className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 shadow-none">
+          <div key={bucket.id} className="admin-surface rounded-[14px] px-3 py-3 shadow-none">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{bucket.label}</p>
               <p className="font-mono text-xs text-[var(--text-muted)]">{bucket.workspaceCount} ws</p>
@@ -194,9 +194,9 @@ function WorkspaceRevenueTable({
   refresh: () => void;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] text-sm">
-        <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+    <div className="admin-surface overflow-x-auto">
+      <table className="admin-reference-table w-full min-w-[980px] text-sm">
+        <thead className="bg-[var(--table-header-bg)] text-left text-[13px] font-medium text-[var(--table-header-text)]">
           <tr>
             <th className="px-3 py-2">Workspace</th>
             <th className="px-3 py-2">Commercial</th>
@@ -206,9 +206,9 @@ function WorkspaceRevenueTable({
             <th className="px-3 py-2 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+        <tbody className="divide-y divide-[var(--table-divider)]">
           {rows.map((row) => (
-            <tr key={row.companyId} className="align-top">
+            <tr key={row.companyId} className="align-top transition-colors hover:bg-[var(--table-row-hover-bg)]">
               <td className="px-3 py-3">
                 <Link href={`/admin/company/${row.companyId}/commercial`} className="font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
                   {row.companyName}
@@ -511,7 +511,7 @@ export function CommercialCenterPage({
 
   if (loading) {
     return (
-      <Card className="border-none bg-[var(--surface-base)] shadow-none">
+      <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
         <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading commercial...</CardContent>
       </Card>
     );
@@ -519,7 +519,7 @@ export function CommercialCenterPage({
 
   if (error || !commercial || (isCompanyScope && !overview)) {
     return (
-      <Card className="border-none bg-[var(--surface-base)] shadow-none">
+      <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Commercial center data is unavailable."}</p>
           <Button variant="outline" onClick={refresh}>Retry</Button>
@@ -533,14 +533,15 @@ export function CommercialCenterPage({
   const summary = commercial.overview.summary;
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <CompactPill tone="muted">{isCompanyScope ? "Workspace" : "Platform"}</CompactPill>
-            <CompactPill tone="strong">Commercial</CompactPill>
+    <section className="admin-page">
+      <div className="admin-page-header">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="admin-page-kicker">
+              {isCompanyScope ? overview?.company.slug ?? "Workspace commercial posture" : "Revenue, plans, and entitlement posture"}
+            </p>
+            <h1 className="admin-page-title">{scopeTitle}</h1>
           </div>
-          <h1 className="text-2xl font-semibold text-[var(--text-strong)]">{scopeTitle}</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -558,7 +559,7 @@ export function CommercialCenterPage({
               <ApplyTemplateDialog actorEmail={actorEmail} companies={companies} templates={commercial.templates} triggerLabel="Apply template" buttonVariant="outline" onCompleted={refresh} />
             </>
           )}
-          <Button variant="ghost" size="sm" onClick={refresh}>
+          <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -586,14 +587,17 @@ export function CommercialCenterPage({
               ))}
             </div>
 
-            <Card className="border-none bg-[var(--surface-base)] shadow-none">
-              <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-base">Revenue pipeline</CardTitle>
+            <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
+                  <div>
+                    <CardTitle className="text-base">Revenue pipeline</CardTitle>
+                    <p className="admin-panel-subtitle">Primary workspace table for plan, due date, contract risk, and operator action.</p>
+                  </div>
                   <CompactPill>{filteredPlatformRows.length} workspaces</CompactPill>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                  <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 shadow-none md:max-w-sm" />
                   <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
                     <option value="all">All statuses</option>
                     <option value="ACTIVE">ACTIVE</option>
@@ -634,14 +638,17 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "due" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Due now</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Due now</CardTitle>
+                  <p className="admin-panel-subtitle">Renewals and overdue accounts that need near-term follow-up.</p>
+                </div>
                 <CompactPill tone="warning">{filteredDueRows.length} workspaces</CompactPill>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 shadow-none md:max-w-sm" />
                 <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
                   <option value="all">All statuses</option>
                   <option value="ACTIVE">ACTIVE</option>
@@ -665,14 +672,17 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "renewals" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Renewals</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Renewals</CardTitle>
+                  <p className="admin-panel-subtitle">Renewal pipeline segmented by time horizon, status, and plan mix.</p>
+                </div>
                 <CompactPill tone="warning">{filteredRenewals.length} workspaces</CompactPill>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 shadow-none md:max-w-sm" />
                 <select value={renewalWindow} onChange={(event) => setRenewalWindow(event.target.value)} className={selectClassName()}>
                   <option value="90">Next 90d</option>
                   <option value="30">Next 30d</option>
@@ -700,14 +710,17 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "workspaces" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Workspace commercial base</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Workspace commercial base</CardTitle>
+                  <p className="admin-panel-subtitle">Full workspace rollup with plan, status, due bucket, and risk state.</p>
+                </div>
                 <CompactPill>{filteredPlatformRows.length} workspaces</CompactPill>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+                <Input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Search workspace, plan, or status" className="h-9 min-w-[220px] flex-1 shadow-none md:max-w-sm" />
                 <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClassName()}>
                   <option value="all">All statuses</option>
                   <option value="ACTIVE">ACTIVE</option>
@@ -740,17 +753,20 @@ export function CommercialCenterPage({
         ) : null}
 
         {view === "templates" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Templates</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Templates</CardTitle>
+                  <p className="admin-panel-subtitle">Packaged pricing templates for repeatable commercial setups.</p>
+                </div>
                 <CompactPill>{filteredTemplates.length} templates</CompactPill>
               </div>
-              <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+              <Input value={templateSearch} onChange={(event) => setTemplateSearch(event.target.value)} placeholder="Search template, tier, or bundle" className="h-9 shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <table className="admin-reference-table w-full text-sm">
+                <thead>
                   <tr>
                     <th className="px-3 py-2">Template</th>
                     <th className="px-3 py-2">Tier</th>
@@ -760,7 +776,7 @@ export function CommercialCenterPage({
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+                <tbody>
                   {filteredTemplates.map((template) => (
                     <tr key={template.code} className="align-top">
                       <td className="px-3 py-3">
@@ -785,17 +801,20 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "bundles" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Bundles</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Bundles</CardTitle>
+                  <p className="admin-panel-subtitle">Commercial package definitions and the features they unlock.</p>
+                </div>
                 <CompactPill>{filteredBundles.length} bundles</CompactPill>
               </div>
-              <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+              <Input value={bundleSearch} onChange={(event) => setBundleSearch(event.target.value)} placeholder="Search bundle, code, source, or feature" className="h-9 shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <table className="admin-reference-table w-full text-sm">
+                <thead>
                   <tr>
                     <th className="px-3 py-2">Bundle</th>
                     <th className="px-3 py-2">Pricing</th>
@@ -805,7 +824,7 @@ export function CommercialCenterPage({
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+                <tbody>
                   {filteredBundles.map((bundle) => (
                     <tr key={bundle.code} className="align-top">
                       <td className="px-3 py-3">
@@ -834,24 +853,27 @@ export function CommercialCenterPage({
         ) : null}
 
         {!isCompanyScope && view === "catalog" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Feature catalog</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Feature catalog</CardTitle>
+                  <p className="admin-panel-subtitle">Platform-level feature registry and current activation state.</p>
+                </div>
                 <CompactPill>{filteredCatalog.length} features</CompactPill>
               </div>
-              <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+              <Input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <table className="admin-reference-table w-full text-sm">
+                <thead>
                   <tr>
                     <th className="px-3 py-2">Feature</th>
                     <th className="px-3 py-2">Key</th>
                     <th className="px-3 py-2">Platform</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+                <tbody>
                   {filteredCatalog.map((feature) => (
                     <tr key={feature.feature}>
                       <td className="px-3 py-3">{feature.featureLabel}</td>
@@ -875,10 +897,13 @@ export function CommercialCenterPage({
                 <MetricTile label="Footprint" value={`${overview?.sites.filter((site) => site.isActive).length ?? 0} sites`} hint={`${overview?.addons.filter((addon) => addon.enabled).length ?? 0} add-ons`} />
               </div>
 
-              <Card className="border-none bg-[var(--surface-base)] shadow-none">
-                <CardHeader className="gap-3 pb-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">Billing position</CardTitle>
+              <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                  <div className="admin-panel-header">
+                    <div>
+                      <CardTitle className="text-base">Billing position</CardTitle>
+                      <p className="admin-panel-subtitle">Current contract state, billing period, and commercial risk posture.</p>
+                    </div>
                     <CompactPill tone={overview?.subscriptionHealth?.shouldBlock ? "danger" : overview?.subscriptionHealth?.state === "EXPIRING_SOON" || overview?.subscriptionHealth?.state === "IN_GRACE" ? "warning" : "success"}>
                       {overview?.subscriptionHealth?.state ?? "No signal"}
                     </CompactPill>
@@ -886,8 +911,8 @@ export function CommercialCenterPage({
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    <table className="admin-reference-table w-full text-sm">
+                      <thead>
                         <tr>
                           <th className="px-3 py-2">Plan</th>
                           <th className="px-3 py-2">Status</th>
@@ -924,8 +949,8 @@ export function CommercialCenterPage({
                 </CardContent>
               </Card>
 
-              <Card className="border-none bg-[var(--surface-base)] shadow-none">
-                <CardHeader className="pb-2">
+              <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="border-b border-[var(--edge-subtle)] pb-3">
                   <CardTitle className="text-base">Pricing mix</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -943,7 +968,7 @@ export function CommercialCenterPage({
             </div>
 
             <div className="space-y-3 xl:sticky xl:top-20">
-              <Card className="border-none bg-[var(--surface-base)] shadow-none">
+              <Card className="admin-side-panel bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Billing health</CardTitle>
                 </CardHeader>
@@ -966,7 +991,7 @@ export function CommercialCenterPage({
                 </CardContent>
               </Card>
 
-              <Card className="border-none bg-[var(--surface-base)] shadow-none">
+              <Card className="admin-side-panel bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Commercial footprint</CardTitle>
                 </CardHeader>
@@ -982,17 +1007,20 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "addons" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Workspace add-ons</CardTitle>
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Workspace add-ons</CardTitle>
+                  <p className="admin-panel-subtitle">Enabled commercial extensions and the reasons attached to each one.</p>
+                </div>
                 <CompactPill>{filteredAddons.length} add-ons</CompactPill>
               </div>
-              <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none md:max-w-sm" />
+              <Input value={addonSearch} onChange={(event) => setAddonSearch(event.target.value)} placeholder="Search add-on name, code, or reason" className="h-9 shadow-none md:max-w-sm" />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <table className="admin-reference-table w-full text-sm">
+                <thead>
                   <tr>
                     <th className="px-3 py-2">Add-on</th>
                     <th className="px-3 py-2">Pricing</th>
@@ -1001,7 +1029,7 @@ export function CommercialCenterPage({
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+                <tbody>
                   {filteredAddons.map((addon) => (
                     <tr key={addon.code} className="align-top">
                       <td className="px-3 py-3"><p className="font-medium">{addon.name}</p><p className="text-xs text-[var(--text-muted)]">{addon.code}</p></td>
@@ -1018,10 +1046,13 @@ export function CommercialCenterPage({
         ) : null}
 
         {isCompanyScope && view === "features" ? (
-          <Card className="border-none bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="space-y-3 pb-2">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="space-y-3 border-b border-[var(--edge-subtle)] pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle className="text-base">Feature access draft</CardTitle>
+                <div>
+                  <CardTitle className="text-base">Feature access draft</CardTitle>
+                  <p className="admin-panel-subtitle">Draft entitlement changes before committing them to the workspace.</p>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <CompactPill>{pendingFeatureChanges} pending</CompactPill>
                   <Button size="sm" variant="outline" onClick={() => {
@@ -1033,13 +1064,13 @@ export function CommercialCenterPage({
                 </div>
               </div>
               <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
-                <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+                <Input value={featureSearch} onChange={(event) => setFeatureSearch(event.target.value)} placeholder="Search feature label or key" className="h-9 shadow-none" />
+                <Input value={featureReason} onChange={(event) => setFeatureReason(event.target.value)} placeholder="Reason for this batch" className="h-9 shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <table className="admin-reference-table w-full text-sm">
+                <thead>
                   <tr>
                     <th className="px-3 py-2">Feature</th>
                     <th className="px-3 py-2">Group</th>
@@ -1049,7 +1080,7 @@ export function CommercialCenterPage({
                     <th className="px-3 py-2 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[rgba(17,17,17,0.05)]">
+                <tbody>
                   {filteredFeatures.map((feature) => {
                     const value = featureDraft[feature.feature] ?? feature.enabled;
                     const changed = value !== feature.enabled;

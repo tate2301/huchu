@@ -29,8 +29,15 @@ export function StatusChip({
     <span
       data-status={presentation.status}
       data-tone={presentation.tone}
-      className={cn("inline-flex items-center gap-1.5 text-sm font-medium", className)}
-      style={{ color: tokenVar(presentation.tokens.text) }}
+      className={cn(
+        "inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold tracking-[0.01em]",
+        className
+      )}
+      style={{
+        color: tokenVar(presentation.tokens.text),
+        backgroundColor: tokenVar(presentation.tokens.bg),
+        borderColor: tokenVar(presentation.tokens.border),
+      }}
     >
       {showDot ? (
         <span
@@ -56,7 +63,7 @@ export function StatusDot({ status, className }: StatusDotProps) {
     <span
       data-status={presentation.status}
       data-tone={presentation.tone}
-      className={cn("inline-block h-2 w-2 rounded-full", className)}
+      className={cn("inline-block h-2.5 w-2.5 rounded-full", className)}
       style={{ backgroundColor: tokenVar(presentation.tokens.border) }}
       aria-label={presentation.label}
     />

@@ -96,30 +96,95 @@ function MetricTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl bg-[var(--surface-base)] px-3 py-3 shadow-none">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{label}</p>
-      <p className="mt-1 font-mono text-lg font-semibold text-[var(--text-strong)]">{value}</p>
-      {hint ? <p className="mt-1 text-[11px] text-[var(--text-muted)]">{hint}</p> : null}
+    <div className="admin-metric-card rounded-[14px] px-4 py-3 shadow-none">
+      <p className="text-[11px] font-medium text-[var(--text-muted)]">{label}</p>
+      <p className="mt-3 font-mono text-[1.9rem] font-semibold leading-none tracking-[-0.04em] text-[var(--text-strong)]">{value}</p>
+      {hint ? <p className="mt-4 border-t border-[var(--edge-subtle)] pt-3 text-[12px] text-[var(--text-muted)]">{hint}</p> : null}
     </div>
   );
 }
 
 function ChartCard({
   title,
+  subtitle,
   meta,
   children,
 }: {
   title: string;
+  subtitle?: string;
   meta?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <Card className="border-none bg-[var(--surface-base)] shadow-none">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
-        <CardTitle className="text-[15px]">{title}</CardTitle>
-        {meta}
+    <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+      <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+        <div className="admin-panel-header">
+          <div>
+            <CardTitle className="text-[15px] font-semibold text-[var(--text-strong)]">{title}</CardTitle>
+            {subtitle ? <p className="admin-panel-subtitle">{subtitle}</p> : null}
+          </div>
+          {meta}
+        </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="pt-4">{children}</CardContent>
+    </Card>
+  );
+}
+
+function SurfaceLink({
+  href,
+  title,
+  detail,
+}: {
+  href: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-3 py-3 transition-colors hover:bg-[var(--table-row-hover-bg)]"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-[13px] font-semibold text-[var(--text-strong)]">{title}</p>
+        <p className="mt-1 truncate text-[11px] text-[var(--text-muted)]">{detail}</p>
+      </div>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
+    </Link>
+  );
+}
+
+function LoadingMetricTile() {
+  return (
+    <div className="admin-metric-card rounded-[14px] px-4 py-3 shadow-none">
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="mt-3 h-8 w-24" />
+      <Skeleton className="mt-4 h-3 w-24" />
+    </div>
+  );
+}
+
+function LoadingSurface({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className={cn("admin-surface shadow-none", className)}>
+      <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+        <div className="admin-panel-header">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <Skeleton className="h-6 w-12 rounded-full" />
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        {children}
+      </CardContent>
     </Card>
   );
 }
@@ -196,27 +261,39 @@ function ProjectionStrip({ projections }: { projections: CommercialCenterData["o
 
 function LoadingDashboard() {
   return (
-    <section className="space-y-3">
-      <div className="grid gap-2 lg:grid-cols-6">
-        {Array.from({ length: 12 }).map((_, index) => (
-          <div key={index} className="rounded-2xl bg-[var(--surface-base)] px-3 py-3">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-2 h-6 w-16" />
-            <Skeleton className="mt-2 h-3 w-16" />
-          </div>
+    <section className="admin-page">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-10 w-64" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <LoadingMetricTile key={index} />
         ))}
       </div>
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Skeleton className="h-72 rounded-2xl" />
+        <LoadingSurface className="h-full">
+          <Skeleton className="h-56 w-full rounded-[12px]" />
+        </LoadingSurface>
         <div className="grid gap-3">
-          <Skeleton className="h-32 rounded-2xl" />
-          <Skeleton className="h-32 rounded-2xl" />
+          <LoadingSurface>
+            <Skeleton className="h-24 w-full rounded-[12px]" />
+          </LoadingSurface>
+          <LoadingSurface>
+            <Skeleton className="h-24 w-full rounded-[12px]" />
+          </LoadingSurface>
         </div>
       </div>
       <div className="grid gap-3 xl:grid-cols-3">
-        <Skeleton className="h-64 rounded-2xl" />
-        <Skeleton className="h-64 rounded-2xl" />
-        <Skeleton className="h-64 rounded-2xl" />
+        <LoadingSurface>
+          <Skeleton className="h-52 w-full rounded-[12px]" />
+        </LoadingSurface>
+        <LoadingSurface>
+          <Skeleton className="h-52 w-full rounded-[12px]" />
+        </LoadingSurface>
+        <LoadingSurface>
+          <Skeleton className="h-52 w-full rounded-[12px]" />
+        </LoadingSurface>
       </div>
     </section>
   );
@@ -591,7 +668,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
 
   if (error || !commercial || !supportHub || !reliability) {
     return (
-      <Card className="border-none bg-[var(--surface-base)] shadow-none">
+      <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Dashboard data is unavailable."}</p>
           <Button variant="outline" onClick={refresh}>Retry</Button>
@@ -601,20 +678,21 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
   }
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">
-              {isCompanyScope ? "Workspace" : "Platform"}
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">
-              {isLoadingCompanies ? "Loading" : `${companies.length} workspaces`}
-            </Badge>
+    <section className="admin-page">
+      <div className="admin-page-header">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="admin-page-kicker">
+              {isCompanyScope
+                ? activeCompany?.name ?? "Workspace control surface"
+                : isLoadingCompanies
+                  ? "Loading workspace index"
+                  : `${companies.length} workspaces in view`}
+            </p>
+            <h2 className="admin-page-title">
+              {isCompanyScope ? "Your summary" : "Operations dashboard"}
+            </h2>
           </div>
-          <h2 className="text-[1.85rem] font-semibold tracking-tight text-[var(--text-strong)]">
-            {isCompanyScope ? `${activeCompany?.name ?? "Workspace"} dashboard` : "Operations dashboard"}
-          </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" asChild>
@@ -629,7 +707,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         </div>
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {headlineMetrics.map((metric) => (
           <MetricTile
             key={metric.id}
@@ -645,74 +723,86 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <ChartCard
               title="Revenue forecast"
+              subtitle="Committed value and at-risk exposure over the current planning horizon."
               meta={<StatusChip status="Live" showDot />}
             >
               <ProjectionStrip projections={commercial.overview.projections} />
             </ChartCard>
 
             <div className="grid gap-3">
-              <ChartCard title="Plan mix" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{commercial.overview.planMix.length}</Badge>}>
+              <ChartCard
+                title="Plan mix"
+                subtitle="Subscribed workspaces by commercial tier."
+                meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{commercial.overview.planMix.length}</Badge>}
+              >
                 <DistributionBars rows={planMixRows} />
               </ChartCard>
-              <ChartCard title="Contract pressure" meta={<TriangleAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
+              <ChartCard
+                title="Contract pressure"
+                subtitle="Upcoming billing and overdue exposure that needs operator attention."
+                meta={<TriangleAlert className="h-4 w-4 text-[var(--text-muted)]" />}
+              >
                 <DistributionBars rows={contractRows} />
               </ChartCard>
             </div>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-3">
-            <ChartCard title="Due buckets" meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Due buckets" subtitle="Workspaces grouped by billing timing." meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={dueRows} />
             </ChartCard>
-            <ChartCard title="Risk buckets" meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Risk buckets" subtitle="Commercial health ranked by urgency." meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={riskRows} />
             </ChartCard>
-            <ChartCard title="Fleet status" meta={<Building2 className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Fleet status" subtitle="Workspace contract state across the fleet." meta={<Building2 className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={workspaceStatusRows} />
             </ChartCard>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-3">
-            <ChartCard title="Support requests" meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Support requests" subtitle="Request volume by queue status." meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={supportRequestRows} />
             </ChartCard>
-            <ChartCard title="Support sessions" meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Support sessions" subtitle="Live and expired sessions by current state." meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={supportSessionRows} />
             </ChartCard>
-            <ChartCard title="Incident severity" meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Incident severity" subtitle="Open incident distribution across the platform." meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={incidentRows} />
             </ChartCard>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <ChartCard title="Runbook executions" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{reliability.executions.length}</Badge>}>
+            <ChartCard
+              title="Runbook executions"
+              subtitle="Recent automation activity and operator-triggered remediations."
+              meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{reliability.executions.length}</Badge>}
+            >
               <DistributionBars rows={runbookRows} />
             </ChartCard>
 
-            <ChartCard title="Workspace jump" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{companies.length}</Badge>}>
+            <ChartCard
+              title="Workspace jump"
+              subtitle="Search and move directly into a workspace command surface."
+              meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{companies.length}</Badge>}
+            >
               <div className="space-y-2">
-                <div className="relative">
+                <div className="admin-table-search">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                   <Input
                     value={workspaceQuery}
                     onChange={(event) => setWorkspaceQuery(event.target.value)}
                     placeholder="Search workspace"
-                    className="h-9 rounded-xl border-none bg-[var(--surface-subtle)] pl-10 shadow-none"
+                    className="h-9 pl-10 shadow-none"
                   />
                 </div>
                 <div className="space-y-2">
                   {workspaceRows.map((workspace) => (
-                    <Link
+                    <SurfaceLink
                       key={workspace.id}
                       href={`/admin/clients/${workspace.id}`}
-                      className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-subtle)] px-3 py-2.5 transition-colors hover:bg-[rgba(255,255,255,0.84)]"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold text-[var(--text-strong)]">{workspace.name}</p>
-                        <p className="truncate text-[11px] text-[var(--text-muted)]">{workspace.slug ?? workspace.id}</p>
-                      </div>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
-                    </Link>
+                      title={workspace.name}
+                      detail={workspace.slug ?? workspace.id}
+                    />
                   ))}
                 </div>
               </div>
@@ -722,22 +812,26 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       ) : (
         <>
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
-            <ChartCard title="Pricing composition" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{overview?.pricing?.lineItems.length ?? 0}</Badge>}>
+            <ChartCard
+              title="Pricing composition"
+              subtitle="Recurring pricing lines that define this workspace contract."
+              meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{overview?.pricing?.lineItems.length ?? 0}</Badge>}
+            >
               <DistributionBars rows={pricingCompositionRows} />
             </ChartCard>
-            <ChartCard title="Feature domains" meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Feature domains" subtitle="Enabled features grouped by product domain." meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={featureDomainRows} />
             </ChartCard>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-3">
-            <ChartCard title="Support" meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Support" subtitle="Current support request and session distribution." meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={supportSessionRows} />
             </ChartCard>
-            <ChartCard title="Reliability" meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
+            <ChartCard title="Reliability" subtitle="Incident exposure for the active workspace." meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
               <DistributionBars rows={incidentRows} />
             </ChartCard>
-            <ChartCard title="Audit actions" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{overview?.auditEvents.length ?? 0}</Badge>}>
+            <ChartCard title="Audit actions" subtitle="Recent audit trail volume and verification activity." meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{overview?.auditEvents.length ?? 0}</Badge>}>
               <DistributionBars rows={auditRows} />
             </ChartCard>
           </div>
@@ -745,14 +839,14 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       )}
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-        <ChartCard title="Action queue" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{quickActions.length}</Badge>}>
+        <ChartCard title="Action queue" subtitle="Direct links into the highest-value operator workflows." meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{quickActions.length}</Badge>}>
           <div className="grid gap-2 sm:grid-cols-2">
             {quickActions.map((action) => (
               <Button
                 key={action.id}
                 asChild
                 variant="outline"
-                className="h-auto justify-between rounded-2xl border-none bg-[var(--surface-subtle)] px-3 py-3 text-left shadow-none"
+                className="h-auto justify-between rounded-[12px] border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-3 py-3 text-left shadow-none"
               >
                 <Link href={action.href}>
                   <span className="min-w-0">
@@ -766,20 +860,15 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           </div>
         </ChartCard>
 
-        <ChartCard title="Signals" meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{operatorSignals.length}</Badge>}>
+        <ChartCard title="Signals" subtitle="Operator-facing alerts and follow-up work across admin modules." meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{operatorSignals.length}</Badge>}>
           <div className="space-y-2">
             {operatorSignals.map((signal) => (
-              <Link
+              <SurfaceLink
                 key={signal.id}
                 href={signal.href}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-subtle)] px-3 py-3 transition-colors hover:bg-[rgba(255,255,255,0.84)]"
-              >
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-[var(--text-strong)]">{signal.label}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">{signal.hint}</p>
-                </div>
-                <p className="font-mono text-base font-semibold text-[var(--text-strong)]">{signal.value}</p>
-              </Link>
+                title={signal.label}
+                detail={`${signal.value} - ${signal.hint}`}
+              />
             ))}
           </div>
         </ChartCard>

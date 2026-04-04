@@ -21,7 +21,7 @@ const DialogPortal = DialogPrimitive.Portal
 const DialogClose = DialogPrimitive.Close
 
 const dialogContentVariants = cva(
-  "relative grid w-full gap-4 overflow-y-auto overscroll-contain rounded-[1.35rem] border-0 bg-popover text-foreground shadow-[var(--elevation-4)] ring-1 ring-black/5 transition ease-[var(--motion-ease-standard)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-[0.985] motion-safe:duration-200 focus:outline-none dark:ring-white/8 [--dialog-max-w-sm:34rem] [--dialog-max-w-md:40rem] [--dialog-max-w-lg:44rem] max-w-full sm:max-w-[var(--dialog-max-w-sm)] md:max-w-[var(--dialog-max-w-md)] lg:max-w-[var(--dialog-max-w-lg)] max-h-[100dvh] sm:max-h-[calc(100dvh-3rem)]",
+  "relative grid w-full gap-4 overflow-y-auto overscroll-contain rounded-[calc(var(--card-radius)+2px)] border border-[var(--border-default)] bg-popover text-foreground shadow-[var(--shadow-popover)] transition ease-[var(--motion-ease-default)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-[0.985] motion-safe:duration-200 focus:outline-none [--dialog-max-w-sm:34rem] [--dialog-max-w-md:40rem] [--dialog-max-w-lg:44rem] max-w-full sm:max-w-[var(--dialog-max-w-sm)] md:max-w-[var(--dialog-max-w-md)] lg:max-w-[var(--dialog-max-w-lg)] max-h-[100dvh] sm:max-h-[calc(100dvh-3rem)]",
   {
     variants: {
       size: DIALOG_SIZE_CLASSNAMES,
@@ -50,7 +50,7 @@ const DialogContent = React.forwardRef<
   DialogContentProps
 >(({ className, children, size = "md", tabletBehavior = "adaptive", inset = true, ...props }, ref) => (
   <DialogPortal>
-    <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-[var(--surface-overlay)] backdrop-blur-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200" />
+    <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-[var(--surface-overlay)] backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200" />
     <DialogPrimitive.Viewport
       className={cn(
         "fixed inset-0 z-50 flex justify-center overflow-y-auto overscroll-contain",
@@ -60,6 +60,7 @@ const DialogContent = React.forwardRef<
     >
       <DialogPrimitive.Popup
         ref={ref}
+        data-slot="dialog-content"
         className={cn(
           dialogContentVariants({ size, tabletBehavior, inset }),
           className
@@ -67,7 +68,7 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         {children}
-        <DialogClose className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-subtle)]/92 text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-[var(--surface-soft)] hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-2 focus:ring-offset-background disabled:pointer-events-none">
+        <DialogClose className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-[var(--button-radius)] bg-[var(--surface-subtle)] text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-[var(--surface-soft)] hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:ring-offset-0 disabled:pointer-events-none">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogClose>
@@ -78,12 +79,12 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Popup.displayName
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex min-w-0 flex-col gap-1 text-left", className)} {...props} />
+  <div className={cn("flex min-w-0 flex-col gap-1.5 text-left", className)} {...props} />
 )
 DialogHeader.displayName = "DialogHeader"
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:space-x-0", className)} {...props} />
+  <div className={cn("flex flex-col-reverse gap-2 pt-3 sm:flex-row sm:justify-end sm:space-x-0", className)} {...props} />
 )
 DialogFooter.displayName = "DialogFooter"
 
@@ -93,7 +94,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-[0.98rem] font-semibold tracking-[-0.01em] text-foreground text-wrap-balance", className)}
+    className={cn("text-lg font-semibold tracking-[-0.02em] text-foreground text-wrap-balance", className)}
     {...props}
   />
 ))

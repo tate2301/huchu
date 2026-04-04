@@ -73,12 +73,18 @@ function SplitButton({
       onOpenChange={onOpenChange}
       modal={modal}
     >
-      <div data-slot="split-button" className={cn("inline-flex items-stretch", className)}>
+      <div
+        data-slot="split-button"
+        className={cn(
+          "inline-flex items-stretch rounded-[var(--button-radius)] shadow-[var(--surface-frame-shadow)]",
+          className
+        )}
+      >
         <Button
           variant={resolvedVariant}
           size={resolvedSize}
           disabled={disabled}
-          className={cn("rounded-r-none", primaryClassName)}
+          className={cn("rounded-r-none shadow-none", primaryClassName)}
           {...buttonProps}
         >
           {children}
@@ -91,7 +97,7 @@ function SplitButton({
             disabled={disabled || menuDisabled}
             aria-label={triggerAriaLabel}
             className={cn(
-              "rounded-l-none",
+              "rounded-l-none shadow-none",
               shouldMergeBorders && "-ml-px",
               triggerPaddingBySize[resolvedSize],
               triggerClassName,

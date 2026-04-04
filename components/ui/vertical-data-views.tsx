@@ -32,21 +32,21 @@ export function VerticalDataViews({
     <section
       className={cn("grid gap-4 lg:grid-cols-[190px_minmax(0,1fr)]", className)}
     >
-      <aside className="space-y-1.5">
-        <h3 className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+      <aside className="space-y-2">
+        <h3 className="px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
           {railLabel}
         </h3>
-        <div className="space-y-0.5">
+        <div className="rounded-[14px] border border-[var(--edge-subtle)] bg-[var(--surface-soft)] p-1.5">
           {items.map((item) => (
             <Button
               key={item.id}
               type="button"
               variant="ghost"
               className={cn(
-                "h-9 w-full justify-between rounded-xl px-2.5 text-[13px] shadow-none",
+                "h-10 w-full justify-between rounded-[12px] px-3 text-[13px] shadow-none",
                 item.id === value
-                  ? "bg-[var(--surface-base)] text-[var(--text-strong)] hover:bg-[var(--surface-base)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-strong)]",
+                  ? "bg-[var(--surface-base)] text-[var(--text-strong)] shadow-[var(--button-shadow-rest)] hover:bg-[var(--surface-base)]"
+                  : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.6)] hover:text-[var(--text-strong)]",
               )}
               onClick={() => onValueChange(item.id)}
             >

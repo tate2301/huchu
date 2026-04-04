@@ -50,7 +50,7 @@ function StatusDot({
           backgroundColor: tokenVar(presentation.tokens.border),
         }}
       />
-      {!hideLabel ? <span>{resolvedLabel}</span> : null}
+      {!hideLabel ? <span className="text-[13px] font-semibold">{resolvedLabel}</span> : null}
     </span>
   );
 }
