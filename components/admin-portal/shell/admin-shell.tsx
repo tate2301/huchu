@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Menu, X } from "lucide-react";
 import { AdminCommandBar } from "./admin-command-bar";
 import { AdminOperatorContext } from "./admin-operator-context";
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminShellProvider, useAdminShell } from "./admin-shell-context";
+import { Button } from "@/components/ui/button";
 
 type Crumb = {
   label: string;
@@ -85,25 +87,64 @@ function AdminShellFrame({
   children: React.ReactNode;
 }) {
   const { companies } = useAdminShell();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div className="min-h-screen w-full bg-[var(--surface-canvas)] text-[var(--text-strong)] xl:grid xl:grid-cols-[15rem_minmax(0,1fr)]">
-      <AdminSidebar activeCompanyId={activeCompanyId} companies={companies} />
-      <div className="min-w-0">
-        <header className="sticky top-0 z-20 bg-[rgba(252,252,244,0.92)] shadow-[0_1px_0_rgba(28,34,43,0.06)] backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-4">
-            <div className="min-w-0 flex-1">
-              <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
-            </div>
-            <div className="flex w-full items-center justify-end gap-1.5 md:w-auto md:max-w-[27rem] md:flex-none">
-              <div className="min-w-0 flex-1 md:w-[19rem]">
+    <div data-portal="admin" className="admin-shell-frame text-[var(--text-strong)]">
+      <div className="admin-shell-window relative overflow-hidden xl:grid xl:grid-cols-[16rem_minmax(0,1fr)]">
+        {isSidebarOpen ? (
+          <div
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px] xl:hidden"
+            onClick={closeSidebar}
+            aria-hidden="true"
+          />
+        ) : null}
+
+        <div
+          className={`admin-shell-sidebar fixed inset-y-0 left-0 z-50 w-[16rem] transform transition-transform duration-[var(--motion-duration-base)] ease-[var(--motion-ease-default)] xl:relative xl:inset-auto xl:z-auto xl:w-auto xl:translate-x-0 ${
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <AdminSidebar
+            activeCompanyId={activeCompanyId}
+            companies={companies}
+            onNavigate={closeSidebar}
+          />
+        </div>
+
+        <div className="admin-shell-workspace min-w-0">
+          <header className="admin-shell-header sticky top-0 z-30">
+            <div className="flex items-center gap-3 px-4 py-3 md:px-5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="xl:hidden"
+                onClick={() => setIsSidebarOpen((current) => !current)}
+                aria-label="Toggle admin navigation"
+              >
+                {isSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </Button>
+
+              <div className="min-w-0 flex-1">
+                <p className="admin-page-kicker mb-1 hidden md:block">Platform control plane</p>
+                <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
+              </div>
+              <div className="hidden min-w-0 max-w-[22rem] flex-1 xl:block">
                 <AdminCommandBar />
               </div>
-              <AdminOperatorContext />
+              <div className="flex shrink-0 items-center gap-2">
+                <AdminOperatorContext />
+              </div>
             </div>
-          </div>
-        </header>
-        <main className="min-w-0 px-3 py-4 md:px-4">{children}</main>
+            <div className="border-t border-[var(--edge-subtle)] px-4 py-2 xl:hidden">
+              <AdminCommandBar />
+            </div>
+          </header>
+          <main className="min-w-0 px-4 pb-8 pt-5 md:px-6 md:pb-10 md:pt-6">{children}</main>
+        </div>
       </div>
     </div>
   );

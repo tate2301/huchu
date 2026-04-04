@@ -26,9 +26,9 @@ export function AdminOperatorContext() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-9 min-w-0 gap-2 rounded-xl bg-[var(--surface-muted)] px-2.5 text-[var(--text-strong)] shadow-none hover:bg-[rgba(255,255,255,0.82)]">
+        <Button variant="outline" className="h-10 min-w-0 gap-2 rounded-[12px] bg-[var(--surface-base)] px-2.5 text-[var(--text-strong)]">
           <span className="flex min-w-0 items-center gap-2 text-left">
-            <Avatar className="h-6 w-6 bg-[rgba(255,255,255,0.88)]">
+            <Avatar className="h-7 w-7 bg-[var(--surface-muted)]">
               <AvatarFallback>{initials(actorLabel)}</AvatarFallback>
             </Avatar>
             <span className="max-w-[9rem] truncate text-[13px] font-medium text-[var(--text-strong)]">{actorLabel}</span>

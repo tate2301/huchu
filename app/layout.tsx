@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./themes/client.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";

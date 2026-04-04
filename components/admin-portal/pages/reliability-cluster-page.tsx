@@ -44,7 +44,7 @@ function statusBadgeVariant(value: string) {
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="rounded-xl bg-[var(--surface-muted)] px-4 py-6 text-center">
+    <div className="rounded-[14px] bg-[var(--surface-muted)] px-4 py-6 text-center">
       <p className="text-sm font-semibold text-[var(--text-strong)]">{title}</p>
       <p className="mt-2 text-sm text-[var(--text-muted)]">{hint}</p>
     </div>
@@ -53,7 +53,7 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
 
 function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <Card className="bg-[var(--surface-base)] shadow-none">
+    <Card className="admin-metric-card shadow-none">
       <CardHeader className="space-y-1 pb-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="font-mono text-2xl">{value}</CardTitle>
@@ -143,11 +143,11 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
   const activeRunbooks = data?.runbooks.filter((runbook) => runbook.enabled).length ?? 0;
 
   if (loading) {
-    return <Card className="bg-[var(--surface-base)] shadow-none"><CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading reliability cluster...</CardContent></Card>;
+    return <Card className="admin-surface bg-[var(--surface-base)] shadow-none"><CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading reliability cluster...</CardContent></Card>;
   }
   if (!data || error) {
     return (
-      <Card className="bg-[var(--surface-base)] shadow-none">
+      <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
           <p className="text-sm text-red-700">{error ?? "Reliability data is unavailable."}</p>
           <Button variant="outline" onClick={refresh}>Retry</Button>
@@ -157,14 +157,15 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">{companyId ? "Organization scope" : "Platform scope"}</Badge>
-            <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px]">Reliability cluster</Badge>
+    <section className="admin-page">
+      <div className="admin-page-header">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="admin-page-kicker">
+              {companyId ? activeCompany?.name ?? "Workspace" : "Platform"} incidents, contract posture, runbooks, and audit trail
+            </p>
+            <h1 className="admin-page-title">{scopeTitle}</h1>
           </div>
-          <h1 className="text-2xl font-semibold">{scopeTitle}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <RunbookUpsertDialog actorEmail={actorEmail} companies={companies} fixedCompanyId={companyId} triggerLabel="Create runbook" onCompleted={refresh} />
@@ -181,7 +182,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="admin-metric-grid">
         <MetricCard label="Open incidents" value={openIncidentCount} hint="Open" />
         <MetricCard label="High risk" value={highRiskCount} hint="High" />
         <MetricCard label="Suspended contracts" value={suspendedContracts} hint="Blocked" />
@@ -191,11 +192,12 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Reliability views">
         {view === "health" ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-            <Card className="bg-[var(--surface-base)] shadow-none">
-              <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Incident queue</CardTitle>
+                    <p className="admin-panel-subtitle">Open issues, metric breaches, and active remediation work.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="font-mono">{filteredIncidents.length} incidents</Badge>
@@ -204,7 +206,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 </div>
                 <div className="w-full md:w-80">
                   <Label className="sr-only">Search incidents</Label>
-                    <Input value={healthSearch} onChange={(event) => setHealthSearch(event.target.value)} placeholder="Search workspace, metric, status, or message" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+                    <Input value={healthSearch} onChange={(event) => setHealthSearch(event.target.value)} placeholder="Search workspace, metric, status, or message" className="h-9 shadow-none" />
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
@@ -213,8 +215,8 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                     <EmptyState title="No incidents found" hint="Adjust search." />
                   </div>
                 ) : (
-                  <table className="w-full text-sm">
-                    <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <table className="admin-reference-table w-full text-sm">
+                    <thead>
                       <tr>
                         <th className="px-4 py-3">Workspace</th>
                         <th className="px-4 py-3">Metric</th>
@@ -226,7 +228,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                     </thead>
                     <tbody>
                       {filteredIncidents.map((incident) => (
-                        <tr key={incident.id} className="border-t border-[var(--border)] align-top">
+                        <tr key={incident.id} className="align-top">
                           <td className="px-4 py-3">
                             <p className="font-medium">{incident.companyName ?? companyNameById.get(incident.companyId) ?? incident.companyId}</p>
                             <p className="text-xs text-[var(--text-muted)]">{incident.companySlug ?? incident.companyId}</p>
@@ -253,7 +255,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
             </Card>
 
             <div className="space-y-3 xl:sticky xl:top-20">
-              <Card className="bg-[var(--surface-base)] shadow-none">
+              <Card className="admin-side-panel bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-base">Posture summary</CardTitle>
                 </CardHeader>
@@ -264,7 +266,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 </CardContent>
               </Card>
 
-              <Card className="bg-[var(--surface-base)] shadow-none">
+              <Card className="admin-side-panel bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-base">Recent metric snapshots</CardTitle>
                 </CardHeader>
@@ -285,20 +287,21 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
           </div>
         ) : null}
         {view === "contracts" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Contract posture</CardTitle>
+                    <p className="admin-panel-subtitle">See which workspaces are healthy, blocked, or require manual intervention.</p>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">{filteredContracts.length} workspaces</Badge>
                   <Badge variant={suspendedContracts > 0 ? "secondary" : "outline"} className="font-mono">{suspendedContracts} suspended</Badge>
                 </div>
               </div>
-              <div className="w-full md:w-80">
-                <Label className="sr-only">Search contracts</Label>
-                <Input value={contractSearch} onChange={(event) => setContractSearch(event.target.value)} placeholder="Search workspace, state, or warning" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+                <div className="w-full md:w-80">
+                  <Label className="sr-only">Search contracts</Label>
+                <Input value={contractSearch} onChange={(event) => setContractSearch(event.target.value)} placeholder="Search workspace, state, or warning" className="h-9 shadow-none" />
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -307,8 +310,8 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                   <EmptyState title="No contract records found" hint="Adjust search." />
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <table className="admin-reference-table w-full text-sm">
+                  <thead>
                     <tr>
                       <th className="px-4 py-3">Workspace</th>
                       <th className="px-4 py-3">Subscription</th>
@@ -320,7 +323,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                   </thead>
                   <tbody>
                     {filteredContracts.map((evaluation) => (
-                      <tr key={evaluation.companyId} className="border-t border-[var(--border)] align-top">
+                      <tr key={evaluation.companyId} className="align-top">
                         <td className="px-4 py-3">
                           <p className="font-medium">{evaluation.companyName}</p>
                           <p className="text-xs text-[var(--text-muted)]">{evaluation.companySlug}</p>
@@ -345,17 +348,18 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         ) : null}
         {view === "runbooks" ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-            <Card className="bg-[var(--surface-base)] shadow-none">
-              <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+              <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+                <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Runbook catalog</CardTitle>
+                    <p className="admin-panel-subtitle">Automation policies and manual runbooks available to the operator team.</p>
                   </div>
                   <Badge variant="outline" className="font-mono">{filteredRunbooks.length} runbooks</Badge>
                 </div>
                 <div className="w-full md:w-80">
                   <Label className="sr-only">Search runbooks</Label>
-                  <Input value={runbookSearch} onChange={(event) => setRunbookSearch(event.target.value)} placeholder="Search runbook name, action type, or schedule" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+                  <Input value={runbookSearch} onChange={(event) => setRunbookSearch(event.target.value)} placeholder="Search runbook name, action type, or schedule" className="h-9 shadow-none" />
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
@@ -364,8 +368,8 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                     <EmptyState title="No runbooks found" hint="Create one or adjust search." />
                   </div>
                 ) : (
-                  <table className="w-full text-sm">
-                    <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <table className="admin-reference-table w-full text-sm">
+                    <thead>
                       <tr>
                         <th className="px-4 py-3">Runbook</th>
                         <th className="px-4 py-3">Scope</th>
@@ -377,7 +381,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                     </thead>
                     <tbody>
                       {filteredRunbooks.map((runbook) => (
-                        <tr key={runbook.id} className="border-t border-[var(--border)] align-top">
+                        <tr key={runbook.id} className="align-top">
                           <td className="px-4 py-3">
                             <p className="font-medium">{runbook.name}</p>
                             <p className="text-xs text-[var(--text-muted)]">{runbook.actionType}</p>
@@ -402,7 +406,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
             </Card>
 
             <div className="space-y-3 xl:sticky xl:top-20">
-              <Card className="bg-[var(--surface-base)] shadow-none">
+              <Card className="admin-side-panel bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-base">Recent executions</CardTitle>
                 </CardHeader>
@@ -428,11 +432,12 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         ) : null}
 
         {view === "audit" ? (
-          <Card className="bg-[var(--surface-base)] shadow-none">
-            <CardHeader className="gap-3 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+              <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Audit ledger</CardTitle>
+                    <p className="admin-panel-subtitle">Verified operator actions, policy changes, and export history.</p>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <AuditVerifyDialog fixedCompanyId={companyId} triggerLabel="Verify chain" onCompleted={refresh} />
@@ -440,14 +445,13 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                <div className="space-y-1">
-                  <Label className="sr-only">Search audit</Label>
-                  <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Search actor, action, target, or reason" className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none" />
+                <div className="admin-table-search">
+                  <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Search actor, action, target, or reason" className="h-9 shadow-none" />
                 </div>
-                <div className="space-y-1">
+                <div>
                   <Label className="sr-only">Actor</Label>
                   <Select value={auditActorFilter} onValueChange={setAuditActorFilter}>
-                    <SelectTrigger className="h-9 rounded-xl border-none bg-[var(--surface-muted)] shadow-none"><SelectValue placeholder="All actors" /></SelectTrigger>
+                    <SelectTrigger className="h-9 shadow-none"><SelectValue placeholder="All actors" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All actors</SelectItem>
                       {auditActors.map((actor) => <SelectItem key={actor} value={actor}>{actor}</SelectItem>)}
@@ -462,8 +466,8 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                   <EmptyState title="No audit events found" hint="Adjust filters." />
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <table className="admin-reference-table w-full text-sm">
+                  <thead>
                     <tr>
                       <th className="px-4 py-3">Timestamp</th>
                       <th className="px-4 py-3">Actor</th>
@@ -474,7 +478,7 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
                   </thead>
                   <tbody>
                     {filteredAudit.map((event) => (
-                      <tr key={event.id} className="border-t border-[var(--border)] align-top">
+                      <tr key={event.id} className="align-top">
                         <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{formatDate(event.timestamp)}</td>
                         <td className="px-4 py-3">{event.actor ?? "Unknown actor"}</td>
                         <td className="px-4 py-3">{event.action ?? "Unknown action"}</td>

@@ -1008,7 +1008,7 @@ export function DataTable<TData, TValue>({
         >
           {globalFilterEnabled ? (
             <form
-              className="flex w-full flex-wrap items-center gap-2 p-0 sm:w-auto sm:flex-nowrap"
+              className="flex w-full flex-wrap items-center gap-2 p-0 lg:w-auto lg:flex-nowrap"
               onSubmit={(event) => {
                 event.preventDefault();
                 applySearch(searchDraft);
@@ -1026,7 +1026,7 @@ export function DataTable<TData, TValue>({
                   }
                 }}
                 placeholder={searchPlaceholder}
-                className="h-[var(--control-height-sm)] min-w-0 flex-1 bg-[var(--surface-elevated)] shadow-none sm:w-[260px] sm:flex-none"
+                className="h-[var(--control-height-sm)] min-w-0 flex-1 bg-[var(--surface-elevated)] shadow-none lg:w-[260px] lg:flex-none"
               />
               <Button type="submit" size="sm" className="min-w-[78px]">
                 {searchSubmitLabel}
@@ -1034,7 +1034,7 @@ export function DataTable<TData, TValue>({
             </form>
           ) : null}
 
-          {toolbar ? <div className="flex min-w-0 flex-wrap items-center gap-2">{toolbar}</div> : null}
+          {toolbar ? <div className="flex min-w-0 flex-wrap items-center gap-2 lg:ml-2">{toolbar}</div> : null}
           {toggleableColumns.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
