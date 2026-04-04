@@ -14,6 +14,7 @@ import type { CompanyWorkspace } from "@/components/admin-portal/types";
 import { executeOperation } from "@/components/admin-portal/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,6 +145,17 @@ function ConfirmDialog({
       </Dialog>
     </>
   );
+}
+
+function formatLocalDateTime(value: Date | undefined) {
+  if (!value) return "";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  const year = value.getFullYear();
+  const month = pad(value.getMonth() + 1);
+  const day = pad(value.getDate());
+  const hours = pad(value.getHours());
+  const minutes = pad(value.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 export function RemediationDialog({
@@ -294,10 +306,12 @@ export function ContractOverrideDialog({
               </>
             }
           >
-            <div className="space-y-1">
-                <Label>Expires at</Label>
-                <Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
-            </div>
+            <DateTimePicker
+              label="Expires at"
+              value={expiresAt ? new Date(expiresAt) : undefined}
+              onChange={(value) => setExpiresAt(formatLocalDateTime(value))}
+              placeholder="Select expiry date and time"
+            />
             <div className="space-y-1">
               <Label>Reason</Label>
               <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why is this override necessary?" />

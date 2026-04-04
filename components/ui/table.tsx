@@ -102,7 +102,7 @@ function TablePaginationControls({
       )}
     >
       {mode === "paginated" ? (
-        <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-2 text-xs text-muted-foreground">
+        <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-2 text-xs text-[var(--text-muted)]">
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
@@ -145,7 +145,7 @@ function TablePaginationControls({
           </Button>
         </div>
       ) : (
-        <p className="ml-auto text-xs text-muted-foreground">
+        <p className="ml-auto text-xs text-[var(--text-muted)]">
           Showing all {rowCount.toLocaleString()} rows
         </p>
       )}
@@ -330,7 +330,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
 
           <div
             className={cn(
-              "table-rail bg-[var(--surface-base)] shadow-[inset_0_0_0_1px_var(--table-divider)]",
+              "table-rail overflow-hidden rounded-[var(--card-radius)] border border-[var(--table-divider)] bg-[var(--surface-base)] shadow-[var(--card-shadow-rest)]",
               edgeToEdge && "table-edge-to-edge",
             )}
             data-tablet-scrollable={tabletScrollable ? "true" : "false"}
@@ -477,7 +477,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-head"
       className={cn(
-        "h-[var(--table-head-min-h)] border-b border-[var(--table-divider)] bg-[var(--table-header-bg)] px-[var(--table-gutter-x)] py-2 text-left align-middle text-table-header [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
+        "h-[var(--table-head-min-h)] border-b border-[var(--table-divider)] bg-[var(--table-header-bg)] px-[var(--table-gutter-x)] py-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--table-header-text)] [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -492,7 +492,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"t
       ref={ref}
       data-slot="table-cell"
       className={cn(
-        "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-table-cell [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
+        "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-[13px] text-[var(--text-body)] [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

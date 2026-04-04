@@ -1,0 +1,294 @@
+"use client";
+
+import * as React from "react";
+import { format, setHours, setMinutes } from "date-fns";
+import { CalendarIcon, Clock3 } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
+export type DatePickerMode = "single" | "range" | "date-time";
+
+type CommonProps = {
+  className?: string;
+  triggerClassName?: string;
+  contentClassName?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  align?: React.ComponentProps<typeof PopoverContent>["align"];
+  sideOffset?: number;
+  label?: string;
+};
+
+type SingleDatePickerProps = CommonProps & {
+  mode?: "single";
+  value?: Date;
+  onChange: (value?: Date) => void;
+};
+
+type RangeDatePickerProps = CommonProps & {
+  mode: "range";
+  value?: DateRange;
+  onChange: (value?: DateRange) => void;
+};
+
+type DateTimePickerProps = CommonProps & {
+  mode: "date-time";
+  value?: Date;
+  onChange: (value?: Date) => void;
+};
+
+export type DatePickerProps = SingleDatePickerProps | RangeDatePickerProps | DateTimePickerProps;
+
+function formatTimeValue(value?: Date) {
+  if (!value) return "09:00";
+  return format(value, "HH:mm");
+}
+
+function combineDateAndTime(date: Date, timeValue: string) {
+  const [hours, minutes] = timeValue.split(":").map((part) => Number(part));
+  const withHours = setHours(date, Number.isFinite(hours) ? hours : 9);
+  return setMinutes(withHours, Number.isFinite(minutes) ? minutes : 0);
+}
+
+function formatSingleDate(value?: Date) {
+  return value ? format(value, "MMM d, yyyy") : "Select date";
+}
+
+function formatDateTime(value?: Date) {
+  return value ? format(value, "MMM d, yyyy h:mm a") : "Select date and time";
+}
+
+function formatRange(value?: DateRange) {
+  if (!value?.from && !value?.to) return "Select range";
+  if (value.from && !value.to) return `${format(value.from, "MMM d, yyyy")} - ...`;
+  if (!value.from || !value.to) return "Select range";
+  return `${format(value.from, "MMM d, yyyy")} - ${format(value.to, "MMM d, yyyy")}`;
+}
+
+function DatePickerTrigger({
+  className,
+  value,
+  placeholder,
+  ...props
+}: React.ComponentProps<typeof Button> & {
+  value: React.ReactNode;
+  placeholder?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className={cn(
+        "h-9 min-w-[220px] justify-between rounded-[var(--button-radius)] bg-[var(--surface-base)] px-3 text-left text-[13px] font-medium text-[var(--text-strong)] shadow-none",
+        className,
+      )}
+      {...props}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <CalendarIcon className="h-4 w-4 text-[var(--text-muted)]" />
+        <span className="truncate">{value ?? placeholder ?? "Select date"}</span>
+      </span>
+    </Button>
+  );
+}
+
+export function DatePicker(props: DatePickerProps) {
+  const {
+    className,
+    triggerClassName,
+    contentClassName,
+    placeholder,
+    disabled,
+    align = "start",
+    sideOffset = 8,
+    label,
+  } = props;
+
+  const mode = props.mode ?? "single";
+  const [open, setOpen] = React.useState(false);
+  const [pendingDate, setPendingDate] = React.useState<Date | undefined>(
+    mode === "date-time" ? props.value : mode === "range" ? props.value?.from : props.value,
+  );
+  const [timeValue, setTimeValue] = React.useState(() => formatTimeValue(mode === "date-time" ? props.value : undefined));
+
+  React.useEffect(() => {
+    if (mode === "date-time") {
+      setPendingDate(props.value);
+      setTimeValue(formatTimeValue(props.value));
+      return;
+    }
+
+    if (mode === "range") {
+      setPendingDate(props.value?.from);
+      return;
+    }
+
+    setPendingDate(props.value);
+  }, [mode, props.value]);
+
+  const triggerValue = React.useMemo(() => {
+    if (mode === "range") return formatRange(props.value);
+    if (mode === "date-time") return formatDateTime(props.value);
+    return formatSingleDate(props.value);
+  }, [mode, props.value]);
+
+  const closeIfReady = () => {
+    if (mode === "single") setOpen(false);
+    if (mode === "range" && props.value?.from && props.value?.to) setOpen(false);
+  };
+
+  const handleClear = () => {
+    if (mode === "range") {
+      props.onChange(undefined);
+    } else {
+      props.onChange(undefined);
+    }
+    setPendingDate(undefined);
+    setTimeValue("09:00");
+  };
+
+  const handleApplyDateTime = () => {
+    if (!pendingDate) return;
+    props.onChange(combineDateAndTime(pendingDate, timeValue));
+    setOpen(false);
+  };
+
+  const calendar = (
+    <Calendar
+      mode={mode === "range" ? "range" : "single"}
+      selected={mode === "range" ? props.value : pendingDate}
+      onSelect={(nextValue) => {
+        if (mode === "range") {
+          const nextRange = nextValue as DateRange | undefined;
+          props.onChange(nextRange);
+          if (nextRange?.from && nextRange?.to) {
+            setOpen(false);
+          }
+          return;
+        }
+
+        const nextDate = nextValue as Date | undefined;
+        if (mode === "date-time") {
+          setPendingDate(nextDate);
+          if (nextDate && timeValue === "09:00") {
+            setTimeValue(formatTimeValue(nextDate));
+          }
+          return;
+        }
+
+        props.onChange(nextDate);
+        if (nextDate) {
+          setOpen(false);
+        }
+      }}
+      numberOfMonths={mode === "range" ? 2 : 1}
+      className="rounded-[18px] border border-[var(--border-default)] bg-[var(--surface-base)] shadow-none"
+    />
+  );
+
+  return (
+    <div className={cn("flex flex-col gap-2", className)}>
+      {label ? <Label>{label}</Label> : null}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild disabled={disabled}>
+          <DatePickerTrigger
+            className={triggerClassName}
+            value={triggerValue}
+            placeholder={placeholder}
+          />
+        </PopoverTrigger>
+        <PopoverContent
+          align={align}
+          sideOffset={sideOffset}
+          className={cn("w-auto p-0", contentClassName)}
+        >
+          <div className="space-y-0 overflow-hidden rounded-[18px] bg-[var(--surface-base)]">
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border-default)] px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[var(--text-strong)]">
+                  {mode === "range" ? "Select date range" : mode === "date-time" ? "Select date and time" : "Select date"}
+                </p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {mode === "range"
+                    ? "Choose a start and end date."
+                    : mode === "date-time"
+                      ? "Pick a day, then set the time."
+                      : "Choose a single calendar date."}
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="ghost" onClick={handleClear}>
+                Clear
+              </Button>
+            </div>
+
+            <div className="px-2 pt-2">{calendar}</div>
+
+            {mode === "date-time" ? (
+              <>
+                <Separator />
+                <div className="space-y-3 px-4 py-4">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
+                    <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5">
+                      <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        Time
+                      </p>
+                      <Input
+                        type="time"
+                        value={timeValue}
+                        onChange={(event) => setTimeValue(event.target.value)}
+                        className="h-9 border-none bg-transparent px-0 shadow-none"
+                      />
+                    </div>
+                    <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Preview</p>
+                      <p className="mt-2 font-mono text-sm text-[var(--text-strong)]">
+                        {pendingDate ? formatDateTime(combineDateAndTime(pendingDate, timeValue)) : "Pick a date"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={handleApplyDateTime} disabled={!pendingDate}>
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-end gap-2 border-t border-[var(--border-default)] px-4 py-3">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Close
+                </Button>
+                <Button type="button" onClick={closeIfReady} disabled={mode === "range" && !props.value?.to}>
+                  Done
+                </Button>
+              </div>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+export function DateRangePicker(
+  props: Omit<RangeDatePickerProps, "mode">,
+) {
+  return <DatePicker mode="range" {...props} />;
+}
+
+export function DateTimePicker(
+  props: Omit<DateTimePickerProps, "mode">,
+) {
+  return <DatePicker mode="date-time" {...props} />;
+}

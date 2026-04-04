@@ -13,7 +13,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-lg",
+        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-[var(--card-radius)] border border-[var(--border-default)] shadow-[var(--shadow-popover)]",
         className,
       )}
       {...props}
@@ -28,12 +28,12 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex items-center border-b border-border px-3"
+      className="flex items-center border-b border-[var(--border-default)] px-3"
     >
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50",
+          "placeholder:text-muted-foreground flex h-11 w-full bg-transparent py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}
         {...props}
@@ -49,7 +49,7 @@ function CommandList({
   return (
     <CommandPrimitive.List
       data-slot="command-list"
-      className={cn("max-h-[260px] overflow-y-auto overflow-x-hidden", className)}
+      className={cn("max-h-[280px] overflow-y-auto overflow-x-hidden p-1", className)}
       {...props}
     />
   );
@@ -59,7 +59,7 @@ function CommandEmpty(props: React.ComponentProps<typeof CommandPrimitive.Empty>
   return (
     <CommandPrimitive.Empty
       data-slot="command-empty"
-      className="py-6 text-center text-xs text-muted-foreground"
+      className="py-6 text-center text-xs text-[var(--text-muted)]"
       {...props}
     />
   );
@@ -86,7 +86,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-md px-2 py-2 text-sm outline-none select-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-muted data-[disabled=true]:opacity-50",
+        "relative flex min-h-10 cursor-default items-center gap-2 rounded-[12px] border border-transparent px-2.5 py-2 text-sm outline-none select-none transition-colors data-[disabled=true]:pointer-events-none data-[selected=true]:border-[var(--border-default)] data-[selected=true]:bg-[var(--surface-subtle)] data-[disabled=true]:opacity-50",
         className,
       )}
       {...props}
@@ -101,7 +101,7 @@ function CommandSeparator({
   return (
     <CommandPrimitive.Separator
       data-slot="command-separator"
-      className={cn("-mx-1 h-px bg-border", className)}
+      className={cn("-mx-1 my-1 h-px bg-[var(--border-default)]", className)}
       {...props}
     />
   );
