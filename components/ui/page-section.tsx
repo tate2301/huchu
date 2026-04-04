@@ -20,20 +20,22 @@ export function PageSection({
   children,
 }: PageSectionProps) {
   const hasHeader = Boolean(title || actions);
-  void description;
 
   return (
-    <section className={cn("space-y-3", className)}>
+    <section className={cn("space-y-4", className)}>
       {hasHeader ? (
         <header
           className={cn(
-            "section-shell flex flex-wrap items-start justify-between gap-3",
+            "section-shell flex flex-wrap items-start justify-between gap-3 rounded-[var(--card-radius)] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-4 py-3 shadow-[var(--surface-frame-shadow)]",
             headerClassName,
           )}
           >
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {title ? (
               <h2 className="text-section-title text-foreground font-bold tracking-tight">{title}</h2>
+            ) : null}
+            {description ? (
+              <p className="text-sm text-[var(--text-muted)]">{description}</p>
             ) : null}
           </div>
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}

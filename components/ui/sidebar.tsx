@@ -155,7 +155,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible}
         data-variant={variant}
         className={cn(
-          "peer group/sidebar relative flex h-screen flex-col border-0 bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width] duration-200",
+          "peer group/sidebar relative flex h-screen flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width] duration-200",
           collapsible === "icon" && state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -198,7 +198,7 @@ const SidebarHeader = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="header"
-    className={cn("flex flex-col gap-2 px-2 pt-3 pb-2", className)}
+    className={cn("flex flex-col gap-2 px-3 pt-3 pb-2", className)}
     {...props}
   />
 ));
@@ -211,7 +211,7 @@ const SidebarFooter = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="footer"
-    className={cn("mt-auto px-2 pt-2 pb-3", className)}
+    className={cn("mt-auto px-3 pt-2 pb-3", className)}
     {...props}
   />
 ));
@@ -225,7 +225,7 @@ const SidebarContent = React.forwardRef<
     ref={ref}
     data-sidebar="content"
     className={cn(
-      "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1.5 pb-2",
+      "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-2",
       className,
     )}
     {...props}
@@ -240,7 +240,7 @@ const SidebarGroup = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="group"
-    className={cn("rounded-xl", className)}
+    className={cn("rounded-[18px] border border-transparent", className)}
     {...props}
   />
 ));
@@ -254,7 +254,7 @@ const SidebarGroupLabel = React.forwardRef<
     ref={ref}
     data-sidebar="group-label"
     className={cn(
-      "px-2 text-[11px] font-semibold tracking-[0.08em] text-foreground/60",
+      "px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-subtle)]",
       className,
     )}
     {...props}
@@ -269,7 +269,7 @@ const SidebarGroupContent = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="group-content"
-    className={cn("mt-1 space-y-0.5", className)}
+    className={cn("mt-1 flex flex-col gap-0.5", className)}
     {...props}
   />
 ));
@@ -282,7 +282,7 @@ const SidebarMenu = React.forwardRef<
   <ul
     ref={ref}
     data-sidebar="menu"
-    className={cn("space-y-0.5", className)}
+    className={cn("flex flex-col gap-0.5", className)}
     {...props}
   />
 ));
@@ -302,13 +302,13 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "relative flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[13px] font-medium text-sidebar-foreground/80 transition-[color,background-color,box-shadow] duration-150 hover:bg-[var(--surface-elevated)] hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)] hover:text-foreground data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:mx-auto data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
+  "relative flex w-full items-center gap-2 rounded-[12px] border border-transparent px-2.5 py-2 text-[13px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color] duration-150 hover:bg-[var(--surface-elevated)] hover:text-foreground hover:shadow-[var(--surface-frame-shadow)] data-[active=true]:border-[var(--border-default)] data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[active=true]:shadow-[var(--surface-frame-shadow)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
   {
     variants: {
       variant: {
         default: "",
         outline:
-          "border-0 bg-[var(--action-outline-bg)] text-foreground shadow-[var(--action-outline-shadow)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:bg-[var(--action-outline-hover-bg)] data-[active=true]:shadow-[var(--action-outline-shadow-hover)]",
+          "border-[var(--border-default)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--surface-frame-shadow)] hover:bg-[var(--action-outline-hover-bg)] data-[active=true]:bg-[var(--action-outline-hover-bg)]",
       },
       size: {
         default: "h-9",
@@ -384,7 +384,7 @@ const SidebarInput = React.forwardRef<
     ref={ref}
     data-sidebar="input"
     className={cn(
-      "h-[var(--control-height-sm)] rounded-lg bg-sidebar-accent/85 shadow-[var(--surface-frame-shadow)]",
+      "h-[var(--control-height-sm)] rounded-lg border-[var(--border-default)] bg-sidebar-accent/85 shadow-[var(--surface-frame-shadow)]",
       className,
     )}
     {...props}
@@ -402,7 +402,7 @@ const SidebarTrigger = React.forwardRef<
       ref={ref}
       variant="ghost"
       size="icon-sm"
-      className={cn("h-8 w-8", className)}
+      className={cn("h-8 w-8 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] hover:bg-[var(--surface-subtle)]", className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
@@ -428,7 +428,7 @@ const SidebarRail = React.forwardRef<
       aria-label="Toggle sidebar"
       onClick={toggleSidebar}
       className={cn(
-        "absolute -right-1.5 top-1/2 hidden h-12 w-1 -translate-y-1/2 rounded-full bg-sidebar-accent shadow-[var(--surface-frame-shadow)] opacity-0 transition md:block group-hover/sidebar:opacity-100",
+        "absolute -right-1.5 top-1/2 hidden h-12 w-1 -translate-y-1/2 rounded-full bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] opacity-0 transition md:block group-hover/sidebar:opacity-100",
         className,
       )}
       {...props}

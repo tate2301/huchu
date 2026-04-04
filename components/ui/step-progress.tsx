@@ -26,7 +26,7 @@ export function StepProgress({
 
   return (
     <nav aria-label={ariaLabel} className={cn("space-y-2", className)}>
-      <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-[var(--text-subtle)]">
         <span className="truncate">{currentStep?.label ?? "Step"}</span>
         <span className="shrink-0 font-mono tabular-nums">
           {Math.min(currentStepIndex + 1, steps.length)}/{steps.length}
@@ -41,12 +41,12 @@ export function StepProgress({
             <React.Fragment key={step.id}>
               <span
                 className={cn(
-                  "h-1.5 flex-1 rounded-full transition-colors duration-200 ease-out",
+                  "h-1.5 flex-1 rounded-full border transition-colors duration-200 ease-out",
                   isActive
-                    ? "bg-foreground"
+                    ? "border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)]"
                     : isComplete
-                      ? "bg-foreground/55"
-                      : "bg-[var(--surface-soft)]",
+                      ? "border-[var(--text-strong)]/30 bg-[var(--text-strong)]/55"
+                      : "border-[var(--border-default)] bg-[var(--surface-soft)]",
                 )}
               />
             </React.Fragment>

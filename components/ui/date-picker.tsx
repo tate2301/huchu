@@ -46,6 +46,14 @@ type DateTimePickerProps = CommonProps & {
 
 export type DatePickerProps = SingleDatePickerProps | RangeDatePickerProps | DateTimePickerProps;
 
+function isRangePickerProps(props: DatePickerProps): props is RangeDatePickerProps {
+  return props.mode === "range";
+}
+
+function isDateTimePickerProps(props: DatePickerProps): props is DateTimePickerProps {
+  return props.mode === "date-time";
+}
+
 function formatTimeValue(value?: Date) {
   if (!value) return "09:00";
   return format(value, "HH:mm");
@@ -117,28 +125,33 @@ export function DatePicker(props: DatePickerProps) {
   } = props;
 
   const mode = props.mode ?? "single";
+  const isRange = isRangePickerProps(props);
+  const isDateTime = isDateTimePickerProps(props);
+  const rangeValue = isRange ? props.value : undefined;
+  const dateTimeValue = isDateTime ? props.value : undefined;
+  const singleValue = !isRange && !isDateTime ? props.value : undefined;
   const hourOptions = React.useMemo(() => buildTimeOptions(24), []);
   const minuteOptions = React.useMemo(() => buildTimeOptions(60), []);
   const [open, setOpen] = React.useState(false);
   const [pendingDate, setPendingDate] = React.useState<Date | undefined>(
-    mode === "date-time" ? props.value : mode === "range" ? props.value?.from : props.value,
+    isDateTime ? dateTimeValue : isRange ? rangeValue?.from : singleValue,
   );
-  const [timeValue, setTimeValue] = React.useState(() => formatTimeValue(mode === "date-time" ? props.value : undefined));
+  const [timeValue, setTimeValue] = React.useState(() => formatTimeValue(dateTimeValue));
 
   React.useEffect(() => {
-    if (mode === "date-time") {
-      setPendingDate(props.value);
-      setTimeValue(formatTimeValue(props.value));
+    if (isDateTime) {
+      setPendingDate(dateTimeValue);
+      setTimeValue(formatTimeValue(dateTimeValue));
       return;
     }
 
-    if (mode === "range") {
-      setPendingDate(props.value?.from);
+    if (isRange) {
+      setPendingDate(rangeValue?.from);
       return;
     }
 
-    setPendingDate(props.value);
-  }, [mode, props.value]);
+    setPendingDate(singleValue);
+  }, [dateTimeValue, isDateTime, isRange, rangeValue?.from, singleValue]);
 
   const timeParts = React.useMemo(() => {
     const [hours = "09", minutes = "00"] = timeValue.split(":");
@@ -146,14 +159,14 @@ export function DatePicker(props: DatePickerProps) {
   }, [timeValue]);
 
   const triggerValue = React.useMemo(() => {
-    if (mode === "range") return formatRange(props.value);
-    if (mode === "date-time") return formatDateTime(props.value);
-    return formatSingleDate(props.value);
-  }, [mode, props.value]);
+    if (isRange) return formatRange(rangeValue);
+    if (isDateTime) return formatDateTime(dateTimeValue);
+    return formatSingleDate(singleValue);
+  }, [dateTimeValue, isDateTime, isRange, rangeValue, singleValue]);
 
   const closeIfReady = () => {
     if (mode === "single") setOpen(false);
-    if (mode === "range" && props.value?.from && props.value?.to) setOpen(false);
+    if (isRange && rangeValue?.from && rangeValue?.to) setOpen(false);
   };
 
   const handleClear = () => {
@@ -167,7 +180,7 @@ export function DatePicker(props: DatePickerProps) {
   };
 
   const handleApplyDateTime = () => {
-    if (!pendingDate) return;
+    if (!isDateTime || !pendingDate) return;
     props.onChange(combineDateAndTime(pendingDate, timeValue));
     setOpen(false);
   };
@@ -180,22 +193,25 @@ export function DatePicker(props: DatePickerProps) {
     setTimeValue(nextValue);
   };
 
-  const calendar = (
+  const calendar = isRange ? (
     <Calendar
-      mode={mode === "range" ? "range" : "single"}
-      selected={mode === "range" ? props.value : pendingDate}
-      onSelect={(nextValue) => {
-        if (mode === "range") {
-          const nextRange = nextValue as DateRange | undefined;
-          props.onChange(nextRange);
-          if (nextRange?.from && nextRange?.to) {
-            setOpen(false);
-          }
-          return;
+      mode="range"
+      selected={rangeValue}
+      onSelect={(nextRange) => {
+        props.onChange(nextRange);
+        if (nextRange?.from && nextRange?.to) {
+          setOpen(false);
         }
-
-        const nextDate = nextValue as Date | undefined;
-        if (mode === "date-time") {
+      }}
+      numberOfMonths={2}
+      className="rounded-[18px] border border-[var(--border-default)] bg-[var(--surface-base)] shadow-none"
+    />
+  ) : (
+    <Calendar
+      mode="single"
+      selected={pendingDate}
+      onSelect={(nextDate) => {
+        if (isDateTime) {
           setPendingDate(nextDate);
           if (nextDate && timeValue === "09:00") {
             setTimeValue(formatTimeValue(nextDate));
@@ -208,7 +224,7 @@ export function DatePicker(props: DatePickerProps) {
           setOpen(false);
         }
       }}
-      numberOfMonths={mode === "range" ? 2 : 1}
+      numberOfMonths={1}
       className="rounded-[18px] border border-[var(--border-default)] bg-[var(--surface-base)] shadow-none"
     />
   );
@@ -309,7 +325,7 @@ export function DatePicker(props: DatePickerProps) {
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Close
                 </Button>
-                <Button type="button" onClick={closeIfReady} disabled={mode === "range" && !props.value?.to}>
+                <Button type="button" onClick={closeIfReady} disabled={isRange && !rangeValue?.to}>
                   Done
                 </Button>
               </div>

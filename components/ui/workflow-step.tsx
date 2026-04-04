@@ -22,12 +22,10 @@ export function WorkflowStep({
   className,
   children,
 }: WorkflowStepProps) {
-  void description;
-
   return (
-    <section className={cn("space-y-3", className)}>
-      <header className="section-shell flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+    <section className={cn("space-y-4", className)}>
+      <header className="section-shell flex flex-wrap items-start justify-between gap-3 rounded-[var(--card-radius)] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-4 py-3 shadow-[var(--surface-frame-shadow)]">
+        <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-section-title text-foreground font-bold tracking-tight">{title}</h2>
             {badge ? (
@@ -38,6 +36,7 @@ export function WorkflowStep({
               )
             ) : null}
           </div>
+          {description ? <p className="text-sm text-[var(--text-muted)]">{description}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>

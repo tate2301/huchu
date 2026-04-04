@@ -31,13 +31,13 @@ function ItemSeparator({
 }
 
 const itemVariants = cva(
-  "group/item flex items-center border border-transparent text-sm rounded-md transition-colors [a]:hover:bg-accent/50 [a]:transition-colors duration-100 flex-wrap outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+  "group/item flex flex-wrap items-center rounded-[var(--card-radius)] border text-sm transition-[background-color,border-color,box-shadow] duration-150 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20",
   {
     variants: {
       variant: {
-        default: "bg-transparent",
-        outline: "border-border",
-        muted: "bg-muted/50",
+        default: "border-transparent bg-transparent",
+        outline: "border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)]",
+        muted: "border-[var(--border-default)] bg-[var(--surface-subtle)] shadow-[var(--surface-frame-shadow)]",
       },
       size: {
         default: "p-4 gap-4 ",
@@ -77,9 +77,9 @@ const itemMediaVariants = cva(
     variants: {
       variant: {
         default: "bg-transparent",
-        icon: "size-8 border rounded-sm bg-muted [&_svg:not([class*='size-'])]:size-4",
+        icon: "size-8 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-subtle)] text-[var(--text-strong)] shadow-[var(--surface-frame-shadow)] [&_svg:not([class*='size-'])]:size-4",
         image:
-          "size-10 rounded-sm overflow-hidden [&_img]:size-full [&_img]:object-cover",
+          "size-10 overflow-hidden rounded-[10px] border border-[var(--border-default)] shadow-[var(--surface-frame-shadow)] [&_img]:size-full [&_img]:object-cover",
       },
     },
     defaultVariants: {
@@ -134,7 +134,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="item-description"
       className={cn(
-        "text-muted-foreground line-clamp-2 text-sm leading-normal font-normal text-balance",
+        "line-clamp-2 text-sm font-normal leading-normal text-[var(--text-muted)] text-balance",
         "[&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         className
       )}
