@@ -886,38 +886,38 @@ export function AdminDonutChart({
         return (
           <div className="relative h-full w-full">
             <svg width={svgWidth} height={svgHeight} role="img" aria-label={valueLabel}>
-              <Pie
-                data={chartRows}
-                top={svgHeight / 2}
-                left={svgWidth / 2}
-                innerRadius={Math.max(radius * 0.58, 34)}
-                outerRadius={Math.max(radius, 48)}
-                cornerRadius={4}
-                padAngle={0.02}
-                pieValue={(datum) => datum.value}
-              >
-                {({ arcs, path }) =>
-                  arcs.map((arc) => (
-                    <path
-                      key={arc.data.id}
-                      d={path(arc) ?? undefined}
-                      fill={arc.data.color}
-                      stroke="var(--surface-base)"
-                      strokeWidth={2}
-                      onMouseLeave={() => setTooltip(null)}
-                      onMouseMove={(event) => {
-                        const point = localPoint(event) ?? { x: 0, y: 0 };
-                        setTooltip({
-                          x: point.x,
-                          y: point.y,
-                          label: arc.data.label,
-                          items: [{ key: arc.data.id, label: valueLabel, color: arc.data.color, value: arc.data.value }],
-                        });
-                      }}
-                    />
-                  ))
-                }
-              </Pie>
+              <g transform={`translate(${svgWidth / 2}, ${svgHeight / 2})`}>
+                <Pie
+                  data={chartRows}
+                  innerRadius={Math.max(radius * 0.58, 34)}
+                  outerRadius={Math.max(radius, 48)}
+                  cornerRadius={4}
+                  padAngle={0.02}
+                  pieValue={(datum) => datum.value}
+                >
+                  {({ arcs, path }) =>
+                    arcs.map((arc) => (
+                      <path
+                        key={arc.data.id}
+                        d={path(arc) ?? undefined}
+                        fill={arc.data.color}
+                        stroke="var(--surface-base)"
+                        strokeWidth={2}
+                        onMouseLeave={() => setTooltip(null)}
+                        onMouseMove={(event) => {
+                          const point = localPoint(event) ?? { x: 0, y: 0 };
+                          setTooltip({
+                            x: point.x,
+                            y: point.y,
+                            label: arc.data.label,
+                            items: [{ key: arc.data.id, label: valueLabel, color: arc.data.color, value: arc.data.value }],
+                          });
+                        }}
+                      />
+                    ))
+                  }
+                </Pie>
+              </g>
             </svg>
             {tooltip ? (
               <div className="pointer-events-none absolute z-10" style={{ left: Math.min(tooltip.x + 12, svgWidth - 190), top: Math.max(tooltip.y - 16, 8) }}>

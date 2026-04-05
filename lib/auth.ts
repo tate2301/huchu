@@ -236,9 +236,38 @@ function isAdminRoutePath(pathname: string): boolean {
   );
 }
 
-function buildAdminPortalBaseUrl(baseUrl: string): string {
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized === "[::1]"
+  );
+}
+
+function shouldPreserveAdminOriginInDev(baseUrl: string): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
   try {
     const parsedBaseUrl = new URL(baseUrl);
+    return isLoopbackHostname(parsedBaseUrl.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function buildAdminPortalRedirectBaseUrl(baseUrl: string): string {
+  try {
+    const parsedBaseUrl = new URL(baseUrl);
+    if (shouldPreserveAdminOriginInDev(baseUrl)) {
+      return parsedBaseUrl.origin;
+    }
+
     parsedBaseUrl.hostname = getAdminPortalHost();
     return parsedBaseUrl.origin;
   } catch {
@@ -707,7 +736,7 @@ export const authOptions: NextAuthOptions = {
         const normalizedPath = normalizeCallbackUrl(url, "/");
 
         if (isAdminRoutePath(normalizedPath)) {
-          return `${buildAdminPortalBaseUrl(baseUrl)}${normalizedPath}`;
+          return `${buildAdminPortalRedirectBaseUrl(baseUrl)}${normalizedPath}`;
         }
 
         return `${baseUrl}${normalizedPath}`;

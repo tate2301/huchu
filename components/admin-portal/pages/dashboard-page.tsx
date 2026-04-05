@@ -131,7 +131,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className=" bg-[var(--surface-base)] shadow-none">
+    <div className=" bg-[var(--surface-base)] shadow-none p-4 lg:pb-6 lg:pt-8 flex flex-col">
       <div className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
         <div className="admin-panel-header">
           <div>
@@ -142,7 +142,7 @@ function ChartCard({
           {meta}
         </div>
       </div>
-      <div className="pt-4">{children}</div>
+      <div className="pt-4 flex-1">{children}</div>
     </div>
   );
 }
@@ -468,12 +468,20 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
     const buckets = buildRecentHourBuckets(24, 2);
     const requestTimes = supportHub.requests
       .map((request) =>
-        resolveTimestamp(request.requestedAt, request.createdAt, request.updatedAt),
+        resolveTimestamp(
+          request.requestedAt,
+          request.createdAt,
+          request.updatedAt,
+        ),
       )
       .filter((value): value is number => value !== null);
     const sessionTimes = supportHub.sessions
       .map((session) =>
-        resolveTimestamp(session.startedAt, session.createdAt, session.updatedAt),
+        resolveTimestamp(
+          session.startedAt,
+          session.createdAt,
+          session.updatedAt,
+        ),
       )
       .filter((value): value is number => value !== null);
     const riskTimes = reliability.incidents
@@ -748,7 +756,11 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
   if (isLoading) {
     return (
       <AdminModuleLoading
-        label={isCompanyScope ? "Loading workspace dashboard" : "Loading operations dashboard"}
+        label={
+          isCompanyScope
+            ? "Loading workspace dashboard"
+            : "Loading operations dashboard"
+        }
         description="Pulling the latest admin metrics, commercial signals, and reliability activity."
       />
     );
@@ -778,6 +790,12 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           </h2>
         </div>
 
+        {!isCompanyScope && (
+          <FinancialProjectionsCard
+            projections={commercial.overview.projections}
+            currency={commercial.overview.workspaces[0]?.currency ?? "USD"}
+          />
+        )}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {headlineMetrics.map((metric) => (
             <MetricTile
@@ -791,31 +809,8 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       </div>
 
       {!isCompanyScope ? (
-        <>
-          <div className="grid gap-16 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-            <FinancialProjectionsCard
-              projections={commercial.overview.projections}
-              currency={commercial.overview.workspaces[0]?.currency ?? "USD"}
-            />
-
-            <div className="grid gap-3">
-              <ChartCard
-                title="Plan mix"
-                meta={
-                  <Badge
-                    variant="outline"
-                    className="rounded-full px-2 py-0 text-[10px]"
-                  >
-                    {commercial.overview.planMix.length}
-                  </Badge>
-                }
-              >
-                <AdminDonutChart rows={planMixRows} valueLabel="Workspaces" />
-              </ChartCard>
-            </div>
-          </div>
-
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <div className="divide-y">
+          <div className="grid divide-x  gap-3 xl:grid-cols-2">
             <ChartCard title="Commercial health">
               <AdminStackedAreaChart
                 rows={commercialHealthRows}
@@ -841,29 +836,24 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
                 xTickInterval={0}
               />
             </ChartCard>
-            <ChartCard title="Due dates">
-              <AdminStackedBarChart
-                rows={dueDateTrendRows}
-                series={[
-                  {
-                    key: "renewals",
-                    label: "Renewals",
-                    color: "var(--primary-500)",
-                  },
-                  {
-                    key: "needAction",
-                    label: "Need action",
-                    color: "var(--warning-500)",
-                  },
-                ]}
-                valueFormatter={(value) => value.toLocaleString()}
-                yTickFormatter={(value) => value.toLocaleString()}
-                xTickInterval={0}
-              />
-            </ChartCard>
+            <div className="grid gap-3">
+              <ChartCard
+                title="Plan mix"
+                meta={
+                  <Badge
+                    variant="outline"
+                    className="rounded-full px-2 py-0 text-[10px]"
+                  >
+                    {commercial.overview.planMix.length}
+                  </Badge>
+                }
+              >
+                <AdminDonutChart rows={planMixRows} valueLabel="Workspaces" />
+              </ChartCard>
+            </div>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+          <div className="grid">
             <ChartCard title="Support and risk">
               <AdminTrendChart
                 rows={supportAndRiskRows}
@@ -889,21 +879,8 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
                 xTickInterval={0}
               />
             </ChartCard>
-            <ChartCard
-              title="Runbook runs"
-              meta={
-                <Badge
-                  variant="outline"
-                  className="rounded-full px-2 py-0 text-[10px]"
-                >
-                  {reliability.executions.length}
-                </Badge>
-              }
-            >
-              <AdminDistributionChart rows={runbookRows} valueLabel="Runs" />
-            </ChartCard>
           </div>
-        </>
+        </div>
       ) : (
         <>
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
