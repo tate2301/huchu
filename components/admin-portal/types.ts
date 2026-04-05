@@ -7,6 +7,7 @@ export type CompanyWorkspace = {
   name: string;
   slug?: string | null;
   status?: string | null;
+  updatedAt?: string | null;
 };
 
 export type AdminMetricCard = {

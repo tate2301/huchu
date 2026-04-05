@@ -69,8 +69,9 @@
 @theme inline {
     --font-sans: var(--font-sans);
     --font-mono:
-        var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
-        Consolas, "Liberation Mono", "Courier New", monospace;
+        var(--font-jetbrains-mono), var(--font-ibm-plex-mono), ui-monospace,
+        SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
     --font-family:
         "SS Huchu", "Inter", ui-sans-serif, system-ui, "Segoe UI",
         "Helvetica Neue", Arial, sans-serif;

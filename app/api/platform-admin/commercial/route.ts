@@ -348,19 +348,72 @@ export async function GET(request: Request) {
         .reduce((sum, row) => sum + row.monthlyAmount, 0),
     };
 
-    const projections = Array.from({ length: 4 }, (_, index) => {
-      const monthStart = addMonths(startOfMonth(now), index);
-      return {
-        id: monthStart.toISOString(),
-        label: monthLabel(monthStart),
-        monthStart: monthStart.toISOString(),
-        committedAmount: committedRows.reduce((sum, row) => sum + row.monthlyAmount, 0),
-        atRiskAmount: committedRows
-          .filter((row) => row.riskBucket === "AT_RISK" || row.riskBucket === "OVERDUE")
-          .reduce((sum, row) => sum + row.monthlyAmount, 0),
-        workspaceCount: committedRows.length,
-      };
-    });
+    const committedBaseline = committedRows.reduce(
+      (sum, row) => sum + row.monthlyAmount,
+      0,
+    );
+    const projectionHorizonMonths = 12;
+
+    const projections = Array.from(
+      { length: projectionHorizonMonths },
+      (_, index) => {
+        const monthStart = addMonths(startOfMonth(now), index);
+        const monthEnd = endOfMonth(monthStart);
+        const renewableRows = committedRows.filter((row) => {
+          if (!row.currentPeriodEnd) return false;
+          const periodEnd = new Date(row.currentPeriodEnd);
+          return periodEnd >= monthStart && periodEnd <= monthEnd;
+        });
+        const renewalPressure = renewableRows.length / Math.max(committedRows.length, 1);
+        const committedAmount = Math.max(
+          committedBaseline * 0.72,
+          committedBaseline * (1 - renewalPressure * 0.08 - index * 0.004),
+        );
+        const atRiskAmount = Math.min(
+          committedAmount * 0.92,
+          committedRows.reduce((sum, row) => {
+            let weight = 0.08;
+            if (row.riskBucket === "AT_RISK") weight = 0.36;
+            if (row.riskBucket === "OVERDUE") weight = 0.62;
+            if (row.riskBucket === "MISSING") weight = 0.45;
+
+            if (row.subscriptionStatus === "PAST_DUE") {
+              weight += 0.1;
+            }
+
+            if (row.currentPeriodEnd) {
+              const periodEnd = new Date(row.currentPeriodEnd);
+              const monthsUntilRenewal =
+                (periodEnd.getFullYear() - monthStart.getFullYear()) * 12 +
+                (periodEnd.getMonth() - monthStart.getMonth());
+              if (monthsUntilRenewal < 0) weight += 0.18;
+              if (monthsUntilRenewal === 0) weight += 0.16;
+              if (monthsUntilRenewal === 1) weight += 0.1;
+              if (monthsUntilRenewal >= 4) weight -= 0.03;
+            } else {
+              weight += 0.12;
+            }
+
+            const normalizedWeight = Math.max(0.06, Math.min(weight, 0.9));
+            return sum + row.monthlyAmount * normalizedWeight;
+          }, 0),
+        );
+
+        return {
+          id: monthStart.toISOString(),
+          label: monthLabel(monthStart),
+          monthStart: monthStart.toISOString(),
+          committedAmount,
+          atRiskAmount,
+          workspaceCount: Math.max(
+            0,
+            Math.round(
+              committedRows.length - renewalPressure * 2 - index * 0.3,
+            ),
+          ),
+        };
+      },
+    );
 
     const planMix = [...committedRows.reduce((map, row) => {
       const key = row.planCode ?? "UNASSIGNED";

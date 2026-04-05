@@ -111,7 +111,10 @@ function TablePaginationControls({
               setPage(1);
             }}
           >
-            <SelectTrigger size="sm" className="h-8 w-[88px] bg-[var(--surface-base)] shadow-none">
+            <SelectTrigger
+              size="sm"
+              className="h-8 w-[88px] bg-[var(--surface-base)] shadow-none"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -184,9 +187,11 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
     },
     ref,
   ) => {
-    const [internalMode, setInternalMode] = React.useState<TableMode>(defaultMode);
+    const [internalMode, setInternalMode] =
+      React.useState<TableMode>(defaultMode);
     const [internalPage, setInternalPage] = React.useState(1);
-    const [internalPageSize, setInternalPageSize] = React.useState(defaultPageSize);
+    const [internalPageSize, setInternalPageSize] =
+      React.useState(defaultPageSize);
     const [measuredRowCount, setMeasuredRowCount] = React.useState(0);
 
     const mode = modeProp ?? internalMode;
@@ -199,7 +204,9 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       if (!persistKey) return;
       if (typeof window === "undefined") return;
 
-      const savedMode = window.localStorage.getItem(getStorageKey(persistKey, "mode"));
+      const savedMode = window.localStorage.getItem(
+        getStorageKey(persistKey, "mode"),
+      );
       if (savedMode === "all" || savedMode === "paginated") {
         if (modeProp === undefined) {
           setInternalMode(savedMode);
@@ -208,7 +215,9 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
         }
       }
 
-      const savedPageSize = window.localStorage.getItem(getStorageKey(persistKey, "pageSize"));
+      const savedPageSize = window.localStorage.getItem(
+        getStorageKey(persistKey, "pageSize"),
+      );
       const parsedPageSize = savedPageSize ? Number(savedPageSize) : Number.NaN;
       if (Number.isFinite(parsedPageSize) && parsedPageSize > 0) {
         if (pageSizeProp === undefined) {
@@ -236,7 +245,10 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
         }
         onModeChange?.(nextMode);
         if (persistKey && typeof window !== "undefined") {
-          window.localStorage.setItem(getStorageKey(persistKey, "mode"), nextMode);
+          window.localStorage.setItem(
+            getStorageKey(persistKey, "mode"),
+            nextMode,
+          );
         }
       },
       [modeProp, onModeChange, persistKey],
@@ -260,7 +272,10 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
         }
         onPageSizeChange?.(nextPageSize);
         if (persistKey && typeof window !== "undefined") {
-          window.localStorage.setItem(getStorageKey(persistKey, "pageSize"), String(nextPageSize));
+          window.localStorage.setItem(
+            getStorageKey(persistKey, "pageSize"),
+            String(nextPageSize),
+          );
         }
       },
       [onPageSizeChange, pageSizeProp, persistKey],
@@ -275,9 +290,11 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       (!hideControlsWhenSinglePage || rowCount > pageSize || mode === "all");
 
     const shouldRenderTopControls =
-      showControls && (controlsPosition === "top" || controlsPosition === "both");
+      showControls &&
+      (controlsPosition === "top" || controlsPosition === "both");
     const shouldRenderBottomControls =
-      showControls && (controlsPosition === "bottom" || controlsPosition === "both");
+      showControls &&
+      (controlsPosition === "bottom" || controlsPosition === "both");
 
     const contextValue = React.useMemo<TableContextValue>(
       () => ({
@@ -312,7 +329,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
 
     return (
       <TableContext.Provider value={contextValue}>
-        <div className="space-y-0 bg-[var(--surface-base)]">
+        <div className="space-y-0 ">
           {shouldRenderTopControls ? (
             <TablePaginationControls
               rowCount={rowCount}
@@ -330,16 +347,18 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
 
           <div
             className={cn(
-              "table-rail overflow-hidden rounded-[var(--card-radius)] border border-[var(--table-divider)] bg-[var(--surface-base)] shadow-[var(--card-shadow-rest)]",
+              "table-rail overflow-hidden ",
               edgeToEdge && "table-edge-to-edge",
             )}
             data-tablet-scrollable={tabletScrollable ? "true" : "false"}
-            data-tablet-sticky-first-column={tabletStickyFirstColumn ? "true" : "false"}
+            data-tablet-sticky-first-column={
+              tabletStickyFirstColumn ? "true" : "false"
+            }
             style={
               tabletScrollable
                 ? ({
-                  "--table-tablet-min-width": tabletMinTableWidth,
-                } as React.CSSProperties)
+                    "--table-tablet-min-width": tabletMinTableWidth,
+                  } as React.CSSProperties)
                 : undefined
             }
           >
@@ -349,7 +368,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
               className={cn(
                 "w-full caption-bottom text-sm",
                 tabletScrollable &&
-                "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
+                  "md:max-lg:w-max md:max-lg:min-w-[var(--table-tablet-min-width)]",
                 className,
               )}
               style={tableStyle}
@@ -387,16 +406,16 @@ const TableHeader = React.forwardRef<
   const stickyHeaderOffset = tableContext?.stickyHeaderOffset ?? 0;
 
   return (
-      <thead
-        ref={ref}
-        data-slot="table-header"
-        className={cn(
-          "bg-[var(--table-header-bg)] [&_tr]:bg-[var(--table-header-bg)] [&_tr]:text-[var(--table-header-text)] [&_tr]:shadow-[inset_0_-1px_0_0_var(--table-divider)]",
-          stickyHeader &&
+    <thead
+      ref={ref}
+      data-slot="table-header"
+      className={cn(
+        "bg-[var(--table-header-bg)] [&_tr]:bg-[var(--table-header-bg)] [&_tr]:text-[var(--table-header-text)] [&_tr]:shadow-[inset_0_-1px_0_0_var(--table-divider)]",
+        stickyHeader &&
           "sticky z-20 supports-[backdrop-filter]:backdrop-blur-sm",
-          className,
-        )}
-        style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
+        className,
+      )}
+      style={stickyHeader ? { ...style, top: stickyHeaderOffset } : style}
       {...props}
     />
   );
@@ -450,55 +469,61 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     data-slot="table-footer"
-    className={cn("border-t border-[var(--table-divider)] bg-[var(--surface-subtle)]/60 font-medium [&>tr]:last:border-b-0", className)}
+    className={cn(
+      "border-t border-[var(--table-divider)] bg-[var(--surface-subtle)]/60 font-medium [&>tr]:last:border-b-0",
+      className,
+    )}
     {...props}
   />
 ));
 TableFooter.displayName = "TableFooter";
 
-const TableRow = React.forwardRef<HTMLTableRowElement, React.ComponentProps<"tr">>(
-  ({ className, ...props }, ref) => (
-    <tr
-      ref={ref}
-      data-slot="table-row"
-      className={cn(
-        "border-b border-[var(--table-divider)] transition-colors duration-[var(--motion-duration-fast)]",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+const TableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.ComponentProps<"tr">
+>(({ className, ...props }, ref) => (
+  <tr
+    ref={ref}
+    data-slot="table-row"
+    className={cn(
+      "border-b border-[var(--table-divider)] transition-colors duration-[var(--motion-duration-fast)]",
+      className,
+    )}
+    {...props}
+  />
+));
 TableRow.displayName = "TableRow";
 
-const TableHead = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"th">>(
-  ({ className, ...props }, ref) => (
-    <th
-      ref={ref}
-      data-slot="table-head"
-      className={cn(
-        "h-[var(--table-head-min-h)] border-b border-[var(--table-divider)] bg-[var(--table-header-bg)] px-[var(--table-gutter-x)] py-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--table-header-text)] [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ComponentProps<"th">
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    data-slot="table-head"
+    className={cn(
+      "h-[var(--table-head-min-h)] border-b border-[var(--table-divider)] bg-[var(--table-header-bg)] px-[var(--table-gutter-x)] py-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--table-header-text)] [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
+      className,
+    )}
+    {...props}
+  />
+));
 TableHead.displayName = "TableHead";
 
-const TableCell = React.forwardRef<HTMLTableCellElement, React.ComponentProps<"td">>(
-  ({ className, ...props }, ref) => (
-    <td
-      ref={ref}
-      data-slot="table-cell"
-      className={cn(
-        "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-[13px] text-[var(--text-body)] [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.ComponentProps<"td">
+>(({ className, ...props }, ref) => (
+  <td
+    ref={ref}
+    data-slot="table-cell"
+    className={cn(
+      "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[var(--table-gutter-x)] py-2.5 align-middle text-[13px] text-[var(--text-body)] [&:not(:first-child)]:border-l [&:has([role=checkbox])]:pr-0",
+      className,
+    )}
+    {...props}
+  />
+));
 TableCell.displayName = "TableCell";
 
 const TableCaption = React.forwardRef<
@@ -524,4 +549,3 @@ export {
   TableCell,
   TableCaption,
 };
-

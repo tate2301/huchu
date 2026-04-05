@@ -13,7 +13,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-[var(--card-radius)] border border-[var(--border-default)] shadow-[var(--shadow-popover)]",
+        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden ",
         className,
       )}
       {...props}
@@ -49,13 +49,18 @@ function CommandList({
   return (
     <CommandPrimitive.List
       data-slot="command-list"
-      className={cn("max-h-[280px] overflow-y-auto overflow-x-hidden p-1", className)}
+      className={cn(
+        "max-h-[280px] overflow-y-auto overflow-x-hidden p-1",
+        className,
+      )}
       {...props}
     />
   );
 }
 
-function CommandEmpty(props: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+function CommandEmpty(
+  props: React.ComponentProps<typeof CommandPrimitive.Empty>,
+) {
   return (
     <CommandPrimitive.Empty
       data-slot="command-empty"

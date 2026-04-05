@@ -26,33 +26,37 @@ export function AdminOperatorContext() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-10 min-w-0 gap-2 rounded-[12px] bg-[var(--surface-base)] px-2.5 text-[var(--text-strong)]">
+        <Button
+          variant="ghost"
+          className="h-8 min-w-0 gap-2 !rounded-full p-0 text-[var(--text-strong)]"
+        >
           <span className="flex min-w-0 items-center gap-2 text-left">
-            <Avatar className="h-7 w-7 bg-[var(--surface-muted)]">
+            <Avatar className="h-8 w-8 bg-[var(--surface-muted)]">
               <AvatarFallback>{initials(actorLabel)}</AvatarFallback>
             </Avatar>
-            <span className="max-w-[9rem] truncate text-[13px] font-medium text-[var(--text-strong)]">{actorLabel}</span>
           </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel>
           <div>
             <p className="truncate text-sm font-semibold">{actorLabel}</p>
-            <p className="truncate text-xs text-[var(--text-muted)]">{roleLabel}</p>
-            <p className="truncate text-xs text-[var(--text-muted)]">{actorEmail}</p>
+
+            <p className="truncate text-xs text-[var(--text-muted)]">
+              {actorEmail}
+            </p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/admin/settings">
+          <Link href="/admin/settings" className="text-[var(--text-muted)]">
             <Settings2 className="h-4 w-4" />
             Settings
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void signOut({ callbackUrl: "/admin/login" })}>
+        <DropdownMenuItem
+          onSelect={() => void signOut({ callbackUrl: "/admin/login" })}
+          className="!text-destructive"
+        >
           <LogOut className="h-4 w-4" />
           Sign out
         </DropdownMenuItem>

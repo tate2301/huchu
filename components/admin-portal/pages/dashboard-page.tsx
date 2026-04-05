@@ -1,17 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowRight,
-  Building2,
-  LifeBuoy,
-  RefreshCcw,
-  Search,
-  ShieldAlert,
-  Sparkles,
-  TriangleAlert,
-} from "lucide-react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { LifeBuoy, ShieldAlert, Sparkles } from "lucide-react";
 import {
   fetchCommercialCenter,
   fetchMetrics,
@@ -19,6 +10,15 @@ import {
   fetchSupportAccessHub,
   fetchWorkspaceOverview,
 } from "@/components/admin-portal/api";
+import {
+  AdminDistributionChart,
+  AdminDonutChart,
+  AdminStackedAreaChart,
+  AdminStackedBarChart,
+  AdminTrendChart,
+} from "@/components/charts/admin-headless-charts";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
+import { FinancialProjectionsCard } from "@/components/charts/financial-projections-card";
 import { getQuickActions } from "@/components/admin-portal/shell/admin-config";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type {
@@ -30,11 +30,13 @@ import type {
 } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusChip } from "@/components/ui/status-chip";
-import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  buildFutureDayBuckets,
+  buildRecentDayBuckets,
+  buildRecentHourBuckets,
+  resolveTimestamp,
+} from "@/lib/admin-portal/chart-series";
 
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -44,8 +46,17 @@ function formatCurrency(value: number, currency = "USD") {
   }).format(value);
 }
 
-function formatMetricValue(metric: { id: string; value: number; currency?: string }) {
-  if (metric.id.includes("mrr") || metric.id.includes("revenue") || metric.id.includes("due") || metric.id.includes("exposure")) {
+function formatMetricValue(metric: {
+  id: string;
+  value: number;
+  currency?: string;
+}) {
+  if (
+    metric.id.includes("mrr") ||
+    metric.id.includes("revenue") ||
+    metric.id.includes("due") ||
+    metric.id.includes("exposure")
+  ) {
     return formatCurrency(metric.value, metric.currency ?? "USD");
   }
   return metric.value.toLocaleString();
@@ -62,7 +73,10 @@ function titleCaseToken(value: string | null | undefined) {
     .join(" ");
 }
 
-function countBy<T>(items: T[], getKey: (item: T) => string | null | undefined) {
+function countBy<T>(
+  items: T[],
+  getKey: (item: T) => string | null | undefined,
+) {
   const counts = new Map<string, number>();
   for (const item of items) {
     const key = String(getKey(item) || "Unknown");
@@ -79,13 +93,6 @@ type DistributionDatum = {
   tone?: "default" | "warning" | "danger" | "success";
 };
 
-function toneClass(tone: DistributionDatum["tone"]) {
-  if (tone === "danger") return "bg-[#d9785d]";
-  if (tone === "warning") return "bg-[#f3c453]";
-  if (tone === "success") return "bg-[#7dbb95]";
-  return "bg-[var(--text-strong)]";
-}
-
 function MetricTile({
   label,
   value,
@@ -96,38 +103,47 @@ function MetricTile({
   hint?: string;
 }) {
   return (
-    <div className="admin-metric-card rounded-[14px] px-4 py-3 shadow-none">
-      <p className="text-[11px] font-medium text-[var(--text-muted)]">{label}</p>
-      <p className="mt-3 font-mono text-[1.9rem] font-semibold leading-none tracking-[-0.04em] text-[var(--text-strong)]">{value}</p>
-      {hint ? <p className="mt-4 border-t border-[var(--edge-subtle)] pt-3 text-[12px] text-[var(--text-muted)]">{hint}</p> : null}
+    <div className="admin-metric-card rounded-[14px]shadow-none">
+      <p className="text-[11px] font-medium text-[var(--text-muted)] px-4 py-3">
+        {label}
+      </p>
+      <div className="p-2 px-6">
+        <p className="mt-3 font-mono text-[1.9rem] tracking-tight font-semibold text-[var(--text-strong)]">
+          {value}
+        </p>
+        {hint ? (
+          <p className="mt-4 border-t border-[var(--edge-subtle)] pt-3 text-[12px] text-[var(--text-muted)]">
+            {hint}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 function ChartCard({
   title,
-  subtitle,
   meta,
   children,
 }: {
   title: string;
-  subtitle?: string;
   meta?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
-      <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
+    <div className=" bg-[var(--surface-base)] shadow-none">
+      <div className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
         <div className="admin-panel-header">
           <div>
-            <CardTitle className="text-[15px] font-semibold text-[var(--text-strong)]">{title}</CardTitle>
-            {subtitle ? <p className="admin-panel-subtitle">{subtitle}</p> : null}
+            <p className="text-[15px] font-semibold text-[var(--text-strong)]">
+              {title}
+            </p>
           </div>
           {meta}
         </div>
-      </CardHeader>
-      <CardContent className="pt-4">{children}</CardContent>
-    </Card>
+      </div>
+      <div className="pt-4">{children}</div>
+    </div>
   );
 }
 
@@ -137,182 +153,48 @@ function SurfaceLink({
   detail,
 }: {
   href: string;
-  title: string;
-  detail: string;
+  title: ReactNode;
+  detail: ReactNode;
 }) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-3 py-3 transition-colors hover:bg-[var(--table-row-hover-bg)]"
+      className="flex items-center justify-between gap-3 px-3 py-3 transition-colors hover:bg-[var(--table-row-hover-bg)]"
     >
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold text-[var(--text-strong)]">{title}</p>
-        <p className="mt-1 truncate text-[11px] text-[var(--text-muted)]">{detail}</p>
+        <p className="truncate text-[13px] font-semibold text-[var(--text-strong)]">
+          {title}
+        </p>
       </div>
-      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
+      <p className="mt-1 truncate text-[11px] text-[var(--text-muted)] font-medium">
+        {detail}
+      </p>
     </Link>
   );
 }
 
-function LoadingMetricTile() {
-  return (
-    <div className="admin-metric-card rounded-[14px] px-4 py-3 shadow-none">
-      <Skeleton className="h-3 w-20" />
-      <Skeleton className="mt-3 h-8 w-24" />
-      <Skeleton className="mt-4 h-3 w-24" />
-    </div>
-  );
-}
-
-function LoadingSurface({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card className={cn("admin-surface shadow-none", className)}>
-      <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
-        <div className="admin-panel-header">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-40" />
-          </div>
-          <Skeleton className="h-6 w-12 rounded-full" />
-        </div>
-      </CardHeader>
-      <CardContent className="pt-4">
-        {children}
-      </CardContent>
-    </Card>
-  );
-}
-
-function DistributionBars({
-  rows,
-  emptyLabel = "No data",
-}: {
-  rows: DistributionDatum[];
-  emptyLabel?: string;
-}) {
-  const peak = Math.max(...rows.map((row) => row.value), 1);
-
-  if (rows.length === 0) {
-    return <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-8 text-sm text-[var(--text-muted)]">{emptyLabel}</div>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {rows.map((row) => (
-        <div key={row.id} className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-medium text-[var(--text-strong)]">{row.label}</p>
-              {row.secondary ? <p className="truncate text-[11px] text-[var(--text-muted)]">{row.secondary}</p> : null}
-            </div>
-            <p className="shrink-0 font-mono text-[12px] text-[var(--text-strong)]">{row.value.toLocaleString()}</p>
-          </div>
-          <div className="h-2 rounded-full bg-[var(--surface-subtle)]">
-            <div
-              className={cn("h-2 rounded-full transition-[width] duration-200 ease-out", toneClass(row.tone))}
-              style={{ width: `${Math.max((row.value / peak) * 100, row.value > 0 ? 8 : 0)}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ProjectionStrip({ projections }: { projections: CommercialCenterData["overview"]["projections"] }) {
-  const peak = Math.max(...projections.map((bucket) => bucket.committedAmount), 1);
-
-  return (
-    <div className="grid gap-2 md:grid-cols-4">
-      {projections.map((bucket) => {
-        const committedHeight = Math.max(8, Math.round((bucket.committedAmount / peak) * 52));
-        const atRiskHeight = Math.max(0, Math.round((bucket.atRiskAmount / peak) * 52));
-
-        return (
-          <div key={bucket.id} className="rounded-2xl bg-[var(--surface-subtle)] px-3 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{bucket.label}</p>
-              <p className="font-mono text-[11px] text-[var(--text-muted)]">{bucket.workspaceCount}</p>
-            </div>
-            <div className="mt-3 flex h-14 items-end gap-1.5">
-              <div className="w-6 rounded-full bg-[var(--text-strong)]" style={{ height: committedHeight }} />
-              <div className="w-6 rounded-full bg-[#f3c453]" style={{ height: atRiskHeight }} />
-            </div>
-            <div className="mt-3 flex items-center justify-between text-[11px]">
-              <span className="text-[var(--text-muted)]">Committed</span>
-              <span className="font-mono text-[var(--text-strong)]">{formatCurrency(bucket.committedAmount)}</span>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px]">
-              <span className="text-[var(--text-muted)]">At risk</span>
-              <span className="font-mono text-[var(--text-strong)]">{formatCurrency(bucket.atRiskAmount)}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function LoadingDashboard() {
-  return (
-    <section className="admin-page">
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-28" />
-        <Skeleton className="h-10 w-64" />
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <LoadingMetricTile key={index} />
-        ))}
-      </div>
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <LoadingSurface className="h-full">
-          <Skeleton className="h-56 w-full rounded-[12px]" />
-        </LoadingSurface>
-        <div className="grid gap-3">
-          <LoadingSurface>
-            <Skeleton className="h-24 w-full rounded-[12px]" />
-          </LoadingSurface>
-          <LoadingSurface>
-            <Skeleton className="h-24 w-full rounded-[12px]" />
-          </LoadingSurface>
-        </div>
-      </div>
-      <div className="grid gap-3 xl:grid-cols-3">
-        <LoadingSurface>
-          <Skeleton className="h-52 w-full rounded-[12px]" />
-        </LoadingSurface>
-        <LoadingSurface>
-          <Skeleton className="h-52 w-full rounded-[12px]" />
-        </LoadingSurface>
-        <LoadingSurface>
-          <Skeleton className="h-52 w-full rounded-[12px]" />
-        </LoadingSurface>
-      </div>
-    </section>
-  );
-}
-
 export function DashboardPage({ companyId }: { companyId?: string }) {
-  const { activeCompany, activeCompanyId, companies, recentCompanies, isLoadingCompanies } = useAdminShell();
+  const { activeCompanyId, companies } = useAdminShell();
   const [metrics, setMetrics] = useState<AdminMetricCard[]>([]);
-  const [commercial, setCommercial] = useState<CommercialCenterData | null>(null);
-  const [supportHub, setSupportHub] = useState<SupportAccessHubData | null>(null);
-  const [reliability, setReliability] = useState<ReliabilityClusterData | null>(null);
+  const [commercial, setCommercial] = useState<CommercialCenterData | null>(
+    null,
+  );
+  const [supportHub, setSupportHub] = useState<SupportAccessHubData | null>(
+    null,
+  );
+  const [reliability, setReliability] = useState<ReliabilityClusterData | null>(
+    null,
+  );
   const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [workspaceQuery, setWorkspaceQuery] = useState("");
   const scopeCompanyId = companyId ?? activeCompanyId;
   const isCompanyScope = Boolean(scopeCompanyId);
-  const quickActions = useMemo(() => getQuickActions(scopeCompanyId), [scopeCompanyId]);
+  const quickActions = useMemo(
+    () => getQuickActions(scopeCompanyId),
+    [scopeCompanyId],
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -322,12 +204,20 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       setError(null);
 
       try {
-        const [nextMetrics, nextCommercial, nextSupport, nextReliability, nextOverview] = await Promise.all([
+        const [
+          nextMetrics,
+          nextCommercial,
+          nextSupport,
+          nextReliability,
+          nextOverview,
+        ] = await Promise.all([
           fetchMetrics(scopeCompanyId),
           fetchCommercialCenter(),
           fetchSupportAccessHub(scopeCompanyId),
           fetchReliabilityCluster(scopeCompanyId),
-          scopeCompanyId ? fetchWorkspaceOverview(scopeCompanyId) : Promise.resolve(null),
+          scopeCompanyId
+            ? fetchWorkspaceOverview(scopeCompanyId)
+            : Promise.resolve(null),
         ]);
 
         if (!ignore) {
@@ -339,7 +229,11 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         }
       } catch (loadError) {
         if (!ignore) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load dashboard");
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Failed to load dashboard",
+          );
         }
       } finally {
         if (!ignore) {
@@ -356,131 +250,186 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
 
   const refresh = () => setRefreshKey((current) => current + 1);
 
-  const workspaceRows = useMemo(() => {
-    const trimmed = workspaceQuery.trim().toLowerCase();
-    const preferredRows = recentCompanies.length > 0 ? recentCompanies : companies;
-    if (!trimmed) {
-      return preferredRows.slice(0, 8);
-    }
-
-    return companies
-      .filter((company) => {
-        const haystack = `${company.name} ${company.slug ?? ""} ${company.id}`.toLowerCase();
-        return haystack.includes(trimmed);
-      })
-      .slice(0, 8);
-  }, [companies, recentCompanies, workspaceQuery]);
-
   const headlineMetrics = useMemo(() => {
     if (!commercial) return [];
 
     if (isCompanyScope && overview) {
       return [
-        { id: "workspace-monthly-total", label: "Monthly Total", value: overview.pricing?.total ?? 0, currency: overview.pricing?.currency, hint: overview.subscription?.planName ?? "No plan" },
-        { id: "workspace-sites", label: "Sites", value: overview.sites.length, hint: "Active footprint" },
-        { id: "workspace-admins", label: "Admins", value: overview.admins.length, hint: "Identity" },
-        { id: "workspace-users", label: "Users", value: overview.users.length, hint: "Operators" },
-        { id: "workspace-addons", label: "Add-ons", value: overview.addons.length, hint: "Commercial" },
-        { id: "workspace-features", label: "Enabled Features", value: overview.features.filter((feature) => feature.enabled).length, hint: `${overview.features.length} mapped` },
-        { id: "workspace-support", label: "Support Sessions", value: overview.supportSessions.length, hint: "Current scope" },
-        { id: "workspace-incidents", label: "Incidents", value: overview.incidents.length, hint: "Reliability" },
-        { id: "workspace-audit", label: "Audit Events", value: overview.auditEvents.length, hint: "Recent" },
+        {
+          id: "workspace-monthly-total",
+          label: "Monthly total",
+          value: overview.pricing?.total ?? 0,
+          currency: overview.pricing?.currency,
+          hint: overview.subscription?.planName ?? "No plan",
+        },
+        {
+          id: "workspace-sites",
+          label: "Sites",
+          value: overview.sites.length,
+          hint: "Total",
+        },
+        {
+          id: "workspace-admins",
+          label: "Admins",
+          value: overview.admins.length,
+          hint: "Identity",
+        },
+        {
+          id: "workspace-users",
+          label: "Users",
+          value: overview.users.length,
+          hint: "Total",
+        },
+        {
+          id: "workspace-addons",
+          label: "Add-ons",
+          value: overview.addons.length,
+          hint: "Total",
+        },
+        {
+          id: "workspace-features",
+          label: "Enabled features",
+          value: overview.features.filter((feature) => feature.enabled).length,
+          hint: `${overview.features.length} mapped`,
+        },
+        {
+          id: "workspace-support",
+          label: "Support sessions",
+          value: overview.supportSessions.length,
+          hint: "Total",
+        },
+        {
+          id: "workspace-incidents",
+          label: "Incidents",
+          value: overview.incidents.length,
+          hint: "Reliability",
+        },
+        {
+          id: "workspace-audit",
+          label: "Audit events",
+          value: overview.auditEvents.length,
+          hint: "Recent events",
+        },
       ];
     }
 
     const summary = commercial.overview.summary;
     const byId = new Map(metrics.map((metric) => [metric.id, metric]));
     return [
-      { id: "committed-mrr", label: "Committed MRR", value: summary.committedMrr, hint: `${summary.subscribedWorkspaceCount} subscribed` },
-      { id: "due-this-month", label: "Due This Month", value: summary.dueThisMonth, hint: "Current cycle" },
-      { id: "overdue-exposure", label: "Overdue", value: summary.overdueExposure, hint: "Past due" },
-      { id: "at-risk-revenue", label: "At Risk", value: summary.atRiskRevenue, hint: "Grace or expiry" },
-      { id: "renewals-30", label: "Renewals 30d", value: summary.next30RenewalValue, hint: `${summary.next30RenewalCount} workspaces` },
-      { id: "orgs", label: "Workspaces", value: byId.get("orgs")?.value ?? 0, hint: "Platform total" },
-      { id: "admins", label: "Admins", value: byId.get("admins")?.value ?? 0, hint: "Identity" },
-      { id: "users", label: "Users", value: byId.get("users")?.value ?? 0, hint: "Operators" },
-      { id: "sites", label: "Sites", value: byId.get("sites")?.value ?? 0, hint: "Network" },
-      { id: "support", label: "Support", value: supportHub?.sessions.length ?? 0, hint: `${supportHub?.requests.length ?? 0} requests` },
-      { id: "incidents", label: "Incidents", value: reliability?.incidents.length ?? 0, hint: `${reliability?.metrics.length ?? 0} metric samples` },
-      { id: "audit", label: "Audit", value: reliability?.auditEvents.length ?? 0, hint: `${reliability?.runbooks.length ?? 0} runbooks` },
+      {
+        id: "committed-mrr",
+        label: "Monthly revenue",
+        value: summary.committedMrr,
+        hint: `${summary.subscribedWorkspaceCount} with plan`,
+      },
+      {
+        id: "due-this-month",
+        label: "Due this month",
+        value: summary.dueThisMonth,
+        hint: "Current period",
+      },
+      {
+        id: "overdue-exposure",
+        label: "Past due",
+        value: summary.overdueExposure,
+        hint: "Needs follow-up",
+      },
+      {
+        id: "at-risk-revenue",
+        label: "Revenue at risk",
+        value: summary.atRiskRevenue,
+        hint: "Due soon or late",
+      },
+      {
+        id: "renewals-30",
+        label: "Renewals in 30 days",
+        value: summary.next30RenewalValue,
+        hint: `${summary.next30RenewalCount} workspaces`,
+      },
+      {
+        id: "orgs",
+        label: "Workspaces",
+        value: byId.get("orgs")?.value ?? 0,
+        hint: "Platform total",
+      },
+      {
+        id: "admins",
+        label: "Admins",
+        value: byId.get("admins")?.value ?? 0,
+        hint: "Identity",
+      },
+      {
+        id: "users",
+        label: "Users",
+        value: byId.get("users")?.value ?? 0,
+        hint: "Operators",
+      },
+      {
+        id: "sites",
+        label: "Sites",
+        value: byId.get("sites")?.value ?? 0,
+        hint: "Total",
+      },
+      {
+        id: "support",
+        label: "Support sessions",
+        value: supportHub?.sessions.length ?? 0,
+        hint: `${supportHub?.requests.length ?? 0} requests`,
+      },
+      {
+        id: "incidents",
+        label: "Incidents",
+        value: reliability?.incidents.length ?? 0,
+        hint: `${reliability?.metrics.length ?? 0} metric samples`,
+      },
+      {
+        id: "audit",
+        label: "Audit events",
+        value: reliability?.auditEvents.length ?? 0,
+        hint: `${reliability?.runbooks.length ?? 0} runbooks`,
+      },
     ];
   }, [commercial, isCompanyScope, metrics, overview, reliability, supportHub]);
 
   const planMixRows = useMemo<DistributionDatum[]>(() => {
     if (!commercial) return [];
-    return commercial.overview.planMix
-      .slice(0, 6)
-      .map((plan) => ({
-        id: plan.planCode,
-        label: plan.planName,
-        value: plan.workspaceCount,
-        secondary: formatCurrency(plan.monthlyAmount),
-      }));
+    return commercial.overview.planMix.slice(0, 6).map((plan) => ({
+      id: plan.planCode,
+      label: plan.planName,
+      value: plan.workspaceCount,
+      secondary: formatCurrency(plan.monthlyAmount),
+    }));
   }, [commercial]);
 
-  const dueRows = useMemo<DistributionDatum[]>(() => {
-    if (!commercial) return [];
-    return Array.from(countBy(commercial.overview.workspaces, (row) => row.dueBucket))
-      .map(([label, value]) => {
-        const tone: DistributionDatum["tone"] =
-          label === "OVERDUE"
-            ? "danger"
-            : label === "DUE_THIS_MONTH" || label === "NEXT_30_DAYS"
-              ? "warning"
-              : label === "FUTURE"
-                ? "success"
-                : "default";
+  const subscriptionUpdatedAtByCompany = useMemo(() => {
+    const timestamps = new Map<string, number>();
+    for (const subscription of commercial?.subscriptions ?? []) {
+      const updatedAt = resolveTimestamp(
+        subscription.updatedAt,
+        subscription.startedAt,
+        subscription.endedAt,
+        subscription.canceledAt,
+      );
+      if (updatedAt === null) continue;
 
-        return {
-          id: label,
-          label: titleCaseToken(label),
-          value,
-          tone,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-  }, [commercial]);
-
-  const riskRows = useMemo<DistributionDatum[]>(() => {
-    if (!commercial) return [];
-    return Array.from(countBy(commercial.overview.workspaces, (row) => row.riskBucket))
-      .map(([label, value]) => {
-        const tone: DistributionDatum["tone"] =
-          label === "OVERDUE" ? "danger" : label === "AT_RISK" ? "warning" : label === "HEALTHY" ? "success" : "default";
-
-        return {
-          id: label,
-          label: titleCaseToken(label),
-          value,
-          tone,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-  }, [commercial]);
-
-  const supportRequestRows = useMemo<DistributionDatum[]>(() => {
-    if (!supportHub) return [];
-    return Array.from(countBy(supportHub.requests, (row) => row.status))
-      .map(([label, value]) => {
-        const tone: DistributionDatum["tone"] =
-          label === "PENDING" ? "warning" : label === "ACTIVE" || label === "APPROVED" ? "success" : "default";
-
-        return {
-          id: label,
-          label: titleCaseToken(label),
-          value,
-          tone,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-  }, [supportHub]);
+      const previous = timestamps.get(subscription.companyId);
+      if (previous === undefined || updatedAt > previous) {
+        timestamps.set(subscription.companyId, updatedAt);
+      }
+    }
+    return timestamps;
+  }, [commercial?.subscriptions]);
 
   const supportSessionRows = useMemo<DistributionDatum[]>(() => {
     if (!supportHub) return [];
     return Array.from(countBy(supportHub.sessions, (row) => row.status))
       .map(([label, value]) => {
         const tone: DistributionDatum["tone"] =
-          label === "ACTIVE" ? "warning" : label === "APPROVED" ? "success" : "default";
+          label === "ACTIVE"
+            ? "warning"
+            : label === "APPROVED"
+              ? "success"
+              : "default";
 
         return {
           id: label,
@@ -497,7 +446,11 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
     return Array.from(countBy(reliability.incidents, (row) => row.riskLevel))
       .map(([label, value]) => {
         const tone: DistributionDatum["tone"] =
-          label === "CRITICAL" || label === "HIGH" ? "danger" : label === "MEDIUM" ? "warning" : "default";
+          label === "CRITICAL" || label === "HIGH"
+            ? "danger"
+            : label === "MEDIUM"
+              ? "warning"
+              : "default";
 
         return {
           id: label,
@@ -508,34 +461,54 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       })
       .sort((a, b) => b.value - a.value);
   }, [reliability]);
+
+  const supportAndRiskRows = useMemo(() => {
+    if (!supportHub || !reliability) return [];
+
+    const buckets = buildRecentHourBuckets(24, 2);
+    const requestTimes = supportHub.requests
+      .map((request) =>
+        resolveTimestamp(request.requestedAt, request.createdAt, request.updatedAt),
+      )
+      .filter((value): value is number => value !== null);
+    const sessionTimes = supportHub.sessions
+      .map((session) =>
+        resolveTimestamp(session.startedAt, session.createdAt, session.updatedAt),
+      )
+      .filter((value): value is number => value !== null);
+    const riskTimes = reliability.incidents
+      .filter((incident) => incident.riskLevel !== "LOW")
+      .map((incident) => resolveTimestamp(incident.createdAt))
+      .filter((value): value is number => value !== null);
+
+    const countInRange = (times: number[], start: number, end: number) => {
+      let total = 0;
+      for (const time of times) {
+        if (time >= start && time < end) total += 1;
+      }
+      return total;
+    };
+
+    return buckets.map((bucket) => ({
+      label: bucket.label,
+      tooltipLabel: bucket.tooltipLabel,
+      supportSessions: countInRange(sessionTimes, bucket.start, bucket.end),
+      supportRequests: countInRange(requestTimes, bucket.start, bucket.end),
+      riskLevel: countInRange(riskTimes, bucket.start, bucket.end),
+    }));
+  }, [reliability, supportHub]);
 
   const runbookRows = useMemo<DistributionDatum[]>(() => {
     if (!reliability) return [];
     return Array.from(countBy(reliability.executions, (row) => row.status))
       .map(([label, value]) => {
         const tone: DistributionDatum["tone"] =
-          label === "FAILED" ? "danger" : label === "RUNNING" ? "warning" : label === "SUCCEEDED" ? "success" : "default";
-
-        return {
-          id: label,
-          label: titleCaseToken(label),
-          value,
-          tone,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-  }, [reliability]);
-
-  const workspaceStatusRows = useMemo<DistributionDatum[]>(() => {
-    return Array.from(countBy(companies, (row) => row.status ?? "UNKNOWN"))
-      .map(([label, value]) => {
-        const tone: DistributionDatum["tone"] =
-          label === "ACTIVE"
-            ? "success"
-            : label === "SUSPENDED" || label === "PAST_DUE"
+          label === "FAILED"
+            ? "danger"
+            : label === "RUNNING"
               ? "warning"
-              : label === "DISABLED"
-                ? "danger"
+              : label === "SUCCESS"
+                ? "success"
                 : "default";
 
         return {
@@ -546,24 +519,129 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         };
       })
       .sort((a, b) => b.value - a.value);
-  }, [companies]);
-
-  const contractRows = useMemo<DistributionDatum[]>(() => {
-    if (!reliability) return [];
-    return Array.from(countBy(reliability.contractEvaluations, (row) => row.recommendedState))
-      .map(([label, value]) => {
-        const tone: DistributionDatum["tone"] =
-          label === "BLOCKED" ? "danger" : label === "WARNING" ? "warning" : "success";
-
-        return {
-          id: label,
-          label: titleCaseToken(label),
-          value,
-          tone,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
   }, [reliability]);
+
+  const commercialHealthRows = useMemo(() => {
+    if (!commercial || !reliability) return [];
+
+    const buckets = buildRecentDayBuckets(84, 7);
+
+    return buckets.map((bucket) => {
+      let riskLevel = 0;
+      let workspaceStatus = 0;
+      let contractState = 0;
+
+      for (const workspace of commercial.overview.workspaces) {
+        const updatedAt =
+          subscriptionUpdatedAtByCompany.get(workspace.companyId) ??
+          resolveTimestamp(workspace.lastPriceComputedAt);
+
+        if (
+          updatedAt === null ||
+          updatedAt === undefined ||
+          updatedAt < bucket.start ||
+          updatedAt >= bucket.end
+        ) {
+          continue;
+        }
+
+        if (
+          workspace.riskBucket === "AT_RISK" ||
+          workspace.riskBucket === "OVERDUE" ||
+          workspace.riskBucket === "MISSING"
+        ) {
+          riskLevel += 1;
+        }
+      }
+
+      for (const company of companies) {
+        const updatedAt = resolveTimestamp(company.updatedAt);
+        if (
+          updatedAt === null ||
+          updatedAt < bucket.start ||
+          updatedAt >= bucket.end
+        ) {
+          continue;
+        }
+
+        if (company.status && company.status !== "ACTIVE") {
+          workspaceStatus += 1;
+        }
+      }
+
+      for (const evaluation of reliability.contractEvaluations) {
+        const updatedAt = resolveTimestamp(
+          evaluation.currentStateUpdatedAt,
+          evaluation.subscriptionUpdatedAt,
+        );
+        if (
+          updatedAt === null ||
+          updatedAt < bucket.start ||
+          updatedAt >= bucket.end
+        ) {
+          continue;
+        }
+
+        if (
+          evaluation.currentState !== "ACTIVE" ||
+          evaluation.recommendedState !== "ACTIVE"
+        ) {
+          contractState += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        riskLevel,
+        workspaceStatus,
+        contractState,
+      };
+    });
+  }, [commercial, companies, reliability, subscriptionUpdatedAtByCompany]);
+
+  const dueDateTrendRows = useMemo(() => {
+    if (!commercial) return [];
+
+    const buckets = buildFutureDayBuckets(84, 7);
+
+    return buckets.map((bucket, index) => {
+      let renewals = 0;
+      let needAction = 0;
+
+      for (const workspace of commercial.overview.workspaces) {
+        const periodEnd = resolveTimestamp(workspace.currentPeriodEnd);
+        const isOverdue = workspace.dueBucket === "OVERDUE";
+        const isInBucket =
+          periodEnd !== null &&
+          periodEnd >= bucket.start &&
+          periodEnd < bucket.end;
+        const assignOverdueToCurrentBucket = isOverdue && index === 0;
+
+        if (!isInBucket && !assignOverdueToCurrentBucket) {
+          continue;
+        }
+
+        renewals += 1;
+
+        if (
+          isOverdue ||
+          workspace.dueBucket === "DUE_THIS_MONTH" ||
+          workspace.riskBucket === "AT_RISK" ||
+          workspace.riskBucket === "OVERDUE"
+        ) {
+          needAction += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        renewals,
+        needAction,
+      };
+    });
+  }, [commercial]);
 
   const pricingCompositionRows = useMemo<DistributionDatum[]>(() => {
     if (!overview?.pricing) return [];
@@ -600,7 +678,12 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
 
   const auditRows = useMemo<DistributionDatum[]>(() => {
     if (!overview) return [];
-    return Array.from(countBy(overview.auditEvents, (event) => event.action?.split(".").slice(0, 2).join(".") ?? "Unknown"))
+    return Array.from(
+      countBy(
+        overview.auditEvents,
+        (event) => event.action?.split(".").slice(0, 2).join(".") ?? "Unknown",
+      ),
+    )
       .map(([label, value]) => ({
         id: label,
         label,
@@ -615,7 +698,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       return [
         {
           id: "contract",
-          label: "Contract",
+          label: "Billing state",
           value: overview.contractState,
           hint: overview.subscriptionHealth?.state ?? "Unknown",
           href: `/admin/company/${scopeCompanyId}/commercial`,
@@ -629,9 +712,9 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         },
         {
           id: "reliability",
-          label: "Reliability",
+          label: "Incidents",
           value: `${overview.incidents.length}`,
-          hint: "Open incidents",
+          hint: "Open",
           href: `/admin/company/${scopeCompanyId}/reliability`,
         },
       ];
@@ -642,7 +725,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         id: "support-requests",
         label: "Support requests",
         value: `${supportHub?.requests.length ?? 0}`,
-        hint: "Queue",
+        hint: "Waiting",
         href: "/admin/support-access",
       },
       {
@@ -656,156 +739,168 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         id: "runbooks",
         label: "Runbooks",
         value: `${reliability?.runbooks.length ?? 0}`,
-        hint: `${reliability?.executions.length ?? 0} executions`,
+        hint: `${reliability?.executions.length ?? 0} runs`,
         href: "/admin/reliability",
       },
     ];
   }, [isCompanyScope, overview, reliability, scopeCompanyId, supportHub]);
 
   if (isLoading) {
-    return <LoadingDashboard />;
+    return (
+      <AdminModuleLoading
+        label={isCompanyScope ? "Loading workspace dashboard" : "Loading operations dashboard"}
+        description="Pulling the latest admin metrics, commercial signals, and reliability activity."
+      />
+    );
   }
 
   if (error || !commercial || !supportHub || !reliability) {
     return (
       <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
         <CardContent className="space-y-4 py-10">
-          <p className="text-sm text-red-700">{error ?? "Dashboard data is unavailable."}</p>
-          <Button variant="outline" onClick={refresh}>Retry</Button>
+          <p className="text-sm text-red-700">
+            {error ?? "Dashboard data is unavailable."}
+          </p>
+          <Button variant="outline" onClick={refresh}>
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <section className="admin-page">
-      <div className="admin-page-header">
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <p className="admin-page-kicker">
-              {isCompanyScope
-                ? activeCompany?.name ?? "Workspace control surface"
-                : isLoadingCompanies
-                  ? "Loading workspace index"
-                  : `${companies.length} workspaces in view`}
-            </p>
-            <h2 className="admin-page-title">
-              {isCompanyScope ? "Your summary" : "Operations dashboard"}
-            </h2>
-          </div>
+    <section className="admin-page space-y-12">
+      <div>
+        <div className="admin-page-header mb-6">
+          <h2 className="admin-page-title">
+            {isCompanyScope ? "Your summary" : "Operations"}
+          </h2>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href={isCompanyScope ? `/admin/company/${scopeCompanyId}/commercial` : "/admin/commercial"}>
-              Open commercial
-            </Link>
-          </Button>
-          <Button variant="ghost" size="sm" onClick={refresh}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {headlineMetrics.map((metric) => (
-          <MetricTile
-            key={metric.id}
-            label={metric.label}
-            value={formatMetricValue(metric)}
-            hint={metric.hint}
-          />
-        ))}
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {headlineMetrics.map((metric) => (
+            <MetricTile
+              key={metric.id}
+              label={metric.label}
+              value={formatMetricValue(metric)}
+              hint={metric.hint}
+            />
+          ))}
+        </div>
       </div>
 
       {!isCompanyScope ? (
         <>
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-            <ChartCard
-              title="Revenue forecast"
-              subtitle="Committed value and at-risk exposure over the current planning horizon."
-              meta={<StatusChip status="Live" showDot />}
-            >
-              <ProjectionStrip projections={commercial.overview.projections} />
-            </ChartCard>
+          <div className="grid gap-16 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <FinancialProjectionsCard
+              projections={commercial.overview.projections}
+              currency={commercial.overview.workspaces[0]?.currency ?? "USD"}
+            />
 
             <div className="grid gap-3">
               <ChartCard
                 title="Plan mix"
-                subtitle="Subscribed workspaces by commercial tier."
-                meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{commercial.overview.planMix.length}</Badge>}
+                meta={
+                  <Badge
+                    variant="outline"
+                    className="rounded-full px-2 py-0 text-[10px]"
+                  >
+                    {commercial.overview.planMix.length}
+                  </Badge>
+                }
               >
-                <DistributionBars rows={planMixRows} />
-              </ChartCard>
-              <ChartCard
-                title="Contract pressure"
-                subtitle="Upcoming billing and overdue exposure that needs operator attention."
-                meta={<TriangleAlert className="h-4 w-4 text-[var(--text-muted)]" />}
-              >
-                <DistributionBars rows={contractRows} />
+                <AdminDonutChart rows={planMixRows} valueLabel="Workspaces" />
               </ChartCard>
             </div>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-3">
-            <ChartCard title="Due buckets" subtitle="Workspaces grouped by billing timing." meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={dueRows} />
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <ChartCard title="Commercial health">
+              <AdminStackedAreaChart
+                rows={commercialHealthRows}
+                series={[
+                  {
+                    key: "riskLevel",
+                    label: "Risk level",
+                    color: "var(--warning-500)",
+                  },
+                  {
+                    key: "workspaceStatus",
+                    label: "Workspace status",
+                    color: "var(--accent-500)",
+                  },
+                  {
+                    key: "contractState",
+                    label: "Contract state",
+                    color: "var(--danger-500)",
+                  },
+                ]}
+                valueFormatter={(value) => value.toLocaleString()}
+                yTickFormatter={(value) => value.toLocaleString()}
+                xTickInterval={0}
+              />
             </ChartCard>
-            <ChartCard title="Risk buckets" subtitle="Commercial health ranked by urgency." meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={riskRows} />
-            </ChartCard>
-            <ChartCard title="Fleet status" subtitle="Workspace contract state across the fleet." meta={<Building2 className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={workspaceStatusRows} />
+            <ChartCard title="Due dates">
+              <AdminStackedBarChart
+                rows={dueDateTrendRows}
+                series={[
+                  {
+                    key: "renewals",
+                    label: "Renewals",
+                    color: "var(--primary-500)",
+                  },
+                  {
+                    key: "needAction",
+                    label: "Need action",
+                    color: "var(--warning-500)",
+                  },
+                ]}
+                valueFormatter={(value) => value.toLocaleString()}
+                yTickFormatter={(value) => value.toLocaleString()}
+                xTickInterval={0}
+              />
             </ChartCard>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-3">
-            <ChartCard title="Support requests" subtitle="Request volume by queue status." meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={supportRequestRows} />
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <ChartCard title="Support and risk">
+              <AdminTrendChart
+                rows={supportAndRiskRows}
+                series={[
+                  {
+                    key: "supportSessions",
+                    label: "Support sessions",
+                    color: "var(--primary-500)",
+                  },
+                  {
+                    key: "supportRequests",
+                    label: "Support requests",
+                    color: "var(--accent-500)",
+                  },
+                  {
+                    key: "riskLevel",
+                    label: "Risk level",
+                    color: "var(--warning-500)",
+                  },
+                ]}
+                valueFormatter={(value) => value.toLocaleString()}
+                yTickFormatter={(value) => value.toLocaleString()}
+                xTickInterval={0}
+              />
             </ChartCard>
-            <ChartCard title="Support sessions" subtitle="Live and expired sessions by current state." meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={supportSessionRows} />
-            </ChartCard>
-            <ChartCard title="Incident severity" subtitle="Open incident distribution across the platform." meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={incidentRows} />
-            </ChartCard>
-          </div>
-
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <ChartCard
-              title="Runbook executions"
-              subtitle="Recent automation activity and operator-triggered remediations."
-              meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{reliability.executions.length}</Badge>}
+              title="Runbook runs"
+              meta={
+                <Badge
+                  variant="outline"
+                  className="rounded-full px-2 py-0 text-[10px]"
+                >
+                  {reliability.executions.length}
+                </Badge>
+              }
             >
-              <DistributionBars rows={runbookRows} />
-            </ChartCard>
-
-            <ChartCard
-              title="Workspace jump"
-              subtitle="Search and move directly into a workspace command surface."
-              meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{companies.length}</Badge>}
-            >
-              <div className="space-y-2">
-                <div className="admin-table-search">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                  <Input
-                    value={workspaceQuery}
-                    onChange={(event) => setWorkspaceQuery(event.target.value)}
-                    placeholder="Search workspace"
-                    className="h-9 pl-10 shadow-none"
-                  />
-                </div>
-                <div className="space-y-2">
-                  {workspaceRows.map((workspace) => (
-                    <SurfaceLink
-                      key={workspace.id}
-                      href={`/admin/clients/${workspace.id}`}
-                      title={workspace.name}
-                      detail={workspace.slug ?? workspace.id}
-                    />
-                  ))}
-                </div>
-              </div>
+              <AdminDistributionChart rows={runbookRows} valueLabel="Runs" />
             </ChartCard>
           </div>
         </>
@@ -814,65 +909,92 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
             <ChartCard
               title="Pricing composition"
-              subtitle="Recurring pricing lines that define this workspace contract."
-              meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{overview?.pricing?.lineItems.length ?? 0}</Badge>}
+              meta={
+                <Badge
+                  variant="outline"
+                  className="rounded-full px-2 py-0 text-[10px]"
+                >
+                  {overview?.pricing?.lineItems.length ?? 0}
+                </Badge>
+              }
             >
-              <DistributionBars rows={pricingCompositionRows} />
+              <AdminDonutChart
+                rows={pricingCompositionRows}
+                valueLabel="Amount"
+              />
             </ChartCard>
-            <ChartCard title="Feature domains" subtitle="Enabled features grouped by product domain." meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={featureDomainRows} />
+            <ChartCard
+              title="Feature domains"
+              meta={<Sparkles className="h-4 w-4 text-[var(--text-muted)]" />}
+            >
+              <AdminDonutChart rows={featureDomainRows} valueLabel="Features" />
             </ChartCard>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-3">
-            <ChartCard title="Support" subtitle="Current support request and session distribution." meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={supportSessionRows} />
+            <ChartCard
+              title="Support"
+              meta={<LifeBuoy className="h-4 w-4 text-[var(--text-muted)]" />}
+            >
+              <AdminDistributionChart
+                rows={supportSessionRows}
+                valueLabel="Sessions"
+              />
             </ChartCard>
-            <ChartCard title="Reliability" subtitle="Incident exposure for the active workspace." meta={<ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />}>
-              <DistributionBars rows={incidentRows} />
+            <ChartCard
+              title="Incidents"
+              meta={
+                <ShieldAlert className="h-4 w-4 text-[var(--text-muted)]" />
+              }
+            >
+              <AdminDistributionChart
+                rows={incidentRows}
+                valueLabel="Incidents"
+              />
             </ChartCard>
-            <ChartCard title="Audit actions" subtitle="Recent audit trail volume and verification activity." meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{overview?.auditEvents.length ?? 0}</Badge>}>
-              <DistributionBars rows={auditRows} />
+            <ChartCard
+              title="Audit events"
+              meta={
+                <Badge
+                  variant="outline"
+                  className="rounded-full px-2 py-0 text-[10px]"
+                >
+                  {overview?.auditEvents.length ?? 0}
+                </Badge>
+              }
+            >
+              <AdminDistributionChart rows={auditRows} valueLabel="Events" />
+            </ChartCard>
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <ChartCard title="Operator signals">
+              <div className="space-y-2">
+                {operatorSignals.map((signal) => (
+                  <SurfaceLink
+                    key={signal.id}
+                    href={signal.href}
+                    title={`${signal.label}: ${signal.value}`}
+                    detail={signal.hint}
+                  />
+                ))}
+              </div>
+            </ChartCard>
+            <ChartCard title="Quick links">
+              <div className="space-y-2">
+                {quickActions.slice(0, 6).map((action) => (
+                  <SurfaceLink
+                    key={action.id}
+                    href={action.href}
+                    title={action.label}
+                    detail={action.description}
+                  />
+                ))}
+              </div>
             </ChartCard>
           </div>
         </>
       )}
-
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-        <ChartCard title="Action queue" subtitle="Direct links into the highest-value operator workflows." meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{quickActions.length}</Badge>}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {quickActions.map((action) => (
-              <Button
-                key={action.id}
-                asChild
-                variant="outline"
-                className="h-auto justify-between rounded-[12px] border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-3 py-3 text-left shadow-none"
-              >
-                <Link href={action.href}>
-                  <span className="min-w-0">
-                    <span className="block text-[13px] font-semibold">{action.label}</span>
-                    <span className="mt-1 block text-[11px] text-[var(--text-muted)]">{action.scope}</span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 shrink-0" />
-                </Link>
-              </Button>
-            ))}
-          </div>
-        </ChartCard>
-
-        <ChartCard title="Signals" subtitle="Operator-facing alerts and follow-up work across admin modules." meta={<Badge variant="outline" className="rounded-full px-2 py-0 text-[10px]">{operatorSignals.length}</Badge>}>
-          <div className="space-y-2">
-            {operatorSignals.map((signal) => (
-              <SurfaceLink
-                key={signal.id}
-                href={signal.href}
-                title={signal.label}
-                detail={`${signal.value} - ${signal.hint}`}
-              />
-            ))}
-          </div>
-        </ChartCard>
-      </div>
     </section>
   );
 }

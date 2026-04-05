@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { CircleUserRound, Clock3, Eye, RefreshCcw, Search } from "lucide-react";
 import { fetchSupportAccessHub } from "@/components/admin-portal/api";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
+import {
+  AdminStackedBarChart,
+  AdminTrendChart,
+} from "@/components/charts/admin-headless-charts";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { SupportAccessHubData } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
 import {
   SupportApprovalDialog,
   SupportEndDialog,
@@ -25,8 +31,14 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
-function StatusBadge({ value }: { value: string }) {
-  const normalized = value.toUpperCase();
+function StatusBadge({ value }: { value: unknown }) {
+  const label =
+    typeof value === "string"
+      ? value
+      : value === null || value === undefined
+        ? "UNKNOWN"
+        : String(value);
+  const normalized = label.toUpperCase();
   const variant =
     normalized === "ACTIVE" || normalized === "APPROVED"
       ? "secondary"
@@ -36,7 +48,7 @@ function StatusBadge({ value }: { value: string }) {
           ? "destructive"
           : "outline";
 
-  return <Badge variant={variant}>{value.replaceAll("_", " ")}</Badge>;
+  return <Badge variant={variant}>{label.replaceAll("_", " ")}</Badge>;
 }
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
@@ -122,12 +134,148 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
 
   const refresh = () => setRefreshKey((value) => value + 1);
   const scopeLabel = companyId ? `${activeCompany?.name ?? "Workspace"} support access` : "Support Access";
-  const requestRows = data?.requests ?? [];
-  const sessionRows = data?.sessions ?? [];
+  const requestRows = useMemo(() => data?.requests ?? [], [data?.requests]);
+  const sessionRows = useMemo(() => data?.sessions ?? [], [data?.sessions]);
   const approvedRequests = requestRows.filter((row) => row.status === "APPROVED");
   const activeSessions = sessionRows.filter((row) => row.status === "ACTIVE");
   const requestQueue = requestRows.filter((row) => row.status === "REQUESTED").length;
   const shadowSessions = activeSessions.filter((row) => row.mode === "SHADOW").length;
+  const requestTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+
+    return buckets.map((bucket) => {
+      let requested = 0;
+      let approved = 0;
+
+      for (const request of requestRows) {
+        const requestedAt = resolveTimestamp(request.requestedAt, request.createdAt);
+        const approvedAt = resolveTimestamp(request.approvedAt, request.updatedAt);
+
+        if (requestedAt !== null && requestedAt >= bucket.start && requestedAt < bucket.end) {
+          requested += 1;
+        }
+
+        if (
+          request.status === "APPROVED" &&
+          approvedAt !== null &&
+          approvedAt >= bucket.start &&
+          approvedAt < bucket.end
+        ) {
+          approved += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        requested,
+        approved,
+      };
+    });
+  }, [requestRows]);
+  const requestOutcomeRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+
+    return buckets.map((bucket) => {
+      let approved = 0;
+      let denied = 0;
+      let expired = 0;
+
+      for (const request of requestRows) {
+        const decisionAt = resolveTimestamp(
+          request.approvedAt,
+          request.updatedAt,
+          request.expiresAt,
+          request.requestedAt,
+        );
+
+        if (decisionAt === null || decisionAt < bucket.start || decisionAt >= bucket.end) {
+          continue;
+        }
+
+        if (request.status === "APPROVED") approved += 1;
+        if (request.status === "DENIED" || request.status === "REVOKED") denied += 1;
+        if (request.status === "EXPIRED") expired += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        approved,
+        denied,
+        expired,
+      };
+    });
+  }, [requestRows]);
+  const sessionTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+
+    return buckets.map((bucket) => {
+      let started = 0;
+      let shadow = 0;
+
+      for (const session of sessionRows) {
+        const startedAt = resolveTimestamp(session.startedAt, session.createdAt);
+        if (startedAt === null || startedAt < bucket.start || startedAt >= bucket.end) {
+          continue;
+        }
+
+        started += 1;
+        if (session.mode === "SHADOW") shadow += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        started,
+        shadow,
+      };
+    });
+  }, [sessionRows]);
+  const sessionLifecycleRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+
+    return buckets.map((bucket) => {
+      let ended = 0;
+      let expired = 0;
+      let revoked = 0;
+
+      for (const session of sessionRows) {
+        const endedAt = resolveTimestamp(session.endedAt);
+        const updatedAt = resolveTimestamp(session.updatedAt, session.expiresAt);
+
+        if (endedAt !== null && endedAt >= bucket.start && endedAt < bucket.end) {
+          ended += 1;
+        }
+
+        if (
+          session.status === "EXPIRED" &&
+          updatedAt !== null &&
+          updatedAt >= bucket.start &&
+          updatedAt < bucket.end
+        ) {
+          expired += 1;
+        }
+
+        if (
+          session.status === "REVOKED" &&
+          updatedAt !== null &&
+          updatedAt >= bucket.start &&
+          updatedAt < bucket.end
+        ) {
+          revoked += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        ended,
+        expired,
+        revoked,
+      };
+    });
+  }, [sessionRows]);
 
   const items = useMemo(
     () => [
@@ -137,6 +285,15 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
     ],
     [approvedRequests.length, requestRows.length, sessionRows.length],
   );
+
+  if (loading) {
+    return (
+      <AdminModuleLoading
+        label={companyId ? "Loading workspace support access" : "Loading support access"}
+        description="Preparing support requests, launch readiness, and live session activity."
+      />
+    );
+  }
 
   return (
     <section className="admin-page">
@@ -172,18 +329,87 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
         <MetricCard label="Shadow sessions" value={shadowSessions} hint="Observe only" />
       </div>
 
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Requests over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={requestTrendRows}
+              series={[
+                { key: "requested", label: "Requested", color: "var(--warning-500)" },
+                { key: "approved", label: "Approved", color: "var(--success-500)" },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Request outcomes</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminStackedBarChart
+              rows={requestOutcomeRows}
+              series={[
+                { key: "approved", label: "Approved", color: "var(--success-500)" },
+                { key: "denied", label: "Denied", color: "var(--danger-500)" },
+                { key: "expired", label: "Expired", color: "var(--accent-500)" },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Sessions over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={sessionTrendRows}
+              series={[
+                { key: "started", label: "Started", color: "var(--primary-500)" },
+                { key: "shadow", label: "Shadow", color: "var(--accent-500)" },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Session lifecycle</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminStackedBarChart
+              rows={sessionLifecycleRows}
+              series={[
+                { key: "ended", label: "Ended", color: "var(--primary-500)" },
+                { key: "expired", label: "Expired", color: "var(--warning-500)" },
+                { key: "revoked", label: "Revoked", color: "var(--danger-500)" },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
       <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as SupportView)} railLabel="Support views">
-        {loading ? (
-          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
-            <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading support access...</CardContent>
-          </Card>
-        ) : error ? (
+        {error ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardContent className="py-10 text-sm text-red-700">{error}</CardContent>
           </Card>
         ) : null}
 
-        {!loading && !error && view === "requests" ? (
+        {!error && view === "requests" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                 <div className="admin-panel-header">
@@ -263,7 +489,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
           </Card>
         ) : null}
 
-        {!loading && !error && view === "launch" ? (
+        {!error && view === "launch" ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
             <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
               <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
@@ -364,7 +590,7 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
           </div>
         ) : null}
 
-        {!loading && !error && view === "sessions" ? (
+        {!error && view === "sessions" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                 <div className="admin-panel-header">

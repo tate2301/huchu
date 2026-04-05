@@ -3,13 +3,34 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Building2, CommandIcon, Search, Shield, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  CommandIcon,
+  Search,
+  Shield,
+  Sparkles,
+} from "lucide-react";
 import { searchAdminPortal } from "@/components/admin-portal/api";
 import type { AdminSearchResult } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { getAdminRouteForModule, getQuickActions } from "./admin-config";
 import { useAdminShell } from "./admin-shell-context";
 
@@ -23,18 +44,28 @@ function searchResultHref(result: AdminSearchResult, activeCompanyId?: string) {
   }
 
   if (result.kind === "support") {
-    return result.companyId ? `/admin/company/${result.companyId}/support-access` : "/admin/support-access";
+    return result.companyId
+      ? `/admin/company/${result.companyId}/support-access`
+      : "/admin/support-access";
   }
 
-  if ((result.kind === "incident" || result.kind === "runbook") && result.companyId) {
+  if (
+    (result.kind === "incident" || result.kind === "runbook") &&
+    result.companyId
+  ) {
     return `/admin/company/${result.companyId}/reliability`;
   }
 
   if (result.kind === "module" || result.kind === "action") {
-    return getAdminRouteForModule(result.moduleId, result.companyId ?? activeCompanyId);
+    return getAdminRouteForModule(
+      result.moduleId,
+      result.companyId ?? activeCompanyId,
+    );
   }
 
-  return activeCompanyId ? `/admin/clients/${activeCompanyId}` : "/admin/dashboard";
+  return activeCompanyId
+    ? `/admin/clients/${activeCompanyId}`
+    : "/admin/dashboard";
 }
 
 function resultBadgeLabel(result: AdminSearchResult) {
@@ -51,7 +82,10 @@ export function AdminCommandBar() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AdminSearchResult[]>([]);
-  const quickActions = useMemo(() => getQuickActions(activeCompanyId), [activeCompanyId]);
+  const quickActions = useMemo(
+    () => getQuickActions(activeCompanyId),
+    [activeCompanyId],
+  );
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -96,7 +130,8 @@ export function AdminCommandBar() {
     if (!trimmed) return companies.slice(0, 8);
     return companies
       .filter((company) => {
-        const haystack = `${company.name} ${company.slug ?? ""} ${company.id}`.toLowerCase();
+        const haystack =
+          `${company.name} ${company.slug ?? ""} ${company.id}`.toLowerCase();
         return haystack.includes(trimmed);
       })
       .slice(0, 8);
@@ -127,15 +162,14 @@ export function AdminCommandBar() {
         }
       }}
     >
-      <DialogTrigger>
-        <Button variant="outline" className="h-10 w-full justify-between rounded-[12px] bg-[var(--surface-base)] px-3 text-[var(--text-muted)]">
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-10 min-w-64 w-full justify-between rounded-[12px] px-3 text-[var(--text-muted)] bg-surface-subtle"
+        >
           <span className="flex items-center gap-2 text-[13px]">
             <Search className="h-3.5 w-3.5" />
             Search
-          </span>
-          <span className="hidden items-center gap-1 text-[10px] md:inline-flex">
-            <kbd className="rounded-md border border-[var(--edge-default)] bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono">Ctrl</kbd>
-            <kbd className="rounded-md border border-[var(--edge-default)] bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono">K</kbd>
           </span>
         </Button>
       </DialogTrigger>
@@ -144,12 +178,12 @@ export function AdminCommandBar() {
           <DialogTitle>Control plane command bar</DialogTitle>
         </DialogHeader>
         <Command className="rounded-none bg-[var(--surface-base)]">
-            <CommandInput
-              value={query}
-              onValueChange={handleQueryChange}
-              placeholder="Search workspaces, people, actions"
-              className="h-11"
-            />
+          <CommandInput
+            value={query}
+            onValueChange={handleQueryChange}
+            placeholder="Search workspaces, people, actions"
+            className="h-11"
+          />
           <CommandList className="max-h-[34rem]">
             <CommandEmpty>No matching commands or records.</CommandEmpty>
 
@@ -162,8 +196,13 @@ export function AdminCommandBar() {
                   className="rounded-[12px] px-2 py-2"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                  <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{action.label}</p>
-                  <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">
+                  <p className="min-w-0 flex-1 truncate text-[13px] font-medium">
+                    {action.label}
+                  </p>
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-2 py-0 text-[10px]"
+                  >
                     {action.scope}
                   </Badge>
                 </CommandItem>
@@ -173,7 +212,10 @@ export function AdminCommandBar() {
             <CommandSeparator />
 
             <CommandGroup heading="Recent workspaces">
-              {(recentCompanies.length > 0 ? recentCompanies : companies.slice(0, 5)).map((company) => (
+              {(recentCompanies.length > 0
+                ? recentCompanies
+                : companies.slice(0, 5)
+              ).map((company) => (
                 <CommandItem
                   key={company.id}
                   value={`${company.name} ${company.slug ?? ""} ${company.id}`}
@@ -183,9 +225,18 @@ export function AdminCommandBar() {
                   <Building2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium">{company.name}</p>
-                    <p className="truncate text-[11px] text-[var(--text-muted)]">{company.slug ?? company.id}</p>
+                    <p className="truncate text-[11px] text-[var(--text-muted)]">
+                      {company.slug ?? company.id}
+                    </p>
                   </div>
-                  {company.status ? <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">{company.status}</Badge> : null}
+                  {company.status ? (
+                    <Badge
+                      variant="secondary"
+                      className="rounded-full px-2 py-0 text-[10px]"
+                    >
+                      {company.status}
+                    </Badge>
+                  ) : null}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -203,8 +254,12 @@ export function AdminCommandBar() {
                     >
                       <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium">{company.name}</p>
-                        <p className="truncate text-[11px] text-[var(--text-muted)]">{company.slug ?? company.id}</p>
+                        <p className="text-[13px] font-medium">
+                          {company.name}
+                        </p>
+                        <p className="truncate text-[11px] text-[var(--text-muted)]">
+                          {company.slug ?? company.id}
+                        </p>
                       </div>
                     </CommandItem>
                   ))}
@@ -220,18 +275,27 @@ export function AdminCommandBar() {
                     <CommandItem
                       key={result.id}
                       value={`${result.label} ${result.detail} ${result.keywords.join(" ")}`}
-                      onSelect={() => navigate(searchResultHref(result, activeCompanyId))}
+                      onSelect={() =>
+                        navigate(searchResultHref(result, activeCompanyId))
+                      }
                       className="rounded-[12px] px-2 py-2"
                     >
                       <Shield className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-[13px] font-medium">{result.label}</p>
-                          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">
+                          <p className="text-[13px] font-medium">
+                            {result.label}
+                          </p>
+                          <Badge
+                            variant="secondary"
+                            className="rounded-full px-2 py-0 text-[10px]"
+                          >
                             {resultBadgeLabel(result)}
                           </Badge>
                         </div>
-                        <p className="truncate text-[11px] text-[var(--text-muted)]">{result.detail}</p>
+                        <p className="truncate text-[11px] text-[var(--text-muted)]">
+                          {result.detail}
+                        </p>
                       </div>
                     </CommandItem>
                   ))}
@@ -250,7 +314,10 @@ export function AdminCommandBarHint() {
     <div className="hidden items-center gap-2 text-xs text-[var(--text-muted)] lg:flex">
       <CommandIcon className="h-3.5 w-3.5" />
       <span>Global command bar</span>
-      <Link href="/admin/clients" className="rounded-full border border-[var(--border)] px-2 py-0.5 hover:bg-[var(--surface-muted)]">
+      <Link
+        href="/admin/clients"
+        className="rounded-full border border-[var(--border)] px-2 py-0.5 hover:bg-[var(--surface-muted)]"
+      >
         Workspaces
       </Link>
     </div>

@@ -694,7 +694,9 @@ export interface ContractEvaluationResult {
   companyName: string;
   companySlug: string;
   subscriptionStatus: SubscriptionStatusValue | null;
+  subscriptionUpdatedAt: string | null;
   currentState: ContractState;
+  currentStateUpdatedAt: string | null;
   recommendedState: ContractState;
   warningReason: string | null;
   canOperate: boolean;

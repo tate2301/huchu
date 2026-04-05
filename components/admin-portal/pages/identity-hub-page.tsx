@@ -4,10 +4,15 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { RefreshCcw, Search } from "lucide-react";
 import { fetchIdentityHub } from "@/components/admin-portal/api";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { IdentityHubData } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AdminDonutChart,
+  AdminTrendChart,
+} from "@/components/charts/admin-headless-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -23,16 +28,29 @@ import {
   UserRoleDialog,
   UserStatusDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
+import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
 
 type IdentityView = "admins" | "users" | "requests" | "sessions";
+type DistributionDatum = {
+  id: string;
+  label: string;
+  value: number;
+  tone?: "default" | "warning" | "danger" | "success";
+};
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not available";
   return new Date(value).toLocaleString();
 }
 
-function StatusBadge({ value }: { value: string }) {
-  const normalized = value.toUpperCase();
+function StatusBadge({ value }: { value: unknown }) {
+  const label =
+    typeof value === "string"
+      ? value
+      : value === null || value === undefined
+        ? "UNKNOWN"
+        : String(value);
+  const normalized = label.toUpperCase();
   const variant =
     normalized === "ACTIVE" || normalized === "APPROVED"
       ? "secondary"
@@ -41,8 +59,7 @@ function StatusBadge({ value }: { value: string }) {
         : normalized === "DENIED" || normalized === "REVOKED" || normalized === "EXPIRED"
           ? "destructive"
           : "outline";
-
-  return <Badge variant={variant}>{value.replaceAll("_", " ")}</Badge>;
+  return <Badge variant={variant}>{label.replaceAll("_", " ")}</Badge>;
 }
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
@@ -64,6 +81,24 @@ function MetricCard({ label, value, hint }: { label: string; value: number; hint
       <CardContent className="pt-0 text-[11px] text-[var(--text-muted)]">{hint}</CardContent>
     </Card>
   );
+}
+
+function titleCaseToken(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[_\s.-]+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function countBy<T>(items: T[], getKey: (item: T) => string | null | undefined) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = String(getKey(item) || "UNKNOWN");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
 }
 
 function SearchField({
@@ -138,11 +173,223 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
   );
 
   const refresh = () => setRefreshKey((value) => value + 1);
-  const scopeLabel = companyId ? activeCompany?.name ?? "Workspace identity hub" : "Platform identity hub";
+  const scopeLabel = companyId ? `${activeCompany?.name ?? "Workspace"} identity` : "Identity";
   const activeAdmins = data?.admins.filter((admin) => admin.isActive).length ?? 0;
   const activeUsers = data?.users.filter((user) => user.isActive).length ?? 0;
   const pendingRequests = data?.requests.filter((request) => request.status === "REQUESTED").length ?? 0;
   const activeSessions = data?.sessions.filter((session) => session.status === "ACTIVE").length ?? 0;
+  const expiringSoonSessions = data?.sessions.filter((session) => {
+    if (session.status !== "ACTIVE" || !session.expiresAt) return false;
+    const expiresAt = new Date(session.expiresAt).getTime();
+    const now = Date.now();
+    return expiresAt > now && expiresAt - now <= 24 * 60 * 60 * 1000;
+  }).length ?? 0;
+  const adminUserRatio =
+    activeUsers > 0 ? (activeAdmins / activeUsers).toFixed(2) : "0.00";
+
+  const adminRoleRows = useMemo<DistributionDatum[]>(() => {
+    return Array.from(countBy(data?.admins ?? [], (admin) => admin.role))
+      .map(([label, value]) => ({
+        id: label,
+        label: titleCaseToken(label),
+        value,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [data?.admins]);
+
+  const userRoleRows = useMemo<DistributionDatum[]>(() => {
+    return Array.from(countBy(data?.users ?? [], (user) => user.role))
+      .map(([label, value]) => ({
+        id: label,
+        label: titleCaseToken(label),
+        value,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [data?.users]);
+
+  const sessionModeRows = useMemo<DistributionDatum[]>(() => {
+    return Array.from(countBy(data?.sessions ?? [], (session) => session.mode))
+      .map(([label, value]) => ({
+        id: label,
+        label: titleCaseToken(label),
+        value,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [data?.sessions]);
+
+  const peopleTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const adminTimes = (data?.admins ?? [])
+      .map((admin) => resolveTimestamp(admin.createdAt))
+      .filter((value): value is number => value !== null);
+    const userTimes = (data?.users ?? [])
+      .map((user) => resolveTimestamp(user.createdAt))
+      .filter((value): value is number => value !== null);
+
+    return buckets.map((bucket) => {
+      let admins = 0;
+      let users = 0;
+
+      for (const value of adminTimes) {
+        if (value >= bucket.start && value < bucket.end) admins += 1;
+      }
+      for (const value of userTimes) {
+        if (value >= bucket.start && value < bucket.end) users += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        admins,
+        users,
+      };
+    });
+  }, [data?.admins, data?.users]);
+
+  const supportTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const requestTimes = (data?.requests ?? [])
+      .map((request) => resolveTimestamp(request.requestedAt, request.createdAt))
+      .filter((value): value is number => value !== null);
+    const sessionTimes = (data?.sessions ?? [])
+      .map((session) => resolveTimestamp(session.startedAt, session.createdAt))
+      .filter((value): value is number => value !== null);
+
+    return buckets.map((bucket) => {
+      let requests = 0;
+      let sessions = 0;
+
+      for (const value of requestTimes) {
+        if (value >= bucket.start && value < bucket.end) requests += 1;
+      }
+      for (const value of sessionTimes) {
+        if (value >= bucket.start && value < bucket.end) sessions += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        requests,
+        sessions,
+      };
+    });
+  }, [data?.requests, data?.sessions]);
+
+  const requestDecisionTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const requests = data?.requests ?? [];
+
+    return buckets.map((bucket) => {
+      let newRequests = 0;
+      let approved = 0;
+      let closed = 0;
+
+      for (const request of requests) {
+        const requestedAt = resolveTimestamp(
+          request.requestedAt,
+          request.createdAt,
+        );
+        if (
+          requestedAt !== null &&
+          requestedAt >= bucket.start &&
+          requestedAt < bucket.end
+        ) {
+          newRequests += 1;
+        }
+
+        const approvedAt = resolveTimestamp(
+          request.approvedAt,
+          request.updatedAt,
+        );
+        if (
+          (request.status === "APPROVED" || request.status === "ACTIVE") &&
+          approvedAt !== null &&
+          approvedAt >= bucket.start &&
+          approvedAt < bucket.end
+        ) {
+          approved += 1;
+        }
+
+        const closedAt = resolveTimestamp(request.updatedAt, request.approvedAt);
+        if (
+          (request.status === "DENIED" ||
+            request.status === "REVOKED" ||
+            request.status === "EXPIRED") &&
+          closedAt !== null &&
+          closedAt >= bucket.start &&
+          closedAt < bucket.end
+        ) {
+          closed += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        newRequests,
+        approved,
+        closed,
+      };
+    });
+  }, [data?.requests]);
+
+  const sessionActivityTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const sessions = data?.sessions ?? [];
+
+    return buckets.map((bucket) => {
+      let started = 0;
+      let ended = 0;
+      let revoked = 0;
+
+      for (const session of sessions) {
+        const startedAt = resolveTimestamp(session.startedAt, session.createdAt);
+        if (
+          startedAt !== null &&
+          startedAt >= bucket.start &&
+          startedAt < bucket.end
+        ) {
+          started += 1;
+        }
+
+        const endedAt = resolveTimestamp(session.endedAt, session.updatedAt);
+        if (
+          endedAt !== null &&
+          endedAt >= bucket.start &&
+          endedAt < bucket.end &&
+          session.status !== "ACTIVE"
+        ) {
+          ended += 1;
+        }
+
+        if (
+          (session.status === "REVOKED" || session.status === "EXPIRED") &&
+          endedAt !== null &&
+          endedAt >= bucket.start &&
+          endedAt < bucket.end
+        ) {
+          revoked += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        started,
+        ended,
+        revoked,
+      };
+    });
+  }, [data?.sessions]);
+
+  if (loading) {
+    return (
+      <AdminModuleLoading
+        label={companyId ? "Loading workspace identity" : "Loading identity hub"}
+        description="Preparing people, access requests, sessions, and trend summaries."
+      />
+    );
+  }
 
   return (
     <section className="admin-page">
@@ -150,7 +397,7 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         <div className="space-y-2">
           <div className="space-y-1">
             <p className="admin-page-kicker">
-              {companyId ? activeCompany?.name ?? "Workspace" : "Platform"} access posture and operator identities
+              {companyId ? activeCompany?.name ?? "Workspace" : "Platform"} access and people
             </p>
             <h1 className="admin-page-title">{scopeLabel}</h1>
           </div>
@@ -188,30 +435,170 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
       </div>
 
       <div className="admin-metric-grid">
-        <MetricCard label="Active admins" value={activeAdmins} hint="Online" />
-        <MetricCard label="Active users" value={activeUsers} hint="Enabled" />
-        <MetricCard label="Pending requests" value={pendingRequests} hint="Awaiting review" />
-        <MetricCard label="Live sessions" value={activeSessions} hint="Open" />
+        <MetricCard label="Admins online" value={activeAdmins} hint="Active now" />
+        <MetricCard label="Users active" value={activeUsers} hint="Enabled now" />
+        <MetricCard label="Requests waiting" value={pendingRequests} hint="Need review" />
+        <MetricCard label="Sessions live" value={activeSessions} hint="Open now" />
+        <MetricCard label="Admin/user ratio" value={Number(adminUserRatio)} hint={`${adminUserRatio} to 1`} />
+        <MetricCard label="Ending in 24h" value={expiringSoonSessions} hint="Live sessions" />
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">People over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={peopleTrendRows}
+              series={[
+                {
+                  key: "admins",
+                  label: "Admins",
+                  color: "var(--primary-500)",
+                },
+                {
+                  key: "users",
+                  label: "Users",
+                  color: "var(--success-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Support over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={supportTrendRows}
+              series={[
+                {
+                  key: "requests",
+                  label: "Requests",
+                  color: "var(--warning-500)",
+                },
+                {
+                  key: "sessions",
+                  label: "Sessions",
+                  color: "var(--accent-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Request decisions over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={requestDecisionTrendRows}
+              series={[
+                {
+                  key: "newRequests",
+                  label: "New requests",
+                  color: "var(--warning-500)",
+                },
+                {
+                  key: "approved",
+                  label: "Approved",
+                  color: "var(--success-500)",
+                },
+                {
+                  key: "closed",
+                  label: "Closed",
+                  color: "var(--danger-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Session activity over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={sessionActivityTrendRows}
+              series={[
+                {
+                  key: "started",
+                  label: "Started",
+                  color: "var(--accent-500)",
+                },
+                {
+                  key: "ended",
+                  label: "Ended",
+                  color: "var(--primary-500)",
+                },
+                {
+                  key: "revoked",
+                  label: "Revoked",
+                  color: "var(--danger-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-3">
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Admin roles</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminDonutChart rows={adminRoleRows} valueLabel="Admins" />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">User roles</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminDonutChart rows={userRoleRows} valueLabel="Users" />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Session mode</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminDonutChart rows={sessionModeRows} valueLabel="Sessions" />
+          </CardContent>
+        </Card>
       </div>
 
       <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as IdentityView)} railLabel="Identity views">
-        {loading ? (
-          <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
-            <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading identity data...</CardContent>
-          </Card>
-        ) : error ? (
+        {error ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardContent className="py-10 text-sm text-red-700">{error}</CardContent>
           </Card>
         ) : null}
 
-        {!loading && !error && view === "admins" ? (
+        {!error && view === "admins" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                 <div className="admin-panel-header">
                   <div>
-                    <CardTitle className="text-base">Admin operators</CardTitle>
-                    <p className="admin-panel-subtitle">Admins with elevated portal access and workspace authority.</p>
+                    <CardTitle className="text-base">Admins</CardTitle>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
@@ -296,13 +683,12 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           </Card>
         ) : null}
 
-        {!loading && !error && view === "users" ? (
+        {!error && view === "users" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                 <div className="admin-panel-header">
                   <div>
-                    <CardTitle className="text-base">Workspace users</CardTitle>
-                    <p className="admin-panel-subtitle">Users, roles, and lifecycle changes across platform workspaces.</p>
+                    <CardTitle className="text-base">Users</CardTitle>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
@@ -377,13 +763,12 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           </Card>
         ) : null}
 
-        {!loading && !error && view === "requests" ? (
+        {!error && view === "requests" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                 <div className="admin-panel-header">
                   <div>
-                    <CardTitle className="text-base">Support approvals</CardTitle>
-                    <p className="admin-panel-subtitle">Approval queue for temporary support access and escalations.</p>
+                    <CardTitle className="text-base">Support requests</CardTitle>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
@@ -457,13 +842,12 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           </Card>
         ) : null}
 
-        {!loading && !error && view === "sessions" ? (
+        {!error && view === "sessions" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
               <div className="admin-panel-header">
                   <div>
                     <CardTitle className="text-base">Support sessions</CardTitle>
-                    <p className="admin-panel-subtitle">Track active support access, session mode, and expiry windows.</p>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">

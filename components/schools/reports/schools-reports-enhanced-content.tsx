@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { rechartsDefaults } from "@/lib/charts/theme";
 
 // ============================================================================
 // Types
@@ -463,33 +462,20 @@ export function SchoolsReportsEnhancedContent() {
 
           {/* Collections Chart */}
           {collectionsData.length > 0 && (
-            <div className="rounded-lg border border-border bg-surface-base p-4">
-              <h3 className="text-sm font-semibold mb-4">Collections by Term</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={collectionsData}>
-                  <CartesianGrid {...rechartsDefaults.cartesianGrid} />
-                  <XAxis
-                    dataKey="termName"
-                    {...rechartsDefaults.xAxis}
-                  />
-                  <YAxis {...rechartsDefaults.yAxis} />
-                  <Tooltip {...rechartsDefaults.tooltip} />
-                  <Legend {...rechartsDefaults.legend} />
-                  <Bar
-                    dataKey="invoiced"
-                    name="Invoiced"
-                    fill="var(--chart-1)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                  <Bar
-                    dataKey="collected"
-                    name="Collected"
-                    fill="var(--chart-passing)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <TradingViewChartCard
+              title="Collections by Term"
+              data={collectionsData.map((row) => ({
+                label: row.termName,
+                invoiced: row.invoiced,
+                collected: row.collected,
+              }))}
+              xKey="label"
+              series={[
+                { key: "invoiced", label: "Invoiced", type: "bar", color: "var(--chart-1)" },
+                { key: "collected", label: "Collected", type: "bar", color: "var(--chart-passing)" },
+              ]}
+              valueFormatter={(value) => Number(value).toLocaleString()}
+            />
           )}
 
           <DataTable
@@ -510,46 +496,21 @@ export function SchoolsReportsEnhancedContent() {
 
           {/* Arrears Chart */}
           {arrearsData.length > 0 && (
-            <div className="rounded-lg border border-border bg-surface-base p-4">
-              <h3 className="text-sm font-semibold mb-4">Aging Distribution</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart
-                  data={[
-                    {
-                      name: "Current",
-                      value: arrearsQuery.data?.summary?.aging?.current ?? 0,
-                    },
-                    {
-                      name: "1-30 Days",
-                      value: arrearsQuery.data?.summary?.aging?.days30 ?? 0,
-                    },
-                    {
-                      name: "31-60 Days",
-                      value: arrearsQuery.data?.summary?.aging?.days60 ?? 0,
-                    },
-                    {
-                      name: "61-90 Days",
-                      value: arrearsQuery.data?.summary?.aging?.days90 ?? 0,
-                    },
-                    {
-                      name: "90+ Days",
-                      value: arrearsQuery.data?.summary?.aging?.days120Plus ?? 0,
-                    },
-                  ]}
-                >
-                  <CartesianGrid {...rechartsDefaults.cartesianGrid} />
-                  <XAxis dataKey="name" {...rechartsDefaults.xAxis} />
-                  <YAxis {...rechartsDefaults.yAxis} />
-                  <Tooltip {...rechartsDefaults.tooltip} />
-                  <Bar
-                    dataKey="value"
-                    name="Amount"
-                    fill="var(--chart-need-changes)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <TradingViewChartCard
+              title="Aging Distribution"
+              data={[
+                { label: "Current", value: arrearsQuery.data?.summary?.aging?.current ?? 0 },
+                { label: "1-30 Days", value: arrearsQuery.data?.summary?.aging?.days30 ?? 0 },
+                { label: "31-60 Days", value: arrearsQuery.data?.summary?.aging?.days60 ?? 0 },
+                { label: "61-90 Days", value: arrearsQuery.data?.summary?.aging?.days90 ?? 0 },
+                { label: "90+ Days", value: arrearsQuery.data?.summary?.aging?.days120Plus ?? 0 },
+              ]}
+              xKey="label"
+              series={[
+                { key: "value", label: "Amount", type: "bar", color: "var(--chart-need-changes)" },
+              ]}
+              valueFormatter={(value) => Number(value).toLocaleString()}
+            />
           )}
 
           <DataTable
@@ -570,30 +531,20 @@ export function SchoolsReportsEnhancedContent() {
 
           {/* Enrollment Chart */}
           {enrollmentData.length > 0 && (
-            <div className="rounded-lg border border-border bg-surface-base p-4">
-              <h3 className="text-sm font-semibold mb-4">Enrollment Trends</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={enrollmentData}>
-                  <CartesianGrid {...rechartsDefaults.cartesianGrid} />
-                  <XAxis dataKey="termName" {...rechartsDefaults.xAxis} />
-                  <YAxis {...rechartsDefaults.yAxis} />
-                  <Tooltip {...rechartsDefaults.tooltip} />
-                  <Legend {...rechartsDefaults.legend} />
-                  <Bar
-                    dataKey="boardingCount"
-                    name="Boarding"
-                    fill="var(--chart-in-review)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                  <Bar
-                    dataKey="dayCount"
-                    name="Day"
-                    fill="var(--chart-2)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <TradingViewChartCard
+              title="Enrollment Trends"
+              data={enrollmentData.map((row) => ({
+                label: row.termName,
+                boardingCount: row.boardingCount,
+                dayCount: row.dayCount,
+              }))}
+              xKey="label"
+              series={[
+                { key: "boardingCount", label: "Boarding", type: "bar", color: "var(--chart-in-review)" },
+                { key: "dayCount", label: "Day", type: "bar", color: "var(--chart-2)" },
+              ]}
+              valueFormatter={(value) => Number(value).toLocaleString()}
+            />
           )}
 
           <DataTable
@@ -616,30 +567,20 @@ export function SchoolsReportsEnhancedContent() {
 
           {/* Occupancy Chart */}
           {occupancyData.length > 0 && (
-            <div className="rounded-lg border border-border bg-surface-base p-4">
-              <h3 className="text-sm font-semibold mb-4">Occupancy by Hostel</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={occupancyData}>
-                  <CartesianGrid {...rechartsDefaults.cartesianGrid} />
-                  <XAxis dataKey="hostelName" {...rechartsDefaults.xAxis} />
-                  <YAxis {...rechartsDefaults.yAxis} />
-                  <Tooltip {...rechartsDefaults.tooltip} />
-                  <Legend {...rechartsDefaults.legend} />
-                  <Bar
-                    dataKey="occupiedBeds"
-                    name="Occupied"
-                    fill="var(--chart-passing)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                  <Bar
-                    dataKey="totalBeds"
-                    name="Total Capacity"
-                    fill="var(--chart-pending)"
-                    radius={rechartsDefaults.bar.radius}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <TradingViewChartCard
+              title="Occupancy by Hostel"
+              data={occupancyData.map((row) => ({
+                label: row.hostelName,
+                occupiedBeds: row.occupiedBeds,
+                totalBeds: row.totalBeds,
+              }))}
+              xKey="label"
+              series={[
+                { key: "occupiedBeds", label: "Occupied", type: "bar", color: "var(--chart-passing)" },
+                { key: "totalBeds", label: "Total Capacity", type: "bar", color: "var(--chart-pending)" },
+              ]}
+              valueFormatter={(value) => Number(value).toLocaleString()}
+            />
           )}
 
           <DataTable

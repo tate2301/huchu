@@ -234,7 +234,11 @@ function SelectionCheckbox({
 function getColumnWidthStyle<TData, TValue>(
   columnDef: ColumnDef<TData, TValue>,
 ): React.CSSProperties | undefined {
-  const sizing = columnDef as { size?: number; minSize?: number; maxSize?: number };
+  const sizing = columnDef as {
+    size?: number;
+    minSize?: number;
+    maxSize?: number;
+  };
   const hasWidth = typeof sizing.size === "number";
   const hasMin = typeof sizing.minSize === "number";
   const hasMax = typeof sizing.maxSize === "number";
@@ -258,9 +262,7 @@ function normalizeExportCellValue(value: unknown): string | number | boolean {
     return value;
   }
   if (Array.isArray(value)) {
-    return value
-      .map((item) => normalizeExportCellValue(item))
-      .join(", ");
+    return value.map((item) => normalizeExportCellValue(item)).join(", ");
   }
   if (typeof value === "object") {
     try {
@@ -380,7 +382,8 @@ function parseNumericExportValue(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (/\d{4}-\d{2}-\d{2}/.test(trimmed) || /\d{1,2}:\d{2}/.test(trimmed)) return null;
+  if (/\d{4}-\d{2}-\d{2}/.test(trimmed) || /\d{1,2}:\d{2}/.test(trimmed))
+    return null;
 
   const negative = /^\(.*\)$/.test(trimmed);
   const currencyMatch = trimmed.match(/[$€£¥]/);
@@ -449,32 +452,54 @@ export function DataTable<TData, TValue>({
   const paginationEnabled = features?.pagination ?? pagination?.enabled ?? true;
   const serverPagination = pagination?.server ?? false;
   const resolvedSearchScope: Exclude<DataTableSearchScope, "auto"> =
-    searchScope === "auto" ? (serverPagination ? "server" : "client") : searchScope;
-  const useClientGlobalFilter = globalFilterEnabled && resolvedSearchScope === "client";
+    searchScope === "auto"
+      ? serverPagination
+        ? "server"
+        : "client"
+      : searchScope;
+  const useClientGlobalFilter =
+    globalFilterEnabled && resolvedSearchScope === "client";
 
-  const [globalFilter, setGlobalFilter] = React.useState(queryState?.search ?? "");
-  const [searchDraft, setSearchDraft] = React.useState(queryState?.search ?? "");
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [rowSelectionState, setRowSelectionState] = React.useState<RowSelectionState>({});
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
-  const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 25,
-  });
-  const [clientPathname, setClientPathname] = React.useState<string | null>(null);
-  const [clientDocumentTitle, setClientDocumentTitle] = React.useState<string | null>(null);
-  const [clientHeadingTitle, setClientHeadingTitle] = React.useState<string | null>(null);
-  const [exportingFormat, setExportingFormat] = React.useState<DocumentExportFormat | null>(null);
-  const [exportStatusMessage, setExportStatusMessage] = React.useState<string | null>(null);
-  const [expandedRowIdsState, setExpandedRowIdsState] = React.useState<string[]>(
-    expansion?.defaultExpandedRowIds ?? [],
+  const [globalFilter, setGlobalFilter] = React.useState(
+    queryState?.search ?? "",
   );
+  const [searchDraft, setSearchDraft] = React.useState(
+    queryState?.search ?? "",
+  );
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [rowSelectionState, setRowSelectionState] =
+    React.useState<RowSelectionState>({});
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [internalPagination, setInternalPagination] =
+    React.useState<PaginationState>({
+      pageIndex: 0,
+      pageSize: 25,
+    });
+  const [clientPathname, setClientPathname] = React.useState<string | null>(
+    null,
+  );
+  const [clientDocumentTitle, setClientDocumentTitle] = React.useState<
+    string | null
+  >(null);
+  const [clientHeadingTitle, setClientHeadingTitle] = React.useState<
+    string | null
+  >(null);
+  const [exportingFormat, setExportingFormat] =
+    React.useState<DocumentExportFormat | null>(null);
+  const [exportStatusMessage, setExportStatusMessage] = React.useState<
+    string | null
+  >(null);
+  const [expandedRowIdsState, setExpandedRowIdsState] = React.useState<
+    string[]
+  >(expansion?.defaultExpandedRowIds ?? []);
 
   const page = queryState?.page ?? toPage(internalPagination.pageIndex);
   const pageSize = queryState?.pageSize ?? internalPagination.pageSize;
   const expansionEnabled = expansion?.enabled ?? false;
   const expansionMode = expansion?.mode ?? "multiple";
-  const resolvedExpandedRowIds = expansion?.expandedRowIds ?? expandedRowIdsState;
+  const resolvedExpandedRowIds =
+    expansion?.expandedRowIds ?? expandedRowIdsState;
   const expandedRowIdsSet = React.useMemo(
     () => new Set(resolvedExpandedRowIds),
     [resolvedExpandedRowIds],
@@ -483,7 +508,8 @@ export function DataTable<TData, TValue>({
     () => new Set(expansion?.loadingRowIds ?? []),
     [expansion?.loadingRowIds],
   );
-  const expandColumnWidthClassName = expansion?.expandColumn?.widthClassName ?? "w-10";
+  const expandColumnWidthClassName =
+    expansion?.expandColumn?.widthClassName ?? "w-10";
   const deferredGlobalFilter = React.useDeferredValue(globalFilter);
   const effectiveGlobalFilter =
     useClientGlobalFilter && deferFilter ? deferredGlobalFilter : globalFilter;
@@ -594,16 +620,27 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelectionState,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: (updater) => {
-      const next = typeof updater === "function" ? updater({ pageIndex: toPageIndex(page), pageSize }) : updater;
-      onQueryStateChange?.({ page: toPage(next.pageIndex), pageSize: next.pageSize });
+      const next =
+        typeof updater === "function"
+          ? updater({ pageIndex: toPageIndex(page), pageSize })
+          : updater;
+      onQueryStateChange?.({
+        page: toPage(next.pageIndex),
+        pageSize: next.pageSize,
+      });
       if (!queryState) {
         setInternalPagination(next);
       }
     },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: sortingEnabled ? getSortedRowModel() : undefined,
-    getFilteredRowModel: useClientGlobalFilter ? getFilteredRowModel() : undefined,
-    getPaginationRowModel: paginationEnabled && !serverPagination ? getPaginationRowModel() : undefined,
+    getFilteredRowModel: useClientGlobalFilter
+      ? getFilteredRowModel()
+      : undefined,
+    getPaginationRowModel:
+      paginationEnabled && !serverPagination
+        ? getPaginationRowModel()
+        : undefined,
   });
 
   const selectedRows = React.useMemo(
@@ -619,7 +656,9 @@ export function DataTable<TData, TValue>({
   const exportColumns = React.useMemo(() => {
     return table
       .getVisibleLeafColumns()
-      .filter((column) => !isActionColumnDefinition(column.columnDef, column.id))
+      .filter(
+        (column) => !isActionColumnDefinition(column.columnDef, column.id),
+      )
       .map((column) => {
         const columnDef = column.columnDef as {
           accessorKey?: string;
@@ -631,7 +670,10 @@ export function DataTable<TData, TValue>({
             : null;
         const key = accessorKey ?? column.id;
         if (!key) return null;
-        const label = deriveHeaderLabel(columnDef.header, accessorKey ?? column.id);
+        const label = deriveHeaderLabel(
+          columnDef.header,
+          accessorKey ?? column.id,
+        );
         if (!label.trim()) return null;
         return {
           id: column.id,
@@ -639,7 +681,9 @@ export function DataTable<TData, TValue>({
           label,
         };
       })
-      .filter((column): column is { id: string; key: string; label: string } => Boolean(column));
+      .filter((column): column is { id: string; key: string; label: string } =>
+        Boolean(column),
+      );
   }, [table]);
 
   const resolveExportValue = React.useCallback(
@@ -649,17 +693,21 @@ export function DataTable<TData, TValue>({
 
       const columnDef = row
         .getAllCells()
-        .find((cell) => cell.column.id === column.id)?.column
-        .columnDef as (ColumnDefBase<TData, unknown> & {
-        accessorKey?: string;
-        meta?: ExportMeta<TData>;
-      }) | null;
+        .find((cell) => cell.column.id === column.id)?.column.columnDef as
+        | (ColumnDefBase<TData, unknown> & {
+            accessorKey?: string;
+            meta?: ExportMeta<TData>;
+          })
+        | null;
 
       const metaValue = columnDef?.meta?.exportValue?.(row.original);
       if (metaValue !== undefined) return metaValue;
 
       if (columnDef?.accessorKey) {
-        const accessorValue = getNestedValue(row.original, columnDef.accessorKey);
+        const accessorValue = getNestedValue(
+          row.original,
+          columnDef.accessorKey,
+        );
         if (accessorValue !== undefined) return accessorValue;
       }
 
@@ -680,21 +728,30 @@ export function DataTable<TData, TValue>({
     return rows.map((row) => {
       const values: Record<string, unknown> = {};
       for (const column of exportColumns) {
-        values[column.key] = normalizeExportCellValue(resolveExportValue(row, column));
+        values[column.key] = normalizeExportCellValue(
+          resolveExportValue(row, column),
+        );
       }
       return values;
     });
   }, [exportColumns, resolveExportValue, serverPagination, table]);
   const includeTotals = exportConfig?.includeTotals ?? true;
   const exportTotals = React.useMemo(() => {
-    if (!includeTotals || baseExportRows.length === 0 || exportColumns.length === 0) {
+    if (
+      !includeTotals ||
+      baseExportRows.length === 0 ||
+      exportColumns.length === 0
+    ) {
       return [] as Array<{ key: string; label: string; value: string }>;
     }
 
     return exportColumns
       .map((column) => {
         const normalizedLabel = `${column.label} ${column.key}`.toLowerCase();
-        if (isLikelyIdentifierColumn(normalizedLabel) || isLikelyDateColumn(normalizedLabel)) {
+        if (
+          isLikelyIdentifierColumn(normalizedLabel) ||
+          isLikelyDateColumn(normalizedLabel)
+        ) {
           return null;
         }
 
@@ -710,19 +767,30 @@ export function DataTable<TData, TValue>({
 
         const numericValues = nonEmptyValues
           .map((value) => parseNumericExportValue(value))
-          .filter((value): value is { value: number; decimals: number; currency: string } =>
-            Boolean(value),
+          .filter(
+            (
+              value,
+            ): value is { value: number; decimals: number; currency: string } =>
+              Boolean(value),
           );
 
         if (numericValues.length < 2) return null;
         if (numericValues.length / nonEmptyValues.length < 0.6) return null;
 
-        const total = numericValues.reduce((sum, value) => sum + value.value, 0);
+        const total = numericValues.reduce(
+          (sum, value) => sum + value.value,
+          0,
+        );
         const hasCurrency = numericValues.some((value) => value.currency);
-        const currency = numericValues.find((value) => value.currency)?.currency ?? "";
-        const decimals = hasCurrency || isLikelyMoneyColumn(normalizedLabel)
-          ? 2
-          : Math.min(3, Math.max(...numericValues.map((value) => value.decimals)));
+        const currency =
+          numericValues.find((value) => value.currency)?.currency ?? "";
+        const decimals =
+          hasCurrency || isLikelyMoneyColumn(normalizedLabel)
+            ? 2
+            : Math.min(
+                3,
+                Math.max(...numericValues.map((value) => value.decimals)),
+              );
         const formatted = formatTotalValue(total, decimals, currency);
 
         return {
@@ -731,10 +799,16 @@ export function DataTable<TData, TValue>({
           value: formatted,
         };
       })
-      .filter((value): value is { key: string; label: string; value: string } => Boolean(value));
+      .filter((value): value is { key: string; label: string; value: string } =>
+        Boolean(value),
+      );
   }, [baseExportRows, exportColumns, includeTotals]);
   const exportRows = React.useMemo(() => {
-    if (!includeTotals || exportTotals.length === 0 || exportColumns.length === 0) {
+    if (
+      !includeTotals ||
+      exportTotals.length === 0 ||
+      exportColumns.length === 0
+    ) {
       return baseExportRows;
     }
 
@@ -760,9 +834,14 @@ export function DataTable<TData, TValue>({
       table
         .getAllLeafColumns()
         .filter((column) => column.getCanHide())
-        .filter((column) => !isActionColumnDefinition(column.columnDef, column.id))
+        .filter(
+          (column) => !isActionColumnDefinition(column.columnDef, column.id),
+        )
         .map((column) => {
-          const columnDef = column.columnDef as { accessorKey?: string; header?: unknown };
+          const columnDef = column.columnDef as {
+            accessorKey?: string;
+            header?: unknown;
+          };
           const fallback = columnDef.accessorKey ?? column.id;
           return {
             id: column.id,
@@ -788,14 +867,18 @@ export function DataTable<TData, TValue>({
     return inferTitleFromPath(clientPathname);
   }, [clientDocumentTitle, clientHeadingTitle, clientPathname]);
   const exportSourceKey = exportConfig?.sourceKey ?? inferredSourceKey;
-  const exportFileName = exportConfig?.fileName ?? exportSourceKey.replace(/\./g, "-");
-  const exportDisabled = baseExportRows.length === 0 || exportColumns.length === 0;
+  const exportFileName =
+    exportConfig?.fileName ?? exportSourceKey.replace(/\./g, "-");
+  const exportDisabled =
+    baseExportRows.length === 0 || exportColumns.length === 0;
   const exportFormats = exportConfig?.formats?.length
     ? exportConfig.formats
     : (["pdf", "csv"] as DocumentExportFormat[]);
   const hasAnyExportFilters =
     Boolean(queryState?.search?.trim()) ||
-    Boolean(exportConfig?.filters && Object.keys(exportConfig.filters).length > 0);
+    Boolean(
+      exportConfig?.filters && Object.keys(exportConfig.filters).length > 0,
+    );
   const exportMeta = React.useMemo(() => {
     const details: Array<{ label: string; value: string }> = [
       { label: "Rows", value: String(baseExportRows.length) },
@@ -813,15 +896,24 @@ export function DataTable<TData, TValue>({
         }
       }
     }
-    details.push(...exportTotals.map((item) => ({ label: item.label, value: item.value })));
+    details.push(
+      ...exportTotals.map((item) => ({ label: item.label, value: item.value })),
+    );
     return details;
-  }, [baseExportRows.length, exportConfig?.filters, exportTotals, queryState?.search]);
+  }, [
+    baseExportRows.length,
+    exportConfig?.filters,
+    exportTotals,
+    queryState?.search,
+  ]);
   const handleExport = React.useCallback(
     async (format: DocumentExportFormat) => {
       if (exportingFormat) return;
       setExportingFormat(format);
       setExportStatusMessage(
-        format === "pdf" ? "Preparing PDF export..." : "Preparing CSV export...",
+        format === "pdf"
+          ? "Preparing PDF export..."
+          : "Preparing CSV export...",
       );
       try {
         await runDocumentExport(
@@ -837,7 +929,9 @@ export function DataTable<TData, TValue>({
               title: exportConfig?.title ?? inferredTitle,
               subtitle:
                 exportConfig?.subtitle ??
-                (hasAnyExportFilters ? "Filtered data export" : "Full table export"),
+                (hasAnyExportFilters
+                  ? "Filtered data export"
+                  : "Full table export"),
               fileName: exportFileName,
               meta: exportMeta,
               list: {
@@ -851,11 +945,16 @@ export function DataTable<TData, TValue>({
           },
           {
             onStatus: (status) => {
-              if (status === "requesting") setExportStatusMessage("Sending export request...");
-              if (status === "queued") setExportStatusMessage("Export queued. Processing...");
-              if (status === "processing") setExportStatusMessage("Rendering export...");
-              if (status === "ready") setExportStatusMessage("Export ready. Downloading...");
-              if (status === "downloading") setExportStatusMessage("Downloading file...");
+              if (status === "requesting")
+                setExportStatusMessage("Sending export request...");
+              if (status === "queued")
+                setExportStatusMessage("Export queued. Processing...");
+              if (status === "processing")
+                setExportStatusMessage("Rendering export...");
+              if (status === "ready")
+                setExportStatusMessage("Export ready. Downloading...");
+              if (status === "downloading")
+                setExportStatusMessage("Downloading file...");
               if (status === "done") setExportStatusMessage("Export complete.");
             },
           },
@@ -889,17 +988,26 @@ export function DataTable<TData, TValue>({
 
   const showToolbarPagination = paginationEnabled;
   const showTopToolbar =
-    globalFilterEnabled || Boolean(toolbar) || exportEnabled || toggleableColumns.length > 0;
+    globalFilterEnabled ||
+    Boolean(toolbar) ||
+    exportEnabled ||
+    toggleableColumns.length > 0;
   const showBottomPagination = showToolbarPagination;
 
   const totalPages = serverPagination
     ? (pagination?.totalPages ??
-      Math.max(1, Math.ceil(Math.max(pagination?.total ?? data.length, 1) / pageSize)))
+      Math.max(
+        1,
+        Math.ceil(Math.max(pagination?.total ?? data.length, 1) / pageSize),
+      ))
     : table.getPageCount();
 
   const setPaginationState = React.useCallback(
     (nextPage: number, nextPageSize: number) => {
-      const clampedPage = Math.max(1, Math.min(nextPage, Math.max(totalPages, 1)));
+      const clampedPage = Math.max(
+        1,
+        Math.min(nextPage, Math.max(totalPages, 1)),
+      );
       onQueryStateChange?.({ page: clampedPage, pageSize: nextPageSize });
       if (!queryState) {
         setInternalPagination({
@@ -938,7 +1046,8 @@ export function DataTable<TData, TValue>({
   const getRowExpansionMeta = React.useCallback(
     (row: Row<TData>) => {
       const rowId = resolveExpansionRowId(row.original, row.index);
-      const canExpand = expansionEnabled && (expansion?.canExpand?.(row.original) ?? true);
+      const canExpand =
+        expansionEnabled && (expansion?.canExpand?.(row.original) ?? true);
       const isExpanded = canExpand && expandedRowIdsSet.has(rowId);
       return { rowId, canExpand, isExpanded };
     },
@@ -951,11 +1060,17 @@ export function DataTable<TData, TValue>({
       if (expansion?.canExpand && !expansion.canExpand(row)) return;
       const rowId = resolveExpansionRowId(row, index);
       const isCurrentlyExpanded = expandedRowIdsSet.has(rowId);
-      const willExpand = typeof forceExpanded === "boolean" ? forceExpanded : !isCurrentlyExpanded;
+      const willExpand =
+        typeof forceExpanded === "boolean"
+          ? forceExpanded
+          : !isCurrentlyExpanded;
 
       let nextIds: string[];
       if (willExpand) {
-        nextIds = expansionMode === "single" ? [rowId] : [...resolvedExpandedRowIds, rowId];
+        nextIds =
+          expansionMode === "single"
+            ? [rowId]
+            : [...resolvedExpandedRowIds, rowId];
       } else {
         nextIds = resolvedExpandedRowIds.filter((id) => id !== rowId);
       }
@@ -979,23 +1094,22 @@ export function DataTable<TData, TValue>({
     () =>
       table
         .getVisibleLeafColumns()
-        .find((column) => !isActionColumnDefinition(column.columnDef, column.id)),
+        .find(
+          (column) => !isActionColumnDefinition(column.columnDef, column.id),
+        ),
     [table],
   );
   const primaryColumnMaxWidth = React.useMemo(() => {
     const sizing = primaryDataColumn?.columnDef as
       | { maxSize?: number; size?: number; minSize?: number }
       | undefined;
-    return (
-      sizing?.maxSize ??
-      sizing?.size ??
-      sizing?.minSize ??
-      220
-    );
+    return sizing?.maxSize ?? sizing?.size ?? sizing?.minSize ?? 220;
   }, [primaryDataColumn]);
   const visibleColumnCount = table.getVisibleLeafColumns().length;
   const totalColumnCount =
-    visibleColumnCount + (expansionEnabled ? 1 : 0) + (rowSelectionEnabled ? 1 : 0);
+    visibleColumnCount +
+    (expansionEnabled ? 1 : 0) +
+    (rowSelectionEnabled ? 1 : 0);
 
   return (
     <div className={cn("space-y-0", className)}>
@@ -1034,7 +1148,11 @@ export function DataTable<TData, TValue>({
             </form>
           ) : null}
 
-          {toolbar ? <div className="flex min-w-0 flex-wrap items-center gap-2 lg:ml-2">{toolbar}</div> : null}
+          {toolbar ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-2 lg:ml-2">
+              {toolbar}
+            </div>
+          ) : null}
           {toggleableColumns.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1048,7 +1166,9 @@ export function DataTable<TData, TValue>({
                   <DropdownMenuCheckboxItem
                     key={entry.id}
                     checked={entry.column.getIsVisible()}
-                    onCheckedChange={(checked) => entry.column.toggleVisibility(Boolean(checked))}
+                    onCheckedChange={(checked) =>
+                      entry.column.toggleVisibility(Boolean(checked))
+                    }
                   >
                     {entry.label}
                   </DropdownMenuCheckboxItem>
@@ -1067,7 +1187,6 @@ export function DataTable<TData, TValue>({
               />
             </div>
           ) : null}
-
         </div>
       ) : null}
       {exportEnabled && exportStatusMessage ? (
@@ -1078,7 +1197,6 @@ export function DataTable<TData, TValue>({
 
       <div
         className={cn(
-          "bg-[var(--surface-base)]",
           maxBodyHeight ? "overflow-auto" : undefined,
           tableContainerClassName,
         )}
@@ -1098,10 +1216,16 @@ export function DataTable<TData, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {rowSelectionEnabled ? (
-                  <TableHead className="w-11 px-2" style={{ width: 44, minWidth: 44, maxWidth: 44 }}>
+                  <TableHead
+                    className="w-11 px-2"
+                    style={{ width: 44, minWidth: 44, maxWidth: 44 }}
+                  >
                     <SelectionCheckbox
                       checked={table.getIsAllRowsSelected()}
-                      indeterminate={table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
+                      indeterminate={
+                        table.getIsSomeRowsSelected() &&
+                        !table.getIsAllRowsSelected()
+                      }
                       onChange={table.getToggleAllRowsSelectedHandler()}
                       aria-label="Select all rows"
                     />
@@ -1119,7 +1243,10 @@ export function DataTable<TData, TValue>({
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -1128,18 +1255,22 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {renderedRows.length > 0 ? (
               renderedRows.map((row) => {
-                const { rowId, canExpand, isExpanded } = getRowExpansionMeta(row);
+                const { rowId, canExpand, isExpanded } =
+                  getRowExpansionMeta(row);
                 const isLoading = loadingRowIdsSet.has(rowId);
                 const error = expansion?.errorByRowId?.[rowId];
 
                 return (
                   <React.Fragment key={row.id}>
-                    <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
+                    <TableRow
+                      data-state={row.getIsSelected() ? "selected" : undefined}
+                    >
                       {rowSelectionEnabled ? (
                         <TableCell
                           className={cn(
                             "w-11 px-2 align-top",
-                            row.getIsSelected() && "bg-[var(--table-row-selected-bg)]",
+                            row.getIsSelected() &&
+                              "bg-[var(--table-row-selected-bg)]",
                           )}
                           style={{ width: 44, minWidth: 44, maxWidth: 44 }}
                         >
@@ -1152,15 +1283,24 @@ export function DataTable<TData, TValue>({
                         </TableCell>
                       ) : null}
                       {expansionEnabled ? (
-                        <TableCell className={cn("w-10 pl-2 align-top", expandColumnWidthClassName)}>
+                        <TableCell
+                          className={cn(
+                            "w-10 pl-2 align-top",
+                            expandColumnWidthClassName,
+                          )}
+                        >
                           {canExpand ? (
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-muted-foreground shadow-none hover:bg-[var(--button-ghost-hover-bg)]"
-                              onClick={() => toggleRowExpansion(row.original, row.index)}
-                              aria-label={isExpanded ? "Collapse row" : "Expand row"}
+                              onClick={() =>
+                                toggleRowExpansion(row.original, row.index)
+                              }
+                              aria-label={
+                                isExpanded ? "Collapse row" : "Expand row"
+                              }
                               aria-expanded={isExpanded}
                             >
                               {isExpanded ? (
@@ -1172,7 +1312,7 @@ export function DataTable<TData, TValue>({
                           ) : null}
                         </TableCell>
                       ) : null}
-                      {row.getVisibleCells().map((cell) => (
+                      {row.getVisibleCells().map((cell) =>
                         (() => {
                           const columnDef = cell.column.columnDef as {
                             accessorKey?: string;
@@ -1199,7 +1339,10 @@ export function DataTable<TData, TValue>({
                               style={getColumnWidthStyle(cell.column.columnDef)}
                             >
                               {isActionCell ? (
-                                flexRender(cell.column.columnDef.cell, cell.getContext())
+                                flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext(),
+                                )
                               ) : (
                                 <div
                                   className="block w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap [&>*]:inline [&>*]:max-w-full [&>*]:overflow-hidden [&>*]:text-ellipsis [&>*]:whitespace-nowrap [&>*+*]:ml-1"
@@ -1209,24 +1352,39 @@ export function DataTable<TData, TValue>({
                                       : "320px",
                                   }}
                                 >
-                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext(),
+                                  )}
                                 </div>
                               )}
                             </TableCell>
                           );
-                        })()
-                      ))}
+                        })(),
+                      )}
                     </TableRow>
                     {expansionEnabled && isExpanded ? (
-                      <TableRow data-state={row.getIsSelected() ? "selected" : undefined}>
-                        <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-expanded-bg)] py-0">
+                      <TableRow
+                        data-state={
+                          row.getIsSelected() ? "selected" : undefined
+                        }
+                      >
+                        <TableCell
+                          colSpan={totalColumnCount}
+                          className="bg-[var(--datatable-expanded-bg)] py-0"
+                        >
                           {expansion?.renderExpandedContent({
                             row: row.original,
                             rowId,
                             isExpanded,
                             isLoading,
                             error,
-                            collapse: () => toggleRowExpansion(row.original, row.index, false),
+                            collapse: () =>
+                              toggleRowExpansion(
+                                row.original,
+                                row.index,
+                                false,
+                              ),
                           })}
                         </TableCell>
                       </TableRow>
@@ -1236,7 +1394,10 @@ export function DataTable<TData, TValue>({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={totalColumnCount} className="bg-[var(--datatable-empty-bg)] py-9 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={totalColumnCount}
+                  className="bg-[var(--datatable-empty-bg)] py-9 text-center text-muted-foreground"
+                >
                   {emptyState ?? noResultsText}
                 </TableCell>
               </TableRow>
@@ -1257,7 +1418,10 @@ export function DataTable<TData, TValue>({
             value={String(pageSize)}
             onValueChange={(value) => setPaginationState(1, Number(value))}
           >
-            <SelectTrigger size="sm" className="w-[86px] bg-[var(--surface-base)]">
+            <SelectTrigger
+              size="sm"
+              className="w-[86px] bg-[var(--surface-base)]"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1291,7 +1455,9 @@ export function DataTable<TData, TValue>({
         </div>
       ) : null}
 
-      {rowSelectionEnabled && selectedRows.length > 0 && rowSelection?.bulkActions ? (
+      {rowSelectionEnabled &&
+      selectedRows.length > 0 &&
+      rowSelection?.bulkActions ? (
         <DataTableFloatingActions>
           {rowSelection.bulkActions({ selectedRows, clearSelection })}
         </DataTableFloatingActions>
@@ -1299,5 +1465,3 @@ export function DataTable<TData, TValue>({
     </div>
   );
 }
-
-

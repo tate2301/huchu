@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw } from "lucide-react";
 import { fetchReliabilityCluster } from "@/components/admin-portal/api";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { ReliabilityClusterData } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminTrendChart } from "@/components/charts/admin-headless-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +26,7 @@ import {
   RunbookExecuteDialog,
   RunbookUpsertDialog,
 } from "@/components/admin-portal/wizards/reliability-cluster-wizards";
+import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not available";
@@ -35,8 +38,14 @@ function getInitialView(view?: string) {
   return "health";
 }
 
-function statusBadgeVariant(value: string) {
-  const normalized = value.toUpperCase();
+function statusBadgeVariant(value: unknown) {
+  const normalized = (
+    typeof value === "string"
+      ? value
+      : value === null || value === undefined
+        ? "UNKNOWN"
+        : String(value)
+  ).toUpperCase();
   if (normalized === "ACTIVE" || normalized === "SUCCESS" || normalized === "OPEN") return "secondary";
   if (normalized === "FAILED" || normalized === "SUSPENDED" || normalized === "RESOLVED") return "outline";
   return "outline";
@@ -141,9 +150,138 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
   const highRiskCount = data?.incidents.filter((incident) => incident.riskLevel === "HIGH").length ?? 0;
   const suspendedContracts = data?.contractEvaluations.filter((evaluation) => evaluation.currentState === "SUSPENDED").length ?? 0;
   const activeRunbooks = data?.runbooks.filter((runbook) => runbook.enabled).length ?? 0;
+  const healthTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const incidentTimes = (data?.incidents ?? [])
+      .map((incident) => resolveTimestamp(incident.createdAt))
+      .filter((value): value is number => value !== null);
+    const highRiskTimes = (data?.incidents ?? [])
+      .filter((incident) => incident.riskLevel === "HIGH")
+      .map((incident) => resolveTimestamp(incident.createdAt))
+      .filter((value): value is number => value !== null);
+    const metricTimes = (data?.metrics ?? [])
+      .map((metric) => resolveTimestamp(metric.windowEnd, metric.createdAt))
+      .filter((value): value is number => value !== null);
+
+    return buckets.map((bucket) => {
+      let incidents = 0;
+      let highRisk = 0;
+      let metrics = 0;
+
+      for (const value of incidentTimes) {
+        if (value >= bucket.start && value < bucket.end) incidents += 1;
+      }
+      for (const value of highRiskTimes) {
+        if (value >= bucket.start && value < bucket.end) highRisk += 1;
+      }
+      for (const value of metricTimes) {
+        if (value >= bucket.start && value < bucket.end) metrics += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        incidents,
+        highRisk,
+        metrics,
+      };
+    });
+  }, [data?.incidents, data?.metrics]);
+
+  const operationsTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const executionTimes = (data?.executions ?? [])
+      .map((execution) => resolveTimestamp(execution.startedAt, execution.createdAt))
+      .filter((value): value is number => value !== null);
+    const failedExecutionTimes = (data?.executions ?? [])
+      .filter((execution) => execution.status === "FAILED")
+      .map((execution) => resolveTimestamp(execution.startedAt, execution.createdAt))
+      .filter((value): value is number => value !== null);
+    const auditTimes = (data?.auditEvents ?? [])
+      .map((event) => resolveTimestamp(event.timestamp))
+      .filter((value): value is number => value !== null);
+
+    return buckets.map((bucket) => {
+      let runs = 0;
+      let failedRuns = 0;
+      let auditEvents = 0;
+
+      for (const value of executionTimes) {
+        if (value >= bucket.start && value < bucket.end) runs += 1;
+      }
+      for (const value of failedExecutionTimes) {
+        if (value >= bucket.start && value < bucket.end) failedRuns += 1;
+      }
+      for (const value of auditTimes) {
+        if (value >= bucket.start && value < bucket.end) auditEvents += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        runs,
+        failedRuns,
+        auditEvents,
+      };
+    });
+  }, [data?.auditEvents, data?.executions]);
+
+  const contractTrendRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const evaluations = data?.contractEvaluations ?? [];
+
+    return buckets.map((bucket) => {
+      let blocked = 0;
+      let needsAction = 0;
+      let manualOverride = 0;
+
+      for (const evaluation of evaluations) {
+        const timestamp = resolveTimestamp(
+          evaluation.currentStateUpdatedAt,
+          evaluation.subscriptionUpdatedAt,
+        );
+
+        if (
+          timestamp === null ||
+          timestamp < bucket.start ||
+          timestamp >= bucket.end
+        ) {
+          continue;
+        }
+
+        if (evaluation.currentState === "SUSPENDED") {
+          blocked += 1;
+        }
+
+        if (
+          evaluation.currentState === "WARNING" ||
+          evaluation.recommendedState !== "ACTIVE"
+        ) {
+          needsAction += 1;
+        }
+
+        if (evaluation.currentState === "OVERRIDE") {
+          manualOverride += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        blocked,
+        needsAction,
+        manualOverride,
+      };
+    });
+  }, [data?.contractEvaluations]);
 
   if (loading) {
-    return <Card className="admin-surface bg-[var(--surface-base)] shadow-none"><CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading reliability cluster...</CardContent></Card>;
+    return (
+      <AdminModuleLoading
+        label="Loading reliability cluster"
+        description="Bringing in incidents, contract posture, runbooks, and audit activity."
+      />
+    );
   }
   if (!data || error) {
     return (
@@ -187,6 +325,99 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
         <MetricCard label="High risk" value={highRiskCount} hint="High" />
         <MetricCard label="Suspended contracts" value={suspendedContracts} hint="Blocked" />
         <MetricCard label="Enabled runbooks" value={activeRunbooks} hint="Ready" />
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-3">
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Health over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={healthTrendRows}
+              series={[
+                {
+                  key: "incidents",
+                  label: "Incidents",
+                  color: "var(--primary-500)",
+                },
+                {
+                  key: "highRisk",
+                  label: "High risk",
+                  color: "var(--danger-500)",
+                },
+                {
+                  key: "metrics",
+                  label: "Metric samples",
+                  color: "var(--info-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Contract state over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={contractTrendRows}
+              series={[
+                {
+                  key: "needsAction",
+                  label: "Needs action",
+                  color: "var(--warning-500)",
+                },
+                {
+                  key: "blocked",
+                  label: "Blocked",
+                  color: "var(--danger-500)",
+                },
+                {
+                  key: "manualOverride",
+                  label: "Manual override",
+                  color: "var(--accent-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
+        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Operations over time</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <AdminTrendChart
+              rows={operationsTrendRows}
+              series={[
+                {
+                  key: "runs",
+                  label: "Runbook runs",
+                  color: "var(--success-500)",
+                },
+                {
+                  key: "failedRuns",
+                  label: "Failed runs",
+                  color: "var(--warning-500)",
+                },
+                {
+                  key: "auditEvents",
+                  label: "Audit events",
+                  color: "var(--accent-500)",
+                },
+              ]}
+              valueFormatter={(value) => value.toLocaleString()}
+              yTickFormatter={(value) => value.toLocaleString()}
+              xTickInterval={0}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Reliability views">

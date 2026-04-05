@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       name: row.name,
       slug: row.slug,
       status: row.status,
+      updatedAt: row.updatedAt,
     }));
 
     return NextResponse.json({ companies });

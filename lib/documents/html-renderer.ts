@@ -208,7 +208,7 @@ export function renderDocumentHtml(input: {
     .align-left { text-align: left; }
     .align-center { text-align: center; }
     .align-right { text-align: right; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .footer { margin-top: 14px; border-top: 1px solid #d1d5db; padding-top: 8px; color: #374151; line-height: 1.4; }
     .muted { color: #6b7280; }
     .signature { max-height: 42px; max-width: 160px; object-fit: contain; }

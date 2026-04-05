@@ -3,19 +3,48 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StepProgress } from "@/components/ui/step-progress";
 import { Textarea } from "@/components/ui/textarea";
 import { WorkflowStep } from "@/components/ui/workflow-step";
-import { FEATURE_BUNDLES, TIERS, BUNDLE_DEPENDENCIES, getTierDefinition } from "@/lib/platform/feature-catalog";
-import { CLIENT_BUNDLE_TEMPLATES, getClientTemplateDefinition } from "@/lib/platform/client-templates";
+import {
+  FEATURE_BUNDLES,
+  TIERS,
+  BUNDLE_DEPENDENCIES,
+  getTierDefinition,
+} from "@/lib/platform/feature-catalog";
+import {
+  CLIENT_BUNDLE_TEMPLATES,
+  getClientTemplateDefinition,
+} from "@/lib/platform/client-templates";
 import { computeMonthlyTotal } from "@/components/admin-portal/pages/client-data";
 import { executeOperation } from "@/components/admin-portal/api";
-import type { ProvisionBundlePreview, ProvisionBundleResult } from "@/scripts/platform/types";
+import type {
+  ProvisionBundlePreview,
+  ProvisionBundleResult,
+} from "@/scripts/platform/types";
 
 type WizardBaseProps = {
   actorEmail: string;
@@ -65,7 +94,13 @@ function WizardShell({
           <WorkflowStep
             key={step.label}
             title={`Step ${index + 1}: ${step.label}`}
-            badge={step.status === "done" ? "Done" : step.status === "active" ? "Now" : "Pending"}
+            badge={
+              step.status === "done"
+                ? "Done"
+                : step.status === "active"
+                  ? "Now"
+                  : "Pending"
+            }
             collapsed
           />
         ))}
@@ -94,7 +129,8 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
   const [error, setError] = useState<string | null>(null);
 
   const selectedTemplate = useMemo(
-    () => getClientTemplateDefinition(templateCode) ?? CLIENT_BUNDLE_TEMPLATES[0],
+    () =>
+      getClientTemplateDefinition(templateCode) ?? CLIENT_BUNDLE_TEMPLATES[0],
     [templateCode],
   );
   const tier = getTierDefinition(tierCode) ?? TIERS[0];
@@ -198,7 +234,11 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
         setPreview(nextPreview);
         setStepIndex(3);
       } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : "Unable to preview provisioning.");
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to preview provisioning.",
+        );
       } finally {
         setRunning(false);
       }
@@ -218,7 +258,9 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
       handleOpenChange(false);
       window.location.reload();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Provisioning failed.");
+      setError(
+        nextError instanceof Error ? nextError.message : "Provisioning failed.",
+      );
     } finally {
       setRunning(false);
     }
@@ -254,7 +296,9 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                         }
                       }}
                     >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {CLIENT_BUNDLE_TEMPLATES.map((template) => (
                           <SelectItem key={template.code} value={template.code}>
@@ -267,10 +311,14 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                   <div className="space-y-1">
                     <Label>Tier</Label>
                     <Select value={tierCode} onValueChange={setTierCode}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {TIERS.map((item) => (
-                          <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
+                          <SelectItem key={item.code} value={item.code}>
+                            {item.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -281,14 +329,22 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                       type="number"
                       min={1}
                       value={sites}
-                      onChange={(event) => setSites(Number(event.target.value) || 1)}
+                      onChange={(event) =>
+                        setSites(Number(event.target.value) || 1)
+                      }
                     />
                   </div>
                 </div>
                 <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Template</p>
-                  <p className="mt-2 text-sm font-semibold">{selectedTemplate?.label}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">{selectedTemplate?.description}</p>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Template
+                  </p>
+                  <p className="mt-2 text-sm font-semibold">
+                    {selectedTemplate?.label}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {selectedTemplate?.description}
+                  </p>
                 </div>
               </div>
             ) : null}
@@ -297,29 +353,53 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label>Client name</Label>
-                  <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Kasiya Metals" />
+                  <Input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="e.g. Kasiya Metals"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Slug</Label>
-                  <Input value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="Auto if left blank" />
+                  <Input
+                    value={slug}
+                    onChange={(event) => setSlug(event.target.value)}
+                    placeholder="Auto if left blank"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Subdomain</Label>
-                  <Input value={subdomain} onChange={(event) => setSubdomain(event.target.value)} placeholder="Auto if left blank" />
+                  <Input
+                    value={subdomain}
+                    onChange={(event) => setSubdomain(event.target.value)}
+                    placeholder="Auto if left blank"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Reason</Label>
-                  <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Optional audit context" />
+                  <Textarea
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Optional audit context"
+                  />
                 </div>
                 <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4 md:col-span-2">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Resolved slug</p>
-                      <p className="mt-2 font-mono text-sm">{resolvedSlug || "pending"}</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Resolved slug
+                      </p>
+                      <p className="mt-2 font-mono text-sm">
+                        {resolvedSlug || "pending"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Resolved subdomain</p>
-                      <p className="mt-2 font-mono text-sm">{resolvedSubdomain || "pending"}</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Resolved subdomain
+                      </p>
+                      <p className="mt-2 font-mono text-sm">
+                        {resolvedSubdomain || "pending"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -330,15 +410,26 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label>Admin name</Label>
-                  <Input value={adminName} onChange={(event) => setAdminName(event.target.value)} />
+                  <Input
+                    value={adminName}
+                    onChange={(event) => setAdminName(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Admin email</Label>
-                  <Input type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} />
+                  <Input
+                    type="email"
+                    value={adminEmail}
+                    onChange={(event) => setAdminEmail(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <Label>Temporary password</Label>
-                  <Input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} />
+                  <Input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(event) => setAdminPassword(event.target.value)}
+                  />
                 </div>
               </div>
             ) : null}
@@ -348,25 +439,43 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                 <Card className="border-0 bg-[var(--surface-subtle)] shadow-none">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Review</CardTitle>
-                    <CardDescription>{preview?.templateLabel ?? selectedTemplate?.label}</CardDescription>
+                    <CardDescription>
+                      {preview?.templateLabel ?? selectedTemplate?.label}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Workspace</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Workspace
+                      </p>
                       <p className="mt-2 text-sm font-medium">{name}</p>
-                      <p className="mt-1 font-mono text-xs text-muted-foreground">{preview?.organizationSlug ?? resolvedSlug}</p>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">
+                        {preview?.organizationSlug ?? resolvedSlug}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
-                      <p className="mt-2 text-sm font-medium">{preview?.adminName ?? adminName}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{preview?.adminEmail ?? adminEmail}</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Admin
+                      </p>
+                      <p className="mt-2 text-sm font-medium">
+                        {preview?.adminName ?? adminName}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {preview?.adminEmail ?? adminEmail}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Subdomain</p>
-                      <p className="mt-2 font-mono text-sm">{preview?.subdomainCandidate ?? resolvedSubdomain}</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Subdomain
+                      </p>
+                      <p className="mt-2 font-mono text-sm">
+                        {preview?.subdomainCandidate ?? resolvedSubdomain}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Plan</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Plan
+                      </p>
                       <p className="mt-2 text-sm font-medium">{tier.name}</p>
                     </div>
                   </CardContent>
@@ -378,16 +487,28 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 gap-3">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Base</p>
-                      <p className="mt-2 font-mono text-lg">{formatCurrency(price.tierBase)}</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Base
+                      </p>
+                      <p className="mt-2 font-mono text-lg">
+                        {formatCurrency(price.tierBase)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Site overage</p>
-                      <p className="mt-2 font-mono text-lg">{formatCurrency(price.siteOverage)}</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Site overage
+                      </p>
+                      <p className="mt-2 font-mono text-lg">
+                        {formatCurrency(price.siteOverage)}
+                      </p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Total</p>
-                      <p className="mt-2 font-mono text-2xl">{formatCurrency(price.total)}/month</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Total
+                      </p>
+                      <p className="mt-2 font-mono text-2xl">
+                        {formatCurrency(price.total)}/month
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -400,9 +521,13 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                   </div>
                 ) : null}
 
-                {preview && !preview.subdomainAvailable && preview.subdomainSuggestions.length > 0 ? (
+                {preview &&
+                !preview.subdomainAvailable &&
+                preview.subdomainSuggestions.length > 0 ? (
                   <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Suggestions</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Suggestions
+                    </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {preview.subdomainSuggestions
                         .filter((option) => option.available)
@@ -437,7 +562,9 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
           <DialogFooter className="flex-row justify-between">
             <Button
               variant="outline"
-              onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+              onClick={() =>
+                setStepIndex((current) => Math.max(current - 1, 0))
+              }
               disabled={stepIndex === 0 || running}
             >
               Back
@@ -447,7 +574,10 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                 {running ? "Checking..." : "Continue"}
               </Button>
             ) : (
-              <Button onClick={create} disabled={running || !preview?.subdomainAvailable}>
+              <Button
+                onClick={create}
+                disabled={running || !preview?.subdomainAvailable}
+              >
                 {running ? "Creating..." : "Create client"}
               </Button>
             )}
@@ -458,7 +588,11 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
   );
 }
 
-export function ChangeTierWizard({ actorEmail, companyId, companyName }: CompanyScopedProps) {
+export function ChangeTierWizard({
+  actorEmail,
+  companyId,
+  companyName,
+}: CompanyScopedProps) {
   const [open, setOpen] = useState(false);
   const [tierCode, setTierCode] = useState("STANDARD");
   const [siteCount, setSiteCount] = useState(3);
@@ -493,11 +627,15 @@ export function ChangeTierWizard({ actorEmail, companyId, companyName }: Company
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Change Tier</Button>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Change Tier
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Change Tier {companyName ? `· ${companyName}` : ""}</DialogTitle>
+            <DialogTitle>
+              Change Tier {companyName ? `· ${companyName}` : ""}
+            </DialogTitle>
           </DialogHeader>
           <WizardShell
             title="Tier change"
@@ -515,36 +653,61 @@ export function ChangeTierWizard({ actorEmail, companyId, companyName }: Company
               <div className="space-y-1">
                 <Label>New Tier</Label>
                 <Select value={tierCode} onValueChange={setTierCode}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {TIERS.map((item) => (
-                      <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
                 <Label>Active sites</Label>
-                <Input type="number" min={1} value={siteCount} onChange={(event) => setSiteCount(Number(event.target.value) || 1)} />
+                <Input
+                  type="number"
+                  min={1}
+                  value={siteCount}
+                  onChange={(event) =>
+                    setSiteCount(Number(event.target.value) || 1)
+                  }
+                />
               </div>
             </div>
             <Card className="border-[var(--border)]">
               <CardHeader>
                 <CardTitle className="text-base">Pricing</CardTitle>
-                <CardDescription>Applies platform formula for total monthly.</CardDescription>
+                <CardDescription>
+                  Applies platform formula for total monthly.
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Base</p>
-                  <p className="font-mono text-lg">{formatCurrency(price.tierBase)}</p>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    Base
+                  </p>
+                  <p className="font-mono text-lg">
+                    {formatCurrency(price.tierBase)}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Site Overage</p>
-                  <p className="font-mono text-lg">{formatCurrency(price.siteOverage)}</p>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    Site Overage
+                  </p>
+                  <p className="font-mono text-lg">
+                    {formatCurrency(price.siteOverage)}
+                  </p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Total</p>
-                  <p className="font-mono text-2xl">{formatCurrency(price.total)}/month</p>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    Total
+                  </p>
+                  <p className="font-mono text-2xl">
+                    {formatCurrency(price.total)}/month
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -563,13 +726,16 @@ export function ManageAddonsWizard({
   siteCount = 3,
 }: CompanyScopedProps) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set(currentAddonCodes));
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(currentAddonCodes),
+  );
   const [running, setRunning] = useState(false);
-  const addonSteps: { label: string; status: "done" | "active" | "pending" }[] = [
-    { label: "Select Add-ons", status: "active" },
-    { label: "Review Pricing", status: "pending" },
-    { label: "Apply", status: "pending" },
-  ];
+  const addonSteps: { label: string; status: "done" | "active" | "pending" }[] =
+    [
+      { label: "Select Add-ons", status: "active" },
+      { label: "Review Pricing", status: "pending" },
+      { label: "Apply", status: "pending" },
+    ];
 
   const summary = useMemo(() => {
     const tier = TIERS[0];
@@ -620,11 +786,15 @@ export function ManageAddonsWizard({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Manage Add-ons</Button>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Manage Add-ons
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Manage Add-ons {companyName ? `· ${companyName}` : ""}</DialogTitle>
+            <DialogTitle>
+              Manage Add-ons {companyName ? `· ${companyName}` : ""}
+            </DialogTitle>
           </DialogHeader>
           <WizardShell
             title="Safe add-on enable/disable"
@@ -652,24 +822,39 @@ export function ManageAddonsWizard({
                     <CardHeader className="space-y-1">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <CardTitle className="text-base">{bundle.name}</CardTitle>
-                          <CardDescription>{bundle.description}</CardDescription>
+                          <CardTitle className="text-base">
+                            {bundle.name}
+                          </CardTitle>
+                          <CardDescription>
+                            {bundle.description}
+                          </CardDescription>
                         </div>
-                        {enabled ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : null}
+                        {enabled ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : null}
                       </div>
                       <p className="text-xs text-[var(--text-muted)]">
-                        Base: {formatCurrency(bundle.monthlyPrice)} · Per site: {formatCurrency(bundle.additionalSiteMonthlyPrice)}/site
+                        Base: {formatCurrency(bundle.monthlyPrice)} · Per site:{" "}
+                        {formatCurrency(bundle.additionalSiteMonthlyPrice)}/site
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
-                      <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Features included</p>
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                        Features included
+                      </p>
                       <ul className="list-disc space-y-1 pl-5 text-[var(--text-muted)]">
                         {bundle.features.slice(0, 4).map((feature) => (
                           <li key={feature}>{feature}</li>
                         ))}
-                        {bundle.features.length > 4 ? <li>+{bundle.features.length - 4} more</li> : null}
+                        {bundle.features.length > 4 ? (
+                          <li>+{bundle.features.length - 4} more</li>
+                        ) : null}
                       </ul>
-                      <Button size="sm" variant={enabled ? "outline" : "default"} onClick={() => toggleAddon(bundle.code)}>
+                      <Button
+                        size="sm"
+                        variant={enabled ? "outline" : "default"}
+                        onClick={() => toggleAddon(bundle.code)}
+                      >
                         {enabled ? "Disable" : "Enable"}
                       </Button>
                     </CardContent>
@@ -680,20 +865,37 @@ export function ManageAddonsWizard({
             <Card className="border-[var(--border)]">
               <CardHeader>
                 <CardTitle className="text-base">Pricing</CardTitle>
-                <CardDescription>addon_base_total + addon_site_total (USD/month)</CardDescription>
+                <CardDescription>
+                  addon_base_total + addon_site_total (USD/month)
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Add-on base</p>
-                  <p className="font-mono text-lg">{formatCurrency(summary.addonBaseTotal)}</p>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    Add-on base
+                  </p>
+                  <p className="font-mono text-lg">
+                    {formatCurrency(summary.addonBaseTotal)}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Add-on per-site</p>
-                  <p className="font-mono text-lg">{formatCurrency(summary.addonSiteTotal)}</p>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    Add-on per-site
+                  </p>
+                  <p className="font-mono text-lg">
+                    {formatCurrency(summary.addonSiteTotal)}
+                  </p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Total</p>
-                  <p className="font-mono text-2xl">{formatCurrency(summary.addonBaseTotal + summary.addonSiteTotal)}/month</p>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    Total
+                  </p>
+                  <p className="font-mono text-2xl">
+                    {formatCurrency(
+                      summary.addonBaseTotal + summary.addonSiteTotal,
+                    )}
+                    /month
+                  </p>
                 </div>
               </CardContent>
             </Card>

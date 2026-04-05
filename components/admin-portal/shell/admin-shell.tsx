@@ -25,7 +25,11 @@ const LABELS: Record<string, string> = {
   settings: "Settings",
 };
 
-function buildCrumbs(pathname: string, activeCompanyName?: string, activeCompanyId?: string): Crumb[] {
+function buildCrumbs(
+  pathname: string,
+  activeCompanyName?: string,
+  activeCompanyId?: string,
+): Crumb[] {
   const normalizedPath = pathname.replace(/^\/portal/, "");
   const segments = normalizedPath.split("/").filter(Boolean);
   const crumbs: Crumb[] = [{ label: "Admin", href: "/admin/dashboard" }];
@@ -33,13 +37,19 @@ function buildCrumbs(pathname: string, activeCompanyName?: string, activeCompany
   if (segments[1] === "clients") {
     crumbs.push({ label: "Workspaces", href: "/admin/clients" });
     if (segments[2]) {
-      crumbs.push({ label: activeCompanyName ?? "Workspace", href: activeCompanyId ? `/admin/clients/${activeCompanyId}` : undefined });
+      crumbs.push({
+        label: activeCompanyName ?? "Workspace",
+        href: activeCompanyId ? `/admin/clients/${activeCompanyId}` : undefined,
+      });
     }
     return crumbs;
   }
 
   if (segments[1] === "company") {
-    crumbs.push({ label: activeCompanyName ?? "Workspace", href: activeCompanyId ? `/admin/clients/${activeCompanyId}` : undefined });
+    crumbs.push({
+      label: activeCompanyName ?? "Workspace",
+      href: activeCompanyId ? `/admin/clients/${activeCompanyId}` : undefined,
+    });
     if (segments[3]) {
       crumbs.push({ label: LABELS[segments[3]] ?? segments[3] });
     }
@@ -59,18 +69,33 @@ function AdminBreadcrumbs({ activeCompanyId }: { activeCompanyId?: string }) {
   const crumbs = buildCrumbs(pathname, activeCompany?.name, activeCompanyId);
 
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-[11px] text-[var(--text-muted)]">
+    <nav
+      aria-label="Breadcrumb"
+      className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-sm text-[var(--text-muted)]"
+    >
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1;
         return (
-          <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
-            {index > 0 ? <ChevronRight className="h-3 w-3 shrink-0 text-[var(--text-muted)]" /> : null}
+          <span
+            key={`${crumb.label}-${index}`}
+            className="flex items-center gap-1.5"
+          >
+            {index > 0 ? (
+              <ChevronRight className="h-3 w-3 shrink-0 text-[var(--text-muted)]" />
+            ) : null}
             {crumb.href && !isLast ? (
-              <Link href={crumb.href} className="whitespace-nowrap hover:text-[var(--text-strong)]">
+              <Link
+                href={crumb.href}
+                className="whitespace-nowrap hover:text-[var(--text-strong)]"
+              >
                 {crumb.label}
               </Link>
             ) : (
-              <span className={`whitespace-nowrap ${isLast ? "font-semibold text-[var(--text-strong)]" : ""}`}>{crumb.label}</span>
+              <span
+                className={`whitespace-nowrap ${isLast ? "font-semibold text-[var(--text-strong)]" : ""}`}
+              >
+                {crumb.label}
+              </span>
             )}
           </span>
         );
@@ -92,7 +117,10 @@ function AdminShellFrame({
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div data-portal="admin" className="admin-shell-frame text-[var(--text-strong)]">
+    <div
+      data-portal="admin"
+      className="admin-shell-frame text-[var(--text-strong)]"
+    >
       <div className="admin-shell-window relative overflow-hidden xl:grid xl:grid-cols-[16rem_minmax(0,1fr)]">
         {isSidebarOpen ? (
           <div
@@ -114,36 +142,45 @@ function AdminShellFrame({
           />
         </div>
 
-        <div className="admin-shell-workspace min-w-0">
-          <header className="admin-shell-header sticky top-0 z-30">
-            <div className="flex items-center gap-3 px-4 py-3 md:px-5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="xl:hidden"
-                onClick={() => setIsSidebarOpen((current) => !current)}
-                aria-label="Toggle admin navigation"
-              >
-                {isSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-              </Button>
-
-              <div className="min-w-0 flex-1">
-                <p className="admin-page-kicker mb-1 hidden md:block">Platform control plane</p>
-                <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
+        <div className="min-w-0 p-2 ">
+          <div className="rounded-xl bg-white overflow-clip">
+            <header className="sticky top-0 z-30">
+              <div className="flex items-center gap-3 px-4 py-3 md:px-5">
+                <div className="flex gap-2 flex-1 items-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSidebarOpen((current) => !current)}
+                    aria-label="Toggle admin navigation"
+                  >
+                    {isSidebarOpen ? (
+                      <X className="h-4 w-4" />
+                    ) : (
+                      <Menu className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <div className="min-w-0 flex-1">
+                    <AdminBreadcrumbs activeCompanyId={activeCompanyId} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="hidden min-w-0 w-64 flex-1 xl:flex">
+                    <AdminCommandBar />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <AdminOperatorContext />
+                  </div>
+                </div>
               </div>
-              <div className="hidden min-w-0 max-w-[22rem] flex-1 xl:block">
+              <div className="px-4 py-2 xl:hidden">
                 <AdminCommandBar />
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <AdminOperatorContext />
-              </div>
-            </div>
-            <div className="border-t border-[var(--edge-subtle)] px-4 py-2 xl:hidden">
-              <AdminCommandBar />
-            </div>
-          </header>
-          <main className="min-w-0 px-4 pb-8 pt-5 md:px-6 md:pb-10 md:pt-6">{children}</main>
+            </header>
+            <main className="min-w-0 px-4 pb-8 pt-5  md:pb-10 md:pt-6">
+              {children}
+            </main>
+          </div>
         </div>
       </div>
     </div>
@@ -159,7 +196,9 @@ export function AdminShell({
 }) {
   return (
     <AdminShellProvider activeCompanyId={activeCompanyId}>
-      <AdminShellFrame activeCompanyId={activeCompanyId}>{children}</AdminShellFrame>
+      <AdminShellFrame activeCompanyId={activeCompanyId}>
+        {children}
+      </AdminShellFrame>
     </AdminShellProvider>
   );
 }

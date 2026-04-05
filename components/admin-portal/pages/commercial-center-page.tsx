@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, TriangleAlert } from "lucide-react";
 import { executeOperation, fetchCommercialCenter, fetchWorkspaceOverview } from "@/components/admin-portal/api";
+import {
+  AdminDonutChart,
+  AdminStackedBarChart,
+  AdminTrendChart,
+  AdminWaterfallChart,
+} from "@/components/charts/admin-headless-charts";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { CommercialCenterData, WorkspaceOverview } from "@/components/admin-portal/types";
 import {
@@ -20,6 +27,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import {
+  buildFutureDayBuckets,
+  buildRecentDayBuckets,
+  resolveTimestamp,
+} from "@/lib/admin-portal/chart-series";
 import { cn } from "@/lib/utils";
 
 type PlatformCommercialRow = CommercialCenterData["overview"]["workspaces"][number];
@@ -146,36 +158,42 @@ function MetricTile({
   );
 }
 
-function ProjectionStrip({ projections }: { projections: CommercialCenterData["overview"]["projections"] }) {
-  const peak = Math.max(...projections.map((bucket) => bucket.committedAmount), 1);
+function ProjectionStrip({
+  projections,
+  currency = "USD",
+}: {
+  projections: CommercialCenterData["overview"]["projections"];
+  currency?: string;
+}) {
+  const rows = projections.map((bucket) => ({
+    label: bucket.label,
+    tooltipLabel: new Date(bucket.monthStart).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    }),
+    revenue: bucket.committedAmount,
+    atRisk: bucket.atRiskAmount,
+  }));
 
   return (
-    <div className="grid gap-2 md:grid-cols-4">
-      {projections.map((bucket) => {
-        const committedHeight = Math.max(8, Math.round((bucket.committedAmount / peak) * 52));
-        const atRiskHeight = Math.max(0, Math.round((bucket.atRiskAmount / peak) * 52));
-
-        return (
-          <div key={bucket.id} className="admin-surface rounded-[14px] px-3 py-3 shadow-none">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{bucket.label}</p>
-              <p className="font-mono text-xs text-[var(--text-muted)]">{bucket.workspaceCount} ws</p>
-            </div>
-            <div className="mt-3 flex h-14 items-end gap-1.5">
-              <div className="w-6 rounded-full bg-[var(--surface-muted)]" style={{ height: committedHeight }} />
-              <div className="w-6 rounded-full bg-[#f3c453]" style={{ height: atRiskHeight }} />
-            </div>
-            <div className="mt-3 flex items-center justify-between text-xs">
-              <span className="text-[var(--text-muted)]">Committed</span>
-              <span className="font-mono text-[var(--text-strong)]">{formatCurrency(bucket.committedAmount)}</span>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-xs">
-              <span className="text-[var(--text-muted)]">At risk</span>
-              <span className="font-mono text-[var(--text-strong)]">{formatCurrency(bucket.atRiskAmount)}</span>
-            </div>
-          </div>
-        );
-      })}
+    <div className="admin-surface rounded-[14px] px-3 py-3 shadow-none">
+      <AdminTrendChart
+        rows={rows}
+        series={[
+          {
+            key: "revenue",
+            label: "Revenue",
+            color: "var(--primary-500)",
+          },
+          {
+            key: "atRisk",
+            label: "At risk",
+            color: "var(--warning-500)",
+          },
+        ]}
+        valueFormatter={(value) => formatCurrency(value, currency)}
+        yTickFormatter={(value) => formatCurrency(value, currency)}
+      />
     </div>
   );
 }
@@ -480,6 +498,85 @@ export function CommercialCenterPage({
     });
   }, [commercial?.overview.renewals, planFilter, renewalWindow, statusFilter, workspaceSearch]);
 
+  const subscriptionActivityRows = useMemo(() => {
+    const buckets = buildRecentDayBuckets(84, 7);
+    const starts = (commercial?.subscriptions ?? [])
+      .map((subscription) => resolveTimestamp(subscription.startedAt))
+      .filter((value): value is number => value !== null);
+    const changes = (commercial?.subscriptions ?? [])
+      .map((subscription) => resolveTimestamp(subscription.updatedAt))
+      .filter((value): value is number => value !== null);
+    const endings = (commercial?.subscriptions ?? [])
+      .map((subscription) =>
+        resolveTimestamp(subscription.endedAt, subscription.canceledAt),
+      )
+      .filter((value): value is number => value !== null);
+
+    return buckets.map((bucket) => {
+      let started = 0;
+      let changed = 0;
+      let ended = 0;
+
+      for (const value of starts) {
+        if (value >= bucket.start && value < bucket.end) started += 1;
+      }
+      for (const value of changes) {
+        if (value >= bucket.start && value < bucket.end) changed += 1;
+      }
+      for (const value of endings) {
+        if (value >= bucket.start && value < bucket.end) ended += 1;
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        started,
+        changed,
+        ended,
+      };
+    });
+  }, [commercial?.subscriptions]);
+
+  const dueScheduleRows = useMemo(() => {
+    const buckets = buildFutureDayBuckets(84, 7);
+    const workspaces = commercial?.overview.workspaces ?? [];
+
+    return buckets.map((bucket, index) => {
+      let renewals = 0;
+      let needAction = 0;
+
+      for (const row of workspaces) {
+        const dueAt = resolveTimestamp(row.currentPeriodEnd);
+        const isOverdue = row.dueBucket === "OVERDUE";
+        const isInBucket =
+          dueAt !== null && dueAt >= bucket.start && dueAt < bucket.end;
+        const assignOverdueToCurrentBucket = isOverdue && index === 0;
+
+        if (!isInBucket && !assignOverdueToCurrentBucket) {
+          continue;
+        }
+
+        renewals += 1;
+
+        if (
+          isOverdue ||
+          row.dueBucket === "DUE_THIS_MONTH" ||
+          row.riskBucket === "AT_RISK" ||
+          row.riskBucket === "OVERDUE"
+        ) {
+          needAction += 1;
+        }
+      }
+
+      return {
+        label: bucket.label,
+        tooltipLabel: bucket.tooltipLabel,
+        renewals,
+        needAction,
+      };
+    });
+  }, [commercial?.overview.workspaces]);
+
   const saveFeatureDraft = async () => {
     if (!overview || !companyId || pendingFeatureChanges === 0) return;
 
@@ -511,9 +608,10 @@ export function CommercialCenterPage({
 
   if (loading) {
     return (
-      <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
-        <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading commercial...</CardContent>
-      </Card>
+      <AdminModuleLoading
+        label={isCompanyScope ? "Loading workspace commercials" : "Loading commercial center"}
+        description="Preparing plans, renewals, pricing, templates, and feature access controls."
+      />
     );
   }
 
@@ -531,6 +629,12 @@ export function CommercialCenterPage({
   const scopeTitle = isCompanyScope ? overview?.company.name ?? "Workspace commercial" : "Commercial";
   const planOptions = Array.from(new Set((commercial.overview.workspaces ?? []).map((row) => row.planCode).filter(Boolean))) as string[];
   const summary = commercial.overview.summary;
+  const exposureWaterfallRows = [
+    { id: "committed", label: "Committed", value: summary.committedMrr, color: "var(--primary-500)" },
+    { id: "past-due", label: "Past due", value: -summary.overdueExposure, color: "var(--danger-500)" },
+    { id: "at-risk", label: "At risk", value: -summary.atRiskRevenue, color: "var(--warning-500)" },
+    { id: "renewals", label: "30d renewals", value: summary.next30RenewalValue, color: "var(--accent-500)" },
+  ];
 
   return (
     <section className="admin-page">
@@ -538,7 +642,7 @@ export function CommercialCenterPage({
         <div className="space-y-2">
           <div className="space-y-1">
             <p className="admin-page-kicker">
-              {isCompanyScope ? overview?.company.slug ?? "Workspace commercial posture" : "Revenue, plans, and entitlement posture"}
+              {isCompanyScope ? overview?.company.slug ?? "Workspace billing and access" : "Revenue, plans, and access"}
             </p>
             <h1 className="admin-page-title">{scopeTitle}</h1>
           </div>
@@ -569,30 +673,116 @@ export function CommercialCenterPage({
       <VerticalDataViews items={items} value={view} onValueChange={setView} railLabel="Commercial">
         {!isCompanyScope && view === "overview" ? (
           <div className="space-y-3">
-            <div className="grid gap-2 xl:grid-cols-5">
-              <MetricTile label="Committed MRR" value={formatCurrency(summary.committedMrr)} hint={`${summary.subscribedWorkspaceCount} subscribed`} />
-              <MetricTile label="Due This Month" value={formatCurrency(summary.dueThisMonth)} hint="Current cycle due" />
-              <MetricTile label="Overdue" value={formatCurrency(summary.overdueExposure)} hint="Past period end" />
-              <MetricTile label="At Risk" value={formatCurrency(summary.atRiskRevenue)} hint="Grace, expiry, or past due" />
-              <MetricTile label="Next 30d Renewals" value={formatCurrency(summary.next30RenewalValue)} hint={`${summary.next30RenewalCount} workspaces`} />
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-7">
+              <MetricTile label="Workspaces" value={summary.workspaceCount.toLocaleString()} />
+              <MetricTile label="With plan" value={summary.subscribedWorkspaceCount.toLocaleString()} />
+              <MetricTile label="Monthly revenue" value={formatCurrency(summary.committedMrr)} />
+              <MetricTile label="Due this month" value={formatCurrency(summary.dueThisMonth)} />
+              <MetricTile label="Past due" value={formatCurrency(summary.overdueExposure)} />
+              <MetricTile label="Revenue at risk" value={formatCurrency(summary.atRiskRevenue)} />
+              <MetricTile label="Renewals in 30 days" value={formatCurrency(summary.next30RenewalValue)} hint={`${summary.next30RenewalCount} workspaces`} />
             </div>
 
-            <ProjectionStrip projections={commercial.overview.projections} />
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+              <ProjectionStrip
+                projections={commercial.overview.projections}
+                currency={commercial.overview.workspaces[0]?.currency ?? "USD"}
+              />
 
-            <div className="flex flex-wrap items-center gap-2">
-              {commercial.overview.planMix.slice(0, 6).map((plan) => (
-                <CompactPill key={plan.planCode}>
-                  {plan.planName} · {plan.workspaceCount} · {formatCurrency(plan.monthlyAmount)}
-                </CompactPill>
-              ))}
+              <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Subscription activity</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <AdminTrendChart
+                    rows={subscriptionActivityRows}
+                    series={[
+                      {
+                        key: "started",
+                        label: "Started",
+                        color: "var(--success-500)",
+                      },
+                      {
+                        key: "changed",
+                        label: "Changed",
+                        color: "var(--primary-500)",
+                      },
+                      {
+                        key: "ended",
+                        label: "Ended",
+                        color: "var(--danger-500)",
+                      },
+                    ]}
+                    valueFormatter={(value) => value.toLocaleString()}
+                    yTickFormatter={(value) => value.toLocaleString()}
+                    xTickInterval={0}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.05fr)_minmax(0,0.8fr)]">
+              <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Due schedule</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <AdminStackedBarChart
+                    rows={dueScheduleRows}
+                    series={[
+                      {
+                        key: "renewals",
+                        label: "Renewals",
+                        color: "var(--primary-500)",
+                      },
+                      {
+                        key: "needAction",
+                        label: "Need action",
+                        color: "var(--warning-500)",
+                      },
+                    ]}
+                    valueFormatter={(value) => value.toLocaleString()}
+                    yTickFormatter={(value) => value.toLocaleString()}
+                    xTickInterval={0}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Revenue exposure</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <AdminWaterfallChart
+                    rows={exposureWaterfallRows}
+                    valueFormatter={(value) => formatCurrency(value, summary.currency)}
+                    yTickFormatter={(value) => formatCurrency(value, summary.currency)}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Plan mix</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <AdminDonutChart
+                    rows={commercial.overview.planMix.slice(0, 8).map((plan) => ({
+                      id: plan.planCode,
+                      label: plan.planName,
+                      value: plan.workspaceCount,
+                    }))}
+                    valueLabel="Workspaces"
+                  />
+                </CardContent>
+              </Card>
             </div>
 
             <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
               <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                 <div className="admin-panel-header">
                   <div>
-                    <CardTitle className="text-base">Revenue pipeline</CardTitle>
-                    <p className="admin-panel-subtitle">Primary workspace table for plan, due date, contract risk, and operator action.</p>
+                    <CardTitle className="text-base">Workspace revenue</CardTitle>
                   </div>
                   <CompactPill>{filteredPlatformRows.length} workspaces</CompactPill>
                 </div>
@@ -643,7 +833,6 @@ export function CommercialCenterPage({
               <div className="admin-panel-header">
                 <div>
                   <CardTitle className="text-base">Due now</CardTitle>
-                  <p className="admin-panel-subtitle">Renewals and overdue accounts that need near-term follow-up.</p>
                 </div>
                 <CompactPill tone="warning">{filteredDueRows.length} workspaces</CompactPill>
               </div>
@@ -677,7 +866,6 @@ export function CommercialCenterPage({
               <div className="admin-panel-header">
                 <div>
                   <CardTitle className="text-base">Renewals</CardTitle>
-                  <p className="admin-panel-subtitle">Renewal pipeline segmented by time horizon, status, and plan mix.</p>
                 </div>
                 <CompactPill tone="warning">{filteredRenewals.length} workspaces</CompactPill>
               </div>
@@ -714,8 +902,7 @@ export function CommercialCenterPage({
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
               <div className="admin-panel-header">
                 <div>
-                  <CardTitle className="text-base">Workspace commercial base</CardTitle>
-                  <p className="admin-panel-subtitle">Full workspace rollup with plan, status, due bucket, and risk state.</p>
+                  <CardTitle className="text-base">Workspace plans</CardTitle>
                 </div>
                 <CompactPill>{filteredPlatformRows.length} workspaces</CompactPill>
               </div>
@@ -758,7 +945,6 @@ export function CommercialCenterPage({
               <div className="admin-panel-header">
                 <div>
                   <CardTitle className="text-base">Templates</CardTitle>
-                  <p className="admin-panel-subtitle">Packaged pricing templates for repeatable commercial setups.</p>
                 </div>
                 <CompactPill>{filteredTemplates.length} templates</CompactPill>
               </div>
@@ -806,7 +992,6 @@ export function CommercialCenterPage({
               <div className="admin-panel-header">
                 <div>
                   <CardTitle className="text-base">Bundles</CardTitle>
-                  <p className="admin-panel-subtitle">Commercial package definitions and the features they unlock.</p>
                 </div>
                 <CompactPill>{filteredBundles.length} bundles</CompactPill>
               </div>
@@ -858,7 +1043,6 @@ export function CommercialCenterPage({
               <div className="admin-panel-header">
                 <div>
                   <CardTitle className="text-base">Feature catalog</CardTitle>
-                  <p className="admin-panel-subtitle">Platform-level feature registry and current activation state.</p>
                 </div>
                 <CompactPill>{filteredCatalog.length} features</CompactPill>
               </div>
@@ -901,8 +1085,7 @@ export function CommercialCenterPage({
                 <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
                   <div className="admin-panel-header">
                     <div>
-                      <CardTitle className="text-base">Billing position</CardTitle>
-                      <p className="admin-panel-subtitle">Current contract state, billing period, and commercial risk posture.</p>
+                      <CardTitle className="text-base">Billing</CardTitle>
                     </div>
                     <CompactPill tone={overview?.subscriptionHealth?.shouldBlock ? "danger" : overview?.subscriptionHealth?.state === "EXPIRING_SOON" || overview?.subscriptionHealth?.state === "IN_GRACE" ? "warning" : "success"}>
                       {overview?.subscriptionHealth?.state ?? "No signal"}
@@ -1012,7 +1195,6 @@ export function CommercialCenterPage({
               <div className="admin-panel-header">
                 <div>
                   <CardTitle className="text-base">Workspace add-ons</CardTitle>
-                  <p className="admin-panel-subtitle">Enabled commercial extensions and the reasons attached to each one.</p>
                 </div>
                 <CompactPill>{filteredAddons.length} add-ons</CompactPill>
               </div>
@@ -1050,8 +1232,7 @@ export function CommercialCenterPage({
             <CardHeader className="space-y-3 border-b border-[var(--edge-subtle)] pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Feature access draft</CardTitle>
-                  <p className="admin-panel-subtitle">Draft entitlement changes before committing them to the workspace.</p>
+                  <CardTitle className="text-base">Feature access</CardTitle>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <CompactPill>{pendingFeatureChanges} pending</CompactPill>

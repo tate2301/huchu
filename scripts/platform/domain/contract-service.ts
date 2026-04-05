@@ -15,35 +15,52 @@ import { formatDate, parseIso } from "./helpers";
 const ACTIVE_SUBSCRIPTION_STATES = new Set<SubscriptionStatusValue>(["ACTIVE", "TRIALING"]);
 
 function deriveContractState(
-  rows: Array<{ toState: string; expiresAt: Date | null }>,
-): ContractState {
+  rows: Array<{
+    toState: string;
+    expiresAt: Date | null;
+    effectiveAt: Date;
+    createdAt: Date;
+  }>,
+): { state: ContractState; updatedAt: string | null } {
   for (const row of rows) {
     const state = row.toState as ContractState;
     if (state === "OVERRIDE" && row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
       continue;
     }
-    return state;
+    return {
+      state,
+      updatedAt: formatDate(row.effectiveAt ?? row.createdAt),
+    };
   }
-  return "ACTIVE";
+  return { state: "ACTIVE", updatedAt: null };
 }
 
-export async function getContractState(companyId: string): Promise<ContractState> {
+export async function getContractState(companyId: string): Promise<{
+  state: ContractState;
+  updatedAt: string | null;
+}> {
   const rows = await prisma.contractEnforcementEvent.findMany({
     where: { companyId },
-    select: { toState: true, expiresAt: true },
+    select: { toState: true, expiresAt: true, effectiveAt: true, createdAt: true },
     orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }],
     take: 25,
   });
   return deriveContractState(rows);
 }
 
-async function latestSubscriptionStatus(companyId: string): Promise<SubscriptionStatusValue | null> {
+async function latestSubscriptionStatus(companyId: string): Promise<{
+  status: SubscriptionStatusValue | null;
+  updatedAt: string | null;
+}> {
   const row = await prisma.companySubscription.findFirst({
     where: { companyId },
     orderBy: [{ updatedAt: "desc" }],
-    select: { status: true },
+    select: { status: true, updatedAt: true },
   });
-  return (row?.status as SubscriptionStatusValue | undefined) ?? null;
+  return {
+    status: (row?.status as SubscriptionStatusValue | undefined) ?? null,
+    updatedAt: formatDate(row?.updatedAt ?? null),
+  };
 }
 
 export async function evaluateContract(input: EvaluateContractInput): Promise<ContractEvaluationResult> {
@@ -53,8 +70,9 @@ export async function evaluateContract(input: EvaluateContractInput): Promise<Co
   });
   if (!company) throw new Error(`Organization not found for id: ${input.companyId}`);
 
-  const subscriptionStatus = await latestSubscriptionStatus(input.companyId);
+  const subscription = await latestSubscriptionStatus(input.companyId);
   const currentState = await getContractState(input.companyId);
+  const subscriptionStatus = subscription.status;
   const active = subscriptionStatus ? ACTIVE_SUBSCRIPTION_STATES.has(subscriptionStatus) : false;
   const recommendedState: ContractState = active ? "ACTIVE" : "SUSPENDED";
 
@@ -63,10 +81,12 @@ export async function evaluateContract(input: EvaluateContractInput): Promise<Co
     companyName: company.name,
     companySlug: company.slug,
     subscriptionStatus,
-    currentState,
+    subscriptionUpdatedAt: subscription.updatedAt,
+    currentState: currentState.state,
+    currentStateUpdatedAt: currentState.updatedAt,
     recommendedState,
     warningReason: active ? null : `Subscription status is ${subscriptionStatus ?? "unknown"}`,
-    canOperate: currentState !== "SUSPENDED",
+    canOperate: currentState.state !== "SUSPENDED",
   };
 }
 
@@ -162,7 +182,7 @@ export async function overrideContract(input: OverrideContractInput): Promise<Co
     select: { id: true, slug: true, tenantStatus: true },
   });
   if (!company) throw new Error(`Organization not found for id: ${input.companyId}`);
-  const beforeState = await getContractState(input.companyId);
+  const beforeState = (await getContractState(input.companyId)).state;
   const expiresAt = parseIso(input.expiresAt);
 
   await prisma.contractEnforcementEvent.create({

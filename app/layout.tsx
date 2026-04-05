@@ -4,12 +4,19 @@ import "@rtcamp/frappe-ui-react/theme";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./themes/client.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 
 export const metadata: Metadata = {
   title: "Huchu - Mine Operations System",
@@ -37,11 +44,11 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className="font-sans subpixel-antialiased"
+        className={`font-sans subpixel-antialiased ${jetbrainsMono.variable}`}
         style={
           {
             "--font-ibm-plex-mono":
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              'var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
             ...brandingVars,
           } as React.CSSProperties
         }

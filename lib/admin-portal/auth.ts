@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import type { Adapter } from "next-auth/adapters";
 import { authOptions } from "@/lib/auth";
 import { getAuthRuntimeConfig } from "@/lib/auth-core/config";
+import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
 import { assertStrategyEnabled } from "@/lib/auth-core/strategy-registry";
 
 type EmailProviderLike = {
@@ -71,10 +72,12 @@ export async function requestAdminMagicLink(options: {
     throw new Error("This email is not allowed for admin sign-in.");
   }
 
+  const normalizedCallbackPath = normalizeCallbackUrl(options.callbackUrl, "/admin/dashboard");
+  const callbackUrl = new URL(normalizedCallbackPath, `${options.origin}/`).toString();
   const token = (await provider.generateVerificationToken?.()) ?? randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + (provider.maxAge ?? 86400) * 1000);
   const params = new URLSearchParams({
-    callbackUrl: options.callbackUrl,
+    callbackUrl,
     token,
     email: identifier,
   });

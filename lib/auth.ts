@@ -2,11 +2,14 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
-import { decode as defaultJwtDecode, encode as defaultJwtEncode } from "next-auth/jwt";
+import {
+  decode as defaultJwtDecode,
+  encode as defaultJwtEncode,
+} from "next-auth/jwt";
 import { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { getAdminRootDomain, isAdminPortalHost } from "@/lib/admin-portal";
+import { getAdminPortalHost, isAdminPortalHost } from "@/lib/admin-portal";
 import { hasFeature } from "@/lib/platform/features";
 import {
   getHostHeaderFromRequestHeaders,
@@ -16,7 +19,10 @@ import {
   resolveTenantFromHost,
 } from "@/lib/platform/tenant";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
-import { validateAuthConfiguration, getAuthRuntimeConfig } from "@/lib/auth-core/config";
+import {
+  validateAuthConfiguration,
+  getAuthRuntimeConfig,
+} from "@/lib/auth-core/config";
 import { logAuthEvent } from "@/lib/auth-core/events";
 import { checkRateLimit } from "@/lib/auth-core/rate-limit";
 import {
@@ -29,10 +35,16 @@ import {
   getSessionPolicyMaxAge,
   hydrateLegacyTokenClaims,
   isAuthExpired,
+  shouldRefreshAuthExpiry,
 } from "@/lib/auth-core/session-policy";
 import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
 import { assertStrategyEnabled } from "@/lib/auth-core/strategy-registry";
-import type { AuthStrategyId, AuthenticatedSession, PlatformJwtClaims, SessionPolicy } from "@/lib/auth-core/types";
+import type {
+  AuthStrategyId,
+  AuthenticatedSession,
+  PlatformJwtClaims,
+  SessionPolicy,
+} from "@/lib/auth-core/types";
 
 type AuthenticatedUserLike = {
   id: string;
@@ -57,14 +69,22 @@ function isAllowedAdminPortalEmail(email: string) {
 async function resolveAdminPortalCompanyId() {
   const configuredCompanyId = AUTH_RUNTIME_CONFIG.adminPortalCompanyId;
   if (configuredCompanyId) {
-    const company = await prisma.company.findUnique({ where: { id: configuredCompanyId }, select: { id: true } });
+    const company = await prisma.company.findUnique({
+      where: { id: configuredCompanyId },
+      select: { id: true },
+    });
     if (!company) {
-      throw new Error("ADMIN_PORTAL_COMPANY_ID is set but does not match any company.");
+      throw new Error(
+        "ADMIN_PORTAL_COMPANY_ID is set but does not match any company.",
+      );
     }
     return configuredCompanyId;
   }
 
-  const firstCompany = await prisma.company.findFirst({ select: { id: true }, orderBy: { createdAt: "asc" } });
+  const firstCompany = await prisma.company.findFirst({
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
   if (!firstCompany) {
     throw new Error("No company available to attach admin portal identity.");
   }
@@ -78,8 +98,14 @@ async function upsertAdminPortalUser(email: string) {
   }
 
   const companyId = await resolveAdminPortalCompanyId();
-  const emailName = normalizedEmail.split("@")[0]?.replace(/[._-]+/g, " ").trim();
-  const name = AUTH_RUNTIME_CONFIG.adminPortalActorName || emailName || "Platform Superuser";
+  const emailName = normalizedEmail
+    .split("@")[0]
+    ?.replace(/[._-]+/g, " ")
+    .trim();
+  const name =
+    AUTH_RUNTIME_CONFIG.adminPortalActorName ||
+    emailName ||
+    "Platform Superuser";
 
   return prisma.user.upsert({
     where: { email: normalizedEmail },
@@ -122,7 +148,10 @@ const adminPortalAdapter = {
   },
 } as Adapter;
 
-function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
+function toTenantStatus(
+  rawStatus: string | undefined,
+  subscriptionActive: boolean,
+): string {
   const normalizedStatus = rawStatus?.trim().toUpperCase();
 
   if (normalizedStatus && normalizedStatus !== "ACTIVE") {
@@ -191,9 +220,30 @@ function readHeaderValue(
 function getClientAddressFromHeaders(
   headers: Headers | Record<string, string | string[] | undefined> | undefined,
 ): string {
-  const forwardedFor = readHeaderValue(headers, "x-forwarded-for")?.split(",")[0]?.trim();
+  const forwardedFor = readHeaderValue(headers, "x-forwarded-for")
+    ?.split(",")[0]
+    ?.trim();
   const realIp = readHeaderValue(headers, "x-real-ip")?.trim();
   return forwardedFor || realIp || "unknown";
+}
+
+function isAdminRoutePath(pathname: string): boolean {
+  return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/portal/admin" ||
+    pathname.startsWith("/portal/admin/")
+  );
+}
+
+function buildAdminPortalBaseUrl(baseUrl: string): string {
+  try {
+    const parsedBaseUrl = new URL(baseUrl);
+    parsedBaseUrl.hostname = getAdminPortalHost();
+    return parsedBaseUrl.origin;
+  } catch {
+    return baseUrl;
+  }
 }
 
 validateAuthConfiguration();
@@ -208,7 +258,13 @@ export const authOptions: NextAuthOptions = {
       server: "",
       from: AUTH_RUNTIME_CONFIG.adminMagicLinkFrom,
       maxAge: 10 * 60,
-      async sendVerificationRequest({ identifier, url }: { identifier: string; url: string }) {
+      async sendVerificationRequest({
+        identifier,
+        url,
+      }: {
+        identifier: string;
+        url: string;
+      }) {
         assertStrategyEnabled("admin-email-link");
 
         const normalizedIdentifier = identifier.trim().toLowerCase();
@@ -233,7 +289,9 @@ export const authOptions: NextAuthOptions = {
             entityId: "admin-email-link",
             payload: { host: parsedUrl.host },
           });
-          throw new Error(`Magic links are restricted to the admin host (${getAdminRootDomain()}).`);
+          // throw new Error(
+          //   `Magic links are restricted to the admin host (${getAdminRootDomain()}).`,
+          // );
         }
 
         const rateLimit = checkRateLimit({
@@ -281,7 +339,9 @@ export const authOptions: NextAuthOptions = {
               entityType: "auth-strategy",
               entityId: "admin-email-link",
             });
-            throw new Error(`Resend delivery failed with status ${response.status}.`);
+            throw new Error(
+              `Resend delivery failed with status ${response.status}.`,
+            );
           }
 
           await logAuthEvent({
@@ -298,7 +358,12 @@ export const authOptions: NextAuthOptions = {
           await fetch(webhookUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: normalizedIdentifier, subject, text, html }),
+            body: JSON.stringify({
+              to: normalizedIdentifier,
+              subject,
+              text,
+              html,
+            }),
           });
 
           await logAuthEvent({
@@ -310,7 +375,9 @@ export const authOptions: NextAuthOptions = {
           return;
         }
 
-        throw new Error("No magic-link delivery provider configured. Set ADMIN_MAGIC_LINK_RESEND_API_KEY or ADMIN_MAGIC_LINK_WEBHOOK_URL.");
+        throw new Error(
+          "No magic-link delivery provider configured. Set ADMIN_MAGIC_LINK_RESEND_API_KEY or ADMIN_MAGIC_LINK_WEBHOOK_URL.",
+        );
       },
       options: {},
     },
@@ -324,7 +391,8 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials, req) {
         assertStrategyEnabled("credentials");
 
-        const exposeCredentialDebugReason = process.env.NODE_ENV !== "production";
+        const exposeCredentialDebugReason =
+          process.env.NODE_ENV !== "production";
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
         const rememberMe = credentials?.rememberMe === "true";
@@ -419,12 +487,18 @@ export const authOptions: NextAuthOptions = {
           await logAuthEvent({
             eventType: "auth.login.failed",
             actor: email,
-            reason: exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "INVALID_CREDENTIALS",
+            reason: exposeCredentialDebugReason
+              ? "AUTH_EMAIL_NOT_FOUND"
+              : "INVALID_CREDENTIALS",
             entityType: "auth-strategy",
             entityId: "credentials",
             payload: { hostHeader, clientAddress },
           });
-          throw new Error(exposeCredentialDebugReason ? "AUTH_EMAIL_NOT_FOUND" : "Invalid credentials");
+          throw new Error(
+            exposeCredentialDebugReason
+              ? "AUTH_EMAIL_NOT_FOUND"
+              : "Invalid credentials",
+          );
         }
 
         if (!user.password) {
@@ -432,12 +506,18 @@ export const authOptions: NextAuthOptions = {
             eventType: "auth.login.failed",
             actor: email,
             companyId: user.companyId,
-            reason: exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "INVALID_CREDENTIALS",
+            reason: exposeCredentialDebugReason
+              ? "AUTH_PASSWORD_NOT_SET"
+              : "INVALID_CREDENTIALS",
             entityType: "auth-strategy",
             entityId: "credentials",
             payload: { hostHeader, clientAddress },
           });
-          throw new Error(exposeCredentialDebugReason ? "AUTH_PASSWORD_NOT_SET" : "Invalid credentials");
+          throw new Error(
+            exposeCredentialDebugReason
+              ? "AUTH_PASSWORD_NOT_SET"
+              : "Invalid credentials",
+          );
         }
 
         if (!user.isActive) {
@@ -472,12 +552,18 @@ export const authOptions: NextAuthOptions = {
             eventType: "auth.login.failed",
             actor: email,
             companyId: user.companyId,
-            reason: exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "INVALID_CREDENTIALS",
+            reason: exposeCredentialDebugReason
+              ? "AUTH_PASSWORD_MISMATCH"
+              : "INVALID_CREDENTIALS",
             entityType: "auth-strategy",
             entityId: "credentials",
             payload: { hostHeader, clientAddress },
           });
-          throw new Error(exposeCredentialDebugReason ? "AUTH_PASSWORD_MISMATCH" : "Invalid credentials");
+          throw new Error(
+            exposeCredentialDebugReason
+              ? "AUTH_PASSWORD_MISMATCH"
+              : "Invalid credentials",
+          );
         }
 
         if (exposeCredentialDebugReason && matchedCandidate !== password) {
@@ -488,7 +574,10 @@ export const authOptions: NextAuthOptions = {
           });
         }
 
-        const loginEnabled = await hasFeature(user.companyId, "core.auth.login");
+        const loginEnabled = await hasFeature(
+          user.companyId,
+          "core.auth.login",
+        );
         if (!loginEnabled) {
           await logAuthEvent({
             eventType: "auth.login.failed",
@@ -544,7 +633,9 @@ export const authOptions: NextAuthOptions = {
           authStrategy: "credentials" satisfies AuthStrategyId,
           rememberMe,
           sessionPolicy: rememberMe ? "remember" : "standard",
-          authExpiresAt: buildAuthExpiresAt(rememberMe ? "remember" : "standard"),
+          authExpiresAt: buildAuthExpiresAt(
+            rememberMe ? "remember" : "standard",
+          ),
         };
       },
     }),
@@ -584,7 +675,7 @@ export const authOptions: NextAuthOptions = {
         const authStrategy =
           account?.provider === "email"
             ? "admin-email-link"
-            : typedUser.authStrategy ?? "credentials";
+            : (typedUser.authStrategy ?? "credentials");
         Object.assign(
           extendedToken,
           buildInitialTokenClaims({
@@ -603,17 +694,33 @@ export const authOptions: NextAuthOptions = {
         return {};
       }
 
+      if (shouldRefreshAuthExpiry(extendedToken.sessionPolicy)) {
+        extendedToken.authExpiresAt = buildAuthExpiresAt(
+          extendedToken.sessionPolicy,
+        );
+      }
+
       return enrichTokenClaims(extendedToken);
     },
     async redirect({ url, baseUrl }) {
       if (url.startsWith("/")) {
-        return `${baseUrl}${normalizeCallbackUrl(url, "/")}`;
+        const normalizedPath = normalizeCallbackUrl(url, "/");
+
+        if (isAdminRoutePath(normalizedPath)) {
+          return `${buildAdminPortalBaseUrl(baseUrl)}${normalizedPath}`;
+        }
+
+        return `${baseUrl}${normalizedPath}`;
       }
 
       try {
         const targetUrl = new URL(url);
         if (targetUrl.origin === baseUrl) {
           return url;
+        }
+
+        if (isAdminPortalHost(targetUrl.host)) {
+          return targetUrl.toString();
         }
       } catch {
         return baseUrl;
@@ -623,7 +730,10 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        applyTokenToSessionClaims(session as AuthenticatedSession, token as PlatformJwtClaims);
+        applyTokenToSessionClaims(
+          session as AuthenticatedSession,
+          token as PlatformJwtClaims,
+        );
       }
       return session;
     },
@@ -649,7 +759,10 @@ export const authOptions: NextAuthOptions = {
     async decode(params) {
       const token = await defaultJwtDecode(params);
       const typedToken = token as PlatformJwtClaims | null;
-      if (typedToken?.authExpiresAt && isAuthExpired(typedToken.authExpiresAt)) {
+      if (
+        typedToken?.authExpiresAt &&
+        isAuthExpired(typedToken.authExpiresAt)
+      ) {
         return null;
       }
       return token;

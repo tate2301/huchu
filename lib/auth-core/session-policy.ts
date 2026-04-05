@@ -37,6 +37,10 @@ export function buildAuthExpiresAt(policy: SessionPolicy): string {
   return new Date(Date.now() + getSessionPolicyMaxAge(policy) * 1000).toISOString();
 }
 
+export function shouldRefreshAuthExpiry(policy: SessionPolicy | undefined): boolean {
+  return policy === "admin";
+}
+
 export function isAuthExpired(expiresAt: string | undefined): boolean {
   if (!expiresAt) {
     return false;

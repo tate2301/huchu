@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { fetchCommercialCenter } from "@/components/admin-portal/api";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import type { CommercialCenterData } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,15 @@ export function SubscriptionsPage() {
       return matchesSearch && matchesTier && matchesStatus;
     });
   }, [commercial?.subscriptions, searchTerm, statusFilter, tierFilter]);
+
+  if (loading) {
+    return (
+      <AdminModuleLoading
+        label="Loading subscriptions"
+        description="Fetching live billing status, renewal timing, and plan assignments."
+      />
+    );
+  }
 
   return (
     <section className="space-y-4">
@@ -150,11 +160,7 @@ export function SubscriptionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="px-3 py-6 text-center text-[var(--text-muted)]" colSpan={7}>Loading live subscriptions...</td>
-                  </tr>
-                ) : filtered.length === 0 ? (
+                {filtered.length === 0 ? (
                   <tr>
                     <td className="px-3 py-6 text-center text-[var(--text-muted)]" colSpan={7}>No subscriptions found.</td>
                   </tr>

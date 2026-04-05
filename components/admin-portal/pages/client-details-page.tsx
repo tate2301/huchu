@@ -23,6 +23,7 @@ import {
   ReserveSubdomainDialog,
   SupportRequestDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
+import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 
 function formatCurrency(value: number) {
   return `$${value.toLocaleString()}`;
@@ -33,15 +34,21 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleString();
 }
 
-function StatusBadge({ value }: { value: string }) {
-  const normalized = value.toUpperCase();
+function StatusBadge({ value }: { value: unknown }) {
+  const label =
+    typeof value === "string"
+      ? value
+      : value === null || value === undefined
+        ? "UNKNOWN"
+        : String(value);
+  const normalized = label.toUpperCase();
   const variant =
     normalized === "ACTIVE" || normalized === "OPEN"
       ? "secondary"
       : normalized === "DISABLED" || normalized === "SUSPENDED"
         ? "destructive"
         : "outline";
-  return <Badge variant={variant}>{value.replaceAll("_", " ")}</Badge>;
+  return <Badge variant={variant}>{label.replaceAll("_", " ")}</Badge>;
 }
 
 export function ClientDetailsPage({ companyId }: { companyId: string }) {
@@ -84,9 +91,10 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
 
   if (loading) {
     return (
-      <Card className="border-[var(--border)]">
-        <CardContent className="py-10 text-sm text-[var(--text-muted)]">Loading workspace overview...</CardContent>
-      </Card>
+      <AdminModuleLoading
+        label="Loading workspace overview"
+        description="Gathering identity, support, commercial, and reliability context for this workspace."
+      />
     );
   }
 
