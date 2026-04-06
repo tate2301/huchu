@@ -19,7 +19,6 @@ import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -35,6 +34,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { SplitButton } from "@/components/ui/split-button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -464,31 +465,33 @@ export default function ScrapMetalPurchasesPage() {
   return (
     <ScrapShell
       title="Purchases"
-      description="Record intake, lock the transaction price, and assign each buy to an operator."
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setPriceTouched(false);
-              setForm(getEmptyForm());
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            New Purchase
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/management/master-data/operations/scrap-sellers">Seller Profiles</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/stores/inventory">Stock on Hand</Link>
-          </Button>
-        </div>
+        <SplitButton
+          size="sm"
+          onClick={() => {
+            setEditing(null);
+            setPriceTouched(false);
+            setForm(getEmptyForm());
+            setFormOpen(true);
+          }}
+          menuContent={
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/management/master-data/operations/scrap-sellers">Sellers</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/stores/inventory">Stock on hand</Link>
+              </DropdownMenuItem>
+            </>
+          }
+        >
+          <Plus className="h-4 w-4" />
+          New Purchase
+        </SplitButton>
       }
     >
       {purchasesQuery.error ? (
@@ -503,22 +506,107 @@ export default function ScrapMetalPurchasesPage() {
           }
         />
       ) : (
-        <DataTable
-          data={purchases}
-          columns={columns}
-          searchPlaceholder="Search purchase, operator, seller, or material"
-          searchSubmitLabel="Search"
-          tableClassName="text-sm"
-          pagination={{ enabled: true }}
-          emptyState={purchasesQuery.isLoading ? "Loading purchases..." : "No purchases recorded yet"}
-        />
+        <>
+          <div className="hidden md:block">
+            <DataTable
+              data={purchases}
+              columns={columns}
+              searchPlaceholder="Search purchase, operator, seller, or material"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              pagination={{ enabled: true }}
+              emptyState={purchasesQuery.isLoading ? "Loading purchases..." : "No purchases yet"}
+            />
+          </div>
+          <div className="space-y-3 md:hidden">
+            {purchases.map((purchase) => (
+              <article
+                key={purchase.id}
+                className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold">{purchase.material?.name ?? purchase.category}</div>
+                    <div className="font-mono text-xs text-muted-foreground">{purchase.purchaseNumber}</div>
+                  </div>
+                  <Badge variant="outline">{purchase.site.code}</Badge>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Operator</div>
+                    <div className="mt-1 font-semibold">{purchase.employee.name}</div>
+                    <div className="font-mono text-xs text-muted-foreground">{purchase.employee.employeeId}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Seller</div>
+                    <div className="mt-1 font-semibold">{purchase.sellerName || "-"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {purchase.sellerProfile?.nationalId ?? purchase.sellerPhone ?? "No profile"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Date</div>
+                    <div className="mt-1 font-semibold">{purchase.purchaseDate.slice(0, 10)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Weight</div>
+                    <div className="mt-1 font-semibold">{purchase.weight.toFixed(2)} kg</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Price</div>
+                    <div className="mt-1 font-semibold">
+                      {purchase.currency} {purchase.pricePerKg.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Total</div>
+                    <div className="mt-1 font-semibold">
+                      {purchase.currency} {purchase.totalAmount.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(purchase);
+                      setPriceTouched(true);
+                      setForm({
+                        purchaseDate: purchase.purchaseDate.slice(0, 16),
+                        siteId: purchase.site.id,
+                        employeeId: purchase.employee.id,
+                        sellerProfileId: purchase.sellerProfile?.id ?? "__none",
+                        materialId: purchase.material?.id ?? "__none",
+                        category: purchase.material?.category ?? purchase.category,
+                        weight: String(purchase.weight),
+                        pricePerKg: String(purchase.pricePerKg),
+                        currency: purchase.currency,
+                        overrideReason: "",
+                        notes: purchase.notes ?? "",
+                      });
+                      setFormOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(purchase)}>
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Purchase" : "New Purchase"}</DialogTitle>
-            <DialogDescription>Capture intake first, then let the yard decide how to batch it.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -527,7 +615,7 @@ export default function ScrapMetalPurchasesPage() {
               saveMutation.mutate(form);
             }}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Purchase Number</label>
                 <Input
@@ -563,7 +651,7 @@ export default function ScrapMetalPurchasesPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-3">
               <SearchableSelect
                 label="Site *"
                 value={form.siteId || undefined}
@@ -596,7 +684,7 @@ export default function ScrapMetalPurchasesPage() {
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               <SearchableSelect
                 label="Material"
                 value={form.materialId}
@@ -648,12 +736,12 @@ export default function ScrapMetalPurchasesPage() {
               </Select>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               <Input value={selectedSellerProfile?.phone ?? ""} readOnly placeholder="Seller phone" />
               <Input value={selectedSellerProfile?.nationalId ?? ""} readOnly placeholder="Seller national ID" />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-4 lg:grid-cols-4">
               <Input
                 type="number"
                 min="0.01"
@@ -739,10 +827,10 @@ export default function ScrapMetalPurchasesPage() {
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Remove Purchase</DialogTitle>
-            <DialogDescription>
-              {deleteTarget ? `Remove ${deleteTarget.purchaseNumber}?` : "Remove this purchase?"}
-            </DialogDescription>
           </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {deleteTarget ? `Remove ${deleteTarget.purchaseNumber}?` : "Remove this purchase?"}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel

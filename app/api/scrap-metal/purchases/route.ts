@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { applyScrapBalanceDelta } from "@/lib/scrap-metal";
 
 const scrapMetalPurchaseSchema = z.object({
   purchaseNumber: z.string().min(1).max(50).optional(),
@@ -236,24 +237,14 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update employee balance (positive = employee owes company)
-      await tx.scrapMetalEmployeeBalance.upsert({
-        where: {
-          companyId_employeeId: {
-            companyId: session.user.companyId,
-            employeeId: validated.employeeId,
-          },
-        },
-        create: {
-          companyId: session.user.companyId,
-          employeeId: validated.employeeId,
-          balance: totalAmount,
-        },
-        update: {
-          balance: {
-            increment: totalAmount,
-          },
-        },
+      await applyScrapBalanceDelta(tx, {
+        companyId: session.user.companyId,
+        employeeId: validated.employeeId,
+        amountDelta: totalAmount,
+        entryType: "PURCHASE",
+        sourceId: newPurchase.id,
+        note: `Purchase ${newPurchase.purchaseNumber}`,
+        createdById: session.user.id,
       });
 
       return newPurchase;

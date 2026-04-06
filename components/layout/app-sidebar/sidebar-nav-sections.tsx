@@ -38,7 +38,11 @@ function SidebarNavLink({
         size="sm"
         isActive={isActive}
         tooltip={item.label}
-        className={cn("h-8 text-[12.5px]", className)}
+        className={cn(
+          "h-9 rounded-xl px-2.5 text-[12.5px] font-medium transition-colors",
+          "data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground",
+          className,
+        )}
       >
         <Link href={item.href}>
           <item.icon className="h-4 w-4" />
@@ -58,7 +62,7 @@ function SidebarDirectSectionLink({
 }) {
   const item = section.items[0];
   return (
-    <SidebarGroup key={section.id} className="space-y-1">
+    <SidebarGroup key={section.id} className="space-y-1 py-0.5">
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarNavLink
@@ -80,7 +84,7 @@ function SidebarFlatSection({
   activeHref: string | null;
 }) {
   return (
-    <SidebarGroup key={section.id} className="space-y-1">
+    <SidebarGroup key={section.id} className="space-y-1 py-0.5">
       <SidebarGroupContent>
         <SidebarMenu>
           {section.items.map((item) => (
@@ -113,7 +117,7 @@ function SidebarExpandableSection({
   const hasActiveChild = section.items.some((item) => item.href === activeHref);
 
   return (
-    <SidebarGroup key={section.id} className="space-y-1">
+    <SidebarGroup key={section.id} className="space-y-1 py-0.5">
       <SidebarGroupLabel className="p-0">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -122,7 +126,7 @@ function SidebarExpandableSection({
               onClick={onToggle}
               isActive={hasActiveChild}
               tooltip={section.title}
-              className="h-10"
+              className="h-10 rounded-xl px-2.5"
             >
               {React.createElement(sectionIcon, {
                 className: cn(
@@ -144,7 +148,7 @@ function SidebarExpandableSection({
         </SidebarMenu>
       </SidebarGroupLabel>
       {!isCollapsed && isOpen ? (
-        <SidebarGroupContent className="pl-4 pr-1">
+        <SidebarGroupContent className="pl-3 pr-1">
           <SidebarMenu className="pl-2">
             {section.items.map((item) => (
               <SidebarNavLink
@@ -178,7 +182,7 @@ export function SidebarHomeLink({
               asChild
               isActive={isActive}
               tooltip={label}
-              className="h-9 font-semibold"
+              className="h-10 rounded-xl px-2.5 font-semibold"
             >
               <Link href={href}>
                 <Home className="h-4 w-4" />

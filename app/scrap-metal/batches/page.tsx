@@ -19,7 +19,6 @@ import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -36,6 +35,8 @@ import {
 import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { SplitButton } from "@/components/ui/split-button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -403,28 +404,30 @@ export default function ScrapMetalBatchesPage() {
 
   return (
     <ScrapShell
-      title="Yard Lots"
-      description="Create lots, pull in intake, and move ready material into trading."
+      title="Yard Stock"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setForm(getEmptyForm());
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            New Batch
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/stores/inventory">Stock on Hand</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/trading/sales">Bulk Sales</Link>
-          </Button>
-        </div>
+        <SplitButton
+          size="sm"
+          onClick={() => {
+            setEditing(null);
+            setForm(getEmptyForm());
+            setFormOpen(true);
+          }}
+          menuContent={
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/stores/inventory">Stock on hand</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/trading/sales">Sales</Link>
+              </DropdownMenuItem>
+            </>
+          }
+        >
+          <Plus className="h-4 w-4" />
+          New Batch
+        </SplitButton>
       }
     >
       {batchesQuery.error ? (
@@ -440,7 +443,7 @@ export default function ScrapMetalBatchesPage() {
         />
       ) : (
         <>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="h-8 w-[180px]">
                 <SelectValue placeholder="All statuses" />
@@ -457,15 +460,105 @@ export default function ScrapMetalBatchesPage() {
             </span>
           </div>
 
-          <DataTable
-            data={filteredBatches}
-            columns={columns}
-            searchPlaceholder="Search batch, material, or status"
-            searchSubmitLabel="Search"
-            tableClassName="text-sm"
-            pagination={{ enabled: true }}
-            emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches created yet"}
-          />
+          <div className="hidden md:block">
+            <DataTable
+              data={filteredBatches}
+              columns={columns}
+              searchPlaceholder="Search batch, material, or status"
+              searchSubmitLabel="Search"
+              tableClassName="text-sm"
+              pagination={{ enabled: true }}
+              emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
+            />
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {filteredBatches.map((batch) => (
+              <article
+                key={batch.id}
+                className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold">{batch.material?.name ?? batch.category}</div>
+                    <div className="font-mono text-xs text-muted-foreground">{batch.batchNumber}</div>
+                  </div>
+                  <StatusChip
+                    status={
+                      batch.status === "SOLD"
+                        ? "passing"
+                        : batch.status === "READY"
+                          ? "in_review"
+                          : "pending"
+                    }
+                    label={batch.status}
+                  />
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Site</div>
+                    <div className="mt-1 font-semibold">{batch.site.name}</div>
+                    <div className="text-xs text-muted-foreground">{batch.site.code}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Weight</div>
+                    <div className="mt-1 font-semibold">{batch.totalWeight.toFixed(2)} kg</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Window</div>
+                    <div className="mt-1 font-semibold">{batch.collectionStartDate.slice(0, 10)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {batch.collectionEndDate?.slice(0, 10) ?? "Open"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Purchases</div>
+                    <div className="mt-1 font-semibold">{batch._count.items}</div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {batch.status === "COLLECTING" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setBatchForItems(batch);
+                        setSelectedPurchaseIds([]);
+                      }}
+                    >
+                      Add Purchases
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(batch);
+                      setForm({
+                        siteId: batch.site.id,
+                        materialId: batch.material?.id ?? "__none",
+                        category: batch.material?.category ?? batch.category,
+                        status: batch.status,
+                        collectionStartDate: batch.collectionStartDate.slice(0, 16),
+                        collectionEndDate: batch.collectionEndDate?.slice(0, 16) ?? "",
+                        notes: batch.notes ?? "",
+                      });
+                      setFormOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(batch)}>
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
         </>
       )}
 
@@ -473,7 +566,6 @@ export default function ScrapMetalBatchesPage() {
         <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Batch" : "New Batch"}</DialogTitle>
-            <DialogDescription>Create the lot first, then add intake into it from the yard queue.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -482,7 +574,7 @@ export default function ScrapMetalBatchesPage() {
               saveMutation.mutate(form);
             }}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Batch Number</label>
                 <Input
@@ -510,7 +602,7 @@ export default function ScrapMetalBatchesPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-2">
               <SearchableSelect
                 label="Site *"
                 value={form.siteId || undefined}
@@ -601,10 +693,10 @@ export default function ScrapMetalBatchesPage() {
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>Add Purchases to Batch</DialogTitle>
-            <DialogDescription>
-              {batchForItems ? `Assign intake into ${batchForItems.batchNumber}.` : "Assign purchases to batch."}
-            </DialogDescription>
           </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {batchForItems ? `Assign intake into ${batchForItems.batchNumber}.` : "Assign purchases to batch."}
+          </div>
           <div className="space-y-3">
             <div className="text-sm text-muted-foreground">
               {availablePurchases.length} matching unbatched purchases
@@ -673,10 +765,10 @@ export default function ScrapMetalBatchesPage() {
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Remove Batch</DialogTitle>
-            <DialogDescription>
-              {deleteTarget ? `Remove ${deleteTarget.batchNumber}?` : "Remove this batch?"}
-            </DialogDescription>
           </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {deleteTarget ? `Remove ${deleteTarget.batchNumber}?` : "Remove this batch?"}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel

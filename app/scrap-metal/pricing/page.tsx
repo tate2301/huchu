@@ -16,11 +16,11 @@ import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -30,9 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SplitButton } from "@/components/ui/split-button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { Ellipsis, Pencil, Plus, Trash2 } from "@/lib/icons";
 
 type PriceRecord = {
   id: string;
@@ -238,24 +239,30 @@ export default function ScrapMetalPricingPage() {
   return (
     <ScrapShell
       title="Price Board"
-      description="Manage category defaults, material-specific price overrides, and effective-date history."
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setForm(emptyForm);
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            New Price
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
-          </Button>
-        </div>
+        <SplitButton
+          size="sm"
+          onClick={() => {
+            setEditing(null);
+            setForm(emptyForm);
+            setFormOpen(true);
+          }}
+          triggerIcon={<Ellipsis className="h-4 w-4" />}
+          triggerAriaLabel="More price actions"
+          menuContent={
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/purchases">Purchases</Link>
+              </DropdownMenuItem>
+            </>
+          }
+        >
+          <Plus className="h-4 w-4" />
+          New Price
+        </SplitButton>
       }
     >
       {pricesQuery.error ? (
@@ -279,7 +286,6 @@ export default function ScrapMetalPricingPage() {
         <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Price" : "New Price"}</DialogTitle>
-            <DialogDescription>Use material scope when one recyclable needs a specific rate.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -305,7 +311,7 @@ export default function ScrapMetalPricingPage() {
               onAddOption={() => router.push("/management/master-data/operations/scrap-materials")}
               addLabel="Add new material"
             />
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-3">
               <Select
                 value={form.category}
                 onValueChange={(value) => setForm((prev) => ({ ...prev, category: value }))}
@@ -339,7 +345,7 @@ export default function ScrapMetalPricingPage() {
                 required
               />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               <Input
                 value={form.currency}
                 onChange={(event) => setForm((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))}
@@ -368,10 +374,12 @@ export default function ScrapMetalPricingPage() {
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Remove Price</DialogTitle>
-            <DialogDescription>
-              {deleteTarget ? `Remove the ${deleteTarget.category} price effective ${deleteTarget.effectiveDate.slice(0, 10)}?` : "Remove this price?"}
-            </DialogDescription>
           </DialogHeader>
+          {deleteTarget ? (
+            <p className="text-sm text-muted-foreground">
+              {deleteTarget.category} {deleteTarget.effectiveDate.slice(0, 10)}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel

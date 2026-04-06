@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { applyScrapBalanceDelta } from "@/lib/scrap-metal";
 
 const purchaseUpdateSchema = z.object({
   purchaseDate: z
@@ -42,9 +43,12 @@ export async function PATCH(
         id: true,
         status: true,
         companyId: true,
+        employeeId: true,
+        purchaseNumber: true,
         category: true,
         weight: true,
         pricePerKg: true,
+        totalAmount: true,
         sellerProfileId: true,
       },
     });
@@ -90,42 +94,74 @@ export async function PATCH(
       return errorResponse("Seller profile is inactive", 400);
     }
 
-    const purchase = await prisma.scrapMetalPurchase.update({
-      where: { id },
-      data: {
-        purchaseDate: validated.purchaseDate ? new Date(validated.purchaseDate) : undefined,
-        siteId: validated.siteId,
-        employeeId: validated.employeeId,
-        sellerProfileId:
-          validated.sellerProfileId === undefined ? undefined : validated.sellerProfileId,
-        materialId: validated.materialId === null ? null : validated.materialId,
-        category: validated.category,
-        weight: validated.weight,
-        pricePerKg: validated.pricePerKg,
-        totalAmount: nextWeight * nextPricePerKg,
-        currency: validated.currency?.trim().toUpperCase(),
-        sellerName:
-          validated.sellerProfileId === undefined
-            ? validated.sellerName === null
-              ? null
-              : validated.sellerName
-            : sellerProfile?.fullName ?? null,
-        sellerPhone:
-          validated.sellerProfileId === undefined
-            ? validated.sellerPhone === null
-              ? null
-              : validated.sellerPhone
-            : sellerProfile?.phone ?? null,
-        notes: validated.notes === null ? null : validated.notes,
-        status: validated.status,
-      },
-      include: {
-        site: { select: { id: true, name: true, code: true } },
-        employee: { select: { id: true, name: true, employeeId: true } },
-        sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
-        material: { select: { id: true, code: true, name: true, category: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
+    const nextStatus = validated.status ?? existing.status;
+    const nextEmployeeId = validated.employeeId ?? existing.employeeId;
+    const nextTotalAmount = nextWeight * nextPricePerKg;
+
+    const purchase = await prisma.$transaction(async (tx) => {
+      if (existing.status !== "CANCELLED") {
+        await applyScrapBalanceDelta(tx, {
+          companyId: session.user.companyId,
+          employeeId: existing.employeeId,
+          amountDelta: -existing.totalAmount,
+          entryType: "REVERSAL",
+          sourceId: existing.id,
+          note: `Reverse ${existing.purchaseNumber}`,
+          createdById: session.user.id,
+        });
+      }
+
+      const updatedPurchase = await tx.scrapMetalPurchase.update({
+        where: { id },
+        data: {
+          purchaseDate: validated.purchaseDate ? new Date(validated.purchaseDate) : undefined,
+          siteId: validated.siteId,
+          employeeId: validated.employeeId,
+          sellerProfileId:
+            validated.sellerProfileId === undefined ? undefined : validated.sellerProfileId,
+          materialId: validated.materialId === null ? null : validated.materialId,
+          category: validated.category,
+          weight: validated.weight,
+          pricePerKg: validated.pricePerKg,
+          totalAmount: nextTotalAmount,
+          currency: validated.currency?.trim().toUpperCase(),
+          sellerName:
+            validated.sellerProfileId === undefined
+              ? validated.sellerName === null
+                ? null
+                : validated.sellerName
+              : sellerProfile?.fullName ?? null,
+          sellerPhone:
+            validated.sellerProfileId === undefined
+              ? validated.sellerPhone === null
+                ? null
+                : validated.sellerPhone
+              : sellerProfile?.phone ?? null,
+          notes: validated.notes === null ? null : validated.notes,
+          status: validated.status,
+        },
+        include: {
+          site: { select: { id: true, name: true, code: true } },
+          employee: { select: { id: true, name: true, employeeId: true } },
+          sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
+          material: { select: { id: true, code: true, name: true, category: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+
+      if (nextStatus !== "CANCELLED") {
+        await applyScrapBalanceDelta(tx, {
+          companyId: session.user.companyId,
+          employeeId: nextEmployeeId,
+          amountDelta: nextTotalAmount,
+          entryType: "PURCHASE",
+          sourceId: updatedPurchase.id,
+          note: `Purchase ${updatedPurchase.purchaseNumber}`,
+          createdById: session.user.id,
+        });
+      }
+
+      return updatedPurchase;
     });
 
     return successResponse(purchase);
@@ -154,6 +190,9 @@ export async function DELETE(
       select: {
         id: true,
         status: true,
+        employeeId: true,
+        totalAmount: true,
+        purchaseNumber: true,
         batchItems: { select: { id: true } },
       },
     });
@@ -162,7 +201,21 @@ export async function DELETE(
       return errorResponse("Remove this purchase from yard stock before deleting it", 409);
     }
 
-    await prisma.scrapMetalPurchase.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      if (existing.status !== "CANCELLED") {
+        await applyScrapBalanceDelta(tx, {
+          companyId: session.user.companyId,
+          employeeId: existing.employeeId,
+          amountDelta: -existing.totalAmount,
+          entryType: "REVERSAL",
+          sourceId: existing.id,
+          note: `Delete ${existing.purchaseNumber}`,
+          createdById: session.user.id,
+        });
+      }
+
+      await tx.scrapMetalPurchase.delete({ where: { id } });
+    });
     return successResponse({ deleted: true });
   } catch (error) {
     console.error("[API] DELETE /api/scrap-metal/purchases/[id] error:", error);

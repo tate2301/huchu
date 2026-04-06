@@ -220,11 +220,35 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     label: "Management",
     homeHref: "/management/master-data",
     getItems(context) {
-      return getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
+      const items = getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
         href: item.href,
         label: item.label,
         icon: item.icon ?? FileText,
       }));
+
+      if (
+        (context.enabledFeatures ?? []).some(
+          (feature) => normalizeFeatureKey(feature) === "scrap-metal.pricing",
+        ) &&
+        !items.some((item) => item.href === "/scrap-metal/pricing")
+      ) {
+        const masterDataIndex = items.findIndex((item) =>
+          item.href.startsWith("/management/master-data"),
+        );
+        const priceBoardItem = {
+          href: "/scrap-metal/pricing",
+          label: "Price Board",
+          icon: Coins,
+        };
+
+        if (masterDataIndex === -1) {
+          items.unshift(priceBoardItem);
+        } else {
+          items.splice(masterDataIndex + 1, 0, priceBoardItem);
+        }
+      }
+
+      return items;
     },
   },
 };
@@ -273,9 +297,9 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     label: "Scrap & Recycling",
     preferredHomeHref: "/scrap-metal",
     quickActions: [
-      roleItem("/scrap-metal/buying/purchases", "Record Purchase", Payments),
-      roleItem("/scrap-metal/yard/batches", "Open Batch", Package),
-      roleItem("/scrap-metal/trading/sales", "Record Sale", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
+      roleItem("/scrap-metal/purchases", "Record Purchase", Payments),
+      roleItem("/scrap-metal/batches", "Open Batch", Package),
+      roleItem("/scrap-metal/sales", "Record Sale", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
       roleItem("/stores/receive", "Receive Stock", ArrowDownward),
     ],
     nativeModules: ["scrap-metal", "reporting"],
@@ -286,18 +310,18 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         refs: [{ moduleId: "scrap-metal", href: "/scrap-metal" }],
       },
       {
-        id: "scrap-buying",
-        title: "Buying",
-        refs: SCRAP_OPERATIONS_SECTIONS.buying.map((href) => ({ moduleId: "scrap-metal" as const, href })),
+        id: "scrap-purchases",
+        title: "Purchases",
+        refs: SCRAP_OPERATIONS_SECTIONS.purchases.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
         id: "scrap-yard",
-        title: "Yard",
+        title: "Yard Stock",
         refs: SCRAP_OPERATIONS_SECTIONS.yard.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
-        id: "scrap-trading",
-        title: "Trading",
+        id: "scrap-sales",
+        title: "Bulk Sales",
         refs: SCRAP_OPERATIONS_SECTIONS.trading.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {
@@ -309,6 +333,11 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         id: "scrap-reports",
         title: "Reports",
         refs: SCRAP_OPERATIONS_SECTIONS.reporting.map((href) => ({ moduleId: "scrap-metal" as const, href })),
+      },
+      {
+        id: "scrap-management",
+        title: "Management",
+        refs: SCRAP_OPERATIONS_SECTIONS.management.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
     ],
   },

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,6 @@ import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -30,12 +30,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { Wallet, Plus, ReceiptLong, Payments, History } from "@/lib/icons";
+import { SplitButton } from "@/components/ui/split-button";
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 type BalanceRecord = {
   id: string;
   balance: number;
   lastUpdated: string;
+  deliveredValue: number;
+  deliveredWeight: number;
+  purchaseCount: number;
+  lastPurchaseDate: string | null;
+  historyCount: number;
   employee: {
     id: string;
     name: string;
@@ -53,12 +63,87 @@ type PayoutBatch = {
 
 type EmployeeOption = { id: string; name: string; employeeId: string };
 type BatchItemDraft = { employeeId: string; amount: string; notes: string };
+type BalanceAction = "ISSUE_FUNDS" | "RECEIVE_MONEY_BACK" | "PAY_THEM";
+
+type BalanceHistoryPayload = {
+  balance: {
+    id: string;
+    amount: number;
+    lastUpdated: string;
+    employee: {
+      id: string;
+      name: string;
+      employeeId: string;
+      department?: { name: string | null } | null;
+    };
+  };
+  entries: Array<{
+    id: string;
+    entryType: string;
+    amountDelta: number;
+    balanceAfter: number;
+    note?: string | null;
+    sourceId?: string | null;
+    createdAt: string;
+    createdBy?: { id: string; name: string | null } | null;
+  }>;
+  deliveries: Array<{
+    id: string;
+    purchaseNumber: string;
+    purchaseDate: string;
+    weight: number;
+    totalAmount: number;
+    currency: string;
+    category: string;
+    site: { id: string; name: string; code: string };
+    material?: { id: string; code: string; name: string; category: string } | null;
+    sellerName?: string | null;
+    sellerIdNumber?: string | null;
+    batch?: { id: string; batchNumber: string; status: string } | null;
+  }>;
+  settlements: Array<{
+    id: string;
+    amount: number;
+    notes?: string | null;
+    createdAt: string;
+    batch: {
+      id: string;
+      label: string;
+      dueDate: string;
+      workflowStatus: string;
+      createdAt: string;
+    };
+    payment?: {
+      id: string;
+      dueDate: string;
+      amount: number;
+      paidAmount: number;
+      status: string;
+      notes?: string | null;
+      createdAt: string;
+    } | null;
+  }>;
+};
+
+function formatMoney(value: number) {
+  return `USD ${value.toFixed(2)}`;
+}
+
+function formatDate(value: string | null | undefined) {
+  return value ? value.slice(0, 10) : "-";
+}
 
 export default function ScrapSettlementsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeView, setActiveView] = useState("balances");
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedBalance, setSelectedBalance] = useState<BalanceRecord | null>(null);
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  const [adjustmentEmployeeId, setAdjustmentEmployeeId] = useState("");
+  const [adjustmentAction, setAdjustmentAction] = useState<BalanceAction>("ISSUE_FUNDS");
+  const [adjustmentAmount, setAdjustmentAmount] = useState("");
+  const [adjustmentNote, setAdjustmentNote] = useState("");
   const [label, setLabel] = useState("");
   const [periodStart, setPeriodStart] = useState(new Date().toISOString().slice(0, 10));
   const [periodEnd, setPeriodEnd] = useState(new Date().toISOString().slice(0, 10));
@@ -68,7 +153,7 @@ export default function ScrapSettlementsPage() {
 
   const balancesQuery = useQuery({
     queryKey: ["scrap-balances"],
-    queryFn: () => fetchJson<{ data: BalanceRecord[] }>("/api/scrap-metal/employee-balances?limit=500"),
+    queryFn: () => fetchJson<{ data: BalanceRecord[] }>("/api/scrap-metal/employee-balances?limit=500&nonZero=true"),
   });
   const batchesQuery = useQuery({
     queryKey: ["scrap-payout-batches"],
@@ -77,7 +162,15 @@ export default function ScrapSettlementsPage() {
   const employeesQuery = useQuery({
     queryKey: ["employees", "scrap-settlements"],
     queryFn: () => fetchJson<{ data: EmployeeOption[] }>("/api/employees?active=true&limit=500"),
-    enabled: createOpen,
+    enabled: createOpen || adjustmentOpen,
+  });
+  const balanceHistoryQuery = useQuery({
+    queryKey: ["scrap-balance-history", selectedBalance?.employee.id],
+    queryFn: () =>
+      fetchJson<BalanceHistoryPayload>(
+        `/api/scrap-metal/employee-balances/${selectedBalance?.employee.id}/history`,
+      ),
+    enabled: Boolean(selectedBalance?.employee.id),
   });
 
   const createBatch = useMutation({
@@ -118,42 +211,52 @@ export default function ScrapSettlementsPage() {
     },
   });
 
-  const balances = balancesQuery.data?.data ?? [];
+  const adjustBalance = useMutation({
+    mutationFn: async () =>
+      fetchJson("/api/scrap-metal/employee-balances", {
+        method: "POST",
+        body: JSON.stringify({
+          employeeId: adjustmentEmployeeId,
+          action: adjustmentAction,
+          amount: Number(adjustmentAmount),
+          note: adjustmentNote.trim() || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Balance updated", variant: "success" });
+      setAdjustmentOpen(false);
+      setAdjustmentEmployeeId("");
+      setAdjustmentAction("ISSUE_FUNDS");
+      setAdjustmentAmount("");
+      setAdjustmentNote("");
+      queryClient.invalidateQueries({ queryKey: ["scrap-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-balance-history"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update balance",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const balances = useMemo(
+    () => (balancesQuery.data?.data ?? []).sort((left, right) => Math.abs(right.balance) - Math.abs(left.balance)),
+    [balancesQuery.data?.data],
+  );
   const batches = batchesQuery.data?.data ?? [];
   const employees = employeesQuery.data?.data ?? [];
-
-  const balanceColumns = useMemo<ColumnDef<BalanceRecord>[]>(
-    () => [
-      {
-        id: "employee",
-        header: "Operator",
-        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
-        cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">{row.original.employee.name}</div>
-            <div className="font-mono text-xs text-muted-foreground">
-              {row.original.employee.employeeId}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "balance",
-        header: "Balance",
-        cell: ({ row }) => (
-          <NumericCell className={row.original.balance > 0 ? "text-amber-700" : "text-emerald-700"}>
-            USD {row.original.balance.toFixed(2)}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "updated",
-        header: "Updated",
-        cell: ({ row }) => <NumericCell align="left">{row.original.lastUpdated.slice(0, 10)}</NumericCell>,
-      },
-    ],
-    [],
+  const totalDeliveredValue = balances.reduce((sum, balance) => sum + balance.deliveredValue, 0);
+  const totalPositiveBalance = balances
+    .filter((balance) => balance.balance > 0)
+    .reduce((sum, balance) => sum + balance.balance, 0);
+  const totalNegativeBalance = Math.abs(
+    balances.filter((balance) => balance.balance < 0).reduce((sum, balance) => sum + balance.balance, 0),
   );
+  const maxDeliveredValue = Math.max(...balances.map((balance) => balance.deliveredValue), 1);
+  const maxBalanceValue = Math.max(...balances.map((balance) => Math.abs(balance.balance)), 1);
 
   const batchColumns = useMemo<ColumnDef<PayoutBatch>[]>(
     () => [
@@ -195,21 +298,48 @@ export default function ScrapSettlementsPage() {
   );
 
   const views = [
-    { id: "balances", label: "Operator balances", count: balances.length },
-    { id: "batches", label: "Settlement batches", count: batches.length },
+    { id: "balances", label: "Balances", count: balances.length },
+    { id: "batches", label: "Batches", count: batches.length },
   ];
 
   const loadError = balancesQuery.error || batchesQuery.error;
 
+  const openAdjustmentModal = (balance?: BalanceRecord | null) => {
+    setAdjustmentEmployeeId(balance?.employee.id ?? "");
+    setAdjustmentAction(balance && balance.balance < 0 ? "PAY_THEM" : "ISSUE_FUNDS");
+    setAdjustmentAmount("");
+    setAdjustmentNote("");
+    setAdjustmentOpen(true);
+  };
+
   return (
     <ScrapShell
       title="Settlements"
-      description="Track operator balances and prepare scrap settlement batches for HR disbursement."
       actions={
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <SplitButton
+          size="sm"
+          onClick={() => setCreateOpen(true)}
+          menuContent={
+            <>
+              <DropdownMenuItem onSelect={() => openAdjustmentModal()}>
+                Give funds
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openAdjustmentModal(selectedBalance)}>
+                Update balance
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/human-resources/payouts?source=SCRAP">Open in HR</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/reports">Open reports</Link>
+              </DropdownMenuItem>
+            </>
+          }
+        >
           <Plus className="h-4 w-4" />
-          New Settlement Batch
-        </Button>
+          New Batch
+        </SplitButton>
       }
     >
       {loadError ? (
@@ -219,51 +349,193 @@ export default function ScrapSettlementsPage() {
         </Alert>
       ) : null}
 
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Wallet className="h-4 w-4" />
+            Open balances
+          </div>
+          <div className="mt-2 text-xl font-semibold">{balances.length}</div>
+        </div>
+        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ReceiptLong className="h-4 w-4" />
+            Delivered value
+          </div>
+          <div className="mt-2 text-xl font-semibold">{formatMoney(totalDeliveredValue)}</div>
+        </div>
+        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Payments className="h-4 w-4" />
+            Owed to us
+          </div>
+          <div className="mt-2 text-xl font-semibold">{formatMoney(totalPositiveBalance)}</div>
+        </div>
+        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <History className="h-4 w-4" />
+            We owe
+          </div>
+          <div className="mt-2 text-xl font-semibold">{formatMoney(totalNegativeBalance)}</div>
+        </div>
+      </div>
+
       <VerticalDataViews
         items={views}
         value={activeView}
         onValueChange={setActiveView}
-        railLabel="Settlement views"
+        railLabel="Views"
       >
         {activeView === "balances" ? (
-          <DataTable
-            data={balances}
-            columns={balanceColumns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search operator"
-            tableClassName="text-sm"
-            emptyState={balancesQuery.isLoading ? "Loading balances..." : "No scrap balances yet"}
-          />
+          <div className="space-y-3">
+            {balancesQuery.isLoading ? (
+              <div className="rounded-2xl border border-dashed border-[var(--edge-subtle)] px-4 py-8 text-sm text-muted-foreground">
+                Loading balances...
+              </div>
+            ) : null}
+            {!balancesQuery.isLoading && balances.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[var(--edge-subtle)] px-4 py-8 text-sm text-muted-foreground">
+                No open balances.
+              </div>
+            ) : null}
+            {balances.map((balance) => {
+              const deliveredRatio = Math.max(balance.deliveredValue / maxDeliveredValue, 0.04);
+              const balanceRatio = Math.max(Math.abs(balance.balance) / maxBalanceValue, 0.04);
+              const owesUs = balance.balance > 0;
+              const amountLabel = owesUs ? "Owes us" : "We owe";
+              return (
+                <article
+                  key={balance.id}
+                  className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <div className="font-semibold">{balance.employee.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {balance.employee.employeeId}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={owesUs ? "outline" : "secondary"}>{amountLabel}</Badge>
+                      <Button type="button" size="sm" variant="outline" onClick={() => openAdjustmentModal(balance)}>
+                        Update balance
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setSelectedBalance(balance)}>
+                        History
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Delivered</div>
+                        <div className="mt-1 font-semibold">{formatMoney(balance.deliveredValue)}</div>
+                        <div className="text-xs text-muted-foreground">{balance.deliveredWeight.toFixed(2)} kg</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">{amountLabel}</div>
+                        <div className="mt-1 font-semibold">{formatMoney(Math.abs(balance.balance))}</div>
+                        <div className="text-xs text-muted-foreground">{balance.historyCount} entries</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Last delivery</div>
+                        <div className="mt-1 font-semibold">{formatDate(balance.lastPurchaseDate)}</div>
+                        <div className="text-xs text-muted-foreground">{balance.purchaseCount} purchases</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="text-muted-foreground">Delivered value</span>
+                          <span className="font-mono text-foreground">{formatMoney(balance.deliveredValue)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[var(--surface-muted)]">
+                          <div
+                            className="h-2 rounded-full bg-[var(--primary-500)]"
+                            style={{ width: `${Math.min(deliveredRatio * 100, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="text-muted-foreground">{amountLabel}</span>
+                          <span className="font-mono text-foreground">{formatMoney(Math.abs(balance.balance))}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[var(--surface-muted)]">
+                          <div
+                            className={owesUs ? "h-2 rounded-full bg-[var(--warning-500)]" : "h-2 rounded-full bg-[var(--success-500)]"}
+                            style={{ width: `${Math.min(balanceRatio * 100, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         ) : (
-          <DataTable
-            data={batches}
-            columns={batchColumns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search settlement batch"
-            tableClassName="text-sm"
-            emptyState={batchesQuery.isLoading ? "Loading batches..." : "No settlement batches yet"}
-          />
+          <>
+            <div className="hidden md:block">
+              <DataTable
+                data={batches}
+                columns={batchColumns}
+                features={{ sorting: true, globalFilter: true, pagination: true }}
+                pagination={{ enabled: true, server: false }}
+                searchPlaceholder="Search batch"
+                tableClassName="text-sm"
+                emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
+              />
+            </div>
+            <div className="space-y-3 md:hidden">
+              {batches.map((batch) => (
+                <article
+                  key={batch.id}
+                  className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">{batch.label}</div>
+                      <div className="text-xs text-muted-foreground">{batch.items.length} people</div>
+                    </div>
+                    <Badge variant="secondary">{batch.workflowStatus}</Badge>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Due</div>
+                      <div className="mt-1 font-semibold">{formatDate(batch.dueDate)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Value</div>
+                      <div className="mt-1 font-semibold">
+                        {formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
         )}
       </VerticalDataViews>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>New Settlement Batch</DialogTitle>
-            <DialogDescription>Create a scrap settlement batch for review and disbursement.</DialogDescription>
+            <DialogTitle>New Batch</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Batch label" />
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-3">
               <Input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
               <Input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} />
               <Input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
             </div>
             <Textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes" />
             {items.map((item, index) => (
-              <div key={`scrap-item-${index}`} className="grid gap-3 rounded-xl bg-[var(--surface-muted)] p-3 sm:grid-cols-[2fr_1fr_2fr_auto]">
+              <div key={`scrap-item-${index}`} className="grid gap-3 rounded-xl bg-[var(--surface-muted)] p-3 lg:grid-cols-[2fr_1fr_2fr_auto]">
                 <Select
                   value={item.employeeId || "__none"}
                   onValueChange={(value) =>
@@ -342,6 +614,206 @@ export default function ScrapSettlementsPage() {
               {createBatch.isPending ? "Creating..." : "Create Batch"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>Update Balance</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select value={adjustmentEmployeeId || "__none"} onValueChange={(value) => setAdjustmentEmployeeId(value === "__none" ? "" : value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select worker" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Select worker</SelectItem>
+                {employees.map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id}>
+                    {employee.name} ({employee.employeeId})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={adjustmentAction} onValueChange={(value) => setAdjustmentAction(value as BalanceAction)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ISSUE_FUNDS">Give funds</SelectItem>
+                <SelectItem value="RECEIVE_MONEY_BACK">Receive money back</SelectItem>
+                <SelectItem value="PAY_THEM">Pay them</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={adjustmentAmount}
+              onChange={(event) => setAdjustmentAmount(event.target.value)}
+              placeholder="Amount"
+            />
+            <Textarea
+              rows={3}
+              value={adjustmentNote}
+              onChange={(event) => setAdjustmentNote(event.target.value)}
+              placeholder="Note"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAdjustmentOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={adjustBalance.isPending || !adjustmentEmployeeId || !adjustmentAmount}
+              onClick={() => adjustBalance.mutate()}
+            >
+              {adjustBalance.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(selectedBalance)} onOpenChange={(open) => !open && setSelectedBalance(null)}>
+        <DialogContent size="full" className="max-h-[92dvh]">
+          <DialogHeader>
+            <DialogTitle>{selectedBalance?.employee.name ?? "History"}</DialogTitle>
+          </DialogHeader>
+          {selectedBalance ? (
+            balanceHistoryQuery.isLoading ? (
+              <div className="rounded-2xl border border-dashed border-[var(--edge-subtle)] px-4 py-8 text-sm text-muted-foreground">
+                Loading history...
+              </div>
+            ) : balanceHistoryQuery.error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load history</AlertTitle>
+                <AlertDescription>{getApiErrorMessage(balanceHistoryQuery.error)}</AlertDescription>
+              </Alert>
+            ) : balanceHistoryQuery.data ? (
+              <div className="space-y-6">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                    <div className="text-xs text-muted-foreground">Balance</div>
+                    <div className="mt-2 text-xl font-semibold">
+                      {formatMoney(Math.abs(balanceHistoryQuery.data.balance.amount))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                    <div className="text-xs text-muted-foreground">Last updated</div>
+                    <div className="mt-2 text-xl font-semibold">
+                      {formatDate(balanceHistoryQuery.data.balance.lastUpdated)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                    <div className="text-xs text-muted-foreground">Deliveries</div>
+                    <div className="mt-2 text-xl font-semibold">
+                      {balanceHistoryQuery.data.deliveries.length}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                    <div className="text-xs text-muted-foreground">Settlement batches</div>
+                    <div className="mt-2 text-xl font-semibold">
+                      {balanceHistoryQuery.data.settlements.length}
+                    </div>
+                  </div>
+                </div>
+
+                <section className="space-y-3">
+                  <h3 className="text-sm font-semibold">Balance history</h3>
+                  <div className="space-y-3">
+                    {balanceHistoryQuery.data.entries.map((entry) => (
+                      <article
+                        key={entry.id}
+                        className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <div className="font-semibold">{entry.entryType.replace(/_/g, " ")}</div>
+                            <div className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</div>
+                          </div>
+                          <div className="space-y-1 text-left sm:text-right">
+                            <div className="font-mono font-semibold">{formatMoney(entry.amountDelta)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              After {formatMoney(entry.balanceAfter)}
+                            </div>
+                          </div>
+                        </div>
+                        {entry.note ? <div className="mt-3 text-sm text-muted-foreground">{entry.note}</div> : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-sm font-semibold">Delivered scrap</h3>
+                  <div className="space-y-3">
+                    {balanceHistoryQuery.data.deliveries.map((delivery) => (
+                      <article
+                        key={delivery.id}
+                        className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="font-semibold">
+                              {delivery.purchaseNumber} · {delivery.material?.name ?? delivery.category}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDate(delivery.purchaseDate)} · {delivery.site.code} · {delivery.sellerName ?? "No seller"}
+                            </div>
+                          </div>
+                          <div className="space-y-1 text-left sm:text-right">
+                            <div className="font-mono font-semibold">{formatMoney(delivery.totalAmount)}</div>
+                            <div className="text-xs text-muted-foreground">{delivery.weight.toFixed(2)} kg</div>
+                          </div>
+                        </div>
+                        {delivery.batch ? (
+                          <div className="mt-3 text-xs text-muted-foreground">
+                            Batch {delivery.batch.batchNumber} · {delivery.batch.status}
+                          </div>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-sm font-semibold">Settlement batches</h3>
+                  <div className="space-y-3">
+                    {balanceHistoryQuery.data.settlements.map((settlement) => (
+                      <article
+                        key={settlement.id}
+                        className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="font-semibold">{settlement.batch.label}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {settlement.batch.workflowStatus} · Due {formatDate(settlement.batch.dueDate)}
+                            </div>
+                          </div>
+                          <div className="space-y-1 text-left sm:text-right">
+                            <div className="font-mono font-semibold">{formatMoney(settlement.amount)}</div>
+                            {settlement.payment ? (
+                              <div className="text-xs text-muted-foreground">
+                                Paid {formatMoney(settlement.payment.paidAmount)} · {settlement.payment.status}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">Not paid yet</div>
+                            )}
+                          </div>
+                        </div>
+                        {settlement.notes ? (
+                          <div className="mt-3 text-sm text-muted-foreground">{settlement.notes}</div>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            ) : null
+          ) : null}
         </DialogContent>
       </Dialog>
     </ScrapShell>

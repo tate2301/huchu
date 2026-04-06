@@ -29,7 +29,7 @@ const dateInputSchema = z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-
 const employeePaymentCreateSchema = z.object({
   employeeId: z.string().uuid(),
   type: z.enum(["GOLD", "IRREGULAR", "SALARY"]),
-  payoutSource: z.enum(["GOLD", "COMMISSION", "OTHER"]).optional(),
+  payoutSource: z.enum(["GOLD", "SCRAP", "COMMISSION", "OTHER"]).optional(),
   periodStart: dateInputSchema,
   periodEnd: dateInputSchema,
   dueDate: dateInputSchema,

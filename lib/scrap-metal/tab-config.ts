@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  Coins,
   Package,
   Payments,
   ReceiptLong,
@@ -11,10 +10,9 @@ import {
 
 export type ScrapTabId =
   | "overview"
-  | "buying-purchases"
-  | "buying-pricing"
-  | "yard-batches"
-  | "trading-sales"
+  | "purchases"
+  | "yard-stock"
+  | "sales"
   | "settlements"
   | "reports";
 
@@ -28,27 +26,21 @@ export type ScrapTabItem = {
 export const SCRAP_TABS: ScrapTabItem[] = [
   { id: "overview", label: "Overview", href: "/scrap-metal", icon: Recycle },
   {
-    id: "buying-purchases",
+    id: "purchases",
     label: "Purchases",
-    href: "/scrap-metal/buying/purchases",
+    href: "/scrap-metal/purchases",
     icon: Payments,
   },
   {
-    id: "buying-pricing",
-    label: "Price Board",
-    href: "/scrap-metal/buying/pricing",
-    icon: Coins,
-  },
-  {
-    id: "yard-batches",
+    id: "yard-stock",
     label: "Yard Stock",
-    href: "/scrap-metal/yard/batches",
+    href: "/scrap-metal/batches",
     icon: Package,
   },
   {
-    id: "trading-sales",
+    id: "sales",
     label: "Bulk Sales",
-    href: "/scrap-metal/trading/sales",
+    href: "/scrap-metal/sales",
     icon: ReceiptLong,
   },
   {
@@ -67,9 +59,10 @@ export const SCRAP_TABS: ScrapTabItem[] = [
 
 export const SCRAP_OPERATIONS_SECTIONS = {
   overview: ["/scrap-metal"],
-  buying: ["/scrap-metal/buying/purchases", "/scrap-metal/buying/pricing"],
-  yard: ["/scrap-metal/yard/batches"],
-  trading: ["/scrap-metal/trading/sales"],
+  purchases: ["/scrap-metal/purchases"],
+  yard: ["/scrap-metal/batches"],
+  trading: ["/scrap-metal/sales"],
   settlements: ["/scrap-metal/settlements"],
   reporting: ["/scrap-metal/reports"],
+  management: ["/scrap-metal/pricing"],
 } as const;
