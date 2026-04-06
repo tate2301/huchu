@@ -78,9 +78,6 @@ export function AdminModuleLoading({
             aria-live="polite"
           >
             <Loader2 className="h-7 w-7 animate-spin text-[var(--primary-600)]" />
-            <p className="text-sm font-semibold text-[var(--text-strong)]">
-              {label}
-            </p>
           </div>
         </div>
       </div>

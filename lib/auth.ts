@@ -723,7 +723,10 @@ export const authOptions: NextAuthOptions = {
         return {};
       }
 
-      if (shouldRefreshAuthExpiry(extendedToken.sessionPolicy)) {
+      if (
+        extendedToken.sessionPolicy &&
+        shouldRefreshAuthExpiry(extendedToken.sessionPolicy)
+      ) {
         extendedToken.authExpiresAt = buildAuthExpiresAt(
           extendedToken.sessionPolicy,
         );

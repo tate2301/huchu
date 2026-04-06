@@ -629,6 +629,7 @@ export function CommercialCenterPage({
   const scopeTitle = isCompanyScope ? overview?.company.name ?? "Workspace commercial" : "Commercial";
   const planOptions = Array.from(new Set((commercial.overview.workspaces ?? []).map((row) => row.planCode).filter(Boolean))) as string[];
   const summary = commercial.overview.summary;
+  const overviewCurrency = commercial.overview.workspaces[0]?.currency ?? "USD";
   const exposureWaterfallRows = [
     { id: "committed", label: "Committed", value: summary.committedMrr, color: "var(--primary-500)" },
     { id: "past-due", label: "Past due", value: -summary.overdueExposure, color: "var(--danger-500)" },
@@ -683,7 +684,7 @@ export function CommercialCenterPage({
               <MetricTile label="Renewals in 30 days" value={formatCurrency(summary.next30RenewalValue)} hint={`${summary.next30RenewalCount} workspaces`} />
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:gap-0 xl:[&>*]:py-1 xl:[&>*+*]:border-l xl:[&>*+*]:border-[var(--edge-subtle)] xl:[&>*+*]:pl-6">
               <ProjectionStrip
                 projections={commercial.overview.projections}
                 currency={commercial.overview.workspaces[0]?.currency ?? "USD"}
@@ -721,7 +722,7 @@ export function CommercialCenterPage({
               </Card>
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.05fr)_minmax(0,0.8fr)]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.05fr)_minmax(0,0.8fr)] xl:gap-0 xl:[&>*]:py-1 xl:[&>*+*]:border-l xl:[&>*+*]:border-[var(--edge-subtle)] xl:[&>*+*]:pl-6">
               <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Due schedule</CardTitle>
@@ -755,8 +756,8 @@ export function CommercialCenterPage({
                 <CardContent className="pt-0">
                   <AdminWaterfallChart
                     rows={exposureWaterfallRows}
-                    valueFormatter={(value) => formatCurrency(value, summary.currency)}
-                    yTickFormatter={(value) => formatCurrency(value, summary.currency)}
+                    valueFormatter={(value) => formatCurrency(value, overviewCurrency)}
+                    yTickFormatter={(value) => formatCurrency(value, overviewCurrency)}
                   />
                 </CardContent>
               </Card>

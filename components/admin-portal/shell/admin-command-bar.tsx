@@ -14,7 +14,6 @@ import {
 import { searchAdminPortal } from "@/components/admin-portal/api";
 import type { AdminSearchResult } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -162,16 +161,11 @@ export function AdminCommandBar() {
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          className="h-10 min-w-64 w-full justify-between rounded-[12px] px-3 text-[var(--text-muted)] bg-surface-subtle"
-        >
-          <span className="flex items-center gap-2 text-[13px]">
-            <Search className="h-3.5 w-3.5" />
-            Search
-          </span>
-        </Button>
+      <DialogTrigger className="inline-flex h-10 min-w-64 w-full items-center justify-between rounded-[12px] bg-surface-subtle px-3 text-[13px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]">
+        <span className="flex items-center gap-2 text-[13px]">
+          <Search className="h-3.5 w-3.5" />
+          Search
+        </span>
       </DialogTrigger>
       <DialogContent className="max-w-[46rem] overflow-hidden p-0">
         <DialogHeader className="sr-only">

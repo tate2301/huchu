@@ -1148,7 +1148,7 @@ export interface ContractService {
   evaluate(input: EvaluateContractInput): Promise<MutationResult<ContractEvaluationResult>>;
   enforce(input: EnforceContractInput): Promise<MutationResult<ContractEnforcementResult>>;
   override(input: OverrideContractInput): Promise<MutationResult<ContractOverrideResult>>;
-  getState(companyId: string): Promise<ContractState>;
+  getState(companyId: string): Promise<{ state: ContractState; updatedAt: string | null }>;
 }
 
 export interface PlatformServices {

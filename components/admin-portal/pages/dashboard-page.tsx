@@ -14,7 +14,6 @@ import {
   AdminDistributionChart,
   AdminDonutChart,
   AdminStackedAreaChart,
-  AdminStackedBarChart,
   AdminTrendChart,
 } from "@/components/charts/admin-headless-charts";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
@@ -32,7 +31,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  buildFutureDayBuckets,
   buildRecentDayBuckets,
   buildRecentHourBuckets,
   resolveTimestamp,
@@ -506,29 +504,6 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
     }));
   }, [reliability, supportHub]);
 
-  const runbookRows = useMemo<DistributionDatum[]>(() => {
-    if (!reliability) return [];
-    return Array.from(countBy(reliability.executions, (row) => row.status))
-      .map(([label, value]) => {
-        const tone: DistributionDatum["tone"] =
-          label === "FAILED"
-            ? "danger"
-            : label === "RUNNING"
-              ? "warning"
-              : label === "SUCCESS"
-                ? "success"
-                : "default";
-
-        return {
-          id: label,
-          label: titleCaseToken(label),
-          value,
-          tone,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-  }, [reliability]);
-
   const commercialHealthRows = useMemo(() => {
     if (!commercial || !reliability) return [];
 
@@ -607,49 +582,6 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
       };
     });
   }, [commercial, companies, reliability, subscriptionUpdatedAtByCompany]);
-
-  const dueDateTrendRows = useMemo(() => {
-    if (!commercial) return [];
-
-    const buckets = buildFutureDayBuckets(84, 7);
-
-    return buckets.map((bucket, index) => {
-      let renewals = 0;
-      let needAction = 0;
-
-      for (const workspace of commercial.overview.workspaces) {
-        const periodEnd = resolveTimestamp(workspace.currentPeriodEnd);
-        const isOverdue = workspace.dueBucket === "OVERDUE";
-        const isInBucket =
-          periodEnd !== null &&
-          periodEnd >= bucket.start &&
-          periodEnd < bucket.end;
-        const assignOverdueToCurrentBucket = isOverdue && index === 0;
-
-        if (!isInBucket && !assignOverdueToCurrentBucket) {
-          continue;
-        }
-
-        renewals += 1;
-
-        if (
-          isOverdue ||
-          workspace.dueBucket === "DUE_THIS_MONTH" ||
-          workspace.riskBucket === "AT_RISK" ||
-          workspace.riskBucket === "OVERDUE"
-        ) {
-          needAction += 1;
-        }
-      }
-
-      return {
-        label: bucket.label,
-        tooltipLabel: bucket.tooltipLabel,
-        renewals,
-        needAction,
-      };
-    });
-  }, [commercial]);
 
   const pricingCompositionRows = useMemo<DistributionDatum[]>(() => {
     if (!overview?.pricing) return [];
@@ -810,7 +742,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
 
       {!isCompanyScope ? (
         <div className="divide-y">
-          <div className="grid divide-x  gap-3 xl:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-2 xl:gap-0 xl:[&>*]:py-1 xl:[&>*+*]:border-l xl:[&>*+*]:border-[var(--edge-subtle)] xl:[&>*+*]:pl-6">
             <ChartCard title="Commercial health">
               <AdminStackedAreaChart
                 rows={commercialHealthRows}
@@ -883,7 +815,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)] xl:gap-0 xl:[&>*]:py-1 xl:[&>*+*]:border-l xl:[&>*+*]:border-[var(--edge-subtle)] xl:[&>*+*]:pl-6">
             <ChartCard
               title="Pricing composition"
               meta={
@@ -944,7 +876,7 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             </ChartCard>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:gap-0 xl:[&>*]:py-1 xl:[&>*+*]:border-l xl:[&>*+*]:border-[var(--edge-subtle)] xl:[&>*+*]:pl-6">
             <ChartCard title="Operator signals">
               <div className="space-y-2">
                 {operatorSignals.map((signal) => (

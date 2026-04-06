@@ -13,7 +13,13 @@ import {
   AdminDonutChart,
   AdminTrendChart,
 } from "@/components/charts/admin-headless-charts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import {
@@ -28,7 +34,10 @@ import {
   UserRoleDialog,
   UserStatusDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
-import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
+import {
+  buildRecentDayBuckets,
+  resolveTimestamp,
+} from "@/lib/admin-portal/chart-series";
 
 type IdentityView = "admins" | "users" | "requests" | "sessions";
 type DistributionDatum = {
@@ -56,7 +65,9 @@ function StatusBadge({ value }: { value: unknown }) {
       ? "secondary"
       : normalized === "REQUESTED" || normalized === "PENDING"
         ? "outline"
-        : normalized === "DENIED" || normalized === "REVOKED" || normalized === "EXPIRED"
+        : normalized === "DENIED" ||
+            normalized === "REVOKED" ||
+            normalized === "EXPIRED"
           ? "destructive"
           : "outline";
   return <Badge variant={variant}>{label.replaceAll("_", " ")}</Badge>;
@@ -71,14 +82,24 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
-function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
+function MetricCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+}) {
   return (
     <Card className="admin-metric-card shadow-none">
       <CardHeader className="space-y-1 pb-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="font-mono text-2xl">{value}</CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 text-[11px] text-[var(--text-muted)]">{hint}</CardContent>
+      <CardContent className="pt-0 text-[11px] text-[var(--text-muted)]">
+        {hint}
+      </CardContent>
     </Card>
   );
 }
@@ -92,7 +113,10 @@ function titleCaseToken(value: string) {
     .join(" ");
 }
 
-function countBy<T>(items: T[], getKey: (item: T) => string | null | undefined) {
+function countBy<T>(
+  items: T[],
+  getKey: (item: T) => string | null | undefined,
+) {
   const counts = new Map<string, number>();
   for (const item of items) {
     const key = String(getKey(item) || "UNKNOWN");
@@ -113,7 +137,12 @@ function SearchField({
   return (
     <div className="admin-table-search">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-9 pl-10 shadow-none" />
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-9 pl-10 shadow-none"
+      />
     </div>
   );
 }
@@ -121,7 +150,9 @@ function SearchField({
 export function IdentityHubPage({ companyId }: { companyId?: string }) {
   const { actorEmail, companies, activeCompany } = useAdminShell();
   const [view, setView] = useState<IdentityView>("admins");
-  const [searchByView, setSearchByView] = useState<Record<IdentityView, string>>({
+  const [searchByView, setSearchByView] = useState<
+    Record<IdentityView, string>
+  >({
     admins: "",
     users: "",
     requests: "",
@@ -146,7 +177,9 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         }
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : "Failed to load identity hub");
+          setError(
+            err instanceof Error ? err.message : "Failed to load identity hub",
+          );
           setData(null);
         }
       } finally {
@@ -166,24 +199,35 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
     () => [
       { id: "admins", label: "Admins", count: data?.admins.length ?? 0 },
       { id: "users", label: "Users", count: data?.users.length ?? 0 },
-      { id: "requests", label: "Support Requests", count: data?.requests.length ?? 0 },
+      {
+        id: "requests",
+        label: "Support Requests",
+        count: data?.requests.length ?? 0,
+      },
       { id: "sessions", label: "Sessions", count: data?.sessions.length ?? 0 },
     ],
     [data],
   );
 
   const refresh = () => setRefreshKey((value) => value + 1);
-  const scopeLabel = companyId ? `${activeCompany?.name ?? "Workspace"} identity` : "Identity";
-  const activeAdmins = data?.admins.filter((admin) => admin.isActive).length ?? 0;
+  const scopeLabel = companyId
+    ? `${activeCompany?.name ?? "Workspace"} identity`
+    : "Identity";
+  const activeAdmins =
+    data?.admins.filter((admin) => admin.isActive).length ?? 0;
   const activeUsers = data?.users.filter((user) => user.isActive).length ?? 0;
-  const pendingRequests = data?.requests.filter((request) => request.status === "REQUESTED").length ?? 0;
-  const activeSessions = data?.sessions.filter((session) => session.status === "ACTIVE").length ?? 0;
-  const expiringSoonSessions = data?.sessions.filter((session) => {
-    if (session.status !== "ACTIVE" || !session.expiresAt) return false;
-    const expiresAt = new Date(session.expiresAt).getTime();
-    const now = Date.now();
-    return expiresAt > now && expiresAt - now <= 24 * 60 * 60 * 1000;
-  }).length ?? 0;
+  const pendingRequests =
+    data?.requests.filter((request) => request.status === "REQUESTED").length ??
+    0;
+  const activeSessions =
+    data?.sessions.filter((session) => session.status === "ACTIVE").length ?? 0;
+  const expiringSoonSessions =
+    data?.sessions.filter((session) => {
+      if (session.status !== "ACTIVE" || !session.expiresAt) return false;
+      const expiresAt = new Date(session.expiresAt).getTime();
+      const now = Date.now();
+      return expiresAt > now && expiresAt - now <= 24 * 60 * 60 * 1000;
+    }).length ?? 0;
   const adminUserRatio =
     activeUsers > 0 ? (activeAdmins / activeUsers).toFixed(2) : "0.00";
 
@@ -249,7 +293,9 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
   const supportTrendRows = useMemo(() => {
     const buckets = buildRecentDayBuckets(84, 7);
     const requestTimes = (data?.requests ?? [])
-      .map((request) => resolveTimestamp(request.requestedAt, request.createdAt))
+      .map((request) =>
+        resolveTimestamp(request.requestedAt, request.createdAt),
+      )
       .filter((value): value is number => value !== null);
     const sessionTimes = (data?.sessions ?? [])
       .map((session) => resolveTimestamp(session.startedAt, session.createdAt))
@@ -310,7 +356,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           approved += 1;
         }
 
-        const closedAt = resolveTimestamp(request.updatedAt, request.approvedAt);
+        const closedAt = resolveTimestamp(
+          request.updatedAt,
+          request.approvedAt,
+        );
         if (
           (request.status === "DENIED" ||
             request.status === "REVOKED" ||
@@ -343,7 +392,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
       let revoked = 0;
 
       for (const session of sessions) {
-        const startedAt = resolveTimestamp(session.startedAt, session.createdAt);
+        const startedAt = resolveTimestamp(
+          session.startedAt,
+          session.createdAt,
+        );
         if (
           startedAt !== null &&
           startedAt >= bucket.start &&
@@ -385,7 +437,9 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
   if (loading) {
     return (
       <AdminModuleLoading
-        label={companyId ? "Loading workspace identity" : "Loading identity hub"}
+        label={
+          companyId ? "Loading workspace identity" : "Loading identity hub"
+        }
         description="Preparing people, access requests, sessions, and trend summaries."
       />
     );
@@ -397,7 +451,8 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         <div className="space-y-2">
           <div className="space-y-1">
             <p className="admin-page-kicker">
-              {companyId ? activeCompany?.name ?? "Workspace" : "Platform"} access and people
+              {companyId ? (activeCompany?.name ?? "Workspace") : "Platform"}{" "}
+              access and people
             </p>
             <h1 className="admin-page-title">{scopeLabel}</h1>
           </div>
@@ -435,12 +490,36 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
       </div>
 
       <div className="admin-metric-grid">
-        <MetricCard label="Admins online" value={activeAdmins} hint="Active now" />
-        <MetricCard label="Users active" value={activeUsers} hint="Enabled now" />
-        <MetricCard label="Requests waiting" value={pendingRequests} hint="Need review" />
-        <MetricCard label="Sessions live" value={activeSessions} hint="Open now" />
-        <MetricCard label="Admin/user ratio" value={Number(adminUserRatio)} hint={`${adminUserRatio} to 1`} />
-        <MetricCard label="Ending in 24h" value={expiringSoonSessions} hint="Live sessions" />
+        <MetricCard
+          label="Admins online"
+          value={activeAdmins}
+          hint="Active now"
+        />
+        <MetricCard
+          label="Users active"
+          value={activeUsers}
+          hint="Enabled now"
+        />
+        <MetricCard
+          label="Requests waiting"
+          value={pendingRequests}
+          hint="Need review"
+        />
+        <MetricCard
+          label="Sessions live"
+          value={activeSessions}
+          hint="Open now"
+        />
+        <MetricCard
+          label="Admin/user ratio"
+          value={Number(adminUserRatio)}
+          hint={`${adminUserRatio} to 1`}
+        />
+        <MetricCard
+          label="Ending in 24h"
+          value={expiringSoonSessions}
+          hint="Live sessions"
+        />
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">
@@ -497,9 +576,11 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">
-        <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
+        <Card className=" bg-[var(--surface-base)] shadow-none">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Request decisions over time</CardTitle>
+            <CardTitle className="text-base">
+              Request decisions over time
+            </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <AdminTrendChart
@@ -529,7 +610,9 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         </Card>
         <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Session activity over time</CardTitle>
+            <CardTitle className="text-base">
+              Session activity over time
+            </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <AdminTrendChart
@@ -586,20 +669,27 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         </Card>
       </div>
 
-      <VerticalDataViews items={items} value={view} onValueChange={(nextValue) => setView(nextValue as IdentityView)} railLabel="Identity views">
+      <VerticalDataViews
+        items={items}
+        value={view}
+        onValueChange={(nextValue) => setView(nextValue as IdentityView)}
+        railLabel="Identity views"
+      >
         {error ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
-            <CardContent className="py-10 text-sm text-red-700">{error}</CardContent>
+            <CardContent className="py-10 text-sm text-red-700">
+              {error}
+            </CardContent>
           </Card>
         ) : null}
 
         {!error && view === "admins" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
-                <div className="admin-panel-header">
-                  <div>
-                    <CardTitle className="text-base">Admins</CardTitle>
-                  </div>
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Admins</CardTitle>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.admins.length ?? 0} total
@@ -612,12 +702,19 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <SearchField
                   value={searchByView.admins}
-                  onChange={(value) => setSearchByView((current) => ({ ...current, admins: value }))}
+                  onChange={(value) =>
+                    setSearchByView((current) => ({
+                      ...current,
+                      admins: value,
+                    }))
+                  }
                   placeholder="Search admin name, email, workspace, or role"
                 />
                 {companyId ? (
                   <Button asChild variant="outline" size="sm">
-                    <Link href={`/admin/clients/${companyId}`}>Open workspace overview</Link>
+                    <Link href={`/admin/clients/${companyId}`}>
+                      Open workspace overview
+                    </Link>
                   </Button>
                 ) : null}
               </div>
@@ -625,14 +722,19 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
             <CardContent className="overflow-x-auto p-0">
               {!data || data.admins.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No admins found" hint="Create one or adjust search." />
+                  <EmptyState
+                    title="No admins found"
+                    hint="Create one or adjust search."
+                  />
                 </div>
               ) : (
                 <table className="admin-reference-table w-full text-sm">
                   <thead>
                     <tr>
                       <th className="px-4 py-3">Admin</th>
-                      {!companyId ? <th className="px-4 py-3">Workspace</th> : null}
+                      {!companyId ? (
+                        <th className="px-4 py-3">Workspace</th>
+                      ) : null}
                       <th className="px-4 py-3">Role</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3 text-right">Updated</th>
@@ -644,16 +746,23 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                       <tr key={admin.id} className="align-top">
                         <td className="px-4 py-3">
                           <p className="font-medium">{admin.name}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{admin.email}</p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {admin.email}
+                          </p>
                         </td>
                         {!companyId ? (
                           <td className="px-4 py-3">
                             {admin.companyId ? (
-                              <Link href={`/admin/clients/${admin.companyId}`} className="text-sm font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+                              <Link
+                                href={`/admin/clients/${admin.companyId}`}
+                                className="text-sm font-medium text-[var(--text-strong)] underline-offset-4 hover:underline"
+                              >
                                 {admin.companyName ?? admin.companyId}
                               </Link>
                             ) : (
-                              <span className="text-[var(--text-muted)]">No workspace</span>
+                              <span className="text-[var(--text-muted)]">
+                                No workspace
+                              </span>
                             )}
                           </td>
                         ) : null}
@@ -661,17 +770,39 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                           <Badge variant="outline">{admin.role}</Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge value={admin.isActive ? "ACTIVE" : "INACTIVE"} />
+                          <StatusBadge
+                            value={admin.isActive ? "ACTIVE" : "INACTIVE"}
+                          />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(admin.updatedAt ?? admin.createdAt)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">
+                          {formatDate(admin.updatedAt ?? admin.createdAt)}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             {admin.isActive ? (
-                              <AdminStatusDialog actorEmail={actorEmail} admin={admin} activate={false} triggerLabel="Deactivate" onCompleted={refresh} />
+                              <AdminStatusDialog
+                                actorEmail={actorEmail}
+                                admin={admin}
+                                activate={false}
+                                triggerLabel="Deactivate"
+                                onCompleted={refresh}
+                              />
                             ) : (
-                              <AdminStatusDialog actorEmail={actorEmail} admin={admin} activate={true} triggerLabel="Activate" onCompleted={refresh} />
+                              <AdminStatusDialog
+                                actorEmail={actorEmail}
+                                admin={admin}
+                                activate={true}
+                                triggerLabel="Activate"
+                                onCompleted={refresh}
+                              />
                             )}
-                            <PasswordResetDialog actorEmail={actorEmail} subject={admin} kind="admin" triggerLabel="Reset password" onCompleted={refresh} />
+                            <PasswordResetDialog
+                              actorEmail={actorEmail}
+                              subject={admin}
+                              kind="admin"
+                              triggerLabel="Reset password"
+                              onCompleted={refresh}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -686,10 +817,10 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         {!error && view === "users" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
-                <div className="admin-panel-header">
-                  <div>
-                    <CardTitle className="text-base">Users</CardTitle>
-                  </div>
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Users</CardTitle>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.users.length ?? 0} total
@@ -701,21 +832,28 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
               </div>
               <SearchField
                 value={searchByView.users}
-                onChange={(value) => setSearchByView((current) => ({ ...current, users: value }))}
+                onChange={(value) =>
+                  setSearchByView((current) => ({ ...current, users: value }))
+                }
                 placeholder="Search user name, email, workspace, or role"
               />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               {!data || data.users.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No users found" hint="Create one or adjust search." />
+                  <EmptyState
+                    title="No users found"
+                    hint="Create one or adjust search."
+                  />
                 </div>
               ) : (
                 <table className="admin-reference-table w-full text-sm">
                   <thead>
                     <tr>
                       <th className="px-4 py-3">User</th>
-                      {!companyId ? <th className="px-4 py-3">Workspace</th> : null}
+                      {!companyId ? (
+                        <th className="px-4 py-3">Workspace</th>
+                      ) : null}
                       <th className="px-4 py-3">Role</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3 text-right">Updated</th>
@@ -727,11 +865,16 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                       <tr key={user.id} className="align-top">
                         <td className="px-4 py-3">
                           <p className="font-medium">{user.name}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{user.email}</p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {user.email}
+                          </p>
                         </td>
                         {!companyId ? (
                           <td className="px-4 py-3">
-                            <Link href={`/admin/clients/${user.companyId}`} className="text-sm font-medium text-[var(--text-strong)] underline-offset-4 hover:underline">
+                            <Link
+                              href={`/admin/clients/${user.companyId}`}
+                              className="text-sm font-medium text-[var(--text-strong)] underline-offset-4 hover:underline"
+                            >
                               {user.companyName ?? user.companyId}
                             </Link>
                           </td>
@@ -740,18 +883,45 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                           <Badge variant="outline">{user.role}</Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge value={user.isActive ? "ACTIVE" : "INACTIVE"} />
+                          <StatusBadge
+                            value={user.isActive ? "ACTIVE" : "INACTIVE"}
+                          />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(user.updatedAt ?? user.createdAt)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">
+                          {formatDate(user.updatedAt ?? user.createdAt)}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
-                            <UserRoleDialog actorEmail={actorEmail} user={user} triggerLabel="Change role" onCompleted={refresh} />
+                            <UserRoleDialog
+                              actorEmail={actorEmail}
+                              user={user}
+                              triggerLabel="Change role"
+                              onCompleted={refresh}
+                            />
                             {user.isActive ? (
-                              <UserStatusDialog actorEmail={actorEmail} user={user} activate={false} triggerLabel="Deactivate" onCompleted={refresh} />
+                              <UserStatusDialog
+                                actorEmail={actorEmail}
+                                user={user}
+                                activate={false}
+                                triggerLabel="Deactivate"
+                                onCompleted={refresh}
+                              />
                             ) : (
-                              <UserStatusDialog actorEmail={actorEmail} user={user} activate={true} triggerLabel="Activate" onCompleted={refresh} />
+                              <UserStatusDialog
+                                actorEmail={actorEmail}
+                                user={user}
+                                activate={true}
+                                triggerLabel="Activate"
+                                onCompleted={refresh}
+                              />
                             )}
-                            <PasswordResetDialog actorEmail={actorEmail} subject={user} kind="user" triggerLabel="Reset password" onCompleted={refresh} />
+                            <PasswordResetDialog
+                              actorEmail={actorEmail}
+                              subject={user}
+                              kind="user"
+                              triggerLabel="Reset password"
+                              onCompleted={refresh}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -766,29 +936,40 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         {!error && view === "requests" ? (
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
-                <div className="admin-panel-header">
-                  <div>
-                    <CardTitle className="text-base">Support requests</CardTitle>
-                  </div>
+              <div className="admin-panel-header">
+                <div>
+                  <CardTitle className="text-base">Support requests</CardTitle>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.requests.length ?? 0} requests
                   </Badge>
-                  <Badge variant={pendingRequests > 0 ? "secondary" : "outline"} className="font-mono">
+                  <Badge
+                    variant={pendingRequests > 0 ? "secondary" : "outline"}
+                    className="font-mono"
+                  >
                     {pendingRequests} pending
                   </Badge>
                 </div>
               </div>
               <SearchField
                 value={searchByView.requests}
-                onChange={(value) => setSearchByView((current) => ({ ...current, requests: value }))}
+                onChange={(value) =>
+                  setSearchByView((current) => ({
+                    ...current,
+                    requests: value,
+                  }))
+                }
                 placeholder="Search requester, workspace, scope, or reason"
               />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               {!data || data.requests.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No support requests found" hint="Requests will appear here." />
+                  <EmptyState
+                    title="No support requests found"
+                    hint="Requests will appear here."
+                  />
                 </div>
               ) : (
                 <table className="admin-reference-table w-full text-sm">
@@ -806,12 +987,18 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                     {data.requests.map((request) => (
                       <tr key={request.id} className="align-top">
                         <td className="px-4 py-3">
-                          <p className="font-medium">{request.companyName ?? request.companyId}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{request.companySlug ?? request.companyId}</p>
+                          <p className="font-medium">
+                            {request.companyName ?? request.companyId}
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {request.companySlug ?? request.companyId}
+                          </p>
                         </td>
                         <td className="px-4 py-3">
                           <p>{request.requestedBy}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{request.reason}</p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {request.reason}
+                          </p>
                         </td>
                         <td className="px-4 py-3">
                           <Badge variant="outline">{request.scope}</Badge>
@@ -819,17 +1006,37 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                         <td className="px-4 py-3">
                           <StatusBadge value={request.status} />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(request.requestedAt)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">
+                          {formatDate(request.requestedAt)}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-end gap-2">
                             {request.status === "REQUESTED" ? (
                               <>
-                                <SupportApprovalDialog actorEmail={actorEmail} request={request} approve={true} triggerLabel="Approve" onCompleted={refresh} />
-                                <SupportApprovalDialog actorEmail={actorEmail} request={request} approve={false} triggerLabel="Deny" buttonVariant="destructive" onCompleted={refresh} />
+                                <SupportApprovalDialog
+                                  actorEmail={actorEmail}
+                                  request={request}
+                                  approve={true}
+                                  triggerLabel="Approve"
+                                  onCompleted={refresh}
+                                />
+                                <SupportApprovalDialog
+                                  actorEmail={actorEmail}
+                                  request={request}
+                                  approve={false}
+                                  triggerLabel="Deny"
+                                  buttonVariant="destructive"
+                                  onCompleted={refresh}
+                                />
                               </>
                             ) : null}
                             {request.status === "APPROVED" ? (
-                              <SupportStartDialog actorEmail={actorEmail} request={request} triggerLabel="Start session" onCompleted={refresh} />
+                              <SupportStartDialog
+                                actorEmail={actorEmail}
+                                request={request}
+                                triggerLabel="Start session"
+                                onCompleted={refresh}
+                              />
                             ) : null}
                           </div>
                         </td>
@@ -846,28 +1053,39 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
           <Card className="admin-surface bg-[var(--surface-base)] shadow-none">
             <CardHeader className="gap-3 border-b border-[var(--edge-subtle)] pb-3">
               <div className="admin-panel-header">
-                  <div>
-                    <CardTitle className="text-base">Support sessions</CardTitle>
-                  </div>
+                <div>
+                  <CardTitle className="text-base">Support sessions</CardTitle>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="font-mono">
                     {data?.sessions.length ?? 0} sessions
                   </Badge>
-                  <Badge variant={activeSessions > 0 ? "secondary" : "outline"} className="font-mono">
+                  <Badge
+                    variant={activeSessions > 0 ? "secondary" : "outline"}
+                    className="font-mono"
+                  >
                     {activeSessions} active
                   </Badge>
                 </div>
               </div>
               <SearchField
                 value={searchByView.sessions}
-                onChange={(value) => setSearchByView((current) => ({ ...current, sessions: value }))}
+                onChange={(value) =>
+                  setSearchByView((current) => ({
+                    ...current,
+                    sessions: value,
+                  }))
+                }
                 placeholder="Search actor, workspace, mode, scope, or status"
               />
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               {!data || data.sessions.length === 0 ? (
                 <div className="p-6">
-                  <EmptyState title="No support sessions found" hint="Sessions will appear here." />
+                  <EmptyState
+                    title="No support sessions found"
+                    hint="Sessions will appear here."
+                  />
                 </div>
               ) : (
                 <table className="admin-reference-table w-full text-sm">
@@ -886,8 +1104,12 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                     {data.sessions.map((session) => (
                       <tr key={session.id} className="align-top">
                         <td className="px-4 py-3">
-                          <p className="font-medium">{session.companyName ?? session.companyId}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{session.companySlug ?? session.companyId}</p>
+                          <p className="font-medium">
+                            {session.companyName ?? session.companyId}
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {session.companySlug ?? session.companyId}
+                          </p>
                         </td>
                         <td className="px-4 py-3">{session.actor}</td>
                         <td className="px-4 py-3">
@@ -899,13 +1121,22 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                         <td className="px-4 py-3">
                           <StatusBadge value={session.status} />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">{formatDate(session.expiresAt)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-muted)]">
+                          {formatDate(session.expiresAt)}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
                             {session.status === "ACTIVE" ? (
-                              <SupportEndDialog actorEmail={actorEmail} session={session} triggerLabel="End session" onCompleted={refresh} />
+                              <SupportEndDialog
+                                actorEmail={actorEmail}
+                                session={session}
+                                triggerLabel="End session"
+                                onCompleted={refresh}
+                              />
                             ) : (
-                              <span className="text-xs text-[var(--text-muted)]">No actions</span>
+                              <span className="text-xs text-[var(--text-muted)]">
+                                No actions
+                              </span>
                             )}
                           </div>
                         </td>
