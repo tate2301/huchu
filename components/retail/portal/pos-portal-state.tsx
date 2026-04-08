@@ -84,6 +84,8 @@ type PosPortalStateValue = {
   setLoyaltyRedemptionPoints: (value: string) => void;
   payments: PaymentRow[];
   setPayments: (value: PaymentRow[] | ((current: PaymentRow[]) => PaymentRow[])) => void;
+  splitTenderMode: boolean;
+  setSplitTenderMode: (value: boolean) => void;
   orderDiscountAmount: string;
   setOrderDiscountAmount: (value: string) => void;
   overrideReason: string;
@@ -120,6 +122,7 @@ type PosPortalStateValue = {
   nonCashTotal: number;
   postSale: () => void;
   postSalePending: boolean;
+  checkoutBaseBlockers: string[];
   pendingOfflineSales: number;
   queuedOfflineSales: PosQueuedSale[];
   retryOfflineSale: (id: string) => void;
@@ -155,6 +158,7 @@ export function PosPortalProvider({
   const [payments, setPayments] = useState<PaymentRow[]>([
     { tenderType: "CASH", amount: "", reference: "" },
   ]);
+  const [splitTenderMode, setSplitTenderMode] = useState(false);
   const [orderDiscountAmount, setOrderDiscountAmount] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
@@ -270,6 +274,7 @@ export function PosPortalProvider({
     setCustomerEmail("");
     setLoyaltyRedemptionPoints("");
     setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
+    setSplitTenderMode(false);
     setOrderDiscountAmount("");
     setOverrideReason("");
     setSelectedPromotionId("");
@@ -444,6 +449,8 @@ export function PosPortalProvider({
     setLoyaltyRedemptionPoints,
     payments,
     setPayments,
+    splitTenderMode,
+    setSplitTenderMode,
     orderDiscountAmount,
     setOrderDiscountAmount,
     overrideReason,
@@ -498,6 +505,7 @@ export function PosPortalProvider({
       setCustomerEmail("");
       setLoyaltyRedemptionPoints("");
       setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
+      setSplitTenderMode(false);
       setOrderDiscountAmount(input.orderDiscountAmount ?? "");
       setSelectedPromotionId(input.selectedPromotionId ?? "");
     },
@@ -517,6 +525,10 @@ export function PosPortalProvider({
       saleMutation.mutate(payload);
     },
     postSalePending: saleMutation.isPending,
+    checkoutBaseBlockers: [
+      ...(currentShift ? [] : ["Open a shift before checkout."]),
+      ...(cart.length > 0 ? [] : ["Add at least one item to continue."]),
+    ],
     pendingOfflineSales,
     queuedOfflineSales,
     retryOfflineSale: (id) => {

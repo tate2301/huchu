@@ -11,6 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus, RefreshCcw, Trash2, XCircle } from "@/lib/icons";
+import { PosNumericField } from "./pos-numeric-field";
+import { PosNumericKeypad } from "./pos-numeric-keypad";
+import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, SaleDetail, SaleRow, TenderType } from "./pos-types";
 import { getPaymentSummary, money, round } from "./pos-utils";
@@ -29,6 +32,9 @@ export function PosHistoryView() {
   const [refundPayments, setRefundPayments] = useState<PaymentRow[]>([
     { tenderType: "CASH", amount: "", reference: "" },
   ]);
+  const [activeRefundNumericTarget, setActiveRefundNumericTarget] = useState<
+    { type: "refund_qty"; lineId: string } | { type: "refund_amount"; index: number } | null
+  >(null);
   const [voidReason, setVoidReason] = useState("");
   const [voidNotes, setVoidNotes] = useState("");
 
@@ -159,9 +165,34 @@ export function PosHistoryView() {
     );
   };
 
+  const handleRefundKeypadAction = (action: PosKeypadAction) => {
+    if (!activeRefundNumericTarget) return;
+    if (activeRefundNumericTarget.type === "refund_qty") {
+      setRefundAmounts((current) => ({
+        ...current,
+        [activeRefundNumericTarget.lineId]: applyPosKeypadAction(
+          current[activeRefundNumericTarget.lineId] ?? "",
+          action,
+          { maxDecimals: 3 },
+        ),
+      }));
+      return;
+    }
+    setRefundPayments((current) =>
+      current.map((payment, index) =>
+        index === activeRefundNumericTarget.index
+          ? {
+              ...payment,
+              amount: applyPosKeypadAction(payment.amount ?? "", action),
+            }
+          : payment,
+      ),
+    );
+  };
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -180,10 +211,10 @@ export function PosHistoryView() {
         </div>
       </div>
 
-      <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-3">
+      <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
         <div className="space-y-2">
           {(salesQuery.data?.data ?? []).length === 0 ? (
-            <div className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-10 text-center text-sm text-[var(--text-muted)]">
+            <div className="rounded-[1rem] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-3 py-10 text-center text-sm text-[var(--text-muted)]">
               {salesQuery.isLoading ? "Loading transactions..." : "No transactions found."}
             </div>
           ) : (
@@ -192,7 +223,7 @@ export function PosHistoryView() {
                 key={sale.id}
                 type="button"
                 onClick={() => setSelectedSaleId(sale.id)}
-                className="flex w-full items-center justify-between gap-3 rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-3 text-left"
+                className="flex w-full items-center justify-between gap-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left"
               >
                 <div className="min-w-0">
                   <div className="font-mono font-semibold">{sale.saleNo}</div>
@@ -356,17 +387,16 @@ export function PosHistoryView() {
                       {line.quantity.toFixed(2)} x {money(line.unitPrice)}
                     </div>
                   </div>
-                  <Input
+                  <PosNumericField
+                    label="Qty"
                     value={refundAmounts[line.id] ?? ""}
-                    onChange={(event) =>
-                      setRefundAmounts((current) => ({
-                        ...current,
-                        [line.id]: event.target.value,
-                      }))
+                    active={
+                      activeRefundNumericTarget?.type === "refund_qty" &&
+                      activeRefundNumericTarget.lineId === line.id
                     }
-                    inputMode="decimal"
-                    className="h-10"
-                    placeholder="Qty"
+                    onActivate={() =>
+                      setActiveRefundNumericTarget({ type: "refund_qty", lineId: line.id })
+                    }
                   />
                   <div className="flex items-center justify-end font-mono text-sm">
                     {money(
@@ -414,14 +444,16 @@ export function PosHistoryView() {
                     <SelectItem value="VOUCHER">Voucher</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input
+                <PosNumericField
+                  label="Amount"
                   value={payment.amount}
-                  onChange={(event) =>
-                    updateRefundPayment(index, { amount: event.target.value })
+                  active={
+                    activeRefundNumericTarget?.type === "refund_amount" &&
+                    activeRefundNumericTarget.index === index
                   }
-                  inputMode="decimal"
-                  className="h-11"
-                  placeholder="Amount"
+                  onActivate={() =>
+                    setActiveRefundNumericTarget({ type: "refund_amount", index })
+                  }
                 />
                 <Input
                   value={payment.reference}
@@ -464,6 +496,7 @@ export function PosHistoryView() {
               <span>Refund total</span>
               <span className="font-mono">{money(refundTotal)}</span>
             </div>
+            <PosNumericKeypad title="Numeric keypad" onAction={handleRefundKeypadAction} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setRefundDialog(false)}>

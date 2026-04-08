@@ -2,29 +2,56 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Clock, Package, Payments, Plus, RotateCcw, Save, Trash2, Wallet } from "@/lib/icons";
+import { Clock, Payments, RefreshCcw, Save, Trash2, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
+import { PosFocusedEditorDrawer } from "./pos-focused-editor-drawer";
+import { PosInlineValidationBanner } from "./pos-inline-validation-banner";
+import { PosNumericField } from "./pos-numeric-field";
+import { PosNumericKeypad } from "./pos-numeric-keypad";
+import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
 
-function requiresReference(
-  tenderType: TenderType,
-  requiredReferenceTenders: TenderType[],
-) {
+type CheckoutNumericTarget =
+  | { type: "line_qty"; lineId: string }
+  | { type: "line_price"; lineId: string }
+  | { type: "line_discount"; lineId: string }
+  | { type: "order_discount" }
+  | { type: "tender_amount"; index: number }
+  | { type: "redeem_points" };
+
+function requiresReference(tenderType: TenderType, requiredReferenceTenders: TenderType[]) {
   return requiredReferenceTenders.includes(tenderType);
 }
 
 function normalizeWhatsappPhone(input: string | null | undefined) {
   return String(input ?? "").replace(/\D/g, "");
+}
+
+function roundUp(value: number, step: number) {
+  if (value <= 0) return 0;
+  return Math.ceil(value / step) * step;
 }
 
 export function PosCheckoutView() {
@@ -33,6 +60,9 @@ export function PosCheckoutView() {
   const queryClient = useQueryClient();
   const [holdDialog, setHoldDialog] = useState(false);
   const [holdLabel, setHoldLabel] = useState("");
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [activeTarget, setActiveTarget] = useState<CheckoutNumericTarget | null>(null);
+
   const {
     search,
     setSearch,
@@ -51,6 +81,8 @@ export function PosCheckoutView() {
     setLoyaltyRedemptionPoints,
     payments,
     setPayments,
+    splitTenderMode,
+    setSplitTenderMode,
     orderDiscountAmount,
     setOrderDiscountAmount,
     overrideReason,
@@ -78,6 +110,7 @@ export function PosCheckoutView() {
     clearCart,
     postSale,
     postSalePending,
+    checkoutBaseBlockers,
     pendingOfflineSales,
     queuedOfflineSales,
     retryOfflineSale,
@@ -89,14 +122,47 @@ export function PosCheckoutView() {
     lastCompletedSale,
     dismissCompletedSale,
   } = usePosPortalState();
+
+  const selectedLine = useMemo(
+    () => cart.find((line) => line.catalogItemId === selectedLineId) ?? null,
+    [cart, selectedLineId],
+  );
+
+  useEffect(() => {
+    if (splitTenderMode) return;
+    if (payments.length !== 1) {
+      const base = payments[0] ?? {
+        tenderType: "CASH" as TenderType,
+        amount: "",
+        reference: "",
+      };
+      setPayments([{ ...base }]);
+      return;
+    }
+    if (cart.length > 0 && !payments[0].amount.trim()) {
+      setPayments((current) =>
+        current.map((payment, index) =>
+          index === 0 ? { ...payment, amount: total.toFixed(2) } : payment,
+        ),
+      );
+    }
+    if (cart.length === 0 && payments[0].amount.trim()) {
+      setPayments((current) =>
+        current.map((payment, index) => (index === 0 ? { ...payment, amount: "" } : payment)),
+      );
+    }
+  }, [cart.length, payments, setPayments, splitTenderMode, total]);
+
   const hasMissingRequiredReference = payments.some(
     (payment) =>
       requiresReference(payment.tenderType, requiredReferenceTenders) &&
       payment.amount.trim() !== "" &&
       payment.reference.trim().length < minReferenceLength,
   );
+
   const selectedCustomer =
     customerSearchResults.find((customer) => customer.id === selectedCustomerId) ?? null;
+
   const createCustomerMutation = useMutation({
     mutationFn: () =>
       fetchJson<{ data: { id: string; name: string; phone: string | null; email: string | null } }>(
@@ -119,10 +185,7 @@ export function PosCheckoutView() {
         loyaltyPoints: 0,
         loyaltyTier: "BRONZE",
       });
-      toast({
-        title: "Customer saved",
-        variant: "success",
-      });
+      toast({ title: "Customer saved", variant: "success" });
     },
     onError: (error) =>
       toast({
@@ -131,6 +194,7 @@ export function PosCheckoutView() {
         variant: "destructive",
       }),
   });
+
   const whatsappHref = (() => {
     if (!lastCompletedSale) return null;
     const message = [
@@ -144,9 +208,7 @@ export function PosCheckoutView() {
       .join("\n");
     const encoded = encodeURIComponent(message);
     const phone = normalizeWhatsappPhone(lastCompletedSale.customerPhone);
-    return phone
-      ? `https://wa.me/${phone}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`;
+    return phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
   })();
 
   const holdCartMutation = useMutation({
@@ -180,597 +242,374 @@ export function PosCheckoutView() {
       }),
   });
 
-  const addPaymentRow = () => {
-    setPayments((current) => [
-      ...current,
-      { tenderType: "CARD", amount: "", reference: "" },
-    ]);
-  };
-
-  const updatePayment = (
-    index: number,
-    next: Partial<PaymentRow>,
-  ) => {
+  const updatePayment = (index: number, next: Partial<PaymentRow>) => {
     setPayments((current) =>
-      current.map((entry, entryIndex) =>
-        entryIndex === index ? { ...entry, ...next } : entry,
-      ),
+      current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...next } : entry)),
     );
   };
 
-  return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_430px]">
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2 rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-2.5">
-          <div className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--surface-base)] px-3 text-xs font-medium text-[var(--text-muted)]">
-            <Clock className="h-4 w-4" />
-            {currentShift ? currentShift.shiftNo : "No open shift"}
-          </div>
-          {currentShift ? (
-            <>
-              <div className="text-sm font-medium">{currentShift.site?.name ?? "Site"}</div>
-              <div className="text-xs text-[var(--text-muted)]">{currentShift.registerName}</div>
-              <div className="font-mono text-xs text-[var(--text-muted)]">
-                {money(currentShift.netSalesValue)} net
-              </div>
-            </>
-          ) : null}
-          <div className="ml-auto flex flex-wrap gap-2">
-            {!currentShift ? (
-              <Button asChild size="sm">
-                <Link href={getPosPortalHref("shift", isPosHost)}>Open shift</Link>
-              </Button>
-            ) : (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setHoldDialog(true)}
-                  disabled={cart.length === 0}
-                >
-                  Hold
-                </Button>
-                <Button asChild size="sm" variant="outline">
-                  <Link href={getPosPortalHref("shift", isPosHost)}>Cash-up</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
+  const addPaymentRow = () => {
+    setPayments((current) => [...current, { tenderType: "CARD", amount: "", reference: "" }]);
+  };
 
-        <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-2.5">
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Scan barcode or search item"
-            className="border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
-          />
+  const blockers = useMemo(() => {
+    const next = [...checkoutBaseBlockers];
+    if (nonCashTotal > total + 0.01) {
+      next.push("Non-cash tenders cannot exceed sale total.");
+    }
+    if (tenderedTotal < total - 0.01) {
+      next.push("Tendered amount is below the sale total.");
+    }
+    if (hasMissingRequiredReference) {
+      next.push("Required tender references are incomplete.");
+    }
+    return next;
+  }, [checkoutBaseBlockers, hasMissingRequiredReference, nonCashTotal, tenderedTotal, total]);
+
+  const applyToTarget = (target: CheckoutNumericTarget, action: PosKeypadAction) => {
+    if (target.type === "order_discount") {
+      setOrderDiscountAmount((current) => applyPosKeypadAction(current, action));
+      return;
+    }
+    if (target.type === "redeem_points") {
+      setLoyaltyRedemptionPoints((current) =>
+        applyPosKeypadAction(current, action, { allowDecimal: false, maxDecimals: 0 }),
+      );
+      return;
+    }
+    if (target.type === "tender_amount") {
+      const currentValue = payments[target.index]?.amount ?? "";
+      const nextValue = applyPosKeypadAction(currentValue, action);
+      updatePayment(target.index, { amount: nextValue });
+      return;
+    }
+    if (target.type === "line_qty") {
+      const currentValue = String(
+        selectedLine?.catalogItemId === target.lineId ? selectedLine.quantity : 0,
+      );
+      const nextValue = applyPosKeypadAction(currentValue, action, { maxDecimals: 3 });
+      if (!nextValue) return;
+      const parsed = Number(nextValue);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        updateQty(target.lineId, parsed);
+      }
+      return;
+    }
+    if (target.type === "line_price") {
+      const currentValue = String(
+        selectedLine?.catalogItemId === target.lineId ? selectedLine.unitPrice : 0,
+      );
+      const nextValue = applyPosKeypadAction(currentValue, action);
+      const parsed = Number(nextValue || "0");
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        updateItemPrice(target.lineId, parsed);
+      }
+      return;
+    }
+    const currentValue = String(
+      selectedLine?.catalogItemId === target.lineId ? selectedLine.lineDiscountAmount ?? 0 : 0,
+    );
+    const nextValue = applyPosKeypadAction(currentValue, action);
+    const parsed = Number(nextValue || "0");
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      updateItemDiscount(target.lineId, parsed);
+    }
+  };
+
+  const handleKeypadAction = (action: PosKeypadAction) => {
+    if (!activeTarget) return;
+    applyToTarget(activeTarget, action);
+  };
+
+  const handleCharge = () => {
+    if (blockers.length) {
+      toast({ title: "Fix checkout blockers", description: blockers[0], variant: "warning" });
+      const firstTenderIndex = payments.findIndex((payment) => Number(payment.amount || "0") <= 0);
+      if (firstTenderIndex >= 0) {
+        setActiveTarget({ type: "tender_amount", index: firstTenderIndex });
+      }
+      return;
+    }
+    postSale();
+  };
+
+  const keypadPresets = useMemo(() => {
+    const exact = total.toFixed(2);
+    const round5 = roundUp(total, 5).toFixed(2);
+    const round10 = roundUp(total, 10).toFixed(2);
+    return [
+      { label: `Due ${money(total)}`, value: exact },
+      { label: `Round ${money(Number(round5))}`, value: round5 },
+      { label: `Round ${money(Number(round10))}`, value: round10 },
+    ];
+  }, [total]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2">
+        <div className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--surface-muted)] px-3 text-xs font-medium text-[var(--text-muted)]">
+          <Clock className="h-4 w-4" />
+          {currentShift ? currentShift.shiftNo : "No open shift"}
         </div>
-        {pendingOfflineSales > 0 ? (
-          <div className="space-y-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <div className="flex items-center justify-between gap-3">
-              <span>
-                {pendingOfflineSales} sale{pendingOfflineSales === 1 ? "" : "s"} pending offline sync
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={syncOfflineSales}
-                disabled={syncOfflineSalesPending}
-              >
-                Sync now
-              </Button>
-            </div>
-            <div className="space-y-1">
-              {queuedOfflineSales.slice(0, 4).map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-2 py-1"
-                >
-                  <div className="min-w-0">
-                    <div className="font-mono text-[11px]">{entry.payload.saleNo}</div>
-                    <div className="text-[10px] uppercase tracking-[0.08em]">
-                      {entry.status} • retries {entry.retryCount}
-                    </div>
-                    {entry.lastError ? <div className="truncate text-[10px]">{entry.lastError}</div> : null}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2"
-                      onClick={() => retryOfflineSale(entry.id)}
-                      disabled={syncOfflineSalesPending}
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2"
-                      onClick={() => removeOfflineSale(entry.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+        {currentShift ? (
+          <>
+            <div className="text-sm font-medium">{currentShift.site?.name ?? "Site"}</div>
+            <div className="text-xs text-[var(--text-muted)]">{currentShift.registerName}</div>
+            <div className="font-mono text-xs text-[var(--text-muted)]">{money(currentShift.netSalesValue)} net</div>
+          </>
+        ) : null}
+        <div className="ml-auto flex flex-wrap gap-2">
+          {!currentShift ? (
+            <Button asChild size="sm">
+              <Link href={getPosPortalHref("shift", isPosHost)}>Open shift</Link>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setHoldDialog(true)} disabled={cart.length === 0}>
+              Hold
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {pendingOfflineSales > 0 ? (
+        <div className="space-y-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <div className="flex items-center justify-between gap-3">
+            <span>
+              {pendingOfflineSales} sale{pendingOfflineSales === 1 ? "" : "s"} pending offline sync
+            </span>
+            <Button type="button" size="sm" variant="outline" onClick={syncOfflineSales} disabled={syncOfflineSalesPending}>
+              Sync now
+            </Button>
+          </div>
+          <div className="space-y-1">
+            {queuedOfflineSales.slice(0, 4).map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-2 py-1">
+                <div className="min-w-0">
+                  <div className="font-mono text-[11px]">{entry.payload.saleNo}</div>
+                  <div className="text-[10px] uppercase tracking-[0.08em]">
+                    {entry.status} • retries {entry.retryCount}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {promotions.length > 0 ? (
-          <div className="flex gap-2 overflow-auto pb-1">
-            <button
-              type="button"
-              onClick={() => setSelectedPromotionId("")}
-              className={
-                selectedPromotionId
-                  ? "rounded-full bg-[var(--surface-muted)] px-3 py-1.5 text-xs text-[var(--text-muted)]"
-                  : "rounded-full bg-[#d1a45a] px-3 py-1.5 text-xs text-[#2b1f0d]"
-              }
-            >
-              No promotion
-            </button>
-            {promotions.map((promotion) => (
-              <button
-                key={promotion.id}
-                type="button"
-                onClick={() => setSelectedPromotionId(promotion.id)}
-                className={
-                  selectedPromotionId === promotion.id
-                    ? "rounded-full bg-[#d1a45a] px-3 py-1.5 text-xs text-[#2b1f0d]"
-                    : "rounded-full bg-[var(--surface-muted)] px-3 py-1.5 text-xs text-[var(--text-muted)]"
-                }
-              >
-                {promotion.name}
-              </button>
+                <div className="flex items-center gap-1">
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => retryOfflineSale(entry.id)} disabled={syncOfflineSalesPending}>
+                    <RefreshCcw className="h-3 w-3" />
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => removeOfflineSale(entry.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
             ))}
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-3">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {(catalogItems ?? []).map((item) => (
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.05fr)_380px]">
+        <section className="space-y-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Scan barcode or search item" className="h-12" />
+          {promotions.length > 0 ? (
+            <div className="flex gap-2 overflow-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setSelectedPromotionId("")}
+                className={selectedPromotionId ? "rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs" : "rounded-full border border-[var(--text-strong)] bg-[var(--text-strong)] px-3 py-1.5 text-xs text-white"}
+              >
+                No promotion
+              </button>
+              {promotions.map((promotion) => (
+                <button
+                  key={promotion.id}
+                  type="button"
+                  onClick={() => setSelectedPromotionId(promotion.id)}
+                  className={selectedPromotionId === promotion.id ? "rounded-full border border-[var(--text-strong)] bg-[var(--text-strong)] px-3 py-1.5 text-xs text-white" : "rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs"}
+                >
+                  {promotion.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {catalogItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => addToCart(item)}
                 disabled={!currentShift}
-                className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-3 text-left transition-transform duration-150 hover:-translate-y-0.5 disabled:opacity-60"
+                className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left transition-colors hover:bg-[var(--surface-base)] disabled:opacity-60"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold">{item.name}</div>
-                    <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
-                      {item.barcode || item.sku}
-                    </div>
-                  </div>
-                  <Package className="h-4 w-4 text-[var(--text-muted)]" />
-                </div>
-                <div className="mt-4 flex items-end justify-between gap-3">
-                  <div>
-                    <div className="font-mono text-base font-semibold">
-                      {money(item.unitPrice)}
-                    </div>
-                    {item.compareAtPrice ? (
-                      <div className="font-mono text-[11px] text-[var(--text-muted)] line-through">
-                        {money(item.compareAtPrice)}
-                      </div>
-                    ) : null}
-                  </div>
+                <div className="truncate text-sm font-semibold">{item.name}</div>
+                <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">{item.barcode || item.sku}</div>
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  <div className="font-mono text-base font-semibold">{money(item.unitPrice)}</div>
                   <div className="text-right text-[11px] text-[var(--text-muted)]">
-                    {item.inventoryItem
-                      ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}`
-                      : "No stock"}
+                    {item.inventoryItem ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}` : "No stock"}
                   </div>
                 </div>
               </button>
             ))}
           </div>
-          {catalogLoading ? (
-            <div className="px-2 py-8 text-center text-sm text-[var(--text-muted)]">
-              Loading catalog...
-            </div>
-          ) : null}
-          {!catalogLoading && catalogItems.length === 0 ? (
-            <div className="px-2 py-8 text-center text-sm text-[var(--text-muted)]">
-              No sellable items found for this register.
-            </div>
-          ) : null}
-        </div>
-      </section>
+          {catalogLoading ? <div className="py-6 text-center text-sm text-[var(--text-muted)]">Loading catalog...</div> : null}
+        </section>
 
-      <aside className="space-y-3">
-        <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-3">
+        <section className="space-y-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold">Current sale</div>
             <div className="text-xs text-[var(--text-muted)]">{cart.length} lines</div>
           </div>
-
-          <div className="mt-3 space-y-2">
+          <div className="space-y-2">
             {cart.length === 0 ? (
-              <div className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-10 text-center text-sm text-[var(--text-muted)]">
+              <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-3 py-8 text-center text-sm text-[var(--text-muted)]">
                 Add items to start a sale.
               </div>
             ) : (
               cart.map((item) => (
-                <div
+                <button
                   key={item.catalogItemId}
-                  className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-3"
+                  type="button"
+                  onClick={() => {
+                    setSelectedLineId(item.catalogItemId);
+                    setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
+                  }}
+                  className={selectedLineId === item.catalogItemId ? "flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--text-strong)] bg-[var(--surface-muted)] px-3 py-3 text-left" : "flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left"}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{item.name}</div>
-                      <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
-                        {money(item.unitPrice)} each
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => removeFromCart(item.catalogItemId)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">{item.name}</div>
+                    <div className="font-mono text-xs text-[var(--text-muted)]">{item.quantity.toFixed(2)} x {money(item.unitPrice)}</div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => updateQty(item.catalogItemId, item.quantity - 1)}
-                    >
-                      -
-                    </Button>
-                    <Input
-                      value={String(item.quantity)}
-                      onChange={(event) =>
-                        updateQty(item.catalogItemId, Number(event.target.value || "0"))
-                      }
-                      inputMode="decimal"
-                      className="h-9 text-center font-mono"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {canOverride ? (
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      <Input
-                        value={String(item.unitPrice)}
-                        onChange={(event) =>
-                          updateItemPrice(
-                            item.catalogItemId,
-                            Number(event.target.value || "0"),
-                          )
-                        }
-                        inputMode="decimal"
-                        className="h-9"
-                        placeholder="Override price"
-                      />
-                      <Input
-                        value={String(item.lineDiscountAmount ?? 0)}
-                        onChange={(event) =>
-                          updateItemDiscount(
-                            item.catalogItemId,
-                            Number(event.target.value || "0"),
-                          )
-                        }
-                        inputMode="decimal"
-                        className="h-9"
-                        placeholder="Line discount"
-                      />
-                    </div>
-                  ) : null}
-                </div>
+                  <Button type="button" variant="ghost" size="icon-sm" onClick={(event) => { event.stopPropagation(); removeFromCart(item.catalogItemId); }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </button>
               ))
             )}
           </div>
-        </div>
-
-        <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-3">
-          <div className="grid gap-2">
-            <Input
-              value={customerName}
-              onChange={(event) => setCustomerName(event.target.value)}
-              placeholder="Walk-in or customer name"
-              className="h-11"
-            />
-            {customerName.trim().length >= 2 ? (
-              <div className="rounded-[1rem] bg-[var(--surface-base)] px-2 py-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                  Customer lookup
-                </div>
-                <div className="mt-1 space-y-1">
-                  {customerSearchLoading ? (
-                    <div className="px-1 py-1 text-xs text-[var(--text-muted)]">Searching...</div>
-                  ) : customerSearchResults.length > 0 ? (
-                    customerSearchResults.slice(0, 4).map((customer) => (
-                      <button
-                        key={customer.id}
-                        type="button"
-                        className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-xs hover:bg-[var(--surface-muted)]"
-                        onClick={() => selectCustomer(customer)}
-                      >
-                        <span className="min-w-0 truncate">
-                          {customer.name}
-                          {customer.phone ? ` • ${customer.phone}` : ""}
-                        </span>
-                        <span className="font-mono text-[10px] text-[var(--text-muted)]">
-                          {customer.loyaltyPoints} pts
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-1 py-1 text-xs text-[var(--text-muted)]">
-                      No existing customer found.
-                    </div>
-                  )}
-                </div>
-                <div className="mt-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() => createCustomerMutation.mutate()}
-                    disabled={!customerName.trim() || createCustomerMutation.isPending}
-                  >
-                    <Save className="h-3 w-3" />
-                    Save customer
-                  </Button>
-                </div>
+          <PosFocusedEditorDrawer
+            open={Boolean(selectedLine)}
+            title={selectedLine?.name ?? "Line editor"}
+            subtitle="Tap a field, then use keypad"
+            onClose={() => {
+              setSelectedLineId(null);
+              setActiveTarget(null);
+            }}
+          >
+            {selectedLine ? (
+              <div className="grid gap-2">
+                <PosNumericField label="Quantity" value={String(selectedLine.quantity)} active={activeTarget?.type === "line_qty" && activeTarget.lineId === selectedLine.catalogItemId} onActivate={() => setActiveTarget({ type: "line_qty", lineId: selectedLine.catalogItemId })} />
+                <PosNumericField label="Unit price" value={String(selectedLine.unitPrice)} active={activeTarget?.type === "line_price" && activeTarget.lineId === selectedLine.catalogItemId} onActivate={() => setActiveTarget({ type: "line_price", lineId: selectedLine.catalogItemId })} />
+                <PosNumericField label="Line discount" value={String(selectedLine.lineDiscountAmount ?? 0)} active={activeTarget?.type === "line_discount" && activeTarget.lineId === selectedLine.catalogItemId} onActivate={() => setActiveTarget({ type: "line_discount", lineId: selectedLine.catalogItemId })} />
               </div>
             ) : null}
-            <div className="grid gap-2 md:grid-cols-2">
-              <Input
-                value={customerPhone}
-                onChange={(event) => setCustomerPhone(event.target.value)}
-                placeholder="Customer phone (WhatsApp)"
-                className="h-11"
-              />
-              <Input
-                value={customerEmail}
-                onChange={(event) => setCustomerEmail(event.target.value)}
-                placeholder="Customer email"
-                className="h-11"
-              />
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              <Input
-                value={orderDiscountAmount}
-                onChange={(event) => setOrderDiscountAmount(event.target.value)}
-                inputMode="decimal"
-                className="h-11"
-                placeholder="Order discount"
-              />
-              {canOverride ? (
-                <Input
-                  value={overrideReason}
-                  onChange={(event) => setOverrideReason(event.target.value)}
-                  className="h-11"
-                  placeholder="Override reason"
-                />
-              ) : null}
-            </div>
-            {selectedCustomer ? (
-              <div className="rounded-[1rem] bg-[var(--surface-base)] px-3 py-2">
-                <div className="text-xs text-[var(--text-muted)]">
-                  Loyalty balance{" "}
-                  <span className="font-mono text-[var(--text-body)]">
-                    {selectedCustomer.loyaltyPoints}
-                  </span>{" "}
-                  ({selectedCustomer.loyaltyTier})
-                </div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <Input
-                    value={loyaltyRedemptionPoints}
-                    onChange={(event) => setLoyaltyRedemptionPoints(event.target.value)}
-                    inputMode="numeric"
-                    className="h-10"
-                    placeholder="Redeem points"
-                  />
-                  <div className="text-xs text-[var(--text-muted)]">
-                    Set order discount to match points/100.
-                  </div>
-                </div>
-              </div>
-            ) : null}
+          </PosFocusedEditorDrawer>
+        </section>
 
-            <div className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span>Subtotal</span>
-                <span className="font-mono">{money(subtotal)}</span>
+        <aside className="space-y-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+          <Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in or customer name" className="h-11" />
+          {customerName.trim().length >= 2 ? (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Customer lookup</div>
+              <div className="mt-1 space-y-1">
+                {customerSearchLoading ? <div className="px-1 py-1 text-xs text-[var(--text-muted)]">Searching...</div> : null}
+                {customerSearchResults.slice(0, 4).map((customer) => (
+                  <button key={customer.id} type="button" className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-xs hover:bg-[var(--surface-base)]" onClick={() => selectCustomer(customer)}>
+                    <span className="min-w-0 truncate">{customer.name}</span>
+                    <span className="font-mono text-[10px] text-[var(--text-muted)]">{customer.loyaltyPoints} pts</span>
+                  </button>
+                ))}
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span>Discounts</span>
-                <span className="font-mono">{money(discountAmount)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span>Tax</span>
-                <span className="font-mono">{money(taxAmount)}</span>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3 text-base font-semibold">
-                <span>Total</span>
-                <span className="font-mono">{money(total)}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {payments.map((payment, index) => (
-                <div
-                  key={`${payment.tenderType}-${index}`}
-                  className="grid gap-2 md:grid-cols-[1fr_110px_1fr_auto]"
-                >
-                  <Select
-                    value={payment.tenderType}
-                    onValueChange={(value) =>
-                      updatePayment(index, { tenderType: value as TenderType })
-                    }
-                  >
-                    <SelectTrigger className="h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CASH">Cash</SelectItem>
-                      <SelectItem value="CARD">Card</SelectItem>
-                      <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
-                      <SelectItem value="TRANSFER">Transfer</SelectItem>
-                      <SelectItem value="VOUCHER">Voucher</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={payment.amount}
-                    onChange={(event) =>
-                      updatePayment(index, { amount: event.target.value })
-                    }
-                    inputMode="decimal"
-                    placeholder="Amount"
-                    className="h-11"
-                  />
-                  <Input
-                    value={payment.reference}
-                    onChange={(event) =>
-                      updatePayment(index, { reference: event.target.value })
-                    }
-                    placeholder={
-                      requiresReference(payment.tenderType, requiredReferenceTenders)
-                        ? `Reference (min ${minReferenceLength})`
-                        : "Reference"
-                    }
-                    className="h-11"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 px-3"
-                    onClick={() =>
-                      setPayments((current) =>
-                        current.filter((_, paymentIndex) => paymentIndex !== index),
-                      )
-                    }
-                    disabled={payments.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <Button type="button" variant="outline" className="w-full" onClick={addPaymentRow}>
-                <Plus className="h-4 w-4" />
-                Add tender
+              <Button type="button" size="sm" variant="outline" className="mt-2 h-8" onClick={() => createCustomerMutation.mutate()} disabled={!customerName.trim() || createCustomerMutation.isPending}>
+                <Save className="h-3 w-3" />
+                Save customer
               </Button>
             </div>
-
-            <div className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span>Tendered</span>
-                <span className="font-mono">{money(tenderedTotal)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span>Change</span>
-                <span className="font-mono">{money(changeAmount)}</span>
-              </div>
-            </div>
-
-            <Button
-              className="h-12 text-base"
-              onClick={postSale}
-              disabled={
-                !currentShift ||
-                cart.length === 0 ||
-                nonCashTotal > total ||
-                tenderedTotal < total ||
-                hasMissingRequiredReference ||
-                postSalePending
-              }
-            >
-              <Wallet className="h-4 w-4" />
-              Complete sale
-            </Button>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Phone" className="h-10" />
+            <Input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="h-10" />
           </div>
-        </div>
-      </aside>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+            <div className="flex items-center justify-between gap-3"><span>Subtotal</span><span className="font-mono">{money(subtotal)}</span></div>
+            <div className="mt-2 flex items-center justify-between gap-3"><span>Discounts</span><span className="font-mono">{money(discountAmount)}</span></div>
+            <div className="mt-2 flex items-center justify-between gap-3"><span>Tax</span><span className="font-mono">{money(taxAmount)}</span></div>
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3 text-base font-semibold"><span>Total</span><span className="font-mono">{money(total)}</span></div>
+          </div>
+          <PosNumericField label="Order discount" value={orderDiscountAmount} active={activeTarget?.type === "order_discount"} onActivate={() => setActiveTarget({ type: "order_discount" })} />
+          {selectedCustomer ? (
+            <PosNumericField label={`Redeem points (${selectedCustomer.loyaltyPoints} available)`} value={loyaltyRedemptionPoints} active={activeTarget?.type === "redeem_points"} onActivate={() => setActiveTarget({ type: "redeem_points" })} />
+          ) : null}
+          {canOverride ? <Input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} className="h-10" placeholder="Override reason" /> : null}
+
+          <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Tender</div>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setSplitTenderMode(!splitTenderMode)}>
+                {splitTenderMode ? "Single tender" : "Split tender"}
+              </Button>
+            </div>
+            {payments.map((payment, index) => (
+              <div key={`${payment.tenderType}-${index}`} className="grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-base)] p-2">
+                <Select value={payment.tenderType} onValueChange={(value) => updatePayment(index, { tenderType: value as TenderType })}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Cash</SelectItem>
+                    <SelectItem value="CARD">Card</SelectItem>
+                    <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
+                    <SelectItem value="TRANSFER">Transfer</SelectItem>
+                    <SelectItem value="VOUCHER">Voucher</SelectItem>
+                  </SelectContent>
+                </Select>
+                <PosNumericField label="Amount" value={payment.amount} active={activeTarget?.type === "tender_amount" && activeTarget.index === index} onActivate={() => setActiveTarget({ type: "tender_amount", index })} />
+                <Input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder={requiresReference(payment.tenderType, requiredReferenceTenders) ? `Reference (min ${minReferenceLength})` : "Reference"} className="h-10" />
+                {splitTenderMode && payments.length > 1 ? (
+                  <Button type="button" variant="outline" onClick={() => setPayments((current) => current.filter((_, paymentIndex) => paymentIndex !== index))}>Remove tender</Button>
+                ) : null}
+              </div>
+            ))}
+            {splitTenderMode ? <Button type="button" variant="outline" className="w-full" onClick={addPaymentRow}>Add tender</Button> : null}
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm">
+            <div className="flex items-center justify-between gap-3"><span>Tendered</span><span className="font-mono">{money(tenderedTotal)}</span></div>
+            <div className="mt-1 flex items-center justify-between gap-3"><span>Change</span><span className="font-mono">{money(changeAmount)}</span></div>
+          </div>
+          <PosInlineValidationBanner messages={blockers} />
+          <Button className="h-12 text-base" onClick={handleCharge} disabled={postSalePending}>
+            <Wallet className="h-4 w-4" />
+            Charge {money(total)}
+          </Button>
+          <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} presets={keypadPresets} />
+        </aside>
+      </div>
 
       <Dialog open={holdDialog} onOpenChange={setHoldDialog}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Hold cart</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Hold cart</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <label className="block text-sm font-semibold">Label</label>
-            <Input
-              value={holdLabel}
-              onChange={(event) => setHoldLabel(event.target.value)}
-              placeholder="Counter pickup"
-            />
+            <Input value={holdLabel} onChange={(event) => setHoldLabel(event.target.value)} placeholder="Counter pickup" />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setHoldDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => holdCartMutation.mutate()}
-              disabled={holdCartMutation.isPending}
-            >
-              Hold
-            </Button>
+            <Button type="button" variant="outline" onClick={() => setHoldDialog(false)}>Cancel</Button>
+            <Button type="button" onClick={() => holdCartMutation.mutate()} disabled={holdCartMutation.isPending}>Hold</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={Boolean(lastCompletedSale)} onOpenChange={(open) => !open && dismissCompletedSale()}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Sale completed</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Sale completed</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Receipt
-              </div>
-              <div className="mt-2 font-mono text-lg font-semibold">
-                {lastCompletedSale?.saleNo}
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span>Total</span>
-                <span className="font-mono">{money(lastCompletedSale?.totalAmount ?? 0)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-                <span>Change</span>
-                <span className="font-mono">{money(lastCompletedSale?.changeAmount ?? 0)}</span>
-              </div>
-              {lastCompletedSale?.loyalty ? (
-                <div className="mt-3 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
-                  Loyalty: +{lastCompletedSale.loyalty.pointsEarned} points, balance{" "}
-                  <span className="font-mono">{lastCompletedSale.loyalty.pointsBalance}</span> (
-                  {lastCompletedSale.loyalty.tier})
-                </div>
-              ) : null}
+            <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Receipt</div>
+              <div className="mt-2 font-mono text-lg font-semibold">{lastCompletedSale?.saleNo}</div>
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm"><span>Total</span><span className="font-mono">{money(lastCompletedSale?.totalAmount ?? 0)}</span></div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>Change</span><span className="font-mono">{money(lastCompletedSale?.changeAmount ?? 0)}</span></div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={dismissCompletedSale}>
-              Continue selling
-            </Button>
+            <Button type="button" variant="outline" onClick={dismissCompletedSale}>Continue selling</Button>
             {whatsappHref ? (
               <Button asChild variant="outline">
-                <a href={whatsappHref} target="_blank" rel="noreferrer">
-                  Send WhatsApp receipt
-                </a>
+                <a href={whatsappHref} target="_blank" rel="noreferrer">Send WhatsApp receipt</a>
               </Button>
             ) : null}
             <Button asChild>

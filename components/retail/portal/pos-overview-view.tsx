@@ -30,9 +30,9 @@ export function PosOverviewView() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-[1.5rem] bg-[var(--surface-base)] px-4 py-4">
+      <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+          <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
             <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               Shift
             </div>
@@ -40,7 +40,7 @@ export function PosOverviewView() {
               {currentShift?.shiftNo ?? "Not open"}
             </div>
           </div>
-          <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+          <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
             <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               Register
             </div>
@@ -48,7 +48,7 @@ export function PosOverviewView() {
               {currentShift?.registerName ?? "No register"}
             </div>
           </div>
-          <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+          <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
             <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               Held carts
             </div>
@@ -56,7 +56,7 @@ export function PosOverviewView() {
               {heldCartsQuery.data?.data?.length ?? 0}
             </div>
           </div>
-          <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+          <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
             <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               Net sales
             </div>
@@ -67,28 +67,28 @@ export function PosOverviewView() {
         </div>
       </section>
 
-      <section className="rounded-[1.5rem] bg-[var(--surface-base)] px-4 py-4">
+      <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
         <div className="text-sm font-medium">Quick actions</div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <Button asChild variant="outline" className="min-h-12 justify-start">
+          <Button asChild variant="outline" className="min-h-14 justify-start">
             <Link href={getPosPortalHref("checkout", isPosHost)}>
               <Payments className="h-4 w-4" />
               Checkout
             </Link>
           </Button>
-          <Button asChild variant="outline" className="min-h-12 justify-start">
+          <Button asChild variant="outline" className="min-h-14 justify-start">
             <Link href={getPosPortalHref("held", isPosHost)}>
               <Package className="h-4 w-4" />
               Held carts
             </Link>
           </Button>
-          <Button asChild variant="outline" className="min-h-12 justify-start">
+          <Button asChild variant="outline" className="min-h-14 justify-start">
             <Link href={getPosPortalHref("history", isPosHost)}>
               <History className="h-4 w-4" />
               History
             </Link>
           </Button>
-          <Button asChild variant="outline" className="min-h-12 justify-start">
+          <Button asChild variant="outline" className="min-h-14 justify-start">
             <Link href={getPosPortalHref("shift", isPosHost)}>
               <Clock className="h-4 w-4" />
               Shift
@@ -97,7 +97,7 @@ export function PosOverviewView() {
         </div>
       </section>
 
-      <section className="rounded-[1.5rem] bg-[var(--surface-base)]">
+      <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)]">
         <div className="px-4 py-3 text-sm font-medium">Recent activity</div>
         <div className="overflow-auto">
           <table className="w-full min-w-[680px] text-sm">

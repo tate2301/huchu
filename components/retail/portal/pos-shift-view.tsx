@@ -12,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { PosNumericField } from "./pos-numeric-field";
+import { PosNumericKeypad } from "./pos-numeric-keypad";
+import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
 import { usePosPortalState } from "./pos-portal-state";
 import { money, round } from "./pos-utils";
 
@@ -33,6 +36,7 @@ export function PosShiftView() {
   const [registerCode, setRegisterCode] = useState("");
   const [openingFloat, setOpeningFloat] = useState("0");
   const [countedCash, setCountedCash] = useState("");
+  const [activeNumericTarget, setActiveNumericTarget] = useState<"opening_float" | "counted_cash" | null>(null);
   const [closeNotes, setCloseNotes] = useState("");
   const [closeoutSummary, setCloseoutSummary] = useState<CloseoutSummary | null>(null);
 
@@ -113,10 +117,19 @@ export function PosShiftView() {
 
   const variancePreview = round(Number(countedCash || "0") - (currentShift?.expectedCash ?? 0));
 
+  const handleKeypadAction = (action: PosKeypadAction) => {
+    if (!activeNumericTarget) return;
+    if (activeNumericTarget === "opening_float") {
+      setOpeningFloat((current) => applyPosKeypadAction(current, action));
+      return;
+    }
+    setCountedCash((current) => applyPosKeypadAction(current, action));
+  };
+
   return (
     <div className="space-y-3">
       {closeoutSummary ? (
-        <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
           <div className="font-semibold">{closeoutSummary.shiftNo} closeout saved</div>
           <div className="mt-1 text-[var(--text-muted)]">
             Expected {money(closeoutSummary.expectedCash)} | Counted {money(closeoutSummary.countedCash)} | Variance {money(closeoutSummary.variance)}
@@ -125,7 +138,7 @@ export function PosShiftView() {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3">
+        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
             Shift
           </div>
@@ -133,7 +146,7 @@ export function PosShiftView() {
             {currentShift?.shiftNo ?? "Not open"}
           </div>
         </div>
-        <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3">
+        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
             Register
           </div>
@@ -141,7 +154,7 @@ export function PosShiftView() {
             {currentShift?.registerName ?? "No register"}
           </div>
         </div>
-        <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3">
+        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
             Expected cash
           </div>
@@ -149,7 +162,7 @@ export function PosShiftView() {
             {money(currentShift?.expectedCash ?? 0)}
           </div>
         </div>
-        <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3">
+        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
             Net sales
           </div>
@@ -159,7 +172,7 @@ export function PosShiftView() {
         </div>
       </div>
 
-      <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-3">
+      <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
         <div className="flex flex-wrap gap-2">
           {!currentShift ? (
             <Button size="sm" onClick={() => setOpenDialog(true)}>
@@ -214,12 +227,14 @@ export function PosShiftView() {
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold">Opening float</label>
-              <Input
+              <PosNumericField
+                label="Opening float"
                 value={openingFloat}
-                onChange={(event) => setOpeningFloat(event.target.value)}
-                inputMode="decimal"
+                active={activeNumericTarget === "opening_float"}
+                onActivate={() => setActiveNumericTarget("opening_float")}
               />
             </div>
+            <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpenDialog(false)}>
@@ -270,10 +285,11 @@ export function PosShiftView() {
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold">Counted cash</label>
-              <Input
+              <PosNumericField
+                label="Counted cash"
                 value={countedCash}
-                onChange={(event) => setCountedCash(event.target.value)}
-                inputMode="decimal"
+                active={activeNumericTarget === "counted_cash"}
+                onActivate={() => setActiveNumericTarget("counted_cash")}
               />
             </div>
             <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
@@ -290,6 +306,7 @@ export function PosShiftView() {
                 rows={3}
               />
             </div>
+            <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCloseDialog(false)}>
