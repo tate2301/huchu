@@ -17,6 +17,7 @@ import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/pla
 import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
+import { getPosHostForCompany, isCashierRole, isPublicPosPath } from "@/lib/retail/pos-host";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";
@@ -242,6 +243,17 @@ export default withAuth(
       return redirectToPath(request, ADMIN_BASE_PATH);
     }
 
+    if (!isApiRequest && token && isCashierRole(token.role)) {
+      const posHost = getPosHostForCompany(token.companySlug, getRootDomain());
+      if (posHost && hostContext.hostname !== posHost && !isAdminHost) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.hostname = posHost;
+        redirectUrl.pathname = "/";
+        redirectUrl.search = "";
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+
     if (hostContext.portalPath && !isApiRequest) {
       if (!hostContext.tenantSlug) {
         return redirectToAccessBlocked(request);
@@ -257,6 +269,22 @@ export default withAuth(
       }
 
       const publicPortalPath = getPortalPublicPathForInternalPath(pathname, portalDescriptor);
+      if (
+        portalDescriptor.key === "pos" &&
+        publicPortalPath &&
+        isPublicPosPath(publicPortalPath)
+      ) {
+        return redirectToPathPreserveSearch(request, publicPortalPath);
+      }
+
+      if (portalDescriptor.key === "pos" && pathname.startsWith("/portal/pos")) {
+        return redirectToPath(request, "/");
+      }
+
+      if (portalDescriptor.key === "pos" && !isPublicPosPath(pathname)) {
+        return redirectToPath(request, "/");
+      }
+
       if (publicPortalPath) {
         return redirectToPathPreserveSearch(request, publicPortalPath);
       }

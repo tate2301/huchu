@@ -14,7 +14,6 @@ import {
   Package,
   Payments,
   ReceiptLong,
-  TableRows,
   Users,
   Wallet,
 } from "@/lib/icons";
@@ -87,14 +86,14 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
   ],
   RETAIL: [
     { href: "/portal/pos", icon: Payments, label: "Open POS" },
-    { href: "/retail/sales", icon: ClipboardList, label: "Sales Queue" },
-    { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts & Cash-up" },
-    { href: "/retail/catalog", icon: TableRows, label: "Catalog Items" },
-    { href: "/retail/merchandising/pricing", icon: Wallet, label: "Pricing Updates" },
-    { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
+    { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
+    { href: "/retail/stock", icon: Package, label: "Stock" },
     { href: "/retail/purchasing/orders", icon: Package, label: "Purchase Orders" },
     { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Receive Stock" },
-    { href: "/retail/reports", icon: BarChart3, label: "Retail Reports" },
+    { href: "/retail/customers", icon: Users, label: "Customers" },
+    { href: "/retail/shifts", icon: ReceiptLong, label: "Cash Control" },
+    { href: "/retail/reports", icon: BarChart3, label: "Insights" },
+    { href: "/retail/setup", icon: Building2, label: "Setup" },
   ],
 };
 

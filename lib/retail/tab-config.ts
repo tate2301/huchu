@@ -1,26 +1,28 @@
 import {
   BarChart3,
+  Building2,
   ClipboardList,
   LocalShipping,
   Package,
-  Payments,
   ReceiptLong,
+  Scale,
   TableRows,
+  Users,
   Wallet,
   type LucideIcon,
 } from "@/lib/icons";
 
 export type RetailTabId =
   | "overview"
-  | "pos"
-  | "sales"
-  | "catalog"
-  | "purchasing-orders"
-  | "purchasing-receipts"
-  | "merchandising-pricing"
-  | "merchandising-promotions"
-  | "shifts"
-  | "reports";
+  | "sell"
+  | "merchandise"
+  | "stock"
+  | "buy"
+  | "customers"
+  | "cash-control"
+  | "accounting"
+  | "insights"
+  | "setup";
 
 export type RetailTabItem = {
   id: RetailTabId;
@@ -31,44 +33,26 @@ export type RetailTabItem = {
 
 export const RETAIL_TABS: RetailTabItem[] = [
   { id: "overview", label: "Overview", href: "/retail", icon: Wallet },
-  { id: "pos", label: "Point of Sale", href: "/portal/pos", icon: Payments },
-  { id: "sales", label: "Sales", href: "/retail/sales", icon: ClipboardList },
-  { id: "catalog", label: "Catalog", href: "/retail/catalog", icon: Package },
-  {
-    id: "purchasing-orders",
-    label: "Purchase Orders",
-    href: "/retail/purchasing/orders",
-    icon: Package,
-  },
-  {
-    id: "purchasing-receipts",
-    label: "Receipts",
-    href: "/retail/purchasing/receipts",
-    icon: LocalShipping,
-  },
-  {
-    id: "merchandising-pricing",
-    label: "Pricing",
-    href: "/retail/merchandising/pricing",
-    icon: TableRows,
-  },
-  {
-    id: "merchandising-promotions",
-    label: "Promotions",
-    href: "/retail/merchandising/promotions",
-    icon: ReceiptLong,
-  },
-  { id: "shifts", label: "Shifts & Cash-up", href: "/retail/shifts", icon: ReceiptLong },
-  { id: "reports", label: "Reports", href: "/retail/reports", icon: BarChart3 },
+  { id: "sell", label: "Sell", href: "/retail/sell", icon: ClipboardList },
+  { id: "merchandise", label: "Merchandise", href: "/retail/merchandise", icon: TableRows },
+  { id: "stock", label: "Stock", href: "/retail/stock", icon: Package },
+  { id: "buy", label: "Buy", href: "/retail/buy", icon: LocalShipping },
+  { id: "customers", label: "Customers", href: "/retail/customers", icon: Users },
+  { id: "cash-control", label: "Cash Control", href: "/retail/cash-control", icon: ReceiptLong },
+  { id: "accounting", label: "Accounting", href: "/retail/accounting", icon: Scale },
+  { id: "insights", label: "Insights", href: "/retail/insights", icon: BarChart3 },
+  { id: "setup", label: "Setup", href: "/retail/setup", icon: Building2 },
 ];
 
 export const RETAIL_OPERATIONS_SECTIONS = {
   overview: ["/retail"],
-  pos: ["/portal/pos"],
-  sales: ["/retail/sales"],
-  catalog: ["/retail/catalog"],
-  purchasing: ["/retail/purchasing/orders", "/retail/purchasing/receipts"],
-  merchandising: ["/retail/merchandising/pricing", "/retail/merchandising/promotions"],
-  shifts: ["/retail/shifts"],
-  reporting: ["/retail/reports"],
+  sell: ["/retail/sell"],
+  merchandise: ["/retail/merchandise"],
+  stock: ["/retail/stock"],
+  buy: ["/retail/buy"],
+  customers: ["/retail/customers"],
+  "cash-control": ["/retail/cash-control", "/retail/shifts"],
+  accounting: ["/retail/accounting", "/accounting"],
+  insights: ["/retail/insights"],
+  setup: ["/retail/setup"],
 } as const;

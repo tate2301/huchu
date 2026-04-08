@@ -11,7 +11,17 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { BarChart3, Package, Payments, ReceiptLong, Wallet } from "@/lib/icons";
+import {
+  BarChart3,
+  Building2,
+  ClipboardList,
+  LocalShipping,
+  Package,
+  Payments,
+  ReceiptLong,
+  Users,
+  Wallet,
+} from "@/lib/icons";
 
 type RetailDashboardPayload = {
   summary: {
@@ -218,7 +228,7 @@ export default function RetailOverviewPage() {
   return (
     <RetailShell
       title="Retail"
-      description="Run sales, replenishment, pricing, and cash-up from one workspace."
+      description="Run sell, stock, buy, customers, cash control, accounting, insights, and setup from one workspace."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -228,33 +238,45 @@ export default function RetailOverviewPage() {
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/retail/catalog">
+            <Link href="/retail/sell">
+              <ClipboardList className="h-4 w-4" />
+              Sell
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/stock">
               <Package className="h-4 w-4" />
-              New Item
+              Stock
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/retail/purchasing/orders">
+            <Link href="/retail/buy">
+              <LocalShipping className="h-4 w-4" />
+              Buy
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/customers">
+              <Users className="h-4 w-4" />
+              Customers
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/cash-control">
               <ReceiptLong className="h-4 w-4" />
-              New PO
+              Cash Control
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/retail/purchasing/receipts">
-              <ReceiptLong className="h-4 w-4" />
-              Receive Stock
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/merchandising/pricing">
-              <Wallet className="h-4 w-4" />
-              Update Pricing
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/reports">
+            <Link href="/retail/insights">
               <BarChart3 className="h-4 w-4" />
-              Open Reports
+              Insights
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/setup">
+              <Building2 className="h-4 w-4" />
+              Setup
             </Link>
           </Button>
         </div>

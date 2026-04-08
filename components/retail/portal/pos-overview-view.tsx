@@ -5,12 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/api-client";
 import { Clock, History, Package, Payments } from "@/lib/icons";
+import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart, SaleRow } from "./pos-types";
 import { money } from "./pos-utils";
 
 export function PosOverviewView() {
-  const { currentShift } = usePosPortalState();
+  const { currentShift, isPosHost } = usePosPortalState();
   const heldCartsQuery = useQuery({
     queryKey: ["retail-held-carts", currentShift?.id],
     queryFn: () =>
@@ -70,25 +71,25 @@ export function PosOverviewView() {
         <div className="text-sm font-medium">Quick actions</div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <Button asChild variant="outline" className="min-h-12 justify-start">
-            <Link href="/portal/pos">
+            <Link href={getPosPortalHref("checkout", isPosHost)}>
               <Payments className="h-4 w-4" />
               Checkout
             </Link>
           </Button>
           <Button asChild variant="outline" className="min-h-12 justify-start">
-            <Link href="/portal/pos/held">
+            <Link href={getPosPortalHref("held", isPosHost)}>
               <Package className="h-4 w-4" />
               Held carts
             </Link>
           </Button>
           <Button asChild variant="outline" className="min-h-12 justify-start">
-            <Link href="/portal/pos/history">
+            <Link href={getPosPortalHref("history", isPosHost)}>
               <History className="h-4 w-4" />
               History
             </Link>
           </Button>
           <Button asChild variant="outline" className="min-h-12 justify-start">
-            <Link href="/portal/pos/shift">
+            <Link href={getPosPortalHref("shift", isPosHost)}>
               <Clock className="h-4 w-4" />
               Shift
             </Link>

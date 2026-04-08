@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Clock, Package, Payments, Plus, Trash2, Wallet } from "@/lib/icons";
+import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
@@ -36,6 +37,7 @@ export function PosCheckoutView() {
     selectedPromotionId,
     setSelectedPromotionId,
     currentShift,
+    isPosHost,
     catalogItems,
     catalogLoading,
     promotions,
@@ -80,7 +82,7 @@ export function PosCheckoutView() {
       setHoldLabel("");
       clearCart();
       queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
-      router.push("/portal/pos/held");
+      router.push(getPosPortalHref("held", isPosHost));
     },
     onError: (error) =>
       toast({
@@ -128,7 +130,7 @@ export function PosCheckoutView() {
           <div className="ml-auto flex flex-wrap gap-2">
             {!currentShift ? (
               <Button asChild size="sm">
-                <Link href="/portal/pos/shift">Open shift</Link>
+                <Link href={getPosPortalHref("shift", isPosHost)}>Open shift</Link>
               </Button>
             ) : (
               <>
@@ -141,7 +143,7 @@ export function PosCheckoutView() {
                   Hold
                 </Button>
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/portal/pos/shift">Cash-up</Link>
+                  <Link href={getPosPortalHref("shift", isPosHost)}>Cash-up</Link>
                 </Button>
               </>
             )}
@@ -527,7 +529,7 @@ export function PosCheckoutView() {
               Continue selling
             </Button>
             <Button asChild>
-              <Link href="/portal/pos/history">
+              <Link href={getPosPortalHref("history", isPosHost)}>
                 <Payments className="h-4 w-4" />
                 View history
               </Link>

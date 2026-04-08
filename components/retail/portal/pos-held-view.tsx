@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { RefreshCcw } from "@/lib/icons";
+import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart } from "./pos-types";
 
@@ -13,7 +14,7 @@ export function PosHeldView() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { currentShift, replaceCartFromHeld } = usePosPortalState();
+  const { currentShift, replaceCartFromHeld, isPosHost } = usePosPortalState();
 
   const heldCartsQuery = useQuery({
     queryKey: ["retail-held-carts", currentShift?.id],
@@ -35,7 +36,7 @@ export function PosHeldView() {
     onSuccess: ({ heldCart }) => {
       replaceCartFromHeld(heldCart.cartSnapshot);
       queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
-      router.push("/portal/pos");
+      router.push(getPosPortalHref("checkout", isPosHost));
     },
     onError: (error) =>
       toast({

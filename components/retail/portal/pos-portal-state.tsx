@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import { getPosPortalHref } from "@/lib/retail/pos-host";
 import type {
   CartItem,
   CurrentShift,
@@ -50,6 +51,7 @@ type PosPortalStateValue = {
   catalogItems: PosCatalogItem[];
   catalogLoading: boolean;
   promotions: Promotion[];
+  isPosHost: boolean;
   addToCart: (item: PosCatalogItem) => void;
   updateQty: (catalogItemId: string, quantity: number) => void;
   updateItemPrice: (catalogItemId: string, unitPrice: number) => void;
@@ -79,7 +81,10 @@ type PosPortalStateValue = {
 
 const PosPortalStateContext = createContext<PosPortalStateValue | null>(null);
 
-export function PosPortalProvider({ children }: PropsWithChildren) {
+export function PosPortalProvider({
+  children,
+  isPosHost = false,
+}: PropsWithChildren<{ isPosHost?: boolean }>) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -219,7 +224,7 @@ export function PosPortalProvider({ children }: PropsWithChildren) {
       queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
       queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
-      router.prefetch("/portal/pos/history");
+      router.prefetch(getPosPortalHref("history", isPosHost));
     },
     onError: (error) =>
       toast({
@@ -244,6 +249,7 @@ export function PosPortalProvider({ children }: PropsWithChildren) {
     selectedPromotionId,
     setSelectedPromotionId,
     sites: sitesQuery.data ?? [],
+    isPosHost,
     currentShift,
     currentShiftLoading: currentShiftQuery.isLoading,
     catalogItems: catalogQuery.data?.data ?? [],

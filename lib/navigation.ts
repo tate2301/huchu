@@ -255,7 +255,7 @@ export const navSections: NavSection[] = [
   {
     id: "retail",
     title: "Retail",
-    description: "Point of sale, catalog, purchasing, merchandising, and cash-up",
+    description: "Overview, sell, stock, buy, customers, cash control, accounting, insights, and setup",
     featureKey: "retail.core",
     items: RETAIL_TABS.map((tab) => ({
       href: tab.href,
