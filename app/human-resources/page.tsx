@@ -58,6 +58,29 @@ const employmentTypes = [
 type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
 
+const MODULE_LABELS: Record<string, string> = {
+  HR: "HR",
+  GOLD: "Gold",
+  SCRAP_METAL: "Scrap & Recycling",
+  CAR_SALES: "Auto Sales",
+  RETAIL: "Retail",
+}
+
+const ALLOWED_ACCESS_MODULES_BY_WORKSPACE: Record<string, string[]> = {
+  GOLD_MINE: ["HR", "GOLD"],
+  SCRAP_METAL: ["HR", "SCRAP_METAL"],
+  AUTOS: ["HR", "CAR_SALES"],
+  RETAIL: ["HR", "RETAIL"],
+  SCHOOLS: ["HR"],
+  GENERAL: ["HR", "SCRAP_METAL", "CAR_SALES", "RETAIL"],
+}
+
+function normalizeWorkspaceProfile(value: string | null | undefined) {
+  const normalized = String(value || "").trim().toUpperCase()
+  if (normalized in ALLOWED_ACCESS_MODULES_BY_WORKSPACE) return normalized
+  return "GENERAL"
+}
+
 type EmployeeForm = {
   name: string
   phone: string
@@ -151,6 +174,14 @@ export default function HumanResourcesPage() {
     [session],
   )
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
+  const normalizedWorkspaceProfile = useMemo(
+    () => normalizeWorkspaceProfile(workspaceProfile),
+    [workspaceProfile],
+  )
+  const allowedAccessModules = useMemo(
+    () => new Set(ALLOWED_ACCESS_MODULES_BY_WORKSPACE[normalizedWorkspaceProfile]),
+    [normalizedWorkspaceProfile],
+  )
   const employeePositionOptions = useMemo(
     () =>
       getEmployeePositionOptions({
@@ -626,7 +657,12 @@ export default function HumanResourcesPage() {
         header: "Access",
         meta: {
           exportValue: (row: EmployeeSummary) => {
-            const modules = row.moduleAssignments?.map((assignment) => assignment.module).join(", ") || "HR";
+            const modules =
+              row.moduleAssignments
+                ?.map((assignment) => assignment.module)
+                .filter((module) => allowedAccessModules.has(module))
+                .map((module) => MODULE_LABELS[module] ?? module)
+                .join(", ") || "HR";
             const linkedUser = row.user ? `${row.user.email} (${row.user.role})` : "No linked user";
             return `${linkedUser} | ${modules}`;
           },
@@ -637,7 +673,11 @@ export default function HumanResourcesPage() {
               {row.original.user ? row.original.user.email : "No linked user"}
             </div>
             <div className="text-xs text-muted-foreground">
-              {row.original.moduleAssignments?.map((assignment) => assignment.module).join(", ") || "HR"}
+              {row.original.moduleAssignments
+                ?.map((assignment) => assignment.module)
+                .filter((module) => allowedAccessModules.has(module))
+                .map((module) => MODULE_LABELS[module] ?? module)
+                .join(", ") || "HR"}
             </div>
           </div>
         ),
@@ -732,7 +772,7 @@ export default function HumanResourcesPage() {
         minSize: 108,
         maxSize: 108},
     ],
-    [deleteEmployeeMutation.isPending, getPositionLabel, handleDelete, handleEdit],
+    [allowedAccessModules, deleteEmployeeMutation.isPending, getPositionLabel, handleDelete, handleEdit],
   )
 
   return (

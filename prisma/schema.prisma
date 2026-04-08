@@ -2381,6 +2381,10 @@ model ScrapMetalPurchase {
   currency         String             @default("USD")
   paymentMethod    String?
   paymentReference String?
+  attachmentsJson  String?
+  lastPrintedAt    DateTime?
+  printCount       Int                @default(0)
+  printedById      String?
   sellerName       String?
   sellerPhone      String?
   notes            String?
@@ -2474,6 +2478,10 @@ model ScrapMetalSale {
   currency          String                @default("USD")
   paymentMethod     String?
   paymentReference  String?
+  attachmentsJson   String?
+  lastPrintedAt     DateTime?
+  printCount        Int                @default(0)
+  printedById       String?
   status            ScrapMetalSaleStatus  @default(DRAFT)
   approvedById      String?
   approvedAt        DateTime?

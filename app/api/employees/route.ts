@@ -97,6 +97,45 @@ const employeeSchema = z.object({
 const EMPLOYEE_ID_PREFIX = "EMP-"
 const EMPLOYEE_ID_PAD = 4
 
+const ALLOWED_MODULES_BY_WORKSPACE: Record<
+  string,
+  Array<"HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL">
+> = {
+  GOLD_MINE: ["HR", "GOLD"],
+  SCRAP_METAL: ["HR", "SCRAP_METAL"],
+  AUTOS: ["HR", "CAR_SALES"],
+  RETAIL: ["HR", "RETAIL"],
+  SCHOOLS: ["HR"],
+  GENERAL: ["HR", "SCRAP_METAL", "CAR_SALES", "RETAIL"],
+}
+
+const ALLOWED_ROLES_BY_WORKSPACE: Record<
+  string,
+  Array<
+    | "MANAGER"
+    | "CLERK"
+    | "SALES_EXEC"
+    | "AUTO_MANAGER"
+    | "FINANCE_OFFICER"
+    | "SHOP_MANAGER"
+    | "CASHIER"
+    | "STOCK_CLERK"
+  >
+> = {
+  GOLD_MINE: ["MANAGER", "CLERK", "FINANCE_OFFICER"],
+  SCRAP_METAL: ["MANAGER", "CLERK", "CASHIER", "FINANCE_OFFICER"],
+  AUTOS: ["MANAGER", "CLERK", "SALES_EXEC", "AUTO_MANAGER", "FINANCE_OFFICER"],
+  RETAIL: ["MANAGER", "CLERK", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"],
+  SCHOOLS: ["MANAGER", "CLERK", "FINANCE_OFFICER"],
+  GENERAL: ["MANAGER", "CLERK", "FINANCE_OFFICER"],
+}
+
+function normalizeWorkspaceProfile(value: string | undefined) {
+  const normalized = String(value ?? "").trim().toUpperCase()
+  if (normalized in ALLOWED_MODULES_BY_WORKSPACE) return normalized
+  return "GENERAL"
+}
+
 function normalizeEmployeeModule(
   module: EmployeeModuleInput,
 ): "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL" {
@@ -341,12 +380,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const workspaceProfile = normalizeWorkspaceProfile(
+      (session.user as { workspaceProfile?: string }).workspaceProfile,
+    )
+    const allowedRoles = new Set(ALLOWED_ROLES_BY_WORKSPACE[workspaceProfile])
+
     if (validated.createUserAccount) {
       if (session.user.role !== "SUPERADMIN") {
         return errorResponse("Only superadmins can provision linked user accounts during onboarding", 403)
       }
       if (!validated.userEmail || !validated.userPassword || !validated.userRole) {
         return errorResponse("Linked user email, password, and role are required", 400)
+      }
+      if (!allowedRoles.has(validated.userRole)) {
+        return errorResponse("Selected user role is not available for this workspace", 400)
       }
       const existingUser = await prisma.user.findFirst({
         where: { email: { equals: validated.userEmail.trim(), mode: "insensitive" } },
@@ -361,6 +408,7 @@ export async function POST(request: NextRequest) {
       validated.moduleAssignments && validated.moduleAssignments.length > 0
         ? validated.moduleAssignments
         : [{ module: "HR" as const, isPrimary: true, isActive: true }]
+    const allowedModules = new Set(ALLOWED_MODULES_BY_WORKSPACE[workspaceProfile])
     const normalizedModuleAssignments = Array.from(
       new Map(
         moduleAssignments.map((assignment, index) => [
@@ -374,7 +422,16 @@ export async function POST(request: NextRequest) {
           },
         ]),
       ).values(),
-    )
+    ).filter((assignment) => allowedModules.has(assignment.module))
+
+    if (normalizedModuleAssignments.length === 0) {
+      normalizedModuleAssignments.push({
+        module: "HR",
+        isPrimary: true,
+        isActive: true,
+        requiresUserAccess: validated.createUserAccount ?? false,
+      })
+    }
 
     const employeeId = await generateEmployeeId(session.user.companyId)
     const hireDate = validated.hireDate ? new Date(validated.hireDate) : undefined

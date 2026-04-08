@@ -295,10 +295,10 @@ export default function ScrapMetalPage() {
             menuContent={
               <>
                 <DropdownMenuItem asChild>
-                  <Link href="/scrap-metal/yard/batches">Open lot</Link>
+                  <Link href="/scrap-metal/batches">Open lot</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/scrap-metal/trading/sales">Record sale</Link>
+                  <Link href="/scrap-metal/sales">New outbound ticket</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/scrap-metal/settlements">View settlements</Link>
@@ -306,9 +306,9 @@ export default function ScrapMetalPage() {
               </>
             }
           >
-            <Link href="/scrap-metal/buying/purchases" className="inline-flex items-center gap-2">
+            <Link href="/scrap-metal/purchases" className="inline-flex items-center gap-2">
               <Payments className="h-4 w-4" />
-              Record Purchase
+              New Inbound Ticket
             </Link>
           </SplitButton>
           <DropdownMenu>
@@ -326,7 +326,7 @@ export default function ScrapMetalPage() {
                 <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/management/master-data/operations/scrap-sellers">Sellers</Link>
+                <Link href="/management/master-data/operations/scrap-sellers">Suppliers</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

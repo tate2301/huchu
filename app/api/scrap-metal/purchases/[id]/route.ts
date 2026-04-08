@@ -3,7 +3,17 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import {
+  parseScrapTicketPhotosJson,
+  scrapTicketPhotoArraySchema,
+  serializeScrapTicketPhotos,
+} from "@/lib/scrap-metal/attachments";
 import { applyScrapBalanceDelta } from "@/lib/scrap-metal";
+
+const purchaseTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
+  (items) => items.every((item) => item.context === "scrap-purchase-ticket-photo"),
+  "Only purchase ticket photo attachments are allowed",
+);
 
 const purchaseUpdateSchema = z.object({
   purchaseDate: z
@@ -21,10 +31,13 @@ const purchaseUpdateSchema = z.object({
   weight: z.number().positive().optional(),
   pricePerKg: z.number().min(0).optional(),
   currency: z.string().trim().min(1).max(10).optional(),
+  paymentMethod: z.string().max(100).nullable().optional(),
+  paymentReference: z.string().max(100).nullable().optional(),
   sellerName: z.string().max(200).nullable().optional(),
   sellerPhone: z.string().max(50).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  status: z.enum(["DRAFT", "POSTED", "CANCELLED"]).optional(),
+  attachments: purchaseTicketPhotoArraySchema.nullable().optional(),
+  status: z.enum(["DRAFT", "POSTED", "CANCELLED", "REVERSED"]).optional(),
 });
 
 export async function PATCH(
@@ -53,10 +66,6 @@ export async function PATCH(
       },
     });
     if (!existing) return errorResponse("Purchase not found", 404);
-    if (existing.status === "REVERSED") {
-      return errorResponse("Reversed purchases cannot be edited", 400);
-    }
-
     const body = await request.json();
     const validated = purchaseUpdateSchema.parse(body);
     const nextCategory = validated.category ?? existing.category;
@@ -99,7 +108,7 @@ export async function PATCH(
     const nextTotalAmount = nextWeight * nextPricePerKg;
 
     const purchase = await prisma.$transaction(async (tx) => {
-      if (existing.status !== "CANCELLED") {
+      if (existing.status === "POSTED") {
         await applyScrapBalanceDelta(tx, {
           companyId: session.user.companyId,
           employeeId: existing.employeeId,
@@ -125,6 +134,9 @@ export async function PATCH(
           pricePerKg: validated.pricePerKg,
           totalAmount: nextTotalAmount,
           currency: validated.currency?.trim().toUpperCase(),
+          paymentMethod: validated.paymentMethod === null ? null : validated.paymentMethod,
+          paymentReference:
+            validated.paymentReference === null ? null : validated.paymentReference,
           sellerName:
             validated.sellerProfileId === undefined
               ? validated.sellerName === null
@@ -138,6 +150,10 @@ export async function PATCH(
                 : validated.sellerPhone
               : sellerProfile?.phone ?? null,
           notes: validated.notes === null ? null : validated.notes,
+          attachmentsJson:
+            validated.attachments === undefined
+              ? undefined
+              : serializeScrapTicketPhotos(validated.attachments),
           status: validated.status,
         },
         include: {
@@ -149,7 +165,7 @@ export async function PATCH(
         },
       });
 
-      if (nextStatus !== "CANCELLED") {
+      if (nextStatus === "POSTED") {
         await applyScrapBalanceDelta(tx, {
           companyId: session.user.companyId,
           employeeId: nextEmployeeId,
@@ -164,13 +180,48 @@ export async function PATCH(
       return updatedPurchase;
     });
 
-    return successResponse(purchase);
+    return successResponse({
+      ...purchase,
+      attachments: parseScrapTicketPhotosJson(purchase.attachmentsJson),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
     console.error("[API] PATCH /api/scrap-metal/purchases/[id] error:", error);
     return errorResponse("Failed to update scrap purchase");
+  }
+}
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await context.params;
+
+    const purchase = await prisma.scrapMetalPurchase.findFirst({
+      where: { id, companyId: session.user.companyId },
+      include: {
+        site: { select: { id: true, name: true, code: true } },
+        employee: { select: { id: true, name: true, employeeId: true } },
+        sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
+        material: { select: { id: true, code: true, name: true, category: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!purchase) return errorResponse("Purchase not found", 404);
+    return successResponse({
+      ...purchase,
+      attachments: parseScrapTicketPhotosJson(purchase.attachmentsJson),
+    });
+  } catch (error) {
+    console.error("[API] GET /api/scrap-metal/purchases/[id] error:", error);
+    return errorResponse("Failed to load scrap purchase");
   }
 }
 
@@ -202,7 +253,7 @@ export async function DELETE(
     }
 
     await prisma.$transaction(async (tx) => {
-      if (existing.status !== "CANCELLED") {
+      if (existing.status === "POSTED") {
         await applyScrapBalanceDelta(tx, {
           companyId: session.user.companyId,
           employeeId: existing.employeeId,

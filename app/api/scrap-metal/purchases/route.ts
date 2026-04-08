@@ -11,7 +11,17 @@ import {
 import { prisma } from "@/lib/prisma";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
+import {
+  parseScrapTicketPhotosJson,
+  scrapTicketPhotoArraySchema,
+  serializeScrapTicketPhotos,
+} from "@/lib/scrap-metal/attachments";
 import { applyScrapBalanceDelta } from "@/lib/scrap-metal";
+
+const purchaseTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
+  (items) => items.every((item) => item.context === "scrap-purchase-ticket-photo"),
+  "Only purchase ticket photo attachments are allowed",
+);
 
 const scrapMetalPurchaseSchema = z.object({
   purchaseNumber: z.string().min(1).max(50).optional(),
@@ -35,9 +45,13 @@ const scrapMetalPurchaseSchema = z.object({
   weight: z.number().positive(),
   pricePerKg: z.number().min(0),
   currency: z.string().trim().min(1).max(10).optional(),
+  paymentMethod: z.string().max(100).optional(),
+  paymentReference: z.string().max(100).optional(),
   sellerName: z.string().max(200).optional(),
   sellerPhone: z.string().max(50).optional(),
   notes: z.string().max(1000).optional(),
+  attachments: purchaseTicketPhotoArraySchema.optional(),
+  status: z.enum(["DRAFT", "POSTED", "CANCELLED", "REVERSED"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -51,6 +65,7 @@ export async function GET(request: NextRequest) {
     const employeeId = searchParams.get("employeeId");
     const category = searchParams.get("category");
     const materialId = searchParams.get("materialId");
+    const status = searchParams.get("status");
     const unbatched = searchParams.get("unbatched") === "true";
     const { page, limit, skip } = getPaginationParams(request);
 
@@ -62,6 +77,7 @@ export async function GET(request: NextRequest) {
     if (employeeId) where.employeeId = employeeId;
     if (category) where.category = category;
     if (materialId) where.materialId = materialId;
+    if (status) where.status = status;
     if (unbatched) where.batchItems = { none: {} };
 
     const [purchases, total] = await Promise.all([
@@ -82,7 +98,12 @@ export async function GET(request: NextRequest) {
       prisma.scrapMetalPurchase.count({ where }),
     ]);
 
-    return successResponse(paginationResponse(purchases, total, page, limit));
+    const normalizedPurchases = purchases.map((purchase) => ({
+      ...purchase,
+      attachments: parseScrapTicketPhotosJson(purchase.attachmentsJson),
+    }));
+
+    return successResponse(paginationResponse(normalizedPurchases, total, page, limit));
   } catch (error) {
     console.error("[API] GET /api/scrap-metal/purchases error:", error);
     return errorResponse("Failed to fetch scrap metal purchases");
@@ -207,6 +228,7 @@ export async function POST(request: NextRequest) {
     const totalAmount = validated.weight * validated.pricePerKg;
     const currency = validated.currency?.trim().toUpperCase() || "USD";
 
+    const ticketStatus = validated.status ?? "POSTED";
     const purchase = await prisma.$transaction(async (tx) => {
       // Create purchase
       const newPurchase = await tx.scrapMetalPurchase.create({
@@ -223,9 +245,13 @@ export async function POST(request: NextRequest) {
           pricePerKg: validated.pricePerKg,
           totalAmount,
           currency,
+          paymentMethod: validated.paymentMethod?.trim() || undefined,
+          paymentReference: validated.paymentReference?.trim() || undefined,
+          attachmentsJson: serializeScrapTicketPhotos(validated.attachments),
           sellerName: sellerProfile.fullName,
           sellerPhone: sellerProfile.phone,
           notes: validated.notes?.trim() || undefined,
+          status: ticketStatus,
           createdById: session.user.id,
         },
         include: {
@@ -237,15 +263,17 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await applyScrapBalanceDelta(tx, {
-        companyId: session.user.companyId,
-        employeeId: validated.employeeId,
-        amountDelta: totalAmount,
-        entryType: "PURCHASE",
-        sourceId: newPurchase.id,
-        note: `Purchase ${newPurchase.purchaseNumber}`,
-        createdById: session.user.id,
-      });
+      if (ticketStatus === "POSTED") {
+        await applyScrapBalanceDelta(tx, {
+          companyId: session.user.companyId,
+          employeeId: validated.employeeId,
+          amountDelta: totalAmount,
+          entryType: "PURCHASE",
+          sourceId: newPurchase.id,
+          note: `Purchase ${newPurchase.purchaseNumber}`,
+          createdById: session.user.id,
+        });
+      }
 
       return newPurchase;
     });
@@ -277,7 +305,13 @@ export async function POST(request: NextRequest) {
       console.error("[Accounting] Scrap metal purchase event failed:", error);
     }
 
-    return successResponse(purchase, 201);
+    return successResponse(
+      {
+        ...purchase,
+        attachments: parseScrapTicketPhotosJson(purchase.attachmentsJson),
+      },
+      201,
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);

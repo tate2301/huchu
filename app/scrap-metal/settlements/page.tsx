@@ -314,7 +314,7 @@ export default function ScrapSettlementsPage() {
 
   return (
     <ScrapShell
-      title="Settlements"
+      title="Staff Settlements (Buyers)"
       actions={
         <SplitButton
           size="sm"
@@ -338,7 +338,7 @@ export default function ScrapSettlementsPage() {
           }
         >
           <Plus className="h-4 w-4" />
-          New Batch
+          New Settlement Batch
         </SplitButton>
       }
     >
@@ -524,7 +524,7 @@ export default function ScrapSettlementsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>New Batch</DialogTitle>
+            <DialogTitle>New Settlement Batch</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Batch label" />
@@ -757,10 +757,10 @@ export default function ScrapSettlementsPage() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="font-semibold">
-                              {delivery.purchaseNumber} · {delivery.material?.name ?? delivery.category}
+                              {delivery.purchaseNumber} - {delivery.material?.name ?? delivery.category}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {formatDate(delivery.purchaseDate)} · {delivery.site.code} · {delivery.sellerName ?? "No seller"}
+                              {formatDate(delivery.purchaseDate)} - {delivery.site.code} - {delivery.sellerName ?? "No seller"}
                             </div>
                           </div>
                           <div className="space-y-1 text-left sm:text-right">
@@ -770,7 +770,7 @@ export default function ScrapSettlementsPage() {
                         </div>
                         {delivery.batch ? (
                           <div className="mt-3 text-xs text-muted-foreground">
-                            Batch {delivery.batch.batchNumber} · {delivery.batch.status}
+                            Batch {delivery.batch.batchNumber} - {delivery.batch.status}
                           </div>
                         ) : null}
                       </article>
@@ -790,14 +790,14 @@ export default function ScrapSettlementsPage() {
                           <div>
                             <div className="font-semibold">{settlement.batch.label}</div>
                             <div className="text-xs text-muted-foreground">
-                              {settlement.batch.workflowStatus} · Due {formatDate(settlement.batch.dueDate)}
+                              {settlement.batch.workflowStatus} - Due {formatDate(settlement.batch.dueDate)}
                             </div>
                           </div>
                           <div className="space-y-1 text-left sm:text-right">
                             <div className="font-mono font-semibold">{formatMoney(settlement.amount)}</div>
                             {settlement.payment ? (
                               <div className="text-xs text-muted-foreground">
-                                Paid {formatMoney(settlement.payment.paidAmount)} · {settlement.payment.status}
+                                Paid {formatMoney(settlement.payment.paidAmount)} - {settlement.payment.status}
                               </div>
                             ) : (
                               <div className="text-xs text-muted-foreground">Not paid yet</div>

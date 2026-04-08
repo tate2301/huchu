@@ -22,6 +22,7 @@ import type {
 } from "../types";
 import { appendAuditEvent } from "./audit-ledger";
 import { formatDate, normalizeEmail, slugify } from "./helpers";
+import { provisionTenantSurfaceDomains } from "./tenant-surface-domain-provisioning";
 
 const RESERVED_SUBDOMAINS = new Set([
   "www",
@@ -723,6 +724,25 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
   }
 
   const warnings: string[] = [...preview.warnings];
+  const domainProvisioning = await provisionTenantSurfaceDomains({
+    companyId: tx.company.id,
+    tenantSubdomain: tx.reservation.subdomain,
+  });
+  warnings.push(...domainProvisioning.warnings);
+
+  const reservationUpdateData = {
+    provider: "vercel-project-domain",
+    providerRef: domainProvisioning.providerRef,
+    lastCheckedAt: new Date(),
+    status: domainProvisioning.provisioned ? "ACTIVE" : "RESERVED",
+    activatedAt: domainProvisioning.provisioned ? new Date() : null,
+  } as const;
+
+  const finalReservation = await prisma.subdomainReservation.update({
+    where: { subdomain: tx.reservation.subdomain },
+    data: reservationUpdateData,
+    include: { company: { select: { name: true, slug: true } } },
+  });
   const events = [
     { action: "PROVISION_ORG_CREATED", entityType: "organization", entityId: tx.company.id, reason: `Created ${tx.company.slug}` },
     { action: "PROVISION_ADMIN_CREATED", entityType: "admin", entityId: tx.admin.id, reason: `Created ${tx.admin.email}` },
@@ -730,6 +750,14 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     { action: "PROVISION_BUNDLES_APPLIED", entityType: "subscription_addon", entityId: tx.company.id, reason: `Applied ${tx.appliedBundles.length} bundles` },
     { action: "PROVISION_FEATURES_APPLIED", entityType: "feature", entityId: tx.company.id, reason: `Applied ${tx.appliedFeatures.length} features` },
     { action: "PROVISION_SUBDOMAIN_RESERVED", entityType: "subdomain", entityId: tx.reservation.subdomain, reason: `Reserved ${tx.reservation.subdomain}` },
+    {
+      action: "PROVISION_TENANT_WILDCARD_DOMAIN",
+      entityType: "domain",
+      entityId: tx.reservation.subdomain,
+      reason: domainProvisioning.provisioned
+        ? `Provisioned tenant wildcard domain(s): ${domainProvisioning.provisionedDomains.join(", ")}`
+        : "Tenant wildcard provisioning pending/manual",
+    },
   ];
   const auditIds: string[] = [];
   for (const event of events) {
@@ -787,7 +815,11 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     },
     bundlesApplied: tx.appliedBundles,
     featuresApplied: tx.appliedFeatures,
-    subdomainReservation: mapReservation(tx.reservation),
+    subdomainReservation: mapReservation(finalReservation),
+    terminalDomainProvisioning: {
+      enabled: domainProvisioning.provisioned,
+      provisionedDomains: domainProvisioning.provisionedDomains,
+    },
     auditEventIds: auditIds,
     actionPreview: actionPreview(preview),
     warnings: warnings.length > 0 ? warnings : undefined,

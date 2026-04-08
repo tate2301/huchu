@@ -297,7 +297,7 @@ export const navSections: NavSection[] = [
   {
     id: "scrap-metal",
     title: "Scrap & Recycling",
-    description: "Buying, yard, trading, settlements, and material controls",
+    description: "Ticketing, lots, settlements, and material controls",
     featureKey: "scrap-metal.home",
     items: SCRAP_TABS.map((tab) => ({
       href: tab.href,

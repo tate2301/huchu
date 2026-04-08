@@ -192,7 +192,7 @@ export default function ScrapMaterialsMasterDataPage() {
       },
       {
         id: "price",
-        header: "Default Price/kg",
+        header: "Default Buy Price / kg",
         cell: ({ row }) => (
           <NumericCell>
             {row.original.currency} {row.original.defaultPricePerKg.toFixed(2)}
@@ -361,7 +361,7 @@ export default function ScrapMaterialsMasterDataPage() {
                 step="0.01"
                 value={form.defaultPricePerKg}
                 onChange={(event) => setForm((prev) => ({ ...prev, defaultPricePerKg: event.target.value }))}
-                placeholder="Default price/kg"
+                placeholder="Default buy price / kg"
                 required
               />
               <Input

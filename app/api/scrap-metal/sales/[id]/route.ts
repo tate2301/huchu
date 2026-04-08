@@ -3,6 +3,17 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import {
+  parseScrapTicketPhotosJson,
+  scrapTicketPhotoArraySchema,
+  serializeScrapTicketPhotos,
+} from "@/lib/scrap-metal/attachments";
+import { hasRole } from "@/lib/roles";
+
+const saleTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
+  (items) => items.every((item) => item.context === "scrap-sale-ticket-photo"),
+  "Only sale ticket photo attachments are allowed",
+);
 
 const saleUpdateSchema = z.object({
   saleDate: z
@@ -20,6 +31,8 @@ const saleUpdateSchema = z.object({
   paymentMethod: z.string().max(100).nullable().optional(),
   paymentReference: z.string().max(100).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  attachments: saleTicketPhotoArraySchema.nullable().optional(),
+  status: z.enum(["DRAFT", "PENDING_APPROVAL", "APPROVED", "COMPLETED", "CANCELLED"]).optional(),
 });
 
 export async function PATCH(
@@ -31,6 +44,8 @@ export async function PATCH(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const { id } = await context.params;
+
+    const canManageSales = hasRole(session.user.role, ["SUPERADMIN", "MANAGER"]);
 
     const existing = await prisma.scrapMetalSale.findFirst({
       where: { id, companyId: session.user.companyId },
@@ -50,6 +65,15 @@ export async function PATCH(
 
     const body = await request.json();
     const validated = saleUpdateSchema.parse(body);
+
+    if (!canManageSales) {
+      if (validated.status && validated.status !== "DRAFT") {
+        return errorResponse("Only managers can submit or approve outbound tickets", 403);
+      }
+      if (existing.status !== "DRAFT") {
+        return errorResponse("Only draft outbound tickets can be edited by clerks", 403);
+      }
+    }
     if (validated.materialId) {
       const material = await prisma.scrapMaterial.findFirst({
         where: { id: validated.materialId, companyId: session.user.companyId },
@@ -83,6 +107,11 @@ export async function PATCH(
         paymentReference:
           validated.paymentReference === null ? null : validated.paymentReference,
         notes: validated.notes === null ? null : validated.notes,
+        status: validated.status,
+        attachmentsJson:
+          validated.attachments === undefined
+            ? undefined
+            : serializeScrapTicketPhotos(validated.attachments),
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
@@ -100,13 +129,55 @@ export async function PATCH(
       },
     });
 
-    return successResponse(sale);
+    return successResponse({
+      ...sale,
+      attachments: parseScrapTicketPhotosJson(sale.attachmentsJson),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
     console.error("[API] PATCH /api/scrap-metal/sales/[id] error:", error);
     return errorResponse("Failed to update scrap sale");
+  }
+}
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await context.params;
+
+    const sale = await prisma.scrapMetalSale.findFirst({
+      where: { id, companyId: session.user.companyId },
+      include: {
+        site: { select: { id: true, name: true, code: true } },
+        batch: {
+          select: {
+            id: true,
+            batchNumber: true,
+            category: true,
+            totalWeight: true,
+          },
+        },
+        material: { select: { id: true, code: true, name: true, category: true } },
+        approvedBy: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!sale) return errorResponse("Sale not found", 404);
+    return successResponse({
+      ...sale,
+      attachments: parseScrapTicketPhotosJson(sale.attachmentsJson),
+    });
+  } catch (error) {
+    console.error("[API] GET /api/scrap-metal/sales/[id] error:", error);
+    return errorResponse("Failed to load scrap sale");
   }
 }
 

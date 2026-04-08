@@ -209,6 +209,10 @@ export interface ProvisionBundleResult {
   bundlesApplied: string[];
   featuresApplied: string[];
   subdomainReservation: SubdomainReservationRecord;
+  terminalDomainProvisioning: {
+    enabled: boolean;
+    provisionedDomains: string[];
+  };
   auditEventIds: string[];
   actionPreview: string;
   warnings?: string[];

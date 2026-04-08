@@ -84,9 +84,9 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "gold.payouts", name: "Gold Settlements", description: "Gold settlement workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 18 }),
 
   f({ key: "scrap-metal.home", name: "Scrap & Recycling Overview", description: "Scrap and recycling command center, dashboards, and operational queues.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Buying", description: "Scrap and recycling buying, intake, and purchase tracking.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.batches", name: "Scrap & Recycling Yard", description: "Scrap and recycling yard stock, batching, and ready-to-sell control.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.sales", name: "Scrap & Recycling Trading", description: "Scrap and recycling sales, bulk trading, and approval workflows.", domain: "scrap-metal", defaultEnabled: false, isBillable: true, monthlyPrice: 12 }),
+  f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Inbound Tickets", description: "Scrap and recycling inbound ticket intake and supplier capture.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.batches", name: "Scrap & Recycling Lots", description: "Scrap and recycling lot stock, grouping, and ready-to-sell control.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "scrap-metal.sales", name: "Scrap & Recycling Outbound Tickets", description: "Scrap and recycling outbound ticketing, approval workflows, and sale closeout.", domain: "scrap-metal", defaultEnabled: false, isBillable: true, monthlyPrice: 12 }),
   f({ key: "scrap-metal.pricing", name: "Scrap & Recycling Price Board", description: "Scrap and recycling material catalog and pricing controls.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
 
   f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),

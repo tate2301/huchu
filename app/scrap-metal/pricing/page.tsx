@@ -238,7 +238,7 @@ export default function ScrapMetalPricingPage() {
 
   return (
     <ScrapShell
-      title="Price Board"
+      title="Price Board (Buy Prices)"
       actions={
         <SplitButton
           size="sm"

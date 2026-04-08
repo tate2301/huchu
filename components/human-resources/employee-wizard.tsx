@@ -60,6 +60,15 @@ const payoutPaths = [
   },
 ] as const
 
+const WORKSPACE_ROLE_OPTIONS = {
+  GOLD_MINE: ["MANAGER", "CLERK", "FINANCE_OFFICER"] as const,
+  SCRAP_METAL: ["MANAGER", "CLERK", "CASHIER", "FINANCE_OFFICER"] as const,
+  AUTOS: ["MANAGER", "CLERK", "AUTO_MANAGER", "SALES_EXEC", "FINANCE_OFFICER"] as const,
+  RETAIL: ["MANAGER", "CLERK", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"] as const,
+  SCHOOLS: ["MANAGER", "CLERK", "FINANCE_OFFICER"] as const,
+  GENERAL: ["MANAGER", "CLERK", "FINANCE_OFFICER"] as const,
+} as const
+
 const moduleOptions = [
   {
     value: "HR",
@@ -69,9 +78,9 @@ const moduleOptions = [
   },
   {
     value: "GOLD",
-    label: "Settlements",
-    description: "Settlement and variable pay workflows.",
-    featureMatcher: (feature: string) => feature === "hr.settlements" || feature === "hr.gold-payouts" || feature === "gold.payouts" || feature.startsWith("gold."),
+    label: "Gold Operations",
+    description: "Gold production and settlement workflows.",
+    featureMatcher: (feature: string) => feature === "gold.payouts" || feature.startsWith("gold."),
   },
   {
     value: "SCRAP_METAL",
@@ -177,7 +186,7 @@ const emptyForm: EmployeeWizardForm = {
   gradeId: "",
   supervisorId: "",
   employmentType: "FULL_TIME",
-  payoutPath: "SALARY",
+  payoutPath: "HYBRID",
   moduleAssignments: ["HR"],
   primaryModule: "HR",
   compensationTemplateId: "",
@@ -192,9 +201,16 @@ const emptyForm: EmployeeWizardForm = {
 }
 
 function inferPayoutPath(employmentType: EmploymentType): PayoutPath {
-  if (employmentType === "CASUAL") return "IRREGULAR"
-  if (employmentType === "CONTRACT") return "HYBRID"
-  return "SALARY"
+  void employmentType
+  return "HYBRID"
+}
+
+function normalizeWorkspaceProfile(value: string | null | undefined) {
+  const normalized = String(value || "").trim().toUpperCase()
+  if (normalized === "GOLD_MINE" || normalized === "SCRAP_METAL" || normalized === "AUTOS" || normalized === "RETAIL" || normalized === "SCHOOLS") {
+    return normalized
+  }
+  return "GENERAL"
 }
 
 function getVisibleSteps(form: EmployeeWizardForm, canProvisionUser: boolean) {
@@ -897,10 +913,12 @@ function CompensationStep({
 function AccessStep({
   form,
   canProvisionUser,
+  availableUserRoles,
   onChange,
 }: {
   form: EmployeeWizardForm
   canProvisionUser: boolean
+  availableUserRoles: readonly { value: UserRole; label: string }[]
   onChange: (updates: Partial<EmployeeWizardForm>) => void
 }) {
   return (
@@ -951,7 +969,7 @@ function AccessStep({
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {userRoleOptions.map((role) => (
+                    {availableUserRoles.map((role) => (
                       <SelectItem key={role.value} value={role.value}>
                         {role.label}
                       </SelectItem>
@@ -1089,6 +1107,10 @@ export function EmployeeWizard({
     [session],
   )
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
+  const normalizedWorkspaceProfile = useMemo(
+    () => normalizeWorkspaceProfile(workspaceProfile),
+    [workspaceProfile],
+  )
   const canProvisionUser = session?.user?.role === "SUPERADMIN"
   const positionOptions = useMemo(
     () =>
@@ -1117,12 +1139,18 @@ export function EmployeeWizard({
   const availableModules = useMemo(
     () =>
       moduleOptions.filter(
-        (module) =>
-          module.value === "HR" ||
-          enabledFeatures.some((feature) => module.featureMatcher(feature)),
+        (module) => {
+          if (module.value === "HR") return true
+          if (module.value === "GOLD" && normalizedWorkspaceProfile !== "GOLD_MINE") return false
+          return enabledFeatures.some((feature) => module.featureMatcher(feature))
+        },
       ),
-    [enabledFeatures],
+    [enabledFeatures, normalizedWorkspaceProfile],
   )
+  const availableUserRoles = useMemo(() => {
+    const allowedRoles = new Set<UserRole>(WORKSPACE_ROLE_OPTIONS[normalizedWorkspaceProfile] as readonly UserRole[])
+    return userRoleOptions.filter((role) => allowedRoles.has(role.value))
+  }, [normalizedWorkspaceProfile])
 
   const [form, setForm] = useState<EmployeeWizardForm>({
     ...emptyForm,
@@ -1195,6 +1223,10 @@ export function EmployeeWizard({
       if (!next.createUserAccount) {
         next.userEmail = ""
         next.userPassword = ""
+      }
+
+      if (next.createUserAccount && !availableUserRoles.some((role) => role.value === next.userRole)) {
+        next.userRole = availableUserRoles[0]?.value ?? "CLERK"
       }
 
       return next
@@ -1331,7 +1363,14 @@ export function EmployeeWizard({
       case "compensation":
         return <CompensationStep form={form} templates={templates} onChange={handleChange} />
       case "access":
-        return <AccessStep form={form} canProvisionUser={canProvisionUser} onChange={handleChange} />
+        return (
+          <AccessStep
+            form={form}
+            canProvisionUser={canProvisionUser}
+            availableUserRoles={availableUserRoles}
+            onChange={handleChange}
+          />
+        )
       case "review":
         return (
           <ReviewStep

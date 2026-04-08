@@ -28,6 +28,13 @@ const scrapMetalBatchSchema = z.object({
     .string()
     .datetime()
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
+  collectionEndDate: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/))
+    .nullable()
+    .optional(),
+  status: z.enum(["COLLECTING", "READY", "SOLD"]).optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -146,8 +153,14 @@ export async function POST(request: NextRequest) {
         materialId: validated.materialId,
         batchNumber,
         category: validated.category,
-        status: "COLLECTING",
+        status: validated.status ?? "COLLECTING",
         collectionStartDate: new Date(validated.collectionStartDate),
+        collectionEndDate:
+          validated.collectionEndDate === null
+            ? null
+            : validated.collectionEndDate
+              ? new Date(validated.collectionEndDate)
+              : undefined,
         notes: validated.notes?.trim() || undefined,
         createdById: session.user.id,
       },

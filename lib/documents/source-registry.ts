@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import type { ExportTargetType, UniversalDocumentPayload } from "@/lib/documents/types";
+import { parseScrapTicketPhotosJson } from "@/lib/scrap-metal/attachments";
 
 const sourceInputSchema = z.object({
   target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
@@ -451,6 +452,165 @@ async function resolveDashboardSummary(companyId: string): Promise<SourceResolut
   };
 }
 
+async function resolveScrapPurchaseTicket(companyId: string, recordId: string): Promise<SourceResolution> {
+  const purchase = await prisma.scrapMetalPurchase.findUnique({
+    where: { id: recordId },
+    include: {
+      site: { select: { name: true, code: true } },
+      employee: { select: { name: true, employeeId: true } },
+      material: { select: { name: true, code: true } },
+      sellerProfile: { select: { fullName: true, phone: true, nationalId: true } },
+    },
+  });
+
+  if (!purchase || purchase.companyId !== companyId) {
+    throw new Error("Inbound ticket not found");
+  }
+
+  const attachments = parseScrapTicketPhotosJson(purchase.attachmentsJson);
+  const lineRows = [
+    {
+      material: purchase.material?.name ?? purchase.category,
+      code: purchase.material?.code ?? purchase.category,
+      weightKg: purchase.weight,
+      pricePerKg: purchase.pricePerKg,
+      total: purchase.totalAmount,
+    },
+  ];
+
+  return {
+    targetType: "RECORD",
+    documentType: "GENERIC_RECORD",
+    sourceKey: "scrap-metal.purchase-ticket",
+    fileName: `inbound-ticket-${purchase.purchaseNumber}.pdf`,
+    payload: {
+      title: "Inbound Ticket",
+      subtitle: purchase.purchaseNumber,
+      meta: [
+        { label: "Ticket #", value: purchase.purchaseNumber },
+        { label: "Date", value: isoDate(purchase.purchaseDate) },
+        { label: "Site", value: `${purchase.site.name} (${purchase.site.code})` },
+        { label: "Status", value: purchase.status },
+      ],
+      record: {
+        sections: [
+          {
+            title: "Supplier",
+            rows: [
+              { label: "Name", value: purchase.sellerProfile?.fullName ?? purchase.sellerName ?? "-" },
+              { label: "Phone", value: purchase.sellerProfile?.phone ?? purchase.sellerPhone ?? "-" },
+              { label: "ID", value: purchase.sellerProfile?.nationalId ?? "-" },
+            ],
+          },
+          {
+            title: "Buyer / Cashier",
+            rows: [
+              { label: "Name", value: purchase.employee.name },
+              { label: "Employee ID", value: purchase.employee.employeeId },
+              { label: "Payment Method", value: purchase.paymentMethod ?? "-" },
+              { label: "Payment Reference", value: purchase.paymentReference ?? "-" },
+            ],
+          },
+          {
+            title: "Notes",
+            rows: [
+              { label: "Notes", value: purchase.notes ?? "-" },
+              { label: "Photos", value: `${attachments.length}` },
+            ],
+          },
+        ],
+        lineColumns: [
+          { key: "material", label: "Material" },
+          { key: "code", label: "Code" },
+          { key: "weightKg", label: "Weight (kg)" },
+          { key: "pricePerKg", label: "Price / kg" },
+          { key: "total", label: "Total" },
+        ],
+        lines: lineRows,
+      },
+    },
+    rowsForCsv: lineRows,
+  };
+}
+
+async function resolveScrapSaleTicket(companyId: string, recordId: string): Promise<SourceResolution> {
+  const sale = await prisma.scrapMetalSale.findUnique({
+    where: { id: recordId },
+    include: {
+      site: { select: { name: true, code: true } },
+      batch: { select: { batchNumber: true, category: true } },
+      material: { select: { name: true, code: true } },
+    },
+  });
+
+  if (!sale || sale.companyId !== companyId) {
+    throw new Error("Outbound ticket not found");
+  }
+
+  const attachments = parseScrapTicketPhotosJson(sale.attachmentsJson);
+  const lineRows = [
+    {
+      lot: sale.batch.batchNumber,
+      material: sale.material?.name ?? sale.batch.category,
+      code: sale.material?.code ?? sale.batch.category,
+      recordedKg: sale.recordedWeight,
+      soldKg: sale.soldWeight,
+      varianceKg: sale.weightDiscrepancy,
+      pricePerKg: sale.pricePerKg,
+      total: sale.totalAmount,
+    },
+  ];
+
+  return {
+    targetType: "RECORD",
+    documentType: "GENERIC_RECORD",
+    sourceKey: "scrap-metal.sale-ticket",
+    fileName: `outbound-ticket-${sale.saleNumber}.pdf`,
+    payload: {
+      title: "Outbound Ticket",
+      subtitle: sale.saleNumber,
+      meta: [
+        { label: "Ticket #", value: sale.saleNumber },
+        { label: "Date", value: isoDate(sale.saleDate) },
+        { label: "Site", value: `${sale.site.name} (${sale.site.code})` },
+        { label: "Status", value: sale.status },
+      ],
+      record: {
+        sections: [
+          {
+            title: "Buyer",
+            rows: [
+              { label: "Name", value: sale.buyerName },
+              { label: "Contact", value: sale.buyerContact ?? "-" },
+              { label: "Payment Method", value: sale.paymentMethod ?? "-" },
+              { label: "Payment Reference", value: sale.paymentReference ?? "-" },
+            ],
+          },
+          {
+            title: "Notes",
+            rows: [
+              { label: "Notes", value: sale.notes ?? "-" },
+              { label: "Photos", value: `${attachments.length}` },
+            ],
+          },
+        ],
+        lineColumns: [
+          { key: "lot", label: "Lot" },
+          { key: "material", label: "Material" },
+          { key: "code", label: "Code" },
+          { key: "recordedKg", label: "Recorded (kg)" },
+          { key: "soldKg", label: "Accepted (kg)" },
+          { key: "varianceKg", label: "Variance (kg)" },
+          { key: "pricePerKg", label: "Price / kg" },
+          { key: "total", label: "Total" },
+        ],
+        lines: lineRows,
+      },
+    },
+    rowsForCsv: lineRows,
+  };
+}
+
 export async function resolveSourcePayload(
   companyId: string,
   rawInput: SourceResolutionInput,
@@ -491,6 +651,12 @@ export async function resolveSourcePayload(
       return resolvePlantList(companyId, input.filters);
     case "dashboard.executive-summary":
       return resolveDashboardSummary(companyId);
+    case "scrap-metal.purchase-ticket":
+      if (!input.recordId) throw new Error("recordId is required for inbound ticket export");
+      return resolveScrapPurchaseTicket(companyId, input.recordId);
+    case "scrap-metal.sale-ticket":
+      if (!input.recordId) throw new Error("recordId is required for outbound ticket export");
+      return resolveScrapSaleTicket(companyId, input.recordId);
     default:
       throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
   }

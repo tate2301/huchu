@@ -87,7 +87,7 @@ export function SaleCalculator({ recordedWeight, onWeightCalculated }: Calculato
       <div className="text-sm text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">Verify Sold Weight</p>
         <p>
-          Enter the actual weight sold to the buyer using the calculator below. The discrepancy shows the difference between recorded batch weight and sold weight—positive values indicate weight loss during transport or handling.
+          Enter the actual weight sold to the buyer using the calculator below. Variance compares recorded lot weight and sold weight.
         </p>
       </div>
 
@@ -124,7 +124,12 @@ export function SaleCalculator({ recordedWeight, onWeightCalculated }: Calculato
               <div className="font-mono font-semibold">{currentValue.toFixed(3)} kg</div>
             </div>
             <div>
-              <div className="text-muted-foreground">Discrepancy</div>
+              <div
+                className="text-muted-foreground"
+                title="Variance = recorded weight - sold weight. Positive means shrink/loss."
+              >
+                Shrink / Variance (kg)
+              </div>
               <div
                 className={cn(
                   "font-mono font-semibold",

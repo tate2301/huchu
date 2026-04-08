@@ -16,6 +16,16 @@ export const uploadPolicies = {
     maxBytes: 5 * MB,
     folder: "employee-national-ids",
   },
+  "scrap-purchase-ticket-photo": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+    maxBytes: 8 * MB,
+    folder: "scrap-purchase-ticket-photos",
+  },
+  "scrap-sale-ticket-photo": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+    maxBytes: 8 * MB,
+    folder: "scrap-sale-ticket-photos",
+  },
 } as const
 
 export type UploadContext = keyof typeof uploadPolicies

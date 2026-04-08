@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -38,6 +38,8 @@ import { SplitButton } from "@/components/ui/split-button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
+import { exportTicketPdf } from "@/lib/scrap-metal/print-adapter";
 
 type Purchase = {
   id: string;
@@ -49,9 +51,12 @@ type Purchase = {
   totalAmount: number;
   currency: string;
   status: string;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
   sellerName?: string;
   sellerPhone?: string;
   notes?: string | null;
+  attachments?: ScrapTicketPhoto[];
   sellerProfile?: {
     id: string;
     fullName: string;
@@ -105,8 +110,11 @@ type PurchaseForm = {
   weight: string;
   pricePerKg: string;
   currency: string;
+  paymentMethod: string;
+  paymentReference: string;
   overrideReason: string;
   notes: string;
+  attachments: ScrapTicketPhoto[];
 };
 
 const CATEGORY_OPTIONS = ["BATTERIES", "COPPER", "ALUMINUM", "STEEL", "BRASS", "MIXED", "OTHER"];
@@ -122,9 +130,52 @@ function getEmptyForm(): PurchaseForm {
     weight: "",
     pricePerKg: "",
     currency: "USD",
+    paymentMethod: "",
+    paymentReference: "",
     overrideReason: "",
     notes: "",
+    attachments: [],
   };
+}
+
+async function uploadScrapTicketPhoto(
+  file: File,
+  context: "scrap-purchase-ticket-photo" | "scrap-sale-ticket-photo",
+): Promise<ScrapTicketPhoto> {
+  const formData = new FormData();
+  formData.append("context", context);
+  formData.append("file", file);
+
+  const response = await fetch("/api/uploads", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = data && typeof data.error === "string" ? data.error : "Upload failed";
+    throw new Error(message);
+  }
+
+  if (!data || typeof data.url !== "string" || typeof data.contentType !== "string") {
+    throw new Error("Upload response missing file metadata");
+  }
+
+  return {
+    url: data.url,
+    pathname: typeof data.pathname === "string" ? data.pathname : undefined,
+    contentType: data.contentType,
+    size: typeof data.size === "number" ? data.size : file.size,
+    context,
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
+function formatFileSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${size} B`;
 }
 
 async function fetchPurchases(): Promise<Purchase[]> {
@@ -162,12 +213,15 @@ function applySuggestedPrice(nextForm: PurchaseForm, prices: PriceRecord[], pric
 export default function ScrapMetalPurchasesPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
   const [editing, setEditing] = useState<Purchase | null>(null);
   const [form, setForm] = useState<PurchaseForm>(getEmptyForm);
+  const [submitIntent, setSubmitIntent] = useState<"hold" | "finalize" | "finalize_print">("finalize");
   const [priceTouched, setPriceTouched] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const {
     reservedId: purchaseNumber,
     isReserving: reservingPurchaseNumber,
@@ -207,7 +261,8 @@ export default function ScrapMetalPurchasesPage() {
   const sellerProfiles = useMemo(() => sellerProfilesQuery.data?.data ?? [], [sellerProfilesQuery.data?.data]);
   const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const employees = useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data?.data]);
-  const purchases = purchasesQuery.data ?? [];
+  const purchases = useMemo(() => purchasesQuery.data ?? [], [purchasesQuery.data]);
+  const deepLinkEditId = searchParams.get("edit");
   const siteOptions = useMemo<SearchableOption[]>(
     () =>
       sites.map((site) => ({
@@ -259,8 +314,61 @@ export default function ScrapMetalPurchasesPage() {
     [form, pricesQuery.data?.data],
   );
 
+  useEffect(() => {
+    if (!formOpen || editing) return;
+    setForm((current) => {
+      let next = current;
+      if (!current.siteId && sites.length === 1) {
+        next = { ...next, siteId: sites[0]?.id ?? "" };
+      }
+      if (!current.employeeId && employees.length === 1) {
+        next = { ...next, employeeId: employees[0]?.id ?? "" };
+      }
+      return next;
+    });
+  }, [editing, employees, formOpen, sites]);
+
+  useEffect(() => {
+    if (!deepLinkEditId) return;
+    if (purchasesQuery.isLoading) return;
+
+    const purchase = purchases.find((row) => row.id === deepLinkEditId);
+    if (!purchase) {
+      toast({
+        title: "Ticket not found",
+        description: "The selected draft ticket could not be loaded.",
+        variant: "destructive",
+      });
+      router.replace("/scrap-metal/purchases");
+      return;
+    }
+
+    setEditing(purchase);
+    setPriceTouched(true);
+    setForm({
+      purchaseDate: purchase.purchaseDate.slice(0, 16),
+      siteId: purchase.site.id,
+      employeeId: purchase.employee.id,
+      sellerProfileId: purchase.sellerProfile?.id ?? "__none",
+      materialId: purchase.material?.id ?? "__none",
+      category: purchase.material?.category ?? purchase.category,
+      weight: String(purchase.weight),
+      pricePerKg: String(purchase.pricePerKg),
+      currency: purchase.currency,
+      paymentMethod: purchase.paymentMethod ?? "",
+      paymentReference: purchase.paymentReference ?? "",
+      overrideReason: "",
+      notes: purchase.notes ?? "",
+      attachments: purchase.attachments ?? [],
+    });
+    setSubmitIntent("finalize");
+    setFormOpen(true);
+    router.replace("/scrap-metal/purchases");
+  }, [deepLinkEditId, purchases, purchasesQuery.isLoading, router, toast]);
+
   const saveMutation = useMutation({
-    mutationFn: async (payload: PurchaseForm) => {
+    mutationFn: async (input: { payload: PurchaseForm; intent: "hold" | "finalize" | "finalize_print" }) => {
+      const { payload, intent } = input;
       const hasOverride =
         suggestedPrice && Number(payload.pricePerKg || 0) !== Number(suggestedPrice.pricePerKg);
       if (hasOverride && !payload.overrideReason.trim()) {
@@ -283,7 +391,11 @@ export default function ScrapMetalPurchasesPage() {
         weight: Number(payload.weight),
         pricePerKg: Number(payload.pricePerKg),
         currency: payload.currency,
+        paymentMethod: payload.paymentMethod || undefined,
+        paymentReference: payload.paymentReference || undefined,
         notes: noteParts.filter(Boolean).join("\n") || undefined,
+        attachments: payload.attachments,
+        status: intent === "hold" ? "DRAFT" : "POSTED",
       };
 
       if (editing) {
@@ -298,18 +410,32 @@ export default function ScrapMetalPurchasesPage() {
         body: JSON.stringify(body),
       });
     },
-    onSuccess: () => {
-      toast({ title: editing ? "Purchase updated" : "Purchase recorded", variant: "success" });
+    onSuccess: (result, variables) => {
+      const held = variables.intent === "hold";
+      toast({
+        title: held
+          ? "Inbound ticket held"
+          : editing
+            ? "Inbound ticket finalized"
+            : "Inbound ticket finalized",
+        variant: "success",
+      });
       setFormOpen(false);
       setEditing(null);
       setPriceTouched(false);
+      setSubmitIntent("finalize");
       setForm(getEmptyForm());
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-held-inbound-tickets"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
+
+      if (variables.intent === "finalize_print" && typeof result === "object" && result && "id" in result) {
+        exportTicketPdf({ ticketType: "purchase", ticketId: String(result.id), download: false });
+      }
     },
     onError: (error) => {
       toast({
-        title: editing ? "Unable to update purchase" : "Unable to record purchase",
+        title: editing ? "Unable to update inbound ticket" : "Unable to record inbound ticket",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -320,14 +446,14 @@ export default function ScrapMetalPurchasesPage() {
     mutationFn: async (id: string) =>
       fetchJson(`/api/scrap-metal/purchases/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast({ title: "Purchase removed", variant: "success" });
+      toast({ title: "Inbound ticket removed", variant: "success" });
       setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to remove purchase",
+        title: "Unable to remove inbound ticket",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -338,7 +464,7 @@ export default function ScrapMetalPurchasesPage() {
     () => [
       {
         id: "purchaseNumber",
-        header: "Purchase #",
+        header: "Ticket #",
         cell: ({ row }) => <span className="font-mono font-semibold">{row.original.purchaseNumber}</span>,
         size: 120,
       },
@@ -361,7 +487,7 @@ export default function ScrapMetalPurchasesPage() {
       },
       {
         id: "employee",
-        header: "Operator",
+        header: "Buyer / Cashier",
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.employee.name}</div>
@@ -372,7 +498,7 @@ export default function ScrapMetalPurchasesPage() {
       },
       {
         id: "sellerName",
-        header: "Seller",
+        header: "Supplier (Seller)",
         accessorKey: "sellerName",
         cell: ({ row }) => (
           <div>
@@ -411,6 +537,12 @@ export default function ScrapMetalPurchasesPage() {
         size: 110,
       },
       {
+        id: "paymentStatus",
+        header: "Supplier Payment Status",
+        cell: ({ row }) => (row.original.status === "POSTED" ? "Finalized" : "Held / Draft"),
+        size: 150,
+      },
+      {
         id: "site",
         header: "Site",
         cell: ({ row }) => <Badge variant="outline">{row.original.site.code}</Badge>,
@@ -438,9 +570,13 @@ export default function ScrapMetalPurchasesPage() {
                   weight: String(row.original.weight),
                   pricePerKg: String(row.original.pricePerKg),
                   currency: row.original.currency,
+                  paymentMethod: row.original.paymentMethod ?? "",
+                  paymentReference: row.original.paymentReference ?? "",
                   overrideReason: "",
                   notes: row.original.notes ?? "",
+                  attachments: row.original.attachments ?? [],
                 });
+                setSubmitIntent("finalize");
                 setFormOpen(true);
               }}
             >
@@ -464,7 +600,7 @@ export default function ScrapMetalPurchasesPage() {
 
   return (
     <ScrapShell
-      title="Purchases"
+      title="Inbound Tickets"
       actions={
         <SplitButton
           size="sm"
@@ -472,6 +608,7 @@ export default function ScrapMetalPurchasesPage() {
             setEditing(null);
             setPriceTouched(false);
             setForm(getEmptyForm());
+            setSubmitIntent("finalize");
             setFormOpen(true);
           }}
           menuContent={
@@ -480,7 +617,10 @@ export default function ScrapMetalPurchasesPage() {
                 <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/management/master-data/operations/scrap-sellers">Sellers</Link>
+                <Link href="/management/master-data/operations/scrap-sellers">Suppliers</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/tickets/held">Held / Draft Tickets</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
@@ -490,14 +630,14 @@ export default function ScrapMetalPurchasesPage() {
           }
         >
           <Plus className="h-4 w-4" />
-          New Purchase
+          New Inbound Ticket
         </SplitButton>
       }
     >
       {purchasesQuery.error ? (
         <StatusState
           variant="error"
-          title="Unable to load purchases"
+          title="Unable to load inbound tickets"
           description={getApiErrorMessage(purchasesQuery.error)}
           action={
             <Button onClick={() => purchasesQuery.refetch()} variant="outline" size="sm">
@@ -511,11 +651,11 @@ export default function ScrapMetalPurchasesPage() {
             <DataTable
               data={purchases}
               columns={columns}
-              searchPlaceholder="Search purchase, operator, seller, or material"
+              searchPlaceholder="Search ticket, buyer, supplier, or material"
               searchSubmitLabel="Search"
               tableClassName="text-sm"
               pagination={{ enabled: true }}
-              emptyState={purchasesQuery.isLoading ? "Loading purchases..." : "No purchases yet"}
+              emptyState={purchasesQuery.isLoading ? "Loading inbound tickets..." : "No inbound tickets yet"}
             />
           </div>
           <div className="space-y-3 md:hidden">
@@ -533,12 +673,12 @@ export default function ScrapMetalPurchasesPage() {
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="text-xs text-muted-foreground">Operator</div>
+                    <div className="text-xs text-muted-foreground">Buyer / Cashier</div>
                     <div className="mt-1 font-semibold">{purchase.employee.name}</div>
                     <div className="font-mono text-xs text-muted-foreground">{purchase.employee.employeeId}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Seller</div>
+                    <div className="text-xs text-muted-foreground">Supplier (Seller)</div>
                     <div className="mt-1 font-semibold">{purchase.sellerName || "-"}</div>
                     <div className="text-xs text-muted-foreground">
                       {purchase.sellerProfile?.nationalId ?? purchase.sellerPhone ?? "No profile"}
@@ -564,6 +704,10 @@ export default function ScrapMetalPurchasesPage() {
                       {purchase.currency} {purchase.totalAmount.toFixed(2)}
                     </div>
                   </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Supplier Payment Status</div>
+                    <div className="mt-1 font-semibold">{purchase.status === "POSTED" ? "Finalized" : "Held / Draft"}</div>
+                  </div>
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button
@@ -583,9 +727,13 @@ export default function ScrapMetalPurchasesPage() {
                         weight: String(purchase.weight),
                         pricePerKg: String(purchase.pricePerKg),
                         currency: purchase.currency,
+                        paymentMethod: purchase.paymentMethod ?? "",
+                        paymentReference: purchase.paymentReference ?? "",
                         overrideReason: "",
                         notes: purchase.notes ?? "",
+                        attachments: purchase.attachments ?? [],
                       });
+                      setSubmitIntent("finalize");
                       setFormOpen(true);
                     }}
                   >
@@ -606,34 +754,37 @@ export default function ScrapMetalPurchasesPage() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent size="xl">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Purchase" : "New Purchase"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Inbound Ticket" : "New Inbound Ticket"}</DialogTitle>
           </DialogHeader>
           <form
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              saveMutation.mutate(form);
+              saveMutation.mutate({ payload: form, intent: submitIntent });
             }}
           >
+            <p className="text-xs text-muted-foreground">
+              Small-yard quick flow: fields marked with * are required. Everything else is optional.
+            </p>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Purchase Number</label>
+                <label className="block text-sm font-semibold">Ticket Number</label>
                 <Input
                   value={editing?.purchaseNumber ?? purchaseNumber}
                   readOnly
                   aria-readonly="true"
-                  placeholder={editing ? "Purchase number" : reservingPurchaseNumber ? "Reserving..." : "Auto-generated"}
+                  placeholder={editing ? "Ticket number" : reservingPurchaseNumber ? "Reserving..." : "Auto-generated"}
                 />
                 <FieldHelp
                   hint={
                     editing
-                      ? "Purchase number stays locked after creation."
-                      : reservePurchaseNumberError ?? "Purchase number is generated automatically after site selection."
+                      ? "Ticket number stays locked after creation."
+                      : reservePurchaseNumberError ?? "Ticket number is generated automatically after site selection."
                   }
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Purchase Date</label>
+                <label className="block text-sm font-semibold">Ticket Date</label>
                 <Input
                   type="datetime-local"
                   value={form.purchaseDate}
@@ -663,24 +814,24 @@ export default function ScrapMetalPurchasesPage() {
                 addLabel="Add new site"
               />
               <SearchableSelect
-                label="Operator *"
+                label="Buyer / Cashier *"
                 value={form.employeeId || undefined}
                 options={employeeOptions}
-                placeholder={employeesQuery.isLoading ? "Loading operators..." : "Select operator"}
-                searchPlaceholder="Search operators..."
+                placeholder={employeesQuery.isLoading ? "Loading buyers..." : "Select buyer"}
+                searchPlaceholder="Search buyers..."
                 onValueChange={(value) => setForm((current) => ({ ...current, employeeId: value }))}
                 onAddOption={() => router.push("/human-resources")}
-                addLabel="Add new operator"
+                addLabel="Add new buyer"
               />
               <SearchableSelect
-                label="Seller Profile *"
+                label="Supplier Profile *"
                 value={form.sellerProfileId === "__none" ? undefined : form.sellerProfileId}
                 options={sellerOptions}
-                placeholder={sellerProfilesQuery.isLoading ? "Loading seller profiles..." : "Select seller profile"}
-                searchPlaceholder="Search sellers..."
+                placeholder={sellerProfilesQuery.isLoading ? "Loading supplier profiles..." : "Select supplier profile"}
+                searchPlaceholder="Search suppliers..."
                 onValueChange={(value) => setForm((current) => ({ ...current, sellerProfileId: value }))}
                 onAddOption={() => router.push("/management/master-data/operations/scrap-sellers")}
-                addLabel="Add new seller"
+                addLabel="Add new supplier"
               />
             </div>
 
@@ -710,48 +861,61 @@ export default function ScrapMetalPurchasesPage() {
                 onAddOption={() => router.push("/management/master-data/operations/scrap-materials")}
                 addLabel="Add new material"
               />
-              <Select
-                value={form.category}
-                onValueChange={(value) => {
-                  setPriceTouched(false);
-                  setForm((current) =>
-                    applySuggestedPrice(
-                      { ...current, category: value, pricePerKg: "" },
-                      pricesQuery.data?.data ?? [],
-                      false,
-                    ),
-                  );
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_OPTIONS.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Category *</label>
+                <Select
+                  value={form.category}
+                  onValueChange={(value) => {
+                    setPriceTouched(false);
+                    setForm((current) =>
+                      applySuggestedPrice(
+                        { ...current, category: value, pricePerKg: "" },
+                        pricesQuery.data?.data ?? [],
+                        false,
+                      ),
+                    );
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Input value={selectedSellerProfile?.phone ?? ""} readOnly placeholder="Seller phone" />
-              <Input value={selectedSellerProfile?.nationalId ?? ""} readOnly placeholder="Seller national ID" />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Supplier phone</label>
+                <Input value={selectedSellerProfile?.phone ?? ""} readOnly placeholder="Supplier phone" />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">National ID / Passport</label>
+                <Input value={selectedSellerProfile?.nationalId ?? ""} readOnly placeholder="National ID / Passport" />
+              </div>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-4">
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.weight}
-                onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
-                placeholder="Weight (kg)"
-                required
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Weight (kg) *</label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.weight}
+                  onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
+                  placeholder="Weight (kg)"
+                  required
+                />
+              </div>
               <div className="space-y-1">
+                <label className="block text-sm font-semibold">Price per kg *</label>
                 <Input
                   type="number"
                   min="0"
@@ -770,18 +934,40 @@ export default function ScrapMetalPurchasesPage() {
                     : "No board rate found for this selection"}
                 </p>
               </div>
-              <Input
-                value={form.currency}
-                onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-                placeholder="Currency"
-                required
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Currency *</label>
+                <Input
+                  value={form.currency}
+                  onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
+                  placeholder="Currency"
+                  required
+                />
+              </div>
               <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-2 text-sm">
                 <div className="text-xs text-muted-foreground">Locked total</div>
                 <div className="font-mono font-semibold">
                   {form.currency || "USD"}{" "}
                   {((Number(form.weight) || 0) * (Number(form.pricePerKg) || 0)).toFixed(2)}
                 </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Paid out by</label>
+                <Input
+                  value={form.paymentMethod}
+                  onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                  placeholder="cash, transfer, mobile"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Payment reference</label>
+                <Input
+                  value={form.paymentReference}
+                  onChange={(event) => setForm((current) => ({ ...current, paymentReference: event.target.value }))}
+                  placeholder="Payment reference"
+                />
               </div>
             </div>
 
@@ -793,6 +979,79 @@ export default function ScrapMetalPurchasesPage() {
                 required
               />
             ) : null}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-sm font-semibold">Ticket Photos</label>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    className="hidden"
+                    disabled={isUploadingPhoto}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+
+                      try {
+                        setIsUploadingPhoto(true);
+                        const uploaded = await uploadScrapTicketPhoto(file, "scrap-purchase-ticket-photo");
+                        setForm((current) => ({
+                          ...current,
+                          attachments: [...current.attachments, uploaded].slice(0, 12),
+                        }));
+                        toast({ title: "Ticket photo uploaded", variant: "success" });
+                      } catch (error) {
+                        toast({
+                          title: "Unable to upload ticket photo",
+                          description: getApiErrorMessage(error),
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsUploadingPhoto(false);
+                        event.target.value = "";
+                      }
+                    }}
+                  />
+                  {isUploadingPhoto ? "Uploading..." : "Add Photo"}
+                </label>
+              </div>
+              {form.attachments.length > 0 ? (
+                <div className="space-y-2 rounded-xl border border-[var(--edge-subtle)] p-3">
+                  {form.attachments.map((attachment, index) => (
+                    <div key={`${attachment.url}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-[var(--primary-600)] underline"
+                      >
+                        Photo {index + 1}
+                      </a>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs text-muted-foreground">{formatFileSize(attachment.size)}</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              attachments: current.attachments.filter((_, itemIndex) => itemIndex !== index),
+                            }))
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No photos attached yet.</p>
+              )}
+            </div>
 
             <Textarea
               rows={4}
@@ -806,6 +1065,8 @@ export default function ScrapMetalPurchasesPage() {
               </Button>
               <Button
                 type="submit"
+                variant="outline"
+                onClick={() => setSubmitIntent("hold")}
                 disabled={
                   saveMutation.isPending ||
                   (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
@@ -813,10 +1074,43 @@ export default function ScrapMetalPurchasesPage() {
                   !form.employeeId ||
                   form.sellerProfileId === "__none" ||
                   !form.weight ||
-                  !form.pricePerKg
+                  !form.pricePerKg ||
+                  isUploadingPhoto
                 }
               >
-                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Purchase"}
+                {saveMutation.isPending ? "Saving..." : "Hold Ticket"}
+              </Button>
+              <Button
+                type="submit"
+                onClick={() => setSubmitIntent("finalize")}
+                disabled={
+                  saveMutation.isPending ||
+                  (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
+                  !form.siteId ||
+                  !form.employeeId ||
+                  form.sellerProfileId === "__none" ||
+                  !form.weight ||
+                  !form.pricePerKg ||
+                  isUploadingPhoto
+                }
+              >
+                {saveMutation.isPending ? "Saving..." : "Finalize Ticket"}
+              </Button>
+              <Button
+                type="submit"
+                onClick={() => setSubmitIntent("finalize_print")}
+                disabled={
+                  saveMutation.isPending ||
+                  (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
+                  !form.siteId ||
+                  !form.employeeId ||
+                  form.sellerProfileId === "__none" ||
+                  !form.weight ||
+                  !form.pricePerKg ||
+                  isUploadingPhoto
+                }
+              >
+                {saveMutation.isPending ? "Saving..." : "Finalize & Export PDF"}
               </Button>
             </DialogFooter>
           </form>
@@ -826,10 +1120,10 @@ export default function ScrapMetalPurchasesPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Remove Purchase</DialogTitle>
+            <DialogTitle>Remove Inbound Ticket</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
-            {deleteTarget ? `Remove ${deleteTarget.purchaseNumber}?` : "Remove this purchase?"}
+            {deleteTarget ? `Remove ${deleteTarget.purchaseNumber}?` : "Remove this inbound ticket?"}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>

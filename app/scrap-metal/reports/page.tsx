@@ -12,6 +12,15 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type DashboardPayload = {
+  summary: {
+    ticketsProcessedPerHour: number;
+    pendingSupplierPaymentsCount: number;
+    averagePendingApprovalAgeDays: number;
+    heldTicketsOldestAgeHours: number;
+    marginPerKg: number;
+    marginPercent: number;
+    balanceIntegrityDifference: number;
+  };
   topMaterials: Array<{
     label: string;
     purchaseWeight: number;
@@ -31,8 +40,45 @@ type DashboardPayload = {
       totalAmount: number;
       soldWeight: number;
       status: string;
+      createdAt?: string;
       batch: { batchNumber: string; category: string };
     }>;
+    pendingSupplierPayments: Array<{
+      id: string;
+      purchaseNumber: string;
+      purchaseDate: string;
+      sellerName?: string | null;
+      totalAmount: number;
+      currency: string;
+    }>;
+  };
+  weightedAverageCostByMaterial: Array<{
+    label: string;
+    weightedAverageCostPerKg: number;
+    purchaseWeight: number;
+    purchaseValue: number;
+  }>;
+  supplierPerformance: Array<{
+    supplier: string;
+    tickets: number;
+    repeatMonths: number;
+    weightKg: number;
+    spend: number;
+    avgBuyPricePerKg: number;
+    estimatedMarginContribution: number;
+    currency: string;
+  }>;
+  reconciliation: {
+    varianceByWeek: Array<{
+      weekLabel: string;
+      varianceKg: number;
+      saleCount: number;
+    }>;
+    balanceIntegrity: {
+      currentBalanceTotal: number;
+      balanceEntryNet: number;
+      difference: number;
+    };
   };
 };
 
@@ -125,17 +171,127 @@ export default function ScrapReportsPage() {
     [],
   );
 
+  const supplierPaymentColumns = useMemo<
+    ColumnDef<DashboardPayload["queues"]["pendingSupplierPayments"][number]>[]
+  >(
+    () => [
+      { id: "ticket", header: "Ticket #", accessorKey: "purchaseNumber" },
+      {
+        id: "supplier",
+        header: "Supplier",
+        accessorFn: (row) => row.sellerName || "Unknown supplier",
+      },
+      {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => new Date(row.original.purchaseDate).toLocaleDateString(),
+      },
+      {
+        id: "amount",
+        header: "Amount",
+        cell: ({ row }) => (
+          <NumericCell>
+            {row.original.currency} {row.original.totalAmount.toFixed(2)}
+          </NumericCell>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const weightedAverageCostColumns = useMemo<
+    ColumnDef<DashboardPayload["weightedAverageCostByMaterial"][number]>[]
+  >(
+    () => [
+      { id: "material", header: "Material", accessorKey: "label" },
+      {
+        id: "avg",
+        header: "WAC / kg",
+        cell: ({ row }) => (
+          <NumericCell>USD {row.original.weightedAverageCostPerKg.toFixed(2)}</NumericCell>
+        ),
+      },
+      {
+        id: "weight",
+        header: "Weight (kg)",
+        cell: ({ row }) => <NumericCell>{row.original.purchaseWeight.toFixed(2)}</NumericCell>,
+      },
+      {
+        id: "value",
+        header: "Cost",
+        cell: ({ row }) => <NumericCell>USD {row.original.purchaseValue.toFixed(2)}</NumericCell>,
+      },
+    ],
+    [],
+  );
+
+  const supplierPerformanceColumns = useMemo<
+    ColumnDef<DashboardPayload["supplierPerformance"][number]>[]
+  >(
+    () => [
+      { id: "supplier", header: "Supplier", accessorKey: "supplier" },
+      { id: "tickets", header: "Tickets", cell: ({ row }) => <NumericCell>{row.original.tickets}</NumericCell> },
+      { id: "repeat", header: "Repeat Months", cell: ({ row }) => <NumericCell>{row.original.repeatMonths}</NumericCell> },
+      { id: "weight", header: "Weight (kg)", cell: ({ row }) => <NumericCell>{row.original.weightKg.toFixed(2)}</NumericCell> },
+      {
+        id: "margin",
+        header: "Est. Margin Contribution",
+        cell: ({ row }) => (
+          <NumericCell>
+            {row.original.currency} {row.original.estimatedMarginContribution.toFixed(2)}
+          </NumericCell>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const reconciliationColumns = useMemo<
+    ColumnDef<DashboardPayload["reconciliation"]["varianceByWeek"][number]>[]
+  >(
+    () => [
+      { id: "week", header: "Week", accessorKey: "weekLabel" },
+      { id: "sales", header: "Sales", cell: ({ row }) => <NumericCell>{row.original.saleCount}</NumericCell> },
+      { id: "variance", header: "Variance (kg)", cell: ({ row }) => <NumericCell>{row.original.varianceKg.toFixed(2)}</NumericCell> },
+    ],
+    [],
+  );
+
   const views = [
     { id: "materials", label: "Material mix", count: data?.topMaterials.length ?? 0 },
     { id: "exposure", label: "Operator exposure", count: data?.queues.balances.length ?? 0 },
     { id: "pending-sales", label: "Pending sales", count: data?.queues.pendingSales.length ?? 0 },
+    { id: "supplier-payments", label: "Supplier Payments", count: data?.queues.pendingSupplierPayments.length ?? 0 },
+    { id: "wac", label: "Weighted Avg Cost", count: data?.weightedAverageCostByMaterial.length ?? 0 },
+    { id: "supplier-margin", label: "Supplier Margin", count: data?.supplierPerformance.length ?? 0 },
+    { id: "reconciliation", label: "Reconciliation", count: data?.reconciliation.varianceByWeek.length ?? 0 },
   ];
 
   return (
     <ScrapShell
       title="Reports"
-      description="Review mix, trading throughput, and current operator exposure."
+      description="Review mix, trading throughput, operator exposure, and reconciliation health."
     >
+      {data ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">Tickets / Hour</div>
+            <div className="font-mono text-lg">{data.summary.ticketsProcessedPerHour.toFixed(2)}</div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">Pending Supplier Payments</div>
+            <div className="font-mono text-lg">{data.summary.pendingSupplierPaymentsCount}</div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">Pending Approval Age (days)</div>
+            <div className="font-mono text-lg">{data.summary.averagePendingApprovalAgeDays.toFixed(2)}</div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">Balance Integrity Delta</div>
+            <div className="font-mono text-lg">USD {data.summary.balanceIntegrityDifference.toFixed(2)}</div>
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load reports</AlertTitle>
@@ -180,6 +336,50 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search pending sales"
             tableClassName="text-sm"
             emptyState={isLoading ? "Loading report..." : "No pending sales"}
+          />
+        ) : null}
+        {activeView === "supplier-payments" ? (
+          <DataTable
+            data={data?.queues.pendingSupplierPayments ?? []}
+            columns={supplierPaymentColumns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search pending supplier payments"
+            tableClassName="text-sm"
+            emptyState={isLoading ? "Loading supplier payments..." : "No pending supplier payments"}
+          />
+        ) : null}
+        {activeView === "wac" ? (
+          <DataTable
+            data={data?.weightedAverageCostByMaterial ?? []}
+            columns={weightedAverageCostColumns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search weighted average cost"
+            tableClassName="text-sm"
+            emptyState={isLoading ? "Loading weighted average cost..." : "No weighted average cost data"}
+          />
+        ) : null}
+        {activeView === "supplier-margin" ? (
+          <DataTable
+            data={data?.supplierPerformance ?? []}
+            columns={supplierPerformanceColumns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search supplier margin"
+            tableClassName="text-sm"
+            emptyState={isLoading ? "Loading supplier margin..." : "No supplier margin data"}
+          />
+        ) : null}
+        {activeView === "reconciliation" ? (
+          <DataTable
+            data={data?.reconciliation.varianceByWeek ?? []}
+            columns={reconciliationColumns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search reconciliation variance"
+            tableClassName="text-sm"
+            emptyState={isLoading ? "Loading reconciliation..." : "No reconciliation data"}
           />
         ) : null}
       </VerticalDataViews>

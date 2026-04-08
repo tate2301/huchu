@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { NotificationEntityType, NotificationSeverity, NotificationSourceAction, NotificationType } from "@prisma/client";
 
 import {
   errorResponse,
@@ -10,7 +11,17 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import {
+  parseScrapTicketPhotosJson,
+  scrapTicketPhotoArraySchema,
+  serializeScrapTicketPhotos,
+} from "@/lib/scrap-metal/attachments";
 import { hasRole } from "@/lib/roles";
+
+const saleTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
+  (items) => items.every((item) => item.context === "scrap-sale-ticket-photo"),
+  "Only sale ticket photo attachments are allowed",
+);
 
 const scrapMetalSaleSchema = z.object({
   saleNumber: z.string().min(1).max(50).optional(),
@@ -30,6 +41,8 @@ const scrapMetalSaleSchema = z.object({
   paymentMethod: z.string().max(100).optional(),
   paymentReference: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
+  attachments: saleTicketPhotoArraySchema.optional(),
+  status: z.enum(["DRAFT", "PENDING_APPROVAL"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -76,7 +89,12 @@ export async function GET(request: NextRequest) {
       prisma.scrapMetalSale.count({ where }),
     ]);
 
-    return successResponse(paginationResponse(sales, total, page, limit));
+    const normalizedSales = sales.map((sale) => ({
+      ...sale,
+      attachments: parseScrapTicketPhotosJson(sale.attachmentsJson),
+    }));
+
+    return successResponse(paginationResponse(normalizedSales, total, page, limit));
   } catch (error) {
     console.error("[API] GET /api/scrap-metal/sales error:", error);
     return errorResponse("Failed to fetch scrap metal sales");
@@ -89,16 +107,16 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    // Only managers and superusers can create sales
-    if (!hasRole(session.user.role, ["SUPERADMIN", "MANAGER"])) {
-      return errorResponse(
-        "Only managers and superusers can create sales",
-        403
-      );
-    }
+    const canManageSales = hasRole(session.user.role, ["SUPERADMIN", "MANAGER"]);
 
     const body = await request.json();
     const validated = scrapMetalSaleSchema.parse(body);
+    if (!canManageSales && validated.status !== "DRAFT") {
+      return errorResponse(
+        "Clerks can only create outbound tickets as DRAFT approval requests",
+        403,
+      );
+    }
 
     const [site, batch, material] = await Promise.all([
       prisma.site.findUnique({
@@ -200,6 +218,13 @@ export async function POST(request: NextRequest) {
     const saleDate = new Date(validated.saleDate);
     const currency = validated.currency?.trim().toUpperCase() || "USD";
 
+    const approvalRequestedPrefix = "[APPROVAL_REQUESTED]";
+    const saleStatus = canManageSales ? validated.status ?? "PENDING_APPROVAL" : "DRAFT";
+    const notes =
+      canManageSales
+        ? validated.notes?.trim() || undefined
+        : `${approvalRequestedPrefix} ${validated.notes?.trim() || "Clerk requested manager approval."}`;
+
     const sale = await prisma.$transaction(async (tx) => {
       // Create sale
       const newSale = await tx.scrapMetalSale.create({
@@ -220,8 +245,9 @@ export async function POST(request: NextRequest) {
           currency,
           paymentMethod: validated.paymentMethod?.trim() || undefined,
           paymentReference: validated.paymentReference?.trim() || undefined,
-          status: "PENDING_APPROVAL",
-          notes: validated.notes?.trim() || undefined,
+          attachmentsJson: serializeScrapTicketPhotos(validated.attachments),
+          status: saleStatus,
+          notes,
           createdById: session.user.id,
         },
         include: {
@@ -243,7 +269,55 @@ export async function POST(request: NextRequest) {
       return newSale;
     });
 
-    return successResponse(sale, 201);
+    if (!canManageSales && saleStatus === "DRAFT") {
+      const managerRecipients = await prisma.user.findMany({
+        where: {
+          companyId: session.user.companyId,
+          isActive: true,
+          role: { in: ["MANAGER", "SUPERADMIN"] },
+        },
+        select: { id: true },
+      });
+
+      if (managerRecipients.length > 0) {
+        const notification = await prisma.notification.create({
+          data: {
+            companyId: session.user.companyId,
+            type: NotificationType.OPS_INCIDENT_CREATED,
+            severity: NotificationSeverity.WARNING,
+            title: "Outbound approval request",
+            summary: `${session.user.name} requested approval for outbound ticket ${sale.saleNumber}.`,
+            payloadJson: JSON.stringify({
+              viewPath: `/scrap-metal/sales?edit=${sale.id}`,
+              saleId: sale.id,
+              saleNumber: sale.saleNumber,
+              buyerName: sale.buyerName,
+              requestedBy: session.user.name,
+            }),
+            entityType: NotificationEntityType.INCIDENT,
+            entityId: sale.id,
+            sourceAction: NotificationSourceAction.CREATE,
+          },
+          select: { id: true },
+        });
+
+        await prisma.notificationRecipient.createMany({
+          data: managerRecipients.map((recipient) => ({
+            notificationId: notification.id,
+            userId: recipient.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    return successResponse(
+      {
+        ...sale,
+        attachments: parseScrapTicketPhotosJson(sale.attachmentsJson),
+      },
+      201,
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);

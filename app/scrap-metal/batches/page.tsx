@@ -173,7 +173,7 @@ export default function ScrapMetalBatchesPage() {
       {
         value: "__none",
         label: "Category only",
-        description: "Create a yard lot without tying it to a material record.",
+        description: "Create a lot without tying it to a material record.",
       },
       ...materials.map((material) => ({
         value: material.id,
@@ -225,7 +225,7 @@ export default function ScrapMetalBatchesPage() {
       });
     },
     onSuccess: () => {
-      toast({ title: editing ? "Batch updated" : "Batch created", variant: "success" });
+      toast({ title: editing ? "Lot updated" : "Lot created", variant: "success" });
       setFormOpen(false);
       setEditing(null);
       setForm(getEmptyForm());
@@ -234,7 +234,7 @@ export default function ScrapMetalBatchesPage() {
     },
     onError: (error) => {
       toast({
-        title: editing ? "Unable to update batch" : "Unable to create batch",
+        title: editing ? "Unable to update lot" : "Unable to create lot",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -245,13 +245,13 @@ export default function ScrapMetalBatchesPage() {
     mutationFn: async (id: string) =>
       fetchJson(`/api/scrap-metal/batches/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast({ title: "Batch removed", variant: "success" });
+      toast({ title: "Lot removed", variant: "success" });
       setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to remove batch",
+        title: "Unable to remove lot",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -265,7 +265,7 @@ export default function ScrapMetalBatchesPage() {
         body: JSON.stringify({ purchaseIds: input.purchaseIds }),
       }),
     onSuccess: () => {
-      toast({ title: "Purchases added to batch", variant: "success" });
+      toast({ title: "Inbound tickets added to lot", variant: "success" });
       setBatchForItems(null);
       setSelectedPurchaseIds([]);
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
@@ -275,7 +275,7 @@ export default function ScrapMetalBatchesPage() {
     },
     onError: (error) => {
       toast({
-        title: "Unable to add purchases",
+        title: "Unable to add inbound tickets",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -286,7 +286,7 @@ export default function ScrapMetalBatchesPage() {
     () => [
       {
         id: "batchNumber",
-        header: "Batch #",
+        header: "Lot #",
         cell: ({ row }) => <span className="font-mono font-semibold">{row.original.batchNumber}</span>,
         size: 120,
       },
@@ -363,7 +363,7 @@ export default function ScrapMetalBatchesPage() {
                   setSelectedPurchaseIds([]);
                 }}
               >
-                Add Purchases
+                Add Inbound Tickets
               </Button>
             ) : null}
             <Button
@@ -404,7 +404,7 @@ export default function ScrapMetalBatchesPage() {
 
   return (
     <ScrapShell
-      title="Yard Stock"
+      title="Lots"
       actions={
         <SplitButton
           size="sm"
@@ -418,22 +418,25 @@ export default function ScrapMetalBatchesPage() {
               <DropdownMenuItem asChild>
                 <Link href="/stores/inventory">Stock on hand</Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/purchases/unassigned">Unassigned Purchases</Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/scrap-metal/trading/sales">Sales</Link>
+                <Link href="/scrap-metal/sales">Outbound Tickets</Link>
               </DropdownMenuItem>
             </>
           }
         >
           <Plus className="h-4 w-4" />
-          New Batch
+          New Lot
         </SplitButton>
       }
     >
       {batchesQuery.error ? (
         <StatusState
           variant="error"
-          title="Unable to load batches"
+          title="Unable to load lots"
           description={getApiErrorMessage(batchesQuery.error)}
           action={
             <Button onClick={() => batchesQuery.refetch()} variant="outline" size="sm">
@@ -456,7 +459,7 @@ export default function ScrapMetalBatchesPage() {
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground">
-              {filteredBatches.length} of {(batchesQuery.data ?? []).length} batches
+              {filteredBatches.length} of {(batchesQuery.data ?? []).length} lots
             </span>
           </div>
 
@@ -464,11 +467,11 @@ export default function ScrapMetalBatchesPage() {
             <DataTable
               data={filteredBatches}
               columns={columns}
-              searchPlaceholder="Search batch, material, or status"
+              searchPlaceholder="Search lot, material, or status"
               searchSubmitLabel="Search"
               tableClassName="text-sm"
               pagination={{ enabled: true }}
-              emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
+              emptyState={batchesQuery.isLoading ? "Loading lots..." : "No lots yet"}
             />
           </div>
 
@@ -512,7 +515,7 @@ export default function ScrapMetalBatchesPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Purchases</div>
+                    <div className="text-xs text-muted-foreground">Inbound tickets</div>
                     <div className="mt-1 font-semibold">{batch._count.items}</div>
                   </div>
                 </div>
@@ -527,7 +530,7 @@ export default function ScrapMetalBatchesPage() {
                         setSelectedPurchaseIds([]);
                       }}
                     >
-                      Add Purchases
+                      Add Inbound Tickets
                     </Button>
                   ) : null}
                   <Button
@@ -565,7 +568,7 @@ export default function ScrapMetalBatchesPage() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Batch" : "New Batch"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Lot" : "New Lot"}</DialogTitle>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -576,18 +579,18 @@ export default function ScrapMetalBatchesPage() {
           >
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Batch Number</label>
+                <label className="block text-sm font-semibold">Lot Number</label>
                 <Input
                   value={editing?.batchNumber ?? batchNumber}
                   readOnly
                   aria-readonly="true"
-                  placeholder={editing ? "Batch number" : reservingBatchNumber ? "Reserving..." : "Auto-generated"}
+                  placeholder={editing ? "Lot number" : reservingBatchNumber ? "Reserving..." : "Auto-generated"}
                 />
                 <FieldHelp
                   hint={
                     editing
-                      ? "Batch number stays locked after creation."
-                      : reserveBatchNumberError ?? "Batch number is generated automatically after site selection."
+                      ? "Lot number stays locked after creation."
+                      : reserveBatchNumberError ?? "Lot number is generated automatically after site selection."
                   }
                 />
               </div>
@@ -667,7 +670,7 @@ export default function ScrapMetalBatchesPage() {
               rows={4}
               value={form.notes}
               onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-              placeholder="Batch notes"
+              placeholder="Lot notes"
             />
 
             <DialogFooter>
@@ -682,7 +685,7 @@ export default function ScrapMetalBatchesPage() {
                   !form.siteId
                 }
               >
-                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Batch"}
+                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Lot"}
               </Button>
             </DialogFooter>
           </form>
@@ -692,14 +695,14 @@ export default function ScrapMetalBatchesPage() {
       <Dialog open={Boolean(batchForItems)} onOpenChange={(open) => !open && setBatchForItems(null)}>
         <DialogContent size="xl">
           <DialogHeader>
-            <DialogTitle>Add Purchases to Batch</DialogTitle>
+            <DialogTitle>Add Inbound Tickets to Lot</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
-            {batchForItems ? `Assign intake into ${batchForItems.batchNumber}.` : "Assign purchases to batch."}
+            {batchForItems ? `Assign intake into ${batchForItems.batchNumber}.` : "Assign inbound tickets to lot."}
           </div>
           <div className="space-y-3">
             <div className="text-sm text-muted-foreground">
-              {availablePurchases.length} matching unbatched purchases
+              {availablePurchases.length} matching unassigned inbound tickets
             </div>
             <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl bg-[var(--surface-muted)] p-3">
               {availablePurchases.map((purchase) => {
@@ -725,10 +728,10 @@ export default function ScrapMetalBatchesPage() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="font-medium">
-                            {purchase.purchaseNumber} · {purchase.material?.name ?? purchase.category}
+                            {purchase.purchaseNumber} - {purchase.material?.name ?? purchase.category}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {purchase.employee.name} · {purchase.sellerName || "Walk-in seller"}
+                            {purchase.employee.name} - {purchase.sellerName || "Walk-in seller"}
                           </p>
                         </div>
                         <NumericCell>{purchase.weight.toFixed(2)} kg</NumericCell>
@@ -737,9 +740,9 @@ export default function ScrapMetalBatchesPage() {
                   </label>
                 );
               })}
-              {purchasesQuery.isLoading ? <div className="text-sm text-muted-foreground">Loading purchases...</div> : null}
+              {purchasesQuery.isLoading ? <div className="text-sm text-muted-foreground">Loading inbound tickets...</div> : null}
               {!purchasesQuery.isLoading && availablePurchases.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No matching unbatched purchases found.</div>
+                <div className="text-sm text-muted-foreground">No matching unassigned inbound tickets found.</div>
               ) : null}
             </div>
           </div>
@@ -755,7 +758,7 @@ export default function ScrapMetalBatchesPage() {
                 addItemsMutation.mutate({ batchId: batchForItems.id, purchaseIds: selectedPurchaseIds })
               }
             >
-              {addItemsMutation.isPending ? "Adding..." : `Add ${selectedPurchaseIds.length || ""} Purchases`.trim()}
+              {addItemsMutation.isPending ? "Adding..." : `Add ${selectedPurchaseIds.length || ""} Inbound Tickets`.trim()}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -764,10 +767,10 @@ export default function ScrapMetalBatchesPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Remove Batch</DialogTitle>
+            <DialogTitle>Remove Lot</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
-            {deleteTarget ? `Remove ${deleteTarget.batchNumber}?` : "Remove this batch?"}
+            {deleteTarget ? `Remove ${deleteTarget.batchNumber}?` : "Remove this lot?"}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>

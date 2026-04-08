@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
@@ -37,6 +38,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { hasRole } from "@/lib/roles";
+import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
+import { exportTicketPdf } from "@/lib/scrap-metal/print-adapter";
 
 type Sale = {
   id: string;
@@ -54,6 +58,7 @@ type Sale = {
   paymentMethod?: string | null;
   paymentReference?: string | null;
   notes?: string | null;
+  attachments?: ScrapTicketPhoto[];
   batch: {
     id: string;
     batchNumber: string;
@@ -100,6 +105,7 @@ type SaleForm = {
   paymentReference: string;
   overrideReason: string;
   notes: string;
+  attachments: ScrapTicketPhoto[];
 };
 
 function getEmptyForm(): SaleForm {
@@ -116,7 +122,48 @@ function getEmptyForm(): SaleForm {
     paymentReference: "",
     overrideReason: "",
     notes: "",
+    attachments: [],
   };
+}
+
+async function uploadScrapTicketPhoto(
+  file: File,
+  context: "scrap-purchase-ticket-photo" | "scrap-sale-ticket-photo",
+): Promise<ScrapTicketPhoto> {
+  const formData = new FormData();
+  formData.append("context", context);
+  formData.append("file", file);
+
+  const response = await fetch("/api/uploads", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = data && typeof data.error === "string" ? data.error : "Upload failed";
+    throw new Error(message);
+  }
+
+  if (!data || typeof data.url !== "string" || typeof data.contentType !== "string") {
+    throw new Error("Upload response missing file metadata");
+  }
+
+  return {
+    url: data.url,
+    pathname: typeof data.pathname === "string" ? data.pathname : undefined,
+    contentType: data.contentType,
+    size: typeof data.size === "number" ? data.size : file.size,
+    context,
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
+function formatFileSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${size} B`;
 }
 
 async function fetchSales(): Promise<Sale[]> {
@@ -125,8 +172,11 @@ async function fetchSales(): Promise<Sale[]> {
 }
 
 export default function ScrapMetalSalesPage() {
+  const { data: session } = useSession();
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -135,6 +185,9 @@ export default function ScrapMetalSalesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Sale | null>(null);
   const [editing, setEditing] = useState<Sale | null>(null);
   const [form, setForm] = useState<SaleForm>(getEmptyForm);
+  const [submitIntent, setSubmitIntent] = useState<"hold" | "submit" | "submit_print" | "request_approval">("submit");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const canManageSales = hasRole(userRole, ["SUPERADMIN", "MANAGER"]);
 
   const salesQuery = useQuery({
     queryKey: ["scrap-metal-sales"],
@@ -153,7 +206,7 @@ export default function ScrapMetalSalesPage() {
       batches.map((batch) => ({
         value: batch.id,
         label: batch.batchNumber,
-        description: `${batch.material?.name ?? batch.category} · ${batch.totalWeight.toFixed(2)} kg`,
+        description: `${batch.material?.name ?? batch.category} - ${batch.totalWeight.toFixed(2)} kg`,
         meta: batch.site.code,
       })),
     [batches],
@@ -174,9 +227,61 @@ export default function ScrapMetalSalesPage() {
     if (statusFilter === "all") return records;
     return records.filter((sale) => sale.status === statusFilter);
   }, [salesQuery.data, statusFilter]);
+  const deepLinkEditId = searchParams.get("edit");
+
+  useEffect(() => {
+    if (!formOpen || editing) return;
+    if (form.batchId !== "__none") return;
+    if (batches.length !== 1) return;
+    const onlyBatch = batches[0];
+    if (!onlyBatch) return;
+    setForm((current) => ({
+      ...current,
+      batchId: onlyBatch.id,
+      recordedWeight: String(onlyBatch.totalWeight),
+      soldWeight: String(onlyBatch.totalWeight),
+    }));
+  }, [batches, editing, form.batchId, formOpen]);
+
+  useEffect(() => {
+    if (!deepLinkEditId) return;
+    if (salesQuery.isLoading) return;
+
+    const sale = (salesQuery.data ?? []).find((row) => row.id === deepLinkEditId);
+    if (!sale) {
+      toast({
+        title: "Ticket not found",
+        description: "The selected draft ticket could not be loaded.",
+        variant: "destructive",
+      });
+      router.replace("/scrap-metal/sales");
+      return;
+    }
+
+    setEditing(sale);
+    setForm({
+      saleDate: sale.saleDate.slice(0, 16),
+      batchId: sale.batch.id,
+      buyerName: sale.buyerName,
+      buyerContact: sale.buyerContact ?? "",
+      recordedWeight: String(sale.recordedWeight),
+      soldWeight: String(sale.soldWeight),
+      pricePerKg: String(sale.pricePerKg),
+      currency: sale.currency,
+      paymentMethod: sale.paymentMethod ?? "",
+      paymentReference: sale.paymentReference ?? "",
+      overrideReason: "",
+      notes: sale.notes ?? "",
+      attachments: sale.attachments ?? [],
+    });
+    setSubmitIntent("submit");
+    setFormOpen(true);
+    router.replace("/scrap-metal/sales");
+  }, [deepLinkEditId, router, salesQuery.data, salesQuery.isLoading, toast]);
 
   const saveMutation = useMutation({
-    mutationFn: async (payload: SaleForm) => {
+    mutationFn: async (input: { payload: SaleForm; intent: "hold" | "submit" | "submit_print" | "request_approval" }) => {
+      const { payload, intent } = input;
       const hasOverride =
         selectedBatch && Number(payload.soldWeight || 0) * Number(payload.pricePerKg || 0) !== 0 && payload.overrideReason.trim();
       const noteParts = [payload.notes.trim()];
@@ -199,6 +304,8 @@ export default function ScrapMetalSalesPage() {
         paymentMethod: payload.paymentMethod || undefined,
         paymentReference: payload.paymentReference || undefined,
         notes: noteParts.filter(Boolean).join("\n") || undefined,
+        attachments: payload.attachments,
+        status: intent === "hold" || intent === "request_approval" ? "DRAFT" : "PENDING_APPROVAL",
       };
 
       if (!body.siteId) {
@@ -217,18 +324,36 @@ export default function ScrapMetalSalesPage() {
         body: JSON.stringify(body),
       });
     },
-    onSuccess: () => {
-      toast({ title: editing ? "Sale updated" : "Sale recorded", variant: "success" });
+    onSuccess: (result, variables) => {
+      toast({
+        title:
+          variables.intent === "hold"
+            ? "Outbound ticket held"
+            : variables.intent === "request_approval"
+              ? "Approval request submitted"
+              : "Outbound ticket submitted",
+        description:
+          variables.intent === "request_approval"
+            ? "The ticket is saved as draft for manager review."
+            : undefined,
+        variant: "success",
+      });
       setFormOpen(false);
       setEditing(null);
+      setSubmitIntent(canManageSales ? "submit" : "request_approval");
       setForm(getEmptyForm());
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-held-outbound-tickets"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-batches"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-dashboard-v2"] });
+
+      if (variables.intent === "submit_print" && typeof result === "object" && result && "id" in result) {
+        exportTicketPdf({ ticketType: "sale", ticketId: String(result.id), download: false });
+      }
     },
     onError: (error) => {
       toast({
-        title: editing ? "Unable to update sale" : "Unable to record sale",
+        title: editing ? "Unable to update outbound ticket" : "Unable to record outbound ticket",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -239,13 +364,13 @@ export default function ScrapMetalSalesPage() {
     mutationFn: async (id: string) =>
       fetchJson(`/api/scrap-metal/sales/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast({ title: "Sale removed", variant: "success" });
+      toast({ title: "Outbound ticket removed", variant: "success" });
       setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to remove sale",
+        title: "Unable to remove outbound ticket",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -326,7 +451,7 @@ export default function ScrapMetalSalesPage() {
     () => [
       {
         id: "saleNumber",
-        header: "Sale #",
+        header: "Ticket #",
         cell: ({ row }) => (
           <span className="font-mono font-semibold">{row.original.saleNumber}</span>
         ),
@@ -358,7 +483,7 @@ export default function ScrapMetalSalesPage() {
       },
       {
         id: "batch",
-        header: "Batch",
+        header: "Lot",
         cell: ({ row }) => (
           <div>
             <div className="font-mono text-sm">{row.original.batch.batchNumber}</div>
@@ -375,7 +500,7 @@ export default function ScrapMetalSalesPage() {
       },
       {
         id: "discrepancy",
-        header: "Weight Discrepancy",
+        header: "Variance (kg)",
         cell: ({ row }) => (
           <div>
             <NumericCell className={row.original.weightDiscrepancy > 0 ? "text-destructive" : ""}>
@@ -445,7 +570,9 @@ export default function ScrapMetalSalesPage() {
                       paymentReference: row.original.paymentReference ?? "",
                       overrideReason: "",
                       notes: row.original.notes ?? "",
+                      attachments: row.original.attachments ?? [],
                     });
+                    setSubmitIntent("submit");
                     setFormOpen(true);
                   }}
                 >
@@ -461,7 +588,7 @@ export default function ScrapMetalSalesPage() {
                 </Button>
               </>
             ) : null}
-            {["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) ? (
+            {canManageSales && ["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) ? (
               <Button size="sm" variant="outline" onClick={() => setSelectedSale(row.original)}>
                 {row.original.status === "APPROVED" ? "Close" : "Review"}
               </Button>
@@ -471,12 +598,12 @@ export default function ScrapMetalSalesPage() {
         size: 180,
       },
     ],
-    [],
+    [canManageSales],
   );
 
   return (
     <ScrapShell
-      title="Bulk Sales"
+      title="Outbound Tickets"
       description="Capture buyer deals, review weight acceptance, and close approved sales."
       actions={
         <div className="flex flex-wrap gap-2">
@@ -485,14 +612,18 @@ export default function ScrapMetalSalesPage() {
             onClick={() => {
               setEditing(null);
               setForm(getEmptyForm());
+              setSubmitIntent(canManageSales ? "submit" : "request_approval");
               setFormOpen(true);
             }}
           >
             <Plus className="h-4 w-4" />
-            New Sale
+            New Outbound Ticket
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/yard/batches">Yard Lots</Link>
+            <Link href="/scrap-metal/batches">Lots</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/stores/movements">Stock Movements</Link>
@@ -532,24 +663,27 @@ export default function ScrapMetalSalesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-sm text-muted-foreground">
-              {filteredSales.length} of {(salesQuery.data ?? []).length} sales
+            <div className="text-right text-sm text-muted-foreground">
+              <div>{filteredSales.length} of {(salesQuery.data ?? []).length} outbound tickets</div>
+              {!canManageSales ? (
+                <div className="text-xs">Clerks can create draft approval requests. Managers can submit/approve.</div>
+              ) : null}
             </div>
           </div>
 
           <DataTable
             data={filteredSales}
             columns={columns}
-            searchPlaceholder="Search sale, buyer, material, or batch"
+            searchPlaceholder="Search ticket, buyer, material, or lot"
             searchSubmitLabel="Search"
             tableClassName="text-sm"
             pagination={{ enabled: true }}
             emptyState={
               salesQuery.isLoading
-                ? "Loading sales..."
+                ? "Loading outbound tickets..."
                 : statusFilter === "all"
-                  ? "No sales recorded yet"
-                  : `No sales with status "${statusFilter.replace(/_/g, " ")}"`
+                  ? "No outbound tickets recorded yet"
+                  : `No outbound tickets with status "${statusFilter.replace(/_/g, " ")}"`
             }
           />
         </>
@@ -558,35 +692,38 @@ export default function ScrapMetalSalesPage() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Sale" : "New Sale"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Outbound Ticket" : "New Outbound Ticket"}</DialogTitle>
             <DialogDescription>Lock the buyer deal, accepted weight, and final sale value.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              saveMutation.mutate(form);
+              saveMutation.mutate({ payload: form, intent: submitIntent });
             }}
           >
+            <p className="text-xs text-muted-foreground">
+              Small-yard quick flow: fields marked with * are required. Everything else is optional.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Sale Number</label>
+                <label className="block text-sm font-semibold">Ticket Number</label>
                 <Input
                   value={editing?.saleNumber ?? saleNumber}
                   readOnly
                   aria-readonly="true"
-                  placeholder={editing ? "Sale number" : reservingSaleNumber ? "Reserving..." : "Auto-generated"}
+                  placeholder={editing ? "Ticket number" : reservingSaleNumber ? "Reserving..." : "Auto-generated"}
                 />
                 <FieldHelp
                   hint={
                     editing
-                      ? "Sale number stays locked after creation."
-                      : reserveSaleNumberError ?? "Sale number is generated automatically after a batch is selected."
+                      ? "Ticket number stays locked after creation."
+                      : reserveSaleNumberError ?? "Ticket number is generated automatically after a lot is selected."
                   }
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Sale Date</label>
+                <label className="block text-sm font-semibold">Ticket Date</label>
                 <Input
                   type="datetime-local"
                   value={form.saleDate}
@@ -597,11 +734,11 @@ export default function ScrapMetalSalesPage() {
             </div>
 
             <SearchableSelect
-              label="Batch *"
+              label="Lot *"
               value={form.batchId === "__none" ? undefined : form.batchId}
               options={batchOptions}
-              placeholder={batchOptionsQuery.isLoading ? "Loading yard lots..." : "Select batch"}
-              searchPlaceholder="Search yard lots..."
+              placeholder={batchOptionsQuery.isLoading ? "Loading lots..." : "Select lot"}
+              searchPlaceholder="Search lots..."
               onValueChange={(value) => {
                 const batch = batches.find((entry) => entry.id === value) ?? null;
                 setForm((current) => ({
@@ -611,53 +748,68 @@ export default function ScrapMetalSalesPage() {
                   soldWeight: batch ? String(batch.totalWeight) : current.soldWeight,
                 }));
               }}
-              onAddOption={() => router.push("/scrap-metal/yard/batches")}
-              addLabel="Create yard lot"
+              onAddOption={() => router.push("/scrap-metal/batches")}
+              addLabel="Create lot"
               disabled={Boolean(editing)}
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={form.buyerName}
-                onChange={(event) => setForm((current) => ({ ...current, buyerName: event.target.value }))}
-                placeholder="Buyer name"
-                required
-              />
-              <Input
-                value={form.buyerContact}
-                onChange={(event) => setForm((current) => ({ ...current, buyerContact: event.target.value }))}
-                placeholder="Buyer contact"
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Buyer name *</label>
+                <Input
+                  value={form.buyerName}
+                  onChange={(event) => setForm((current) => ({ ...current, buyerName: event.target.value }))}
+                  placeholder="Buyer name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Buyer contact</label>
+                <Input
+                  value={form.buyerContact}
+                  onChange={(event) => setForm((current) => ({ ...current, buyerContact: event.target.value }))}
+                  placeholder="Buyer contact"
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-4">
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.recordedWeight}
-                onChange={(event) => setForm((current) => ({ ...current, recordedWeight: event.target.value }))}
-                placeholder="Recorded kg"
-                required
-              />
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.soldWeight}
-                onChange={(event) => setForm((current) => ({ ...current, soldWeight: event.target.value }))}
-                placeholder="Accepted kg"
-                required
-              />
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.pricePerKg}
-                onChange={(event) => setForm((current) => ({ ...current, pricePerKg: event.target.value }))}
-                placeholder="Price per kg"
-                required
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Recorded kg *</label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.recordedWeight}
+                  onChange={(event) => setForm((current) => ({ ...current, recordedWeight: event.target.value }))}
+                  placeholder="Recorded kg"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Accepted kg *</label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.soldWeight}
+                  onChange={(event) => setForm((current) => ({ ...current, soldWeight: event.target.value }))}
+                  placeholder="Accepted kg"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Price per kg *</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.pricePerKg}
+                  onChange={(event) => setForm((current) => ({ ...current, pricePerKg: event.target.value }))}
+                  placeholder="Price per kg"
+                  required
+                />
+              </div>
               <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-2 text-sm">
                 <div className="text-xs text-muted-foreground">Deal value</div>
                 <div className="font-mono font-semibold">
@@ -668,30 +820,42 @@ export default function ScrapMetalSalesPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={form.currency}
-                onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-                placeholder="Currency"
-                required
-              />
-              <Input
-                value={form.overrideReason}
-                onChange={(event) => setForm((current) => ({ ...current, overrideReason: event.target.value }))}
-                placeholder="Negotiation or weight variance note"
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Currency *</label>
+                <Input
+                  value={form.currency}
+                  onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
+                  placeholder="Currency"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Deal note</label>
+                <Input
+                  value={form.overrideReason}
+                  onChange={(event) => setForm((current) => ({ ...current, overrideReason: event.target.value }))}
+                  placeholder="Negotiation or weight variance note"
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                value={form.paymentMethod}
-                onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
-                placeholder="Payment method"
-              />
-              <Input
-                value={form.paymentReference}
-                onChange={(event) => setForm((current) => ({ ...current, paymentReference: event.target.value }))}
-                placeholder="Payment reference"
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Payment method</label>
+                <Input
+                  value={form.paymentMethod}
+                  onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                  placeholder="Payment method"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold">Payment reference</label>
+                <Input
+                  value={form.paymentReference}
+                  onChange={(event) => setForm((current) => ({ ...current, paymentReference: event.target.value }))}
+                  placeholder="Payment reference"
+                />
+              </div>
             </div>
 
             <Textarea
@@ -701,21 +865,141 @@ export default function ScrapMetalSalesPage() {
               placeholder="Notes"
             />
 
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-sm font-semibold">Ticket Photos</label>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    className="hidden"
+                    disabled={isUploadingPhoto}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+
+                      try {
+                        setIsUploadingPhoto(true);
+                        const uploaded = await uploadScrapTicketPhoto(file, "scrap-sale-ticket-photo");
+                        setForm((current) => ({
+                          ...current,
+                          attachments: [...current.attachments, uploaded].slice(0, 12),
+                        }));
+                        toast({ title: "Ticket photo uploaded", variant: "success" });
+                      } catch (error) {
+                        toast({
+                          title: "Unable to upload ticket photo",
+                          description: getApiErrorMessage(error),
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsUploadingPhoto(false);
+                        event.target.value = "";
+                      }
+                    }}
+                  />
+                  {isUploadingPhoto ? "Uploading..." : "Add Photo"}
+                </label>
+              </div>
+              {form.attachments.length > 0 ? (
+                <div className="space-y-2 rounded-xl border border-[var(--edge-subtle)] p-3">
+                  {form.attachments.map((attachment, index) => (
+                    <div key={`${attachment.url}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-[var(--primary-600)] underline"
+                      >
+                        Photo {index + 1}
+                      </a>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs text-muted-foreground">{formatFileSize(attachment.size)}</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              attachments: current.attachments.filter((_, itemIndex) => itemIndex !== index),
+                            }))
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No photos attached yet.</p>
+              )}
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>
               <Button
                 type="submit"
+                variant="outline"
+                onClick={() => setSubmitIntent("hold")}
                 disabled={
                   saveMutation.isPending ||
                   (!editing && (!saleNumber || reservingSaleNumber)) ||
                   !form.buyerName ||
-                  form.batchId === "__none"
+                  form.batchId === "__none" ||
+                  isUploadingPhoto
                 }
               >
-                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Record Sale"}
+                {saveMutation.isPending ? "Saving..." : "Hold Ticket"}
               </Button>
+              {canManageSales ? (
+                <Button
+                  type="submit"
+                  onClick={() => setSubmitIntent("submit")}
+                  disabled={
+                    saveMutation.isPending ||
+                    (!editing && (!saleNumber || reservingSaleNumber)) ||
+                    !form.buyerName ||
+                    form.batchId === "__none" ||
+                    isUploadingPhoto
+                  }
+                >
+                  {saveMutation.isPending ? "Saving..." : "Submit Ticket"}
+                </Button>
+              ) : null}
+              {canManageSales ? (
+                <Button
+                  type="submit"
+                  onClick={() => setSubmitIntent("submit_print")}
+                  disabled={
+                    saveMutation.isPending ||
+                    (!editing && (!saleNumber || reservingSaleNumber)) ||
+                    !form.buyerName ||
+                    form.batchId === "__none" ||
+                    isUploadingPhoto
+                  }
+                >
+                  {saveMutation.isPending ? "Saving..." : "Submit & Export PDF"}
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  onClick={() => setSubmitIntent("request_approval")}
+                  disabled={
+                    saveMutation.isPending ||
+                    (!editing && (!saleNumber || reservingSaleNumber)) ||
+                    !form.buyerName ||
+                    form.batchId === "__none" ||
+                    isUploadingPhoto
+                  }
+                >
+                  {saveMutation.isPending ? "Saving..." : "Request Approval"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>
@@ -725,12 +1009,12 @@ export default function ScrapMetalSalesPage() {
         <Dialog open={Boolean(selectedSale)} onOpenChange={() => setSelectedSale(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Review Sale - {selectedSale.saleNumber}</DialogTitle>
+              <DialogTitle>Review Outbound Ticket - {selectedSale.saleNumber}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="text-muted-foreground">Batch</div>
+                  <div className="text-muted-foreground">Lot</div>
                   <div className="font-semibold">{selectedSale.batch.batchNumber}</div>
                 </div>
                 <div>
@@ -752,6 +1036,9 @@ export default function ScrapMetalSalesPage() {
               <SaleCalculator recordedWeight={selectedSale.recordedWeight} onWeightCalculated={() => {}} />
 
               <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Approve locks pricing and reserves the lot. Complete records final payment closeout.
+                </p>
                 <label className="text-sm text-muted-foreground">Cancellation note</label>
                 <textarea
                   className="min-h-[74px] w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -816,9 +1103,9 @@ export default function ScrapMetalSalesPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Remove Sale</DialogTitle>
+            <DialogTitle>Remove Outbound Ticket</DialogTitle>
             <DialogDescription>
-              {deleteTarget ? `Remove ${deleteTarget.saleNumber}?` : "Remove this sale?"}
+              {deleteTarget ? `Remove ${deleteTarget.saleNumber}?` : "Remove this outbound ticket?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

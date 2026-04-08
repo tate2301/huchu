@@ -113,7 +113,7 @@ export default function ScrapSellersMasterDataPage() {
       });
     },
     onSuccess: () => {
-      toast({ title: editing ? "Seller updated" : "Seller created", variant: "success" });
+      toast({ title: editing ? "Supplier updated" : "Supplier created", variant: "success" });
       setFormOpen(false);
       setEditing(null);
       setForm(emptyForm);
@@ -122,7 +122,7 @@ export default function ScrapSellersMasterDataPage() {
     },
     onError: (mutationError) => {
       toast({
-        title: "Unable to save seller",
+        title: "Unable to save supplier",
         description: getApiErrorMessage(mutationError),
         variant: "destructive",
       });
@@ -133,11 +133,11 @@ export default function ScrapSellersMasterDataPage() {
     mutationFn: async (id: string) => fetchJson(`/api/scrap-metal/sellers/${id}`, { method: "DELETE" }),
     onSuccess: (result) => {
       toast({
-        title: "Seller updated",
+        title: "Supplier updated",
         description:
           typeof result === "object" && result && "archived" in result
-            ? "Seller had purchase history, so the profile was archived instead of deleted."
-            : "Seller removed.",
+            ? "Supplier had purchase history, so the profile was archived instead of deleted."
+            : "Supplier removed.",
         variant: "success",
       });
       setDeleteTarget(null);
@@ -146,7 +146,7 @@ export default function ScrapSellersMasterDataPage() {
     },
     onError: (mutationError) => {
       toast({
-        title: "Unable to remove seller",
+        title: "Unable to remove supplier",
         description: getApiErrorMessage(mutationError),
         variant: "destructive",
       });
@@ -157,7 +157,7 @@ export default function ScrapSellersMasterDataPage() {
     () => [
       {
         id: "seller",
-        header: "Seller",
+        header: "Supplier (Seller)",
         accessorFn: (row) => `${row.fullName} ${row.phone} ${row.nationalId}`,
         cell: ({ row }) => (
           <div>
@@ -168,7 +168,7 @@ export default function ScrapSellersMasterDataPage() {
       },
       {
         id: "nationalId",
-        header: "National ID",
+        header: "National ID / Passport",
         cell: ({ row }) => <span className="font-mono text-sm">{row.original.nationalId}</span>,
         size: 160,
       },
@@ -236,8 +236,8 @@ export default function ScrapSellersMasterDataPage() {
   return (
     <MasterDataShell
       activeTab="scrap-sellers"
-      title="Scrap Sellers"
-      description="Seller identity records used for scrap purchases and compliance."
+      title="Scrap Suppliers"
+      description="Supplier identity records used for scrap purchases and compliance."
       actions={
         <Button
           size="sm"
@@ -248,13 +248,13 @@ export default function ScrapSellersMasterDataPage() {
           }}
         >
           <Plus className="h-4 w-4" />
-          New Seller
+          New Supplier
         </Button>
       }
     >
       {error ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to load sellers</AlertTitle>
+          <AlertTitle>Unable to load suppliers</AlertTitle>
           <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
         </Alert>
       ) : null}
@@ -266,16 +266,16 @@ export default function ScrapSellersMasterDataPage() {
         onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
         features={{ sorting: true, globalFilter: true, pagination: true }}
         pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search seller, phone, national ID, or address"
+        searchPlaceholder="Search supplier, phone, ID/passport, or address"
         tableClassName="text-sm"
-        emptyState={isLoading ? "Loading sellers..." : "No sellers created yet"}
+        emptyState={isLoading ? "Loading suppliers..." : "No suppliers created yet"}
       />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Seller" : "New Seller"}</DialogTitle>
-            <DialogDescription>Capture the identity details required for seller intake.</DialogDescription>
+            <DialogTitle>{editing ? "Edit Supplier" : "New Supplier"}</DialogTitle>
+            <DialogDescription>Capture the identity details required for supplier intake.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -289,7 +289,7 @@ export default function ScrapSellersMasterDataPage() {
               <Input value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder="Phone" required />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input value={form.nationalId} onChange={(event) => setForm((prev) => ({ ...prev, nationalId: event.target.value }))} placeholder="National ID" required />
+              <Input value={form.nationalId} onChange={(event) => setForm((prev) => ({ ...prev, nationalId: event.target.value }))} placeholder="National ID / Passport" required />
               <Select value={form.isActive} onValueChange={(value) => setForm((prev) => ({ ...prev, isActive: value as "true" | "false" }))}>
                 <SelectTrigger>
                   <SelectValue />
@@ -307,7 +307,7 @@ export default function ScrapSellersMasterDataPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Seller"}
+                {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Supplier"}
               </Button>
             </DialogFooter>
           </form>
@@ -317,11 +317,11 @@ export default function ScrapSellersMasterDataPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Remove Seller</DialogTitle>
+            <DialogTitle>Remove Supplier</DialogTitle>
             <DialogDescription>
               {deleteTarget
-                ? `Remove ${deleteTarget.fullName}? Sellers with purchase history will be archived instead.`
-                : "Remove this seller?"}
+                ? `Remove ${deleteTarget.fullName}? Suppliers with purchase history will be archived instead.`
+                : "Remove this supplier?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
