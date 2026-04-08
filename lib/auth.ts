@@ -18,6 +18,7 @@ import {
   isTenantStatusActive,
   resolveTenantFromHost,
 } from "@/lib/platform/tenant";
+import { isCashierRole } from "@/lib/retail/pos-host";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import {
   validateAuthConfiguration,
@@ -560,6 +561,19 @@ export const authOptions: NextAuthOptions = {
             payload: { hostHeader, clientAddress },
           });
           throw new Error("Account is inactive");
+        }
+
+        if (hostContext.portalCanonicalPrefix === "pos" && !isCashierRole(user.role)) {
+          await logAuthEvent({
+            eventType: "auth.login.failed",
+            actor: email,
+            companyId: user.companyId,
+            reason: "POS_CASHIER_REQUIRED",
+            entityType: "auth-strategy",
+            entityId: "credentials",
+            payload: { hostHeader, clientAddress },
+          });
+          throw new Error("POS_CASHIER_REQUIRED");
         }
 
         const passwordCandidates = exposeCredentialDebugReason

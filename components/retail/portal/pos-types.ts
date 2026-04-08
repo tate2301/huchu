@@ -117,6 +117,8 @@ export type SaleDetail = SaleRow & {
 
 export type PosPortalView =
   | "checkout"
+  | "price-check"
+  | "customers"
   | "history"
   | "held"
   | "shift";

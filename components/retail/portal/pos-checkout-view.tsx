@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Clock, Payments, RefreshCcw, Save, Trash2, Wallet } from "@/lib/icons";
+import { Clock, Payments, QrCode, RefreshCcw, Save, Trash2, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { PosFocusedEditorDrawer } from "./pos-focused-editor-drawer";
 import { PosInlineValidationBanner } from "./pos-inline-validation-banner";
@@ -58,6 +58,7 @@ export function PosCheckoutView() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [holdDialog, setHoldDialog] = useState(false);
   const [holdLabel, setHoldLabel] = useState("");
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
@@ -127,6 +128,20 @@ export function PosCheckoutView() {
     () => cart.find((line) => line.catalogItemId === selectedLineId) ?? null,
     [cart, selectedLineId],
   );
+
+  const focusSearchInput = () => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  };
+
+  const handleAddCatalogItem = (item: (typeof catalogItems)[number]) => {
+    addToCart(item);
+    setSearch("");
+    focusSearchInput();
+  };
 
   useEffect(() => {
     if (splitTenderMode) return;
@@ -348,7 +363,7 @@ export function PosCheckoutView() {
   }, [total]);
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2">
         <div className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--surface-muted)] px-3 text-xs font-medium text-[var(--text-muted)]">
           <Clock className="h-4 w-4" />
@@ -407,9 +422,28 @@ export function PosCheckoutView() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.05fr)_380px]">
-        <section className="space-y-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Scan barcode or search item" className="h-12" />
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_380px]">
+        <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
+            <QrCode className="h-4 w-4 text-[var(--text-muted)]" />
+            <Input
+              ref={searchInputRef}
+              autoFocus
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                if (catalogItems.length === 0) return;
+                event.preventDefault();
+                handleAddCatalogItem(catalogItems[0]);
+              }}
+              placeholder="Scan barcode or search item"
+              className="h-10 border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
+            />
+            <div className="rounded-md bg-[var(--surface-base)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+              Enter = Add top match
+            </div>
+          </div>
           {promotions.length > 0 ? (
             <div className="flex gap-2 overflow-auto pb-1">
               <button
@@ -431,35 +465,38 @@ export function PosCheckoutView() {
               ))}
             </div>
           ) : null}
-          <div className="grid gap-2 sm:grid-cols-2">
-            {catalogItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => addToCart(item)}
-                disabled={!currentShift}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left transition-colors hover:bg-[var(--surface-base)] disabled:opacity-60"
-              >
-                <div className="truncate text-sm font-semibold">{item.name}</div>
-                <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">{item.barcode || item.sku}</div>
-                <div className="mt-3 flex items-end justify-between gap-2">
-                  <div className="font-mono text-base font-semibold">{money(item.unitPrice)}</div>
-                  <div className="text-right text-[11px] text-[var(--text-muted)]">
-                    {item.inventoryItem ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}` : "No stock"}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {catalogItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleAddCatalogItem(item)}
+                  disabled={!currentShift}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left transition-colors hover:bg-[var(--surface-base)] disabled:opacity-60"
+                >
+                  <div className="truncate text-sm font-semibold">{item.name}</div>
+                  <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">{item.barcode || item.sku}</div>
+                  <div className="mt-3 flex items-end justify-between gap-2">
+                    <div className="font-mono text-base font-semibold">{money(item.unitPrice)}</div>
+                    <div className="text-right text-[11px] text-[var(--text-muted)]">
+                      {item.inventoryItem ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}` : "No stock"}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))}
+            </div>
           </div>
           {catalogLoading ? <div className="py-6 text-center text-sm text-[var(--text-muted)]">Loading catalog...</div> : null}
         </section>
 
-        <section className="space-y-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+        <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold">Current sale</div>
             <div className="text-xs text-[var(--text-muted)]">{cart.length} lines</div>
           </div>
-          <div className="space-y-2">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-2">
             {cart.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-3 py-8 text-center text-sm text-[var(--text-muted)]">
                 Add items to start a sale.
@@ -485,6 +522,7 @@ export function PosCheckoutView() {
                 </button>
               ))
             )}
+            </div>
           </div>
           <PosFocusedEditorDrawer
             open={Boolean(selectedLine)}
@@ -505,7 +543,8 @@ export function PosCheckoutView() {
           </PosFocusedEditorDrawer>
         </section>
 
-        <aside className="space-y-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+        <aside className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           <Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in or customer name" className="h-11" />
           {customerName.trim().length >= 2 ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-2">
@@ -574,12 +613,20 @@ export function PosCheckoutView() {
             <div className="flex items-center justify-between gap-3"><span>Tendered</span><span className="font-mono">{money(tenderedTotal)}</span></div>
             <div className="mt-1 flex items-center justify-between gap-3"><span>Change</span><span className="font-mono">{money(changeAmount)}</span></div>
           </div>
+          </div>
+          <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-base)]/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--surface-base)]/80">
           <PosInlineValidationBanner messages={blockers} />
           <Button className="h-12 text-base" onClick={handleCharge} disabled={postSalePending}>
             <Wallet className="h-4 w-4" />
             Charge {money(total)}
           </Button>
-          <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} presets={keypadPresets} />
+          <PosNumericKeypad
+            title="Numeric keypad"
+            onAction={handleKeypadAction}
+            presets={keypadPresets}
+            className="mt-2"
+          />
+          </div>
         </aside>
       </div>
 

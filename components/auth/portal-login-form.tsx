@@ -53,6 +53,8 @@ function getAuthErrorMessage(rawError: string) {
       return "Password does not match. Please try again.";
     case "AUTH_RATE_LIMITED":
       return "Too many sign-in attempts. Please wait a few minutes and try again.";
+    case "POS_CASHIER_REQUIRED":
+      return "Only cashier accounts are allowed to sign in on this POS portal.";
     default:
       return rawError;
   }

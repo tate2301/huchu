@@ -2,12 +2,14 @@
 
 import { Button } from "@/components/ui/button";
 import { XCircle } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 import type { PosKeypadAction } from "./pos-numeric-input";
 
 type PosNumericKeypadProps = {
   title?: string;
   onAction: (action: PosKeypadAction) => void;
   presets?: Array<{ label: string; value: string }>;
+  className?: string;
 };
 
 const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
@@ -24,9 +26,19 @@ const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
   { label: "0", action: { type: "digit", value: "0" } },
 ];
 
-export function PosNumericKeypad({ title = "Keypad", onAction, presets = [] }: PosNumericKeypadProps) {
+export function PosNumericKeypad({
+  title = "Keypad",
+  onAction,
+  presets = [],
+  className,
+}: PosNumericKeypadProps) {
   return (
-    <section className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-3">
+    <section
+      className={cn(
+        "rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-3",
+        className,
+      )}
+    >
       <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
         {title}
       </div>

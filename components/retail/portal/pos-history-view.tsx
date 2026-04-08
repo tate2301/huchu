@@ -191,7 +191,7 @@ export function PosHistoryView() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
         <Input
           value={search}
@@ -211,8 +211,8 @@ export function PosHistoryView() {
         </div>
       </div>
 
-      <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-        <div className="space-y-2">
+      <div className="min-h-0 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+        <div className="h-full min-h-0 space-y-2 overflow-y-auto pr-1">
           {(salesQuery.data?.data ?? []).length === 0 ? (
             <div className="rounded-[1rem] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-3 py-10 text-center text-sm text-[var(--text-muted)]">
               {salesQuery.isLoading ? "Loading transactions..." : "No transactions found."}

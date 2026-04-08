@@ -5,7 +5,14 @@ export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;
 
 export type PosPortalPath = (typeof POS_ALL_PUBLIC_PATHS)[number];
-export type PosPortalNavKey = "checkout" | "held" | "history" | "shift" | "overview";
+export type PosPortalNavKey =
+  | "checkout"
+  | "held"
+  | "history"
+  | "shift"
+  | "overview"
+  | "customers"
+  | "price-check";
 
 const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; internalHref: string }> = {
   checkout: { publicHref: "/", internalHref: "/portal/pos" },
@@ -13,6 +20,8 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   history: { publicHref: "/history", internalHref: "/portal/pos/history" },
   shift: { publicHref: "/shift", internalHref: "/portal/pos/shift" },
   overview: { publicHref: null, internalHref: "/portal/pos/overview" },
+  customers: { publicHref: "/customers", internalHref: "/portal/pos/customers" },
+  "price-check": { publicHref: "/price-check", internalHref: "/portal/pos/price-check" },
 };
 
 export function isCashierRole(role: string | null | undefined): boolean {

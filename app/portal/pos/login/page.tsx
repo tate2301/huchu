@@ -4,7 +4,7 @@ import { getCurrentAuthSession } from "@/lib/auth-core/guards";
 import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
 import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
-import { normalizePosCallbackUrl } from "@/lib/retail/pos-host";
+import { isCashierRole, normalizePosCallbackUrl } from "@/lib/retail/pos-host";
 import { companyLabelFromHost } from "@/lib/utils";
 import { PosPortalLoginClient } from "./client";
 
@@ -29,6 +29,9 @@ export default async function PosPortalLoginPage({
 
   const session = await getCurrentAuthSession();
   if (session?.user) {
+    if (!isCashierRole(session.user.role)) {
+      redirect("/access-blocked");
+    }
     redirect(resolvedCallbackUrl);
   }
 

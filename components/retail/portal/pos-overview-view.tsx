@@ -29,7 +29,7 @@ export function PosOverviewView() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4">
       <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
@@ -97,9 +97,9 @@ export function PosOverviewView() {
         </div>
       </section>
 
-      <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)]">
-        <div className="px-4 py-3 text-sm font-medium">Recent activity</div>
-        <div className="overflow-auto">
+      <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)]">
+        <div className="shrink-0 px-4 py-3 text-sm font-medium">Recent activity</div>
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[680px] text-sm">
             <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">
               <tr>

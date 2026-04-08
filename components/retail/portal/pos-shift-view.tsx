@@ -127,7 +127,8 @@ export function PosShiftView() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="h-full min-h-0 overflow-y-auto pr-1">
+      <div className="space-y-3 pb-1">
       {closeoutSummary ? (
         <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
           <div className="font-semibold">{closeoutSummary.shiftNo} closeout saved</div>
@@ -322,6 +323,7 @@ export function PosShiftView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

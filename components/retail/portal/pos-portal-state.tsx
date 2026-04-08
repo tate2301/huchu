@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   createContext,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -175,6 +177,7 @@ export function PosPortalProvider({
   });
   const currentShift = currentShiftQuery.data?.data ?? null;
   const siteId = currentShift?.siteId ?? "";
+  const hasSeenOpenShiftRef = useRef(false);
 
   const catalogQuery = useQuery({
     queryKey: ["retail-pos-catalog", siteId, search],
@@ -379,6 +382,23 @@ export function PosPortalProvider({
     return () => window.removeEventListener("online", onOnline);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (currentShift?.id) {
+      hasSeenOpenShiftRef.current = true;
+      return;
+    }
+    if (currentShiftQuery.isLoading) {
+      return;
+    }
+    if (!hasSeenOpenShiftRef.current) {
+      return;
+    }
+    void signOut({
+      redirect: true,
+      callbackUrl: isPosHost ? "/login" : "/portal/pos/login",
+    });
+  }, [currentShift?.id, currentShiftQuery.isLoading, isPosHost]);
 
   const saleMutation = useMutation({
     mutationFn: (payload: PosSaleQueuePayload) =>
