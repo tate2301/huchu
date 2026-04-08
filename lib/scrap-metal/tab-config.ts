@@ -23,7 +23,8 @@ export type ScrapTabId =
   | "daily-snapshot"
   | "supplier-performance"
   | "variance-aging"
-  | "ticket-templates";
+  | "ticket-templates"
+  | "compliance-rules";
 
 export type ScrapTabItem = {
   id: ScrapTabId;
@@ -113,6 +114,12 @@ export const SCRAP_TABS: ScrapTabItem[] = [
     href: "/scrap-metal/ticket-templates",
     icon: ReceiptLong,
   },
+  {
+    id: "compliance-rules",
+    label: "Compliance Rules",
+    href: "/scrap-metal/compliance-rules",
+    icon: ReceiptLong,
+  },
 ];
 
 export const SCRAP_OPERATIONS_SECTIONS = {
@@ -136,5 +143,6 @@ export const SCRAP_OPERATIONS_SECTIONS = {
     "/management/master-data/operations/scrap-sellers",
     "/scrap-metal/pricing",
     "/scrap-metal/ticket-templates",
+    "/scrap-metal/compliance-rules",
   ],
 } as const;

@@ -149,6 +149,7 @@ model Company {
   scrapMetalPurchases ScrapMetalPurchase[]
   scrapMetalBatches   ScrapMetalBatch[]
   scrapMetalSales     ScrapMetalSale[]
+  scrapTicketComplianceRules ScrapTicketComplianceRule[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -828,6 +829,7 @@ model User {
   createdScrapMetalSales        ScrapMetalSale[]     @relation("ScrapMetalSaleCreatedBy")
   approvedScrapMetalSales       ScrapMetalSale[]     @relation("ScrapMetalSaleApprovedBy")
   createdScrapMetalBalanceEntries ScrapMetalBalanceEntry[] @relation("ScrapMetalBalanceEntryCreatedBy")
+  createdScrapTicketComplianceRules ScrapTicketComplianceRule[] @relation("ScrapTicketComplianceRuleCreatedBy")
   createdIrregularPayoutBatches IrregularPayoutBatch[] @relation("IrregularPayoutBatchCreatedBy")
   submittedIrregularPayoutBatches IrregularPayoutBatch[] @relation("IrregularPayoutBatchSubmittedBy")
   approvedIrregularPayoutBatches IrregularPayoutBatch[] @relation("IrregularPayoutBatchApprovedBy")
@@ -2509,6 +2511,31 @@ model ScrapMetalSale {
   @@index([status])
   @@index([materialId])
   @@index([customerId])
+}
+
+model ScrapTicketComplianceRule {
+  id                    String             @id @default(uuid())
+  companyId             String
+  name                  String
+  scope                 String             @default("BOTH") // INBOUND | OUTBOUND | BOTH
+  materialId            String?
+  category              ScrapMetalCategory?
+  requirePhotos         Boolean            @default(false)
+  requirePaymentMethod  Boolean            @default(false)
+  requirePaymentReference Boolean          @default(false)
+  requireNotes          Boolean            @default(false)
+  isActive              Boolean            @default(true)
+  createdById           String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  material              ScrapMaterial?     @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  createdBy             User?              @relation("ScrapTicketComplianceRuleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, scope, isActive])
+  @@index([companyId, category, isActive])
+  @@index([companyId, materialId, isActive])
 }
 
 // ============================================

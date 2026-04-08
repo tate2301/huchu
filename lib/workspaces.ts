@@ -328,11 +328,10 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       {
         id: "scrap-setup",
         title: "Setup",
-        refs: [
-          { moduleId: "management", href: "/management/master-data/operations/scrap-materials" },
-          { moduleId: "management", href: "/management/master-data/operations/scrap-sellers" },
-          { moduleId: "scrap-metal", href: "/scrap-metal/pricing" },
-        ],
+        refs: SCRAP_OPERATIONS_SECTIONS.setup.map((href) => ({
+          moduleId: href.startsWith("/management/") ? "management" as const : "scrap-metal" as const,
+          href,
+        })),
       },
     ],
   },

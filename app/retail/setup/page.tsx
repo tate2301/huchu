@@ -42,8 +42,8 @@ const SETUP_ROWS: SetupRow[] = [
   {
     area: "POS policies",
     description: "Operational controls for selling and branch workflows.",
-    destination: "Retail overview",
-    href: "/retail",
+    destination: "POS policy",
+    href: "/retail/setup/pos-policy",
   },
 ];
 
@@ -92,6 +92,12 @@ export default function RetailSetupPage() {
             <Link href="/settings/branding">
               <FileText className="h-4 w-4" />
               Branding
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/setup/pos-policy">
+              <Scale className="h-4 w-4" />
+              POS policy
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">

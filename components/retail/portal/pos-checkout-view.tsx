@@ -10,16 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Clock, Package, Payments, Plus, Trash2, Wallet } from "@/lib/icons";
+import { Clock, Package, Payments, Plus, RotateCcw, Save, Trash2, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
 
-const REFERENCE_REQUIRED_TENDERS: TenderType[] = ["CARD", "MOBILE_MONEY"];
-
-function requiresReference(tenderType: TenderType) {
-  return REFERENCE_REQUIRED_TENDERS.includes(tenderType);
+function requiresReference(
+  tenderType: TenderType,
+  requiredReferenceTenders: TenderType[],
+) {
+  return requiredReferenceTenders.includes(tenderType);
 }
 
 function normalizeWhatsappPhone(input: string | null | undefined) {
@@ -38,10 +39,16 @@ export function PosCheckoutView() {
     cart,
     customerName,
     setCustomerName,
+    selectedCustomerId,
+    selectCustomer,
+    customerSearchResults,
+    customerSearchLoading,
     customerPhone,
     setCustomerPhone,
     customerEmail,
     setCustomerEmail,
+    loyaltyRedemptionPoints,
+    setLoyaltyRedemptionPoints,
     payments,
     setPayments,
     orderDiscountAmount,
@@ -72,17 +79,58 @@ export function PosCheckoutView() {
     postSale,
     postSalePending,
     pendingOfflineSales,
+    queuedOfflineSales,
+    retryOfflineSale,
+    removeOfflineSale,
     syncOfflineSales,
     syncOfflineSalesPending,
+    requiredReferenceTenders,
+    minReferenceLength,
     lastCompletedSale,
     dismissCompletedSale,
   } = usePosPortalState();
   const hasMissingRequiredReference = payments.some(
     (payment) =>
-      requiresReference(payment.tenderType) &&
+      requiresReference(payment.tenderType, requiredReferenceTenders) &&
       payment.amount.trim() !== "" &&
-      payment.reference.trim().length < 4,
+      payment.reference.trim().length < minReferenceLength,
   );
+  const selectedCustomer =
+    customerSearchResults.find((customer) => customer.id === selectedCustomerId) ?? null;
+  const createCustomerMutation = useMutation({
+    mutationFn: () =>
+      fetchJson<{ data: { id: string; name: string; phone: string | null; email: string | null } }>(
+        "/api/v2/retail/customers",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: customerName.trim(),
+            phone: customerPhone.trim() || undefined,
+            email: customerEmail.trim() || undefined,
+          }),
+        },
+      ),
+    onSuccess: (payload) => {
+      selectCustomer({
+        id: payload.data.id,
+        name: payload.data.name,
+        phone: payload.data.phone,
+        email: payload.data.email,
+        loyaltyPoints: 0,
+        loyaltyTier: "BRONZE",
+      });
+      toast({
+        title: "Customer saved",
+        variant: "success",
+      });
+    },
+    onError: (error) =>
+      toast({
+        title: "Unable to save customer",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
   const whatsappHref = (() => {
     if (!lastCompletedSale) return null;
     const message = [
@@ -199,19 +247,58 @@ export function PosCheckoutView() {
           />
         </div>
         {pendingOfflineSales > 0 ? (
-          <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <span>
-              {pendingOfflineSales} sale{pendingOfflineSales === 1 ? "" : "s"} pending offline sync
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={syncOfflineSales}
-              disabled={syncOfflineSalesPending}
-            >
-              Sync now
-            </Button>
+          <div className="space-y-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                {pendingOfflineSales} sale{pendingOfflineSales === 1 ? "" : "s"} pending offline sync
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={syncOfflineSales}
+                disabled={syncOfflineSalesPending}
+              >
+                Sync now
+              </Button>
+            </div>
+            <div className="space-y-1">
+              {queuedOfflineSales.slice(0, 4).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-2 py-1"
+                >
+                  <div className="min-w-0">
+                    <div className="font-mono text-[11px]">{entry.payload.saleNo}</div>
+                    <div className="text-[10px] uppercase tracking-[0.08em]">
+                      {entry.status} • retries {entry.retryCount}
+                    </div>
+                    {entry.lastError ? <div className="truncate text-[10px]">{entry.lastError}</div> : null}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      onClick={() => retryOfflineSale(entry.id)}
+                      disabled={syncOfflineSalesPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      onClick={() => removeOfflineSale(entry.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -402,6 +489,52 @@ export function PosCheckoutView() {
               placeholder="Walk-in or customer name"
               className="h-11"
             />
+            {customerName.trim().length >= 2 ? (
+              <div className="rounded-[1rem] bg-[var(--surface-base)] px-2 py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  Customer lookup
+                </div>
+                <div className="mt-1 space-y-1">
+                  {customerSearchLoading ? (
+                    <div className="px-1 py-1 text-xs text-[var(--text-muted)]">Searching...</div>
+                  ) : customerSearchResults.length > 0 ? (
+                    customerSearchResults.slice(0, 4).map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-xs hover:bg-[var(--surface-muted)]"
+                        onClick={() => selectCustomer(customer)}
+                      >
+                        <span className="min-w-0 truncate">
+                          {customer.name}
+                          {customer.phone ? ` • ${customer.phone}` : ""}
+                        </span>
+                        <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                          {customer.loyaltyPoints} pts
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-1 py-1 text-xs text-[var(--text-muted)]">
+                      No existing customer found.
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => createCustomerMutation.mutate()}
+                    disabled={!customerName.trim() || createCustomerMutation.isPending}
+                  >
+                    <Save className="h-3 w-3" />
+                    Save customer
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-2 md:grid-cols-2">
               <Input
                 value={customerPhone}
@@ -433,6 +566,29 @@ export function PosCheckoutView() {
                 />
               ) : null}
             </div>
+            {selectedCustomer ? (
+              <div className="rounded-[1rem] bg-[var(--surface-base)] px-3 py-2">
+                <div className="text-xs text-[var(--text-muted)]">
+                  Loyalty balance{" "}
+                  <span className="font-mono text-[var(--text-body)]">
+                    {selectedCustomer.loyaltyPoints}
+                  </span>{" "}
+                  ({selectedCustomer.loyaltyTier})
+                </div>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <Input
+                    value={loyaltyRedemptionPoints}
+                    onChange={(event) => setLoyaltyRedemptionPoints(event.target.value)}
+                    inputMode="numeric"
+                    className="h-10"
+                    placeholder="Redeem points"
+                  />
+                  <div className="text-xs text-[var(--text-muted)]">
+                    Set order discount to match points/100.
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-[1.25rem] bg-[var(--surface-base)] px-3 py-3 text-sm">
               <div className="flex items-center justify-between gap-3">
@@ -491,8 +647,8 @@ export function PosCheckoutView() {
                       updatePayment(index, { reference: event.target.value })
                     }
                     placeholder={
-                      requiresReference(payment.tenderType)
-                        ? "Reference (required)"
+                      requiresReference(payment.tenderType, requiredReferenceTenders)
+                        ? `Reference (min ${minReferenceLength})`
                         : "Reference"
                     }
                     className="h-11"

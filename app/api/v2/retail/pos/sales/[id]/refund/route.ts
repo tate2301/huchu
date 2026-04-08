@@ -4,6 +4,7 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
+import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import {
   canManageRetailTransactions,
   getCashNetFromPayments,
@@ -32,24 +33,6 @@ const refundSchema = z.object({
 
 function round(value: number) {
   return Number(value.toFixed(2));
-}
-
-const TENDERS_REQUIRING_REFERENCE = new Set(["CARD", "MOBILE_MONEY"]);
-
-function validateTenderReferences(
-  payments: Array<{ tenderType: string; reference: string | null }>,
-) {
-  for (const payment of payments) {
-    if (!TENDERS_REQUIRING_REFERENCE.has(payment.tenderType)) continue;
-    const reference = payment.reference?.trim() ?? "";
-    if (reference.length < 4) {
-      return `${payment.tenderType.replaceAll("_", " ")} reference is required`;
-    }
-    if (!/^[A-Za-z0-9][A-Za-z0-9\-/_ ]*$/.test(reference)) {
-      return `${payment.tenderType.replaceAll("_", " ")} reference format is invalid`;
-    }
-  }
-  return null;
 }
 
 export async function POST(
@@ -117,7 +100,8 @@ export async function POST(
       amount: round(payment.amount),
       reference: payment.reference?.trim() || null,
     }));
-    const paymentReferenceError = validateTenderReferences(refundPayments);
+    const tenderPolicy = await getRetailTenderPolicy(session.user.companyId);
+    const paymentReferenceError = validateTenderReferences(tenderPolicy, refundPayments);
     if (paymentReferenceError) {
       return errorResponse(paymentReferenceError, 400);
     }

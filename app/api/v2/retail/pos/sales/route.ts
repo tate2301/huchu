@@ -7,6 +7,14 @@ import { retryPendingAccountingEvents } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
+import {
+  getCustomerLoyaltyBalance,
+  getLoyaltyTier,
+  LOYALTY_MAX_REDEEM_SHARE,
+  LOYALTY_REDEEM_POINTS_PER_USD,
+  parseLoyaltyRedeemPoints,
+} from "@/lib/retail/loyalty";
+import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import {
   canManageRetailTransactions,
@@ -47,9 +55,11 @@ const saleSchema = z.object({
   saleNo: z.string().min(1).max(50).optional(),
   shiftId: z.string().uuid(),
   siteId: z.string().uuid(),
+  customerId: z.string().uuid().optional().nullable(),
   customerName: z.string().max(200).optional().nullable(),
   customerPhone: z.string().max(40).optional().nullable(),
   customerEmail: z.string().email().max(200).optional().nullable(),
+  loyaltyRedemptionPoints: z.number().int().min(0).optional(),
   notes: z.string().max(500).optional().nullable(),
   discountAmount: z.number().min(0).optional(),
   overrideReason: z.string().max(240).optional().nullable(),
@@ -77,8 +87,6 @@ function inPromotionWindow(promotion: {
   return true;
 }
 
-const TENDERS_REQUIRING_REFERENCE = new Set(["CARD", "MOBILE_MONEY"]);
-
 function normalizePhone(input: string | null | undefined) {
   if (!input) return null;
   const trimmed = input.trim();
@@ -94,28 +102,6 @@ function normalizeEmail(input: string | null | undefined) {
   if (!input) return null;
   const trimmed = input.trim().toLowerCase();
   return trimmed || null;
-}
-
-function getLoyaltyTier(points: number) {
-  if (points >= 2_000) return "GOLD";
-  if (points >= 500) return "SILVER";
-  return "BRONZE";
-}
-
-function validateTenderReferences(
-  payments: Array<{ tenderType: string; reference: string | null }>,
-) {
-  for (const payment of payments) {
-    if (!TENDERS_REQUIRING_REFERENCE.has(payment.tenderType)) continue;
-    const reference = payment.reference?.trim() ?? "";
-    if (reference.length < 4) {
-      return `${payment.tenderType.replaceAll("_", " ")} reference is required`;
-    }
-    if (!/^[A-Za-z0-9][A-Za-z0-9\-/_ ]*$/.test(reference)) {
-      return `${payment.tenderType.replaceAll("_", " ")} reference format is invalid`;
-    }
-  }
-  return null;
 }
 
 async function ensureRetailSaleJournalPosted(input: {
@@ -458,8 +444,16 @@ export async function POST(request: NextRequest) {
         throw new Error(`Insufficient stock for ${line.catalogItem.name}.`);
       }
     }
+    const orderDiscountAmount = round(input.discountAmount ?? 0);
+    const requestedRedeemPoints = Math.max(input.loyaltyRedemptionPoints ?? 0, 0);
+    const loyaltyDiscountAmount = round(requestedRedeemPoints / LOYALTY_REDEEM_POINTS_PER_USD);
+    if (loyaltyDiscountAmount > orderDiscountAmount + 0.01) {
+      return errorResponse("Loyalty redemption exceeds order discount amount", 400);
+    }
+
+    const hasManualDiscount = Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0) > 0.009;
     const hasOverride =
-      round(input.discountAmount ?? 0) > 0 ||
+      hasManualDiscount ||
       preNormalizedLines.some(
         (line) =>
           line.baseDiscountAmount > 0 ||
@@ -549,7 +543,8 @@ export async function POST(request: NextRequest) {
       amount: round(payment.amount),
       reference: payment.reference?.trim() || null,
     }));
-    const paymentReferenceError = validateTenderReferences(normalizedPayments);
+    const tenderPolicy = await getRetailTenderPolicy(session.user.companyId);
+    const paymentReferenceError = validateTenderReferences(tenderPolicy, normalizedPayments);
     if (paymentReferenceError) {
       return errorResponse(paymentReferenceError, 400);
     }
@@ -591,7 +586,35 @@ export async function POST(request: NextRequest) {
       | null = null;
     let resolvedCustomerName = requestedCustomerName;
 
-    if (requestedCustomerName || customerPhone || customerEmail) {
+    if (input.customerId) {
+      const selectedCustomer = await prisma.customer.findFirst({
+        where: {
+          id: input.customerId,
+          companyId: session.user.companyId,
+          isActive: true,
+        },
+        select: { id: true, name: true, phone: true, email: true },
+      });
+      if (!selectedCustomer) {
+        return errorResponse("Selected customer is invalid", 400);
+      }
+      capturedCustomer =
+        customerPhone || customerEmail
+          ? await prisma.customer.update({
+              where: { id: selectedCustomer.id },
+              data: {
+                ...(customerPhone && selectedCustomer.phone !== customerPhone
+                  ? { phone: customerPhone }
+                  : {}),
+                ...(customerEmail && selectedCustomer.email !== customerEmail
+                  ? { email: customerEmail }
+                  : {}),
+              },
+              select: { id: true, name: true, phone: true, email: true },
+            })
+          : selectedCustomer;
+      resolvedCustomerName = selectedCustomer.name;
+    } else if (requestedCustomerName || customerPhone || customerEmail) {
       const fallbackName = customerPhone ? `Customer ${customerPhone}` : customerEmail ?? null;
       const customerName = requestedCustomerName || fallbackName;
       if (customerName) {
@@ -639,9 +662,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (requestedRedeemPoints > 0) {
+      if (!resolvedCustomerName) {
+        return errorResponse("Select a customer before loyalty redemption", 400);
+      }
+      const loyalty = await getCustomerLoyaltyBalance({
+        companyId: session.user.companyId,
+        customerName: resolvedCustomerName,
+      });
+      if (requestedRedeemPoints > loyalty.balance) {
+        return errorResponse("Loyalty points redemption exceeds customer balance", 400);
+      }
+      const maxRedeemAmount = round(totalAmount * LOYALTY_MAX_REDEEM_SHARE);
+      if (loyaltyDiscountAmount > maxRedeemAmount + 0.01) {
+        return errorResponse(
+          `Loyalty redemption cannot exceed ${(LOYALTY_MAX_REDEEM_SHARE * 100).toFixed(0)}% of sale total`,
+          400,
+        );
+      }
+      if (Math.abs(orderDiscountAmount - loyaltyDiscountAmount) > 0.01) {
+        return errorResponse("Order discount must match loyalty redemption amount", 400);
+      }
+    }
+
     const providedCode = input.saleNo
       ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
       : null;
+    const loyaltyNote =
+      requestedRedeemPoints > 0 ? `LOYALTY_REDEEM:${requestedRedeemPoints}` : null;
+    const normalizedNotes = [input.notes?.trim() || null, loyaltyNote]
+      .filter((value): value is string => Boolean(value))
+      .join(" | ");
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const saleNo =
@@ -672,7 +723,7 @@ export async function POST(request: NextRequest) {
               promotionCode: promotion?.promoCode ?? null,
               overrideReason: overrideReason ?? null,
               status: "POSTED",
-              notes: input.notes?.trim() || null,
+              notes: normalizedNotes || null,
               postedAt: new Date(),
               tenderSummary: normalizedPayments,
               lines: {
@@ -753,21 +804,15 @@ export async function POST(request: NextRequest) {
 
         const customerNetSpend =
           resolvedCustomerName && resolvedCustomerName !== "Walk-in"
-            ? await prisma.retailSale.aggregate({
-                where: {
-                  companyId: session.user.companyId,
-                  customerName: resolvedCustomerName,
-                  status: "POSTED",
-                },
-                _sum: { totalAmount: true },
+            ? await getCustomerLoyaltyBalance({
+                companyId: session.user.companyId,
+                customerName: resolvedCustomerName,
               })
             : null;
         const loyaltyPointsEarned =
           resolvedCustomerName && sale.totalAmount > 0 ? Math.floor(sale.totalAmount) : 0;
-        const loyaltyPointsBalance = Math.max(
-          Math.floor(customerNetSpend?._sum.totalAmount ?? 0),
-          0,
-        );
+        const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
+        const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
         return successResponse({
           id: sale.id,
@@ -797,6 +842,7 @@ export async function POST(request: NextRequest) {
             resolvedCustomerName && resolvedCustomerName !== "Walk-in"
               ? {
                   pointsEarned: loyaltyPointsEarned,
+                  pointsRedeemed: loyaltyPointsRedeemed,
                   pointsBalance: loyaltyPointsBalance,
                   tier: getLoyaltyTier(loyaltyPointsBalance),
                 }

@@ -9,6 +9,8 @@ import {
   serializeScrapTicketPhotos,
 } from "@/lib/scrap-metal/attachments";
 import { applyScrapBalanceDelta } from "@/lib/scrap-metal";
+import { resolveScrapTicketComplianceRequirements } from "@/lib/scrap-metal/compliance-rules";
+import { validateScrapTicketCompliance } from "@/lib/scrap-metal/compliance-validation";
 
 const purchaseTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
   (items) => items.every((item) => item.context === "scrap-purchase-ticket-photo"),
@@ -63,6 +65,11 @@ export async function PATCH(
         pricePerKg: true,
         totalAmount: true,
         sellerProfileId: true,
+        materialId: true,
+        paymentMethod: true,
+        paymentReference: true,
+        notes: true,
+        attachmentsJson: true,
       },
     });
     if (!existing) return errorResponse("Purchase not found", 404);
@@ -106,6 +113,34 @@ export async function PATCH(
     const nextStatus = validated.status ?? existing.status;
     const nextEmployeeId = validated.employeeId ?? existing.employeeId;
     const nextTotalAmount = nextWeight * nextPricePerKg;
+    const nextMaterialId = validated.materialId === undefined ? existing.materialId : validated.materialId;
+    const nextAttachments =
+      validated.attachments === undefined
+        ? parseScrapTicketPhotosJson(existing.attachmentsJson)
+        : validated.attachments ?? [];
+    const nextPaymentMethod = validated.paymentMethod === undefined ? existing.paymentMethod : validated.paymentMethod;
+    const nextPaymentReference =
+      validated.paymentReference === undefined ? existing.paymentReference : validated.paymentReference;
+    const nextNotes = validated.notes === undefined ? existing.notes : validated.notes;
+
+    if (nextStatus !== "DRAFT") {
+      const requirements = await resolveScrapTicketComplianceRequirements(prisma, {
+        companyId: session.user.companyId,
+        direction: "INBOUND",
+        materialId: nextMaterialId,
+        category: nextCategory,
+      });
+      const complianceErrors = validateScrapTicketCompliance({
+        requirements,
+        attachmentsCount: nextAttachments.length,
+        paymentMethod: nextPaymentMethod,
+        paymentReference: nextPaymentReference,
+        notes: nextNotes,
+      });
+      if (complianceErrors.length > 0) {
+        return errorResponse("Compliance requirements not met", 409, complianceErrors);
+      }
+    }
 
     const purchase = await prisma.$transaction(async (tx) => {
       if (existing.status === "POSTED") {

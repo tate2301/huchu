@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchEmployees, fetchSites } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { hasRole } from "@/lib/roles";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
 import { loadLocalTicketDraft, saveLocalTicketDraft } from "@/lib/scrap-metal/offline-draft-adapter";
+import {
+  bumpQueuedScrapTicketRetry,
+  loadQueuedScrapTicketOperations,
+  makeScrapTicketRequestId,
+  queueScrapTicketOperation,
+  removeQueuedScrapTicketOperation,
+} from "@/lib/scrap-metal/offline-ticket-queue";
 import { printTicketWithBridge } from "@/lib/scrap-metal/print-adapter";
 import { fetchScaleReadingFromLocalHelper } from "@/lib/scrap-metal/scale-adapter";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
@@ -65,6 +72,16 @@ type OutboundForm = {
   paymentReference: string;
   notes: string;
   attachments: ScrapTicketPhoto[];
+};
+
+type InboundIntent = "hold" | "finalize" | "finalize_print";
+type OutboundIntent = "hold" | "submit" | "submit_print" | "request_approval";
+type ComplianceRequirements = {
+  requirePhotos: boolean;
+  requirePaymentMethod: boolean;
+  requirePaymentReference: boolean;
+  requireNotes: boolean;
+  matchedRuleIds: string[];
 };
 
 function nowLocal() {
@@ -136,6 +153,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const [outboundErrors, setOutboundErrors] = useState<Record<string, string>>({});
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [newSeller, setNewSeller] = useState({ fullName: "", phone: "", nationalId: "" });
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
+  const [syncingOfflineQueue, setSyncingOfflineQueue] = useState(false);
 
   const sitesQuery = useQuery({ queryKey: ["sites", "scrap-tickets"], queryFn: fetchSites });
   const employeesQuery = useQuery({ queryKey: ["employees", "scrap-tickets"], queryFn: () => fetchEmployees({ active: true, limit: 500 }) });
@@ -150,9 +169,151 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const sellers = sellersQuery.data?.data ?? [];
   const prices = pricesQuery.data?.data ?? [];
   const batches = useMemo(() => (batchesQuery.data?.data ?? []).filter((x) => ["COLLECTING", "READY"].includes(x.status)), [batchesQuery.data?.data]);
+  const selectedBatch = batches.find((x) => x.id === outbound.batchId) ?? null;
+  const inboundRequirementsQuery = useQuery({
+    queryKey: ["scrap-inbound-requirements", inbound.materialId || "__none", inbound.category],
+    queryFn: () =>
+      fetchJson<ComplianceRequirements>(
+        `/api/scrap-metal/compliance-rules/resolve?direction=INBOUND&materialId=${encodeURIComponent(inbound.materialId)}&category=${encodeURIComponent(inbound.category)}`,
+      ),
+  });
+  const outboundRequirementsQuery = useQuery({
+    queryKey: [
+      "scrap-outbound-requirements",
+      selectedBatch?.material?.id || "__none",
+      selectedBatch?.category || "__none",
+    ],
+    queryFn: () =>
+      fetchJson<ComplianceRequirements>(
+        `/api/scrap-metal/compliance-rules/resolve?direction=OUTBOUND&materialId=${encodeURIComponent(selectedBatch?.material?.id ?? "")}&category=${encodeURIComponent(selectedBatch?.category ?? "")}`,
+      ),
+    enabled: Boolean(selectedBatch?.category),
+  });
   const heldInbound = heldInboundQuery.data?.pagination?.total ?? 0;
   const heldOutbound = heldOutboundQuery.data?.pagination?.total ?? 0;
-  const selectedBatch = batches.find((x) => x.id === outbound.batchId) ?? null;
+  const inboundRequirements = inboundRequirementsQuery.data;
+  const outboundRequirements = outboundRequirementsQuery.data;
+
+  function refreshOfflineQueueCount() {
+    setOfflineQueueCount(loadQueuedScrapTicketOperations().length);
+  }
+
+  useEffect(() => {
+    refreshOfflineQueueCount();
+  }, []);
+
+  useEffect(() => {
+    const onOnline = () => {
+      void syncOfflineTickets();
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function isOfflineCandidate(error: unknown) {
+    const message = getApiErrorMessage(error).toLowerCase();
+    const networkish = !(error instanceof ApiError) && /network|failed to fetch|load failed/i.test(message);
+    const browserOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    return networkish || browserOffline;
+  }
+
+  function buildInboundPayload(intent: InboundIntent, form: InboundForm) {
+    return {
+      purchaseDate: new Date(form.date).toISOString(),
+      siteId: form.siteId,
+      employeeId: form.employeeId,
+      sellerProfileId: form.sellerId,
+      materialId: form.materialId,
+      category: form.category,
+      weight: Number(form.weight),
+      pricePerKg: Number(form.pricePerKg),
+      currency: form.currency,
+      paymentMethod: form.paymentMethod || undefined,
+      paymentReference: form.paymentReference || undefined,
+      notes: form.notes || undefined,
+      attachments: form.attachments,
+      status: intent === "hold" ? "DRAFT" : "POSTED",
+    };
+  }
+
+  function buildOutboundPayload(intent: OutboundIntent, form: OutboundForm) {
+    if (!selectedBatch) throw new Error("Select a lot first.");
+    return {
+      saleDate: new Date(form.date).toISOString(),
+      siteId: selectedBatch.site.id,
+      batchId: form.batchId,
+      materialId: selectedBatch.material?.id,
+      buyerName: form.buyerName,
+      buyerContact: form.buyerContact || undefined,
+      recordedWeight: Number(form.recordedWeight),
+      soldWeight: Number(form.soldWeight),
+      pricePerKg: Number(form.pricePerKg),
+      currency: form.currency,
+      paymentMethod: form.paymentMethod || undefined,
+      paymentReference: form.paymentReference || undefined,
+      notes: form.notes || undefined,
+      attachments: form.attachments,
+      status: intent === "hold" || intent === "request_approval" ? "DRAFT" : "PENDING_APPROVAL",
+    };
+  }
+
+  async function syncOfflineTickets() {
+    setSyncingOfflineQueue(true);
+    try {
+      const queue = loadQueuedScrapTicketOperations();
+      if (queue.length === 0) return;
+
+      let synced = 0;
+      let failed = 0;
+      for (const entry of queue) {
+        try {
+          if (entry.payload.operation === "create-inbound-ticket") {
+            await fetchJson("/api/scrap-metal/purchases", {
+              method: "POST",
+              body: JSON.stringify(entry.payload.payload),
+            });
+          } else {
+            await fetchJson("/api/scrap-metal/sales", {
+              method: "POST",
+              body: JSON.stringify(entry.payload.payload),
+            });
+          }
+
+          removeQueuedScrapTicketOperation(entry.id);
+          synced += 1;
+        } catch (error) {
+          failed += 1;
+          bumpQueuedScrapTicketRetry(entry.id);
+          if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+            removeQueuedScrapTicketOperation(entry.id);
+          }
+        }
+      }
+
+      refreshOfflineQueueCount();
+      if (synced > 0) {
+        queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
+        queryClient.invalidateQueries({ queryKey: ["scrap-metal-sales"] });
+        queryClient.invalidateQueries({ queryKey: ["scrap-held-inbound-total"] });
+        queryClient.invalidateQueries({ queryKey: ["scrap-held-outbound-total"] });
+        toast({
+          title: "Offline tickets synced",
+          description: `${synced} queued ticket${synced === 1 ? "" : "s"} posted.`,
+          variant: "success",
+        });
+      }
+      if (failed > 0) {
+        toast({
+          title: "Some offline tickets are still pending",
+          description: `${failed} item${failed === 1 ? "" : "s"} will retry on next sync.`,
+          variant: "warning",
+        });
+      }
+    } finally {
+      setSyncingOfflineQueue(false);
+    }
+  }
 
   const createSellerMutation = useMutation({
     mutationFn: (payload: { fullName: string; phone: string; nationalId: string }) =>
@@ -170,25 +331,10 @@ export default function ScrapMetalTicketWorkbenchPage() {
   });
 
   const inboundMutation = useMutation({
-    mutationFn: (intent: "hold" | "finalize" | "finalize_print") =>
+    mutationFn: (intent: InboundIntent) =>
       fetchJson<{ id: string; purchaseNumber: string }>("/api/scrap-metal/purchases", {
         method: "POST",
-        body: JSON.stringify({
-          purchaseDate: new Date(inbound.date).toISOString(),
-          siteId: inbound.siteId,
-          employeeId: inbound.employeeId,
-          sellerProfileId: inbound.sellerId,
-          materialId: inbound.materialId,
-          category: inbound.category,
-          weight: Number(inbound.weight),
-          pricePerKg: Number(inbound.pricePerKg),
-          currency: inbound.currency,
-          paymentMethod: inbound.paymentMethod || undefined,
-          paymentReference: inbound.paymentReference || undefined,
-          notes: inbound.notes || undefined,
-          attachments: inbound.attachments,
-          status: intent === "hold" ? "DRAFT" : "POSTED",
-        }),
+        body: JSON.stringify(buildInboundPayload(intent, inbound)),
       }),
     onSuccess: (created, intent) => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
@@ -200,33 +346,31 @@ export default function ScrapMetalTicketWorkbenchPage() {
       }
       toast({ title: intent === "hold" ? "Inbound ticket held" : "Inbound ticket finalized", variant: "success" });
     },
-    onError: (error) => {
+    onError: (error, intent) => {
+      if (isOfflineCandidate(error)) {
+        queueScrapTicketOperation({
+          operation: "create-inbound-ticket",
+          clientRequestId: makeScrapTicketRequestId(),
+          intent,
+          payload: buildInboundPayload(intent, inbound),
+        });
+        refreshOfflineQueueCount();
+        toast({
+          title: "Inbound ticket queued offline",
+          description: "This ticket will auto-sync when the connection is back.",
+          variant: "warning",
+        });
+        return;
+      }
       toast({ title: "Unable to save inbound ticket", description: getApiErrorMessage(error), variant: "destructive" });
     },
   });
 
   const outboundMutation = useMutation({
-    mutationFn: (intent: "hold" | "submit" | "submit_print" | "request_approval") => {
-      if (!selectedBatch) throw new Error("Select a lot first.");
+    mutationFn: (intent: OutboundIntent) => {
       return fetchJson<{ id: string; saleNumber: string }>("/api/scrap-metal/sales", {
         method: "POST",
-        body: JSON.stringify({
-          saleDate: new Date(outbound.date).toISOString(),
-          siteId: selectedBatch.site.id,
-          batchId: outbound.batchId,
-          materialId: selectedBatch.material?.id,
-          buyerName: outbound.buyerName,
-          buyerContact: outbound.buyerContact || undefined,
-          recordedWeight: Number(outbound.recordedWeight),
-          soldWeight: Number(outbound.soldWeight),
-          pricePerKg: Number(outbound.pricePerKg),
-          currency: outbound.currency,
-          paymentMethod: outbound.paymentMethod || undefined,
-          paymentReference: outbound.paymentReference || undefined,
-          notes: outbound.notes || undefined,
-          attachments: outbound.attachments,
-          status: intent === "hold" || intent === "request_approval" ? "DRAFT" : "PENDING_APPROVAL",
-        }),
+        body: JSON.stringify(buildOutboundPayload(intent, outbound)),
       });
     },
     onSuccess: (created, intent) => {
@@ -251,7 +395,31 @@ export default function ScrapMetalTicketWorkbenchPage() {
         variant: "success",
       });
     },
-    onError: (error) => {
+    onError: (error, intent) => {
+      if (isOfflineCandidate(error)) {
+        try {
+          queueScrapTicketOperation({
+            operation: "create-outbound-ticket",
+            clientRequestId: makeScrapTicketRequestId(),
+            intent,
+            payload: buildOutboundPayload(intent, outbound),
+          });
+          refreshOfflineQueueCount();
+          toast({
+            title: "Outbound ticket queued offline",
+            description: "This ticket will auto-sync when the connection is back.",
+            variant: "warning",
+          });
+          return;
+        } catch (queueError) {
+          toast({
+            title: "Unable to queue outbound ticket",
+            description: getApiErrorMessage(queueError),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
       toast({ title: "Unable to save outbound ticket", description: getApiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -275,6 +443,18 @@ export default function ScrapMetalTicketWorkbenchPage() {
     if (!inbound.materialId) errors.materialId = "Material is required.";
     if (!inbound.weight || Number(inbound.weight) <= 0) errors.weight = "Weight must be greater than zero.";
     if (!inbound.pricePerKg || Number(inbound.pricePerKg) < 0) errors.pricePerKg = "Price per kg is required.";
+    if (inboundRequirements?.requirePaymentMethod && !inbound.paymentMethod.trim()) {
+      errors.paymentMethod = "Payment method is required by compliance rules.";
+    }
+    if (inboundRequirements?.requirePaymentReference && !inbound.paymentReference.trim()) {
+      errors.paymentReference = "Payment reference is required by compliance rules.";
+    }
+    if (inboundRequirements?.requireNotes && !inbound.notes.trim()) {
+      errors.notes = "Notes are required by compliance rules.";
+    }
+    if (inboundRequirements?.requirePhotos && inbound.attachments.length === 0) {
+      errors.attachments = "At least one photo is required by compliance rules.";
+    }
     setInboundErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -285,6 +465,18 @@ export default function ScrapMetalTicketWorkbenchPage() {
     if (!outbound.buyerName.trim()) errors.buyerName = "Buyer name is required.";
     if (!outbound.soldWeight || Number(outbound.soldWeight) <= 0) errors.soldWeight = "Accepted weight must be greater than zero.";
     if (!outbound.pricePerKg || Number(outbound.pricePerKg) < 0) errors.pricePerKg = "Price per kg is required.";
+    if (outboundRequirements?.requirePaymentMethod && !outbound.paymentMethod.trim()) {
+      errors.paymentMethod = "Payment method is required by compliance rules.";
+    }
+    if (outboundRequirements?.requirePaymentReference && !outbound.paymentReference.trim()) {
+      errors.paymentReference = "Payment reference is required by compliance rules.";
+    }
+    if (outboundRequirements?.requireNotes && !outbound.notes.trim()) {
+      errors.notes = "Notes are required by compliance rules.";
+    }
+    if (outboundRequirements?.requirePhotos && outbound.attachments.length === 0) {
+      errors.attachments = "At least one photo is required by compliance rules.";
+    }
     setOutboundErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -331,6 +523,42 @@ export default function ScrapMetalTicketWorkbenchPage() {
     }
   }
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key !== "enter" && key !== "h") return;
+
+      const target = event.target as HTMLElement | null;
+      const typingTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement;
+      if (!typingTarget) return;
+
+      event.preventDefault();
+      if (key === "h") {
+        if (view === "inbound") {
+          if (validateInbound()) inboundMutation.mutate("hold");
+          return;
+        }
+        if (validateOutbound()) outboundMutation.mutate("hold");
+        return;
+      }
+
+      if (view === "inbound") {
+        if (validateInbound()) inboundMutation.mutate("finalize_print");
+        return;
+      }
+      if (validateOutbound()) {
+        outboundMutation.mutate(canCreateOutbound ? "submit_print" : "request_approval");
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canCreateOutbound, inbound, outbound, view, inboundRequirements, outboundRequirements]);
+
   return (
     <>
       <ScrapShell
@@ -349,6 +577,16 @@ export default function ScrapMetalTicketWorkbenchPage() {
             </Button>
             <Badge variant="outline">Inbound Held: {heldInbound}</Badge>
             <Badge variant="outline">Outbound Held: {heldOutbound}</Badge>
+            <Badge variant="outline">Offline Queue: {offlineQueueCount}</Badge>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={syncingOfflineQueue || offlineQueueCount === 0}
+              onClick={() => void syncOfflineTickets()}
+            >
+              {syncingOfflineQueue ? "Syncing..." : "Sync Offline Queue"}
+            </Button>
           </div>
         }
       >

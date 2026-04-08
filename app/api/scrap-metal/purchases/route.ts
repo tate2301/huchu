@@ -17,6 +17,8 @@ import {
   serializeScrapTicketPhotos,
 } from "@/lib/scrap-metal/attachments";
 import { applyScrapBalanceDelta } from "@/lib/scrap-metal";
+import { resolveScrapTicketComplianceRequirements } from "@/lib/scrap-metal/compliance-rules";
+import { validateScrapTicketCompliance } from "@/lib/scrap-metal/compliance-validation";
 
 const purchaseTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
   (items) => items.every((item) => item.context === "scrap-purchase-ticket-photo"),
@@ -229,6 +231,25 @@ export async function POST(request: NextRequest) {
     const currency = validated.currency?.trim().toUpperCase() || "USD";
 
     const ticketStatus = validated.status ?? "POSTED";
+    if (ticketStatus !== "DRAFT") {
+      const requirements = await resolveScrapTicketComplianceRequirements(prisma, {
+        companyId: session.user.companyId,
+        direction: "INBOUND",
+        materialId: validated.materialId ?? null,
+        category: validated.category,
+      });
+      const complianceErrors = validateScrapTicketCompliance({
+        requirements,
+        attachmentsCount: validated.attachments?.length ?? 0,
+        paymentMethod: validated.paymentMethod,
+        paymentReference: validated.paymentReference,
+        notes: validated.notes,
+      });
+      if (complianceErrors.length > 0) {
+        return errorResponse("Compliance requirements not met", 409, complianceErrors);
+      }
+    }
+
     const purchase = await prisma.$transaction(async (tx) => {
       // Create purchase
       const newPurchase = await tx.scrapMetalPurchase.create({

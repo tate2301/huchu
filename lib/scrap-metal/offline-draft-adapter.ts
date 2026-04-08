@@ -1,3 +1,5 @@
+import { clearOfflineDraft, loadOfflineDraft, saveOfflineDraft } from "@/lib/offline/client-storage";
+
 type TicketDraftType = "inbound" | "outbound";
 
 const KEY_PREFIX = "scrap_ticket_draft";
@@ -7,27 +9,13 @@ function key(type: TicketDraftType) {
 }
 
 export function saveLocalTicketDraft(type: TicketDraftType, payload: unknown): void {
-  if (typeof window === "undefined") return;
-  const envelope = {
-    savedAt: new Date().toISOString(),
-    payload,
-  };
-  window.localStorage.setItem(key(type), JSON.stringify(envelope));
+  saveOfflineDraft(key(type), payload);
 }
 
 export function loadLocalTicketDraft<T>(type: TicketDraftType): { savedAt: string; payload: T } | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(key(type));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as { savedAt: string; payload: T };
-  } catch {
-    return null;
-  }
+  return loadOfflineDraft<T>(key(type));
 }
 
 export function clearLocalTicketDraft(type: TicketDraftType): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(key(type));
+  clearOfflineDraft(key(type));
 }
-

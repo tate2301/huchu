@@ -15,9 +15,12 @@ import { fetchSites } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   bumpQueuedPosSaleRetry,
+  failQueuedPosSale,
   loadQueuedPosSales,
+  markQueuedPosSaleQueued,
   queuePosSale,
   removeQueuedPosSale,
+  type PosQueuedSale,
   type PosSaleQueuePayload,
 } from "@/lib/retail/pos-offline-queue";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
@@ -41,9 +44,26 @@ type CompletedSale = {
   postedAt: string;
   loyalty?: {
     pointsEarned: number;
+    pointsRedeemed?: number;
     pointsBalance: number;
     tier: string;
   } | null;
+};
+
+type CustomerLookupResult = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  loyaltyPoints: number;
+  loyaltyTier: string;
+};
+
+type TenderPolicyPayload = {
+  data: {
+    requiredReferenceTenders: Array<PaymentRow["tenderType"]>;
+    minReferenceLength: number;
+  };
 };
 
 type PosPortalStateValue = {
@@ -52,10 +72,16 @@ type PosPortalStateValue = {
   cart: CartItem[];
   customerName: string;
   setCustomerName: (value: string) => void;
+  selectedCustomerId: string | null;
+  selectCustomer: (customer: CustomerLookupResult) => void;
+  customerSearchResults: CustomerLookupResult[];
+  customerSearchLoading: boolean;
   customerPhone: string;
   setCustomerPhone: (value: string) => void;
   customerEmail: string;
   setCustomerEmail: (value: string) => void;
+  loyaltyRedemptionPoints: string;
+  setLoyaltyRedemptionPoints: (value: string) => void;
   payments: PaymentRow[];
   setPayments: (value: PaymentRow[] | ((current: PaymentRow[]) => PaymentRow[])) => void;
   orderDiscountAmount: string;
@@ -95,8 +121,13 @@ type PosPortalStateValue = {
   postSale: () => void;
   postSalePending: boolean;
   pendingOfflineSales: number;
+  queuedOfflineSales: PosQueuedSale[];
+  retryOfflineSale: (id: string) => void;
+  removeOfflineSale: (id: string) => void;
   syncOfflineSales: () => void;
   syncOfflineSalesPending: boolean;
+  requiredReferenceTenders: Array<PaymentRow["tenderType"]>;
+  minReferenceLength: number;
   lastCompletedSale: CompletedSale | null;
   dismissCompletedSale: () => void;
 };
@@ -117,8 +148,10 @@ export function PosPortalProvider({
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [loyaltyRedemptionPoints, setLoyaltyRedemptionPoints] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([
     { tenderType: "CASH", amount: "", reference: "" },
   ]);
@@ -127,6 +160,7 @@ export function PosPortalProvider({
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
   const [lastCompletedSale, setLastCompletedSale] = useState<CompletedSale | null>(null);
   const [pendingOfflineSales, setPendingOfflineSales] = useState(0);
+  const [queuedOfflineSales, setQueuedOfflineSales] = useState<PosQueuedSale[]>([]);
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
 
   const sitesQuery = useQuery({ queryKey: ["pos-sites"], queryFn: fetchSites });
@@ -151,6 +185,20 @@ export function PosPortalProvider({
     queryFn: () =>
       fetchJson<{ data: Promotion[] }>("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
     enabled: Boolean(siteId),
+  });
+  const tenderPolicyQuery = useQuery({
+    queryKey: ["retail-pos-tender-policy"],
+    queryFn: () =>
+      fetchJson<TenderPolicyPayload>("/api/v2/retail/setup/tender-policy"),
+  });
+  const customerSearchQuery = useQuery({
+    queryKey: ["retail-pos-customer-search", customerName],
+    queryFn: () =>
+      fetchJson<{ data: CustomerLookupResult[] }>(
+        `/api/v2/retail/customers/search?q=${encodeURIComponent(customerName.trim())}&limit=8`,
+      ),
+    enabled: customerName.trim().length >= 2,
+    staleTime: 15_000,
   });
 
   const activePromotion = useMemo(
@@ -217,16 +265,20 @@ export function PosPortalProvider({
   const clearCart = () => {
     setCart([]);
     setCustomerName("");
+    setSelectedCustomerId(null);
     setCustomerPhone("");
     setCustomerEmail("");
+    setLoyaltyRedemptionPoints("");
     setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
     setOrderDiscountAmount("");
     setOverrideReason("");
     setSelectedPromotionId("");
   };
 
-  const refreshOfflineCount = () => {
-    setPendingOfflineSales(loadQueuedPosSales().length);
+  const refreshOfflineQueue = () => {
+    const queue = loadQueuedPosSales();
+    setQueuedOfflineSales(queue);
+    setPendingOfflineSales(queue.length);
   };
 
   const buildSalePayload = (): PosSaleQueuePayload | null => {
@@ -235,9 +287,11 @@ export function PosPortalProvider({
       saleNo: createQueuedSaleNo(),
       shiftId: currentShift.id,
       siteId,
+      customerId: selectedCustomerId ?? undefined,
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
       customerEmail: customerEmail.trim() || undefined,
+      loyaltyRedemptionPoints: Number(loyaltyRedemptionPoints || "0") || undefined,
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: overrideReason.trim() || undefined,
       promotionId: selectedPromotionId || undefined,
@@ -255,6 +309,26 @@ export function PosPortalProvider({
     };
   };
 
+  const syncQueuedSale = async (entry: PosQueuedSale) => {
+    markQueuedPosSaleQueued(entry.id);
+    try {
+      await fetchJson<CompletedSale>("/api/v2/retail/pos/sales", {
+        method: "POST",
+        body: JSON.stringify(entry.payload),
+      });
+      removeQueuedPosSale(entry.id);
+      return { synced: 1, failed: 0 };
+    } catch (error) {
+      const message = getApiErrorMessage(error);
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        failQueuedPosSale(entry.id, message);
+      } else {
+        bumpQueuedPosSaleRetry(entry.id);
+      }
+      return { synced: 0, failed: 1 };
+    }
+  };
+
   const syncOfflineSales = async () => {
     setSyncOfflineSalesPending(true);
     try {
@@ -264,22 +338,11 @@ export function PosPortalProvider({
       let synced = 0;
       let failed = 0;
       for (const entry of queue) {
-        try {
-          await fetchJson<CompletedSale>("/api/v2/retail/pos/sales", {
-            method: "POST",
-            body: JSON.stringify(entry.payload),
-          });
-          removeQueuedPosSale(entry.id);
-          synced += 1;
-        } catch (error) {
-          failed += 1;
-          bumpQueuedPosSaleRetry(entry.id);
-          if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
-            removeQueuedPosSale(entry.id);
-          }
-        }
+        const result = await syncQueuedSale(entry);
+        synced += result.synced;
+        failed += result.failed;
       }
-      refreshOfflineCount();
+      refreshOfflineQueue();
       if (synced > 0) {
         toast({
           title: "Offline sales synced",
@@ -303,7 +366,7 @@ export function PosPortalProvider({
   };
 
   useEffect(() => {
-    refreshOfflineCount();
+    refreshOfflineQueue();
     const onOnline = () => {
       void syncOfflineSales();
     };
@@ -335,7 +398,7 @@ export function PosPortalProvider({
 
       if (isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine)) {
         queuePosSale(payload);
-        refreshOfflineCount();
+        refreshOfflineQueue();
         clearCart();
         toast({
           title: "Sale queued offline",
@@ -358,11 +421,27 @@ export function PosPortalProvider({
     setSearch,
     cart,
     customerName,
-    setCustomerName,
+    setCustomerName: (value) => {
+      setCustomerName(value);
+      if (selectedCustomerId) {
+        setSelectedCustomerId(null);
+      }
+    },
+    selectedCustomerId,
+    selectCustomer: (customer) => {
+      setSelectedCustomerId(customer.id);
+      setCustomerName(customer.name);
+      setCustomerPhone(customer.phone ?? "");
+      setCustomerEmail(customer.email ?? "");
+    },
+    customerSearchResults: customerSearchQuery.data?.data ?? [],
+    customerSearchLoading: customerSearchQuery.isLoading,
     customerPhone,
     setCustomerPhone,
     customerEmail,
     setCustomerEmail,
+    loyaltyRedemptionPoints,
+    setLoyaltyRedemptionPoints,
     payments,
     setPayments,
     orderDiscountAmount,
@@ -414,8 +493,10 @@ export function PosPortalProvider({
     replaceCartFromHeld: (input) => {
       setCart((input.items ?? []).map((item) => ({ ...item })));
       setCustomerName(input.customerName ?? "");
+      setSelectedCustomerId(null);
       setCustomerPhone("");
       setCustomerEmail("");
+      setLoyaltyRedemptionPoints("");
       setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
       setOrderDiscountAmount(input.orderDiscountAmount ?? "");
       setSelectedPromotionId(input.selectedPromotionId ?? "");
@@ -437,10 +518,37 @@ export function PosPortalProvider({
     },
     postSalePending: saleMutation.isPending,
     pendingOfflineSales,
+    queuedOfflineSales,
+    retryOfflineSale: (id) => {
+      const entry = loadQueuedPosSales().find((queued) => queued.id === id);
+      if (!entry) return;
+      void (async () => {
+        setSyncOfflineSalesPending(true);
+        const result = await syncQueuedSale(entry);
+        refreshOfflineQueue();
+        setSyncOfflineSalesPending(false);
+        if (result.synced > 0) {
+          toast({
+            title: "Queued sale synced",
+            variant: "success",
+          });
+          queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
+          queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
+          queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
+        }
+      })();
+    },
+    removeOfflineSale: (id) => {
+      removeQueuedPosSale(id);
+      refreshOfflineQueue();
+    },
     syncOfflineSales: () => {
       void syncOfflineSales();
     },
     syncOfflineSalesPending,
+    requiredReferenceTenders:
+      tenderPolicyQuery.data?.data.requiredReferenceTenders ?? ["CARD", "MOBILE_MONEY"],
+    minReferenceLength: tenderPolicyQuery.data?.data.minReferenceLength ?? 4,
     lastCompletedSale,
     dismissCompletedSale: () => setLastCompletedSale(null),
   };

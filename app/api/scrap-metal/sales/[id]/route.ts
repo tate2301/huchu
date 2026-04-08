@@ -9,6 +9,8 @@ import {
   serializeScrapTicketPhotos,
 } from "@/lib/scrap-metal/attachments";
 import { hasRole } from "@/lib/roles";
+import { resolveScrapTicketComplianceRequirements } from "@/lib/scrap-metal/compliance-rules";
+import { validateScrapTicketCompliance } from "@/lib/scrap-metal/compliance-validation";
 
 const saleTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
   (items) => items.every((item) => item.context === "scrap-sale-ticket-photo"),
@@ -55,6 +57,11 @@ export async function PATCH(
         soldWeight: true,
         pricePerKg: true,
         recordedWeight: true,
+        materialId: true,
+        paymentMethod: true,
+        paymentReference: true,
+        notes: true,
+        attachmentsJson: true,
         batch: { select: { category: true } },
       },
     });
@@ -89,6 +96,36 @@ export async function PATCH(
     const recordedWeight = validated.recordedWeight ?? existing.recordedWeight;
     const soldWeight = validated.soldWeight ?? existing.soldWeight;
     const pricePerKg = validated.pricePerKg ?? existing.pricePerKg;
+    const nextStatus = validated.status ?? existing.status;
+    const nextMaterialId =
+      validated.materialId === undefined ? existing.materialId : validated.materialId;
+    const nextAttachments =
+      validated.attachments === undefined
+        ? parseScrapTicketPhotosJson(existing.attachmentsJson)
+        : validated.attachments ?? [];
+    const nextPaymentMethod = validated.paymentMethod === undefined ? existing.paymentMethod : validated.paymentMethod;
+    const nextPaymentReference =
+      validated.paymentReference === undefined ? existing.paymentReference : validated.paymentReference;
+    const nextNotes = validated.notes === undefined ? existing.notes : validated.notes;
+
+    if (nextStatus !== "DRAFT") {
+      const requirements = await resolveScrapTicketComplianceRequirements(prisma, {
+        companyId: session.user.companyId,
+        direction: "OUTBOUND",
+        materialId: nextMaterialId,
+        category: existing.batch.category,
+      });
+      const complianceErrors = validateScrapTicketCompliance({
+        requirements,
+        attachmentsCount: nextAttachments.length,
+        paymentMethod: nextPaymentMethod,
+        paymentReference: nextPaymentReference,
+        notes: nextNotes,
+      });
+      if (complianceErrors.length > 0) {
+        return errorResponse("Compliance requirements not met", 409, complianceErrors);
+      }
+    }
 
     const sale = await prisma.scrapMetalSale.update({
       where: { id },

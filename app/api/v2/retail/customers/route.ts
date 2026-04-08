@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { successResponse } from "@/lib/api-utils";
+import { z } from "zod";
+import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { requireRetailSession } from "../_helpers";
 
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
   const buckets = new Map<
     string,
     {
+      customerId: string | null;
       customerName: string;
       visits: number;
       totalSpend: number;
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest) {
     const netDelta = sale.totalAmount;
     if (!current) {
       buckets.set(key, {
+        customerId: null,
         customerName: name,
         visits: sale.saleType === "SALE" ? 1 : 0,
         totalSpend: netDelta,
@@ -76,10 +79,27 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const customerNames = [...buckets.values()].map((entry) => entry.customerName);
+  if (customerNames.length > 0) {
+    const customers = await prisma.customer.findMany({
+      where: {
+        companyId: session.user.companyId,
+        isActive: true,
+        name: { in: customerNames },
+      },
+      select: { id: true, name: true },
+    });
+    const customerMap = new Map(customers.map((customer) => [customer.name.toLowerCase(), customer.id]));
+    for (const [key, value] of buckets.entries()) {
+      value.customerId = customerMap.get(key) ?? null;
+    }
+  }
+
   const data = [...buckets.values()]
     .map((row) => {
       const loyaltyPoints = Math.max(Math.floor(row.totalSpend), 0);
       return {
+        customerId: row.customerId,
         customerName: row.customerName,
         visits: row.visits,
         totalSpend: Number(row.totalSpend.toFixed(2)),
@@ -98,4 +118,43 @@ export async function GET(request: NextRequest) {
       totalLoyaltyPoints: data.reduce((sum, row) => sum + row.loyaltyPoints, 0),
     },
   });
+}
+
+const createCustomerSchema = z.object({
+  name: z.string().min(1).max(200),
+  phone: z.string().max(40).optional().nullable(),
+  email: z.string().email().max(200).optional().nullable(),
+});
+
+export async function POST(request: NextRequest) {
+  const { response, session } = await requireRetailSession(request);
+  if (response || !session) {
+    return response as NextResponse;
+  }
+
+  try {
+    const body = await request.json();
+    const input = createCustomerSchema.parse(body);
+
+    const created = await prisma.customer.create({
+      data: {
+        companyId: session.user.companyId,
+        name: input.name.trim(),
+        phone: input.phone?.trim() || null,
+        email: input.email?.trim().toLowerCase() || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+      },
+    });
+    return successResponse({ data: created }, 201);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse("Validation failed", 400, error.issues);
+    }
+    return errorResponse("Failed to create customer", 500);
+  }
 }

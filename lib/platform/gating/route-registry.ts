@@ -132,6 +132,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/scrap-metal/tickets", featureKey: "scrap-metal.home" },
   { scope: "page", prefix: "/scrap-metal/sales/approval-requests", featureKey: "scrap-metal.sales" },
   { scope: "page", prefix: "/scrap-metal/ticket-templates", featureKey: "core.branding.manage" },
+  { scope: "page", prefix: "/scrap-metal/compliance-rules", featureKey: "scrap-metal.purchases" },
   { scope: "page", prefix: "/scrap-metal/reports/daily-snapshot", featureKey: "scrap-metal.home" },
   { scope: "page", prefix: "/scrap-metal/reports/supplier-performance", featureKey: "scrap-metal.home" },
   { scope: "page", prefix: "/scrap-metal/reports/variance-aging", featureKey: "scrap-metal.home" },
@@ -248,6 +249,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/scrap-metal/dashboard", featureKey: "scrap-metal.home" },
   { scope: "api", prefix: "/api/scrap-metal/scale/last-weight", featureKey: "scrap-metal.home" },
   { scope: "api", prefix: "/api/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
+  { scope: "api", prefix: "/api/scrap-metal/compliance-rules", featureKey: "scrap-metal.purchases" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },

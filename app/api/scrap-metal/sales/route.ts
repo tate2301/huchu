@@ -17,6 +17,8 @@ import {
   serializeScrapTicketPhotos,
 } from "@/lib/scrap-metal/attachments";
 import { hasRole } from "@/lib/roles";
+import { resolveScrapTicketComplianceRequirements } from "@/lib/scrap-metal/compliance-rules";
+import { validateScrapTicketCompliance } from "@/lib/scrap-metal/compliance-validation";
 
 const saleTicketPhotoArraySchema = scrapTicketPhotoArraySchema.refine(
   (items) => items.every((item) => item.context === "scrap-sale-ticket-photo"),
@@ -224,6 +226,25 @@ export async function POST(request: NextRequest) {
       canManageSales
         ? validated.notes?.trim() || undefined
         : `${approvalRequestedPrefix} ${validated.notes?.trim() || "Clerk requested manager approval."}`;
+
+    if (saleStatus !== "DRAFT") {
+      const requirements = await resolveScrapTicketComplianceRequirements(prisma, {
+        companyId: session.user.companyId,
+        direction: "OUTBOUND",
+        materialId: validated.materialId ?? batch.materialId ?? null,
+        category: resolvedMaterialCategory,
+      });
+      const complianceErrors = validateScrapTicketCompliance({
+        requirements,
+        attachmentsCount: validated.attachments?.length ?? 0,
+        paymentMethod: validated.paymentMethod,
+        paymentReference: validated.paymentReference,
+        notes,
+      });
+      if (complianceErrors.length > 0) {
+        return errorResponse("Compliance requirements not met", 409, complianceErrors);
+      }
+    }
 
     const sale = await prisma.$transaction(async (tx) => {
       // Create sale
