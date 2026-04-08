@@ -16,6 +16,16 @@ import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
 
+const REFERENCE_REQUIRED_TENDERS: TenderType[] = ["CARD", "MOBILE_MONEY"];
+
+function requiresReference(tenderType: TenderType) {
+  return REFERENCE_REQUIRED_TENDERS.includes(tenderType);
+}
+
+function normalizeWhatsappPhone(input: string | null | undefined) {
+  return String(input ?? "").replace(/\D/g, "");
+}
+
 export function PosCheckoutView() {
   const router = useRouter();
   const { toast } = useToast();
@@ -28,6 +38,10 @@ export function PosCheckoutView() {
     cart,
     customerName,
     setCustomerName,
+    customerPhone,
+    setCustomerPhone,
+    customerEmail,
+    setCustomerEmail,
     payments,
     setPayments,
     orderDiscountAmount,
@@ -57,9 +71,35 @@ export function PosCheckoutView() {
     clearCart,
     postSale,
     postSalePending,
+    pendingOfflineSales,
+    syncOfflineSales,
+    syncOfflineSalesPending,
     lastCompletedSale,
     dismissCompletedSale,
   } = usePosPortalState();
+  const hasMissingRequiredReference = payments.some(
+    (payment) =>
+      requiresReference(payment.tenderType) &&
+      payment.amount.trim() !== "" &&
+      payment.reference.trim().length < 4,
+  );
+  const whatsappHref = (() => {
+    if (!lastCompletedSale) return null;
+    const message = [
+      `Receipt ${lastCompletedSale.saleNo}`,
+      `Amount: ${money(lastCompletedSale.totalAmount)}`,
+      `Change: ${money(lastCompletedSale.changeAmount)}`,
+      lastCompletedSale.customerName ? `Customer: ${lastCompletedSale.customerName}` : null,
+      "Thank you for shopping with us.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const encoded = encodeURIComponent(message);
+    const phone = normalizeWhatsappPhone(lastCompletedSale.customerPhone);
+    return phone
+      ? `https://wa.me/${phone}?text=${encoded}`
+      : `https://wa.me/?text=${encoded}`;
+  })();
 
   const holdCartMutation = useMutation({
     mutationFn: () =>
@@ -158,6 +198,22 @@ export function PosCheckoutView() {
             className="border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
           />
         </div>
+        {pendingOfflineSales > 0 ? (
+          <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <span>
+              {pendingOfflineSales} sale{pendingOfflineSales === 1 ? "" : "s"} pending offline sync
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={syncOfflineSales}
+              disabled={syncOfflineSalesPending}
+            >
+              Sync now
+            </Button>
+          </div>
+        ) : null}
 
         {promotions.length > 0 ? (
           <div className="flex gap-2 overflow-auto pb-1">
@@ -348,6 +404,20 @@ export function PosCheckoutView() {
             />
             <div className="grid gap-2 md:grid-cols-2">
               <Input
+                value={customerPhone}
+                onChange={(event) => setCustomerPhone(event.target.value)}
+                placeholder="Customer phone (WhatsApp)"
+                className="h-11"
+              />
+              <Input
+                value={customerEmail}
+                onChange={(event) => setCustomerEmail(event.target.value)}
+                placeholder="Customer email"
+                className="h-11"
+              />
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              <Input
                 value={orderDiscountAmount}
                 onChange={(event) => setOrderDiscountAmount(event.target.value)}
                 inputMode="decimal"
@@ -420,7 +490,11 @@ export function PosCheckoutView() {
                     onChange={(event) =>
                       updatePayment(index, { reference: event.target.value })
                     }
-                    placeholder="Reference"
+                    placeholder={
+                      requiresReference(payment.tenderType)
+                        ? "Reference (required)"
+                        : "Reference"
+                    }
                     className="h-11"
                   />
                   <Button
@@ -463,6 +537,7 @@ export function PosCheckoutView() {
                 cart.length === 0 ||
                 nonCashTotal > total ||
                 tenderedTotal < total ||
+                hasMissingRequiredReference ||
                 postSalePending
               }
             >
@@ -522,12 +597,26 @@ export function PosCheckoutView() {
                 <span>Change</span>
                 <span className="font-mono">{money(lastCompletedSale?.changeAmount ?? 0)}</span>
               </div>
+              {lastCompletedSale?.loyalty ? (
+                <div className="mt-3 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
+                  Loyalty: +{lastCompletedSale.loyalty.pointsEarned} points, balance{" "}
+                  <span className="font-mono">{lastCompletedSale.loyalty.pointsBalance}</span> (
+                  {lastCompletedSale.loyalty.tier})
+                </div>
+              ) : null}
             </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={dismissCompletedSale}>
               Continue selling
             </Button>
+            {whatsappHref ? (
+              <Button asChild variant="outline">
+                <a href={whatsappHref} target="_blank" rel="noreferrer">
+                  Send WhatsApp receipt
+                </a>
+              </Button>
+            ) : null}
             <Button asChild>
               <Link href={getPosPortalHref("history", isPosHost)}>
                 <Payments className="h-4 w-4" />

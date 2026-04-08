@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type PropsWithChildren,
@@ -11,7 +12,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  bumpQueuedPosSaleRetry,
+  loadQueuedPosSales,
+  queuePosSale,
+  removeQueuedPosSale,
+  type PosSaleQueuePayload,
+} from "@/lib/retail/pos-offline-queue";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import type {
@@ -26,9 +34,16 @@ import { getPaymentSummary, isManagerRole } from "./pos-utils";
 type CompletedSale = {
   id: string;
   saleNo: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
   totalAmount: number;
   changeAmount: number;
   postedAt: string;
+  loyalty?: {
+    pointsEarned: number;
+    pointsBalance: number;
+    tier: string;
+  } | null;
 };
 
 type PosPortalStateValue = {
@@ -37,6 +52,10 @@ type PosPortalStateValue = {
   cart: CartItem[];
   customerName: string;
   setCustomerName: (value: string) => void;
+  customerPhone: string;
+  setCustomerPhone: (value: string) => void;
+  customerEmail: string;
+  setCustomerEmail: (value: string) => void;
   payments: PaymentRow[];
   setPayments: (value: PaymentRow[] | ((current: PaymentRow[]) => PaymentRow[])) => void;
   orderDiscountAmount: string;
@@ -75,11 +94,18 @@ type PosPortalStateValue = {
   nonCashTotal: number;
   postSale: () => void;
   postSalePending: boolean;
+  pendingOfflineSales: number;
+  syncOfflineSales: () => void;
+  syncOfflineSalesPending: boolean;
   lastCompletedSale: CompletedSale | null;
   dismissCompletedSale: () => void;
 };
 
 const PosPortalStateContext = createContext<PosPortalStateValue | null>(null);
+
+function createQueuedSaleNo() {
+  return `RSL-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+}
 
 export function PosPortalProvider({
   children,
@@ -91,6 +117,8 @@ export function PosPortalProvider({
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([
     { tenderType: "CASH", amount: "", reference: "" },
   ]);
@@ -98,6 +126,8 @@ export function PosPortalProvider({
   const [overrideReason, setOverrideReason] = useState("");
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
   const [lastCompletedSale, setLastCompletedSale] = useState<CompletedSale | null>(null);
+  const [pendingOfflineSales, setPendingOfflineSales] = useState(0);
+  const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
 
   const sitesQuery = useQuery({ queryKey: ["pos-sites"], queryFn: fetchSites });
   const currentShiftQuery = useQuery({
@@ -187,35 +217,106 @@ export function PosPortalProvider({
   const clearCart = () => {
     setCart([]);
     setCustomerName("");
+    setCustomerPhone("");
+    setCustomerEmail("");
     setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
     setOrderDiscountAmount("");
     setOverrideReason("");
     setSelectedPromotionId("");
   };
 
+  const refreshOfflineCount = () => {
+    setPendingOfflineSales(loadQueuedPosSales().length);
+  };
+
+  const buildSalePayload = (): PosSaleQueuePayload | null => {
+    if (!currentShift?.id || !siteId) return null;
+    return {
+      saleNo: createQueuedSaleNo(),
+      shiftId: currentShift.id,
+      siteId,
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      customerEmail: customerEmail.trim() || undefined,
+      discountAmount: Number(orderDiscountAmount || "0") || undefined,
+      overrideReason: overrideReason.trim() || undefined,
+      promotionId: selectedPromotionId || undefined,
+      items: cart.map((item) => ({
+        catalogItemId: item.catalogItemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.lineDiscountAmount ?? 0,
+      })),
+      payments: paymentSummary.parsed.map((payment) => ({
+        tenderType: payment.tenderType,
+        amount: payment.amountValue,
+        reference: payment.reference.trim() || undefined,
+      })),
+    };
+  };
+
+  const syncOfflineSales = async () => {
+    setSyncOfflineSalesPending(true);
+    try {
+      const queue = loadQueuedPosSales();
+      if (queue.length === 0) return;
+
+      let synced = 0;
+      let failed = 0;
+      for (const entry of queue) {
+        try {
+          await fetchJson<CompletedSale>("/api/v2/retail/pos/sales", {
+            method: "POST",
+            body: JSON.stringify(entry.payload),
+          });
+          removeQueuedPosSale(entry.id);
+          synced += 1;
+        } catch (error) {
+          failed += 1;
+          bumpQueuedPosSaleRetry(entry.id);
+          if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+            removeQueuedPosSale(entry.id);
+          }
+        }
+      }
+      refreshOfflineCount();
+      if (synced > 0) {
+        toast({
+          title: "Offline sales synced",
+          description: `${synced} queued sale${synced === 1 ? "" : "s"} posted.`,
+          variant: "success",
+        });
+        queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
+        queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
+        queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
+      }
+      if (failed > 0) {
+        toast({
+          title: "Some offline sales are still pending",
+          description: `${failed} item${failed === 1 ? "" : "s"} will retry on next sync.`,
+          variant: "warning",
+        });
+      }
+    } finally {
+      setSyncOfflineSalesPending(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshOfflineCount();
+    const onOnline = () => {
+      void syncOfflineSales();
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const saleMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (payload: PosSaleQueuePayload) =>
       fetchJson<CompletedSale>("/api/v2/retail/pos/sales", {
         method: "POST",
-        body: JSON.stringify({
-          shiftId: currentShift?.id,
-          siteId,
-          customerName: customerName.trim() || undefined,
-          discountAmount: Number(orderDiscountAmount || "0") || undefined,
-          overrideReason: overrideReason.trim() || undefined,
-          promotionId: selectedPromotionId || undefined,
-          items: cart.map((item) => ({
-            catalogItemId: item.catalogItemId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discountAmount: item.lineDiscountAmount ?? 0,
-          })),
-          payments: paymentSummary.parsed.map((payment) => ({
-            tenderType: payment.tenderType,
-            amount: payment.amountValue,
-            reference: payment.reference.trim() || undefined,
-          })),
-        }),
+        body: JSON.stringify(payload),
       }),
     onSuccess: (data) => {
       setLastCompletedSale(data);
@@ -226,12 +327,30 @@ export function PosPortalProvider({
       queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
       router.prefetch(getPosPortalHref("history", isPosHost));
     },
-    onError: (error) =>
+    onError: (error, payload) => {
+      const message = getApiErrorMessage(error);
+      const isNetworkError =
+        !(error instanceof ApiError) &&
+        /network|failed to fetch|load failed/i.test(message);
+
+      if (isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        queuePosSale(payload);
+        refreshOfflineCount();
+        clearCart();
+        toast({
+          title: "Sale queued offline",
+          description: "This sale will auto-sync when the connection is back.",
+          variant: "warning",
+        });
+        return;
+      }
+
       toast({
         title: "Unable to post sale",
-        description: getApiErrorMessage(error),
+        description: message,
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   const value: PosPortalStateValue = {
@@ -240,6 +359,10 @@ export function PosPortalProvider({
     cart,
     customerName,
     setCustomerName,
+    customerPhone,
+    setCustomerPhone,
+    customerEmail,
+    setCustomerEmail,
     payments,
     setPayments,
     orderDiscountAmount,
@@ -291,6 +414,8 @@ export function PosPortalProvider({
     replaceCartFromHeld: (input) => {
       setCart((input.items ?? []).map((item) => ({ ...item })));
       setCustomerName(input.customerName ?? "");
+      setCustomerPhone("");
+      setCustomerEmail("");
       setPayments([{ tenderType: "CASH", amount: "", reference: "" }]);
       setOrderDiscountAmount(input.orderDiscountAmount ?? "");
       setSelectedPromotionId(input.selectedPromotionId ?? "");
@@ -305,8 +430,17 @@ export function PosPortalProvider({
     changeAmount: paymentSummary.changeAmount,
     tenderedTotal: paymentSummary.tenderedTotal,
     nonCashTotal: paymentSummary.nonCashTotal,
-    postSale: () => saleMutation.mutate(),
+    postSale: () => {
+      const payload = buildSalePayload();
+      if (!payload) return;
+      saleMutation.mutate(payload);
+    },
     postSalePending: saleMutation.isPending,
+    pendingOfflineSales,
+    syncOfflineSales: () => {
+      void syncOfflineSales();
+    },
+    syncOfflineSalesPending,
     lastCompletedSale,
     dismissCompletedSale: () => setLastCompletedSale(null),
   };

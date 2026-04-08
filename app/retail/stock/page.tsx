@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
-import { BarChart3, Package, ReceiptLong, TableRows } from "@/lib/icons";
+import { BarChart3, LocalShipping, Package, ReceiptLong, Scale, TableRows } from "@/lib/icons";
 
 type RetailDashboardPayload = {
   summary: {
@@ -102,6 +102,18 @@ export default function RetailStockPage() {
             <Link href="/stores/inventory">
               <Package className="h-4 w-4" />
               Store stock
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/retail/stock/count">
+              <Scale className="h-4 w-4" />
+              Stock count
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+              <Link href="/retail/stock/transfers">
+              <LocalShipping className="h-4 w-4" />
+              Transfers
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">

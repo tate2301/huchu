@@ -12,13 +12,19 @@ import { fetchJson } from "@/lib/api-client";
 import { BarChart3, Payments, ReceiptLong } from "@/lib/icons";
 
 type RetailDashboardPayload = {
-  recentSales: Array<{
-    id: string;
-    saleNo: string;
-    customerName: string | null;
-    postedAt: string;
-    totalAmount: number;
+  data: Array<{
+    customerName: string;
+    visits: number;
+    lastPurchaseAt: string;
+    lastSaleNo: string;
+    totalSpend: number;
+    loyaltyPoints: number;
+    loyaltyTier: string;
   }>;
+  summary: {
+    namedCustomerCount: number;
+    totalLoyaltyPoints: number;
+  };
 };
 
 type CustomerRow = {
@@ -27,6 +33,8 @@ type CustomerRow = {
   lastPurchaseAt: string;
   lastSaleNo: string;
   totalSpend: number;
+  loyaltyPoints: number;
+  loyaltyTier: string;
 };
 
 function money(value: number) {
@@ -40,36 +48,13 @@ function money(value: number) {
 export default function RetailCustomersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["retail-customers-overview"],
-    queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
+    queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail/customers"),
   });
 
-  const customerRows = useMemo<CustomerRow[]>(() => {
-    const byName = new Map<string, CustomerRow>();
-
-    for (const sale of data?.recentSales ?? []) {
-      const customerName = sale.customerName?.trim() || "Walk-in";
-      const existing = byName.get(customerName);
-      if (!existing) {
-        byName.set(customerName, {
-          customerName,
-          visits: 1,
-          lastPurchaseAt: sale.postedAt,
-          lastSaleNo: sale.saleNo,
-          totalSpend: sale.totalAmount,
-        });
-        continue;
-      }
-
-      existing.visits += 1;
-      existing.totalSpend += sale.totalAmount;
-      if (new Date(sale.postedAt).getTime() > new Date(existing.lastPurchaseAt).getTime()) {
-        existing.lastPurchaseAt = sale.postedAt;
-        existing.lastSaleNo = sale.saleNo;
-      }
-    }
-
-    return Array.from(byName.values()).sort((left, right) => right.totalSpend - left.totalSpend);
-  }, [data?.recentSales]);
+  const customerRows = useMemo<CustomerRow[]>(
+    () => (data?.data ?? []).sort((left, right) => right.totalSpend - left.totalSpend),
+    [data?.data],
+  );
 
   const columns = useMemo<ColumnDef<CustomerRow>[]>(
     () => [
@@ -101,6 +86,15 @@ export default function RetailCustomersPage() {
         id: "totalSpend",
         header: "Spend",
         cell: ({ row }) => <NumericCell>{money(row.original.totalSpend)}</NumericCell>,
+      },
+      {
+        id: "loyaltyPoints",
+        header: "Loyalty",
+        cell: ({ row }) => (
+          <NumericCell>
+            {row.original.loyaltyPoints} ({row.original.loyaltyTier})
+          </NumericCell>
+        ),
       },
     ],
     [],
@@ -139,15 +133,15 @@ export default function RetailCustomersPage() {
             Named customers
           </div>
           <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {customerRows.filter((row) => row.customerName !== "Walk-in").length}
+            {data?.summary.namedCustomerCount ?? 0}
           </div>
         </div>
         <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Recent touchpoints
+            Loyalty points
           </div>
           <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {data?.recentSales.length ?? 0}
+            {data?.summary.totalLoyaltyPoints ?? 0}
           </div>
         </div>
         <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">

@@ -48,7 +48,7 @@ export const RETAIL_OPERATIONS_SECTIONS = {
   overview: ["/retail"],
   sell: ["/retail/sell"],
   merchandise: ["/retail/merchandise"],
-  stock: ["/retail/stock"],
+  stock: ["/retail/stock", "/retail/stock/count", "/retail/stock/transfers"],
   buy: ["/retail/buy"],
   customers: ["/retail/customers"],
   "cash-control": ["/retail/cash-control", "/retail/shifts"],

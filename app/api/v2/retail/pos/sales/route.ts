@@ -47,6 +47,8 @@ const saleSchema = z.object({
   shiftId: z.string().uuid(),
   siteId: z.string().uuid(),
   customerName: z.string().max(200).optional().nullable(),
+  customerPhone: z.string().max(40).optional().nullable(),
+  customerEmail: z.string().email().max(200).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   discountAmount: z.number().min(0).optional(),
   overrideReason: z.string().max(240).optional().nullable(),
@@ -72,6 +74,47 @@ function inPromotionWindow(promotion: {
   if (promotion.startsAt && promotion.startsAt > now) return false;
   if (promotion.endsAt && promotion.endsAt < now) return false;
   return true;
+}
+
+const TENDERS_REQUIRING_REFERENCE = new Set(["CARD", "MOBILE_MONEY"]);
+
+function normalizePhone(input: string | null | undefined) {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/[^\d+]/g, "");
+  if (normalized.length < 7) {
+    throw new Error("Customer phone number looks invalid.");
+  }
+  return normalized;
+}
+
+function normalizeEmail(input: string | null | undefined) {
+  if (!input) return null;
+  const trimmed = input.trim().toLowerCase();
+  return trimmed || null;
+}
+
+function getLoyaltyTier(points: number) {
+  if (points >= 2_000) return "GOLD";
+  if (points >= 500) return "SILVER";
+  return "BRONZE";
+}
+
+function validateTenderReferences(
+  payments: Array<{ tenderType: string; reference: string | null }>,
+) {
+  for (const payment of payments) {
+    if (!TENDERS_REQUIRING_REFERENCE.has(payment.tenderType)) continue;
+    const reference = payment.reference?.trim() ?? "";
+    if (reference.length < 4) {
+      return `${payment.tenderType.replaceAll("_", " ")} reference is required`;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9\-/_ ]*$/.test(reference)) {
+      return `${payment.tenderType.replaceAll("_", " ")} reference format is invalid`;
+    }
+  }
+  return null;
 }
 
 function mapSales(
@@ -475,6 +518,10 @@ export async function POST(request: NextRequest) {
       amount: round(payment.amount),
       reference: payment.reference?.trim() || null,
     }));
+    const paymentReferenceError = validateTenderReferences(normalizedPayments);
+    if (paymentReferenceError) {
+      return errorResponse(paymentReferenceError, 400);
+    }
     const tenderedAmount = round(
       normalizedPayments.reduce((total, payment) => total + payment.amount, 0),
     );
@@ -500,6 +547,67 @@ export async function POST(request: NextRequest) {
     const cashDue = round(Math.max(totalAmount - nonCashTotal, 0));
     const changeAmount = round(Math.max(cashTotal - cashDue, 0));
     const netCash = getCashNetFromPayments(normalizedPayments, changeAmount);
+    const customerPhone = normalizePhone(input.customerPhone);
+    const customerEmail = normalizeEmail(input.customerEmail);
+    const requestedCustomerName = input.customerName?.trim() || null;
+    let capturedCustomer:
+      | {
+          id: string;
+          name: string;
+          phone: string | null;
+          email: string | null;
+        }
+      | null = null;
+    let resolvedCustomerName = requestedCustomerName;
+
+    if (requestedCustomerName || customerPhone || customerEmail) {
+      const fallbackName = customerPhone ? `Customer ${customerPhone}` : customerEmail ?? null;
+      const customerName = requestedCustomerName || fallbackName;
+      if (customerName) {
+        const existingCustomer = await prisma.customer.findFirst({
+          where: {
+            companyId: session.user.companyId,
+            OR: [
+              ...(customerPhone ? [{ phone: customerPhone }] : []),
+              ...(customerEmail ? [{ email: customerEmail }] : []),
+              ...(requestedCustomerName
+                ? [{ name: { equals: requestedCustomerName, mode: "insensitive" as const } }]
+                : []),
+            ],
+          },
+          select: { id: true, name: true, phone: true, email: true },
+        });
+
+        capturedCustomer = existingCustomer
+          ? await prisma.customer.update({
+              where: { id: existingCustomer.id },
+              data: {
+                ...(requestedCustomerName && existingCustomer.name !== requestedCustomerName
+                  ? { name: requestedCustomerName }
+                  : {}),
+                ...(customerPhone && existingCustomer.phone !== customerPhone
+                  ? { phone: customerPhone }
+                  : {}),
+                ...(customerEmail && existingCustomer.email !== customerEmail
+                  ? { email: customerEmail }
+                  : {}),
+              },
+              select: { id: true, name: true, phone: true, email: true },
+            })
+          : await prisma.customer.create({
+              data: {
+                companyId: session.user.companyId,
+                name: customerName,
+                phone: customerPhone,
+                email: customerEmail,
+                contactName: requestedCustomerName || undefined,
+              },
+              select: { id: true, name: true, phone: true, email: true },
+            });
+        resolvedCustomerName = capturedCustomer.name;
+      }
+    }
+
     const providedCode = input.saleNo
       ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
       : null;
@@ -523,7 +631,7 @@ export async function POST(request: NextRequest) {
               siteId: site.id,
               cashierId: session.user.id,
               cashierName: session.user.name || session.user.email || "Cashier",
-              customerName: input.customerName?.trim() || null,
+              customerName: resolvedCustomerName,
               subtotal,
               discountAmount: totalDiscount,
               taxAmount,
@@ -615,6 +723,24 @@ export async function POST(request: NextRequest) {
           console.error("[Accounting] Retail sale posting failed:", error);
         }
 
+        const customerNetSpend =
+          resolvedCustomerName && resolvedCustomerName !== "Walk-in"
+            ? await prisma.retailSale.aggregate({
+                where: {
+                  companyId: session.user.companyId,
+                  customerName: resolvedCustomerName,
+                  status: "POSTED",
+                },
+                _sum: { totalAmount: true },
+              })
+            : null;
+        const loyaltyPointsEarned =
+          resolvedCustomerName && sale.totalAmount > 0 ? Math.floor(sale.totalAmount) : 0;
+        const loyaltyPointsBalance = Math.max(
+          Math.floor(customerNetSpend?._sum.totalAmount ?? 0),
+          0,
+        );
+
         return successResponse({
           id: sale.id,
           saleNo: sale.saleNo,
@@ -637,6 +763,16 @@ export async function POST(request: NextRequest) {
           promotionCode: sale.promotionCode,
           overrideReason: sale.overrideReason,
           notes: sale.notes,
+          customerPhone: capturedCustomer?.phone ?? customerPhone,
+          customerEmail: capturedCustomer?.email ?? customerEmail,
+          loyalty:
+            resolvedCustomerName && resolvedCustomerName !== "Walk-in"
+              ? {
+                  pointsEarned: loyaltyPointsEarned,
+                  pointsBalance: loyaltyPointsBalance,
+                  tier: getLoyaltyTier(loyaltyPointsBalance),
+                }
+              : null,
         }, 201);
       } catch (error) {
         if (
@@ -647,6 +783,38 @@ export async function POST(request: NextRequest) {
           error.meta.target.includes("saleNo")
         ) {
           if (providedCode) {
+            const existing = await prisma.retailSale.findFirst({
+              where: {
+                companyId: session.user.companyId,
+                saleNo: providedCode,
+              },
+              include: { lines: true, payments: true },
+            });
+            if (existing) {
+              return successResponse({
+                id: existing.id,
+                saleNo: existing.saleNo,
+                saleType: existing.saleType,
+                status: existing.status,
+                postedAt: existing.postedAt ?? existing.createdAt,
+                shiftId: existing.shiftId,
+                siteId: existing.siteId,
+                cashierId: existing.cashierId,
+                cashierName: existing.cashierName,
+                customerName: existing.customerName,
+                subtotal: existing.subtotal,
+                discountAmount: existing.discountAmount,
+                taxAmount: existing.taxAmount,
+                totalAmount: existing.totalAmount,
+                tenderedAmount: existing.tenderedAmount,
+                changeAmount: existing.changeAmount,
+                payments: existing.payments,
+                lines: existing.lines,
+                promotionCode: existing.promotionCode,
+                overrideReason: existing.overrideReason,
+                notes: existing.notes,
+              });
+            }
             return errorResponse("Sale number already exists", 409);
           }
           continue;

@@ -34,6 +34,24 @@ function round(value: number) {
   return Number(value.toFixed(2));
 }
 
+const TENDERS_REQUIRING_REFERENCE = new Set(["CARD", "MOBILE_MONEY"]);
+
+function validateTenderReferences(
+  payments: Array<{ tenderType: string; reference: string | null }>,
+) {
+  for (const payment of payments) {
+    if (!TENDERS_REQUIRING_REFERENCE.has(payment.tenderType)) continue;
+    const reference = payment.reference?.trim() ?? "";
+    if (reference.length < 4) {
+      return `${payment.tenderType.replaceAll("_", " ")} reference is required`;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9\-/_ ]*$/.test(reference)) {
+      return `${payment.tenderType.replaceAll("_", " ")} reference format is invalid`;
+    }
+  }
+  return null;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -99,6 +117,10 @@ export async function POST(
       amount: round(payment.amount),
       reference: payment.reference?.trim() || null,
     }));
+    const paymentReferenceError = validateTenderReferences(refundPayments);
+    if (paymentReferenceError) {
+      return errorResponse(paymentReferenceError, 400);
+    }
     const negativePayments = refundPayments.map((payment) => ({
       ...payment,
       amount: -payment.amount,
