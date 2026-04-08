@@ -36,12 +36,12 @@ The wildcard host is the key isolation enabler for all terminal surfaces under t
 
 Set these in your deployment environment (admin API runtime):
 - `PLATFORM_ROOT_DOMAIN` (example: `apps.pagka.dev`)
-- `VERCEL_TOKEN`
-- `VERCEL_PROJECT_ID`
-- `VERCEL_TEAM_ID`
+- `PLATFORM_VERCEL_TOKEN`
+- `PLATFORM_VERCEL_PROJECT_ID`
+- `PLATFORM_VERCEL_TEAM_ID`
 
 Fallback behavior:
-- If `VERCEL_PROJECT_ID` and `VERCEL_TEAM_ID` are not set, the system tries `.vercel/project.json`.
+- If `PLATFORM_VERCEL_PROJECT_ID` and `PLATFORM_VERCEL_TEAM_ID` are not set, the system tries `.vercel/project.json`.
 - If credentials/context are missing, org provisioning still succeeds, but domain provisioning is skipped with warnings.
 
 ## Operational Notes

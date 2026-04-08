@@ -50,11 +50,9 @@ async function readLinkedProjectConfig(): Promise<VercelProjectConfig | null> {
 }
 
 async function resolveVercelContext() {
-  const envProjectId = String(process.env.VERCEL_PROJECT_ID || "").trim();
-  const envTeamId = String(process.env.VERCEL_TEAM_ID || "").trim();
-  const token =
-    String(process.env.VERCEL_TOKEN || "").trim() ||
-    String(process.env.VERCEL_AUTH_TOKEN || "").trim();
+  const envProjectId = String(process.env.PLATFORM_VERCEL_PROJECT_ID || "").trim();
+  const envTeamId = String(process.env.PLATFORM_VERCEL_TEAM_ID || "").trim();
+  const token = String(process.env.PLATFORM_VERCEL_TOKEN || "").trim();
 
   if (envProjectId && envTeamId) {
     return { projectId: envProjectId, teamId: envTeamId, token };
@@ -142,7 +140,7 @@ export async function provisionTenantSurfaceDomains(
   const { projectId, teamId, token } = await resolveVercelContext();
   if (!projectId || !teamId || !token) {
     warnings.push(
-      "Missing Vercel provisioning credentials (VERCEL_PROJECT_ID, VERCEL_TEAM_ID, VERCEL_TOKEN). Skipped wildcard domain provisioning.",
+      "Missing Vercel provisioning credentials (PLATFORM_VERCEL_PROJECT_ID, PLATFORM_VERCEL_TEAM_ID, PLATFORM_VERCEL_TOKEN). Skipped wildcard domain provisioning.",
     );
     return { provisionedDomains, warnings, provisioned: false, providerRef: null };
   }
@@ -165,4 +163,3 @@ export async function provisionTenantSurfaceDomains(
   const providerRef = provisionedDomains.length > 0 ? provisionedDomains.join(",") : null;
   return { provisionedDomains, warnings, provisioned, providerRef };
 }
-

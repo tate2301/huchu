@@ -60,7 +60,7 @@ Added/used these workspace entry routes:
 - Deployment attempt via Vercel CLI reached project retrieval but failed with invalid token.
 
 Required action to complete deployment on this machine:
-1. Run `vercel login` (or set a valid `VERCEL_TOKEN`).
+1. Run `vercel login` (or pass a valid CLI token via `vercel --token`).
 2. Re-run `vercel --prod --yes`.
 
 ## Recommended Next Slice
