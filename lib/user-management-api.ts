@@ -1,6 +1,7 @@
 import { fetchJson } from "@/lib/api-client";
+import type { UserRole } from "@/lib/roles";
 
-export type ManagedUserRole = "MANAGER" | "CLERK";
+export type ManagedUserRole = UserRole;
 
 export type ManagedUserSummary = {
   id: string;

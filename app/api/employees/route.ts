@@ -11,6 +11,8 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/hr-payroll"
 import { EMPLOYEE_POSITION_VALUES, getDefaultEmployeePosition } from "@/lib/platform/vertical-defaults"
+import { getAllowedUserRolesForWorkspace, resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles"
+import { ROLES, type UserRole } from "@/lib/roles"
 import { EmployeeModule, Prisma } from "@prisma/client"
 
 const EMPLOYEE_MODULE_INPUT_VALUES = [
@@ -59,16 +61,9 @@ const employeeSchema = z.object({
       z.object({
         module: z.enum(EMPLOYEE_MODULE_INPUT_VALUES),
         accessRole: z
-          .enum([
-            "MANAGER",
-            "CLERK",
-            "SALES_EXEC",
-            "AUTO_MANAGER",
-            "FINANCE_OFFICER",
-            "SHOP_MANAGER",
-            "CASHIER",
-            "STOCK_CLERK",
-          ])
+          .string()
+          .trim()
+          .min(1)
           .optional(),
         requiresUserAccess: z.boolean().optional(),
         isPrimary: z.boolean().optional(),
@@ -81,16 +76,9 @@ const employeeSchema = z.object({
   userEmail: z.string().email().max(320).optional(),
   userPassword: z.string().min(8).max(200).optional(),
   userRole: z
-    .enum([
-      "MANAGER",
-      "CLERK",
-      "SALES_EXEC",
-      "AUTO_MANAGER",
-      "FINANCE_OFFICER",
-      "SHOP_MANAGER",
-      "CASHIER",
-      "STOCK_CLERK",
-    ])
+    .string()
+    .trim()
+    .min(1)
     .optional(),
 })
 
@@ -109,37 +97,19 @@ const ALLOWED_MODULES_BY_WORKSPACE: Record<
   GENERAL: ["HR", "SCRAP_METAL", "CAR_SALES", "RETAIL"],
 }
 
-const ALLOWED_ROLES_BY_WORKSPACE: Record<
-  string,
-  Array<
-    | "MANAGER"
-    | "CLERK"
-    | "SALES_EXEC"
-    | "AUTO_MANAGER"
-    | "FINANCE_OFFICER"
-    | "SHOP_MANAGER"
-    | "CASHIER"
-    | "STOCK_CLERK"
-  >
-> = {
-  GOLD_MINE: ["MANAGER", "CLERK", "FINANCE_OFFICER"],
-  SCRAP_METAL: ["MANAGER", "CLERK", "CASHIER", "FINANCE_OFFICER"],
-  AUTOS: ["MANAGER", "CLERK", "SALES_EXEC", "AUTO_MANAGER", "FINANCE_OFFICER"],
-  RETAIL: ["MANAGER", "CLERK", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"],
-  SCHOOLS: ["MANAGER", "CLERK", "FINANCE_OFFICER"],
-  GENERAL: ["MANAGER", "CLERK", "FINANCE_OFFICER"],
-}
-
-function normalizeWorkspaceProfile(value: string | undefined) {
-  const normalized = String(value ?? "").trim().toUpperCase()
-  if (normalized in ALLOWED_MODULES_BY_WORKSPACE) return normalized
-  return "GENERAL"
-}
-
 function normalizeEmployeeModule(
   module: EmployeeModuleInput,
 ): "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL" {
   return module === "THRIFT" ? "RETAIL" : module
+}
+
+function toUserRoleOrNull(value: string | undefined): UserRole | null {
+  if (!value) return null
+  const normalized = value.trim().toUpperCase()
+  if ((ROLES as readonly string[]).includes(normalized)) {
+    return normalized as UserRole
+  }
+  return null
 }
 
 async function generateEmployeeId(companyId: string) {
@@ -380,19 +350,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const workspaceProfile = normalizeWorkspaceProfile(
-      (session.user as { workspaceProfile?: string }).workspaceProfile,
+    const workspaceProfile = resolveWorkspaceProfileForRoles({
+      workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
+      enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+    })
+    const allowedRoles = new Set(
+      getAllowedUserRolesForWorkspace({
+        workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
+        enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+      }),
     )
-    const allowedRoles = new Set(ALLOWED_ROLES_BY_WORKSPACE[workspaceProfile])
 
+    const requestedUserRole = toUserRoleOrNull(validated.userRole)
     if (validated.createUserAccount) {
       if (session.user.role !== "SUPERADMIN") {
         return errorResponse("Only superadmins can provision linked user accounts during onboarding", 403)
       }
-      if (!validated.userEmail || !validated.userPassword || !validated.userRole) {
+      if (!validated.userEmail || !validated.userPassword || !requestedUserRole) {
         return errorResponse("Linked user email, password, and role are required", 400)
       }
-      if (!allowedRoles.has(validated.userRole)) {
+      if (!allowedRoles.has(requestedUserRole)) {
         return errorResponse("Selected user role is not available for this workspace", 400)
       }
       const existingUser = await prisma.user.findFirst({
@@ -419,6 +396,7 @@ export async function POST(request: NextRequest) {
             isPrimary: assignment.isPrimary ?? (index === 0 || assignment.module === "HR"),
             isActive: assignment.isActive ?? true,
             requiresUserAccess: assignment.requiresUserAccess ?? validated.createUserAccount ?? false,
+            accessRole: toUserRoleOrNull(assignment.accessRole) ?? undefined,
           },
         ]),
       ).values(),
@@ -430,6 +408,7 @@ export async function POST(request: NextRequest) {
         isPrimary: true,
         isActive: true,
         requiresUserAccess: validated.createUserAccount ?? false,
+        accessRole: undefined,
       })
     }
 
@@ -446,7 +425,7 @@ export async function POST(request: NextRequest) {
 
     const result = await prisma.$transaction(async (tx) => {
       let linkedUserId: string | undefined
-      if (validated.createUserAccount && validated.userEmail && validated.userPassword && validated.userRole) {
+      if (validated.createUserAccount && validated.userEmail && validated.userPassword && requestedUserRole) {
         const passwordHash = await bcrypt.hash(validated.userPassword, 12)
         const user = await tx.user.create({
           data: {
@@ -454,7 +433,7 @@ export async function POST(request: NextRequest) {
             name: validated.name,
             email: validated.userEmail.trim().toLowerCase(),
             password: passwordHash,
-            role: validated.userRole,
+            role: requestedUserRole as Prisma.UserCreateInput["role"],
             isActive: validated.isActive ?? true,
             phone: validated.phone,
           },

@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
       return errorResponse("User not found for this organization.", 404);
     }
 
-    if (!isManagedRole(existing.role)) {
-      return errorResponse("Only MANAGER and CLERK accounts can be managed here.", 403);
+    if (!isManagedRole(session, existing.role)) {
+      return errorResponse("Only SUPERADMIN, MANAGER, and OPERATOR accounts can be managed here.", 403);
     }
 
     const passwordHash = await bcrypt.hash(validated.newPassword, 12);

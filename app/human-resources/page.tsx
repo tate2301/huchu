@@ -47,6 +47,7 @@ import {
   getEmployeePositionOptions,
   type EmployeePositionValue,
 } from "@/lib/platform/vertical-defaults"
+import { resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles"
 
 const employmentTypes = [
   { value: "FULL_TIME", label: "Full Time" },
@@ -75,8 +76,14 @@ const ALLOWED_ACCESS_MODULES_BY_WORKSPACE: Record<string, string[]> = {
   GENERAL: ["HR", "SCRAP_METAL", "CAR_SALES", "RETAIL"],
 }
 
-function normalizeWorkspaceProfile(value: string | null | undefined) {
-  const normalized = String(value || "").trim().toUpperCase()
+function normalizeWorkspaceProfile(
+  value: string | null | undefined,
+  enabledFeatures: string[] | undefined,
+) {
+  const normalized = resolveWorkspaceProfileForRoles({
+    workspaceProfile: value,
+    enabledFeatures,
+  })
   if (normalized in ALLOWED_ACCESS_MODULES_BY_WORKSPACE) return normalized
   return "GENERAL"
 }
@@ -175,8 +182,8 @@ export default function HumanResourcesPage() {
   )
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
   const normalizedWorkspaceProfile = useMemo(
-    () => normalizeWorkspaceProfile(workspaceProfile),
-    [workspaceProfile],
+    () => normalizeWorkspaceProfile(workspaceProfile, enabledFeatures),
+    [enabledFeatures, workspaceProfile],
   )
   const allowedAccessModules = useMemo(
     () => new Set(ALLOWED_ACCESS_MODULES_BY_WORKSPACE[normalizedWorkspaceProfile]),

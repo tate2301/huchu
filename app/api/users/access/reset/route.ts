@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
     if (!user || user.companyId !== session.user.companyId) {
       return errorResponse("User not found for this organization.", 404);
     }
-    if (!isManagedRole(user.role)) {
-      return errorResponse("Only MANAGER and CLERK accounts can be managed here.", 403);
+    if (!isManagedRole(session, user.role)) {
+      return errorResponse("Only SUPERADMIN, MANAGER, and OPERATOR accounts can be managed here.", 403);
     }
 
     await clearUserFeatureOverrides(user.id);

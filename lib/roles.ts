@@ -2,6 +2,7 @@ export const ROLES = [
   "SUPERADMIN",
   "MANAGER",
   "CLERK",
+  "OPERATOR",
   "SCHOOL_ADMIN",
   "REGISTRAR",
   "BURSAR",

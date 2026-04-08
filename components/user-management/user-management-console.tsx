@@ -53,6 +53,7 @@ import {
   UserX,
 } from "@/lib/icons";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { getAllowedUserRoleOptionsForWorkspace } from "@/lib/platform/vertical-roles";
 
 export type UserManagementMode =
   | "directory"
@@ -61,7 +62,7 @@ export type UserManagementMode =
   | "password-reset"
   | "role-change";
 
-type RoleFilter = "MANAGED" | "MANAGER" | "CLERK";
+type RoleFilter = "MANAGED" | ManagedUserRole;
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 type FeatureAccessBlockedReason = "COMPANY_DISABLED" | "TEMPLATE_BLOCKED";
 type ManagedUserTargetBase = {
@@ -74,23 +75,23 @@ const USER_FEATURE_ACCESS_KEY = "admin.user-management.feature-access";
 const modeMeta: Record<UserManagementMode, { title: string; description: string }> = {
   directory: {
     title: "User Directory",
-    description: "Browse manager and clerk accounts for this organization.",
+    description: "Browse managed user accounts for this organization.",
   },
   create: {
     title: "Create User",
-    description: "Provision new manager or clerk accounts.",
+    description: "Provision new managed user accounts.",
   },
   status: {
     title: "User Status",
-    description: "Activate or deactivate manager and clerk accounts.",
+    description: "Activate or deactivate managed user accounts.",
   },
   "password-reset": {
     title: "Reset User Password",
-    description: "Reset credentials for manager and clerk users.",
+    description: "Reset credentials for managed users.",
   },
   "role-change": {
     title: "Change User Role",
-    description: "Move users between manager and clerk roles.",
+    description: "Assign roles for managed users.",
   },
 };
 
@@ -101,12 +102,17 @@ function formatTimestamp(value: string | undefined): string {
   return date.toLocaleString();
 }
 
-function defaultRoleForMode(mode: UserManagementMode): ManagedUserRole {
-  return mode === "create" ? "CLERK" : "MANAGER";
+function defaultRoleForMode(mode: UserManagementMode, roles: ManagedUserRole[]): ManagedUserRole {
+  if (mode === "create" && roles.includes("OPERATOR")) return "OPERATOR";
+  if (roles.includes("MANAGER")) return "MANAGER";
+  return roles[0] ?? "MANAGER";
 }
 
-function toManagedRole(role: string | undefined): ManagedUserRole | null {
-  if (role === "MANAGER" || role === "CLERK") return role;
+function toManagedRole(
+  role: string | undefined,
+  managedRoles: ManagedUserRole[],
+): ManagedUserRole | null {
+  if (role && managedRoles.includes(role as ManagedUserRole)) return role as ManagedUserRole;
   return null;
 }
 
@@ -122,6 +128,20 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
   const { data: session } = useSession();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
   const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+
+  const managedRoleOptions = React.useMemo(
+    () =>
+      getAllowedUserRoleOptionsForWorkspace({
+        workspaceProfile,
+        enabledFeatures,
+      }).filter((role) => role.value !== "CLERK") as Array<{ value: ManagedUserRole; label: string }>,
+    [enabledFeatures, workspaceProfile],
+  );
+  const managedRoles = React.useMemo(
+    () => managedRoleOptions.map((role) => role.value),
+    [managedRoleOptions],
+  );
 
   const canView =
     sessionRole === "SUPERADMIN" ||
@@ -156,7 +176,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
     name: "",
     email: "",
     password: "",
-    role: defaultRoleForMode(mode),
+    role: defaultRoleForMode(mode, managedRoles),
   });
 
   const [statusTarget, setStatusTarget] = React.useState<
@@ -186,6 +206,15 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
     }
   }, [canMutate, mode]);
 
+  React.useEffect(() => {
+    if (!managedRoles.includes(createDraft.role)) {
+      setCreateDraft((current) => ({
+        ...current,
+        role: defaultRoleForMode(mode, managedRoles),
+      }));
+    }
+  }, [createDraft.role, managedRoles, mode]);
+
   const featureTargetUserId = featureTarget?.userId;
 
   React.useEffect(() => {
@@ -211,7 +240,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
       fetchManagedUsers({
         role:
           roleFilter === "MANAGED"
-            ? "MANAGER,CLERK"
+            ? managedRoles.join(",")
             : roleFilter,
         active:
           statusFilter === "ALL"
@@ -221,7 +250,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
         page: queryState.page,
         limit: queryState.pageSize,
       }),
-    enabled: canView,
+    enabled: canView && managedRoles.length > 0,
   });
 
   const users = React.useMemo(() => usersQuery.data?.data ?? [], [usersQuery.data?.data]);
@@ -256,7 +285,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
         name: "",
         email: "",
         password: "",
-        role: defaultRoleForMode(mode),
+        role: defaultRoleForMode(mode, managedRoles),
       });
       refreshUsers();
     },
@@ -495,7 +524,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
           id: "actions",
           header: "Actions",
           cell: ({ row }) => {
-            const managedRole = toManagedRole(row.original.role);
+            const managedRole = toManagedRole(row.original.role, managedRoles);
             const rowActions: Array<{
               key: string;
               label: string;
@@ -540,7 +569,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                   setRoleTarget({
                     userId: row.original.id,
                     userEmail: row.original.email,
-                    role: row.original.role === "MANAGER" ? "CLERK" : "MANAGER",
+                    role: managedRole ?? defaultRoleForMode(mode, managedRoles),
                   }),
               });
             }
@@ -614,20 +643,22 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
       actionsVisible.role,
       actionsVisible.status,
       canMutate,
+      managedRoles,
+      mode,
     ],
   );
 
   const heading = modeMeta[mode];
   const openFeatureAccessFromFirstManagedUser = React.useCallback(() => {
-    const firstManagedUser = users.find((user) => toManagedRole(user.role));
-    const managedRole = toManagedRole(firstManagedUser?.role);
+    const firstManagedUser = users.find((user) => toManagedRole(user.role, managedRoles));
+    const managedRole = toManagedRole(firstManagedUser?.role, managedRoles);
     if (!firstManagedUser || !managedRole) return;
     setFeatureTarget({
       userId: firstManagedUser.id,
       userEmail: firstManagedUser.email,
       role: managedRole,
     });
-  }, [users]);
+  }, [managedRoles, users]);
 
   const showHeaderActions = canMutate && (mode === "directory" || mode === "create");
   const headerActions = showHeaderActions ? (
@@ -672,7 +703,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                 setRoleTarget({
                   userId: "",
                   userEmail: "",
-                  role: "CLERK",
+                  role: defaultRoleForMode(mode, managedRoles),
                 })}
             >
               <ArrowRightLeft className="h-4 w-4" />
@@ -771,8 +802,11 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MANAGED">All Managed Roles</SelectItem>
-                  <SelectItem value="MANAGER">Managers</SelectItem>
-                  <SelectItem value="CLERK">Clerks</SelectItem>
+                  {managedRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}s
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -801,7 +835,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
         <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Create User</DialogTitle>
-            <DialogDescription>Create a manager or clerk account.</DialogDescription>
+            <DialogDescription>Create a superadmin, manager, or operator account.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -850,8 +884,11 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
-                  <SelectItem value="CLERK">Clerk</SelectItem>
+                  {managedRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1100,7 +1137,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                           ...current,
                           userId: selected.id,
                           userEmail: selected.email,
-                          role: selected.role === "MANAGER" ? "CLERK" : "MANAGER",
+                          role: toManagedRole(selected.role, managedRoles) ?? defaultRoleForMode(mode, managedRoles),
                         }
                       : current);
                 }}
@@ -1122,7 +1159,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
             <div>
               <label className="mb-2 block text-sm font-semibold">Role</label>
               <Select
-                value={roleTarget?.role ?? "CLERK"}
+                value={roleTarget?.role ?? defaultRoleForMode(mode, managedRoles)}
                 onValueChange={(value) =>
                   setRoleTarget((current) =>
                     current
@@ -1136,8 +1173,11 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
-                  <SelectItem value="CLERK">Clerk</SelectItem>
+                  {managedRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

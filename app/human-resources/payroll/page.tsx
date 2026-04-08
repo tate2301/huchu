@@ -29,8 +29,8 @@ export default async function PayrollRootPage({
   searchParams: Promise<SearchParams>
 }) {
   const session = await getServerSession(authOptions)
-  const role = session?.user?.role
   const companyId = session?.user?.companyId
+  const workspaceProfile = session?.user?.workspaceProfile
   const resolvedSearchParams = await searchParams
 
   if (!session?.user?.id || !companyId) {
@@ -38,7 +38,9 @@ export default async function PayrollRootPage({
   }
 
   let targetPath =
-    role === "CLERK" ? "/human-resources/payroll/salary" : "/human-resources/payroll/gold"
+    workspaceProfile === "GOLD_MINE"
+      ? "/human-resources/payroll/gold"
+      : "/human-resources/payroll/salary"
 
   const runId = firstValue(resolvedSearchParams.runId)
   const adjustmentId = firstValue(resolvedSearchParams.adjustmentId)

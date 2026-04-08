@@ -8,8 +8,7 @@ import {
   paginationResponse,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-
-const USER_ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const
+import { getManagedRolesForSession } from "./_helpers"
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,18 +29,20 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
     }
 
+    const managedRoles = getManagedRolesForSession(session)
+
     if (role) {
       const normalizedRoles = role
         .split(",")
         .map((value) => value.trim().toUpperCase())
-        .filter((value): value is (typeof USER_ROLES)[number] =>
-          (USER_ROLES as readonly string[]).includes(value),
-        )
+        .filter((value) => managedRoles.includes(value as (typeof managedRoles)[number]))
       if (normalizedRoles.length === 1) {
         where.role = normalizedRoles[0]
       } else if (normalizedRoles.length > 1) {
         where.role = { in: normalizedRoles }
       }
+    } else {
+      where.role = { in: managedRoles }
     }
     if (active !== null) where.isActive = active === "true"
     if (search) {

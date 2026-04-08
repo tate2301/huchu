@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import {
   appendUserManagementEvent,
   canMutateUserManagement,
+  getManagedRolesForSession,
   isManagedRole,
   managedRoleSchema,
 } from "../_helpers";
@@ -28,6 +29,10 @@ async function applyRoleChange(request: NextRequest) {
 
   const body = await request.json();
   const validated = roleChangeSchema.parse(body);
+  const managedRoles = getManagedRolesForSession(session);
+  if (!managedRoles.includes(validated.role)) {
+    return errorResponse("Selected role is not available for this workspace.", 400);
+  }
 
   const existing = await prisma.user.findUnique({
     where: { id: validated.userId },
@@ -45,8 +50,8 @@ async function applyRoleChange(request: NextRequest) {
     return errorResponse("User not found for this organization.", 404);
   }
 
-  if (!isManagedRole(existing.role)) {
-    return errorResponse("Only MANAGER and CLERK accounts can be managed here.", 403);
+  if (!isManagedRole(session, existing.role)) {
+    return errorResponse("Only SUPERADMIN, MANAGER, and OPERATOR accounts can be managed here.", 403);
   }
 
   const updated = await prisma.user.update({

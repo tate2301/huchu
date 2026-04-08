@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return errorResponse("User not found for this organization.", 404);
     }
-    if (!isManagedRole(user.role)) {
-      return errorResponse("Only MANAGER and CLERK accounts can be managed here.", 403);
+    if (!isManagedRole(session, user.role)) {
+      return errorResponse("Only SUPERADMIN, MANAGER, and OPERATOR accounts can be managed here.", 403);
     }
 
     const features = await getManagedUserFeatureAccessEntries({
@@ -107,8 +107,8 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return errorResponse("User not found for this organization.", 404);
     }
-    if (!isManagedRole(user.role)) {
-      return errorResponse("Only MANAGER and CLERK accounts can be managed here.", 403);
+    if (!isManagedRole(session, user.role)) {
+      return errorResponse("Only SUPERADMIN, MANAGER, and OPERATOR accounts can be managed here.", 403);
     }
 
     try {

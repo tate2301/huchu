@@ -1,5 +1,6 @@
 import { fetchJson } from "@/lib/api-client";
 import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";
+import type { UserRole } from "@/lib/roles";
 
 export type PaginationMeta = {
   page: number;
@@ -33,7 +34,7 @@ export type UserSummary = {
   updatedAt?: string;
 };
 
-export type ManagedUserRole = "MANAGER" | "CLERK";
+export type ManagedUserRole = UserRole;
 
 export type CreateManagedUserInput = {
   name: string;

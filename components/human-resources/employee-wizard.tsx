@@ -32,6 +32,11 @@ import {
   resolveVerticalDefaults,
   type EmployeePositionValue,
 } from "@/lib/platform/vertical-defaults"
+import {
+  getAllowedUserRoleOptionsForWorkspace,
+  resolveWorkspaceProfileForRoles,
+} from "@/lib/platform/vertical-roles"
+import type { UserRole } from "@/lib/roles"
 import { X } from "@/lib/icons"
 import { cn } from "@/lib/utils"
 
@@ -59,15 +64,6 @@ const payoutPaths = [
     description: "Use the shared settlement workflow for non-salary earnings.",
   },
 ] as const
-
-const WORKSPACE_ROLE_OPTIONS = {
-  GOLD_MINE: ["MANAGER", "CLERK", "FINANCE_OFFICER"] as const,
-  SCRAP_METAL: ["MANAGER", "CLERK", "CASHIER", "FINANCE_OFFICER"] as const,
-  AUTOS: ["MANAGER", "CLERK", "AUTO_MANAGER", "SALES_EXEC", "FINANCE_OFFICER"] as const,
-  RETAIL: ["MANAGER", "CLERK", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"] as const,
-  SCHOOLS: ["MANAGER", "CLERK", "FINANCE_OFFICER"] as const,
-  GENERAL: ["MANAGER", "CLERK", "FINANCE_OFFICER"] as const,
-} as const
 
 const moduleOptions = [
   {
@@ -102,22 +98,10 @@ const moduleOptions = [
   },
 ] as const
 
-const userRoleOptions = [
-  { value: "MANAGER", label: "Manager" },
-  { value: "CLERK", label: "Clerk" },
-  { value: "SALES_EXEC", label: "Sales Executive" },
-  { value: "AUTO_MANAGER", label: "Auto Manager" },
-  { value: "FINANCE_OFFICER", label: "Finance Officer" },
-  { value: "SHOP_MANAGER", label: "Shop Manager" },
-  { value: "CASHIER", label: "Cashier" },
-  { value: "STOCK_CLERK", label: "Stock Clerk" },
-] as const
-
 type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
 type EmployeeModule = (typeof moduleOptions)[number]["value"]
 type PayoutPath = (typeof payoutPaths)[number]["value"]
-type UserRole = (typeof userRoleOptions)[number]["value"]
 
 type StepId =
   | "employment"
@@ -197,20 +181,12 @@ const emptyForm: EmployeeWizardForm = {
   createUserAccount: false,
   userEmail: "",
   userPassword: "",
-  userRole: "CLERK",
+  userRole: "OPERATOR",
 }
 
 function inferPayoutPath(employmentType: EmploymentType): PayoutPath {
   void employmentType
   return "HYBRID"
-}
-
-function normalizeWorkspaceProfile(value: string | null | undefined) {
-  const normalized = String(value || "").trim().toUpperCase()
-  if (normalized === "GOLD_MINE" || normalized === "SCRAP_METAL" || normalized === "AUTOS" || normalized === "RETAIL" || normalized === "SCHOOLS") {
-    return normalized
-  }
-  return "GENERAL"
 }
 
 function getVisibleSteps(form: EmployeeWizardForm, canProvisionUser: boolean) {
@@ -1108,8 +1084,12 @@ export function EmployeeWizard({
   )
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
   const normalizedWorkspaceProfile = useMemo(
-    () => normalizeWorkspaceProfile(workspaceProfile),
-    [workspaceProfile],
+    () =>
+      resolveWorkspaceProfileForRoles({
+        workspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, workspaceProfile],
   )
   const canProvisionUser = session?.user?.role === "SUPERADMIN"
   const positionOptions = useMemo(
@@ -1148,9 +1128,11 @@ export function EmployeeWizard({
     [enabledFeatures, normalizedWorkspaceProfile],
   )
   const availableUserRoles = useMemo(() => {
-    const allowedRoles = new Set<UserRole>(WORKSPACE_ROLE_OPTIONS[normalizedWorkspaceProfile] as readonly UserRole[])
-    return userRoleOptions.filter((role) => allowedRoles.has(role.value))
-  }, [normalizedWorkspaceProfile])
+    return getAllowedUserRoleOptionsForWorkspace({
+      workspaceProfile: normalizedWorkspaceProfile,
+      enabledFeatures,
+    })
+  }, [enabledFeatures, normalizedWorkspaceProfile])
 
   const [form, setForm] = useState<EmployeeWizardForm>({
     ...emptyForm,
@@ -1226,7 +1208,7 @@ export function EmployeeWizard({
       }
 
       if (next.createUserAccount && !availableUserRoles.some((role) => role.value === next.userRole)) {
-        next.userRole = availableUserRoles[0]?.value ?? "CLERK"
+        next.userRole = availableUserRoles[0]?.value ?? "OPERATOR"
       }
 
       return next

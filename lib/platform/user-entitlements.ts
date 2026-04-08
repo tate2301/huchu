@@ -47,9 +47,22 @@ const SCHOOL_SHARED_ALLOW_PREFIXES = [
   "portal.",
 ] as const;
 
+const OPERATOR_TEMPLATE_ALLOW_PREFIXES = [
+  "core.auth.",
+  "core.help.",
+  "core.notifications.",
+  "core.multitenancy.",
+  "scrap-metal.",
+  "hr.employees",
+  "hr.settlements",
+  "reports.dashboard",
+] as const;
+
 const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
+  SUPERADMIN: null,
   MANAGER: null,
   CLERK: null,
+  OPERATOR: OPERATOR_TEMPLATE_ALLOW_PREFIXES,
   SCHOOL_ADMIN: SCHOOL_SHARED_ALLOW_PREFIXES,
   REGISTRAR: SCHOOL_SHARED_ALLOW_PREFIXES,
   BURSAR: [
@@ -141,8 +154,10 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
 };
 
 const MANAGED_USER_ROLES = new Set([
+  "SUPERADMIN",
   "MANAGER",
   "CLERK",
+  "OPERATOR",
   "SCHOOL_ADMIN",
   "REGISTRAR",
   "BURSAR",
@@ -169,8 +184,10 @@ const CATALOG_DEFAULTS = new Map(
 );
 
 export type ManagedUserRole =
+  | "SUPERADMIN"
   | "MANAGER"
   | "CLERK"
+  | "OPERATOR"
   | "SCHOOL_ADMIN"
   | "REGISTRAR"
   | "BURSAR"

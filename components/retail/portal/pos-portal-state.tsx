@@ -362,7 +362,7 @@ export function PosPortalProvider({
         toast({
           title: "Some offline sales are still pending",
           description: `${failed} item${failed === 1 ? "" : "s"} will retry on next sync.`,
-          variant: "warning",
+          variant: "default",
         });
       }
     } finally {
@@ -408,7 +408,7 @@ export function PosPortalProvider({
         toast({
           title: "Sale queued offline",
           description: "This sale will auto-sync when the connection is back.",
-          variant: "warning",
+          variant: "default",
         });
         return;
       }

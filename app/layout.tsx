@@ -4,7 +4,6 @@ import "@rtcamp/frappe-ui-react/theme";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./themes/client.css";
 import { AppProviders } from "@/components/providers/app-providers";
@@ -12,12 +11,6 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PLATFORM_APP_DESCRIPTION, PLATFORM_BRAND_NAME, PLATFORM_MARKETING_TAGLINE } from "@/lib/platform/brand";
 import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-jetbrains-mono",
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -81,11 +74,11 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`font-sans subpixel-antialiased ${jetbrainsMono.variable}`}
+        className="font-sans subpixel-antialiased"
         style={
           {
             "--font-ibm-plex-mono":
-              'var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
             ...brandingVars,
           } as React.CSSProperties
         }

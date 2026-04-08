@@ -717,6 +717,7 @@ enum UserRole {
   SUPERADMIN
   MANAGER
   CLERK
+  OPERATOR
   SCHOOL_ADMIN
   REGISTRAR
   BURSAR
@@ -2281,6 +2282,7 @@ model ScrapMaterial {
   purchases  ScrapMetalPurchase[]
   batches    ScrapMetalBatch[]
   sales      ScrapMetalSale[]
+  ticketComplianceRules ScrapTicketComplianceRule[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])

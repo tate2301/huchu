@@ -1,10 +1,15 @@
 import { z } from "zod";
 
 import type { AuthenticatedSession } from "@/lib/api-utils";
+import { getAllowedUserRolesForWorkspace } from "@/lib/platform/vertical-roles";
 import { prisma } from "@/lib/prisma";
+import { ROLES, type UserRole } from "@/lib/roles";
 
-export const managedRoleSchema = z.enum(["MANAGER", "CLERK"]);
-export type ManagedRole = z.infer<typeof managedRoleSchema>;
+export const managedRoleSchema = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim().toUpperCase() : value),
+  z.enum(ROLES),
+);
+export type ManagedRole = UserRole;
 
 export function canViewUserManagement(session: AuthenticatedSession): boolean {
   return session.user.role === "SUPERADMIN" || session.user.role === "MANAGER";
@@ -14,8 +19,15 @@ export function canMutateUserManagement(session: AuthenticatedSession): boolean 
   return session.user.role === "SUPERADMIN";
 }
 
-export function isManagedRole(role: string): role is ManagedRole {
-  return role === "MANAGER" || role === "CLERK";
+export function getManagedRolesForSession(session: AuthenticatedSession): UserRole[] {
+  return getAllowedUserRolesForWorkspace({
+    workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
+    enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+  });
+}
+
+export function isManagedRole(session: AuthenticatedSession, role: string): role is ManagedRole {
+  return getManagedRolesForSession(session).includes(role as UserRole);
 }
 
 export function normalizeEmail(value: string): string {

@@ -268,12 +268,15 @@ export function PosCheckoutView() {
 
   const applyToTarget = (target: CheckoutNumericTarget, action: PosKeypadAction) => {
     if (target.type === "order_discount") {
-      setOrderDiscountAmount((current) => applyPosKeypadAction(current, action));
+      setOrderDiscountAmount(applyPosKeypadAction(orderDiscountAmount, action));
       return;
     }
     if (target.type === "redeem_points") {
-      setLoyaltyRedemptionPoints((current) =>
-        applyPosKeypadAction(current, action, { allowDecimal: false, maxDecimals: 0 }),
+      setLoyaltyRedemptionPoints(
+        applyPosKeypadAction(loyaltyRedemptionPoints, action, {
+          allowDecimal: false,
+          maxDecimals: 0,
+        }),
       );
       return;
     }
@@ -323,7 +326,7 @@ export function PosCheckoutView() {
 
   const handleCharge = () => {
     if (blockers.length) {
-      toast({ title: "Fix checkout blockers", description: blockers[0], variant: "warning" });
+      toast({ title: "Fix checkout blockers", description: blockers[0], variant: "default" });
       const firstTenderIndex = payments.findIndex((payment) => Number(payment.amount || "0") <= 0);
       if (firstTenderIndex >= 0) {
         setActiveTarget({ type: "tender_amount", index: firstTenderIndex });

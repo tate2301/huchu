@@ -307,7 +307,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
         toast({
           title: "Some offline tickets are still pending",
           description: `${failed} item${failed === 1 ? "" : "s"} will retry on next sync.`,
-          variant: "warning",
+          variant: "default",
         });
       }
     } finally {
@@ -358,7 +358,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
         toast({
           title: "Inbound ticket queued offline",
           description: "This ticket will auto-sync when the connection is back.",
-          variant: "warning",
+          variant: "default",
         });
         return;
       }
@@ -408,7 +408,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
           toast({
             title: "Outbound ticket queued offline",
             description: "This ticket will auto-sync when the connection is back.",
-            variant: "warning",
+            variant: "default",
           });
           return;
         } catch (queueError) {

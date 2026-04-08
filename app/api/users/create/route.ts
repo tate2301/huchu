@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import {
   appendUserManagementEvent,
   canMutateUserManagement,
+  getManagedRolesForSession,
   managedRoleSchema,
   normalizeEmail,
 } from "../_helpers";
@@ -32,6 +33,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = createUserSchema.parse(body);
+    const managedRoles = getManagedRolesForSession(session);
+    if (!managedRoles.includes(validated.role)) {
+      return errorResponse("Selected role is not available for this workspace.", 400);
+    }
 
     const email = normalizeEmail(validated.email);
     const existing = await prisma.user.findFirst({
