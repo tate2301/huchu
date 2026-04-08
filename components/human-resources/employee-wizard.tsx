@@ -50,13 +50,13 @@ const payoutPaths = [
   },
   {
     value: "HYBRID",
-    label: "Salary and irregular payouts",
-    description: "Use salary payroll and still allow irregular settlement, commission, or other payouts.",
+    label: "Salary and settlements",
+    description: "Use salary payroll and still allow settlement, commission, or other variable pay.",
   },
   {
     value: "IRREGULAR",
-    label: "Irregular payouts only",
-    description: "Use the shared payouts workflow for non-salary earnings.",
+    label: "Settlements only",
+    description: "Use the shared settlement workflow for non-salary earnings.",
   },
 ] as const
 
@@ -70,8 +70,8 @@ const moduleOptions = [
   {
     value: "GOLD",
     label: "Settlements",
-    description: "Settlement and irregular payout workflows.",
-    featureMatcher: (feature: string) => feature === "hr.gold-payouts" || feature === "gold.payouts" || feature.startsWith("gold."),
+    description: "Settlement and variable pay workflows.",
+    featureMatcher: (feature: string) => feature === "hr.settlements" || feature === "hr.gold-payouts" || feature === "gold.payouts" || feature.startsWith("gold."),
   },
   {
     value: "SCRAP_METAL",
@@ -151,7 +151,7 @@ type EmployeeWizardForm = {
 }
 
 const stepMeta: Array<{ id: StepId; label: string; description: string }> = [
-  { id: "employment", label: "Employment", description: "Employment type and payout path" },
+  { id: "employment", label: "Employment", description: "Employment type and settlement path" },
   { id: "modules", label: "Modules", description: "Operational coverage for this employee" },
   { id: "role", label: "Role", description: "Job details and reporting line" },
   { id: "personal", label: "Personal", description: "Identity and contact" },
@@ -253,7 +253,7 @@ function validateStep(stepId: StepId, form: EmployeeWizardForm, canProvisionUser
   switch (stepId) {
     case "employment":
       if (!form.employmentType) return "Employment type is required."
-      if (!form.payoutPath) return "Payout path is required."
+      if (!form.payoutPath) return "Settlement path is required."
       return null
     case "modules":
       if (form.moduleAssignments.length === 0) return "Select at least one module."
@@ -327,7 +327,7 @@ function EmploymentStep({
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Employment profile</h2>
         <p className="text-sm text-muted-foreground">
-          Start with the work arrangement. The payout setup and later steps adapt to what you choose here.
+          Start with the work arrangement. The settlement setup and later steps adapt to what you choose here.
         </p>
       </div>
 
@@ -355,15 +355,15 @@ function EmploymentStep({
             </SelectContent>
           </Select>
           <FieldHint>
-            Casual workers default to irregular payouts. Full-time and part-time employees default to salaries.
+            Casual workers default to settlements. Full-time and part-time employees default to salaries.
           </FieldHint>
         </div>
 
         <div>
-          <FieldLabel required>Payout path</FieldLabel>
+          <FieldLabel required>Settlement path</FieldLabel>
           <Select value={form.payoutPath} onValueChange={(value) => onChange({ payoutPath: value as PayoutPath })}>
             <SelectTrigger>
-              <SelectValue placeholder="Select payout path" />
+              <SelectValue placeholder="Select settlement path" />
             </SelectTrigger>
             <SelectContent>
               {payoutPaths.map((option) => (
@@ -491,7 +491,7 @@ function ModulesStep({
           <p className="text-sm font-semibold">Current employee spec</p>
           <div className="mt-2 space-y-1 text-sm text-muted-foreground">
             <p>Employment type: {getEmploymentTypeLabel(form.employmentType)}</p>
-            <p>Payout path: {getPayoutPathLabel(form.payoutPath)}</p>
+            <p>Settlement path: {getPayoutPathLabel(form.payoutPath)}</p>
             <p>Selected modules: {form.moduleAssignments.map(getModuleLabel).join(", ") || "None"}</p>
           </div>
         </div>
@@ -882,11 +882,11 @@ function CompensationStep({
         </div>
 
         <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4 text-sm text-muted-foreground">
-          <p className="font-semibold text-foreground">Payout routing</p>
+          <p className="font-semibold text-foreground">Settlement routing</p>
           <p className="mt-1">
             {form.payoutPath === "HYBRID"
-              ? "This employee can receive both salary payroll and shared irregular payouts."
-              : "This employee stays on the salary side of HR with optional future irregular payouts when needed."}
+              ? "This employee can receive both salary payroll and shared settlements."
+              : "This employee stays on the salary side of HR with optional future settlements when needed."}
           </p>
         </div>
       </div>
@@ -1018,7 +1018,7 @@ function ReviewStep({
         <ReviewRow label="Job title" value={form.jobTitle} />
         <ReviewRow label="Position" value={positionOptions.find((option) => option.value === form.position)?.label ?? form.position} />
         <ReviewRow label="Employment type" value={getEmploymentTypeLabel(form.employmentType)} />
-        <ReviewRow label="Payout path" value={getPayoutPathLabel(form.payoutPath)} />
+        <ReviewRow label="Settlement path" value={getPayoutPathLabel(form.payoutPath)} />
         <ReviewRow label="Modules" value={form.moduleAssignments.map(getModuleLabel).join(", ")} />
         <ReviewRow label="Primary module" value={getModuleLabel(form.primaryModule)} />
         <ReviewRow label="Department" value={department ? `${department.code} - ${department.name}` : "None"} />
@@ -1160,9 +1160,11 @@ export function EmployeeWizard({
   }, [availableModules, defaultPosition, initialTemplateId])
 
   useEffect(() => {
-    if (open) {
+    if (!open) return
+    const timer = setTimeout(() => {
       resetWizard()
-    }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [open, resetWizard])
 
   const handleClose = () => {

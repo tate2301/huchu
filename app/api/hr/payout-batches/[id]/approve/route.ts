@@ -20,7 +20,7 @@ export async function POST(
     const { id } = await params
 
     if (!ensureApproverRole(session)) {
-      return errorResponse("Insufficient permissions to approve payout batches", 403)
+      return errorResponse("Insufficient permissions to approve settlement batches", 403)
     }
 
     const existing = await prisma.irregularPayoutBatch.findUnique({
@@ -34,7 +34,7 @@ export async function POST(
     })
 
     if (!existing || existing.companyId !== session.user.companyId) {
-      return errorResponse("Irregular payout batch not found", 404)
+      return errorResponse("Settlement batch not found", 404)
     }
     if (!canTransitionStandardWorkflow(existing.workflowStatus, "APPROVE")) {
       return errorResponse("Payout batch must be submitted first", 400)
@@ -82,6 +82,6 @@ export async function POST(
     return successResponse(updated)
   } catch (error) {
     console.error("[API] POST /api/hr/payout-batches/[id]/approve error:", error)
-    return errorResponse("Failed to approve payout batch")
+    return errorResponse("Failed to approve settlement batch")
   }
 }

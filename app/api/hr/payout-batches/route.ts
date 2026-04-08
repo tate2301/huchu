@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     return successResponse(paginationResponse(records, total, page, limit))
   } catch (error) {
     console.error("[API] GET /api/hr/payout-batches error:", error)
-    return errorResponse("Failed to fetch irregular payout batches")
+    return errorResponse("Failed to fetch settlement batches")
   }
 }
 
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult
 
     if (!ensureApproverRole(session)) {
-      return errorResponse("Insufficient permissions to create irregular payout batches", 403)
+      return errorResponse("Insufficient permissions to create settlement batches", 403)
     }
 
     const body = await request.json()
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     const uniqueEmployeeIds = Array.from(new Set(validated.items.map((item) => item.employeeId)))
     if (uniqueEmployeeIds.length !== validated.items.length) {
-      return errorResponse("Each employee can only appear once per payout batch", 400)
+      return errorResponse("Each employee can only appear once per settlement batch", 400)
     }
 
     const employees = await prisma.employee.findMany({
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
         action: "CREATE",
         actedById: session.user.id,
         toStatus: "DRAFT",
-        note: `${validated.source} payout batch ${batch.label} created.`,
+        note: `${validated.source} settlement batch ${batch.label} created.`,
       })
 
       return batch
@@ -193,6 +193,6 @@ export async function POST(request: NextRequest) {
       return errorResponse("Validation failed", 400, error.issues)
     }
     console.error("[API] POST /api/hr/payout-batches error:", error)
-    return errorResponse("Failed to create irregular payout batch")
+    return errorResponse("Failed to create settlement batch")
   }
 }

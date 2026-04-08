@@ -32,10 +32,10 @@ export async function POST(
       parsedBody = {}
     }
     const validated = rejectSchema.parse(parsedBody)
-    const note = normalizeWorkflowNote(validated.note, "Rejected from payout review")
+    const note = normalizeWorkflowNote(validated.note, "Rejected from settlement review")
 
     if (!ensureApproverRole(session)) {
-      return errorResponse("Insufficient permissions to reject payout batches", 403)
+      return errorResponse("Insufficient permissions to reject settlement batches", 403)
     }
 
     const existing = await prisma.irregularPayoutBatch.findUnique({
@@ -49,10 +49,10 @@ export async function POST(
     })
 
     if (!existing || existing.companyId !== session.user.companyId) {
-      return errorResponse("Irregular payout batch not found", 404)
+      return errorResponse("Settlement batch not found", 404)
     }
     if (!canTransitionStandardWorkflow(existing.workflowStatus, "REJECT")) {
-      return errorResponse("Only submitted payout batches can be rejected", 400)
+      return errorResponse("Only submitted settlement batches can be rejected", 400)
     }
     if (!isTwoStepActionAllowed(existing.submittedById, session.user.id)) {
       return errorResponse("Rejection must be performed by a different user than submitter", 400)
@@ -97,6 +97,6 @@ export async function POST(
       return errorResponse("Validation failed", 400, error.issues)
     }
     console.error("[API] POST /api/hr/payout-batches/[id]/reject error:", error)
-    return errorResponse("Failed to reject payout batch")
+    return errorResponse("Failed to reject settlement batch")
   }
 }

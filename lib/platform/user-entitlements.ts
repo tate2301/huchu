@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getCompanyFeatureMap, type FeatureMap } from "@/lib/platform/entitlements";
 import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
+import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 
 const MANAGER_TEMPLATE_DENY = new Set([
   "core.branding.manage",
@@ -198,10 +199,6 @@ export type ManagedUserFeatureAccessEntry = {
   hasOverride: boolean;
   blockedReason: ManagedUserFeatureBlockedReason | null;
 };
-
-function normalizeFeatureKey(value: string): string {
-  return value.trim().toLowerCase();
-}
 
 function isManagedUserRole(role: string): role is ManagedUserRole {
   return MANAGED_USER_ROLES.has(role.trim().toUpperCase());

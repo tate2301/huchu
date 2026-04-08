@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { addDays, format, isAfter, isBefore } from "date-fns";
+import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { HrShell } from "@/components/human-resources/hr-shell";
@@ -42,7 +43,9 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  getIrregularPayoutSourceMeta,
   parseIrregularPayoutSource,
+  resolveDefaultIrregularPayoutSource,
   type IrregularPayoutSource,
 } from "@/lib/hr-irregular-payouts";
 
@@ -77,32 +80,6 @@ type PayoutGroup = {
 };
 
 type BatchItemDraft = { employeeId: string; amount: string; notes: string };
-
-const SOURCE_META: Record<
-  IrregularPayoutSource,
-  { label: string; description: string; groupLabel: string }
-> = {
-  GOLD: {
-    label: "Settlements",
-    description: "Approved settlement allocations flow into the irregular payout pipeline here.",
-    groupLabel: "Shift",
-  },
-  SCRAP: {
-    label: "Scrap settlements",
-    description: "Approved scrap settlement batches flow through HR disbursement from here.",
-    groupLabel: "Batch",
-  },
-  COMMISSION: {
-    label: "Commission payouts",
-    description: "Commission batches are reviewed here before payout runs and disbursement.",
-    groupLabel: "Batch",
-  },
-  OTHER: {
-    label: "Other payouts",
-    description: "Use this for profit share, dividends, and other non-salary employee payouts.",
-    groupLabel: "Batch",
-  },
-};
 
 function workflowVariant(status: WorkflowStatus) {
   return status === "APPROVED" ? "success" : "warning";
@@ -139,10 +116,20 @@ export default function HrPayoutsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const createdId = searchParams.get("createdId");
+  const preferredSource = useMemo(
+    () =>
+      searchParams.get("source")
+        ? parseIrregularPayoutSource(searchParams.get("source"))
+        : resolveDefaultIrregularPayoutSource(
+            (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+          ),
+    [searchParams, session],
+  );
   const [source, setSource] = useState<IrregularPayoutSource>(
-    parseIrregularPayoutSource(searchParams.get("source")),
+    preferredSource,
   );
   const [windowWeeks, setWindowWeeks] = useState(searchParams.get("window") ?? "2");
   const [queryState, setQueryState] = useState<DataTableQueryState>({
@@ -165,7 +152,11 @@ export default function HrPayoutsPage() {
     { employeeId: "", amount: "", notes: "" },
   ]);
 
-  const meta = SOURCE_META[source];
+  useEffect(() => {
+    setSource(preferredSource);
+  }, [preferredSource]);
+
+  const meta = getIrregularPayoutSourceMeta(source);
   const lookbackStart = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() - Number(windowWeeks) * 7);
@@ -311,7 +302,7 @@ export default function HrPayoutsPage() {
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Payout batch created", description: "Batch saved for review.", variant: "success" });
+      toast({ title: "Settlement batch created", description: "Batch saved for review.", variant: "success" });
       setCreateOpen(false);
       setBatchLabel("");
       setBatchNotes("");
@@ -327,7 +318,7 @@ export default function HrPayoutsPage() {
     mutationFn: async (group: PayoutGroup) =>
       fetchJson(group.kind === "gold" ? `/api/gold/shift-allocations/${group.id}/submit` : `/api/hr/payout-batches/${group.id}/submit`, { method: "POST" }),
     onSuccess: () => {
-      toast({ title: "Submitted", description: "Payout record is now pending approval.", variant: "success" });
+      toast({ title: "Submitted", description: "Settlement record is now pending approval.", variant: "success" });
       invalidate();
     },
     onError: (error) => {
@@ -339,7 +330,7 @@ export default function HrPayoutsPage() {
     mutationFn: async (group: PayoutGroup) =>
       fetchJson(group.kind === "gold" ? `/api/gold/shift-allocations/${group.id}/approve` : `/api/hr/payout-batches/${group.id}/approve`, { method: "POST" }),
     onSuccess: () => {
-      toast({ title: "Approved", description: "This payout record is ready for run generation.", variant: "success" });
+      toast({ title: "Approved", description: "This settlement record is ready for run generation.", variant: "success" });
       invalidate();
     },
     onError: (error) => {
@@ -354,7 +345,7 @@ export default function HrPayoutsPage() {
         body: JSON.stringify({ note: rejectionNote.trim() }),
       }),
     onSuccess: () => {
-      toast({ title: "Rejected", description: "The payout record was returned for correction.", variant: "success" });
+      toast({ title: "Rejected", description: "The settlement record was returned for correction.", variant: "success" });
       setRejectionTarget(null);
       setRejectionNote("");
       invalidate();
@@ -473,14 +464,13 @@ export default function HrPayoutsPage() {
   return (
     <HrShell
       activeTab="payouts"
-      description={meta.description}
-      actions={source !== "GOLD" ? <Button size="sm" onClick={() => setCreateOpen(true)}>New {meta.groupLabel}</Button> : undefined}
+      actions={source !== "GOLD" ? <Button size="sm" onClick={() => setCreateOpen(true)}>{meta.createLabel}</Button> : undefined}
     >
       <RecordSavedBanner entityLabel={`${meta.label.toLowerCase()} record`} />
 
       {loadError ? (
         <Alert variant="destructive">
-          <AlertTitle>Unable to load payouts</AlertTitle>
+          <AlertTitle>{meta.emptyLabel}</AlertTitle>
           <AlertDescription>{getApiErrorMessage(loadError)}</AlertDescription>
         </Alert>
       ) : null}
@@ -507,10 +497,10 @@ export default function HrPayoutsPage() {
               }}>
                 <SelectTrigger size="sm" className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="GOLD">Settlements</SelectItem>
+                  <SelectItem value="GOLD">Gold settlements</SelectItem>
                   <SelectItem value="SCRAP">Scrap settlements</SelectItem>
-                  <SelectItem value="COMMISSION">Commission payouts</SelectItem>
-                  <SelectItem value="OTHER">Other payouts</SelectItem>
+                  <SelectItem value="COMMISSION">Commission settlements</SelectItem>
+                  <SelectItem value="OTHER">Settlements</SelectItem>
                 </SelectContent>
               </Select>
               {source === "GOLD" ? (
@@ -534,7 +524,7 @@ export default function HrPayoutsPage() {
         <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>New {meta.groupLabel}</DialogTitle>
-            <DialogDescription>Create a manual irregular payout batch for review.</DialogDescription>
+            <DialogDescription>Create a manual settlement batch for review.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Input placeholder="Label" value={batchLabel} onChange={(event) => setBatchLabel(event.target.value)} />
@@ -573,8 +563,8 @@ export default function HrPayoutsPage() {
       <Dialog open={Boolean(rejectionTarget)} onOpenChange={(open) => !open && setRejectionTarget(null)}>
         <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>Reject Payout Record</DialogTitle>
-            <DialogDescription>Capture why this payout record is being rejected.</DialogDescription>
+            <DialogTitle>Reject Settlement Record</DialogTitle>
+            <DialogDescription>Capture why this settlement record is being rejected.</DialogDescription>
           </DialogHeader>
           <Textarea rows={4} value={rejectionNote} onChange={(event) => setRejectionNote(event.target.value)} />
           <DialogFooter>
@@ -588,7 +578,7 @@ export default function HrPayoutsPage() {
         <DialogContent size="full" className="max-h-[90dvh]">
           <DialogHeader>
             <DialogTitle>{selectedGroup?.label ?? "Members"}</DialogTitle>
-            <DialogDescription>Review worker payout state for this record.</DialogDescription>
+            <DialogDescription>Review worker settlement state for this record.</DialogDescription>
           </DialogHeader>
           {selectedGroup ? (
             <DataTable

@@ -1,4 +1,5 @@
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS } from "./feature-catalog";
+import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import {
   getVerticalProductBundleForTemplate,
   type VerticalProductId,
@@ -148,7 +149,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "hr.payroll",
       "hr.disbursements",
       "hr.approvals-history",
-      "hr.gold-payouts",
+      "hr.settlements",
       "maintenance.dashboard",
       "maintenance.equipment",
       "maintenance.work-orders",
@@ -283,8 +284,10 @@ function normalizeCode(value: string | null | undefined): string {
 }
 
 function toCanonicalFeatureKey(key: string): string {
-  const normalized = String(key || "").trim().toLowerCase();
-  const exact = FEATURE_CATALOG.find((feature) => feature.key.toLowerCase() === normalized);
+  const normalized = normalizeFeatureKey(String(key || ""));
+  const exact = FEATURE_CATALOG.find(
+    (feature) => normalizeFeatureKey(feature.key) === normalized,
+  );
   return exact?.key ?? normalized;
 }
 

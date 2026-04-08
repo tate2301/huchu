@@ -75,7 +75,7 @@ export const GOLD_TABS: GoldTabItem[] = [
   },
   {
     id: "payouts",
-    label: "Payouts",
+    label: "Settlements",
     href: "/gold/settlement/payouts",
     icon: Wallet,
     featureKey: "gold.payouts",

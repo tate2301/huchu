@@ -19,7 +19,7 @@ export async function POST(
     const { id } = await params
 
     if (!ensureApproverRole(session)) {
-      return errorResponse("Insufficient permissions to submit payout batches", 403)
+      return errorResponse("Insufficient permissions to submit settlement batches", 403)
     }
 
     const existing = await prisma.irregularPayoutBatch.findUnique({
@@ -33,13 +33,13 @@ export async function POST(
     })
 
     if (!existing || existing.companyId !== session.user.companyId) {
-      return errorResponse("Irregular payout batch not found", 404)
+      return errorResponse("Settlement batch not found", 404)
     }
     if (!canTransitionStandardWorkflow(existing.workflowStatus, "SUBMIT")) {
       return errorResponse("Only draft or rejected batches can be submitted", 400)
     }
     if (existing._count.items === 0) {
-      return errorResponse("Cannot submit an empty payout batch", 400)
+      return errorResponse("Cannot submit an empty settlement batch", 400)
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -79,6 +79,6 @@ export async function POST(
     return successResponse(updated)
   } catch (error) {
     console.error("[API] POST /api/hr/payout-batches/[id]/submit error:", error)
-    return errorResponse("Failed to submit payout batch")
+    return errorResponse("Failed to submit settlement batch")
   }
 }

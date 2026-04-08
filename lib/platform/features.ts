@@ -1,9 +1,6 @@
 import { getCompanyFeatureMap, type FeatureMap } from "@/lib/platform/entitlements";
 import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
-
-function normalizeFeatureKey(value: string): string {
-  return value.trim().toLowerCase();
-}
+import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 
 const FEATURE_DEFAULT_MAP = new Map(
   FEATURE_CATALOG.map((feature) => [normalizeFeatureKey(feature.key), feature.defaultEnabled === true]),

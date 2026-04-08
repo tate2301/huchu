@@ -6,6 +6,9 @@ const FEATURE_KEY_ALIASES: Record<string, string> = {
   "thrift.checkout": "retail.pos",
   "thrift.intake": "retail.purchasing",
   "portal.thrift": "portal.pos",
+  "hr.gold-payouts": "hr.settlements",
+  "hr.payouts": "hr.settlements",
+  "gold.settlements": "gold.payouts",
 };
 
 export function normalizeFeatureKey(value: string): string {

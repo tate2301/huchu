@@ -81,7 +81,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "gold.reconciliation", name: "Gold Reconciliation", description: "Gold reconciliation workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 20 }),
   f({ key: "gold.exceptions", name: "Gold Exceptions", description: "Exception and anomaly tracking in gold flows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 8 }),
   f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 10 }),
-  f({ key: "gold.payouts", name: "Gold Payouts", description: "Gold payout workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 18 }),
+  f({ key: "gold.payouts", name: "Gold Settlements", description: "Gold settlement workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 18 }),
 
   f({ key: "scrap-metal.home", name: "Scrap & Recycling Overview", description: "Scrap and recycling command center, dashboards, and operational queues.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
   f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Buying", description: "Scrap and recycling buying, intake, and purchase tracking.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
@@ -97,7 +97,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.payroll", name: "Payroll", description: "Payroll periods and runs.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 20 }),
   f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 12 }),
   f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 6 }),
-  f({ key: "hr.gold-payouts", name: "HR Settlements", description: "Settlement workflows in HR for gold, scrap, commission, dividends, and other variable payouts.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 8 }),
+  f({ key: "hr.settlements", name: "HR Settlements", description: "Settlement workflows in HR for gold, scrap, retail, commission, dividends, and other variable settlements.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 8 }),
 
   f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -293,7 +293,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "hr.disciplinary-actions",
       "hr.salaries",
       "hr.approvals-history",
-      "hr.gold-payouts",
+      "hr.settlements",
       "admin.payroll-config",
     ],
   },
