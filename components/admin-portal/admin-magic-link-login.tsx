@@ -8,16 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 
-export function AdminMagicLinkLogin({
-  callbackUrl,
-}: {
-  callbackUrl?: string;
-}) {
+export function AdminMagicLinkLogin({ callbackUrl }: { callbackUrl?: string }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/admin/dashboard");
+  const resolvedCallbackUrl = normalizeCallbackUrl(
+    callbackUrl,
+    "/admin/dashboard",
+  );
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -54,18 +53,16 @@ export function AdminMagicLinkLogin({
   return (
     <div className="min-h-screen bg-[var(--surface-canvas)] px-4 py-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
-        <Card className="w-full bg-[var(--surface-base)] shadow-none">
-          <CardHeader className="space-y-1 pb-2">
-            <CardTitle className="text-2xl">Admin sign in</CardTitle>
-            <p className="text-sm text-[var(--text-muted)]">Email magic link.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="w-full bg-surface-base rounded-xl shadow-sm p-4">
+          <div className="space-y-4">
             {sent ? (
               <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-3">
                 <div className="flex items-start gap-2.5">
                   <MailCheck className="mt-0.5 h-4 w-4 text-[var(--action-primary-bg)]" />
                   <div>
-                    <p className="text-sm font-medium text-[var(--text-strong)]">Link sent</p>
+                    <p className="text-sm font-medium text-[var(--text-strong)]">
+                      Link sent
+                    </p>
                     <p className="text-sm text-[var(--text-muted)]">{email}</p>
                   </div>
                 </div>
@@ -73,7 +70,7 @@ export function AdminMagicLinkLogin({
             ) : (
               <form className="space-y-4" onSubmit={submit}>
                 <div className="space-y-2">
-                  <Label htmlFor="admin-email">Email</Label>
+                  <Label htmlFor="admin-email">Email address</Label>
                   <Input
                     id="admin-email"
                     type="email"
@@ -93,14 +90,18 @@ export function AdminMagicLinkLogin({
                   </div>
                 ) : null}
 
-                <Button className="h-10 w-full justify-between rounded-xl px-3 shadow-none" disabled={loading}>
+                <Button
+                  className="h-10 w-full justify-between rounded-xl px-3"
+                  variant="outline"
+                  disabled={loading}
+                >
                   <span>{loading ? "Sending..." : "Send magic link"}</span>
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </form>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
