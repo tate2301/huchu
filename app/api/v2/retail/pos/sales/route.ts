@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { retryPendingAccountingEvents } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
@@ -115,6 +116,36 @@ function validateTenderReferences(
     }
   }
   return null;
+}
+
+async function ensureRetailSaleJournalPosted(input: {
+  companyId: string;
+  saleId: string;
+  saleNo: string;
+  postedAt: Date;
+  createdById: string;
+  totalAmount: number;
+  taxAmount: number;
+}) {
+  const result = await createJournalEntryFromSource({
+    companyId: input.companyId,
+    sourceType: "RETAIL_SALE",
+    sourceId: input.saleId,
+    entryDate: input.postedAt,
+    description: `Retail sale ${input.saleNo}`,
+    createdById: input.createdById,
+    amount: input.totalAmount,
+    netAmount: Math.max(input.totalAmount - input.taxAmount, 0),
+    taxAmount: input.taxAmount,
+    grossAmount: input.totalAmount,
+  });
+
+  if (!result.entryId && !result.skipped) {
+    await retryPendingAccountingEvents({
+      companyId: input.companyId,
+      limit: 25,
+    });
+  }
 }
 
 function mapSales(
@@ -707,17 +738,14 @@ export async function POST(request: NextRequest) {
         });
 
         try {
-          await createJournalEntryFromSource({
+          await ensureRetailSaleJournalPosted({
             companyId: session.user.companyId,
-            sourceType: "RETAIL_SALE",
-            sourceId: sale.id,
-            entryDate: sale.postedAt ?? new Date(),
-            description: `Retail sale ${sale.saleNo}`,
+            saleId: sale.id,
+            saleNo: sale.saleNo,
+            postedAt: sale.postedAt ?? new Date(),
             createdById: session.user.id,
-            amount: totalAmount,
-            netAmount: Math.max(totalAmount - taxAmount, 0),
+            totalAmount,
             taxAmount,
-            grossAmount: totalAmount,
           });
         } catch (error) {
           console.error("[Accounting] Retail sale posting failed:", error);
@@ -791,6 +819,19 @@ export async function POST(request: NextRequest) {
               include: { lines: true, payments: true },
             });
             if (existing) {
+              try {
+                await ensureRetailSaleJournalPosted({
+                  companyId: session.user.companyId,
+                  saleId: existing.id,
+                  saleNo: existing.saleNo,
+                  postedAt: existing.postedAt ?? existing.createdAt,
+                  createdById: session.user.id,
+                  totalAmount: existing.totalAmount,
+                  taxAmount: existing.taxAmount,
+                });
+              } catch (error) {
+                console.error("[Accounting] Retail sale replay posting failed:", error);
+              }
               return successResponse({
                 id: existing.id,
                 saleNo: existing.saleNo,

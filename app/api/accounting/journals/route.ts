@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           period: { select: { id: true, startDate: true, endDate: true } },
+          lines: { select: { debit: true, credit: true } },
         },
         orderBy: [{ entryDate: "desc" }, { entryNumber: "desc" }],
         skip,
@@ -84,7 +85,18 @@ export async function GET(request: NextRequest) {
       prisma.journalEntry.count({ where }),
     ]);
 
-    return successResponse(paginationResponse(entries, total, page, limit));
+    const normalized = entries.map((entry) => {
+      const totalDebit = entry.lines.reduce((sum, line) => sum + toMoney(line.debit), 0);
+      const totalCredit = entry.lines.reduce((sum, line) => sum + toMoney(line.credit), 0);
+      return {
+        ...entry,
+        totalDebit: toMoney(totalDebit),
+        totalCredit: toMoney(totalCredit),
+        amount: toMoney(Math.max(totalDebit, totalCredit)),
+      };
+    });
+
+    return successResponse(paginationResponse(normalized, total, page, limit));
   } catch (error) {
     console.error("[API] GET /api/accounting/journals error:", error);
     return errorResponse("Failed to fetch journal entries");

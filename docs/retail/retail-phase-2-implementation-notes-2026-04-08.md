@@ -4,6 +4,22 @@ Date: 2026-04-08
 
 ## Scope Delivered In This Slice
 
+## Post-Review Hardening
+
+### Accounting replay reliability after offline/idempotent sale replay
+- Retail POS sales now call an idempotent `ensureRetailSaleJournalPosted(...)` helper.
+- This runs both:
+  - right after successful sale creation, and
+  - when replay hits an existing `saleNo` and returns that prior sale.
+- If posting still fails, the flow triggers bounded replay of pending accounting integration events (`retryPendingAccountingEvents`), so accounting can self-heal without manual intervention.
+
+### Journal amounts always visible
+- `GET /api/accounting/journals` now returns:
+  - `totalDebit`
+  - `totalCredit`
+  - `amount` (max of debit/credit totals)
+- Journals UI now renders dedicated Debit/Credit/Amount columns with numeric fallback to `0.00`.
+
 ### 1. Offline-safe POS queue with replay
 - Added local POS sale queue in `lib/retail/pos-offline-queue.ts`.
 - Checkout now queues sale payloads when network submission fails.

@@ -2478,6 +2478,9 @@ export type JournalEntryRecord = {
   entryDate: string;
   description: string;
   status: "DRAFT" | "POSTED";
+  totalDebit?: number;
+  totalCredit?: number;
+  amount?: number;
   periodId?: string | null;
   period?: { id: string; startDate: string; endDate: string } | null;
   lines?: JournalLineRecord[];

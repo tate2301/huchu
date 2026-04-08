@@ -174,6 +174,27 @@ export default function JournalsPage() {
       minSize: 128,
       maxSize: 128},
     {
+      id: "totalDebit",
+      header: "Debit",
+      cell: ({ row }) => <NumericCell>{(row.original.totalDebit ?? 0).toFixed(2)}</NumericCell>,
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
+    {
+      id: "totalCredit",
+      header: "Credit",
+      cell: ({ row }) => <NumericCell>{(row.original.totalCredit ?? 0).toFixed(2)}</NumericCell>,
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
+    {
+      id: "amount",
+      header: "Amount",
+      cell: ({ row }) => <NumericCell>{(row.original.amount ?? 0).toFixed(2)}</NumericCell>,
+      size: 120,
+      minSize: 120,
+      maxSize: 120},
+    {
       id: "actions",
       header: "",
       cell: ({ row }) => (
