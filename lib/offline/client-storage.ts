@@ -57,7 +57,7 @@ export function enqueueOfflineItem<TPayload>(
   payload: TPayload,
   options?: { dedupe?: (existing: OfflineQueueEntry<TPayload>, incoming: TPayload) => boolean },
 ): OfflineQueueEntry<TPayload> {
-  const queue = loadOfflineQueue({ key, isValid: () => true });
+  const queue = loadOfflineQueue<TPayload>({ key, isValid: () => true });
   const existing = options?.dedupe ? queue.find((entry) => options.dedupe?.(entry, payload)) : null;
   if (existing) return existing;
 
