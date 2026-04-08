@@ -56,14 +56,13 @@ export default function RetailStockCountPage() {
   const submitCountMutation = useMutation({
     mutationFn: () => {
       if (!selectedItem) throw new Error("Pick an inventory item first");
-      return fetchJson("/api/inventory/movements", {
+      return fetchJson("/api/v2/retail/stock/count", {
         method: "POST",
         body: JSON.stringify({
+          siteId: activeSiteId,
           itemId: selectedItem.id,
-          movementType: "ADJUSTMENT",
-          quantity: variance,
-          unit: selectedItem.unit,
-          notes: notes.trim() || `Retail stock count adjustment for ${selectedItem.name}`,
+          countedStock: countedValue,
+          notes: notes.trim() || undefined,
         }),
       });
     },
@@ -179,7 +178,15 @@ export default function RetailStockCountPage() {
           </div>
         ) : null}
         <div className="mt-3">
-          <Button onClick={() => submitCountMutation.mutate()} disabled={!selectedItem || !Number.isFinite(countedValue) || submitCountMutation.isPending}>
+          <Button
+            onClick={() => submitCountMutation.mutate()}
+            disabled={
+              !selectedItem ||
+              !Number.isFinite(countedValue) ||
+              variance === 0 ||
+              submitCountMutation.isPending
+            }
+          >
             Post count adjustment
           </Button>
         </div>

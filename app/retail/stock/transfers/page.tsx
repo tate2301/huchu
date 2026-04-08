@@ -91,15 +91,14 @@ export default function RetailStockTransfersPage() {
   const submitTransferMutation = useMutation({
     mutationFn: () => {
       if (!selectedItem) throw new Error("Pick an inventory item first");
-      return fetchJson("/api/inventory/movements", {
+      return fetchJson("/api/v2/retail/stock/transfers", {
         method: "POST",
         body: JSON.stringify({
+          siteId: activeSiteId,
           itemId: selectedItem.id,
-          movementType: "TRANSFER",
           toLocationId,
           quantity: transferQty,
-          unit: selectedItem.unit,
-          notes: notes.trim() || `Retail transfer of ${selectedItem.name}`,
+          notes: notes.trim() || undefined,
         }),
       });
     },

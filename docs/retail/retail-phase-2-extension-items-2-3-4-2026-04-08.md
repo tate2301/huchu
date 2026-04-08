@@ -7,6 +7,7 @@ This delivery extends retail phase 2 with the remaining backlog items:
 - Item 2: POS offline completion hardening
 - Item 3: Tender controls rollout (configurable policy)
 - Item 4: Customer and loyalty maturity
+- Follow-up Item 6 hardening: retail stock count and transfer moved to dedicated retail APIs
 
 ## Item 2: POS Offline Completion Hardening
 
@@ -86,3 +87,11 @@ POS now supports practical customer capture, lookup, and loyalty redemption work
 
 - Full repository lint currently has unrelated pre-existing failures outside this scope.
 - Targeted lint for touched retail files passes.
+
+## Follow-Up: Item 6 Server Boundary Hardening
+
+- Added dedicated retail endpoints:
+  - `POST /api/v2/retail/stock/count`
+  - `POST /api/v2/retail/stock/transfers`
+- Endpoints enforce retail session, tenant/site/item/location access checks, and movement validation.
+- Retail stock count and transfer pages now post through these retail routes instead of generic inventory routes.
