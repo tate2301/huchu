@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
@@ -22,33 +22,37 @@ type TenderPolicyPayload = {
 
 export default function RetailPosPolicyPage() {
   const { toast } = useToast();
+  const [draft, setDraft] = useState<TenderPolicyPayload["data"] | null>(null);
   const query = useQuery({
     queryKey: ["retail-tender-policy"],
     queryFn: () => fetchJson<TenderPolicyPayload>("/api/v2/retail/setup/tender-policy"),
   });
 
-  const [requiredReferenceTenders, setRequiredReferenceTenders] = useState<string[]>([]);
-  const [minReferenceLength, setMinReferenceLength] = useState("4");
-  const [referencePattern, setReferencePattern] = useState("^[A-Za-z0-9][A-Za-z0-9\\-/_ ]*$");
-
-  useEffect(() => {
-    if (!query.data?.data) return;
-    setRequiredReferenceTenders(query.data.data.requiredReferenceTenders);
-    setMinReferenceLength(String(query.data.data.minReferenceLength));
-    setReferencePattern(query.data.data.referencePattern);
-  }, [query.data?.data]);
+  const effectivePolicy = useMemo<TenderPolicyPayload["data"]>(() => {
+    if (draft) return draft;
+    return (
+      query.data?.data ?? {
+        requiredReferenceTenders: ["CARD", "MOBILE_MONEY"],
+        minReferenceLength: 4,
+        referencePattern: "^[A-Za-z0-9][A-Za-z0-9\\-/_ ]*$",
+      }
+    );
+  }, [draft, query.data?.data]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
       fetchJson("/api/v2/retail/setup/tender-policy", {
         method: "PUT",
         body: JSON.stringify({
-          requiredReferenceTenders,
-          minReferenceLength: Number(minReferenceLength || "4"),
-          referencePattern,
+          requiredReferenceTenders: effectivePolicy.requiredReferenceTenders,
+          minReferenceLength: Number(effectivePolicy.minReferenceLength || 4),
+          referencePattern: effectivePolicy.referencePattern,
         }),
       }),
-    onSuccess: () => toast({ title: "POS policy saved", variant: "success" }),
+    onSuccess: () => {
+      toast({ title: "POS policy saved", variant: "success" });
+      setDraft(null);
+    },
     onError: (error) =>
       toast({
         title: "Unable to save POS policy",
@@ -68,15 +72,21 @@ export default function RetailPosPolicyPage() {
             <Label>Tenders requiring reference</Label>
             <div className="space-y-2">
               {TENDER_TYPES.map((tender) => {
-                const checked = requiredReferenceTenders.includes(tender);
+                const checked = effectivePolicy.requiredReferenceTenders.includes(tender);
                 return (
                   <label key={tender} className="flex items-center gap-2 text-sm">
                     <Checkbox
                       checked={checked}
                       onCheckedChange={(next) => {
-                        setRequiredReferenceTenders((current) =>
-                          next ? [...new Set([...current, tender])] : current.filter((value) => value !== tender),
-                        );
+                        setDraft((current) => {
+                          const resolved = current ?? effectivePolicy;
+                          return {
+                            ...resolved,
+                            requiredReferenceTenders: next
+                              ? [...new Set([...resolved.requiredReferenceTenders, tender])]
+                              : resolved.requiredReferenceTenders.filter((value) => value !== tender),
+                          };
+                        });
                       }}
                     />
                     <span>{tender.replaceAll("_", " ")}</span>
@@ -88,18 +98,35 @@ export default function RetailPosPolicyPage() {
           <div className="space-y-3">
             <div className="space-y-2">
               <Label>Minimum reference length</Label>
-              <Input value={minReferenceLength} onChange={(event) => setMinReferenceLength(event.target.value)} inputMode="numeric" />
+              <Input
+                value={String(effectivePolicy.minReferenceLength)}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...(current ?? effectivePolicy),
+                    minReferenceLength: Number(event.target.value || "0"),
+                  }))
+                }
+                inputMode="numeric"
+              />
             </div>
             <div className="space-y-2">
               <Label>Reference regex</Label>
-              <Input value={referencePattern} onChange={(event) => setReferencePattern(event.target.value)} />
+              <Input
+                value={effectivePolicy.referencePattern}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...(current ?? effectivePolicy),
+                    referencePattern: event.target.value,
+                  }))
+                }
+              />
             </div>
           </div>
         </div>
         <div className="mt-4">
           <Button
             onClick={() => saveMutation.mutate()}
-            disabled={requiredReferenceTenders.length === 0 || saveMutation.isPending}
+            disabled={effectivePolicy.requiredReferenceTenders.length === 0 || saveMutation.isPending}
           >
             Save POS policy
           </Button>
