@@ -33,7 +33,7 @@ import {
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Ellipsis, Pencil, Plus, Trash2 } from "@/lib/icons";
+import { ChevronDown, Pencil, Plus, Trash2 } from "@/lib/icons";
 
 type PriceRecord = {
   id: string;
@@ -247,7 +247,7 @@ export default function ScrapMetalPricingPage() {
             setForm(emptyForm);
             setFormOpen(true);
           }}
-          triggerIcon={<Ellipsis className="h-4 w-4" />}
+          triggerIcon={<ChevronDown className="h-4 w-4" />}
           triggerAriaLabel="More price actions"
           menuContent={
             <>

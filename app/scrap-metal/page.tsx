@@ -227,7 +227,7 @@ function BalanceRow({
           <div className="flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
             <span>Delivered</span>
             <span className="font-mono text-[var(--text-strong)]">
-              {formatCompactCurrency(deliveredValue)} · {formatWeight(deliveredWeight)}
+              {formatCompactCurrency(deliveredValue)} | {formatWeight(deliveredWeight)}
             </span>
           </div>
           <div className="h-2 rounded-full bg-[var(--surface-subtle)]">
@@ -345,7 +345,7 @@ export default function ScrapMetalPage() {
           label="In yard"
           value={formatWeight(data?.summary.yardStockWeight ?? 0)}
           icon={Package}
-          detail={`${data?.summary.collectingBatchCount ?? 0} collecting · ${data?.summary.readyBatchCount ?? 0} ready`}
+          detail={`${data?.summary.collectingBatchCount ?? 0} collecting | ${data?.summary.readyBatchCount ?? 0} ready`}
         />
         <SummaryCard
           label="Yard value"
