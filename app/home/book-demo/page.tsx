@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { ArrowRight, Gem, ReceiptLong, Users, Wrench } from "@/lib/icons";
 import { getMarketingSiteConfig } from "@/lib/marketing-site";
+import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
   demoConfidencePoints,
   demoOutcomeItems,
@@ -15,8 +16,7 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Book a demo",
-  description:
-    "Book a tailored Avenra demo for gold operations, schools, retail and POS, auto sales, scrap, or multi-site platform operations.",
+  description: `Book a tailored ${PLATFORM_BRAND_NAME} demo for gold operations, schools, retail and POS, auto sales, scrap, or multi-site platform operations.`,
 };
 
 const walkthroughTracks = [
@@ -51,9 +51,9 @@ export default function BookDemoPage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <Link href="/home" className="flex items-center gap-3 text-sm font-semibold text-white">
             <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-[11px] uppercase tracking-[0.22em]">
-              A
+              {PLATFORM_BRAND_INITIAL}
             </span>
-            Avenra
+            {PLATFORM_BRAND_NAME}
           </Link>
           <nav className="flex flex-wrap items-center gap-5 text-sm text-white/72">
             {marketingNavItems.map((item) => (

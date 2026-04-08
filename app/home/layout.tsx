@@ -1,22 +1,26 @@
 import type { Metadata } from "next";
+import {
+  PLATFORM_BRAND_NAME,
+  PLATFORM_MARKETING_DESCRIPTION,
+  PLATFORM_MARKETING_TAGLINE,
+} from "@/lib/platform/brand";
 
 export const metadata: Metadata = {
   title: {
-    default: "Avenra | Multi-site operations platform",
-    template: "%s | Avenra",
+    default: `${PLATFORM_BRAND_NAME} | ${PLATFORM_MARKETING_TAGLINE}`,
+    template: `%s | ${PLATFORM_BRAND_NAME}`,
   },
-  description:
-    "Avenra is a multi-tenant operations and finance platform for mines, schools, retailers, dealerships, recyclers, and multi-site businesses.",
+  description: PLATFORM_MARKETING_DESCRIPTION,
   openGraph: {
-    title: "Avenra | Multi-site operations platform",
+    title: `${PLATFORM_BRAND_NAME} | ${PLATFORM_MARKETING_TAGLINE}`,
     description:
       "Run sector-specific workflows on shared accounting, reporting, branding, and administration rails instead of stitching together separate systems.",
     type: "website",
-    siteName: "Avenra",
+    siteName: PLATFORM_BRAND_NAME,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Avenra | Multi-site operations platform",
+    title: `${PLATFORM_BRAND_NAME} | ${PLATFORM_MARKETING_TAGLINE}`,
     description:
       "One platform for operations, finance, control, and reporting across mines, schools, shops, dealerships, and multi-site businesses.",
   },

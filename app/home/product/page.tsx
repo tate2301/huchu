@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { ArrowRight } from "@/lib/icons";
+import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
   proofStats,
   productControlMap,
@@ -17,14 +18,14 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Product",
-  description: "Explore the Avenra product model: one shared control plane across vertical packs.",
+  description: `Explore the ${PLATFORM_BRAND_NAME} product model: one shared control plane across vertical packs.`,
 };
 
 export default function ProductPage() {
   return (
     <MarketingSubpageShell
       title="One shared control plane."
-      description="Avenra keeps sector workflows and financial integrity in one system."
+      description={`${PLATFORM_BRAND_NAME} keeps sector workflows and financial integrity in one system.`}
     >
       <section className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
         <div className="space-y-6">
@@ -191,7 +192,7 @@ export default function ProductPage() {
           </h3>
         </div>
         <div className="space-y-5">
-          <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">Avenra fits teams outgrowing spreadsheets and siloed tools.</p>
+          <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">{PLATFORM_BRAND_NAME} fits teams outgrowing spreadsheets and siloed tools.</p>
           <div className="flex flex-wrap gap-2.5">
             {["Multiple sites", "Operational handoffs", "Cash or stock control", "Audit pressure", "Pack-by-pack rollout"].map((signal) => (
               <span key={signal} className={styles.productChip}>

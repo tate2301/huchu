@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ArrowRight } from "@/lib/icons";
+import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { marketingNavItems, marketingSiteHighlights } from "@/components/marketing/marketing-data";
 import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
@@ -18,9 +19,9 @@ export function MarketingSubpageShell({ title, description, children }: Marketin
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4 lg:px-8">
           <Link href="/home" className="flex items-center gap-3 text-sm font-semibold text-white">
             <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-[11px] uppercase tracking-[0.22em]">
-              A
+              {PLATFORM_BRAND_INITIAL}
             </span>
-            Avenra
+            {PLATFORM_BRAND_NAME}
           </Link>
           <nav className="hidden flex-1 items-center gap-8 text-sm text-white/72 lg:flex">
             {marketingNavItems.map((item) => (
@@ -47,7 +48,7 @@ export function MarketingSubpageShell({ title, description, children }: Marketin
         <div className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-end">
           <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/58">
-              <span>Avenra</span>
+              <span>{PLATFORM_BRAND_NAME}</span>
               <span className="h-px w-8 bg-white/20" aria-hidden="true" />
               <span>Marketing site</span>
             </div>

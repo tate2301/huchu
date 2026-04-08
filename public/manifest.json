@@ -1,7 +1,7 @@
 {
-  "name": "Huchu Mine Operations",
-  "short_name": "Huchu",
-  "description": "Digital operations management for small-scale gold mines",
+  "name": "Corelith Operations Platform",
+  "short_name": "Corelith",
+  "description": "Digital operations management for multi-site teams across production, finance, and reporting.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -22,3 +22,4 @@
   "categories": ["business", "productivity"],
   "screenshots": []
 }
+

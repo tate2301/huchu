@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ArrowRight } from "@/lib/icons";
+import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { MarketingSubpageShell } from "@/components/marketing/marketing-subpage-shell";
 import {
   addOns,
@@ -16,8 +17,7 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description:
-    "Review Avenra pricing tiers and add-on structure for multi-site operators, grounded in the live commercial catalog.",
+  description: `Review ${PLATFORM_BRAND_NAME} pricing tiers and add-on structure for multi-site operators, grounded in the live commercial catalog.`,
 };
 
 export default function PricingPage() {

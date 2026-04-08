@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ArrowRight, Calendar } from "@/lib/icons";
 import type { MarketingSiteConfig } from "@/lib/marketing-site";
+import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME, PLATFORM_MARKETING_DOMAIN } from "@/lib/platform/brand";
 import { marketingNavItems, proofStats, productSteps } from "@/components/marketing/marketing-data";
 import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
@@ -18,8 +19,8 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4 lg:px-8">
           <Link href="/home" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-white">
-            <span className="flex size-9 items-center justify-center rounded-full bg-white text-[#1b2558]">A</span>
-            Avenra
+            <span className="flex size-9 items-center justify-center rounded-full bg-white text-[#1b2558]">{PLATFORM_BRAND_INITIAL}</span>
+            {PLATFORM_BRAND_NAME}
           </Link>
           <nav className="hidden flex-1 items-center gap-8 text-sm text-white/68 lg:flex">
             {marketingNavItems.map((item) => (
@@ -84,7 +85,7 @@ export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
             <span />
             <span />
             <span />
-            <div className={styles.heroFrameAddress}>avenra.app / control plane</div>
+            <div className={styles.heroFrameAddress}>{PLATFORM_MARKETING_DOMAIN} / control plane</div>
           </div>
           <div className={styles.heroSurface}>
             <div className={styles.heroStripePane}>

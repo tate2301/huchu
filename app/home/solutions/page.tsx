@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { ArrowRight } from "@/lib/icons";
+import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { audienceSignals, demoHighlights, solutionStories } from "@/components/marketing/marketing-data";
 import { MarketingSubpageShell } from "@/components/marketing/marketing-subpage-shell";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Solutions",
-  description: "See how Avenra supports gold, schools, retail, and platform admin on one shared control plane.",
+  description: `See how ${PLATFORM_BRAND_NAME} supports gold, schools, retail, and platform admin on one shared control plane.`,
 };
 
 export default function SolutionsPage() {

@@ -1,5 +1,6 @@
 import { isAdminPortalHost } from "@/lib/admin-portal";
 import { prisma } from "@/lib/prisma";
+import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { hasFeature } from "@/lib/platform/features";
 import { resolveTenantFromHost } from "@/lib/platform/tenant";
 
@@ -43,7 +44,7 @@ export type EffectiveBranding = {
 export const BRANDING_FONT_OPTIONS: BrandingFontOption[] = [
   {
     key: "huchu",
-    label: "SS Huchu",
+    label: `${PLATFORM_BRAND_NAME} Sans`,
     fontFamily: '"SS Huchu", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
   },
   {
@@ -75,7 +76,7 @@ export const BRANDING_FONT_OPTIONS: BrandingFontOption[] = [
 const DEFAULT_BRANDING: EffectiveBranding = {
   companyId: null,
   companyName: null,
-  displayName: "Huchu Enterprises",
+  displayName: PLATFORM_BRAND_NAME,
   fontFamilyKey: "huchu",
   fontFamily: BRANDING_FONT_OPTIONS[0].fontFamily,
   brandingEnabled: false,

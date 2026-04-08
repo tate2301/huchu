@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ArrowRight } from "@/lib/icons";
+import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
   audienceSignals,
   marketingSiteHighlights,
@@ -192,7 +193,7 @@ export function MarketingCoreSections() {
           </div>
           <div className="space-y-5">
             <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">
-              Avenra works when spreadsheets, siloed tools, and handoffs start to slow the business down.
+              {PLATFORM_BRAND_NAME} works when spreadsheets, siloed tools, and handoffs start to slow the business down.
             </p>
             <div className="flex flex-wrap gap-2.5">
               {audienceSignals.map((signal) => (

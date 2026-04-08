@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ArrowRight } from "@/lib/icons";
 import type { MarketingSiteConfig } from "@/lib/marketing-site";
+import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { addOns, demoHighlights, featuredAddOns, pricingTiers, rolloutPaths } from "@/components/marketing/marketing-data";
 import { DemoBookingForm } from "@/components/marketing/demo-booking-form";
 import { Button } from "@/components/ui/button";
@@ -134,7 +135,7 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
             <div className="space-y-5 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Demo</p>
               <h2 className="max-w-3xl text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
-                Show the rollout shape. We’ll map the path.
+                Show the rollout shape. We&apos;ll map the path.
               </h2>
               <p className="max-w-2xl text-sm leading-7 text-white/74">
                 Bring the handoffs, approvals, and sites that matter most. We will shape the session around the workflow and commercial path that fits.
@@ -155,7 +156,7 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
       <footer className={styles.footer}>
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 text-white/70 lg:grid-cols-[1.12fr_0.88fr] lg:px-8">
           <div className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Avenra</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">{PLATFORM_BRAND_NAME}</p>
             <p className="max-w-2xl text-sm leading-7">
               One platform for operations, finance, control, and reporting across mines, schools, shops, dealerships, and multi-site businesses.
             </p>
@@ -185,3 +186,4 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
     </>
   );
 }
+
