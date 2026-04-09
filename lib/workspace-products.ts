@@ -71,7 +71,7 @@ const GENERAL_GENERAL_PRODUCT_ID: VerticalProductId = "general-business";
 const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePresentation> = {
   gold: {
     title: "Gold Operations",
-    description: "Track gold production, purchases, dispatches, receipts, and exceptions in one operating flow.",
+    description: "",
     tabLabels: {
       home: "Overview",
       batches: "Pours",
@@ -86,23 +86,23 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   "scrap-metal": {
     title: "Scrap & Recycling",
-    description: "Run buying, pricing, yard batching, settlements, and trading from a single scrap operations surface.",
+    description: "",
   },
   schools: {
     title: "School Operations",
-    description: "Manage students, teachers, academics, boarding, finance, and portals across the school.",
+    description: "",
   },
   "car-sales": {
     title: "Auto Sales",
-    description: "Manage leads, vehicle stock, financing, and deal execution across the sales pipeline.",
+    description: "",
   },
   retail: {
     title: "Retail",
-    description: "Run merchandising, POS, purchasing, cash-up, and store operations for modern retail teams.",
+    description: "",
   },
   hr: {
     title: "Human Resources",
-    description: "Manage employees, salaries, payroll, incidents, approvals, and settlement workflows.",
+    description: "",
     tabLabels: {
       employees: "Employees",
       "shift-groups": "Shift Groups",
@@ -118,7 +118,7 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   stores: {
     title: "Stores & Inventory",
-    description: "Control stock, movements, receipts, issues, and replenishment from one inventory workspace.",
+    description: "",
     tabLabels: {
       dashboard: "Overview",
       inventory: "Stock on Hand",
@@ -130,7 +130,7 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   maintenance: {
     title: "Maintenance & Assets",
-    description: "Track equipment, work orders, planned maintenance, and breakdown response.",
+    description: "",
     tabLabels: {
       dashboard: "Overview",
       equipment: "Equipment Register",
@@ -141,19 +141,19 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   reporting: {
     title: "Reports",
-    description: "Review operations, finance, and control performance through shared reporting surfaces.",
+    description: "",
   },
   cctv: {
     title: "CCTV & Surveillance",
-    description: "Monitor cameras, playback, events, and access activity across sites.",
+    description: "",
   },
   accounting: {
     title: "Accounting",
-    description: "Run ledger, receivables, payables, tax, and close controls from the finance workspace.",
+    description: "",
   },
   management: {
     title: "Management",
-    description: "Maintain users, master data, branding, compliance, and shared platform controls.",
+    description: "",
   },
 };
 
@@ -162,7 +162,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "gold-operations",
     label: "Gold Operations",
     workspaceLabel: "Gold Operations",
-    description: "Gold production, settlement, people, controls, and reporting for mining and mineral buyers.",
+    description: "",
     customerExamples: ["Gold mines", "Mineral buying offices", "Processing operations"],
     templateCodes: ["TEMPLATE_GOLD_MINE"],
     preferredHomeHref: "/gold",
@@ -170,20 +170,20 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["hr", "stores", "maintenance", "accounting", "management"],
     moduleCopy: {
       hr: {
-        description: "Manage crews, salaries, payroll, and settlement workflows alongside shift operations.",
+        description: "",
         tabLabels: {
           payouts: "Settlements",
           salaries: "Salary Operations",
         },
       },
       maintenance: {
-        description: "Track plant, equipment, work orders, and breakdown response across the mine.",
+        description: "",
       },
       stores: {
-        description: "Manage spares, consumables, and movement controls across mining sites.",
+        description: "",
       },
       accounting: {
-        description: "Run settlements, receivables, payables, tax, and close controls behind gold operations.",
+        description: "",
       },
     },
   },
@@ -191,7 +191,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "scrap-recycling",
     label: "Scrap & Recycling",
     workspaceLabel: "Scrap & Recycling",
-    description: "Buying, yard batching, pricing, sales, and settlements for recyclers and scrap traders.",
+    description: "",
     customerExamples: ["Scrap yards", "Metal recyclers", "Industrial scrap traders"],
     templateCodes: ["TEMPLATE_SCRAP_METAL"],
     preferredHomeHref: "/scrap-metal",
@@ -199,16 +199,16 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["hr", "stores", "accounting", "management"],
     moduleCopy: {
       hr: {
-        description: "Manage yard teams, salaries, approvals, and settlement controls for scrap operations.",
+        description: "",
         tabLabels: {
           payouts: "Settlements",
         },
       },
       stores: {
-        description: "Track scrap stock, yard movements, receipts, and issues through shared inventory controls.",
+        description: "",
       },
       accounting: {
-        description: "Run buyer settlements, receivables, payables, and close controls for scrap trading.",
+        description: "",
       },
     },
   },
@@ -216,7 +216,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "school-operations",
     label: "School Operations",
     workspaceLabel: "School Operations",
-    description: "Student life cycle, academics, fees, boarding, and portals for schools and training institutions.",
+    description: "",
     customerExamples: ["Primary schools", "High schools", "Training institutions"],
     templateCodes: ["TEMPLATE_SCHOOLS"],
     preferredHomeHref: "/schools",
@@ -224,13 +224,13 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["accounting", "management", "hr"],
     moduleCopy: {
       accounting: {
-        description: "Support fees, receivables, banking, tax, and period controls for the school finance office.",
+        description: "",
       },
       hr: {
-        description: "Manage staff records, salaries, payroll, and approvals for teachers and support teams.",
+        description: "",
       },
       management: {
-        description: "Maintain master data, users, documents, branding, and compliance rules for the school.",
+        description: "",
       },
     },
   },
@@ -238,7 +238,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "auto-sales",
     label: "Auto Sales",
     workspaceLabel: "Auto Sales",
-    description: "Leads, inventory, financing, and deal execution for vehicle traders and dealerships.",
+    description: "",
     customerExamples: ["Car dealerships", "Vehicle traders", "Auto sales operators"],
     templateCodes: ["TEMPLATE_CAR_SALES"],
     preferredHomeHref: "/car-sales",
@@ -246,10 +246,10 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["accounting", "management", "hr"],
     moduleCopy: {
       accounting: {
-        description: "Manage deal postings, receivables, commissions, banking, and tax controls for vehicle sales.",
+        description: "",
       },
       hr: {
-        description: "Manage sales staff, commissions, salaries, and approvals across the dealership team.",
+        description: "",
       },
     },
   },
@@ -257,7 +257,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "retail-operations",
     label: "Retail",
     workspaceLabel: "Retail",
-    description: "Retail, POS, purchasing, merchandising, and cash-up operations for small to medium shop businesses.",
+    description: "",
     customerExamples: ["Retail stores", "Boutiques", "Small chains"],
     templateCodes: ["TEMPLATE_RETAIL"],
     preferredHomeHref: "/retail",
@@ -265,13 +265,13 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["stores", "accounting", "management", "hr"],
     moduleCopy: {
       stores: {
-        description: "Track receiving, stock on hand, movements, and replenishment for store and back-room operations.",
+        description: "",
       },
       accounting: {
-        description: "Manage sales, receivables, payables, banking, and tax from the shop finance workspace.",
+        description: "",
       },
       hr: {
-        description: "Manage shop teams, salaries, payroll, and approval history across store operations.",
+        description: "",
       },
     },
   },
@@ -279,7 +279,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "service-workshop",
     label: "Service Workshop",
     workspaceLabel: "Service Workshop",
-    description: "Parts, jobs, equipment, payroll, and workshop controls for service and technician businesses.",
+    description: "",
     customerExamples: ["Mechanic workshops", "Technician services", "Engineering workshops"],
     templateCodes: ["TEMPLATE_TECH_WORKSHOP"],
     preferredHomeHref: "/maintenance",
@@ -287,17 +287,17 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["accounting", "management"],
     moduleCopy: {
       maintenance: {
-        description: "Run job work, equipment records, preventive maintenance, and workshop breakdown response.",
+        description: "",
       },
       stores: {
         title: "Parts & Stores",
-        description: "Control spare parts, consumables, and job-linked stock movements.",
+        description: "",
       },
       hr: {
-        description: "Manage technicians, attendance patterns, salaries, payroll, and workshop approvals.",
+        description: "",
       },
       accounting: {
-        description: "Track invoices, bills, payroll cost, and close controls behind workshop operations.",
+        description: "",
       },
     },
   },
@@ -305,7 +305,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "multi-site-operations",
     label: "Multi-Site Operations",
     workspaceLabel: "Multi-Site Operations",
-    description: "Stock, people, CCTV, and shared controls for growing SMEs operating across several sites.",
+    description: "",
     customerExamples: ["Multi-site shops", "Security-stock operators", "Small distributed companies"],
     templateCodes: ["TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"],
     preferredHomeHref: "/stores/dashboard",
@@ -313,13 +313,13 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["accounting", "management", "reporting"],
     moduleCopy: {
       stores: {
-        description: "Track stock, movements, and receipts across sites with tighter operating visibility.",
+        description: "",
       },
       hr: {
-        description: "Manage staff records, salaries, payroll, and approvals across multiple branches or depots.",
+        description: "",
       },
       cctv: {
-        description: "Monitor cameras, playback, events, and access activity across branches and shared facilities.",
+        description: "",
       },
     },
   },
@@ -327,7 +327,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     id: "general-business",
     label: "General Business",
     workspaceLabel: "General Business",
-    description: "Shared finance, stock, people, and operational controls for general-purpose businesses.",
+    description: "",
     customerExamples: ["SMEs", "Trading businesses", "Service companies"],
     templateCodes: ["TEMPLATE_CORE_STARTER", "TEMPLATE_ALL_FEATURES"],
     preferredHomeHref: null,
@@ -440,7 +440,7 @@ export function getWorkspaceModulePresentation(args: ResolveWorkspaceProductArgs
 
   return {
     title: override?.title ?? base.title,
-    description: override?.description ?? base.description,
+    description: "",
     tabLabels: {
       ...(base.tabLabels ?? {}),
       ...(override?.tabLabels ?? {}),
