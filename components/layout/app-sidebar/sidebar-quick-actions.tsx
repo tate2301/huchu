@@ -16,16 +16,12 @@ import { matchesNavHref } from "./sidebar-helpers";
 
 export function SidebarQuickActions({
   items,
-  badgeCount,
   pathname,
   view,
-  isCollapsed,
 }: {
   items: NavItem[];
-  badgeCount?: number;
   pathname: string;
   view: string | null;
-  isCollapsed: boolean;
 }) {
   if (items.length === 0) return null;
 
@@ -33,13 +29,8 @@ export function SidebarQuickActions({
     <SidebarGroup className="mb-1">
       <SidebarGroupContent className="mt-0.5">
         <SidebarMenu className="gap-0">
-          {items.map((item, index) => {
+          {items.map((item) => {
             const isActive = matchesNavHref(item.href, pathname, view);
-            const shouldShowBadge =
-              !isCollapsed &&
-              typeof badgeCount === "number" &&
-              badgeCount > 0 &&
-              index === 0;
 
             return (
               <SidebarMenuItem key={item.href}>
@@ -55,12 +46,7 @@ export function SidebarQuickActions({
                 >
                   <Link href={item.href}>
                     <item.icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="truncate text-[15px] font-medium">{item.label}</span>
-                    {shouldShowBadge ? (
-                      <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-md bg-[#15171e] px-1.5 py-0.5 font-mono text-[11px] leading-none text-white">
-                        {badgeCount}
-                      </span>
-                    ) : null}
+                    <span className="truncate text-[14px] font-medium">{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

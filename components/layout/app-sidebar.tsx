@@ -81,20 +81,12 @@ export function AppSidebar() {
       }
     }
 
-    if (links.length < 2) {
-      for (const item of sidebarModel.supportItems) {
-        if (links.length >= 2) break;
-        push(item);
-      }
-    }
-
     return links.slice(0, 2);
   }, [
     orderedSections,
     sidebarModel.homeHref,
     sidebarModel.homeLabel,
     sidebarModel.quickActions,
-    sidebarModel.supportItems,
   ]);
   const topQuickLinkHrefs = React.useMemo(
     () => new Set(topQuickLinks.map((item) => item.href)),
@@ -123,11 +115,6 @@ export function AppSidebar() {
         (section) => section.workspaceGroup === "additional",
       ),
     [orderedSectionsWithoutTopQuickLinks],
-  );
-  const secondaryItems = React.useMemo(() => sidebarModel.supportItems, [sidebarModel.supportItems]);
-  const quickActionBadgeCount = React.useMemo(
-    () => (sidebarModel.quickActions.length > 0 ? sidebarModel.quickActions.length : undefined),
-    [sidebarModel.quickActions.length],
   );
 
   const activeHref = React.useMemo(
@@ -163,20 +150,10 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="sticky top-3 m-3 h-[calc(100svh-1.5rem)] rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] shadow-none [--sidebar-width:18.75rem] [--sidebar-width-icon:3.75rem]"
+      className="sticky top-0 h-screen rounded-none border-0 bg-[var(--surface-base)] shadow-none [--sidebar-width:18.75rem] [--sidebar-width-icon:3.75rem]"
     >
       <SidebarHeader className="px-3 pb-2 pt-3">
         <SidebarAccountMenu
-          session={
-            session
-              ? {
-                  user: {
-                    name: session.user?.name,
-                    role: (session.user as { role?: string } | undefined)?.role ?? null,
-                  },
-                }
-              : null
-          }
           isCollapsed={isCollapsed}
           isMobile={isMobile}
           workspaceLabel={sidebarModel.workspaceLabel}
@@ -186,10 +163,8 @@ export function AppSidebar() {
         />
         <SidebarQuickActions
           items={topQuickLinks}
-          badgeCount={quickActionBadgeCount}
           pathname={pathname}
           view={view}
-          isCollapsed={isCollapsed}
         />
       </SidebarHeader>
 
@@ -214,7 +189,7 @@ export function AppSidebar() {
 
         {additionalSections.length > 0 ? (
           <>
-            {!isCollapsed ? <SidebarSectionHeading label="Favorites" /> : null}
+            {!isCollapsed ? <SidebarSectionHeading label="Additional" /> : null}
             <SidebarGroup className="mb-0.5 py-0">
               <SidebarGroupContent className="mt-0 gap-0">
                 <SidebarNavSections
@@ -229,14 +204,7 @@ export function AppSidebar() {
           </>
         ) : null}
 
-        {!isCollapsed && secondaryItems.length > 0 ? (
-          <SidebarSectionHeading label="Your tools" />
-        ) : null}
-
         <SidebarSupport
-          items={secondaryItems}
-          pathname={pathname}
-          view={view}
           isCollapsed={isCollapsed}
           guidedModeEnabled={guidedModeEnabled}
           onToggleGuidedMode={() => setGuidedMode(!guidedModeEnabled)}

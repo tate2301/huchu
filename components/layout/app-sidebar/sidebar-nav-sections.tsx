@@ -69,7 +69,7 @@ function SidebarDirectSectionLink({
           <SidebarNavLink
             item={item}
             isActive={item.href === activeHref}
-            className="h-9 text-[15px]"
+            className="h-9 text-[14px]"
           />
         </SidebarMenu>
       </SidebarGroupContent>
@@ -161,7 +161,7 @@ function SidebarExpandableSection({
                 key={item.href}
                 item={item}
                 isActive={item.href === activeHref}
-                className="h-8 rounded-[8px] px-2 text-[13px]"
+                className="h-8 rounded-[8px] px-2 text-[14px]"
               />
             ))}
           </SidebarMenu>
@@ -189,7 +189,7 @@ export function SidebarHomeLink({
               asChild
               isActive={isActive}
               tooltip={label}
-              className="h-9 rounded-[10px] border border-transparent px-2.5 text-[15px] font-medium data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:shadow-none"
+              className="h-9 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:shadow-none"
             >
               <Link href={href}>
                 <Home className="h-4 w-4 text-muted-foreground" />
