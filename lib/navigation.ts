@@ -303,7 +303,7 @@ export const navSections: NavSection[] = [
       href: tab.href,
       icon: tab.icon,
       label: tab.label,
-      roles: tab.id === "sales" ? ["SUPERADMIN", "MANAGER"] : undefined,
+      roles: tab.roles,
     })),
   },
   {

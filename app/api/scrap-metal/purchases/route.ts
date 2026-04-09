@@ -176,36 +176,6 @@ export async function POST(request: NextRequest) {
     }
 
     const purchaseDate = new Date(validated.purchaseDate);
-    const currentPrice = await prisma.scrapMetalPrice.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        category: validated.category,
-        materialId: validated.materialId ?? null,
-        effectiveDate: {
-          lte: purchaseDate,
-        },
-      },
-      orderBy: { effectiveDate: "desc" },
-      select: { pricePerKg: true },
-    }) ?? await prisma.scrapMetalPrice.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        category: validated.category,
-        materialId: null,
-        effectiveDate: {
-          lte: purchaseDate,
-        },
-      },
-      orderBy: { effectiveDate: "desc" },
-      select: { pricePerKg: true },
-    });
-
-    if (!currentPrice) {
-      return errorResponse(
-        `No price configured for ${validated.category}. Add a price before recording purchases.`,
-        409
-      );
-    }
 
     const purchaseNumber = validated.purchaseNumber
       ? normalizeProvidedId(validated.purchaseNumber, "SCRAP_METAL_PURCHASE")

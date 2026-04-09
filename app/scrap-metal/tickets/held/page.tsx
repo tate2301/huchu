@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -185,16 +186,18 @@ export default function HeldTicketsPage() {
     <ScrapShell
       title="Held / Draft Tickets"
       actions={
-        <div className="flex gap-2">
-          <Button asChild size="sm" variant="outline">
+        <div className="grid w-full gap-2 sm:flex sm:flex-wrap">
+          <Button className="w-full sm:w-auto" asChild size="sm" variant="outline">
             <Link href="/scrap-metal/purchases">Inbound Tickets</Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
+          <Button className="w-full sm:w-auto" asChild size="sm" variant="outline">
             <Link href="/scrap-metal/sales">Outbound Tickets</Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/sales/approval-requests">Approval Requests</Link>
-          </Button>
+          {canManageSales ? (
+            <Button className="w-full sm:w-auto" asChild size="sm" variant="outline">
+              <Link href="/scrap-metal/sales/approval-requests">Approval Requests</Link>
+            </Button>
+          ) : null}
         </div>
       }
     >
@@ -203,24 +206,99 @@ export default function HeldTicketsPage() {
           heldPurchasesQuery.error ? (
             <StatusState variant="error" title="Unable to load held inbound tickets" description={getApiErrorMessage(heldPurchasesQuery.error)} />
           ) : (
-            <DataTable
-              data={heldPurchasesQuery.data ?? []}
-              columns={inboundColumns}
-              searchPlaceholder="Search inbound draft ticket"
-              pagination={{ enabled: true }}
-              emptyState={heldPurchasesQuery.isLoading ? "Loading held tickets..." : "No held inbound tickets."}
-            />
+            <>
+              <div className="hidden md:block">
+                <DataTable
+                  data={heldPurchasesQuery.data ?? []}
+                  columns={inboundColumns}
+                  searchPlaceholder="Search inbound draft ticket"
+                  pagination={{ enabled: true }}
+                  emptyState={heldPurchasesQuery.isLoading ? "Loading held tickets..." : "No held inbound tickets."}
+                />
+              </div>
+              <div className="space-y-3 md:hidden">
+                {(heldPurchasesQuery.data ?? []).map((ticket) => (
+                  <article key={ticket.id} className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold">{ticket.purchaseNumber}</div>
+                        <div className="text-xs text-muted-foreground">{new Date(ticket.purchaseDate).toLocaleString()}</div>
+                      </div>
+                      <Badge variant="outline">{ticket.category}</Badge>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm">
+                      <div>Supplier: {ticket.sellerName || "-"}</div>
+                      <div>Weight: {ticket.weight.toFixed(2)} kg</div>
+                      <div className="font-mono">{ticket.currency} {ticket.totalAmount.toFixed(2)}</div>
+                    </div>
+                    <div className="mt-4 grid gap-2">
+                      <Button className="w-full" variant="outline" asChild>
+                        <Link href={`/scrap-metal/purchases?edit=${ticket.id}`}>Resume</Link>
+                      </Button>
+                      <Button
+                        className="w-full"
+                        onClick={() => finalizeInboundMutation.mutate(ticket.id)}
+                        disabled={finalizeInboundMutation.isPending}
+                      >
+                        Finalize
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+                {!heldPurchasesQuery.isLoading && (heldPurchasesQuery.data ?? []).length === 0 ? (
+                  <StatusState variant="empty" title="No held inbound tickets" />
+                ) : null}
+              </div>
+            </>
           )
         ) : heldSalesQuery.error ? (
           <StatusState variant="error" title="Unable to load held outbound tickets" description={getApiErrorMessage(heldSalesQuery.error)} />
         ) : (
-          <DataTable
-            data={heldSalesQuery.data ?? []}
-            columns={outboundColumns}
-            searchPlaceholder="Search outbound draft ticket"
-            pagination={{ enabled: true }}
-            emptyState={heldSalesQuery.isLoading ? "Loading held tickets..." : "No held outbound tickets."}
-          />
+          <>
+            <div className="hidden md:block">
+              <DataTable
+                data={heldSalesQuery.data ?? []}
+                columns={outboundColumns}
+                searchPlaceholder="Search outbound draft ticket"
+                pagination={{ enabled: true }}
+                emptyState={heldSalesQuery.isLoading ? "Loading held tickets..." : "No held outbound tickets."}
+              />
+            </div>
+            <div className="space-y-3 md:hidden">
+              {(heldSalesQuery.data ?? []).map((ticket) => (
+                <article key={ticket.id} className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">{ticket.saleNumber}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(ticket.saleDate).toLocaleString()}</div>
+                    </div>
+                    <Badge variant="outline">Outbound</Badge>
+                  </div>
+                  <div className="mt-3 space-y-1 text-sm">
+                    <div>Buyer: {ticket.buyerName}</div>
+                    <div>Accepted: {ticket.soldWeight.toFixed(2)} kg</div>
+                    <div className="font-mono">{ticket.currency} {ticket.totalAmount.toFixed(2)}</div>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    <Button className="w-full" variant="outline" asChild>
+                      <Link href={`/scrap-metal/sales?edit=${ticket.id}`}>Resume</Link>
+                    </Button>
+                    <Button
+                      className="w-full"
+                      onClick={() => finalizeOutboundMutation.mutate(ticket.id)}
+                      disabled={finalizeOutboundMutation.isPending || !canManageSales}
+                      title={!canManageSales ? "Manager approval is required to submit outbound tickets." : undefined}
+                    >
+                      {canManageSales ? "Submit" : "Manager Needed"}
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {!heldSalesQuery.isLoading && (heldSalesQuery.data ?? []).length === 0 ? (
+                <StatusState variant="empty" title="No held outbound tickets" />
+              ) : null}
+            </div>
+          </>
         )}
       </VerticalDataViews>
     </ScrapShell>

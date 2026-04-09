@@ -297,8 +297,8 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     label: "Scrap & Recycling",
     preferredHomeHref: "/scrap-metal",
     quickActions: [
-      roleItem("/scrap-metal/purchases", "New Inbound Ticket", Payments),
-      roleItem("/scrap-metal/batches", "Open Lot", Package),
+      roleItem("/scrap-metal/tickets", "New Inbound Ticket", Payments),
+      roleItem("/scrap-metal/batches", "Open Lot", Package, ["SUPERADMIN", "MANAGER"]),
       roleItem("/scrap-metal/sales", "New Outbound Ticket", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
       roleItem("/scrap-metal/tickets/held", "Held Tickets", Wallet),
       roleItem("/stores/receive", "Receive Stock", ArrowDownward),

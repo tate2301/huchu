@@ -69,9 +69,9 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
     { href: "/gold/settlement/receipts/new", icon: ReceiptLong, label: "Record Receipt" },
   ],
   SCRAP_METAL: [
-    { href: "/scrap-metal/purchases", icon: Payments, label: "New Inbound Ticket" },
-    { href: "/scrap-metal/batches", icon: Package, label: "Open Lot" },
-    { href: "/scrap-metal/sales", icon: ReceiptLong, label: "New Outbound Ticket" },
+    { href: "/scrap-metal/tickets", icon: Payments, label: "New Inbound Ticket" },
+    { href: "/scrap-metal/batches", icon: Package, label: "Open Lot", roles: ["SUPERADMIN", "MANAGER"] },
+    { href: "/scrap-metal/sales", icon: ReceiptLong, label: "New Outbound Ticket", roles: ["SUPERADMIN", "MANAGER"] },
     { href: "/scrap-metal/tickets/held", icon: Wallet, label: "Held Tickets" },
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
   ],

@@ -1,486 +1,131 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
-import { AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SplitButton } from "@/components/ui/split-button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import {
-  ArrowRight,
-  ChevronDownIcon,
-  Coins,
-  Package,
-  Payments,
-  ReceiptLong,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-} from "@/lib/icons";
+import { hasRole } from "@/lib/roles";
 
 type DashboardPayload = {
   summary: {
-    purchasesThisMonthValue: number;
     purchasesThisMonthWeight: number;
-    salesThisMonthValue: number;
+    purchasesThisMonthValue: number;
     salesThisMonthWeight: number;
+    salesThisMonthValue: number;
     estimatedMarginThisMonth: number;
-    readyBatchCount: number;
-    collectingBatchCount: number;
     pendingSalesCount: number;
-    approvedSalesCount: number;
-    activeMaterialsCount: number;
-    materialsCount: number;
-    operatorBalanceExposure: number;
-    overdueSettlementAmount: number;
-    yardStockWeight: number;
-    yardStockValue: number;
-    amountOwedToCompany: number;
-    amountCompanyOwes: number;
-    balanceCount: number;
-  };
-  yardStock: {
-    totalWeight: number;
-    totalValue: number;
-    trendSeries: string[];
-    trend: Array<{
-      label: string;
-      tooltipLabel?: string;
-      [key: string]: string | number | undefined;
-    }>;
-    materials: Array<{
-      id: string;
-      label: string;
-      category: string;
-      weight: number;
-      value: number;
-    }>;
-  };
-  balances: {
-    amountOwedToCompany: number;
-    amountCompanyOwes: number;
-    operators: Array<{
-      id: string;
-      balance: number;
-      deliveredValue: number;
-      deliveredWeight: number;
-      deliveryCount: number;
-      employee: { id: string; name: string; employeeId: string };
-    }>;
-  };
-  queues: {
-    readyBatches: Array<{ id: string; batchNumber: string; totalWeight: number; status: string; category: string }>;
-    settlementBatches: Array<{
-      id: string;
-      label: string;
-      dueDate: string;
-      workflowStatus: string;
-      totalAmount: number;
-    }>;
+    completedSalesCount: number;
+    averageBuyPricePerKg: number;
+    ticketsProcessedPerHour: number;
+    pendingSupplierPaymentsCount: number;
+    heldInboundTicketsCount: number;
+    heldOutboundTicketsCount: number;
+    heldTicketsOldestAgeHours: number;
+    marginPerKg: number;
+    marginPercent: number;
   };
 };
 
-const STORAGE_COLORS = [
-  "var(--primary-500)",
-  "var(--accent-500)",
-  "var(--success-500)",
-  "var(--warning-500)",
-  "var(--info-500)",
-  "var(--danger-500)",
-];
-
-function formatCurrency(value: number) {
+function formatMoney(value: number) {
   return `USD ${value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
 
-function formatCompactCurrency(value: number) {
-  if (Math.abs(value) >= 1_000_000) {
-    return `USD ${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (Math.abs(value) >= 1_000) {
-    return `USD ${(value / 1_000).toFixed(1)}K`;
-  }
-  return formatCurrency(value);
-}
-
-function formatWeight(value: number) {
+function formatKg(value: number) {
   return `${value.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} kg`;
 }
 
-function SummaryCard({
-  label,
-  value,
-  icon: Icon,
-  tone = "default",
-  detail,
-}: {
+type SnapshotCard = {
   label: string;
   value: string;
-  icon: typeof Payments;
-  tone?: "default" | "warning" | "danger" | "success";
-  detail?: string;
-}) {
-  const accentClass =
-    tone === "danger"
-      ? "text-[var(--danger-600)]"
-      : tone === "warning"
-        ? "text-[var(--warning-600)]"
-        : tone === "success"
-          ? "text-[var(--success-600)]"
-          : "text-[var(--primary-600)]";
-
-  return (
-    <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4">
-      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
-        <Icon className={`h-4 w-4 ${accentClass}`} />
-        <span>{label}</span>
-      </div>
-      <div className={`mt-3 text-2xl font-semibold tracking-[-0.02em] ${accentClass}`}>{value}</div>
-      {detail ? <div className="mt-1 text-xs text-[var(--text-muted)]">{detail}</div> : null}
-    </div>
-  );
-}
-
-function MaterialStockRow({
-  label,
-  weight,
-  value,
-  maxWeight,
-}: {
-  label: string;
-  weight: number;
-  value: number;
-  maxWeight: number;
-}) {
-  const width = maxWeight > 0 ? Math.max((weight / maxWeight) * 100, 6) : 0;
-
-  return (
-    <div className="space-y-2 rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-[var(--text-strong)]">{label}</p>
-          <p className="text-xs text-[var(--text-muted)]">{formatWeight(weight)}</p>
-        </div>
-        <p className="shrink-0 font-mono text-xs text-[var(--text-strong)]">{formatCompactCurrency(value)}</p>
-      </div>
-      <div className="h-2 rounded-full bg-[var(--surface-subtle)]">
-        <div
-          className="h-2 rounded-full bg-[var(--primary-500)]"
-          style={{ width: `${Math.min(width, 100)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function BalanceRow({
-  name,
-  employeeId,
-  deliveredValue,
-  deliveredWeight,
-  balance,
-  maxDeliveredValue,
-  maxBalanceValue,
-}: {
-  name: string;
-  employeeId: string;
-  deliveredValue: number;
-  deliveredWeight: number;
-  balance: number;
-  maxDeliveredValue: number;
-  maxBalanceValue: number;
-}) {
-  const balanceLabel = balance > 0 ? "They owe us" : "We owe them";
-  const balanceTone = balance > 0 ? "warning" : "success";
-  const deliveredWidth = maxDeliveredValue > 0 ? Math.max((deliveredValue / maxDeliveredValue) * 100, 6) : 0;
-  const balanceWidth = maxBalanceValue > 0 ? Math.max((Math.abs(balance) / maxBalanceValue) * 100, 6) : 0;
-
-  return (
-    <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[var(--text-strong)]">{name}</p>
-          <p className="font-mono text-xs text-[var(--text-muted)]">{employeeId}</p>
-        </div>
-        <Badge variant={balanceTone === "warning" ? "outline" : "secondary"}>{balanceLabel}</Badge>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
-            <span>Delivered</span>
-            <span className="font-mono text-[var(--text-strong)]">
-              {formatCompactCurrency(deliveredValue)} | {formatWeight(deliveredWeight)}
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-[var(--surface-subtle)]">
-            <div
-              className="h-2 rounded-full bg-[var(--primary-500)]"
-              style={{ width: `${Math.min(deliveredWidth, 100)}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
-            <span>Open balance</span>
-            <span className="font-mono text-[var(--text-strong)]">{formatCompactCurrency(Math.abs(balance))}</span>
-          </div>
-          <div className="h-2 rounded-full bg-[var(--surface-subtle)]">
-            <div
-              className={`h-2 rounded-full ${balance > 0 ? "bg-[var(--warning-500)]" : "bg-[var(--success-500)]"}`}
-              style={{ width: `${Math.min(balanceWidth, 100)}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+};
 
 export default function ScrapMetalPage() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["scrap-metal-dashboard-v2"],
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const canManage = hasRole(role, ["SUPERADMIN", "MANAGER"]);
+
+  const query = useQuery({
+    queryKey: ["scrap-home-daily-snapshot"],
     queryFn: () => fetchJson<DashboardPayload>("/api/scrap-metal/dashboard"),
   });
 
-  const storageSeries = useMemo<AdminChartSeries[]>(
-    () =>
-      (data?.yardStock.trendSeries ?? []).map((seriesKey, index) => ({
-        key: seriesKey,
-        label: seriesKey,
-        kind: "line",
-        color: STORAGE_COLORS[index % STORAGE_COLORS.length],
-        strokeWidth: 2.2,
-      })),
-    [data?.yardStock.trendSeries],
-  );
-  const maxStoredWeight = useMemo(
-    () => Math.max(...(data?.yardStock.materials ?? []).map((row) => row.weight), 0),
-    [data?.yardStock.materials],
-  );
-  const maxDeliveredValue = useMemo(
-    () => Math.max(...(data?.balances.operators ?? []).map((row) => row.deliveredValue), 0),
-    [data?.balances.operators],
-  );
-  const maxBalanceValue = useMemo(
-    () => Math.max(...(data?.balances.operators ?? []).map((row) => Math.abs(row.balance)), 0),
-    [data?.balances.operators],
-  );
+  if (query.error) {
+    return (
+      <ScrapShell title="Daily Snapshot">
+        <StatusState variant="error" title="Unable to load snapshot" description={getApiErrorMessage(query.error)} />
+      </ScrapShell>
+    );
+  }
+
+  const summary = query.data?.summary;
+  const heldTotal = (summary?.heldInboundTicketsCount ?? 0) + (summary?.heldOutboundTicketsCount ?? 0);
+
+  const cards: SnapshotCard[] = [
+    { label: "Weight In", value: formatKg(summary?.purchasesThisMonthWeight ?? 0) },
+    { label: "Spend", value: formatMoney(summary?.purchasesThisMonthValue ?? 0) },
+    { label: "Avg Buy / kg", value: formatMoney(summary?.averageBuyPricePerKg ?? 0) },
+    { label: "Weight Out", value: formatKg(summary?.salesThisMonthWeight ?? 0) },
+    { label: "Revenue", value: formatMoney(summary?.salesThisMonthValue ?? 0) },
+    { label: "Est. Margin", value: formatMoney(summary?.estimatedMarginThisMonth ?? 0) },
+    { label: "Margin / kg", value: formatMoney(summary?.marginPerKg ?? 0) },
+    { label: "Margin %", value: `${(summary?.marginPercent ?? 0).toFixed(2)}%` },
+    { label: "Pending Sales", value: String(summary?.pendingSalesCount ?? 0) },
+    { label: "Completed Sales", value: String(summary?.completedSalesCount ?? 0) },
+    { label: "Tickets / Hour", value: (summary?.ticketsProcessedPerHour ?? 0).toFixed(2) },
+    { label: "Pending Supplier Payments", value: String(summary?.pendingSupplierPaymentsCount ?? 0) },
+    { label: "Held Tickets", value: `${heldTotal} (${(summary?.heldTicketsOldestAgeHours ?? 0).toFixed(1)}h oldest)` },
+  ];
 
   return (
     <ScrapShell
-      title="Overview"
+      title="Daily Snapshot"
+      description="Operator-first view of throughput, cash exposure, and held ticket pressure."
       actions={
-        <div className="flex flex-wrap gap-2">
-          <SplitButton
-            size="sm"
-            menuContent={
-              <>
-                <DropdownMenuItem asChild>
-                  <Link href="/scrap-metal/batches">Open lot</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/scrap-metal/sales">New outbound ticket</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/scrap-metal/settlements">View settlements</Link>
-                </DropdownMenuItem>
-              </>
-            }
-          >
-            <Link href="/scrap-metal/purchases" className="inline-flex items-center gap-2">
-              <Payments className="h-4 w-4" />
-              New Inbound Ticket
-            </Link>
-          </SplitButton>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline">
-                More
-                <ChevronDownIcon className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href="/scrap-metal/reports">Reports</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/management/master-data/operations/scrap-sellers">Suppliers</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="grid w-full gap-2 sm:flex sm:flex-wrap">
+          <Button className="w-full sm:w-auto" asChild>
+            <Link href="/scrap-metal/tickets">New Inbound Ticket</Link>
+          </Button>
+          <Button className="w-full sm:w-auto" variant="outline" asChild>
+            <Link href="/scrap-metal/tickets/held">Held Tickets ({heldTotal})</Link>
+          </Button>
+          {canManage ? (
+            <Button className="w-full sm:w-auto" variant="outline" asChild>
+              <Link href="/scrap-metal/sales">Outbound Queue</Link>
+            </Button>
+          ) : null}
+          {canManage ? (
+            <Button className="w-full sm:w-auto" variant="outline" asChild>
+              <Link href="/scrap-metal/reports/daily-snapshot">Open Full Report</Link>
+            </Button>
+          ) : null}
         </div>
       }
     >
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load overview</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="In yard"
-          value={formatWeight(data?.summary.yardStockWeight ?? 0)}
-          icon={Package}
-          detail={`${data?.summary.collectingBatchCount ?? 0} collecting | ${data?.summary.readyBatchCount ?? 0} ready`}
-        />
-        <SummaryCard
-          label="Yard value"
-          value={formatCompactCurrency(data?.summary.yardStockValue ?? 0)}
-          icon={Coins}
-          detail={`${data?.yardStock.materials.length ?? 0} scrap types`}
-        />
-        <SummaryCard
-          label="They owe us"
-          value={formatCompactCurrency(data?.summary.amountOwedToCompany ?? 0)}
-          icon={TrendingUp}
-          tone="warning"
-          detail={`${data?.summary.balanceCount ?? 0} open balances`}
-        />
-        <SummaryCard
-          label="We owe them"
-          value={formatCompactCurrency(data?.summary.amountCompanyOwes ?? 0)}
-          icon={TrendingDown}
-          tone="success"
-          detail={formatCompactCurrency(data?.summary.overdueSettlementAmount ?? 0)}
-        />
-      </div>
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,0.9fr)]">
-        <div className="rounded-3xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4 sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
-                Storage over time
-              </h2>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">{formatWeight(data?.yardStock.totalWeight ?? 0)}</p>
-            </div>
-            <Badge variant="outline">{data?.yardStock.trendSeries.length ?? 0}</Badge>
-          </div>
-          <AdminTrendChart
-            rows={data?.yardStock.trend ?? []}
-            series={storageSeries}
-            height={310}
-            emptyLabel={isLoading ? "Loading storage..." : "No storage trend yet"}
-            yTickFormatter={(value) => `${Math.round(value)} kg`}
-            valueFormatter={(value) => `${value.toFixed(2)} kg`}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4 sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
-                In yard now
-              </h2>
-              <Badge variant="outline">{data?.yardStock.materials.length ?? 0}</Badge>
-            </div>
-            <div className="space-y-3">
-              {(data?.yardStock.materials ?? []).slice(0, 6).map((row) => (
-                <MaterialStockRow
-                  key={row.id}
-                  label={row.label}
-                  weight={row.weight}
-                  value={row.value}
-                  maxWeight={maxStoredWeight}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4 sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
-                Critical
-              </h2>
-              <Badge variant="outline">{data?.queues.settlementBatches.length ?? 0}</Badge>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <SummaryCard
-                label="Bought this month"
-                value={formatCompactCurrency(data?.summary.purchasesThisMonthValue ?? 0)}
-                icon={Payments}
-                detail={formatWeight(data?.summary.purchasesThisMonthWeight ?? 0)}
-              />
-              <SummaryCard
-                label="Sold this month"
-                value={formatCompactCurrency(data?.summary.salesThisMonthValue ?? 0)}
-                icon={ReceiptLong}
-                detail={formatWeight(data?.summary.salesThisMonthWeight ?? 0)}
-              />
-              <SummaryCard
-                label="Margin"
-                value={formatCompactCurrency(data?.summary.estimatedMarginThisMonth ?? 0)}
-                icon={Coins}
-                tone={data && data.summary.estimatedMarginThisMonth < 0 ? "danger" : "default"}
-                detail={`${data?.summary.activeMaterialsCount ?? 0} of ${data?.summary.materialsCount ?? 0} active`}
-              />
-              <SummaryCard
-                label="Due settlements"
-                value={formatCompactCurrency(data?.summary.overdueSettlementAmount ?? 0)}
-                icon={Wallet}
-                tone="warning"
-                detail={`${data?.queues.settlementBatches.length ?? 0} batches`}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
-              Buyer balances
-            </h2>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Only non-zero balances</p>
-          </div>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/settlements">
-              Open settlements
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-2">
-          {(data?.balances.operators ?? []).slice(0, 8).map((row) => (
-            <BalanceRow
-              key={row.id}
-              name={row.employee.name}
-              employeeId={row.employee.employeeId}
-              deliveredValue={row.deliveredValue}
-              deliveredWeight={row.deliveredWeight}
-              balance={row.balance}
-              maxDeliveredValue={maxDeliveredValue}
-              maxBalanceValue={maxBalanceValue}
-            />
+      {query.isLoading ? (
+        <StatusState variant="loading" title="Loading daily snapshot..." />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((card) => (
+            <Card key={card.label}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-muted-foreground">{card.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="font-mono text-lg">{card.value}</CardContent>
+            </Card>
           ))}
         </div>
-      </section>
+      )}
     </ScrapShell>
   );
 }

@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     const validated = scrapMetalSaleSchema.parse(body);
     if (!canManageSales && validated.status !== "DRAFT") {
       return errorResponse(
-        "Clerks can only create outbound tickets as DRAFT approval requests",
+        "Operators can only create outbound tickets as DRAFT approval requests",
         403,
       );
     }

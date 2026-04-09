@@ -218,9 +218,34 @@ export default function ScrapMetalTicketWorkbenchPage() {
     return networkish || browserOffline;
   }
 
+  function toIsoStringOrNow(value: string) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
+    return parsed.toISOString();
+  }
+
+  function getComplianceMessages(error: unknown) {
+    if (!(error instanceof ApiError) || typeof error.details !== "object" || !error.details) return [];
+    const payload = error.details as { details?: unknown };
+    if (!Array.isArray(payload.details)) return [];
+    return payload.details.filter((message): message is string => typeof message === "string");
+  }
+
+  function mapComplianceErrorsToFields(messages: string[]) {
+    const errors: Record<string, string> = {};
+    for (const message of messages) {
+      const normalized = message.toLowerCase();
+      if (normalized.includes("photo")) errors.attachments = message;
+      if (normalized.includes("payment method")) errors.paymentMethod = message;
+      if (normalized.includes("payment reference")) errors.paymentReference = message;
+      if (normalized.includes("notes")) errors.notes = message;
+    }
+    return errors;
+  }
+
   function buildInboundPayload(intent: InboundIntent, form: InboundForm) {
     return {
-      purchaseDate: new Date(form.date).toISOString(),
+      purchaseDate: toIsoStringOrNow(form.date),
       siteId: form.siteId,
       employeeId: form.employeeId,
       sellerProfileId: form.sellerId,
@@ -240,7 +265,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
   function buildOutboundPayload(intent: OutboundIntent, form: OutboundForm) {
     if (!selectedBatch) throw new Error("Select a lot first.");
     return {
-      saleDate: new Date(form.date).toISOString(),
+      saleDate: toIsoStringOrNow(form.date),
       siteId: selectedBatch.site.id,
       batchId: form.batchId,
       materialId: selectedBatch.material?.id,
@@ -362,6 +387,14 @@ export default function ScrapMetalTicketWorkbenchPage() {
         });
         return;
       }
+      const complianceMessages = getComplianceMessages(error);
+      if (complianceMessages.length > 0) {
+        setInboundErrors((prev) => ({
+          ...prev,
+          ...mapComplianceErrorsToFields(complianceMessages),
+          form: complianceMessages[0],
+        }));
+      }
       toast({ title: "Unable to save inbound ticket", description: getApiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -420,6 +453,14 @@ export default function ScrapMetalTicketWorkbenchPage() {
           return;
         }
       }
+      const complianceMessages = getComplianceMessages(error);
+      if (complianceMessages.length > 0) {
+        setOutboundErrors((prev) => ({
+          ...prev,
+          ...mapComplianceErrorsToFields(complianceMessages),
+          form: complianceMessages[0],
+        }));
+      }
       toast({ title: "Unable to save outbound ticket", description: getApiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -437,12 +478,13 @@ export default function ScrapMetalTicketWorkbenchPage() {
 
   function validateInbound() {
     const errors: Record<string, string> = {};
+    if (Number.isNaN(new Date(inbound.date).getTime())) errors.date = "Ticket time is required.";
     if (!inbound.siteId) errors.siteId = "Site is required.";
     if (!inbound.employeeId) errors.employeeId = "Buyer / cashier is required.";
     if (!inbound.sellerId) errors.sellerId = "Supplier is required.";
     if (!inbound.materialId) errors.materialId = "Material is required.";
     if (!inbound.weight || Number(inbound.weight) <= 0) errors.weight = "Weight must be greater than zero.";
-    if (!inbound.pricePerKg || Number(inbound.pricePerKg) < 0) errors.pricePerKg = "Price per kg is required.";
+    if (!inbound.pricePerKg || Number(inbound.pricePerKg) <= 0) errors.pricePerKg = "Price per kg must be greater than zero.";
     if (inboundRequirements?.requirePaymentMethod && !inbound.paymentMethod.trim()) {
       errors.paymentMethod = "Payment method is required by compliance rules.";
     }
@@ -461,10 +503,11 @@ export default function ScrapMetalTicketWorkbenchPage() {
 
   function validateOutbound() {
     const errors: Record<string, string> = {};
+    if (Number.isNaN(new Date(outbound.date).getTime())) errors.date = "Ticket time is required.";
     if (!outbound.batchId) errors.batchId = "Lot is required.";
     if (!outbound.buyerName.trim()) errors.buyerName = "Buyer name is required.";
     if (!outbound.soldWeight || Number(outbound.soldWeight) <= 0) errors.soldWeight = "Accepted weight must be greater than zero.";
-    if (!outbound.pricePerKg || Number(outbound.pricePerKg) < 0) errors.pricePerKg = "Price per kg is required.";
+    if (!outbound.pricePerKg || Number(outbound.pricePerKg) <= 0) errors.pricePerKg = "Price per kg must be greater than zero.";
     if (outboundRequirements?.requirePaymentMethod && !outbound.paymentMethod.trim()) {
       errors.paymentMethod = "Payment method is required by compliance rules.";
     }
@@ -565,22 +608,25 @@ export default function ScrapMetalTicketWorkbenchPage() {
         title="Ticketing Workbench"
         description="Supplier -> Material -> Weight -> Price -> Photos -> Payment -> Export PDF in one place."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant={view === "inbound" ? "default" : "outline"} onClick={() => setView("inbound")}>
+          <div className="grid w-full gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <Button className="w-full sm:w-auto" size="sm" variant={view === "inbound" ? "default" : "outline"} onClick={() => setView("inbound")}>
               Inbound Ticket
             </Button>
-            <Button size="sm" variant={view === "outbound" ? "default" : "outline"} onClick={() => setView("outbound")}>
+            <Button className="w-full sm:w-auto" size="sm" variant={view === "outbound" ? "default" : "outline"} onClick={() => setView("outbound")}>
               Outbound Ticket
             </Button>
-            <Button size="sm" variant="outline" asChild>
+            <Button className="w-full sm:w-auto" size="sm" variant="outline" asChild>
               <Link href="/scrap-metal/tickets/held">Held Tickets ({heldInbound + heldOutbound})</Link>
             </Button>
-            <Badge variant="outline">Inbound Held: {heldInbound}</Badge>
-            <Badge variant="outline">Outbound Held: {heldOutbound}</Badge>
-            <Badge variant="outline">Offline Queue: {offlineQueueCount}</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">Inbound Held: {heldInbound}</Badge>
+              <Badge variant="outline">Outbound Held: {heldOutbound}</Badge>
+              <Badge variant="outline">Offline Queue: {offlineQueueCount}</Badge>
+            </div>
             <Button
               type="button"
               size="sm"
+              className="w-full sm:w-auto"
               variant="outline"
               disabled={syncingOfflineQueue || offlineQueueCount === 0}
               onClick={() => void syncOfflineTickets()}
@@ -597,7 +643,12 @@ export default function ScrapMetalTicketWorkbenchPage() {
               <CardDescription>Simplified for small operators: fill key fields, hold/finalize, and export PDF instantly.</CardDescription>
               
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pb-28 md:pb-2">
+              {inboundErrors.form ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {inboundErrors.form}
+                </div>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Site</label>
@@ -629,7 +680,15 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="inbound-date">Ticket Time</label>
-                  <Input id="inbound-date" type="datetime-local" value={inbound.date} onChange={(e) => setInbound((prev) => applyPriceSuggestion({ ...prev, date: e.target.value }))} />
+                  <Input
+                    id="inbound-date"
+                    type="datetime-local"
+                    value={inbound.date}
+                    aria-invalid={Boolean(inboundErrors.date)}
+                    aria-describedby={inboundErrors.date ? "inbound-date-error" : undefined}
+                    onChange={(e) => setInbound((prev) => applyPriceSuggestion({ ...prev, date: e.target.value }))}
+                  />
+                  <FieldHelp id="inbound-date-error" error={inboundErrors.date} />
                 </div>
               </div>
 
@@ -703,10 +762,44 @@ export default function ScrapMetalTicketWorkbenchPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Input placeholder="Payment method" value={inbound.paymentMethod} onChange={(e) => setInbound((prev) => ({ ...prev, paymentMethod: e.target.value }))} />
-                <Input placeholder="Payment reference" value={inbound.paymentReference} onChange={(e) => setInbound((prev) => ({ ...prev, paymentReference: e.target.value }))} />
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="inbound-payment-method">Payment method</label>
+                  <Input
+                    id="inbound-payment-method"
+                    placeholder="Cash / EcoCash / Transfer"
+                    value={inbound.paymentMethod}
+                    aria-invalid={Boolean(inboundErrors.paymentMethod)}
+                    aria-describedby={inboundErrors.paymentMethod ? "inbound-payment-method-error" : undefined}
+                    onChange={(e) => setInbound((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                  />
+                  <FieldHelp id="inbound-payment-method-error" error={inboundErrors.paymentMethod} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="inbound-payment-reference">Payment reference</label>
+                  <Input
+                    id="inbound-payment-reference"
+                    placeholder="Reference / Receipt"
+                    value={inbound.paymentReference}
+                    aria-invalid={Boolean(inboundErrors.paymentReference)}
+                    aria-describedby={inboundErrors.paymentReference ? "inbound-payment-reference-error" : undefined}
+                    onChange={(e) => setInbound((prev) => ({ ...prev, paymentReference: e.target.value }))}
+                  />
+                  <FieldHelp id="inbound-payment-reference-error" error={inboundErrors.paymentReference} />
+                </div>
               </div>
-              <Textarea rows={3} placeholder="Notes" value={inbound.notes} onChange={(e) => setInbound((prev) => ({ ...prev, notes: e.target.value }))} />
+              <div className="space-y-2">
+                <label className="text-sm font-semibold" htmlFor="inbound-notes">Notes</label>
+                <Textarea
+                  id="inbound-notes"
+                  rows={3}
+                  placeholder="Add ticket notes"
+                  value={inbound.notes}
+                  aria-invalid={Boolean(inboundErrors.notes)}
+                  aria-describedby={inboundErrors.notes ? "inbound-notes-error" : undefined}
+                  onChange={(e) => setInbound((prev) => ({ ...prev, notes: e.target.value }))}
+                />
+                <FieldHelp id="inbound-notes-error" error={inboundErrors.notes} />
+              </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Photos</label>
@@ -725,12 +818,15 @@ export default function ScrapMetalTicketWorkbenchPage() {
                   />
                 </label>
                 <p className="text-xs text-muted-foreground">{inbound.attachments.length} photo(s) attached.</p>
+                <FieldHelp id="inbound-attachments-error" error={inboundErrors.attachments} />
               </div>
 
-              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+              <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
+                <div className="grid gap-2 md:flex md:flex-wrap md:justify-end">
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full md:w-auto"
                   disabled={busy}
                   onClick={() => {
                     saveLocalTicketDraft("inbound", inbound);
@@ -742,6 +838,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full md:w-auto"
                   disabled={busy}
                   onClick={() => {
                     const localDraft = loadLocalTicketDraft<InboundForm>("inbound");
@@ -755,9 +852,10 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 >
                   Load Local Draft
                 </Button>
-                <Button type="button" variant="outline" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("hold")}>Hold Ticket</Button>
-                <Button type="button" variant="outline" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("finalize")}>Finalize</Button>
-                <Button type="button" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("finalize_print")}>Finalize & Export PDF</Button>
+                <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("hold")}>Hold Ticket</Button>
+                <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("finalize")}>Finalize</Button>
+                <Button className="w-full md:w-auto" type="button" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("finalize_print")}>Finalize & Export PDF</Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -767,10 +865,15 @@ export default function ScrapMetalTicketWorkbenchPage() {
               <CardTitle>New Outbound Ticket</CardTitle>
               <CardDescription>Choose lot, capture accepted weight, submit for approval, and export PDF.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pb-28 md:pb-2">
+              {outboundErrors.form ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {outboundErrors.form}
+                </div>
+              ) : null}
               {!canCreateOutbound ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                  Managers and Superadmins can submit outbound tickets directly. Clerks can save a draft as a Request Approval.
+                  Managers and Superadmins can submit outbound tickets directly. Operators can save a draft as a Request Approval.
                 </div>
               ) : null}
 
@@ -795,34 +898,99 @@ export default function ScrapMetalTicketWorkbenchPage() {
                   </Select>
                   <FieldHelp id="outbound-batch-error" error={outboundErrors.batchId} />
                 </div>
-                <Input type="datetime-local" value={outbound.date} onChange={(e) => setOutbound((prev) => ({ ...prev, date: e.target.value }))} />
-                <Input type="number" min="0" step="0.01" placeholder="Recorded kg" value={outbound.recordedWeight} onChange={(e) => setOutbound((prev) => ({ ...prev, recordedWeight: e.target.value }))} />
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-date">Ticket Time</label>
+                  <Input
+                    id="outbound-date"
+                    type="datetime-local"
+                    value={outbound.date}
+                    aria-invalid={Boolean(outboundErrors.date)}
+                    aria-describedby={outboundErrors.date ? "outbound-date-error" : undefined}
+                    onChange={(e) => setOutbound((prev) => ({ ...prev, date: e.target.value }))}
+                  />
+                  <FieldHelp id="outbound-date-error" error={outboundErrors.date} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-recorded">Recorded kg</label>
+                  <Input
+                    id="outbound-recorded"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Recorded kg"
+                    value={outbound.recordedWeight}
+                    onChange={(e) => setOutbound((prev) => ({ ...prev, recordedWeight: e.target.value }))}
+                  />
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-4">
                 <div className="space-y-2">
-                  <Input placeholder="Buyer name" value={outbound.buyerName} aria-invalid={Boolean(outboundErrors.buyerName)} aria-describedby={outboundErrors.buyerName ? "outbound-buyer-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerName: e.target.value }))} />
+                  <label className="text-sm font-semibold" htmlFor="outbound-buyer-name">Buyer name</label>
+                  <Input id="outbound-buyer-name" placeholder="Buyer name" value={outbound.buyerName} aria-invalid={Boolean(outboundErrors.buyerName)} aria-describedby={outboundErrors.buyerName ? "outbound-buyer-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerName: e.target.value }))} />
                   <FieldHelp id="outbound-buyer-error" error={outboundErrors.buyerName} />
                 </div>
-                <Input placeholder="Buyer contact" value={outbound.buyerContact} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerContact: e.target.value }))} />
                 <div className="space-y-2">
-                  <Input type="number" min="0" step="0.01" placeholder="Accepted kg" value={outbound.soldWeight} aria-invalid={Boolean(outboundErrors.soldWeight)} aria-describedby={outboundErrors.soldWeight ? "outbound-weight-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, soldWeight: e.target.value }))} />
+                  <label className="text-sm font-semibold" htmlFor="outbound-buyer-contact">Buyer contact</label>
+                  <Input id="outbound-buyer-contact" placeholder="Buyer contact" value={outbound.buyerContact} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerContact: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-sold-weight">Accepted kg</label>
+                  <Input id="outbound-sold-weight" type="number" min="0" step="0.01" placeholder="Accepted kg" value={outbound.soldWeight} aria-invalid={Boolean(outboundErrors.soldWeight)} aria-describedby={outboundErrors.soldWeight ? "outbound-weight-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, soldWeight: e.target.value }))} />
                   <FieldHelp id="outbound-weight-error" error={outboundErrors.soldWeight} />
                   <Button type="button" size="sm" variant="outline" onClick={() => void readOutboundWeightFromScale()}>Read Scale</Button>
                 </div>
                 <div className="space-y-2">
-                  <Input type="number" min="0" step="0.01" placeholder="Price / kg" value={outbound.pricePerKg} aria-invalid={Boolean(outboundErrors.pricePerKg)} aria-describedby={outboundErrors.pricePerKg ? "outbound-price-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, pricePerKg: e.target.value }))} />
+                  <label className="text-sm font-semibold" htmlFor="outbound-price">Price / kg</label>
+                  <Input id="outbound-price" type="number" min="0" step="0.01" placeholder="Price / kg" value={outbound.pricePerKg} aria-invalid={Boolean(outboundErrors.pricePerKg)} aria-describedby={outboundErrors.pricePerKg ? "outbound-price-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, pricePerKg: e.target.value }))} />
                   <FieldHelp id="outbound-price-error" error={outboundErrors.pricePerKg} />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-                <Input placeholder="Currency" value={outbound.currency} onChange={(e) => setOutbound((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
-                <Input placeholder="Payment method" value={outbound.paymentMethod} onChange={(e) => setOutbound((prev) => ({ ...prev, paymentMethod: e.target.value }))} />
-                <Input placeholder="Payment reference" value={outbound.paymentReference} onChange={(e) => setOutbound((prev) => ({ ...prev, paymentReference: e.target.value }))} />
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-currency">Currency</label>
+                  <Input id="outbound-currency" placeholder="Currency" value={outbound.currency} onChange={(e) => setOutbound((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-payment-method">Payment method</label>
+                  <Input
+                    id="outbound-payment-method"
+                    placeholder="Payment method"
+                    value={outbound.paymentMethod}
+                    aria-invalid={Boolean(outboundErrors.paymentMethod)}
+                    aria-describedby={outboundErrors.paymentMethod ? "outbound-payment-method-error" : undefined}
+                    onChange={(e) => setOutbound((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                  />
+                  <FieldHelp id="outbound-payment-method-error" error={outboundErrors.paymentMethod} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-payment-reference">Payment reference</label>
+                  <Input
+                    id="outbound-payment-reference"
+                    placeholder="Payment reference"
+                    value={outbound.paymentReference}
+                    aria-invalid={Boolean(outboundErrors.paymentReference)}
+                    aria-describedby={outboundErrors.paymentReference ? "outbound-payment-reference-error" : undefined}
+                    onChange={(e) => setOutbound((prev) => ({ ...prev, paymentReference: e.target.value }))}
+                  />
+                  <FieldHelp id="outbound-payment-reference-error" error={outboundErrors.paymentReference} />
+                </div>
               </div>
 
-              <Textarea rows={3} placeholder="Notes" value={outbound.notes} onChange={(e) => setOutbound((prev) => ({ ...prev, notes: e.target.value }))} />
+              <div className="space-y-2">
+                <label className="text-sm font-semibold" htmlFor="outbound-notes">Notes</label>
+                <Textarea
+                  id="outbound-notes"
+                  rows={3}
+                  placeholder="Notes"
+                  value={outbound.notes}
+                  aria-invalid={Boolean(outboundErrors.notes)}
+                  aria-describedby={outboundErrors.notes ? "outbound-notes-error" : undefined}
+                  onChange={(e) => setOutbound((prev) => ({ ...prev, notes: e.target.value }))}
+                />
+                <FieldHelp id="outbound-notes-error" error={outboundErrors.notes} />
+              </div>
               {selectedBatch ? <p className="text-xs text-muted-foreground">Selected lot: {selectedBatch.batchNumber} at {selectedBatch.site.name}.</p> : null}
 
               <div className="space-y-2">
@@ -842,12 +1010,15 @@ export default function ScrapMetalTicketWorkbenchPage() {
                   />
                 </label>
                 <p className="text-xs text-muted-foreground">{outbound.attachments.length} photo(s) attached.</p>
+                <FieldHelp id="outbound-attachments-error" error={outboundErrors.attachments} />
               </div>
 
-              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+              <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
+                <div className="grid gap-2 md:flex md:flex-wrap md:justify-end">
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full md:w-auto"
                   disabled={busy}
                   onClick={() => {
                     saveLocalTicketDraft("outbound", outbound);
@@ -859,6 +1030,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full md:w-auto"
                   disabled={busy}
                   onClick={() => {
                     const localDraft = loadLocalTicketDraft<OutboundForm>("outbound");
@@ -872,15 +1044,16 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 >
                   Load Local Draft
                 </Button>
-                <Button type="button" variant="outline" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("hold")}>Hold Ticket</Button>
+                <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("hold")}>Hold Ticket</Button>
                 {canCreateOutbound ? (
                   <>
-                    <Button type="button" variant="outline" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("submit")}>Submit</Button>
-                    <Button type="button" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("submit_print")}>Submit & Export PDF</Button>
+                    <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("submit")}>Submit</Button>
+                    <Button className="w-full md:w-auto" type="button" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("submit_print")}>Submit & Export PDF</Button>
                   </>
                 ) : (
-                  <Button type="button" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("request_approval")}>Request Approval</Button>
+                  <Button className="w-full md:w-auto" type="button" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("request_approval")}>Request Approval</Button>
                 )}
+                </div>
               </div>
             </CardContent>
           </Card>

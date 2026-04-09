@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { fetchEmployees, fetchSites } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { FieldHelp } from "@/components/shared/field-help";
 import { StatusState } from "@/components/shared/status-state";
@@ -176,6 +176,34 @@ function formatFileSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${size} B`;
+}
+
+function toIsoStringOrNow(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
+  return parsed.toISOString();
+}
+
+type ApiIssue = { message?: string };
+
+function getApiIssueMessage(error: unknown) {
+  if (!(error instanceof ApiError) || typeof error.details !== "object" || !error.details) {
+    return getApiErrorMessage(error);
+  }
+
+  const payload = error.details as { details?: unknown };
+  if (!Array.isArray(payload.details) || payload.details.length === 0) {
+    return getApiErrorMessage(error);
+  }
+
+  const firstDetail = payload.details[0];
+  if (typeof firstDetail === "string") return firstDetail;
+  if (firstDetail && typeof firstDetail === "object" && "message" in firstDetail) {
+    const issue = firstDetail as ApiIssue;
+    if (typeof issue.message === "string" && issue.message.trim()) return issue.message;
+  }
+
+  return getApiErrorMessage(error);
 }
 
 async function fetchPurchases(): Promise<Purchase[]> {
@@ -382,7 +410,7 @@ export default function ScrapMetalPurchasesPage() {
 
       const body = {
         purchaseNumber: purchaseNumber || undefined,
-        purchaseDate: new Date(payload.purchaseDate).toISOString(),
+        purchaseDate: toIsoStringOrNow(payload.purchaseDate),
         siteId: payload.siteId,
         employeeId: payload.employeeId,
         sellerProfileId: payload.sellerProfileId,
@@ -436,7 +464,7 @@ export default function ScrapMetalPurchasesPage() {
     onError: (error) => {
       toast({
         title: editing ? "Unable to update inbound ticket" : "Unable to record inbound ticket",
-        description: getApiErrorMessage(error),
+        description: getApiIssueMessage(error),
         variant: "destructive",
       });
     },
@@ -752,12 +780,12 @@ export default function ScrapMetalPurchasesPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent size="xl">
+        <DialogContent size="xl" className="max-h-[92vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Inbound Ticket" : "New Inbound Ticket"}</DialogTitle>
           </DialogHeader>
           <form
-            className="space-y-4"
+            className="max-h-[78vh] space-y-4 overflow-y-auto pb-1"
             onSubmit={(event) => {
               event.preventDefault();
               saveMutation.mutate({ payload: form, intent: submitIntent });
@@ -1059,11 +1087,12 @@ export default function ScrapMetalPurchasesPage() {
               onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
               placeholder="Notes"
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>
               <Button
+                className="w-full sm:w-auto"
                 type="submit"
                 variant="outline"
                 onClick={() => setSubmitIntent("hold")}
@@ -1081,6 +1110,7 @@ export default function ScrapMetalPurchasesPage() {
                 {saveMutation.isPending ? "Saving..." : "Hold Ticket"}
               </Button>
               <Button
+                className="w-full sm:w-auto"
                 type="submit"
                 onClick={() => setSubmitIntent("finalize")}
                 disabled={
@@ -1097,6 +1127,7 @@ export default function ScrapMetalPurchasesPage() {
                 {saveMutation.isPending ? "Saving..." : "Finalize Ticket"}
               </Button>
               <Button
+                className="w-full sm:w-auto"
                 type="submit"
                 onClick={() => setSubmitIntent("finalize_print")}
                 disabled={
