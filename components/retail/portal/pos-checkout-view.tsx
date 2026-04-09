@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Clock, Payments, QrCode, RefreshCcw, Save, Trash2, Wallet } from "@/lib/icons";
+import { Clock, Package, Payments, QrCode, RefreshCcw, Save, Trash2, User, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { PosFocusedEditorDrawer } from "./pos-focused-editor-drawer";
 import { PosInlineValidationBanner } from "./pos-inline-validation-banner";
@@ -405,7 +405,7 @@ export function PosCheckoutView() {
                 <div className="min-w-0">
                   <div className="font-mono text-[11px]">{entry.payload.saleNo}</div>
                   <div className="text-[10px] uppercase tracking-[0.08em]">
-                    {entry.status} • retries {entry.retryCount}
+                    {entry.status} - retries {entry.retryCount}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -424,6 +424,10 @@ export function PosCheckoutView() {
 
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_380px]">
         <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2 text-sm font-semibold">
+            <Package className="h-5 w-5 text-[var(--text-muted)]" />
+            Catalog
+          </div>
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
             <QrCode className="h-4 w-4 text-[var(--text-muted)]" />
             <Input
@@ -491,8 +495,11 @@ export function PosCheckoutView() {
         </section>
 
         <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold">Current sale</div>
+          <div className="flex items-center justify-between gap-3 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2">
+            <div className="inline-flex items-center gap-2 text-sm font-semibold">
+              <Payments className="h-5 w-5 text-[var(--text-muted)]" />
+              Current sale
+            </div>
             <div className="text-xs text-[var(--text-muted)]">{cart.length} lines</div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -516,7 +523,7 @@ export function PosCheckoutView() {
                     <div className="truncate text-sm font-semibold">{item.name}</div>
                     <div className="font-mono text-xs text-[var(--text-muted)]">{item.quantity.toFixed(2)} x {money(item.unitPrice)}</div>
                   </div>
-                  <Button type="button" variant="ghost" size="icon-sm" onClick={(event) => { event.stopPropagation(); removeFromCart(item.catalogItemId); }}>
+                  <Button type="button" variant="ghost" size="icon-sm" className="min-h-10 min-w-10" onClick={(event) => { event.stopPropagation(); removeFromCart(item.catalogItemId); }}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </button>
@@ -545,7 +552,11 @@ export function PosCheckoutView() {
 
         <aside className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          <Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in or customer name" className="h-11" />
+          <div className="inline-flex items-center gap-2 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2 text-sm font-semibold">
+            <User className="h-5 w-5 text-[var(--text-muted)]" />
+            Customer and payment
+          </div>
+          <Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in or customer name" className="h-12" />
           {customerName.trim().length >= 2 ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Customer lookup</div>
@@ -558,15 +569,15 @@ export function PosCheckoutView() {
                   </button>
                 ))}
               </div>
-              <Button type="button" size="sm" variant="outline" className="mt-2 h-8" onClick={() => createCustomerMutation.mutate()} disabled={!customerName.trim() || createCustomerMutation.isPending}>
+              <Button type="button" size="sm" variant="outline" className="mt-2 min-h-10" onClick={() => createCustomerMutation.mutate()} disabled={!customerName.trim() || createCustomerMutation.isPending}>
                 <Save className="h-3 w-3" />
                 Save customer
               </Button>
             </div>
           ) : null}
           <div className="grid grid-cols-2 gap-2">
-            <Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Phone" className="h-10" />
-            <Input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="h-10" />
+            <Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Phone" className="h-11" />
+            <Input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="h-11" />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
             <div className="flex items-center justify-between gap-3"><span>Subtotal</span><span className="font-mono">{money(subtotal)}</span></div>
@@ -578,7 +589,7 @@ export function PosCheckoutView() {
           {selectedCustomer ? (
             <PosNumericField label={`Redeem points (${selectedCustomer.loyaltyPoints} available)`} value={loyaltyRedemptionPoints} active={activeTarget?.type === "redeem_points"} onActivate={() => setActiveTarget({ type: "redeem_points" })} />
           ) : null}
-          {canOverride ? <Input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} className="h-10" placeholder="Override reason" /> : null}
+          {canOverride ? <Input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} className="h-11" placeholder="Override reason" /> : null}
 
           <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2">
             <div className="flex items-center justify-between">
@@ -590,7 +601,7 @@ export function PosCheckoutView() {
             {payments.map((payment, index) => (
               <div key={`${payment.tenderType}-${index}`} className="grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-base)] p-2">
                 <Select value={payment.tenderType} onValueChange={(value) => updatePayment(index, { tenderType: value as TenderType })}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CASH">Cash</SelectItem>
                     <SelectItem value="CARD">Card</SelectItem>
@@ -600,13 +611,13 @@ export function PosCheckoutView() {
                   </SelectContent>
                 </Select>
                 <PosNumericField label="Amount" value={payment.amount} active={activeTarget?.type === "tender_amount" && activeTarget.index === index} onActivate={() => setActiveTarget({ type: "tender_amount", index })} />
-                <Input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder={requiresReference(payment.tenderType, requiredReferenceTenders) ? `Reference (min ${minReferenceLength})` : "Reference"} className="h-10" />
+                <Input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder={requiresReference(payment.tenderType, requiredReferenceTenders) ? `Reference (min ${minReferenceLength})` : "Reference"} className="h-11" />
                 {splitTenderMode && payments.length > 1 ? (
-                  <Button type="button" variant="outline" onClick={() => setPayments((current) => current.filter((_, paymentIndex) => paymentIndex !== index))}>Remove tender</Button>
+                  <Button type="button" variant="outline" className="min-h-10" onClick={() => setPayments((current) => current.filter((_, paymentIndex) => paymentIndex !== index))}>Remove tender</Button>
                 ) : null}
               </div>
             ))}
-            {splitTenderMode ? <Button type="button" variant="outline" className="w-full" onClick={addPaymentRow}>Add tender</Button> : null}
+            {splitTenderMode ? <Button type="button" variant="outline" className="min-h-10 w-full" onClick={addPaymentRow}>Add tender</Button> : null}
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm">
@@ -616,7 +627,7 @@ export function PosCheckoutView() {
           </div>
           <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-base)]/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--surface-base)]/80">
           <PosInlineValidationBanner messages={blockers} />
-          <Button className="h-12 text-base" onClick={handleCharge} disabled={postSalePending}>
+          <Button className="h-14 text-base font-semibold" onClick={handleCharge} disabled={postSalePending}>
             <Wallet className="h-4 w-4" />
             Charge {money(total)}
           </Button>

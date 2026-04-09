@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { RefreshCcw } from "@/lib/icons";
+import { Package, RefreshCcw } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart } from "./pos-types";
@@ -49,7 +49,10 @@ export function PosHeldView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
-        <div className="text-sm font-semibold">Held carts</div>
+        <div className="inline-flex items-center gap-2 text-sm font-semibold">
+          <Package className="h-5 w-5 text-[var(--text-muted)]" />
+          Held carts
+        </div>
         <div className="text-xs text-[var(--text-muted)]">
           {heldCartsQuery.data?.data?.length ?? 0} waiting
         </div>

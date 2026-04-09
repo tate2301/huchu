@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/api-client";
-import { Clock, History, Package, Payments } from "@/lib/icons";
+import { Clock, History, Package, Payments, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart, SaleRow } from "./pos-types";
@@ -31,9 +31,14 @@ export function PosOverviewView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4">
       <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2 text-sm font-semibold">
+          <Payments className="h-5 w-5 text-[var(--text-muted)]" />
+          POS snapshot
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <Clock className="h-3.5 w-3.5" />
               Shift
             </div>
             <div className="mt-2 font-mono text-base font-semibold">
@@ -41,7 +46,8 @@ export function PosOverviewView() {
             </div>
           </div>
           <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <Payments className="h-3.5 w-3.5" />
               Register
             </div>
             <div className="mt-2 text-base font-semibold">
@@ -49,7 +55,8 @@ export function PosOverviewView() {
             </div>
           </div>
           <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <Package className="h-3.5 w-3.5" />
               Held carts
             </div>
             <div className="mt-2 font-mono text-base font-semibold">
@@ -57,7 +64,8 @@ export function PosOverviewView() {
             </div>
           </div>
           <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <Wallet className="h-3.5 w-3.5" />
               Net sales
             </div>
             <div className="mt-2 font-mono text-base font-semibold">
@@ -68,29 +76,32 @@ export function PosOverviewView() {
       </section>
 
       <section className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
-        <div className="text-sm font-medium">Quick actions</div>
+        <div className="inline-flex items-center gap-2 text-sm font-semibold">
+          <History className="h-5 w-5 text-[var(--text-muted)]" />
+          Quick actions
+        </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <Button asChild variant="outline" className="min-h-14 justify-start">
+          <Button asChild variant="outline" className="min-h-16 justify-start rounded-xl bg-[var(--surface-muted)] text-[15px]">
             <Link href={getPosPortalHref("checkout", isPosHost)}>
-              <Payments className="h-4 w-4" />
+              <Payments className="h-5 w-5" />
               Checkout
             </Link>
           </Button>
-          <Button asChild variant="outline" className="min-h-14 justify-start">
+          <Button asChild variant="outline" className="min-h-16 justify-start rounded-xl bg-[var(--surface-muted)] text-[15px]">
             <Link href={getPosPortalHref("held", isPosHost)}>
-              <Package className="h-4 w-4" />
+              <Package className="h-5 w-5" />
               Held carts
             </Link>
           </Button>
-          <Button asChild variant="outline" className="min-h-14 justify-start">
+          <Button asChild variant="outline" className="min-h-16 justify-start rounded-xl bg-[var(--surface-muted)] text-[15px]">
             <Link href={getPosPortalHref("history", isPosHost)}>
-              <History className="h-4 w-4" />
+              <History className="h-5 w-5" />
               History
             </Link>
           </Button>
-          <Button asChild variant="outline" className="min-h-14 justify-start">
+          <Button asChild variant="outline" className="min-h-16 justify-start rounded-xl bg-[var(--surface-muted)] text-[15px]">
             <Link href={getPosPortalHref("shift", isPosHost)}>
-              <Clock className="h-4 w-4" />
+              <Clock className="h-5 w-5" />
               Shift
             </Link>
           </Button>

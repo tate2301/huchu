@@ -6,6 +6,7 @@ import { PageHeading } from "@/components/layout/page-heading";
 import {
   Clock,
   History,
+  Home,
   Package,
   Payments,
   ReceiptLong,
@@ -26,6 +27,12 @@ type PosPortalLink = {
 };
 
 const POS_PORTAL_LINKS: PosPortalLink[] = [
+  {
+    label: "Overview",
+    icon: Home,
+    publicHref: "/overview",
+    internalHref: "/portal/pos/overview",
+  },
   {
     label: "Checkout",
     icon: Payments,
@@ -100,37 +107,52 @@ export async function PosPortalPageFrame({
     : POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.internalHref }));
 
   return (
-    <div className="grid min-h-[calc(100vh-1rem)] gap-3 px-3 py-3 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-        <div className="px-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-            POS portal
+    <div className="admin-shell-frame text-[15px] text-[var(--text-strong)]">
+      <div className="admin-shell-window relative overflow-hidden lg:grid lg:min-h-[calc(100vh-1rem)] lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <aside className="h-full w-full bg-[var(--sidebar)] p-4">
+          <div className="px-2">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+              POS portal
+            </div>
+            <div className="mt-1 text-sm font-semibold">{session.user.name || "Cashier"}</div>
           </div>
-          <div className="mt-1 text-sm font-semibold">{session.user.name || "Cashier"}</div>
+          <nav className="mt-5 space-y-1.5">
+            {renderedLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "group flex min-h-14 w-full items-center gap-3 rounded-xl px-4 py-2.5 text-base font-semibold transition-all duration-[160ms]",
+                  publicPathname === item.href || pathname === item.href
+                    ? "bg-[var(--surface-base)]"
+                    : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.4)]",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex shrink-0 items-center justify-center rounded-[10px]",
+                    publicPathname === item.href || pathname === item.href
+                      ? "text-[var(--text-strong)]"
+                      : "text-[var(--text-muted)]",
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </nav>
+        </aside>
+        <div className="min-w-0 p-2">
+          <div className="overflow-clip rounded-xl bg-[var(--surface-base)]">
+            <header className="border-b border-[var(--edge-subtle)] px-4 py-3 md:px-5">
+              <PageHeading title={title} description={description} className="mb-0" />
+            </header>
+            <main className="min-w-0 px-4 pb-8 pt-5 md:pb-10 md:pt-6">
+              {children}
+            </main>
+          </div>
         </div>
-        <nav className="mt-3 space-y-1">
-          {renderedLinks.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "inline-flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors duration-150",
-                publicPathname === item.href || pathname === item.href
-                  ? "bg-[var(--text-strong)] text-white"
-                  : "text-[var(--text-body)] hover:bg-[var(--surface-muted)]",
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <div className="space-y-3">
-        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-3">
-          <PageHeading title={title} description={description} className="mb-0" />
-        </div>
-        <div>{children}</div>
       </div>
     </div>
   );

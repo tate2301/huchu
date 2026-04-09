@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus, RefreshCcw, Trash2, XCircle } from "@/lib/icons";
+import { History, Plus, RefreshCcw, Trash2, XCircle } from "@/lib/icons";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
@@ -193,6 +193,10 @@ export function PosHistoryView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
+        <div className="inline-flex items-center gap-2 text-sm font-semibold">
+          <History className="h-5 w-5 text-[var(--text-muted)]" />
+          Receipts
+        </div>
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}

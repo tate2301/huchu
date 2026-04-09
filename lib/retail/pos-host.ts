@@ -1,6 +1,6 @@
 import { buildPortalHost } from "@/lib/platform/portal-hosts";
 
-export const POS_PUBLIC_PATHS = ["/", "/login", "/held", "/history", "/shift"] as const;
+export const POS_PUBLIC_PATHS = ["/", "/login", "/overview", "/held", "/history", "/shift"] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;
 

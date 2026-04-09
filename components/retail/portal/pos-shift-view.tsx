@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { Clock, Payments, Wallet } from "@/lib/icons";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
@@ -129,6 +130,10 @@ export function PosShiftView() {
   return (
     <div className="h-full min-h-0 overflow-y-auto pr-1">
       <div className="space-y-3 pb-1">
+      <div className="inline-flex items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2 text-sm font-semibold">
+        <Clock className="h-5 w-5 text-[var(--text-muted)]" />
+        Shift controls
+      </div>
       {closeoutSummary ? (
         <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
           <div className="font-semibold">{closeoutSummary.shiftNo} closeout saved</div>
@@ -140,7 +145,8 @@ export function PosShiftView() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <Clock className="h-3.5 w-3.5" />
             Shift
           </div>
           <div className="mt-2 font-mono text-base font-semibold">
@@ -148,7 +154,8 @@ export function PosShiftView() {
           </div>
         </div>
         <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <Payments className="h-3.5 w-3.5" />
             Register
           </div>
           <div className="mt-2 text-base font-semibold">
@@ -156,7 +163,8 @@ export function PosShiftView() {
           </div>
         </div>
         <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <Wallet className="h-3.5 w-3.5" />
             Expected cash
           </div>
           <div className="mt-2 font-mono text-base font-semibold">
@@ -164,7 +172,8 @@ export function PosShiftView() {
           </div>
         </div>
         <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <Payments className="h-3.5 w-3.5" />
             Net sales
           </div>
           <div className="mt-2 font-mono text-base font-semibold">
@@ -176,11 +185,11 @@ export function PosShiftView() {
       <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
         <div className="flex flex-wrap gap-2">
           {!currentShift ? (
-            <Button size="sm" onClick={() => setOpenDialog(true)}>
+            <Button size="sm" className="min-h-11 px-5 text-[15px]" onClick={() => setOpenDialog(true)}>
               Open shift
             </Button>
           ) : (
-            <Button size="sm" onClick={() => setCloseDialog(true)}>
+            <Button size="sm" className="min-h-11 px-5 text-[15px]" onClick={() => setCloseDialog(true)}>
               Close shift
             </Button>
           )}
