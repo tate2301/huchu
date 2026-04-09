@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -130,13 +130,15 @@ function getEmptyForm(): PurchaseForm {
     weight: "",
     pricePerKg: "",
     currency: "USD",
-    paymentMethod: "",
+    paymentMethod: "Cash",
     paymentReference: "",
     overrideReason: "",
     notes: "",
     attachments: [],
   };
 }
+
+const PAYMENT_METHOD_OPTIONS = ["Cash", "EcoCash", "Bank Transfer", "Mobile Money", "Card", "Other"] as const;
 
 async function uploadScrapTicketPhoto(
   file: File,
@@ -250,6 +252,13 @@ export default function ScrapMetalPurchasesPage() {
   const [submitIntent, setSubmitIntent] = useState<"hold" | "finalize" | "finalize_print">("finalize");
   const [priceTouched, setPriceTouched] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  function submitWithIntent(intent: "hold" | "finalize" | "finalize_print") {
+    setSubmitIntent(intent);
+    requestAnimationFrame(() => formRef.current?.requestSubmit());
+  }
+
   const {
     reservedId: purchaseNumber,
     isReserving: reservingPurchaseNumber,
@@ -780,12 +789,13 @@ export default function ScrapMetalPurchasesPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent size="xl" className="max-h-[92vh] overflow-hidden">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Inbound Ticket" : "New Inbound Ticket"}</DialogTitle>
           </DialogHeader>
           <form
-            className="max-h-[78vh] space-y-4 overflow-y-auto pb-1"
+            ref={formRef}
+            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]"
             onSubmit={(event) => {
               event.preventDefault();
               saveMutation.mutate({ payload: form, intent: submitIntent });
@@ -983,11 +993,21 @@ export default function ScrapMetalPurchasesPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Paid out by</label>
-                <Input
+                <Select
                   value={form.paymentMethod}
-                  onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
-                  placeholder="cash, transfer, mobile"
-                />
+                  onValueChange={(value) => setForm((current) => ({ ...current, paymentMethod: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Payment reference</label>
@@ -1087,15 +1107,13 @@ export default function ScrapMetalPurchasesPage() {
               onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
               placeholder="Notes"
             />
-            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={() => setFormOpen(false)}>
+            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 !flex-row">
+              <Button className="flex-1 sm:flex-none" type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                className="w-full sm:w-auto"
-                type="submit"
-                variant="outline"
-                onClick={() => setSubmitIntent("hold")}
+              <SplitButton
+                className="flex-1 sm:flex-none"
+                onClick={() => submitWithIntent("finalize")}
                 disabled={
                   saveMutation.isPending ||
                   (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
@@ -1106,43 +1124,15 @@ export default function ScrapMetalPurchasesPage() {
                   !form.pricePerKg ||
                   isUploadingPhoto
                 }
-              >
-                {saveMutation.isPending ? "Saving..." : "Hold Ticket"}
-              </Button>
-              <Button
-                className="w-full sm:w-auto"
-                type="submit"
-                onClick={() => setSubmitIntent("finalize")}
-                disabled={
-                  saveMutation.isPending ||
-                  (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
-                  !form.siteId ||
-                  !form.employeeId ||
-                  form.sellerProfileId === "__none" ||
-                  !form.weight ||
-                  !form.pricePerKg ||
-                  isUploadingPhoto
+                menuContent={
+                  <>
+                    <DropdownMenuItem onClick={() => submitWithIntent("hold")}>Hold Ticket</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => submitWithIntent("finalize_print")}>Finalize & Export PDF</DropdownMenuItem>
+                  </>
                 }
               >
                 {saveMutation.isPending ? "Saving..." : "Finalize Ticket"}
-              </Button>
-              <Button
-                className="w-full sm:w-auto"
-                type="submit"
-                onClick={() => setSubmitIntent("finalize_print")}
-                disabled={
-                  saveMutation.isPending ||
-                  (!editing && (!purchaseNumber || reservingPurchaseNumber)) ||
-                  !form.siteId ||
-                  !form.employeeId ||
-                  form.sellerProfileId === "__none" ||
-                  !form.weight ||
-                  !form.pricePerKg ||
-                  isUploadingPhoto
-                }
-              >
-                {saveMutation.isPending ? "Saving..." : "Finalize & Export PDF"}
-              </Button>
+              </SplitButton>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -271,17 +271,78 @@ export default function ScrapComplianceRulesPage() {
           searchPlaceholder="Search compliance rules"
           pagination={{ enabled: true }}
           emptyState={rulesQuery.isLoading ? "Loading compliance rules..." : "No compliance rules configured."}
+          mobileCardRenderer={({ row }) => (
+            <article className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{row.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.material?.name ?? "Any material"} / {row.category ?? "Any category"}
+                  </p>
+                </div>
+                {row.isActive ? <Badge>Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Scope</p>
+                  <p className="font-semibold">{row.scope}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Required</p>
+                  <p className="font-semibold">
+                    {[
+                      row.requirePhotos ? "Photos" : null,
+                      row.requirePaymentMethod ? "Pay Method" : null,
+                      row.requirePaymentReference ? "Reference" : null,
+                      row.requireNotes ? "Notes" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "None"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(row);
+                    setForm({
+                      name: row.name,
+                      scope: row.scope,
+                      materialId: row.materialId ?? "__any",
+                      category: row.category ?? "__any",
+                      requirePhotos: row.requirePhotos,
+                      requirePaymentMethod: row.requirePaymentMethod,
+                      requirePaymentReference: row.requirePaymentReference,
+                      requireNotes: row.requireNotes,
+                      isActive: row.isActive,
+                    });
+                    setFormOpen(true);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button size="sm" variant="outline" disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(row)}>
+                  {row.isActive ? "Disable" : "Enable"}
+                </Button>
+                <Button size="sm" variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(row.id)}>
+                  Delete
+                </Button>
+              </div>
+            </article>
+          )}
         />
       </ScrapShell>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent size="lg">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh]">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Compliance Rule" : "New Compliance Rule"}</DialogTitle>
           </DialogHeader>
 
           <form
-            className="space-y-4"
+            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]"
             onSubmit={(event) => {
               event.preventDefault();
               if (!form.name.trim()) {
@@ -372,7 +433,7 @@ export default function ScrapComplianceRulesPage() {
               </label>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={saveMutation.isPending}>
                 {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create Rule"}
@@ -384,4 +445,3 @@ export default function ScrapComplianceRulesPage() {
     </>
   );
 }
-

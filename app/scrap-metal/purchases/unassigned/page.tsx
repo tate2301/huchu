@@ -146,6 +146,35 @@ export default function ScrapUnassignedPurchasesPage() {
           tableClassName="text-sm"
           pagination={{ enabled: true }}
           emptyState={purchasesQuery.isLoading ? "Loading unassigned purchases..." : "No unassigned purchases."}
+          mobileCardRenderer={({ row }) => (
+            <article className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold">{row.purchaseNumber}</p>
+                  <p className="text-xs text-muted-foreground">{row.material?.name ?? row.category}</p>
+                </div>
+                <Badge variant="outline">{row.site.code}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Supplier</p>
+                  <p className="font-semibold">{row.sellerName ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Buyer</p>
+                  <p className="font-semibold">{row.employee.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Weight</p>
+                  <p className="font-semibold">{row.weight.toFixed(2)} kg</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Amount</p>
+                  <p className="font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>
+                </div>
+              </div>
+            </article>
+          )}
         />
       )}
     </ScrapShell>

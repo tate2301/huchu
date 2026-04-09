@@ -121,7 +121,7 @@ export default function ScrapAdjustmentsPage() {
       title="Adjustments / Write-offs"
      
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline"><Link href="/scrap-metal/sales">Outbound Tickets</Link></Button>
           <Button asChild size="sm" variant="outline"><Link href="/scrap-metal/reports/variance-aging">Variance & Aging</Link></Button>
         </div>
@@ -133,8 +133,41 @@ export default function ScrapAdjustmentsPage() {
         searchPlaceholder="Search by ticket, lot, or buyer"
         pagination={{ enabled: true }}
         emptyState={query.isLoading ? "Loading adjustments..." : "No adjustment entries yet."}
+        mobileCardRenderer={({ row }) => (
+          <article className="space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold">{row.saleNumber}</p>
+                <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
+              </div>
+              {row.reviewed ? <Badge>Reviewed</Badge> : <Badge variant="outline">Open</Badge>}
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Variance (kg)</p>
+                <p className="font-semibold">{row.weightDiscrepancy.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <p className="font-semibold">{row.status}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Buyer</p>
+                <p className="font-semibold">{row.buyerName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Date</p>
+                <p className="font-semibold">{new Date(row.saleDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+            {!row.reviewed ? (
+              <Button size="sm" variant="outline" onClick={() => reviewMutation.mutate(row)} disabled={reviewMutation.isPending}>
+                Mark Reviewed
+              </Button>
+            ) : null}
+          </article>
+        )}
       />
     </ScrapShell>
   );
 }
-

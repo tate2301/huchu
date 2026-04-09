@@ -118,7 +118,7 @@ export default function ScrapTicketTemplatesPage() {
       title="Ticket Templates"
      
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => bootstrapMutation.mutate()} disabled={bootstrapMutation.isPending}>
             {bootstrapMutation.isPending ? "Creating..." : "Create Company Copies"}
           </Button>
@@ -132,6 +132,30 @@ export default function ScrapTicketTemplatesPage() {
         searchPlaceholder="Search ticket templates"
         pagination={{ enabled: true }}
         emptyState={templatesQuery.isLoading ? "Loading templates..." : "No ticket templates found."}
+        mobileCardRenderer={({ row }) => (
+          <article className="space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{row.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{row.sourceKey}</p>
+              </div>
+              <Badge variant={row.scope === "COMPANY" ? "default" : "outline"}>{row.scope}</Badge>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {row.isDefault ? "Current default template" : "Not set as default"}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/settings/templates">Edit</Link>
+              </Button>
+              {row.scope === "COMPANY" ? (
+                <Button size="sm" onClick={() => setDefaultMutation.mutate(row.id)} disabled={setDefaultMutation.isPending}>
+                  Set Default
+                </Button>
+              ) : null}
+            </div>
+          </article>
+        )}
       />
     </ScrapShell>
   );

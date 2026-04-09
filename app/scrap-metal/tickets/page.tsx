@@ -24,6 +24,7 @@ import { FieldHelp } from "@/components/shared/field-help";
 import { PrimaryActionBar } from "@/components/shared/primary-action-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -750,7 +751,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
         title="Ticketing Workbench"
         actions={
           <div className="flex w-full flex-wrap items-center gap-2">
-            <div className="inline-flex min-w-0 flex-1 overflow-hidden rounded-md border border-[var(--edge-subtle)]">
+            <ButtonGroup className="min-w-0 flex-1">
               <Button
                 size="sm"
                 className="min-w-0 flex-1 rounded-none"
@@ -761,13 +762,13 @@ export default function ScrapMetalTicketWorkbenchPage() {
               </Button>
               <Button
                 size="sm"
-                className="min-w-0 flex-1 rounded-none border-l border-[var(--edge-subtle)]"
+                className="min-w-0 flex-1 rounded-none"
                 variant={view === "outbound" ? "default" : "ghost"}
                 onClick={() => setView("outbound")}
               >
                 Outbound
               </Button>
-            </div>
+            </ButtonGroup>
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <Badge variant="outline" className="shrink-0">Held {heldInbound + heldOutbound}</Badge>
               <DropdownMenu>

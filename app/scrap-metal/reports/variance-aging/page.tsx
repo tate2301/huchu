@@ -133,7 +133,7 @@ export default function VarianceAgingPage() {
       title="Variance & Aging"
      
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -202,6 +202,21 @@ export default function VarianceAgingPage() {
             searchPlaceholder="Search variance by ticket or lot"
             pagination={{ enabled: true }}
             emptyState={salesQuery.isLoading ? "Loading variance..." : "No variance records found."}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold">{row.saleNumber}</p>
+                    <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
+                  </div>
+                  <p className="font-semibold">{row.weightDiscrepancy.toFixed(2)} kg</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>{new Date(row.saleDate).toLocaleDateString()}</p>
+                  <p>{row.status}</p>
+                </div>
+              </article>
+            )}
           />
         ) : (
           activeView === "aging" ? (
@@ -211,6 +226,16 @@ export default function VarianceAgingPage() {
             searchPlaceholder="Search lot aging"
             pagination={{ enabled: true }}
             emptyState={batchesQuery.isLoading ? "Loading aging..." : "No lots found."}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.batchNumber}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>Status: {row.status}</p>
+                  <p>Age: {row.ageDays}d</p>
+                  <p>Opened: {new Date(row.collectionStartDate).toLocaleDateString()}</p>
+                </div>
+              </article>
+            )}
           />
           ) : (
             <DataTable
@@ -219,6 +244,16 @@ export default function VarianceAgingPage() {
               searchPlaceholder="Search pending approvals"
               pagination={{ enabled: true }}
               emptyState={salesQuery.isLoading ? "Loading approval aging..." : "No pending approvals."}
+              mobileCardRenderer={({ row }) => (
+                <article className="space-y-2 text-sm">
+                  <p className="font-semibold">{row.saleNumber}</p>
+                  <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <p>Requested: {new Date(row.createdAt).toLocaleDateString()}</p>
+                    <p>Age: {row.ageDays}d</p>
+                  </div>
+                </article>
+              )}
             />
           )
         )}

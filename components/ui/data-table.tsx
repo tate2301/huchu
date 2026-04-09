@@ -182,6 +182,8 @@ export type DataTableProps<TData, TValue> = {
   features?: DataTableFeatures;
   expansion?: DataTableExpansionConfig<TData>;
   exportConfig?: DataTableExportConfig;
+  mobileCardRenderer?: (context: { row: TData; rowIndex: number }) => React.ReactNode;
+  mobileCardListClassName?: string;
 };
 
 function toPageIndex(page: number) {
@@ -445,6 +447,8 @@ export function DataTable<TData, TValue>({
   features,
   expansion,
   exportConfig,
+  mobileCardRenderer,
+  mobileCardListClassName,
 }: DataTableProps<TData, TValue>) {
   const sortingEnabled = features?.sorting ?? true;
   const globalFilterEnabled = features?.globalFilter ?? true;
@@ -1195,10 +1199,30 @@ export function DataTable<TData, TValue>({
         </p>
       ) : null}
 
+      {mobileCardRenderer ? (
+        <div className={cn("space-y-3 md:hidden", mobileCardListClassName)}>
+          {renderedRows.length > 0 ? (
+            renderedRows.map((row, rowIndex) => (
+              <div
+                key={row.id}
+                className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4 shadow-[var(--surface-frame-shadow)]"
+              >
+                {mobileCardRenderer({ row: row.original, rowIndex })}
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--edge-subtle)] bg-[var(--datatable-empty-bg)] px-4 py-8 text-center text-sm text-muted-foreground">
+              {emptyState ?? noResultsText}
+            </div>
+          )}
+        </div>
+      ) : null}
+
       <div
         className={cn(
           maxBodyHeight ? "overflow-auto" : undefined,
           tableContainerClassName,
+          mobileCardRenderer && "hidden md:block",
         )}
         style={maxBodyHeight ? { maxHeight: maxBodyHeight } : undefined}
       >

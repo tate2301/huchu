@@ -587,11 +587,11 @@ export default function ScrapSettlementsPage() {
       </VerticalDataViews>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent size="lg">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh]">
           <DialogHeader>
             <DialogTitle>New Settlement Batch</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]">
             <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Batch label" />
             <div className="grid gap-4 lg:grid-cols-3">
               <Input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
@@ -667,7 +667,7 @@ export default function ScrapSettlementsPage() {
               Add Operator
             </Button>
           </div>
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
@@ -683,11 +683,11 @@ export default function ScrapSettlementsPage() {
       </Dialog>
 
       <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>
-        <DialogContent size="md">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh]">
           <DialogHeader>
             <DialogTitle>Update Balance</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]">
             <Select value={adjustmentEmployeeId || "__none"} onValueChange={(value) => setAdjustmentEmployeeId(value === "__none" ? "" : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select worker" />
@@ -726,7 +726,7 @@ export default function ScrapSettlementsPage() {
               placeholder="Note"
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
             <Button type="button" variant="outline" onClick={() => setAdjustmentOpen(false)}>
               Cancel
             </Button>

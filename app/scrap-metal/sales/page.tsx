@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { SplitButton } from "@/components/ui/split-button";
 import {
   Select,
   SelectContent,
@@ -35,6 +36,7 @@ import {
 import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
@@ -118,13 +120,15 @@ function getEmptyForm(): SaleForm {
     soldWeight: "",
     pricePerKg: "",
     currency: "USD",
-    paymentMethod: "",
+    paymentMethod: "Cash",
     paymentReference: "",
     overrideReason: "",
     notes: "",
     attachments: [],
   };
 }
+
+const PAYMENT_METHOD_OPTIONS = ["Cash", "EcoCash", "Bank Transfer", "Mobile Money", "Card", "Other"] as const;
 
 async function uploadScrapTicketPhoto(
   file: File,
@@ -187,7 +191,13 @@ export default function ScrapMetalSalesPage() {
   const [form, setForm] = useState<SaleForm>(getEmptyForm);
   const [submitIntent, setSubmitIntent] = useState<"hold" | "submit" | "submit_print" | "request_approval">("submit");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const canManageSales = hasRole(userRole, ["SUPERADMIN", "MANAGER"]);
+
+  function submitWithIntent(intent: "hold" | "submit" | "submit_print" | "request_approval") {
+    setSubmitIntent(intent);
+    requestAnimationFrame(() => formRef.current?.requestSubmit());
+  }
 
   const salesQuery = useQuery({
     queryKey: ["scrap-metal-sales"],
@@ -606,29 +616,35 @@ export default function ScrapMetalSalesPage() {
       title="Outbound Tickets"
      
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setForm(getEmptyForm());
-              setSubmitIntent(canManageSales ? "submit" : "request_approval");
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            New Outbound Ticket
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/batches">Lots</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/stores/movements">Stock Movements</Link>
-          </Button>
-        </div>
+        <SplitButton
+          size="sm"
+          onClick={() => {
+            setEditing(null);
+            setForm(getEmptyForm());
+            setSubmitIntent(canManageSales ? "submit" : "request_approval");
+            setFormOpen(true);
+          }}
+          menuContent={
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/batches">Lots</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/stores/movements">Stock Movements</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/sales/approval-requests">Approval Requests</Link>
+              </DropdownMenuItem>
+            </>
+          }
+        >
+          <Plus className="h-4 w-4" />
+          New Outbound Ticket
+        </SplitButton>
       }
     >
       {salesQuery.error ? (
@@ -644,13 +660,13 @@ export default function ScrapMetalSalesPage() {
         />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-muted-foreground">
                 Status:
               </label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
@@ -663,7 +679,7 @@ export default function ScrapMetalSalesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-right text-sm text-muted-foreground">
+            <div className="text-left text-sm text-muted-foreground sm:text-right">
               <div>{filteredSales.length} of {(salesQuery.data ?? []).length} outbound tickets</div>
             </div>
           </div>
@@ -682,18 +698,89 @@ export default function ScrapMetalSalesPage() {
                   ? "No outbound tickets recorded yet"
                   : `No outbound tickets with status "${statusFilter.replace(/_/g, " ")}"`
             }
+            mobileCardRenderer={({ row: sale }) => (
+              <article className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{sale.buyerName}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{sale.saleNumber}</p>
+                  </div>
+                  <StatusChip status={sale.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Lot</p>
+                    <p className="font-semibold">{sale.batch.batchNumber}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Site</p>
+                    <p className="font-semibold">{sale.site.code}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sold kg</p>
+                    <p className="font-semibold">{sale.soldWeight.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="font-semibold">{sale.currency} {sale.totalAmount.toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditing(sale);
+                        setForm({
+                          saleDate: sale.saleDate.slice(0, 16),
+                          batchId: sale.batch.id,
+                          buyerName: sale.buyerName,
+                          buyerContact: sale.buyerContact ?? "",
+                          recordedWeight: String(sale.recordedWeight),
+                          soldWeight: String(sale.soldWeight),
+                          pricePerKg: String(sale.pricePerKg),
+                          currency: sale.currency,
+                          paymentMethod: sale.paymentMethod ?? "",
+                          paymentReference: sale.paymentReference ?? "",
+                          overrideReason: "",
+                          notes: sale.notes ?? "",
+                          attachments: sale.attachments ?? [],
+                        });
+                        setSubmitIntent("submit");
+                        setFormOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  ) : null}
+                  {canManageSales && ["PENDING_APPROVAL", "APPROVED"].includes(sale.status) ? (
+                    <Button size="sm" variant="outline" onClick={() => setSelectedSale(sale)}>
+                      {sale.status === "APPROVED" ? "Close" : "Review"}
+                    </Button>
+                  ) : null}
+                  {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
+                    <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(sale)}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+              </article>
+            )}
           />
         </>
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent size="lg">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92dvh]">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Outbound Ticket" : "New Outbound Ticket"}</DialogTitle>
             <DialogDescription>Lock the buyer deal, accepted weight, and final sale value.</DialogDescription>
           </DialogHeader>
           <form
-            className="space-y-4"
+            ref={formRef}
+            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92dvh-9rem)]"
             onSubmit={(event) => {
               event.preventDefault();
               saveMutation.mutate({ payload: form, intent: submitIntent });
@@ -839,11 +926,21 @@ export default function ScrapMetalSalesPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Payment method</label>
-                <Input
+                <Select
                   value={form.paymentMethod}
-                  onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
-                  placeholder="Payment method"
-                />
+                  onValueChange={(value) => setForm((current) => ({ ...current, paymentMethod: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Payment reference</label>
@@ -935,14 +1032,13 @@ export default function ScrapMetalSalesPage() {
               )}
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85 !flex-row">
+              <Button className="flex-1 sm:flex-none" type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                variant="outline"
-                onClick={() => setSubmitIntent("hold")}
+              <SplitButton
+                className="flex-1 sm:flex-none"
+                onClick={() => submitWithIntent(canManageSales ? "submit" : "request_approval")}
                 disabled={
                   saveMutation.isPending ||
                   (!editing && (!saleNumber || reservingSaleNumber)) ||
@@ -950,53 +1046,25 @@ export default function ScrapMetalSalesPage() {
                   form.batchId === "__none" ||
                   isUploadingPhoto
                 }
+                menuContent={
+                  <>
+                    <DropdownMenuItem onClick={() => submitWithIntent("hold")}>
+                      Hold Ticket
+                    </DropdownMenuItem>
+                    {canManageSales ? (
+                      <DropdownMenuItem onClick={() => submitWithIntent("submit_print")}>
+                        Submit & Export PDF
+                      </DropdownMenuItem>
+                    ) : null}
+                  </>
+                }
               >
-                {saveMutation.isPending ? "Saving..." : "Hold Ticket"}
-              </Button>
-              {canManageSales ? (
-                <Button
-                  type="submit"
-                  onClick={() => setSubmitIntent("submit")}
-                  disabled={
-                    saveMutation.isPending ||
-                    (!editing && (!saleNumber || reservingSaleNumber)) ||
-                    !form.buyerName ||
-                    form.batchId === "__none" ||
-                    isUploadingPhoto
-                  }
-                >
-                  {saveMutation.isPending ? "Saving..." : "Submit Ticket"}
-                </Button>
-              ) : null}
-              {canManageSales ? (
-                <Button
-                  type="submit"
-                  onClick={() => setSubmitIntent("submit_print")}
-                  disabled={
-                    saveMutation.isPending ||
-                    (!editing && (!saleNumber || reservingSaleNumber)) ||
-                    !form.buyerName ||
-                    form.batchId === "__none" ||
-                    isUploadingPhoto
-                  }
-                >
-                  {saveMutation.isPending ? "Saving..." : "Submit & Export PDF"}
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  onClick={() => setSubmitIntent("request_approval")}
-                  disabled={
-                    saveMutation.isPending ||
-                    (!editing && (!saleNumber || reservingSaleNumber)) ||
-                    !form.buyerName ||
-                    form.batchId === "__none" ||
-                    isUploadingPhoto
-                  }
-                >
-                  {saveMutation.isPending ? "Saving..." : "Request Approval"}
-                </Button>
-              )}
+                {saveMutation.isPending
+                  ? "Saving..."
+                  : canManageSales
+                    ? "Submit Ticket"
+                    : "Request Approval"}
+              </SplitButton>
             </DialogFooter>
           </form>
         </DialogContent>

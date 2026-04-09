@@ -280,25 +280,135 @@ export default function ScrapReportsPage() {
 
       <VerticalDataViews items={views} value={activeView} onValueChange={setActiveView} railLabel="Views">
         {activeView === "materials" ? (
-          <DataTable data={data?.topMaterials ?? []} columns={materialColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search material mix" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.topMaterials ?? []}
+            columns={materialColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search material mix"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.label}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>Bought: {row.purchaseWeight.toFixed(2)} kg</p>
+                  <p>Sold: {row.saleWeight.toFixed(2)} kg</p>
+                  <p>Buy: USD {row.purchaseValue.toFixed(2)}</p>
+                  <p>Sell: USD {row.saleValue.toFixed(2)}</p>
+                </div>
+              </article>
+            )}
+          />
         ) : null}
         {activeView === "exposure" ? (
-          <DataTable data={data?.queues.balances ?? []} columns={exposureColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search operator exposure" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.queues.balances ?? []}
+            columns={exposureColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search operator exposure"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.employee.name}</p>
+                <p className="font-mono text-xs text-muted-foreground">{row.employee.employeeId}</p>
+                <p className="font-semibold">USD {row.balance.toFixed(2)}</p>
+              </article>
+            )}
+          />
         ) : null}
         {activeView === "pending-sales" ? (
-          <DataTable data={data?.queues.pendingSales ?? []} columns={pendingSalesColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search pending sales" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.queues.pendingSales ?? []}
+            columns={pendingSalesColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search pending sales"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.buyerName}</p>
+                <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>{row.soldWeight.toFixed(2)} kg</p>
+                  <p>USD {row.totalAmount.toFixed(2)}</p>
+                </div>
+              </article>
+            )}
+          />
         ) : null}
         {activeView === "supplier-payments" ? (
-          <DataTable data={data?.queues.pendingSupplierPayments ?? []} columns={supplierPaymentColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search supplier payments" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.queues.pendingSupplierPayments ?? []}
+            columns={supplierPaymentColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search supplier payments"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.purchaseNumber}</p>
+                <p className="text-xs text-muted-foreground">{row.sellerName ?? "Unknown supplier"}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>{new Date(row.purchaseDate).toLocaleDateString()}</p>
+                  <p className="font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>
+                </div>
+              </article>
+            )}
+          />
         ) : null}
         {activeView === "wac" ? (
-          <DataTable data={data?.weightedAverageCostByMaterial ?? []} columns={weightedAverageCostColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search WAC" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.weightedAverageCostByMaterial ?? []}
+            columns={weightedAverageCostColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search WAC"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.label}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>WAC: USD {row.weightedAverageCostPerKg.toFixed(2)}</p>
+                  <p>Weight: {row.purchaseWeight.toFixed(2)} kg</p>
+                  <p>Cost: USD {row.purchaseValue.toFixed(2)}</p>
+                </div>
+              </article>
+            )}
+          />
         ) : null}
         {activeView === "supplier-margin" ? (
-          <DataTable data={data?.supplierPerformance ?? []} columns={supplierPerformanceColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search supplier margin" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.supplierPerformance ?? []}
+            columns={supplierPerformanceColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search supplier margin"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.supplier}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>Tickets: {row.tickets}</p>
+                  <p>Repeat months: {row.repeatMonths}</p>
+                  <p>Weight: {row.weightKg.toFixed(2)} kg</p>
+                  <p>Margin: {row.currency} {row.estimatedMarginContribution.toFixed(2)}</p>
+                </div>
+              </article>
+            )}
+          />
         ) : null}
         {activeView === "reconciliation" ? (
-          <DataTable data={data?.reconciliation.varianceByWeek ?? []} columns={reconciliationColumns} pagination={{ enabled: true, server: false }} searchPlaceholder="Search variance" emptyState={isLoading ? "Loading..." : "No data"} />
+          <DataTable
+            data={data?.reconciliation.varianceByWeek ?? []}
+            columns={reconciliationColumns}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search variance"
+            emptyState={isLoading ? "Loading..." : "No data"}
+            mobileCardRenderer={({ row }) => (
+              <article className="space-y-2 text-sm">
+                <p className="font-semibold">{row.weekLabel}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <p>Sales: {row.saleCount}</p>
+                  <p>Variance: {row.varianceKg.toFixed(2)} kg</p>
+                </div>
+              </article>
+            )}
+          />
         ) : null}
       </VerticalDataViews>
     </ScrapShell>

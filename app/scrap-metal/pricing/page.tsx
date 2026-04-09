@@ -280,15 +280,63 @@ export default function ScrapMetalPricingPage() {
         searchPlaceholder="Search material, category, or note"
         tableClassName="text-sm"
         emptyState={pricesQuery.isLoading ? "Loading prices..." : "No prices configured yet"}
+        mobileCardRenderer={({ row }) => (
+          <article className="space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{row.material?.name ?? "Category default"}</p>
+                <p className="text-xs text-muted-foreground">{row.material?.code ?? row.category}</p>
+              </div>
+              <Badge variant="outline">{row.category}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Effective</p>
+                <p className="font-semibold">{row.effectiveDate.slice(0, 10)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Price / kg</p>
+                <p className="font-semibold">{row.currency} {row.pricePerKg.toFixed(2)}</p>
+              </div>
+            </div>
+            {row.note ? (
+              <p className="rounded-md bg-[var(--surface-muted)] px-3 py-2 text-sm text-muted-foreground">{row.note}</p>
+            ) : null}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditing(row);
+                  setForm({
+                    materialId: row.material?.id ?? "__none",
+                    category: row.category,
+                    effectiveDate: row.effectiveDate.slice(0, 10),
+                    pricePerKg: String(row.pricePerKg),
+                    currency: row.currency,
+                    note: row.note ?? "",
+                  });
+                  setFormOpen(true);
+                }}
+              >
+                Edit
+              </Button>
+              <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(row)}>
+                Remove
+              </Button>
+            </div>
+          </article>
+        )}
       />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent size="lg">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh]">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Price" : "New Price"}</DialogTitle>
           </DialogHeader>
           <form
-            className="space-y-4"
+            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]"
             onSubmit={(event) => {
               event.preventDefault();
               saveMutation.mutate(form);
@@ -358,7 +406,7 @@ export default function ScrapMetalPricingPage() {
                 placeholder="Note"
               />
             </div>
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>

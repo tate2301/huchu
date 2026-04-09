@@ -566,12 +566,12 @@ export default function ScrapMetalBatchesPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent size="lg">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh]">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Lot" : "New Lot"}</DialogTitle>
           </DialogHeader>
           <form
-            className="space-y-4"
+            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]"
             onSubmit={(event) => {
               event.preventDefault();
               saveMutation.mutate(form);
@@ -673,7 +673,7 @@ export default function ScrapMetalBatchesPage() {
               placeholder="Lot notes"
             />
 
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancel
               </Button>
@@ -693,7 +693,7 @@ export default function ScrapMetalBatchesPage() {
       </Dialog>
 
       <Dialog open={Boolean(batchForItems)} onOpenChange={(open) => !open && setBatchForItems(null)}>
-        <DialogContent size="xl">
+        <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92vh]">
           <DialogHeader>
             <DialogTitle>Add Inbound Tickets to Lot</DialogTitle>
           </DialogHeader>
@@ -704,7 +704,7 @@ export default function ScrapMetalBatchesPage() {
             <div className="text-sm text-muted-foreground">
               {availablePurchases.length} matching unassigned inbound tickets
             </div>
-            <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl bg-[var(--surface-muted)] p-3">
+            <div className="max-h-[calc(100dvh-20rem)] space-y-2 overflow-y-auto rounded-xl bg-[var(--surface-muted)] p-3 sm:max-h-[420px]">
               {availablePurchases.map((purchase) => {
                 const checked = selectedPurchaseIds.includes(purchase.id);
                 return (

@@ -100,7 +100,7 @@ export default function SupplierPerformancePage() {
       title="Supplier Performance"
      
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => downloadCsv("scrap-supplier-performance", rows)} disabled={rows.length === 0}>
             Export CSV
           </Button>
@@ -116,6 +116,19 @@ export default function SupplierPerformancePage() {
         pagination={{ enabled: true }}
         searchPlaceholder="Search suppliers"
         emptyState={purchasesQuery.isLoading ? "Loading supplier performance..." : "No supplier activity yet."}
+        mobileCardRenderer={({ row }) => (
+          <article className="space-y-2 text-sm">
+            <p className="font-semibold">{row.supplier}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <p>Tickets: {row.tickets}</p>
+              <p>Repeat months: {row.repeatMonths}</p>
+              <p>Weight: {row.weightKg.toFixed(2)} kg</p>
+              <p>Spend: {row.currency} {row.spend.toFixed(2)}</p>
+              <p>Avg/kg: {row.currency} {row.avgBuyPricePerKg.toFixed(2)}</p>
+              <p>Margin: {row.currency} {row.estimatedMarginContribution.toFixed(2)}</p>
+            </div>
+          </article>
+        )}
       />
     </ScrapShell>
   );

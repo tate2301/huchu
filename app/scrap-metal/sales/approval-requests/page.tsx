@@ -99,7 +99,7 @@ export default function ScrapSalesApprovalRequestsPage() {
       title="Approval Requests"
      
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline"><Link href="/scrap-metal/sales">Outbound Tickets</Link></Button>
           <Button asChild size="sm" variant="outline"><Link href="/scrap-metal/tickets/held">Held Tickets</Link></Button>
         </div>
@@ -111,8 +111,41 @@ export default function ScrapSalesApprovalRequestsPage() {
         searchPlaceholder="Search approval requests"
         pagination={{ enabled: true }}
         emptyState={requestsQuery.isLoading ? "Loading approval requests..." : "No approval requests yet."}
+        mobileCardRenderer={({ row }) => (
+          <article className="space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold">{row.saleNumber}</p>
+                <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
+              </div>
+              <p className="text-sm font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Buyer</p>
+                <p className="font-semibold">{row.buyerName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Requested By</p>
+                <p className="font-semibold">{row.createdBy?.name ?? "-"}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/scrap-metal/sales?edit=${row.id}`}>Open</Link>
+              </Button>
+              <Button
+                size="sm"
+                disabled={!canManageSales || submitMutation.isPending}
+                title={!canManageSales ? "Manager approval is required to submit requests." : undefined}
+                onClick={() => submitMutation.mutate(row.id)}
+              >
+                Submit
+              </Button>
+            </div>
+          </article>
+        )}
       />
     </ScrapShell>
   );
 }
-
