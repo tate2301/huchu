@@ -8,11 +8,12 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 type MarketingSubpageShellProps = {
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
 };
 
 export function MarketingSubpageShell({ title, description, children }: MarketingSubpageShellProps) {
+  void description;
   return (
     <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#0d1738_0_23rem,#f7f9ff_23rem_100%)] text-white">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
@@ -55,9 +56,6 @@ export function MarketingSubpageShell({ title, description, children }: Marketin
             <h1 className="max-w-4xl text-[clamp(2.7rem,5.2vw,4.9rem)] font-semibold leading-[0.95] tracking-[-0.055em] text-balance text-white">
               {title}
             </h1>
-            <p className="max-w-3xl text-lg leading-8 text-white/74">
-              {description}
-            </p>
             <div className="flex flex-wrap gap-2.5">
               {marketingSiteHighlights.map((item) => (
                 <span key={item} className={styles.shellPill}>

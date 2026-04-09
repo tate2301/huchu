@@ -127,7 +127,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold/prices", featureKey: "gold.home" },
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
 
-  { scope: "page", prefix: "/scrap-metal/setup/materials", featureKey: "scrap-metal.pricing" },
   { scope: "page", prefix: "/scrap-metal/tickets/held", featureKey: "scrap-metal.purchases" },
   { scope: "page", prefix: "/scrap-metal/tickets", featureKey: "scrap-metal.home" },
   { scope: "page", prefix: "/scrap-metal/sales/approval-requests", featureKey: "scrap-metal.sales" },

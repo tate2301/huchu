@@ -2,7 +2,7 @@ import type { FormEvent, ReactNode } from "react";
 
 import { PrimaryActionBar } from "@/components/shared/primary-action-bar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type FormShellProps = {
@@ -36,11 +36,11 @@ export function FormShell({
   mainClassName,
   actionPanelClassName,
 }: FormShellProps) {
+  void description;
   return (
     <Card className={className}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className={contentClassName}>
         <form className={cn("space-y-6", formClassName)} onSubmit={onSubmit} noValidate>

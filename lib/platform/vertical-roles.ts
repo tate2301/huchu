@@ -1,36 +1,17 @@
-import type { WorkspaceProfile } from "@/lib/workspace-products";
 import { inferWorkspaceProfileFromEnabledFeatures } from "@/lib/workspace-products";
 import type { UserRole } from "@/lib/roles";
+import {
+  getRegisteredRoles,
+  type ManagedWorkspaceProfile,
+  USER_ROLE_LABELS,
+  VERTICAL_ROLE_REGISTRY,
+} from "@/lib/platform/vertical-role-registry";
 
-export type ManagedWorkspaceProfile = WorkspaceProfile;
-
-export const USER_ROLE_LABELS: Partial<Record<UserRole, string>> = {
-  SUPERADMIN: "Superadmin",
-  MANAGER: "Manager",
-  CLERK: "Clerk",
-  OPERATOR: "Operator",
-  SCHOOL_ADMIN: "School Admin",
-  REGISTRAR: "Registrar",
-  BURSAR: "Bursar",
-  TEACHER: "Teacher",
-  PARENT: "Parent",
-  STUDENT: "Student",
-  AUTO_MANAGER: "Auto Manager",
-  SALES_EXEC: "Sales Executive",
-  FINANCE_OFFICER: "Finance Officer",
-  SHOP_MANAGER: "Shop Manager",
-  CASHIER: "Cashier",
-  STOCK_CLERK: "Stock Clerk",
-};
-
-export const VERTICAL_USER_ROLES: Record<ManagedWorkspaceProfile, UserRole[]> = {
-  GOLD_MINE: ["SUPERADMIN", "MANAGER", "CLERK", "FINANCE_OFFICER"],
-  SCRAP_METAL: ["SUPERADMIN", "MANAGER", "OPERATOR"],
-  AUTOS: ["SUPERADMIN", "MANAGER", "CLERK", "AUTO_MANAGER", "SALES_EXEC", "FINANCE_OFFICER"],
-  RETAIL: ["SUPERADMIN", "MANAGER", "CLERK", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"],
-  SCHOOLS: ["SUPERADMIN", "MANAGER", "CLERK", "FINANCE_OFFICER"],
-  GENERAL: ["SUPERADMIN", "MANAGER", "CLERK", "FINANCE_OFFICER"],
-};
+export type { ManagedWorkspaceProfile };
+export { USER_ROLE_LABELS };
+export const VERTICAL_USER_ROLES: Record<ManagedWorkspaceProfile, UserRole[]> = Object.fromEntries(
+  Object.entries(VERTICAL_ROLE_REGISTRY).map(([profile, config]) => [profile, config.roles]),
+) as Record<ManagedWorkspaceProfile, UserRole[]>;
 
 export function resolveWorkspaceProfileForRoles(args: {
   workspaceProfile: string | null | undefined;
@@ -48,7 +29,7 @@ export function getAllowedUserRolesForWorkspace(args: {
   enabledFeatures?: string[] | undefined;
 }): UserRole[] {
   const profile = resolveWorkspaceProfileForRoles(args);
-  return VERTICAL_USER_ROLES[profile] ?? VERTICAL_USER_ROLES.GENERAL;
+  return getRegisteredRoles(profile);
 }
 
 export function getAllowedUserRoleOptionsForWorkspace(args: {
@@ -60,4 +41,3 @@ export function getAllowedUserRoleOptionsForWorkspace(args: {
     label: USER_ROLE_LABELS[value] ?? value,
   }));
 }
-

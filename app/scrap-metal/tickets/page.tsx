@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -78,6 +78,8 @@ type OutboundForm = {
 
 type InboundIntent = "hold" | "finalize" | "finalize_print";
 type OutboundIntent = "hold" | "submit" | "submit_print" | "request_approval";
+const QUICK_CREATE_SUPPLIER_VALUE = "__quick_create_supplier__";
+const PAYMENT_METHOD_OPTIONS = ["Cash", "EcoCash", "Bank Transfer", "Mobile Money", "Card", "Other"] as const;
 type ComplianceRequirements = {
   requirePhotos: boolean;
   requirePaymentMethod: boolean;
@@ -101,7 +103,7 @@ function emptyInbound(): InboundForm {
     weight: "",
     pricePerKg: "",
     currency: "USD",
-    paymentMethod: "",
+    paymentMethod: "Cash",
     paymentReference: "",
     notes: "",
     attachments: [],
@@ -118,7 +120,7 @@ function emptyOutbound(): OutboundForm {
     soldWeight: "",
     pricePerKg: "",
     currency: "USD",
-    paymentMethod: "",
+    paymentMethod: "Cash",
     paymentReference: "",
     notes: "",
     attachments: [],
@@ -144,7 +146,9 @@ async function uploadPhoto(file: File, context: "scrap-purchase-ticket-photo" | 
 
 export default function ScrapMetalTicketWorkbenchPage() {
   const { data: session } = useSession();
-  const role = (session?.user as { role?: string } | undefined)?.role;
+  const sessionUser = (session?.user as { id?: string; userId?: string; role?: string; name?: string } | undefined) ?? undefined;
+  const role = sessionUser?.role;
+  const sessionUserId = sessionUser?.id ?? sessionUser?.userId ?? null;
   const canCreateOutbound = hasRole(role, ["SUPERADMIN", "MANAGER"]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -157,6 +161,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const [newSeller, setNewSeller] = useState({ fullName: "", phone: "", nationalId: "" });
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [syncingOfflineQueue, setSyncingOfflineQueue] = useState(false);
+  const [inboundMetaOpen, setInboundMetaOpen] = useState(false);
+  const [outboundMetaOpen, setOutboundMetaOpen] = useState(false);
 
   const sitesQuery = useQuery({ queryKey: ["sites", "scrap-tickets"], queryFn: fetchSites });
   const employeesQuery = useQuery({ queryKey: ["employees", "scrap-tickets"], queryFn: () => fetchEmployees({ active: true, limit: 500 }) });
@@ -167,16 +173,33 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const heldInboundQuery = useQuery({ queryKey: ["scrap-held-inbound-total"], queryFn: () => fetchJson<{ pagination?: { total?: number } }>("/api/scrap-metal/purchases?status=DRAFT&limit=1") });
   const heldOutboundQuery = useQuery({ queryKey: ["scrap-held-outbound-total"], queryFn: () => fetchJson<{ pagination?: { total?: number } }>("/api/scrap-metal/sales?status=DRAFT&limit=1") });
 
-  const materials = materialsQuery.data?.data ?? [];
+  const materials = useMemo(() => materialsQuery.data?.data ?? [], [materialsQuery.data?.data]);
+  const employees = useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data?.data]);
   const sellers = sellersQuery.data?.data ?? [];
-  const prices = pricesQuery.data?.data ?? [];
+  const prices = useMemo(() => pricesQuery.data?.data ?? [], [pricesQuery.data?.data]);
   const batches = useMemo(() => (batchesQuery.data?.data ?? []).filter((x) => ["COLLECTING", "READY"].includes(x.status)), [batchesQuery.data?.data]);
   const selectedBatch = batches.find((x) => x.id === outbound.batchId) ?? null;
+  const selectedInboundMaterial = useMemo(
+    () => materials.find((material) => material.id === inbound.materialId) ?? null,
+    [materials, inbound.materialId],
+  );
+  const derivedInboundCategory = selectedInboundMaterial?.category ?? inbound.category;
+  const selectedInboundBuyer = useMemo(
+    () => employees.find((employee) => employee.id === inbound.employeeId) ?? null,
+    [employees, inbound.employeeId],
+  );
+  const defaultBuyerId = useMemo(() => {
+    if (!sessionUserId) return "";
+    const linkedEmployee = employees.find((employee) => employee.userId === sessionUserId);
+    return linkedEmployee?.id ?? "";
+  }, [employees, sessionUserId]);
+  const canOverrideBuyer = hasRole(role, ["OPERATOR", "MANAGER", "SUPERADMIN"]);
+  const showBuyerOverride = canOverrideBuyer || !defaultBuyerId;
   const inboundRequirementsQuery = useQuery({
-    queryKey: ["scrap-inbound-requirements", inbound.materialId || "__none", inbound.category],
+    queryKey: ["scrap-inbound-requirements", inbound.materialId || "__none", derivedInboundCategory],
     queryFn: () =>
       fetchJson<ComplianceRequirements>(
-        `/api/scrap-metal/compliance-rules/resolve?direction=INBOUND&materialId=${encodeURIComponent(inbound.materialId)}&category=${encodeURIComponent(inbound.category)}`,
+        `/api/scrap-metal/compliance-rules/resolve?direction=INBOUND&materialId=${encodeURIComponent(inbound.materialId)}&category=${encodeURIComponent(derivedInboundCategory)}`,
       ),
   });
   const outboundRequirementsQuery = useQuery({
@@ -195,6 +218,49 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const heldOutbound = heldOutboundQuery.data?.pagination?.total ?? 0;
   const inboundRequirements = inboundRequirementsQuery.data;
   const outboundRequirements = outboundRequirementsQuery.data;
+  const applyPriceSuggestion = useCallback((next: InboundForm): InboundForm => {
+    const date = new Date(next.date);
+    if (Number.isNaN(date.getTime())) return next;
+    const candidates = prices
+      .filter((p) => p.category === next.category && new Date(p.effectiveDate) <= date)
+      .sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime());
+    const chosen =
+      (next.materialId ? candidates.find((p) => p.materialId === next.materialId) : null) ??
+      candidates.find((p) => !p.materialId);
+    if (!chosen || next.pricePerKg) return next;
+    return { ...next, pricePerKg: String(chosen.pricePerKg), currency: next.currency || chosen.currency };
+  }, [prices]);
+
+  useEffect(() => {
+    if (!defaultBuyerId) return;
+    const selectedIsValid = inbound.employeeId && employees.some((employee) => employee.id === inbound.employeeId);
+    if (selectedIsValid) return;
+    setInbound((prev) => ({ ...prev, employeeId: defaultBuyerId }));
+  }, [defaultBuyerId, inbound.employeeId, employees]);
+
+  useEffect(() => {
+    if (!selectedInboundMaterial) return;
+    if (inbound.category === selectedInboundMaterial.category) return;
+    setInbound((prev) => applyPriceSuggestion({ ...prev, category: selectedInboundMaterial.category }));
+  }, [applyPriceSuggestion, selectedInboundMaterial, inbound.category]);
+
+  useEffect(() => {
+    const hasMetadataError =
+      Boolean(inboundErrors.paymentMethod) ||
+      Boolean(inboundErrors.paymentReference) ||
+      Boolean(inboundErrors.notes) ||
+      Boolean(inboundErrors.attachments);
+    if (hasMetadataError) setInboundMetaOpen(true);
+  }, [inboundErrors]);
+
+  useEffect(() => {
+    const hasMetadataError =
+      Boolean(outboundErrors.paymentMethod) ||
+      Boolean(outboundErrors.paymentReference) ||
+      Boolean(outboundErrors.notes) ||
+      Boolean(outboundErrors.attachments);
+    if (hasMetadataError) setOutboundMetaOpen(true);
+  }, [outboundErrors]);
 
   function refreshOfflineQueueCount() {
     setOfflineQueueCount(loadQueuedScrapTicketOperations().length);
@@ -246,13 +312,17 @@ export default function ScrapMetalTicketWorkbenchPage() {
   }
 
   function buildInboundPayload(intent: InboundIntent, form: InboundForm) {
+    const materialCategory =
+      materials.find((material) => material.id === form.materialId)?.category ??
+      form.category;
+
     return {
       purchaseDate: toIsoStringOrNow(form.date),
       siteId: form.siteId,
       employeeId: form.employeeId,
       sellerProfileId: form.sellerId,
       materialId: form.materialId,
-      category: form.category,
+      category: materialCategory,
       weight: Number(form.weight),
       pricePerKg: Number(form.pricePerKg),
       currency: form.currency,
@@ -367,7 +437,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-held-inbound-total"] });
       setInboundErrors({});
-      setInbound((prev) => ({ ...emptyInbound(), siteId: prev.siteId, employeeId: prev.employeeId }));
+      setInbound((prev) => ({ ...emptyInbound(), siteId: prev.siteId, employeeId: defaultBuyerId || prev.employeeId }));
       if (intent === "finalize_print") {
         printTicketWithBridge({ ticketType: "purchase", ticketId: created.id, download: false, mode: "pdf-only" });
       }
@@ -467,17 +537,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
     },
   });
 
-  function applyPriceSuggestion(next: InboundForm): InboundForm {
-    const date = new Date(next.date);
-    if (Number.isNaN(date.getTime())) return next;
-    const candidates = prices
-      .filter((p) => p.category === next.category && new Date(p.effectiveDate) <= date)
-      .sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime());
-    const chosen = (next.materialId ? candidates.find((p) => p.materialId === next.materialId) : null) ?? candidates.find((p) => !p.materialId);
-    if (!chosen || next.pricePerKg) return next;
-    return { ...next, pricePerKg: String(chosen.pricePerKg), currency: next.currency || chosen.currency };
-  }
-
   function validateInbound() {
     const errors: Record<string, string> = {};
     if (Number.isNaN(new Date(inbound.date).getTime())) errors.date = "Ticket time is required.";
@@ -547,6 +606,18 @@ export default function ScrapMetalTicketWorkbenchPage() {
   }
 
   const busy = inboundMutation.isPending || outboundMutation.isPending || createSellerMutation.isPending;
+  const inboundTotal = useMemo(() => {
+    const weight = Number(inbound.weight);
+    const price = Number(inbound.pricePerKg);
+    if (!Number.isFinite(weight) || !Number.isFinite(price)) return 0;
+    return weight * price;
+  }, [inbound.weight, inbound.pricePerKg]);
+  const outboundTotal = useMemo(() => {
+    const weight = Number(outbound.soldWeight);
+    const price = Number(outbound.pricePerKg);
+    if (!Number.isFinite(weight) || !Number.isFinite(price)) return 0;
+    return weight * price;
+  }, [outbound.soldWeight, outbound.pricePerKg]);
 
   async function readInboundWeightFromScale() {
     try {
@@ -628,7 +699,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
 
   function cancelCurrentTicket() {
     if (view === "inbound") {
-      setInbound((prev) => ({ ...emptyInbound(), siteId: prev.siteId, employeeId: prev.employeeId }));
+      setInbound((prev) => ({ ...emptyInbound(), siteId: prev.siteId, employeeId: defaultBuyerId || prev.employeeId }));
       setInboundErrors({});
       return;
     }
@@ -727,70 +798,37 @@ export default function ScrapMetalTicketWorkbenchPage() {
             <CardHeader>
               <CardTitle>New Inbound Ticket</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 pb-28 md:pb-2">
+            <CardContent className="space-y-4 pb-28 md:pb-3">
               {inboundErrors.form ? (
                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {inboundErrors.form}
                 </div>
               ) : null}
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Site</label>
-                  <Select value={inbound.siteId} onValueChange={(value) => setInbound((prev) => ({ ...prev, siteId: value }))}>
-                    <SelectTrigger aria-invalid={Boolean(inboundErrors.siteId)} aria-describedby={inboundErrors.siteId ? "inbound-site-error" : undefined}>
-                      <SelectValue placeholder="Select site" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(sitesQuery.data ?? []).map((site) => (
-                        <SelectItem key={site.id} value={site.id}>{site.name} ({site.code})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldHelp id="inbound-site-error" error={inboundErrors.siteId} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Buyer / Cashier</label>
-                  <Select value={inbound.employeeId} onValueChange={(value) => setInbound((prev) => ({ ...prev, employeeId: value }))}>
-                    <SelectTrigger aria-invalid={Boolean(inboundErrors.employeeId)} aria-describedby={inboundErrors.employeeId ? "inbound-employee-error" : undefined}>
-                      <SelectValue placeholder="Select buyer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(employeesQuery.data?.data ?? []).map((employee) => (
-                        <SelectItem key={employee.id} value={employee.id}>{employee.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldHelp id="inbound-employee-error" error={inboundErrors.employeeId} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="inbound-date">Ticket Time</label>
-                  <Input
-                    id="inbound-date"
-                    type="datetime-local"
-                    value={inbound.date}
-                    aria-invalid={Boolean(inboundErrors.date)}
-                    aria-describedby={inboundErrors.date ? "inbound-date-error" : undefined}
-                    onChange={(e) => setInbound((prev) => applyPriceSuggestion({ ...prev, date: e.target.value }))}
-                  />
-                  <FieldHelp id="inbound-date-error" error={inboundErrors.date} />
-                </div>
-              </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Supplier (Seller)</label>
-                  <Select value={inbound.sellerId} onValueChange={(value) => setInbound((prev) => ({ ...prev, sellerId: value }))}>
+                  <label className="text-sm font-semibold">Supplier</label>
+                  <Select
+                    value={inbound.sellerId}
+                    onValueChange={(value) => {
+                      if (value === QUICK_CREATE_SUPPLIER_VALUE) {
+                        setQuickCreateOpen(true);
+                        return;
+                      }
+                      setInbound((prev) => ({ ...prev, sellerId: value }));
+                    }}
+                  >
                     <SelectTrigger aria-invalid={Boolean(inboundErrors.sellerId)} aria-describedby={inboundErrors.sellerId ? "inbound-seller-error" : undefined}>
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={QUICK_CREATE_SUPPLIER_VALUE}>+ Quick-create supplier</SelectItem>
                       {sellers.map((seller) => (
                         <SelectItem key={seller.id} value={seller.id}>{seller.fullName} ({seller.phone})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FieldHelp id="inbound-seller-error" error={inboundErrors.sellerId} />
-                  <Button type="button" size="sm" variant="outline" onClick={() => setQuickCreateOpen(true)}>Quick-create Supplier</Button>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Material</label>
@@ -812,97 +850,147 @@ export default function ScrapMetalTicketWorkbenchPage() {
                   </Select>
                   <FieldHelp id="inbound-material-error" error={inboundErrors.materialId} />
                 </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Category</label>
-                  <Select value={inbound.category} onValueChange={(value) => setInbound((prev) => applyPriceSuggestion({ ...prev, category: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["BATTERIES", "COPPER", "ALUMINUM", "STEEL", "BRASS", "MIXED", "OTHER"].map((category) => (
-                        <SelectItem key={category} value={category}>{category}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="inbound-weight">Weight (kg)</label>
-                  <Input id="inbound-weight" type="number" min="0" step="0.01" value={inbound.weight} aria-invalid={Boolean(inboundErrors.weight)} aria-describedby={inboundErrors.weight ? "inbound-weight-error" : undefined} onChange={(e) => setInbound((prev) => ({ ...prev, weight: e.target.value }))} />
+                  <div className="flex gap-2">
+                    <Input id="inbound-weight" type="number" min="0" step="0.01" value={inbound.weight} aria-invalid={Boolean(inboundErrors.weight)} aria-describedby={inboundErrors.weight ? "inbound-weight-error" : undefined} onChange={(e) => setInbound((prev) => ({ ...prev, weight: e.target.value }))} />
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void readInboundWeightFromScale()}>
+                      Scale
+                    </Button>
+                  </div>
                   <FieldHelp id="inbound-weight-error" error={inboundErrors.weight} />
-                  <Button type="button" size="sm" variant="outline" onClick={() => void readInboundWeightFromScale()}>Read Scale</Button>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="inbound-price">Price / kg</label>
                   <Input id="inbound-price" type="number" min="0" step="0.01" value={inbound.pricePerKg} aria-invalid={Boolean(inboundErrors.pricePerKg)} aria-describedby={inboundErrors.pricePerKg ? "inbound-price-error" : undefined} onChange={(e) => setInbound((prev) => ({ ...prev, pricePerKg: e.target.value }))} />
                   <FieldHelp id="inbound-price-error" error={inboundErrors.pricePerKg} />
                 </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Currency</label>
-                  <Input value={inbound.currency} onChange={(e) => setInbound((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
+                  <label className="text-sm font-semibold">Site</label>
+                  <Select value={inbound.siteId} onValueChange={(value) => setInbound((prev) => ({ ...prev, siteId: value }))}>
+                    <SelectTrigger aria-invalid={Boolean(inboundErrors.siteId)} aria-describedby={inboundErrors.siteId ? "inbound-site-error" : undefined}>
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(sitesQuery.data ?? []).map((site) => (
+                        <SelectItem key={site.id} value={site.id}>{site.name} ({site.code})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldHelp id="inbound-site-error" error={inboundErrors.siteId} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="inbound-date">Ticket Time</label>
+                  <Input
+                    id="inbound-date"
+                    type="datetime-local"
+                    value={inbound.date}
+                    aria-invalid={Boolean(inboundErrors.date)}
+                    aria-describedby={inboundErrors.date ? "inbound-date-error" : undefined}
+                    onChange={(e) => setInbound((prev) => applyPriceSuggestion({ ...prev, date: e.target.value }))}
+                  />
+                  <FieldHelp id="inbound-date-error" error={inboundErrors.date} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Buyer</label>
+                  {showBuyerOverride ? (
+                    <Select value={inbound.employeeId} onValueChange={(value) => setInbound((prev) => ({ ...prev, employeeId: value }))}>
+                      <SelectTrigger aria-invalid={Boolean(inboundErrors.employeeId)} aria-describedby={inboundErrors.employeeId ? "inbound-employee-error" : undefined}>
+                        <SelectValue placeholder="Select buyer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>{employee.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input readOnly value={selectedInboundBuyer?.name ?? ""} />
+                  )}
+                  <FieldHelp id="inbound-employee-error" error={inboundErrors.employeeId} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="inbound-currency">Currency</label>
+                  <Input id="inbound-currency" value={inbound.currency} onChange={(e) => setInbound((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="inbound-payment-method">Payment method</label>
-                  <Input
-                    id="inbound-payment-method"
-                    placeholder="Cash / EcoCash / Transfer"
-                    value={inbound.paymentMethod}
-                    aria-invalid={Boolean(inboundErrors.paymentMethod)}
-                    aria-describedby={inboundErrors.paymentMethod ? "inbound-payment-method-error" : undefined}
-                    onChange={(e) => setInbound((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-                  />
-                  <FieldHelp id="inbound-payment-method-error" error={inboundErrors.paymentMethod} />
+              <div className="rounded-md border border-[var(--edge-subtle)] px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{selectedInboundMaterial?.category ?? "No material selected"}</p>
+                  <p className="font-mono text-sm font-semibold">{(inbound.currency || "USD").toUpperCase()} {inboundTotal.toFixed(2)}</p>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="inbound-payment-reference">Payment reference</label>
-                  <Input
-                    id="inbound-payment-reference"
-                    placeholder="Reference / Receipt"
-                    value={inbound.paymentReference}
-                    aria-invalid={Boolean(inboundErrors.paymentReference)}
-                    aria-describedby={inboundErrors.paymentReference ? "inbound-payment-reference-error" : undefined}
-                    onChange={(e) => setInbound((prev) => ({ ...prev, paymentReference: e.target.value }))}
-                  />
-                  <FieldHelp id="inbound-payment-reference-error" error={inboundErrors.paymentReference} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold" htmlFor="inbound-notes">Notes</label>
-                <Textarea
-                  id="inbound-notes"
-                  rows={3}
-                  placeholder="Add ticket notes"
-                  value={inbound.notes}
-                  aria-invalid={Boolean(inboundErrors.notes)}
-                  aria-describedby={inboundErrors.notes ? "inbound-notes-error" : undefined}
-                  onChange={(e) => setInbound((prev) => ({ ...prev, notes: e.target.value }))}
-                />
-                <FieldHelp id="inbound-notes-error" error={inboundErrors.notes} />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Photos</label>
-                <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-sm">
-                  Add Photo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void onUploadInbound(file);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                <p className="text-xs text-muted-foreground">{inbound.attachments.length} photo(s) attached.</p>
-                <FieldHelp id="inbound-attachments-error" error={inboundErrors.attachments} />
+              <div className="space-y-3">
+                <Button type="button" size="sm" variant="outline" onClick={() => setInboundMetaOpen((prev) => !prev)}>
+                  {inboundMetaOpen ? "Hide Details" : "More Details"}
+                </Button>
+                {inboundMetaOpen ? (
+                  <div className="space-y-4 rounded-md border border-[var(--edge-subtle)] p-3">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold">Payment method</label>
+                        <Select value={inbound.paymentMethod} onValueChange={(value) => setInbound((prev) => ({ ...prev, paymentMethod: value }))}>
+                          <SelectTrigger aria-invalid={Boolean(inboundErrors.paymentMethod)} aria-describedby={inboundErrors.paymentMethod ? "inbound-payment-method-error" : undefined}>
+                            <SelectValue placeholder="Select payment method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_METHOD_OPTIONS.map((method) => (
+                              <SelectItem key={method} value={method}>{method}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldHelp id="inbound-payment-method-error" error={inboundErrors.paymentMethod} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold" htmlFor="inbound-payment-reference">Payment reference</label>
+                        <Input
+                          id="inbound-payment-reference"
+                          value={inbound.paymentReference}
+                          aria-invalid={Boolean(inboundErrors.paymentReference)}
+                          aria-describedby={inboundErrors.paymentReference ? "inbound-payment-reference-error" : undefined}
+                          onChange={(e) => setInbound((prev) => ({ ...prev, paymentReference: e.target.value }))}
+                        />
+                        <FieldHelp id="inbound-payment-reference-error" error={inboundErrors.paymentReference} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold">Photos</label>
+                        <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-sm">
+                          Add Photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void onUploadInbound(file);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        <p className="text-xs text-muted-foreground">{inbound.attachments.length} attached</p>
+                        <FieldHelp id="inbound-attachments-error" error={inboundErrors.attachments} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold" htmlFor="inbound-notes">Notes</label>
+                      <Textarea
+                        id="inbound-notes"
+                        rows={3}
+                        value={inbound.notes}
+                        aria-invalid={Boolean(inboundErrors.notes)}
+                        aria-describedby={inboundErrors.notes ? "inbound-notes-error" : undefined}
+                        onChange={(e) => setInbound((prev) => ({ ...prev, notes: e.target.value }))}
+                      />
+                      <FieldHelp id="inbound-notes-error" error={inboundErrors.notes} />
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
@@ -922,20 +1010,26 @@ export default function ScrapMetalTicketWorkbenchPage() {
             <CardHeader>
               <CardTitle>New Outbound Ticket</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 pb-28 md:pb-2">
+            <CardContent className="space-y-4 pb-28 md:pb-3">
               {outboundErrors.form ? (
                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {outboundErrors.form}
                 </div>
               ) : null}
-              <div className="grid gap-4 md:grid-cols-3">
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Lot</label>
                   <Select
                     value={outbound.batchId}
                     onValueChange={(value) => {
                       const batch = batches.find((x) => x.id === value);
-                      setOutbound((prev) => ({ ...prev, batchId: value, recordedWeight: String(batch?.totalWeight ?? ""), soldWeight: prev.soldWeight || String(batch?.totalWeight ?? "") }));
+                      setOutbound((prev) => ({
+                        ...prev,
+                        batchId: value,
+                        recordedWeight: String(batch?.totalWeight ?? ""),
+                        soldWeight: prev.soldWeight || String(batch?.totalWeight ?? ""),
+                      }));
                     }}
                   >
                     <SelectTrigger aria-invalid={Boolean(outboundErrors.batchId)} aria-describedby={outboundErrors.batchId ? "outbound-batch-error" : undefined}>
@@ -950,6 +1044,29 @@ export default function ScrapMetalTicketWorkbenchPage() {
                   <FieldHelp id="outbound-batch-error" error={outboundErrors.batchId} />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-buyer-name">Buyer name</label>
+                  <Input id="outbound-buyer-name" value={outbound.buyerName} aria-invalid={Boolean(outboundErrors.buyerName)} aria-describedby={outboundErrors.buyerName ? "outbound-buyer-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerName: e.target.value }))} />
+                  <FieldHelp id="outbound-buyer-error" error={outboundErrors.buyerName} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-sold-weight">Accepted kg</label>
+                  <div className="flex gap-2">
+                    <Input id="outbound-sold-weight" type="number" min="0" step="0.01" value={outbound.soldWeight} aria-invalid={Boolean(outboundErrors.soldWeight)} aria-describedby={outboundErrors.soldWeight ? "outbound-weight-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, soldWeight: e.target.value }))} />
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void readOutboundWeightFromScale()}>
+                      Scale
+                    </Button>
+                  </div>
+                  <FieldHelp id="outbound-weight-error" error={outboundErrors.soldWeight} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold" htmlFor="outbound-price">Price / kg</label>
+                  <Input id="outbound-price" type="number" min="0" step="0.01" value={outbound.pricePerKg} aria-invalid={Boolean(outboundErrors.pricePerKg)} aria-describedby={outboundErrors.pricePerKg ? "outbound-price-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, pricePerKg: e.target.value }))} />
+                  <FieldHelp id="outbound-price-error" error={outboundErrors.pricePerKg} />
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="outbound-date">Ticket Time</label>
                   <Input
                     id="outbound-date"
@@ -963,105 +1080,91 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="outbound-recorded">Recorded kg</label>
-                  <Input
-                    id="outbound-recorded"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Recorded kg"
-                    value={outbound.recordedWeight}
-                    onChange={(e) => setOutbound((prev) => ({ ...prev, recordedWeight: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="outbound-buyer-name">Buyer name</label>
-                  <Input id="outbound-buyer-name" placeholder="Buyer name" value={outbound.buyerName} aria-invalid={Boolean(outboundErrors.buyerName)} aria-describedby={outboundErrors.buyerName ? "outbound-buyer-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerName: e.target.value }))} />
-                  <FieldHelp id="outbound-buyer-error" error={outboundErrors.buyerName} />
+                  <Input id="outbound-recorded" type="number" min="0" step="0.01" value={outbound.recordedWeight} onChange={(e) => setOutbound((prev) => ({ ...prev, recordedWeight: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="outbound-buyer-contact">Buyer contact</label>
-                  <Input id="outbound-buyer-contact" placeholder="Buyer contact" value={outbound.buyerContact} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerContact: e.target.value }))} />
+                  <Input id="outbound-buyer-contact" value={outbound.buyerContact} onChange={(e) => setOutbound((prev) => ({ ...prev, buyerContact: e.target.value }))} />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="outbound-sold-weight">Accepted kg</label>
-                  <Input id="outbound-sold-weight" type="number" min="0" step="0.01" placeholder="Accepted kg" value={outbound.soldWeight} aria-invalid={Boolean(outboundErrors.soldWeight)} aria-describedby={outboundErrors.soldWeight ? "outbound-weight-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, soldWeight: e.target.value }))} />
-                  <FieldHelp id="outbound-weight-error" error={outboundErrors.soldWeight} />
-                  <Button type="button" size="sm" variant="outline" onClick={() => void readOutboundWeightFromScale()}>Read Scale</Button>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="outbound-price">Price / kg</label>
-                  <Input id="outbound-price" type="number" min="0" step="0.01" placeholder="Price / kg" value={outbound.pricePerKg} aria-invalid={Boolean(outboundErrors.pricePerKg)} aria-describedby={outboundErrors.pricePerKg ? "outbound-price-error" : undefined} onChange={(e) => setOutbound((prev) => ({ ...prev, pricePerKg: e.target.value }))} />
-                  <FieldHelp id="outbound-price-error" error={outboundErrors.pricePerKg} />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold" htmlFor="outbound-currency">Currency</label>
-                  <Input id="outbound-currency" placeholder="Currency" value={outbound.currency} onChange={(e) => setOutbound((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="outbound-payment-method">Payment method</label>
-                  <Input
-                    id="outbound-payment-method"
-                    placeholder="Payment method"
-                    value={outbound.paymentMethod}
-                    aria-invalid={Boolean(outboundErrors.paymentMethod)}
-                    aria-describedby={outboundErrors.paymentMethod ? "outbound-payment-method-error" : undefined}
-                    onChange={(e) => setOutbound((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-                  />
-                  <FieldHelp id="outbound-payment-method-error" error={outboundErrors.paymentMethod} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold" htmlFor="outbound-payment-reference">Payment reference</label>
-                  <Input
-                    id="outbound-payment-reference"
-                    placeholder="Payment reference"
-                    value={outbound.paymentReference}
-                    aria-invalid={Boolean(outboundErrors.paymentReference)}
-                    aria-describedby={outboundErrors.paymentReference ? "outbound-payment-reference-error" : undefined}
-                    onChange={(e) => setOutbound((prev) => ({ ...prev, paymentReference: e.target.value }))}
-                  />
-                  <FieldHelp id="outbound-payment-reference-error" error={outboundErrors.paymentReference} />
+                  <Input id="outbound-currency" value={outbound.currency} onChange={(e) => setOutbound((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold" htmlFor="outbound-notes">Notes</label>
-                <Textarea
-                  id="outbound-notes"
-                  rows={3}
-                  placeholder="Notes"
-                  value={outbound.notes}
-                  aria-invalid={Boolean(outboundErrors.notes)}
-                  aria-describedby={outboundErrors.notes ? "outbound-notes-error" : undefined}
-                  onChange={(e) => setOutbound((prev) => ({ ...prev, notes: e.target.value }))}
-                />
-                <FieldHelp id="outbound-notes-error" error={outboundErrors.notes} />
+              <div className="rounded-md border border-[var(--edge-subtle)] px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{selectedBatch ? `${selectedBatch.batchNumber} (${selectedBatch.site.code})` : "No lot selected"}</p>
+                  <p className="font-mono text-sm font-semibold">{(outbound.currency || "USD").toUpperCase()} {outboundTotal.toFixed(2)}</p>
+                </div>
               </div>
-              {selectedBatch ? <p className="text-xs text-muted-foreground">Selected lot: {selectedBatch.batchNumber} at {selectedBatch.site.name}.</p> : null}
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Photos</label>
-                <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-sm">
-                  Add Photo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void onUploadOutbound(file);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                <p className="text-xs text-muted-foreground">{outbound.attachments.length} photo(s) attached.</p>
-                <FieldHelp id="outbound-attachments-error" error={outboundErrors.attachments} />
+              <div className="space-y-3">
+                <Button type="button" size="sm" variant="outline" onClick={() => setOutboundMetaOpen((prev) => !prev)}>
+                  {outboundMetaOpen ? "Hide Details" : "More Details"}
+                </Button>
+                {outboundMetaOpen ? (
+                  <div className="space-y-4 rounded-md border border-[var(--edge-subtle)] p-3">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold">Payment method</label>
+                        <Select value={outbound.paymentMethod} onValueChange={(value) => setOutbound((prev) => ({ ...prev, paymentMethod: value }))}>
+                          <SelectTrigger aria-invalid={Boolean(outboundErrors.paymentMethod)} aria-describedby={outboundErrors.paymentMethod ? "outbound-payment-method-error" : undefined}>
+                            <SelectValue placeholder="Select payment method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_METHOD_OPTIONS.map((method) => (
+                              <SelectItem key={method} value={method}>{method}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldHelp id="outbound-payment-method-error" error={outboundErrors.paymentMethod} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold" htmlFor="outbound-payment-reference">Payment reference</label>
+                        <Input
+                          id="outbound-payment-reference"
+                          value={outbound.paymentReference}
+                          aria-invalid={Boolean(outboundErrors.paymentReference)}
+                          aria-describedby={outboundErrors.paymentReference ? "outbound-payment-reference-error" : undefined}
+                          onChange={(e) => setOutbound((prev) => ({ ...prev, paymentReference: e.target.value }))}
+                        />
+                        <FieldHelp id="outbound-payment-reference-error" error={outboundErrors.paymentReference} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold">Photos</label>
+                        <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-sm">
+                          Add Photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void onUploadOutbound(file);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        <p className="text-xs text-muted-foreground">{outbound.attachments.length} attached</p>
+                        <FieldHelp id="outbound-attachments-error" error={outboundErrors.attachments} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold" htmlFor="outbound-notes">Notes</label>
+                      <Textarea
+                        id="outbound-notes"
+                        rows={3}
+                        value={outbound.notes}
+                        aria-invalid={Boolean(outboundErrors.notes)}
+                        aria-describedby={outboundErrors.notes ? "outbound-notes-error" : undefined}
+                        onChange={(e) => setOutbound((prev) => ({ ...prev, notes: e.target.value }))}
+                      />
+                      <FieldHelp id="outbound-notes-error" error={outboundErrors.notes} />
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">

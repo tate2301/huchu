@@ -10,7 +10,7 @@ import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { hasRole } from "@/lib/roles";
 
 type DashboardPayload = {
@@ -74,14 +74,6 @@ export default function ScrapMetalPage() {
     queryFn: () => fetchJson<DashboardPayload>("/api/scrap-metal/dashboard"),
   });
 
-  if (query.error) {
-    return (
-      <ScrapShell title="Daily Snapshot">
-        <StatusState variant="error" title="Unable to load snapshot" />
-      </ScrapShell>
-    );
-  }
-
   const summary = query.data?.summary;
   const heldTotal = (summary?.heldInboundTicketsCount ?? 0) + (summary?.heldOutboundTicketsCount ?? 0);
   const varianceRows = useMemo(
@@ -102,6 +94,14 @@ export default function ScrapMetalPage() {
       })),
     [query.data?.supplierPerformance],
   );
+
+  if (query.error) {
+    return (
+      <ScrapShell title="Daily Snapshot">
+        <StatusState variant="error" title="Unable to load snapshot" />
+      </ScrapShell>
+    );
+  }
 
   return (
     <ScrapShell

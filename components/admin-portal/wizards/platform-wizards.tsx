@@ -78,16 +78,16 @@ function WizardShell({
   footer,
 }: {
   title: string;
-  description: string;
+  description?: string;
   steps: { label: string; status: "done" | "active" | "pending" }[];
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  void description;
   return (
     <div className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-[var(--text-muted)]">{description}</p>
       </div>
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
         {steps.map((step, index) => (

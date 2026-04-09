@@ -3,13 +3,14 @@ import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
 
 type AdminRouteLoadingProps = {
   label: string;
-  description: string;
+  description?: string;
 };
 
 export function AdminRouteLoading({
   label,
   description,
 }: AdminRouteLoadingProps) {
+  void description;
   return (
     <AdminShell>
       <AdminModuleLoading label={label} />

@@ -2,6 +2,9 @@ export type OfflineQueueEntry<TPayload> = {
   id: string;
   queuedAt: string;
   retryCount: number;
+  status?: "QUEUED" | "RETRYING" | "FAILED";
+  lastAttemptAt?: string;
+  lastError?: string;
   payload: TPayload;
 };
 
@@ -45,6 +48,12 @@ export function loadOfflineQueue<TPayload>(options: LoadOptions<TPayload>): Arra
     .map((entry) => ({
       ...entry,
       retryCount: Number.isFinite(entry.retryCount) ? Math.max(0, entry.retryCount) : 0,
+      status:
+        entry.status === "FAILED" || entry.status === "RETRYING" || entry.status === "QUEUED"
+          ? entry.status
+          : "QUEUED",
+      lastAttemptAt: typeof entry.lastAttemptAt === "string" ? entry.lastAttemptAt : undefined,
+      lastError: typeof entry.lastError === "string" ? entry.lastError : undefined,
     }));
 }
 
@@ -83,7 +92,44 @@ export function bumpOfflineRetry<TPayload>(key: string, id: string) {
   const queue = loadOfflineQueue<TPayload>({ key, isValid: () => true });
   saveOfflineQueue(
     key,
-    queue.map((entry) => (entry.id === id ? { ...entry, retryCount: entry.retryCount + 1 } : entry)),
+    queue.map((entry) =>
+      entry.id === id
+        ? { ...entry, retryCount: entry.retryCount + 1, status: "RETRYING", lastAttemptAt: new Date().toISOString() }
+        : entry,
+    ),
+  );
+}
+
+export function failOfflineItem<TPayload>(key: string, id: string, message: string) {
+  const queue = loadOfflineQueue<TPayload>({ key, isValid: () => true });
+  saveOfflineQueue(
+    key,
+    queue.map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            status: "FAILED",
+            lastAttemptAt: new Date().toISOString(),
+            lastError: message.slice(0, 220),
+          }
+        : entry,
+    ),
+  );
+}
+
+export function markOfflineItemQueued<TPayload>(key: string, id: string) {
+  const queue = loadOfflineQueue<TPayload>({ key, isValid: () => true });
+  saveOfflineQueue(
+    key,
+    queue.map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            status: "QUEUED",
+            lastError: undefined,
+          }
+        : entry,
+    ),
   );
 }
 

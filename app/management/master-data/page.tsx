@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { getVisibleManagementAreaNavItems } from "@/lib/settings/management-nav";
 
 export default function MasterDataOverviewPage() {
@@ -29,7 +29,6 @@ export default function MasterDataOverviewPage() {
             <Card className="h-full transition-colors hover:border-primary/40">
               <CardHeader>
                 <CardTitle>{entry.label}</CardTitle>
-                <CardDescription>{entry.description ?? `Manage ${entry.label.toLowerCase()} records.`}</CardDescription>
               </CardHeader>
             </Card>
           </Link>

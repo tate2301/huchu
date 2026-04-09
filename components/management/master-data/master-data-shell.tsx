@@ -16,7 +16,7 @@ export type MasterDataTab =
 type MasterDataShellProps = {
   activeTab: MasterDataTab;
   title: string;
-  description: string;
+  description?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
 };
@@ -29,6 +29,7 @@ export function MasterDataShell({
   children,
 }: MasterDataShellProps) {
   void activeTab;
+  void description;
   return (
     <ManagementShell area="master-data" title={title} actions={actions}>
       {children}

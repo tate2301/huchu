@@ -32,16 +32,16 @@ function DialogScaffold({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   error?: string | null;
   footer: ReactNode;
   children: ReactNode;
 }) {
+  void description;
   return (
     <>
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
-        <p className="text-sm text-[var(--text-muted)]">{description}</p>
       </DialogHeader>
       <div className="space-y-4">
         {children}
@@ -75,7 +75,7 @@ function ConfirmDialog({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   actionLabel: string;
   onConfirm: (reason: string) => Promise<void>;
   danger?: boolean;
@@ -85,6 +85,7 @@ function ConfirmDialog({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  void description;
 
   const run = async () => {
     setRunning(true);
