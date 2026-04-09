@@ -21,6 +21,7 @@ import { printTicketWithBridge } from "@/lib/scrap-metal/print-adapter";
 import { fetchScaleReadingFromLocalHelper } from "@/lib/scrap-metal/scale-adapter";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { FieldHelp } from "@/components/shared/field-help";
+import { PrimaryActionBar } from "@/components/shared/primary-action-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -748,7 +749,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
       <ScrapShell
         title="Ticketing Workbench"
         actions={
-          <div className="flex w-full items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2">
             <div className="inline-flex min-w-0 flex-1 overflow-hidden rounded-md border border-[var(--edge-subtle)]">
               <Button
                 size="sm"
@@ -767,29 +768,31 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 Outbound
               </Button>
             </div>
-            <Badge variant="outline" className="shrink-0">Held {heldInbound + heldOutbound}</Badge>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" size="sm" variant="outline" className="shrink-0">
-                  More
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void syncOfflineTickets()} disabled={syncingOfflineQueue || offlineQueueCount === 0}>
-                  {syncingOfflineQueue ? "Syncing Queue" : `Sync Queue (${offlineQueueCount})`}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={saveCurrentDraftLocally}>Save Local Draft</DropdownMenuItem>
-                <DropdownMenuItem onClick={loadCurrentDraftLocally}>Load Local Draft</DropdownMenuItem>
-                <DropdownMenuItem onClick={holdCurrentTicket}>Hold Ticket</DropdownMenuItem>
-                <DropdownMenuItem onClick={finalizeAndExportCurrentTicket}>
-                  {view === "inbound" ? "Finalize + PDF" : canCreateOutbound ? "Submit + PDF" : "Request Approval"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <Badge variant="outline" className="shrink-0">Held {heldInbound + heldOutbound}</Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" size="sm" variant="outline" className="shrink-0">
+                    More
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void syncOfflineTickets()} disabled={syncingOfflineQueue || offlineQueueCount === 0}>
+                    {syncingOfflineQueue ? "Syncing Queue" : `Sync Queue (${offlineQueueCount})`}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={saveCurrentDraftLocally}>Save Local Draft</DropdownMenuItem>
+                  <DropdownMenuItem onClick={loadCurrentDraftLocally}>Load Local Draft</DropdownMenuItem>
+                  <DropdownMenuItem onClick={holdCurrentTicket}>Hold Ticket</DropdownMenuItem>
+                  <DropdownMenuItem onClick={finalizeAndExportCurrentTicket}>
+                    {view === "inbound" ? "Finalize + PDF" : canCreateOutbound ? "Submit + PDF" : "Request Approval"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         }
       >
@@ -993,8 +996,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 ) : null}
               </div>
 
-              <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
-                <div className="grid grid-cols-2 gap-2">
+              <PrimaryActionBar className="-mx-4 border-t border-x-0 border-b-0 rounded-none px-4 pt-4 md:mx-0 md:rounded-xl md:border md:px-4">
+                <div className="grid w-full grid-cols-2 gap-2">
                   <Button className="w-full" type="button" variant="outline" disabled={busy} onClick={cancelCurrentTicket}>
                     Cancel
                   </Button>
@@ -1002,7 +1005,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
                     Finalize
                   </Button>
                 </div>
-              </div>
+              </PrimaryActionBar>
             </CardContent>
           </Card>
         ) : (
@@ -1167,8 +1170,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 ) : null}
               </div>
 
-              <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
-                <div className="grid grid-cols-2 gap-2">
+              <PrimaryActionBar className="-mx-4 border-t border-x-0 border-b-0 rounded-none px-4 pt-4 md:mx-0 md:rounded-xl md:border md:px-4">
+                <div className="grid w-full grid-cols-2 gap-2">
                   <Button className="w-full" type="button" variant="outline" disabled={busy} onClick={cancelCurrentTicket}>
                     Cancel
                   </Button>
@@ -1176,7 +1179,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
                     {canCreateOutbound ? "Submit" : "Request Approval"}
                   </Button>
                 </div>
-              </div>
+              </PrimaryActionBar>
             </CardContent>
           </Card>
         )}

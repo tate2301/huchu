@@ -39,15 +39,14 @@ export function DataListShell({
   className,
   contentClassName,
 }: DataListShellProps) {
-  void description;
-
   return (
     <section className={cn("space-y-4", className)}>
       <header className="section-shell flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">{title}</h2>
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
-        {actions ? <div>{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
       <div className={cn("space-y-4", contentClassName)}>
         {filters ? <div className="section-shell">{filters}</div> : null}
@@ -55,6 +54,7 @@ export function DataListShell({
           <StatusState
             variant="error"
             title="Unable to load records"
+            description={errorMessage}
             action={
               onRetry ? (
                 <Button type="button" variant="outline" size="sm" onClick={onRetry}>
@@ -64,11 +64,12 @@ export function DataListShell({
             }
           />
         ) : isLoading ? (
-          <StatusState variant="loading" />
+          <StatusState variant="loading" title="Loading records" />
         ) : !hasData ? (
           <StatusState
             variant="empty"
             title={emptyTitle}
+            description={emptyDescription}
             action={emptyAction}
           />
         ) : (

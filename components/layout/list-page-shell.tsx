@@ -19,7 +19,7 @@ interface ListPageShellProps {
 
 export function ListPageShell({ children, className }: ListPageShellProps) {
   return (
-    <div className={cn("flex flex-col gap-6 py-6", className)}>{children}</div>
+    <div className={cn("flex min-h-0 flex-col gap-5 py-4 sm:gap-6 sm:py-6", className)}>{children}</div>
   );
 }
 
@@ -32,7 +32,7 @@ export function ListPageHeader({ children, className }: ListPageHeaderProps) {
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 content-shell",
+        "content-shell flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4",
         className
       )}
     >
@@ -49,12 +49,13 @@ interface ListPageTitleProps {
 
 export function ListPageTitle({
   children,
-  description: _description,
+  description,
   className,
 }: ListPageTitleProps) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
       <h1 className="text-page-title text-foreground">{children}</h1>
+      {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
@@ -69,7 +70,24 @@ export function ListPageActions({
   className,
 }: ListPageActionsProps) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>{children}</div>
+    <div className={cn("flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end", className)}>{children}</div>
+  );
+}
+
+interface ListPageToolbarSlotProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function ListPageToolbarStart({ children, className }: ListPageToolbarSlotProps) {
+  return <div className={cn("flex min-w-0 flex-wrap items-center gap-2", className)}>{children}</div>;
+}
+
+export function ListPageToolbarEnd({ children, className }: ListPageToolbarSlotProps) {
+  return (
+    <div className={cn("ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2", className)}>
+      {children}
+    </div>
   );
 }
 
@@ -103,7 +121,7 @@ export function ListPageToolbar({
   return (
     <div
       className={cn(
-        "sticky z-[15] flex min-h-[3rem] items-center justify-between gap-2 border-y border-[var(--table-toolbar-border)] bg-[var(--table-toolbar-bg)] py-2.5 supports-[backdrop-filter]:backdrop-blur-sm content-shell top-[calc(var(--app-header-height,3.5rem)+0.25rem)]",
+        "content-shell sticky top-[calc(var(--app-header-height,3.5rem)+0.25rem)] z-[15] flex min-h-[3rem] flex-wrap items-center gap-2 border-y border-[var(--table-toolbar-border)] bg-[var(--table-toolbar-bg)] py-2.5 supports-[backdrop-filter]:backdrop-blur-sm",
         className
       )}
     >

@@ -13,7 +13,7 @@ type SurfaceProps = {
 
 export function CCTVSurface({
   title,
-  description: _description,
+  description,
   actions,
   children,
   className,
@@ -30,6 +30,7 @@ export function CCTVSurface({
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--edge-subtle)] px-4 py-3 sm:px-5">
           <div className="space-y-1">
             {title ? <h2 className="text-section-title text-foreground">{title}</h2> : null}
+            {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
           </div>
           {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </header>
@@ -109,6 +110,7 @@ type RowProps = {
 };
 
 export function CCTVRow({ title, subtitle: _subtitle, meta, right, active, className, onClick }: RowProps) {
+  const subtitle = _subtitle;
   const interactive = Boolean(onClick);
   const shared = cn(
     "flex w-full items-start justify-between gap-3 border-b border-[var(--edge-subtle)] px-4 py-3 text-left transition-colors last:border-b-0",
@@ -125,6 +127,7 @@ export function CCTVRow({ title, subtitle: _subtitle, meta, right, active, class
             <div className="font-semibold text-foreground">{title}</div>
             {meta ? <div className="flex flex-wrap items-center gap-2">{meta}</div> : null}
           </div>
+          {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
         </div>
         {right ? <div className="shrink-0">{right}</div> : null}
       </div>
@@ -138,6 +141,7 @@ export function CCTVRow({ title, subtitle: _subtitle, meta, right, active, class
           <div className="font-semibold text-foreground">{title}</div>
           {meta ? <div className="flex flex-wrap items-center gap-2">{meta}</div> : null}
         </div>
+        {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
       </div>
       {right ? <div className="shrink-0">{right}</div> : null}
     </button>

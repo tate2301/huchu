@@ -33,7 +33,7 @@ type AttachmentCenterProps = {
 
 export function AttachmentCenter({
   title = "Attachments",
-  description: _description,
+  description,
   items = [],
   className,
   readOnly = false,
@@ -50,6 +50,7 @@ export function AttachmentCenter({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
   const canUpload = !readOnly && Boolean(onFilesSelected);
+  const showFooterActions = Boolean(onAddLink || onLinkEvidence || onLinkPolicy);
 
   const handleFiles = React.useCallback(
     (files: FileList | null) => {
@@ -68,6 +69,7 @@ export function AttachmentCenter({
     >
       <header className="space-y-1">
         <h3 className="text-section-title text-foreground">{title}</h3>
+        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </header>
 
       <div
@@ -157,6 +159,7 @@ export function AttachmentCenter({
                     </button>
                   )}
                 </div>
+                {item.description ? <p className="text-sm text-muted-foreground">{item.description}</p> : null}
                 {item.meta ? <p className="text-xs text-muted-foreground">{item.meta}</p> : null}
               </div>
               {onRemoveItem && !readOnly ? (
@@ -175,38 +178,40 @@ export function AttachmentCenter({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t border-[var(--card-divider)] pt-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={readOnly || !onAddLink}
-          onClick={() => onAddLink?.()}
-        >
-          <Plus />
-          Add link
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={readOnly || !onLinkEvidence}
-          onClick={() => onLinkEvidence?.()}
-        >
-          <FileCheck />
-          Link evidence
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={readOnly || !onLinkPolicy}
-          onClick={() => onLinkPolicy?.()}
-        >
-          <Shield />
-          Link policy
-        </Button>
-      </div>
+      {showFooterActions ? (
+        <div className="flex flex-wrap gap-2 border-t border-[var(--card-divider)] pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={readOnly || !onAddLink}
+            onClick={() => onAddLink?.()}
+          >
+            <Plus />
+            Add link
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={readOnly || !onLinkEvidence}
+            onClick={() => onLinkEvidence?.()}
+          >
+            <FileCheck />
+            Link evidence
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={readOnly || !onLinkPolicy}
+            onClick={() => onLinkPolicy?.()}
+          >
+            <Shield />
+            Link policy
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }

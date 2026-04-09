@@ -13,9 +13,12 @@ type AdminModuleLoadingProps = {
 
 export function AdminModuleLoading({
   label = "Loading admin module",
-  tips: _tips,
+  description,
+  tips = [],
   className,
 }: AdminModuleLoadingProps) {
+  const visibleTips = tips.slice(0, 2);
+
   return (
     <section className={cn("admin-page", className)} aria-busy="true">
       <div className="relative overflow-hidden">
@@ -53,11 +56,20 @@ export function AdminModuleLoading({
 
         <div className="absolute inset-0 flex items-center justify-center bg-[rgb(252_252_251_/_0.72)] px-4 backdrop-blur-[1.5px]">
           <div
-            className="flex flex-col items-center gap-3 text-center"
+            className="flex max-w-sm flex-col items-center gap-2 text-center"
             role="status"
             aria-live="polite"
           >
             <Loader2 className="h-7 w-7 animate-spin text-[var(--primary-600)]" />
+            <p className="text-sm font-medium text-foreground">{label}</p>
+            {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+            {visibleTips.length > 0 ? (
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {visibleTips.map((tip) => (
+                  <li key={tip}>{tip}</li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
       </div>

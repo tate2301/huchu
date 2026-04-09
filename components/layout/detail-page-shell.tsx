@@ -62,11 +62,17 @@ export function DetailRightPanel({
 
 interface DetailHeaderProps {
   children: React.ReactNode;
+  description?: React.ReactNode;
   className?: string;
 }
 
-export function DetailHeader({ children, className }: DetailHeaderProps) {
-  return <div className={cn("flex flex-col gap-1", className)}>{children}</div>;
+export function DetailHeader({ children, description, className }: DetailHeaderProps) {
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      {children}
+      {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+    </div>
+  );
 }
 
 interface DetailTitleProps {
@@ -162,12 +168,16 @@ interface DetailCTABlockProps {
 
 export function DetailCTABlock({
   title,
-  description: _description,
+  description,
   progress,
   action,
   requirements,
   className,
 }: DetailCTABlockProps) {
+  const progressTotal = progress?.total ?? 0;
+  const progressCurrent = progress?.current ?? 0;
+  const progressRatio = progressTotal > 0 ? Math.min(100, Math.max(0, (progressCurrent / progressTotal) * 100)) : 0;
+
   return (
     <div
       className={cn(
@@ -177,6 +187,7 @@ export function DetailCTABlock({
     >
       <div>
         <h3 className="mb-1 text-section-title text-foreground">{title}</h3>
+        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </div>
 
       {progress && (
@@ -184,13 +195,13 @@ export function DetailCTABlock({
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{progress.label}</span>
             <span className="font-medium text-foreground">
-              {progress.current} / {progress.total}
+              {progressCurrent} / {progressTotal}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
             <div
               className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              style={{ width: `${progressRatio}%` }}
             />
           </div>
         </div>

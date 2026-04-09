@@ -36,11 +36,11 @@ export function FormShell({
   mainClassName,
   actionPanelClassName,
 }: FormShellProps) {
-  void description;
   return (
     <Card className={className}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
+        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </CardHeader>
       <CardContent className={contentClassName}>
         <form className={cn("space-y-6", formClassName)} onSubmit={onSubmit} noValidate>

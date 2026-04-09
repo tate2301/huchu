@@ -13,15 +13,17 @@ type StatusStateProps = {
   className?: string;
 };
 
-const defaults: Record<StatusStateVariant, { title: string }> = {
+const defaults: Record<StatusStateVariant, { title: string; description?: string }> = {
   loading: {
     title: "Loading data",
+    description: "Please wait while records are fetched.",
   },
   empty: {
     title: "No records found",
   },
   error: {
     title: "Something went wrong",
+    description: "Check your connection and try again.",
   },
   success: {
     title: "Done",
@@ -38,12 +40,14 @@ const variantClass: Record<StatusStateVariant, string> = {
 export function StatusState({
   variant,
   title,
-  description: _description,
+  description,
   action,
   className,
 }: StatusStateProps) {
   const fallback = defaults[variant];
   const heading = title ?? fallback.title;
+  const body = description ?? fallback.description;
+  const ariaLive = variant === "error" ? "assertive" : "polite";
 
   return (
     <section
@@ -53,11 +57,12 @@ export function StatusState({
         className
       )}
       role="status"
-      aria-live="polite"
+      aria-live={ariaLive}
     >
       <StatusIcon variant={variant} />
       <div className="space-y-1">
         <h2 className="text-section-title text-foreground">{heading}</h2>
+        {body ? <p className="max-w-[44ch] text-sm text-muted-foreground">{body}</p> : null}
       </div>
       {action ? <div className="pt-1">{action}</div> : null}
     </section>

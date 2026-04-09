@@ -10,10 +10,9 @@ export function AdminRouteLoading({
   label,
   description,
 }: AdminRouteLoadingProps) {
-  void description;
   return (
     <AdminShell>
-      <AdminModuleLoading label={label} />
+      <AdminModuleLoading label={label} description={description} />
     </AdminShell>
   );
 }

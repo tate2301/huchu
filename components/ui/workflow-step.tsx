@@ -15,7 +15,7 @@ type WorkflowStepProps = {
 
 export function WorkflowStep({
   title,
-  description: _description,
+  description,
   actions,
   badge,
   collapsed = false,
@@ -36,6 +36,7 @@ export function WorkflowStep({
               )
             ) : null}
           </div>
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
