@@ -5,6 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { useGuidedMode } from "@/hooks/use-guided-mode";
+import { ChevronDown, Home } from "@/lib/icons";
+import type { NavItem } from "@/lib/navigation";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,
@@ -12,14 +14,12 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
-  SidebarMenu,
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SidebarAccountMenu } from "@/components/layout/app-sidebar/sidebar-account-menu";
 import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
 import {
-  SidebarHomeLink,
   SidebarNavSections,
 } from "@/components/layout/app-sidebar/sidebar-nav-sections";
 import { SidebarQuickActions } from "@/components/layout/app-sidebar/sidebar-quick-actions";
@@ -51,15 +51,84 @@ export function AppSidebar() {
   );
 
   const orderedSections = React.useMemo(() => sidebarModel.sections, [sidebarModel.sections]);
+  const topQuickLinks = React.useMemo(() => {
+    const links: NavItem[] = [];
+    const seen = new Set<string>();
+    const push = (item: NavItem | null | undefined) => {
+      if (!item || seen.has(item.href)) return;
+      seen.add(item.href);
+      links.push(item);
+    };
+
+    push({
+      href: sidebarModel.homeHref,
+      label: sidebarModel.homeLabel,
+      icon: Home,
+    });
+
+    for (const item of sidebarModel.quickActions) {
+      if (links.length >= 2) break;
+      push(item);
+    }
+
+    if (links.length < 2) {
+      for (const section of orderedSections) {
+        for (const item of section.items) {
+          if (links.length >= 2) break;
+          push(item);
+        }
+        if (links.length >= 2) break;
+      }
+    }
+
+    if (links.length < 2) {
+      for (const item of sidebarModel.supportItems) {
+        if (links.length >= 2) break;
+        push(item);
+      }
+    }
+
+    return links.slice(0, 2);
+  }, [
+    orderedSections,
+    sidebarModel.homeHref,
+    sidebarModel.homeLabel,
+    sidebarModel.quickActions,
+    sidebarModel.supportItems,
+  ]);
+  const topQuickLinkHrefs = React.useMemo(
+    () => new Set(topQuickLinks.map((item) => item.href)),
+    [topQuickLinks],
+  );
+  const orderedSectionsWithoutTopQuickLinks = React.useMemo(
+    () =>
+      orderedSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !topQuickLinkHrefs.has(item.href)),
+        }))
+        .filter((section) => section.items.length > 0),
+    [orderedSections, topQuickLinkHrefs],
+  );
   const primarySections = React.useMemo(
-    () => orderedSections.filter((section) => section.workspaceGroup !== "additional"),
-    [orderedSections],
+    () =>
+      orderedSectionsWithoutTopQuickLinks.filter(
+        (section) => section.workspaceGroup !== "additional",
+      ),
+    [orderedSectionsWithoutTopQuickLinks],
   );
   const additionalSections = React.useMemo(
-    () => orderedSections.filter((section) => section.workspaceGroup === "additional"),
-    [orderedSections],
+    () =>
+      orderedSectionsWithoutTopQuickLinks.filter(
+        (section) => section.workspaceGroup === "additional",
+      ),
+    [orderedSectionsWithoutTopQuickLinks],
   );
   const secondaryItems = React.useMemo(() => sidebarModel.supportItems, [sidebarModel.supportItems]);
+  const quickActionBadgeCount = React.useMemo(
+    () => (sidebarModel.quickActions.length > 0 ? sidebarModel.quickActions.length : undefined),
+    [sidebarModel.quickActions.length],
+  );
 
   const activeHref = React.useMemo(
     () => getActiveNavHref(orderedSections, pathname, view),
@@ -67,17 +136,10 @@ export function AppSidebar() {
   );
   const activeSectionId = React.useMemo(
     () =>
-      orderedSections.find((section) =>
+      orderedSectionsWithoutTopQuickLinks.find((section) =>
         section.items.some((item) => item.href === activeHref),
       )?.id ?? null,
-    [activeHref, orderedSections],
-  );
-  const homeHrefExistsInSections = React.useMemo(
-    () =>
-      orderedSections.some((section) =>
-        section.items.some((item) => item.href === sidebarModel.homeHref),
-      ),
-    [orderedSections, sidebarModel.homeHref],
+    [activeHref, orderedSectionsWithoutTopQuickLinks],
   );
   const [openSectionId, setOpenSectionId] = React.useState<string | null>(activeSectionId);
 
@@ -98,57 +160,47 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar collapsible="icon" variant="inset" className="sticky top-0">
-      <SidebarHeader className="pb-2">
-        <SidebarMenu className="space-y-2">
-          <SidebarAccountMenu
-            session={
-              session
-                ? {
-                    user: {
-                      name: session.user?.name,
-                      role: (session.user as { role?: string } | undefined)?.role ?? null,
-                    },
-                  }
-                : null
-            }
-            isCollapsed={isCollapsed}
-            isMobile={isMobile}
-          />
-          <SidebarQuickActions
-            items={sidebarModel.quickActions}
-            pathname={pathname}
-            view={view}
-            isCollapsed={isCollapsed}
-            isMobile={isMobile}
-          />
-          {!isCollapsed ? (
-            <div className="px-2 pt-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {sidebarModel.workspaceLabel}
-              </p>
-            </div>
-          ) : null}
-        </SidebarMenu>
+    <Sidebar
+      collapsible="icon"
+      variant="inset"
+      className="sticky top-3 m-3 h-[calc(100svh-1.5rem)] rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] shadow-none [--sidebar-width:18.75rem] [--sidebar-width-icon:3.75rem]"
+    >
+      <SidebarHeader className="px-3 pb-2 pt-3">
+        <SidebarAccountMenu
+          session={
+            session
+              ? {
+                  user: {
+                    name: session.user?.name,
+                    role: (session.user as { role?: string } | undefined)?.role ?? null,
+                  },
+                }
+              : null
+          }
+          isCollapsed={isCollapsed}
+          isMobile={isMobile}
+          workspaceLabel={sidebarModel.workspaceLabel}
+          quickActions={sidebarModel.quickActions}
+          pathname={pathname}
+          view={view}
+        />
+        <SidebarQuickActions
+          items={topQuickLinks}
+          badgeCount={quickActionBadgeCount}
+          pathname={pathname}
+          view={view}
+          isCollapsed={isCollapsed}
+        />
       </SidebarHeader>
 
-      <SidebarContent>
-        {!homeHrefExistsInSections ? (
-          <SidebarHomeLink
-            href={sidebarModel.homeHref}
-            label={sidebarModel.homeLabel}
-            isActive={
-              pathname === sidebarModel.homeHref &&
-              !orderedSections.some((section) =>
-                section.items.some((item) => item.href === activeHref),
-              )
-            }
-          />
+      <SidebarContent className="gap-2 px-2 pb-3 pt-0">
+        {!isCollapsed ? (
+          <SidebarSectionHeading label={sidebarModel.workspaceLabel} />
         ) : null}
 
         {primarySections.length > 0 ? (
-          <SidebarGroup className="mb-0.5">
-            <SidebarGroupContent className="mt-0">
+          <SidebarGroup className="mb-0.5 py-0">
+            <SidebarGroupContent className="mt-0 gap-0">
               <SidebarNavSections
                 sections={primarySections}
                 activeHref={activeHref}
@@ -161,17 +213,24 @@ export function AppSidebar() {
         ) : null}
 
         {additionalSections.length > 0 ? (
-          <SidebarGroup className="mb-0.5">
-            <SidebarGroupContent className="mt-0">
-              <SidebarNavSections
-                sections={additionalSections}
-                activeHref={activeHref}
-                isCollapsed={isCollapsed}
-                openSectionId={openSectionId}
-                onToggleSection={toggleSection}
-              />
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <>
+            {!isCollapsed ? <SidebarSectionHeading label="Favorites" /> : null}
+            <SidebarGroup className="mb-0.5 py-0">
+              <SidebarGroupContent className="mt-0 gap-0">
+                <SidebarNavSections
+                  sections={additionalSections}
+                  activeHref={activeHref}
+                  isCollapsed={isCollapsed}
+                  openSectionId={openSectionId}
+                  onToggleSection={toggleSection}
+                />
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : null}
+
+        {!isCollapsed && secondaryItems.length > 0 ? (
+          <SidebarSectionHeading label="Your tools" />
         ) : null}
 
         <SidebarSupport
@@ -184,7 +243,16 @@ export function AppSidebar() {
         />
       </SidebarContent>
 
-      <SidebarRail />
+      <SidebarRail className="right-[-3px] h-10 w-[3px] rounded-full bg-[var(--edge-strong)]" />
     </Sidebar>
+  );
+}
+
+function SidebarSectionHeading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-[12px] font-medium text-muted-foreground">
+      <span className="truncate">{label}</span>
+      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+    </div>
   );
 }

@@ -117,6 +117,7 @@ export const RefreshCcw = createMaterialIcon("refresh", "Refresh");
 
 export const Save = createMaterialIcon("save", "Save");
 export const Scale = createMaterialIcon("balance", "Scale");
+export const Search = createMaterialIcon("search", "Search");
 export const SearchX = createMaterialIcon("search_off", "SearchX");
 export const Send = createMaterialIcon("send", "Send");
 export const Server = createMaterialIcon("dns", "Server");
@@ -142,4 +143,5 @@ export const X = createMaterialIcon("close", "X");
 export const XCircle = createMaterialIcon("cancel", "XCircle");
 export const Zap = createMaterialIcon("bolt", "Zap");
 export const Square = createMaterialIcon("stop", "Square");
+export const EditSquare = createMaterialIcon("edit_square", "EditSquare");
 export const Maximize2 = createMaterialIcon("open_in_full", "Maximize2");

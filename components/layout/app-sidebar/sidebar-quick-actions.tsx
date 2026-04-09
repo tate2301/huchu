@@ -3,16 +3,7 @@
 import Link from "next/link";
 
 import type { NavItem } from "@/lib/navigation";
-import { ChevronDown, Plus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -25,65 +16,56 @@ import { matchesNavHref } from "./sidebar-helpers";
 
 export function SidebarQuickActions({
   items,
+  badgeCount,
   pathname,
   view,
   isCollapsed,
-  isMobile,
 }: {
   items: NavItem[];
+  badgeCount?: number;
   pathname: string;
   view: string | null;
   isCollapsed: boolean;
-  isMobile: boolean;
 }) {
   if (items.length === 0) return null;
 
   return (
-    <SidebarGroup className="mb-0.5">
-      <SidebarGroupContent>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+    <SidebarGroup className="mb-1">
+      <SidebarGroupContent className="mt-0.5">
+        <SidebarMenu className="gap-0">
+          {items.map((item, index) => {
+            const isActive = matchesNavHref(item.href, pathname, view);
+            const shouldShowBadge =
+              !isCollapsed &&
+              typeof badgeCount === "number" &&
+              badgeCount > 0 &&
+              index === 0;
+
+            return (
+              <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
-                  variant="default"
-                  className="bg-primary font-semibold text-primary-foreground shadow-[var(--surface-frame-shadow)] hover:bg-primary/90 hover:text-primary-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
-                  tooltip="Daily Shortcuts"
+                  asChild
+                  isActive={isActive}
+                  tooltip={item.label}
+                  className={cn(
+                    "h-9 rounded-[10px] px-2.5 text-[14px] font-medium",
+                    "hover:bg-[var(--surface-subtle)] hover:shadow-none",
+                    "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:text-foreground data-[active=true]:shadow-none",
+                  )}
                 >
-                  <Plus className="h-4 w-4" />
-                  <span className="font-medium">Quick Actions</span>
-                  {!isCollapsed ? (
-                    <ChevronDown className="ml-auto h-4 w-4" />
-                  ) : null}
+                  <Link href={item.href}>
+                    <item.icon className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate text-[15px] font-medium">{item.label}</span>
+                    {shouldShowBadge ? (
+                      <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-md bg-[#15171e] px-1.5 py-0.5 font-mono text-[11px] leading-none text-white">
+                        {badgeCount}
+                      </span>
+                    ) : null}
+                  </Link>
                 </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side={isCollapsed ? "right" : isMobile ? "bottom" : "bottom"}
-                className="w-64 rounded-xl border-0 shadow-[var(--elevation-3)]"
-              >
-                <DropdownMenuLabel>Create & Log</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {items.map((item) => {
-                  const isActive = matchesNavHref(item.href, pathname, view);
-                  return (
-                    <DropdownMenuItem key={item.href} asChild>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          "flex w-full items-center gap-2",
-                          isActive ? "bg-accent text-accent-foreground" : "",
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
