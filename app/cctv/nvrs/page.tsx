@@ -28,7 +28,6 @@ export default function NVRsPage() {
       <StatusState
         variant="loading"
         title="Loading NVR module"
-        description="Getting site filters and recorder status."
       />
     )
   }
@@ -38,7 +37,6 @@ export default function NVRsPage() {
       <StatusState
         variant="error"
         title="Unable to load NVR module"
-        description={getApiErrorMessage(error)}
       />
     )
   }

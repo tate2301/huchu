@@ -346,7 +346,6 @@ export default function ChartOfAccountsPage() {
     <AccountingShell
       activeTab="chart-of-accounts"
       title="Chart of Accounts"
-      description="Maintain the account list that powers all postings and reporting."
       actions={
         <Button size="sm" onClick={openNew}>
           <Plus className="mr-2 size-4" />

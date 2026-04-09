@@ -73,7 +73,6 @@ export default function RetailSetupPage() {
   return (
     <RetailShell
       title="Setup"
-      description="Configure branches, devices, branding, and finance mapping."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">

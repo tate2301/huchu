@@ -12,7 +12,7 @@ export default async function SchoolsStudentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Students" description="Student and guardian directory management." />
+      <PageHeading title="Students" />
       <SchoolsStudentsContent />
     </div>
   );

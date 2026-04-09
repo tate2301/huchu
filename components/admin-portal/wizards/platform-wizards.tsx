@@ -639,7 +639,6 @@ export function ChangeTierWizard({
           </DialogHeader>
           <WizardShell
             title="Tier change"
-            description="Guided three-step flow: select, review pricing, confirm."
             steps={steps}
             footer={
               <DialogFooter>
@@ -798,7 +797,6 @@ export function ManageAddonsWizard({
           </DialogHeader>
           <WizardShell
             title="Safe add-on enable/disable"
-            description="Step 1 select add-ons, step 2 review pricing, step 3 apply. Feature flags auto-managed."
             steps={addonSteps}
             footer={
               <DialogFooter className="flex flex-col gap-2">

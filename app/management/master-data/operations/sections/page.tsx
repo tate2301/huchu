@@ -248,7 +248,6 @@ export default function SectionsManagementPage() {
     <MasterDataShell
       activeTab="sections"
       title="Sections"
-      description="Section reference data by site."
       actions={
         <Button
           size="sm"

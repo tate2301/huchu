@@ -146,7 +146,7 @@ export async function PosPortalPageFrame({
         <div className="min-w-0 p-2">
           <div className="overflow-clip rounded-xl bg-[var(--surface-base)]">
             <header className="border-b border-[var(--edge-subtle)] px-4 py-3 md:px-5">
-              <PageHeading title={title} description={description} className="mb-0" />
+              <PageHeading title={title} className="mb-0" />
             </header>
             <main className="min-w-0 px-4 pb-8 pt-5 md:pb-10 md:pt-6">
               {children}

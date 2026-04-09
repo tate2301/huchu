@@ -1026,7 +1026,6 @@ export default function AccountingPurchasesPage() {
     <AccountingShell
       activeTab="purchases"
       title="Purchases (Accounts Payable)"
-      description="Manage vendors, record bills, and track payments."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => setVendorFormOpen(true)}>

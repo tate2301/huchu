@@ -124,7 +124,6 @@ function ConfirmDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title={title}
-            description={description}
             error={error}
             footer={
               <>
@@ -173,7 +172,6 @@ export function RemediationDialog({
   return (
     <ConfirmDialog
       title="Trigger remediation"
-      description={`Launch the remediation workflow for ${incident.companyName ?? incident.companyId} on ${incident.metricKey}.`}
       actionLabel="Trigger remediation"
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -214,7 +212,6 @@ export function ContractEnforceDialog({
   return (
     <ConfirmDialog
       title="Enforce contract state"
-      description={`Apply the recommended contract posture for ${evaluation.companyName}.`}
       actionLabel="Enforce contract"
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -295,7 +292,6 @@ export function ContractOverrideDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Override contract state"
-            description={`Apply a temporary manual contract state for ${evaluation.companyName}.`}
             error={error}
             footer={
               <>
@@ -367,7 +363,6 @@ export function RunbookExecuteDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title="Execute runbook"
-            description={`Run ${runbook.name} with explicit dry-run control.`}
             error={error}
             footer={
               <>
@@ -416,7 +411,6 @@ export function RunbookEnabledDialog({
   return (
     <ConfirmDialog
       title={enabled ? "Enable runbook" : "Disable runbook"}
-      description={`${enabled ? "Enable" : "Disable"} ${runbook.name} for future use.`}
       actionLabel={enabled ? "Enable runbook" : "Disable runbook"}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -500,7 +494,6 @@ export function RunbookUpsertDialog({
         <DialogContent className="sm:max-w-2xl">
           <DialogScaffold
             title={runbook ? "Edit runbook" : "Create runbook"}
-            description="Capture automation intent, target scope, and default input in one typed definition."
             error={error}
             footer={
               <>
@@ -618,7 +611,6 @@ export function AuditNoteDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Add audit note"
-            description={`Attach human context${fixedCompanyName ? ` for ${fixedCompanyName}` : ""} without leaving the operator workflow.`}
             error={error}
             footer={
               <>
@@ -693,7 +685,6 @@ export function AuditVerifyDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title="Verify audit chain"
-            description="Recompute the integrity chain and confirm the ledger has not drifted."
             error={error}
             footer={
               <>
@@ -774,7 +765,6 @@ export function AuditExportDialog({
         <DialogContent className="sm:max-w-2xl">
           <DialogScaffold
             title="Export audit log"
-            description="Generate a filtered JSON or CSV export for operator review or external evidence."
             error={error}
             footer={
               <>

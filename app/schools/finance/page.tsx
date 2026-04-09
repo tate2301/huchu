@@ -14,7 +14,6 @@ export default async function SchoolsFinancePage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="School Finance"
-        description="Fee structures, invoicing, receipts, waivers, and collections."
       />
       <SchoolsFeesContent />
     </div>

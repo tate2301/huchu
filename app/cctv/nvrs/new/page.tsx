@@ -19,7 +19,6 @@ export default function CreateNVRPage() {
       <StatusState
         variant="loading"
         title="Loading NVR registration"
-        description="Preparing site options and form defaults."
       />
     );
   }
@@ -29,7 +28,6 @@ export default function CreateNVRPage() {
       <StatusState
         variant="error"
         title="Unable to load NVR registration"
-        description={getApiErrorMessage(error)}
       />
     );
   }

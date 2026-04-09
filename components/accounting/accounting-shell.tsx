@@ -67,7 +67,6 @@ export function AccountingShell({
       {actions ? <PageActions>{actions}</PageActions> : null}
       <PageHeading
         title={title ?? modulePresentation.title}
-        description={description ?? modulePresentation.description}
         className="mb-4"
       />
 

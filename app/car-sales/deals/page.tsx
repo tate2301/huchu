@@ -14,7 +14,6 @@ export default async function CarSalesDealsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Auto Deals"
-        description="Quoted, reserved, and contracted deals through delivery readiness."
       />
       <CarSalesDealsContent />
     </div>

@@ -161,7 +161,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeading title="Production Dashboard" description="Production trends across sites" />
+      <PageHeading title="Production Dashboard" />
 
       {(sitesError || reportsError) && (
         <Alert variant="destructive">
@@ -229,7 +229,6 @@ export default function DashboardPage() {
         <StatusState
           variant="empty"
           title="No production data in this range"
-          description="Try a different site or time range to load dashboard metrics."
         />
       ) : null}
 

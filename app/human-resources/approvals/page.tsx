@@ -205,7 +205,7 @@ export default function ApprovalsPage() {
   );
 
   return (
-    <HrShell activeTab="approvals" description="Track submit, approve, reject, and adjustment events">
+    <HrShell activeTab="approvals">
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Unable to load approval history</AlertTitle>
@@ -215,7 +215,6 @@ export default function ApprovalsPage() {
 
       <PageSection
         title="Approval Timeline"
-        description="Immutable audit feed of approval workflow actions."
       >
         {isLoading ? (
           <Skeleton className="h-24 w-full" />

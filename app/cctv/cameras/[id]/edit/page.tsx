@@ -49,7 +49,6 @@ export default function EditCameraPage() {
       <StatusState
         variant="loading"
         title="Loading camera details"
-        description="Fetching camera configuration for editing."
       />
     );
   }
@@ -59,7 +58,6 @@ export default function EditCameraPage() {
       <StatusState
         variant="error"
         title="Unable to load camera"
-        description={getApiErrorMessage(pageError || "Camera not found")}
       />
     );
   }

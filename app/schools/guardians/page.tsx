@@ -14,7 +14,6 @@ export default async function GuardiansPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Guardians"
-        description="Parent and guardian records linked to students."
       />
       <GuardiansContent />
     </div>

@@ -132,7 +132,6 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
         <CCTVSurface className="p-5">
           <CCTVSection
             title={pageTitle}
-            description="Capture the recorder identity, site assignment, and connection details."
           >
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
@@ -181,7 +180,6 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
         <CCTVSurface className="p-5">
           <CCTVSection
             title="Network"
-            description="Keep the recorder address and ports readable for maintenance."
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2 md:col-span-2">
@@ -226,7 +224,6 @@ export function NVRForm({ mode, sites, initialValue }: NVRFormProps) {
         <CCTVSurface className="p-5">
           <CCTVSection
             title="Protocol support"
-            description="Keep integration toggles visible, but not in the way of the main setup flow."
           >
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">

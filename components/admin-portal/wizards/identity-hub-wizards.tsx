@@ -109,7 +109,6 @@ function ConfirmDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title={title}
-            description={description}
             error={error}
             footer={
               <>
@@ -183,7 +182,6 @@ export function CreateAdminDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Create admin"
-            description="Create a company-scoped superadmin or manager with clear identity ownership."
             error={error}
             footer={
               <>
@@ -286,7 +284,6 @@ export function CreateUserDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Create user"
-            description="Create a manager or clerk account with autocomplete-based workspace targeting."
             error={error}
             footer={
               <>
@@ -355,7 +352,6 @@ export function AdminStatusDialog({
   return (
     <ConfirmDialog
       title={activate ? "Activate admin" : "Deactivate admin"}
-      description={`${activate ? "Restore" : "Pause"} ${admin.name} (${admin.email}) for ${admin.companyName ?? "this workspace"}.`}
       actionLabel={activate ? "Activate admin" : "Deactivate admin"}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -390,7 +386,6 @@ export function UserStatusDialog({
   return (
     <ConfirmDialog
       title={activate ? "Activate user" : "Deactivate user"}
-      description={`${activate ? "Restore" : "Pause"} ${user.name} (${user.email}) for ${user.companyName ?? "this workspace"}.`}
       actionLabel={activate ? "Activate user" : "Deactivate user"}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -462,7 +457,6 @@ export function PasswordResetDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title={`Reset ${kind} password`}
-            description={`Set a new password for ${subject.name} (${subject.email}).`}
             error={error}
             footer={
               <>
@@ -533,7 +527,6 @@ export function UserRoleDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title="Change user role"
-            description={`Update ${user.name}'s role for ${user.companyName ?? "this workspace"}.`}
             error={error}
             footer={
               <>
@@ -621,7 +614,6 @@ export function SupportRequestDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Request support access"
-            description="Start with a time-bound request, then approve and launch the session explicitly."
             error={error}
             footer={
               <>
@@ -686,7 +678,6 @@ export function SupportApprovalDialog({
   return (
     <ConfirmDialog
       title={approve ? "Approve support request" : "Deny support request"}
-      description={`${approve ? "Approve" : "Deny"} access for ${request.companyName ?? request.companyId} requested by ${request.requestedBy}.`}
       actionLabel={approve ? "Approve" : "Deny"}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -748,7 +739,6 @@ export function SupportStartDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title="Start support session"
-            description={`Launch a time-bound session for ${request.companyName ?? request.companyId}.`}
             error={error}
             footer={
               <>
@@ -791,7 +781,6 @@ export function SupportEndDialog({
   return (
     <ConfirmDialog
       title="End support session"
-      description={`Terminate ${session.mode.toLowerCase()} access for ${session.companyName ?? session.companyId}.`}
       actionLabel="End session"
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -834,7 +823,6 @@ export function OrgStatusDialog({
   return (
     <ConfirmDialog
       title={labelMap[action]}
-      description={`${labelMap[action]} for ${companyName}. This updates organization state through the platform services.`}
       actionLabel={labelMap[action]}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -901,7 +889,6 @@ export function ReserveSubdomainDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title="Reserve subdomain"
-            description={`Assign the customer-facing subdomain for ${companyName}.`}
             error={error}
             footer={
               <>
@@ -977,7 +964,6 @@ export function CreateSiteDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Create site"
-            description={`Add a site under ${companyName} with clear location and measurement details.`}
             error={error}
             footer={
               <>
@@ -1041,7 +1027,6 @@ export function SiteStatusDialog({
   return (
     <ConfirmDialog
       title={activate ? "Activate site" : "Deactivate site"}
-      description={`${activate ? "Restore" : "Pause"} ${site.name} (${site.code}) for ${site.companyName ?? "this workspace"}.`}
       actionLabel={activate ? "Activate site" : "Deactivate site"}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}

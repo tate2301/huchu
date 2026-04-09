@@ -14,7 +14,6 @@ export default async function SchoolsAssessmentsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Assessments"
-        description="Continuous assessment and marksheet workflow actions."
       />
       <SchoolsAssessmentsContent />
     </div>

@@ -263,7 +263,6 @@ export function PurchaseForm({
   return (
     <FormShell
       title="Purchase Details"
-      description="Capture seller details, custody intake, and payment information."
       onSubmit={handleSubmit}
       formClassName="space-y-6"
       requiredHint="Fields marked * are required. Submitting redirects to purchases with this record highlighted."

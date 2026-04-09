@@ -136,13 +136,11 @@ export function ExecutiveSummaryBar({
           <StatusState
             variant="error"
             title="Executive summary unavailable"
-            description={errorMessage || "Summary metrics could not be retrieved."}
           />
         ) : !hasItems ? (
           <StatusState
             variant="empty"
             title="Executive summary unavailable"
-            description="No module summaries are available for the selected scope."
           />
         ) : (
           <>

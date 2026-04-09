@@ -240,7 +240,6 @@ export default function StoresReceivePage() {
 
       <FormShell
         title="Receive Stock"
-        description="Record new stock receipts"
         onSubmit={handleSubmit}
         errors={formErrors}
         requiredHint="Fields marked * are required. After submit, you will be redirected to the movement log."

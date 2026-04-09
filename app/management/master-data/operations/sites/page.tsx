@@ -267,7 +267,6 @@ export default function SitesManagementPage() {
     <MasterDataShell
       activeTab="sites"
       title="Sites"
-      description="Site reference data for operations, reporting, and staffing."
       actions={
         <Button
           size="sm"

@@ -225,7 +225,6 @@ export default function AuditTrailsReportPage() {
     <div className="w-full space-y-6">
       <PageHeading
         title="Audit Trails"
-        description="Operational audit events across modules"
       />
 
       {pageError ? (

@@ -302,7 +302,6 @@ export default function PlantReportHistoryPage() {
 
       <PageHeading
         title="Plant Reports"
-        description="Review submitted plant reports"
       />
       <RecordSavedBanner entityLabel="plant report" />
       {!isSuperAdmin ? (
@@ -410,7 +409,6 @@ export default function PlantReportHistoryPage() {
         <div ref={plantReportPdfRef}>
           <PdfTemplate
             title="Plant Reports"
-            subtitle={`${listStartDate} to ${listEndDate}`}
             meta={[
               { label: "Site", value: activeListSiteName },
               {

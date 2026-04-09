@@ -14,7 +14,6 @@ export default async function SchoolsAttendancePage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Attendance"
-        description="Daily attendance roster and class-level register visibility."
       />
       <SchoolsAttendanceContent />
     </div>

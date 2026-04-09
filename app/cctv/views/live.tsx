@@ -1391,7 +1391,6 @@ export function LiveMonitorView({ sites, cameras, nvrs }: LiveMonitorViewProps) 
       <StatusState
         variant="error"
         title="Unable to load active stream sessions"
-        description={getApiErrorMessage(sessionsError)}
       />
     );
   }

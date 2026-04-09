@@ -6,7 +6,6 @@ export default async function PosPortalHeldPage() {
     <PosPortalPageFrame
       pathname="/portal/pos/held"
       title="Held Carts"
-      description="Recall parked baskets without losing register flow."
     >
       <PosHeldView />
     </PosPortalPageFrame>

@@ -14,7 +14,6 @@ export default async function SchoolsResultsPublishPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Results Publishing"
-        description="Publish windows, released sheets, and publication controls."
       />
       <SchoolsResultsContent initialView="windows" allowedViews={["windows", "published", "all"]} />
     </div>

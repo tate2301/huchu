@@ -408,7 +408,6 @@ export default function HrSalariesPage() {
     <HrShell
       activeTab="salaries"
       title="Salary Operations"
-      description="Upcoming salary periods, approved runs, disbursements, and paid salary history."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">

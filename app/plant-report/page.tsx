@@ -273,7 +273,7 @@ export default function PlantReportPage() {
   if (sessionStatus === "loading") {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+        <PageHeading title="Plant Report" />
         <Skeleton className="h-24 w-full" />
       </div>
     );
@@ -287,7 +287,7 @@ export default function PlantReportPage() {
             <Link href="/reports/plant">View Plant Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Plant Report" description="Processing and consumables tracking" />
+        <PageHeading title="Plant Report" />
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
@@ -306,7 +306,7 @@ export default function PlantReportPage() {
             <Link href="/reports/plant">Back to Plant Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Edit Plant Report" description="Backfill and correct an existing plant report" />
+        <PageHeading title="Edit Plant Report" />
         <Alert variant="destructive">
           <AlertTitle>Unable to load report</AlertTitle>
           <AlertDescription>{getApiErrorMessage(editingReportError)}</AlertDescription>
@@ -325,11 +325,6 @@ export default function PlantReportPage() {
 
       <PageHeading
         title={isEditMode ? "Edit Plant Report" : "Plant Report"}
-        description={
-          isEditMode
-            ? "Backfill and correct an existing plant report"
-            : "Processing and consumables tracking"
-        }
       />
       <PageIntro
         title="Complete this plant report in 3 steps"
@@ -349,7 +344,6 @@ export default function PlantReportPage() {
 
       <FormShell
         title={isEditMode ? "Plant Backfill Form" : "Plant Entry Form"}
-        description="Capture production, consumables, and downtime details for this site."
         onSubmit={handleSubmit}
         formClassName="space-y-6"
         requiredHint={
@@ -511,7 +505,6 @@ export default function PlantReportPage() {
               <StatusState
                 variant="empty"
                 title="No downtime events recorded"
-                description="Add an event only if a stoppage occurred."
                 className="min-h-24"
               />
             ) : (

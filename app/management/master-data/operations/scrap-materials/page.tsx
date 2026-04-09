@@ -267,7 +267,6 @@ export default function ScrapMaterialsMasterDataPage() {
     <MasterDataShell
       activeTab="scrap-materials"
       title="Scrap Materials"
-      description="Recyclable material definitions and default pricing anchors."
       actions={
         <Button
           size="sm"

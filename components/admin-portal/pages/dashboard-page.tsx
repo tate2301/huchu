@@ -693,7 +693,6 @@ export function DashboardPage({ companyId }: { companyId?: string }) {
             ? "Loading workspace dashboard"
             : "Loading operations dashboard"
         }
-        description="Pulling the latest admin metrics, commercial signals, and reliability activity."
       />
     );
   }

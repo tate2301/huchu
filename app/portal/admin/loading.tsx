@@ -4,7 +4,6 @@ export default function Loading() {
   return (
     <AdminRouteLoading
       label="Loading admin page"
-      description="Opening the next admin view with the latest summaries, tables, and controls."
     />
   );
 }

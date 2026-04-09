@@ -270,7 +270,6 @@ export default function RetailCatalogPage() {
   return (
     <RetailShell
       title="Catalog"
-      description="Create retail items on top of shared Stores inventory records."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button

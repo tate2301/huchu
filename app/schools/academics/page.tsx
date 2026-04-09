@@ -14,7 +14,6 @@ export default async function SchoolsAcademicsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Academics Setup"
-        description="Classes, streams, and subject master data."
       />
       <SchoolsAcademicsContent />
     </div>

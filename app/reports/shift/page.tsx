@@ -303,7 +303,6 @@ export default function ShiftReportHistoryPage() {
 
       <PageHeading
         title="Shift Reports"
-        description="Review submitted shift reports"
       />
       <RecordSavedBanner entityLabel="shift report" />
       {!isSuperAdmin ? (
@@ -411,7 +410,6 @@ export default function ShiftReportHistoryPage() {
         <div ref={shiftReportPdfRef}>
           <PdfTemplate
             title="Shift Reports"
-            subtitle={`${listStartDate} to ${listEndDate}`}
             meta={[
               { label: "Site", value: activeListSiteName },
               {

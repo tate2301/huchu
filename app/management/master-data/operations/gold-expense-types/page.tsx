@@ -247,7 +247,6 @@ export default function GoldExpenseTypesManagementPage() {
     <MasterDataShell
       activeTab="gold-expense-types"
       title="Gold Expense Types"
-      description="Expense type reference data for gold shift output."
       actions={
         <Button
           size="sm"

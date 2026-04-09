@@ -146,7 +146,6 @@ export default function CCTVEventsReportPage() {
     <div className="w-full space-y-6">
       <PageHeading
         title="CCTV Events"
-        description="Security event logs from cameras"
       />
 
       {error ? (

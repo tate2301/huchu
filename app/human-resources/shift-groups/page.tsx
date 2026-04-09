@@ -736,7 +736,6 @@ export default function HrShiftGroupsPage() {
           </Button>
         )
       }
-      description="Create and schedule shift groups."
     >
       {loadError ? (
         <Alert variant="destructive">

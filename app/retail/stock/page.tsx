@@ -83,7 +83,6 @@ export default function RetailStockPage() {
   return (
     <RetailShell
       title="Stock"
-      description="Track on-hand stock, receipts, and low-stock exceptions."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">

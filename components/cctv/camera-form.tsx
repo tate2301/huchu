@@ -133,7 +133,6 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
         <CCTVSurface className="p-5">
           <CCTVSection
             title={pageTitle}
-            description="Capture the camera identity, site assignment, and recorder mapping."
           >
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
@@ -214,7 +213,6 @@ export function CameraForm({ mode, sites, nvrs, initialValue }: CameraFormProps)
         <CCTVSurface className="p-5">
           <CCTVSection
             title="Operational state"
-            description="Keep the camera aligned to the current monitoring and recording posture."
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">

@@ -6,7 +6,6 @@ export default async function PosPortalHistoryPage() {
     <PosPortalPageFrame
       pathname="/portal/pos/history"
       title="Sales History"
-      description="Review posted sales, refunds, and voids."
     >
       <PosHistoryView />
     </PosPortalPageFrame>

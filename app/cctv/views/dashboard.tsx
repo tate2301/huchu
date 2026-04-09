@@ -74,7 +74,6 @@ export function DashboardView({
       <StatusState
         variant="empty"
         title="No CCTV equipment configured"
-        description="Add at least one NVR and camera to start monitoring this site."
       />
     );
   }
@@ -111,7 +110,6 @@ export function DashboardView({
 
       <CCTVSurface
         title="Control Strip"
-        description="Keep the whole CCTV surface in view without drifting into setup-mode."
         contentClassName="space-y-4"
       >
         <div className="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
@@ -194,7 +192,6 @@ export function DashboardView({
       <div className="grid gap-4 xl:grid-cols-2">
         <CCTVSurface
           title="Priority Cameras"
-          description="Offline cameras and high-security zones surface first."
           contentClassName="p-0"
         >
           {priorityCameras.length === 0 ? (
@@ -207,7 +204,6 @@ export function DashboardView({
                 <CCTVRow
                   key={camera.id}
                   title={camera.name}
-                  subtitle={`${camera.site?.name || "Unknown Site"} | ${camera.area} | Channel ${camera.channelNumber}`}
                   meta={
                     <>
                       <Badge variant={camera.isOnline ? "outline" : "destructive"}>
@@ -235,7 +231,7 @@ export function DashboardView({
         </CCTVSurface>
 
         <div className="space-y-4">
-          <CCTVSurface title="Recent Events" description="The latest issues needing review." contentClassName="p-0">
+          <CCTVSurface title="Recent Events" contentClassName="p-0">
             {recentEvents.length === 0 ? (
               <div className="px-4 py-6 text-sm text-muted-foreground">
                 No recent events. Activity from cameras and recorders will appear here.
@@ -246,7 +242,6 @@ export function DashboardView({
                   <CCTVRow
                     key={event.id}
                     title={event.title}
-                    subtitle={`${event.camera?.site?.name || "Unknown Site"} | ${event.camera?.area || "Unknown area"} | ${new Date(event.eventTime).toLocaleString()}`}
                     meta={
                       <>
                         <Badge
@@ -274,7 +269,6 @@ export function DashboardView({
 
           <CCTVSurface
             title="Recorder Health"
-            description="Quick scan of the most recent NVR heartbeat state."
             contentClassName="p-0"
           >
             {latestNVRs.length === 0 ? (
@@ -287,7 +281,6 @@ export function DashboardView({
                   <CCTVRow
                     key={nvr.id}
                     title={nvr.name}
-                    subtitle={`${nvr.site?.name || "Unknown Site"} | ${nvr.manufacturer}${nvr.model ? ` | ${nvr.model}` : ""}`}
                     meta={
                       <>
                         <Badge variant={nvr.isOnline ? "outline" : "destructive"}>
@@ -315,7 +308,6 @@ export function DashboardView({
       {highSecurityCameras > 0 ? (
         <CCTVSurface
           title="High-Security Cameras"
-          description="Restricted-zone cameras stay visible without adding a special mode."
           contentClassName="p-0"
         >
           <div>
@@ -326,7 +318,6 @@ export function DashboardView({
                 <CCTVRow
                   key={camera.id}
                   title={camera.name}
-                  subtitle={`${camera.area} | ${camera.site?.name || "Unknown Site"}`}
                   meta={
                     <>
                       <Badge variant={camera.isOnline ? "outline" : "destructive"}>
@@ -343,13 +334,12 @@ export function DashboardView({
       ) : null}
 
       {events.length > 0 ? (
-        <CCTVSurface title="Recent Activity" description="Most recent events in the selected view." contentClassName="p-0">
+        <CCTVSurface title="Recent Activity" contentClassName="p-0">
           <div>
             {events.slice(0, 5).map((event) => (
               <CCTVRow
                 key={event.id}
                 title={event.title}
-                subtitle={event.description || "No description"}
                 meta={
                   <>
                     <Badge

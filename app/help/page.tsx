@@ -54,7 +54,6 @@ export default function HelpPage() {
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeading
         title="Quick Tips"
-        description="Simple guidance for each daily workflow."
       />
       <div className="grid gap-4">
         {helpTopics.map((topic) => (

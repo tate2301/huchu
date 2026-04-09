@@ -60,7 +60,6 @@ export default function RetailReportsPage() {
   return (
     <RetailShell
       title="Reports"
-      description="Scan retail performance, tender mix, and stock exceptions."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

@@ -70,7 +70,7 @@ export default function MaintenanceEquipmentReportPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Equipment Service" description="Equipment register and service status" />
+      <PageHeading title="Equipment Service" />
 
       {pageError ? (
         <Alert variant="destructive">

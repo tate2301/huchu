@@ -177,7 +177,6 @@ export default function FinancialReportsHomePage() {
     <AccountingShell
       activeTab="financial-reports"
       title="Financial Reports Home"
-      description="Overall reporting position across profit and loss, balance sheet, and cash flow."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -268,7 +267,6 @@ export default function FinancialReportsHomePage() {
         </FrappeChartShell>
         <InsightDonutCard
           title="Balance Sheet Composition"
-          subtitle="Proportional split between assets, liabilities, and equity."
           data={
             isLoading
               ? []
@@ -282,7 +280,6 @@ export default function FinancialReportsHomePage() {
         />
         <TradingViewChartCard
           title="Cash Flow Momentum"
-          subtitle="Component values with a cumulative run-rate overlay."
           data={isLoading ? [] : chartData.cashRunRate}
           xKey="label"
           series={[
@@ -293,7 +290,6 @@ export default function FinancialReportsHomePage() {
         />
         <InsightDonutCard
           title="Trial Balance by Account Type"
-          subtitle="Absolute balance concentration by account type."
           data={
             isLoading
               ? []

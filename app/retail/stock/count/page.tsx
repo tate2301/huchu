@@ -113,7 +113,6 @@ export default function RetailStockCountPage() {
   return (
     <RetailShell
       title="Stock Count"
-      description="Capture physical counts and post variance adjustments inside Retail."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

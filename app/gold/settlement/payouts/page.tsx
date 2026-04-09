@@ -460,7 +460,6 @@ export default function GoldSettlementPayoutsPage() {
     <GoldShell
       activeTab="payouts"
       title="Payouts"
-      description="Shift-based worker payout schedule"
       actions={
         <div className="flex gap-2">
           {canOpenHrPayouts ? (
@@ -603,7 +602,6 @@ export default function GoldSettlementPayoutsPage() {
         <div ref={payoutTableRef}>
           <PdfTemplate
             title="Gold Shift Payout Schedule"
-            subtitle={`${format(windowStartDate, "yyyy-MM-dd")} to ${format(windowEndDate, "yyyy-MM-dd")}`}
             meta={[
               { label: "Pay window", value: `${payoutWindowWeeks} weeks` },
               {

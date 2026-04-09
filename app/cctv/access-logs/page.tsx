@@ -37,7 +37,6 @@ export default function CCTVAccessLogsPage() {
       <StatusState
         variant="loading"
         title="Loading access logs"
-        description="Preparing camera and site filters."
       />
     );
   }
@@ -47,7 +46,6 @@ export default function CCTVAccessLogsPage() {
       <StatusState
         variant="error"
         title="Unable to load access logs"
-        description={getApiErrorMessage(pageError)}
       />
     );
   }

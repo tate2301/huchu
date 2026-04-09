@@ -14,7 +14,6 @@ export default async function SchoolsTeachersPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Teachers"
-        description="Teacher profiles, subjects, and assignment governance."
       />
       <SchoolsTeachersContent />
     </div>

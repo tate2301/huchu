@@ -287,7 +287,6 @@ export default function AccountingPeriodsPage() {
     <AccountingShell
       activeTab="periods"
       title="Accounting Periods"
-      description="Open and close accounting periods to control posting windows."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

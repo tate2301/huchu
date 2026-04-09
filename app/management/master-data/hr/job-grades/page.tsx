@@ -265,7 +265,6 @@ export default function JobGradesManagementPage() {
     <MasterDataShell
       activeTab="job-grades"
       title="Job Grades"
-      description="Job grade and ranking reference data."
       actions={
         <Button
           size="sm"

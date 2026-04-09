@@ -131,7 +131,6 @@ export function ExecutiveCharts({
         <StatusState
           variant="error"
           title="Trend charts unavailable"
-          description={errorMessage || "Chart data could not be retrieved."}
         />
       ) : null}
 
@@ -139,7 +138,6 @@ export function ExecutiveCharts({
         <StatusState
           variant="empty"
           title="No trend data available"
-          description="No trendlines or risk distribution records were returned."
         />
       ) : null}
 

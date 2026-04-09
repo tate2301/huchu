@@ -14,7 +14,6 @@ export default async function SchoolsAdmissionsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Admissions"
-        description="Enrollment pipeline and class placement tracking."
       />
       <SchoolsAdmissionsContent />
     </div>

@@ -14,7 +14,6 @@ export default async function SchoolsReportsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="School Reports"
-        description="Comprehensive analytics across collections, arrears, enrollment, and boarding occupancy."
       />
       <SchoolsReportsEnhancedContent />
     </div>

@@ -35,7 +35,7 @@ export function ComplianceManagementSection({ section }: { section: ComplianceSe
   const meta = sectionMeta[section];
 
   return (
-    <ManagementShell area="compliance" title={meta.title} description={meta.description}>
+    <ManagementShell area="compliance" title={meta.title}>
       <RecordSavedBanner entityLabel="compliance record" />
       {section === "permits" ? <PermitsTab createdId={createdId} /> : null}
       {section === "inspections" ? <InspectionsTab createdId={createdId} /> : null}

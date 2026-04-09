@@ -199,7 +199,6 @@ export default function GoldTransitDispatchesPage() {
     <GoldShell
       activeTab="dispatches"
       title="Dispatches"
-      description="Dispatch history with custody and settlement tracking."
       actions={
         <Button size="sm" onClick={() => setManualCreateOpen(true)}>
           Record Dispatch

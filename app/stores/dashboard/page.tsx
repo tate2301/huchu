@@ -177,7 +177,6 @@ export default function StoresDashboardPage() {
         <StatusState
           variant="empty"
           title="No inventory items yet"
-          description="Add inventory items to start tracking stock and movements."
         />
       ) : null}
 

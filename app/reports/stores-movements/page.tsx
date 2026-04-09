@@ -118,7 +118,6 @@ export default function StoresMovementsReportPage() {
     <div className="w-full space-y-6">
       <PageHeading
         title="Stock Movements"
-        description="Inventory receipts, issues, adjustments, and transfers"
       />
 
       {pageError ? (

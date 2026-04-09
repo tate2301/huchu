@@ -69,7 +69,6 @@ function ReportCardPreview({ student }: { student: SchoolsStudentRecord | null }
       <div ref={printRef}>
         <PdfTemplate
           title="Student Report Card"
-          subtitle={`${student.firstName} ${student.lastName}`}
           meta={[
             { label: "Student No", value: student.studentNo },
             { label: "Admission No", value: student.admissionNo || "-" },
@@ -137,7 +136,6 @@ function FeeInvoicePreview({ student }: { student: SchoolsStudentRecord | null }
       <div ref={printRef}>
         <PdfTemplate
           title="Fee Invoice"
-          subtitle={`${student.firstName} ${student.lastName}`}
           meta={[
             { label: "Student No", value: student.studentNo },
             { label: "Class", value: student.currentClass?.name ?? "-" },
@@ -191,7 +189,6 @@ function ClassListPreview({ students }: { students: SchoolsStudentRecord[] }) {
       <div ref={printRef}>
         <PdfTemplate
           title="Class List"
-          subtitle="All Active Students"
           meta={[
             { label: "Total Students", value: String(students.length) },
             { label: "Date", value: new Date().toLocaleDateString() },
@@ -252,7 +249,6 @@ function AttendanceRegisterPreview({ students }: { students: SchoolsStudentRecor
       <div ref={printRef}>
         <PdfTemplate
           title="Attendance Register"
-          subtitle="Weekly Attendance Sheet"
           meta={[
             { label: "Week Of", value: new Date().toLocaleDateString() },
             { label: "Total Students", value: String(students.length) },

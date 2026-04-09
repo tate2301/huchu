@@ -70,7 +70,6 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
       <StatusState
         variant="error"
         title="Unable to load access logs"
-        description={getApiErrorMessage(error)}
       />
     );
   }
@@ -100,7 +99,6 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
 
       <CCTVSurface
         title="Audit Filters"
-        description="Narrow the log set before opening the detail pane."
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="space-y-2">
@@ -204,17 +202,15 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
         <StatusState
           variant="loading"
           title="Loading log rows"
-          description="Fetching the latest camera access activity."
         />
       ) : logs.length === 0 ? (
         <StatusState
           variant="empty"
           title="No access logs found"
-          description="Try broadening the selected filters to view historical activity."
         />
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
-          <CCTVSurface title="Log Entries" description="Select a row to inspect the audit trail." contentClassName="p-0">
+          <CCTVSurface title="Log Entries" contentClassName="p-0">
             <div className="table-rail" ref={exportRef}>
               <Table className="w-full text-sm">
                 <TableHeader className="bg-muted/60">
@@ -255,7 +251,6 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
 
           <CCTVSurface
             title="Access Detail"
-            description="Use the detail pane for audit context and quick cross-checks."
             contentClassName="space-y-4"
           >
             {selectedLog ? (
@@ -339,7 +334,6 @@ export function AccessLogsView({ sites, cameras }: AccessLogsViewProps) {
               <StatusState
                 variant="empty"
                 title="No log selected"
-                description="Pick an access log to inspect the full audit trail."
               />
             )}
           </CCTVSurface>

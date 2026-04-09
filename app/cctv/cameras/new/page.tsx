@@ -35,7 +35,6 @@ export default function CreateCameraPage() {
       <StatusState
         variant="loading"
         title="Loading camera registration"
-        description="Preparing camera and recorder options."
       />
     );
   }
@@ -45,7 +44,6 @@ export default function CreateCameraPage() {
       <StatusState
         variant="error"
         title="Unable to load camera registration"
-        description={getApiErrorMessage(pageError)}
       />
     );
   }

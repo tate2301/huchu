@@ -55,7 +55,7 @@ export default function MaintenanceWorkOrdersReportPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Work Orders" description="Maintenance work order history and status" />
+      <PageHeading title="Work Orders" />
 
       {pageError ? (
         <Alert variant="destructive">

@@ -28,7 +28,6 @@ export default function CamerasPage() {
       <StatusState
         variant="loading"
         title="Loading camera module"
-        description="Getting site filters and camera context."
       />
     )
   }
@@ -38,7 +37,6 @@ export default function CamerasPage() {
       <StatusState
         variant="error"
         title="Unable to load camera module"
-        description={getApiErrorMessage(error)}
       />
     )
   }

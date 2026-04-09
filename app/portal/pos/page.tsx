@@ -6,7 +6,6 @@ export default async function PosPortalPage() {
     <PosPortalPageFrame
       pathname="/portal/pos"
       title="Point of Sale"
-      description="Sell, hold, and tender from a touch-first register."
     >
       <PosCheckoutView />
     </PosPortalPageFrame>

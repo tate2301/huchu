@@ -279,7 +279,6 @@ export function ReliabilityClusterPage({ companyId, initialView }: { companyId?:
     return (
       <AdminModuleLoading
         label="Loading reliability cluster"
-        description="Bringing in incidents, contract posture, runbooks, and audit activity."
       />
     );
   }

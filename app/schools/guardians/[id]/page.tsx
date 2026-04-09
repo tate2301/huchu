@@ -18,7 +18,7 @@ export default async function GuardianProfilePage({
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Guardian Profile" description="View guardian and linked students." />
+      <PageHeading title="Guardian Profile" />
       <GuardianProfileContent guardianId={id} />
     </div>
   );

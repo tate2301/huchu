@@ -285,8 +285,8 @@ export default function AttendancePage() {
   if (sessionStatus === "loading") {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
-        <StatusState variant="loading" title="Checking access" description="Please wait..." />
+        <PageHeading title="Daily Attendance" />
+        <StatusState variant="loading" title="Checking access" />
       </div>
     );
   }
@@ -299,7 +299,7 @@ export default function AttendancePage() {
             <Link href="/reports/attendance">View Attendance Records</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
+        <PageHeading title="Daily Attendance" />
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
@@ -318,7 +318,7 @@ export default function AttendancePage() {
         </Button>
       </PageActions>
 
-      <PageHeading title="Daily Attendance" description="Track crew presence and overtime" />
+      <PageHeading title="Daily Attendance" />
       <PageIntro
         title="Complete attendance in 3 steps"
         purpose="Step 1: choose date, shift, site, and group. Step 2: mark each worker status. Step 3: submit and verify in history."
@@ -335,7 +335,6 @@ export default function AttendancePage() {
 
       <FormShell
         title="Attendance Entry Form"
-        description="Set shift details, mark crew status, and submit attendance."
         onSubmit={handleSubmit}
         formClassName="space-y-6"
         requiredHint="Fields marked * are required."
@@ -550,9 +549,9 @@ export default function AttendancePage() {
           </div>
           <div>
             {loading ? (
-              <StatusState variant="loading" title="Loading crew list" description="Please wait while we fetch shift group members." />
+              <StatusState variant="loading" title="Loading crew list" />
             ) : crew.length === 0 ? (
-              <StatusState variant="empty" title="No crew members available" description="Select a shift group or add workers." />
+              <StatusState variant="empty" title="No crew members available" />
             ) : (
               <div className="space-y-3">
                 {crew.map((member) => (

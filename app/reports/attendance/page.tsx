@@ -412,7 +412,6 @@ export default function AttendanceHistoryPage() {
 
       <PageHeading
         title="Attendance Records"
-        description="Review submitted attendance entries"
       />
       <RecordSavedBanner entityLabel="attendance submission" />
       {!isSuperAdmin ? (
@@ -520,7 +519,6 @@ export default function AttendanceHistoryPage() {
         <div ref={attendancePdfRef}>
           <PdfTemplate
             title="Attendance Records"
-            subtitle={`${listStartDate} to ${listEndDate}`}
             meta={[
               { label: "Site", value: activeListSiteName },
               {

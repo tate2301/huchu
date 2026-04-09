@@ -484,7 +484,6 @@ export default function TaxSetupPage() {
     <AccountingShell
       activeTab="tax"
       title="Tax Setup"
-      description="Configure VAT and tax codes for sales and purchases."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

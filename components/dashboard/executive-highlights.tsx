@@ -133,9 +133,6 @@ export function ExecutiveHighlights({
       <StatusState
         variant="error"
         title="Exception highlights unavailable"
-        description={
-          errorMessage || "Highlight records could not be retrieved."
-        }
       />
     );
   }
@@ -145,7 +142,6 @@ export function ExecutiveHighlights({
       <StatusState
         variant="empty"
         title="No exception highlights"
-        description="No notable exception records were returned for this selection."
       />
     );
   }

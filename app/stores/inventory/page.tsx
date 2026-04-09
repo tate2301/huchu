@@ -1238,7 +1238,6 @@ export default function StoresInventoryPage() {
         <div ref={inventoryPdfRef}>
           <PdfTemplate
             title="Stock on Hand"
-            subtitle="Stores inventory summary"
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Category", value: categoryLabel },

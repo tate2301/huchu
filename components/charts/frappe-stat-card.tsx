@@ -62,14 +62,6 @@ export function FrappeStatCard({
               {titleAdornment}
             </div>
           }
-          subtitle={() => (
-            <div className="flex flex-col gap-1">
-              <div className="font-mono text-[24px] font-semibold leading-8 text-ink-gray-6 tabular-nums">
-                {valueLabel ?? value.toLocaleString()}
-              </div>
-              {detail ? <p className="text-xs text-muted-foreground">{detail}</p> : null}
-            </div>
-          )}
         />
       )}
     </div>

@@ -418,7 +418,6 @@ export default function BankingPage() {
     <AccountingShell
       activeTab="banking"
       title="Banking"
-      description="Manage bank accounts and reconcile transactions."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => setAccountFormOpen(true)}>

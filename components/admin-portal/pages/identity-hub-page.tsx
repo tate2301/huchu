@@ -440,7 +440,6 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
         label={
           companyId ? "Loading workspace identity" : "Loading identity hub"
         }
-        description="Preparing people, access requests, sessions, and trend summaries."
       />
     );
   }

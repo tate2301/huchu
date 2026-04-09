@@ -20,7 +20,6 @@ export default async function HostelDetailPage({
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Hostel Details"
-        description="Rooms, beds, allocations, and leave requests."
       />
       <SchoolsHostelDetailContent hostelId={id} />
     </div>

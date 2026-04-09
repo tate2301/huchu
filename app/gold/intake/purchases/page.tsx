@@ -187,7 +187,6 @@ export default function GoldIntakePurchasesPage() {
     <GoldShell
       activeTab="purchases"
       title="Purchases"
-      description="Gold bought from walk-in sellers, recorded as company-owned lots."
       actions={
         <Button size="sm" onClick={() => setManualCreateOpen(true)}>
           Record Purchase

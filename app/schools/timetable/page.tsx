@@ -14,7 +14,6 @@ export default async function SchoolsTimetablePage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Timetable"
-        description="Teaching allocation timetable by class, stream, and subject."
       />
       <SchoolsTimetableContent />
     </div>

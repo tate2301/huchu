@@ -324,7 +324,6 @@ export default function OutstandingSalariesPage() {
     <HrShell
       activeTab="salary-outstanding"
       title="Outstanding Salaries"
-      description="Detailed visibility into unpaid and partially paid salary obligations."
       actions={
         <Button asChild size="sm" variant="outline">
           <Link href="/human-resources/disbursements">

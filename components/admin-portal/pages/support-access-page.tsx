@@ -290,7 +290,6 @@ export function SupportAccessPage({ companyId }: { companyId?: string }) {
     return (
       <AdminModuleLoading
         label={companyId ? "Loading workspace support access" : "Loading support access"}
-        description="Preparing support requests, launch readiness, and live session activity."
       />
     );
   }

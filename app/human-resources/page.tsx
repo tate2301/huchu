@@ -791,7 +791,6 @@ export default function HumanResourcesPage() {
           New Employee
         </Button>
       }
-      description="Employee records and attendance roster"
     >
       {loadErrorMessage ? (
         <Alert variant="destructive">

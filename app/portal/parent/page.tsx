@@ -18,7 +18,6 @@ export default async function ParentPortalPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Parent Portal"
-        description="Linked children, published results, and boarding visibility."
       />
       <ParentPortalContent />
     </div>

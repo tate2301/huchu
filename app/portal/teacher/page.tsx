@@ -18,7 +18,6 @@ export default async function TeacherPortalPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Teacher Portal"
-        description="Moderation queue, sheet progress, and published result visibility."
       />
       <TeacherPortalContent />
     </div>

@@ -55,7 +55,6 @@ export function DataListShell({
           <StatusState
             variant="error"
             title="Unable to load records"
-            description={errorMessage}
             action={
               onRetry ? (
                 <Button type="button" variant="outline" size="sm" onClick={onRetry}>
@@ -70,7 +69,6 @@ export function DataListShell({
           <StatusState
             variant="empty"
             title={emptyTitle}
-            description={emptyDescription}
             action={emptyAction}
           />
         ) : (

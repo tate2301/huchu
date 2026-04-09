@@ -52,7 +52,6 @@ export function OperationsPage({
     return (
       <AdminModuleLoading
         label={companyId ? "Loading workspace advanced tools" : "Loading advanced tools"}
-        description="Preparing the latest operations manifest and admin execution actions."
       />
     );
   }

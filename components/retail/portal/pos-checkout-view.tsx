@@ -534,7 +534,6 @@ export function PosCheckoutView() {
           <PosFocusedEditorDrawer
             open={Boolean(selectedLine)}
             title={selectedLine?.name ?? "Line editor"}
-            subtitle="Tap a field, then use keypad"
             onClose={() => {
               setSelectedLineId(null);
               setActiveTarget(null);

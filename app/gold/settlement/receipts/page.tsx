@@ -203,7 +203,6 @@ export default function GoldSettlementReceiptsPage() {
     <GoldShell
       activeTab="sales"
       title="Sales"
-      description="Buyer settlement records and payment traceability."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => setManualCreateOpen(true)}>

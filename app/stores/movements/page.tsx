@@ -149,13 +149,11 @@ export default function StoresMovementsPage() {
   return (
     <StoresShell
       activeTab="movements"
-      description="History of inventory receipts, issues, adjustments, and transfers"
     >
       <RecordSavedBanner entityLabel="movement" />
 
       <DataListShell
         title="Stock Movements"
-        description="Full action log for all inventory transactions"
         isLoading={sitesLoading || movementsLoading}
         isError={Boolean(pageError)}
         errorMessage={pageError ? getApiErrorMessage(pageError) : undefined}

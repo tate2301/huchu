@@ -127,7 +127,6 @@ export default function StoresFuelPage() {
         <StatusState
           variant="empty"
           title="No fuel records yet"
-          description="Add fuel inventory items and movements to start the ledger."
         />
       ) : null}
 
@@ -284,7 +283,6 @@ export default function StoresFuelPage() {
         <div ref={fuelPdfRef}>
           <PdfTemplate
             title="Fuel Ledger"
-            subtitle="Diesel receipts and issues"
             meta={[
               { label: "Current stock", value: `${fuelStock} ${fuelUnit}` },
               { label: "Minimum stock", value: `${fuelMin} ${fuelUnit}` },

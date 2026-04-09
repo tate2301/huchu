@@ -449,7 +449,6 @@ export function CompaniesPage({ actorEmail }: { actorEmail: string }) {
     return (
       <AdminModuleLoading
         label="Loading workspaces"
-        description="Syncing the workspace directory with commercial and reliability signals."
       />
     );
   }

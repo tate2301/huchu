@@ -393,7 +393,6 @@ export default function PostingRulesPage() {
     <AccountingShell
       activeTab="posting-rules"
       title="Posting Rules"
-      description="Define automatic postings from operational transactions into the ledger."
       actions={
         <Button size="sm" onClick={openNew}>
           <Plus className="mr-2 size-4" />

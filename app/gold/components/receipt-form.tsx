@@ -213,7 +213,6 @@ export function ReceiptForm({
   return (
     <FormShell
       title="Sale Record"
-      description="Capture buyer test results and payment details."
       onSubmit={handleSubmit}
       formClassName="space-y-6"
       requiredHint="Fields marked * are required. Submitting redirects to sales history with this record highlighted."

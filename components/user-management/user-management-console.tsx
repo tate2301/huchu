@@ -723,7 +723,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
 
   if (!canView) {
     return (
-      <ManagementShell area="users" title={heading.title} description={heading.description}>
+      <ManagementShell area="users" title={heading.title}>
         <Alert variant="destructive">
           <AlertTitle>Access restricted</AlertTitle>
           <AlertDescription>
@@ -737,7 +737,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
   }
 
   return (
-    <ManagementShell area="users" title={heading.title} description={heading.description} actions={headerActions}>
+    <ManagementShell area="users" title={heading.title} actions={headerActions}>
       {!canMutate ? (
         <Alert>
           <AlertTitle>Read-only mode for your role</AlertTitle>

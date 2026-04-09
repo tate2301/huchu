@@ -131,7 +131,6 @@ export default function CostCentersPage() {
     <AccountingShell
       activeTab="cost-centers"
       title="Cost Centers"
-      description="Group expenses and revenue by cost center."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

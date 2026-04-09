@@ -37,7 +37,6 @@ export default function CCTVOverviewPage() {
       <StatusState
         variant="loading"
         title="Loading CCTV overview"
-        description="Preparing the combined feed."
       />
     );
   }
@@ -47,7 +46,6 @@ export default function CCTVOverviewPage() {
       <StatusState
         variant="error"
         title="Unable to load CCTV overview"
-        description={getApiErrorMessage(pageError)}
       />
     );
   }

@@ -226,7 +226,6 @@ export default function StoresIssuePage() {
 
       <FormShell
         title="Issue Stock"
-        description="Issue items to equipment or sections"
         onSubmit={handleSubmit}
         errors={formErrors}
         requiredHint="Fields marked * are required. After submit, you will be redirected to the movement log."

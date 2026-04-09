@@ -651,7 +651,6 @@ export default function DisbursementsPage() {
   return (
     <HrShell
       activeTab="disbursements"
-      description="Cash disbursement batches from approved salary and settlement runs."
       actions={
         <Button asChild size="sm" variant="outline">
           <Link href="/human-resources/salaries/outstanding">
@@ -683,11 +682,6 @@ export default function DisbursementsPage() {
       {(runsLoading || availableRuns.length > 0) ? (
         <WorkflowStep
           title="Approved Runs Ready for Disbursement"
-          description={
-            runsLoading
-              ? "Loading approved salary and settlement runs."
-              : "Salary and settlement runs are disbursed from one workflow."
-          }
           badge={runsLoading ? "..." : availableRuns.length}
           actions={
             <Button type="button" onClick={() => setIsCreateOpen(true)} disabled={runsLoading}>
@@ -717,7 +711,6 @@ export default function DisbursementsPage() {
 
       <WorkflowStep
         title="Disbursement Batch Workflow"
-        description="Once a disbursement batch is approved, the underlying payroll run is archived."
         badge={batchesLoading ? "..." : batches.length}
       >
         {batchesLoading ? (

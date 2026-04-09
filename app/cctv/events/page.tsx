@@ -21,7 +21,6 @@ export default function EventsPage() {
       <StatusState
         variant="loading"
         title="Loading events module"
-        description="Getting site filters and event feeds."
       />
     )
   }
@@ -31,7 +30,6 @@ export default function EventsPage() {
       <StatusState
         variant="error"
         title="Unable to load events module"
-        description={getApiErrorMessage(error)}
       />
     )
   }

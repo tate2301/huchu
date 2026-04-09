@@ -93,7 +93,6 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
     return (
       <AdminModuleLoading
         label="Loading workspace overview"
-        description="Gathering identity, support, commercial, and reliability context for this workspace."
       />
     );
   }

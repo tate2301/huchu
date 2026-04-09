@@ -610,7 +610,6 @@ export function CommercialCenterPage({
     return (
       <AdminModuleLoading
         label={isCompanyScope ? "Loading workspace commercials" : "Loading commercial center"}
-        description="Preparing plans, renewals, pricing, templates, and feature access controls."
       />
     );
   }

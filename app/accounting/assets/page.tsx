@@ -191,7 +191,6 @@ export default function AssetsPage() {
     <AccountingShell
       activeTab="assets"
       title="Fixed Assets"
-      description="Maintain the fixed asset register and depreciation details."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

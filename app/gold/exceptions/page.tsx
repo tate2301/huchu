@@ -358,7 +358,6 @@ export default function GoldExceptionsPage() {
     <GoldShell
       activeTab="issues"
       title="Issues"
-      description="Fix missing records and review corrections"
       actions={
         <div className="flex flex-wrap gap-2">
           <ExportMenu
@@ -496,7 +495,6 @@ export default function GoldExceptionsPage() {
         <div ref={exceptionPdfRef}>
           <PdfTemplate
             title="Gold Issues Snapshot"
-            subtitle="Missing records and correction notes"
             meta={[
               {
                 label: "Batches missing dispatch",

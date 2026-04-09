@@ -17,7 +17,6 @@ export default function SolutionsPage() {
   return (
     <MarketingSubpageShell
       title="Sector solutions, not disconnected products."
-      description="Each solution keeps the same platform foundation while the workflow changes."
     >
       <section className="grid gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
         <div className="space-y-6">

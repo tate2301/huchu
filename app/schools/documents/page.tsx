@@ -14,7 +14,6 @@ export default async function SchoolDocumentsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="School Documents"
-        description="Generate and print school reports, invoices, and other documents."
       />
       <SchoolDocumentsContent />
     </div>

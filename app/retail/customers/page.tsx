@@ -149,7 +149,6 @@ export default function RetailCustomersPage() {
   return (
     <RetailShell
       title="Customers"
-      description="Track repeat spend and customer touchpoints from recent sales."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">

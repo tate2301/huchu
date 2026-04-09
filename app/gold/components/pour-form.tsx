@@ -183,7 +183,6 @@ export function PourForm({
   return (
     <FormShell
       title="Batch Details"
-      description="Capture all required fields for this gold batch."
       onSubmit={handleSubmit}
       formClassName="space-y-6"
       requiredHint="Fields marked * are required. Submitting redirects to the batches list with this record highlighted."

@@ -6,7 +6,6 @@ export default async function PosPortalOverviewPage() {
     <PosPortalPageFrame
       pathname="/portal/pos/overview"
       title="POS Overview"
-      description="Monitor shift health and jump into register tasks quickly."
     >
       <PosOverviewView />
     </PosPortalPageFrame>

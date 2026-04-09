@@ -864,7 +864,6 @@ export default function CompensationPage() {
   return (
     <HrShell
       activeTab="compensation"
-      description="Manage base pay profiles and allowance/deduction rules"
       actions={
         activeView === "templates" ? (
           <Button size="sm" onClick={() => setTemplateOpen(true)}>

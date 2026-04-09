@@ -6,7 +6,6 @@ export default async function PosPortalPriceCheckPage() {
     <PosPortalPageFrame
       pathname="/portal/pos/price-check"
       title="Price Check"
-      description="Scan and confirm item prices quickly."
     >
       <PosPriceCheckView />
     </PosPortalPageFrame>

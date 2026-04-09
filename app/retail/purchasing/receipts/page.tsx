@@ -201,7 +201,6 @@ export default function RetailReceiptsPage() {
   return (
     <RetailShell
       title="Receipts"
-      description="Receive stock into Stores without leaving retail operations."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button

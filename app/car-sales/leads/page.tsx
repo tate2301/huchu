@@ -14,7 +14,6 @@ export default async function CarSalesLeadsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Auto Leads"
-        description="Lead capture, qualification, and assignment pipeline."
       />
       <CarSalesLeadsContent />
     </div>

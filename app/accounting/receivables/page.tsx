@@ -162,7 +162,6 @@ export default function ReceivablesHomePage() {
     <AccountingShell
       activeTab="receivables"
       title="Receivables Home"
-      description="Overall receivables position, collections trend, and AR access points."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -258,7 +257,6 @@ export default function ReceivablesHomePage() {
         </FrappeChartShell>
         <InsightDonutCard
           title="Invoice Status Distribution"
-          subtitle="Share of invoice volume by lifecycle state."
           data={
             isLoading
               ? []
@@ -273,7 +271,6 @@ export default function ReceivablesHomePage() {
       </div>
       <TradingViewChartCard
         title="Collections Momentum"
-        subtitle="TradingView-style trend for invoiced versus collected value."
         data={isLoading ? [] : chartData.trend}
         xKey="date"
         xAxisType="time"

@@ -92,7 +92,6 @@ export default function ReportsDashboardPage() {
     <div className="w-full space-y-6">
       <PageHeading
         title="Reports"
-        description="Use this dashboard to open independent report pages across the platform."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

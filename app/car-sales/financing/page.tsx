@@ -14,7 +14,6 @@ export default async function CarSalesFinancingPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Auto Financing"
-        description="Deposit and settlement tracking across active dealership deals."
       />
       <CarSalesFinancingContent />
     </div>

@@ -6,7 +6,6 @@ export default function StatusPage() {
     <div className="mx-auto w-full max-w-9xl space-y-6">
       <PageHeading
         title="Implementation Status"
-        description="System development progress"
       />
       <SystemStatus />
     </div>

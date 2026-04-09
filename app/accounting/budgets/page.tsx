@@ -155,7 +155,6 @@ export default function BudgetsPage() {
     <AccountingShell
       activeTab="budgets"
       title="Budgets"
-      description="Set budget totals for planning and monitoring spend."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

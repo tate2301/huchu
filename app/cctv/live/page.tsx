@@ -49,7 +49,6 @@ export default function CCTVLivePage() {
       <StatusState
         variant="loading"
         title="Loading live monitor"
-        description="Preparing site filters and camera streams."
       />
     );
   }
@@ -59,7 +58,6 @@ export default function CCTVLivePage() {
       <StatusState
         variant="error"
         title="Unable to load live monitor"
-        description={getApiErrorMessage(pageError)}
       />
     );
   }

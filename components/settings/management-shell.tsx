@@ -134,7 +134,6 @@ export function ManagementShell({
           <div className="flex flex-col gap-4 border-b border-[var(--edge-subtle)] pb-4 sm:flex-row sm:items-start sm:justify-between">
             <PageHeading
               title={title || modulePresentation.title}
-              description={description}
               className="mb-0"
             />
             {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}

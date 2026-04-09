@@ -55,7 +55,6 @@ export function GoldShell({
 
       <PageHeading
         title={title ?? modulePresentation.title}
-        description={description ?? modulePresentation.description}
         className="mb-4"
       />
 

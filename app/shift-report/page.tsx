@@ -316,7 +316,7 @@ export default function ShiftReportPage() {
   if (sessionStatus === "loading") {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
+        <PageHeading title="Shift Report" />
         <Skeleton className="h-24 w-full" />
       </div>
     );
@@ -330,7 +330,7 @@ export default function ShiftReportPage() {
             <Link href="/reports/shift">View Submitted Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Shift Report" description="Quick 2-minute daily entry" />
+        <PageHeading title="Shift Report" />
         <Alert variant="destructive">
           <AlertTitle>Restricted access</AlertTitle>
           <AlertDescription>
@@ -349,7 +349,7 @@ export default function ShiftReportPage() {
             <Link href="/reports/shift">Back to Shift Reports</Link>
           </Button>
         </PageActions>
-        <PageHeading title="Edit Shift Report" description="Backfill and correct an existing shift report" />
+        <PageHeading title="Edit Shift Report" />
         <Alert variant="destructive">
           <AlertTitle>Unable to load report</AlertTitle>
           <AlertDescription>{getApiErrorMessage(editingReportError)}</AlertDescription>
@@ -368,11 +368,6 @@ export default function ShiftReportPage() {
 
       <PageHeading
         title={isEditMode ? "Edit Shift Report" : "Shift Report"}
-        description={
-          isEditMode
-            ? "Backfill and correct an existing shift report"
-            : "Quick 2-minute daily entry"
-        }
       />
       <PageIntro
         title="Complete this shift report in 3 steps"
@@ -392,7 +387,6 @@ export default function ShiftReportPage() {
 
       <FormShell
         title={isEditMode ? "Shift Backfill Form" : "Shift Entry Form"}
-        description="Capture shift details, output, and handover notes."
         onSubmit={handleSubmit}
         formClassName="space-y-6"
         requiredHint={

@@ -40,7 +40,6 @@ export default function EditNVRPage() {
       <StatusState
         variant="loading"
         title="Loading NVR details"
-        description="Fetching recorder configuration for editing."
       />
     );
   }
@@ -50,7 +49,6 @@ export default function EditNVRPage() {
       <StatusState
         variant="error"
         title="Unable to load NVR"
-        description={getApiErrorMessage(pageError || "NVR not found")}
       />
     );
   }

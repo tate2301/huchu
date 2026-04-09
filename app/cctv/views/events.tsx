@@ -103,7 +103,6 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
       <StatusState
         variant="error"
         title="Unable to load events"
-        description={getApiErrorMessage(error)}
       />
     );
   }
@@ -134,7 +133,6 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
 
       <CCTVSurface
         title="Triage Controls"
-        description="Use simple filters first, then open the detail panel for the active event."
         actions={
           <ExportMenu
             variant="outline"
@@ -258,25 +256,22 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
         <StatusState
           variant="loading"
           title="Loading events"
-          description="Fetching the latest security activity."
         />
       ) : events.length === 0 ? (
         statusFilter === "unacknowledged" ? (
           <StatusState
             variant="success"
             title="No unacknowledged events"
-            description="Everything in the current view is already acknowledged."
           />
         ) : (
           <StatusState
             variant="empty"
             title="No events found"
-            description="Try a broader site, severity, or status filter."
           />
         )
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
-          <CCTVSurface title="Event Queue" description="Select a row to inspect the event in detail." contentClassName="p-0">
+          <CCTVSurface title="Event Queue" contentClassName="p-0">
             <div className="max-h-[68vh] overflow-y-auto">
               {events.map((event) => (
                 <CCTVRow
@@ -287,7 +282,6 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
                   }}
                   active={selectedEvent?.id === event.id}
                   title={event.title}
-                  subtitle={`${event.camera ? `${event.camera.site?.name || "Unknown Site"} | ${event.camera.area} | ${event.camera.name}` : "System Event"} | ${new Date(event.eventTime).toLocaleString()}`}
                   meta={
                     <>
                       <Badge
@@ -314,7 +308,6 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
 
           <CCTVSurface
             title="Event Details"
-            description="Use the detail panel to acknowledge, escalate, or jump to the related camera."
             contentClassName="space-y-4"
           >
             {selectedEvent ? (
@@ -440,7 +433,6 @@ export function EventsView({ sites, selectedSiteId, onSiteChange }: EventsViewPr
               <StatusState
                 variant="empty"
                 title="No event selected"
-                description="Choose an event from the queue to inspect details."
               />
             )}
           </CCTVSurface>

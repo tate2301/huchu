@@ -76,7 +76,7 @@ export default function FuelLedgerReportPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Fuel Ledger" description="Fuel stock levels and movement history" />
+      <PageHeading title="Fuel Ledger" />
 
       {pageError ? (
         <Alert variant="destructive">

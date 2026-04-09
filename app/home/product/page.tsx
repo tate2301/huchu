@@ -25,7 +25,6 @@ export default function ProductPage() {
   return (
     <MarketingSubpageShell
       title="One shared control plane."
-      description={`${PLATFORM_BRAND_NAME} keeps sector workflows and financial integrity in one system.`}
     >
       <section className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
         <div className="space-y-6">

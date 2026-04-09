@@ -14,7 +14,6 @@ export default async function SchoolsResultsModerationPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Results Moderation"
-        description="Moderation queue, review statuses, and HOD feedback loop."
       />
       <SchoolsResultsContent initialView="moderation" allowedViews={["moderation", "all"]} />
     </div>

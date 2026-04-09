@@ -2378,7 +2378,6 @@ export function MaintenanceContent({
         <div ref={equipmentPdfRef}>
           <PdfTemplate
             title="Equipment Register"
-            subtitle={activeSiteName}
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Total equipment", value: String(totalEquipment) },
@@ -2430,7 +2429,6 @@ export function MaintenanceContent({
         <div ref={workOrdersPdfRef}>
           <PdfTemplate
             title="Work Orders"
-            subtitle={activeSiteName}
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Total orders", value: String(workOrders.length) },
@@ -2486,7 +2484,6 @@ export function MaintenanceContent({
         <div ref={schedulePdfRef}>
           <PdfTemplate
             title="PM Schedule"
-            subtitle={activeSiteName}
             meta={[
               { label: "Site", value: activeSiteName },
               {

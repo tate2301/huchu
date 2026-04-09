@@ -6,7 +6,6 @@ export default async function PosPortalShiftPage() {
     <PosPortalPageFrame
       pathname="/portal/pos/shift"
       title="Shift Management"
-      description="Open, review, and close tills with cash-up controls."
     >
       <PosShiftView />
     </PosPortalPageFrame>

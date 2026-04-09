@@ -64,7 +64,6 @@ export default function RetailPosPolicyPage() {
   return (
     <RetailShell
       title="POS Policy"
-      description="Configure tender reference controls used across POS sale and refund posting."
     >
       <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
         <div className="grid gap-4 md:grid-cols-2">

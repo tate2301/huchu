@@ -22,7 +22,6 @@ export default function MasterDataOverviewPage() {
     <MasterDataShell
       activeTab="overview"
       title="Master Data"
-      description="Reference entities available in this workspace."
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleItems.map((entry) => (

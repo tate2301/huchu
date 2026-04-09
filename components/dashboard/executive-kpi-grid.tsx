@@ -67,7 +67,6 @@ export function ExecutiveKpiGrid({
         <StatusState
           variant="error"
           title="Key indicators unavailable"
-          description={errorMessage || "KPI data could not be retrieved."}
         />
       ) : null}
 
@@ -75,7 +74,6 @@ export function ExecutiveKpiGrid({
         <StatusState
           variant="empty"
           title="No key indicators available"
-          description="No KPI records were returned for the current selection."
         />
       ) : null}
 

@@ -14,7 +14,6 @@ export default async function SchoolsNoticesPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="School Notices"
-        description="Audience-targeted notices for parents, students, and teachers."
       />
       <SchoolsNoticesContent />
     </div>

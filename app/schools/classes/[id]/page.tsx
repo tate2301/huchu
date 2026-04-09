@@ -18,7 +18,7 @@ export default async function SchoolsClassDetailPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Class Details" description="View class students, streams and subjects." />
+      <PageHeading title="Class Details" />
       <SchoolsClassDetailContent classId={id} />
     </div>
   );

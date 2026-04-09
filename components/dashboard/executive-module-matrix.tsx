@@ -142,7 +142,6 @@ export function ExecutiveModuleMatrix({
       <StatusState
         variant="error"
         title="Module matrix unavailable"
-        description={errorMessage || "Module summary cards could not be retrieved."}
       />
     );
   }
@@ -152,7 +151,6 @@ export function ExecutiveModuleMatrix({
       <StatusState
         variant="empty"
         title="No module summaries"
-        description="No module health metrics are available for the selected scope."
       />
     );
   }

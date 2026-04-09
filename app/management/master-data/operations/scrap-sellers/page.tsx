@@ -237,7 +237,6 @@ export default function ScrapSellersMasterDataPage() {
     <MasterDataShell
       activeTab="scrap-sellers"
       title="Scrap Suppliers"
-      description="Supplier identity records used for scrap purchases and compliance."
       actions={
         <Button
           size="sm"

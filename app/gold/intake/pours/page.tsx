@@ -165,7 +165,6 @@ export default function GoldIntakePoursPage() {
     <GoldShell
       activeTab="batches"
       title="Batches"
-      description="Recorded gold batches and custody-ready intake history."
       actions={
         <Button size="sm" onClick={() => setManualCreateOpen(true)}>
           Record Batch

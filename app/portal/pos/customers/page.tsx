@@ -6,7 +6,6 @@ export default async function PosPortalCustomersPage() {
     <PosPortalPageFrame
       pathname="/portal/pos/customers"
       title="Customers"
-      description="Search customer records and loyalty balances."
     >
       <PosCustomersView />
     </PosPortalPageFrame>

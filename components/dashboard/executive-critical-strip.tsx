@@ -91,7 +91,6 @@ export function ExecutiveCriticalStrip({
       <StatusState
         variant="error"
         title="Escalation strip unavailable"
-        description={errorMessage || "Priority module alerts could not be retrieved."}
       />
     );
   }
@@ -101,7 +100,6 @@ export function ExecutiveCriticalStrip({
       <StatusState
         variant="empty"
         title="No escalation data"
-        description="Module health data is not available for this filter."
       />
     );
   }

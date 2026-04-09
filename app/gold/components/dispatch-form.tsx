@@ -170,7 +170,6 @@ export function DispatchForm({
   return (
     <FormShell
       title="Dispatch Details"
-      description="Capture full custody and transit details for this batch."
       onSubmit={handleSubmit}
       formClassName="space-y-6"
       requiredHint="Fields marked * are required. Submitting redirects to dispatch history with this record highlighted."

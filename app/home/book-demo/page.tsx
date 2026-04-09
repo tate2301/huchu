@@ -192,7 +192,6 @@ export default function BookDemoPage() {
                 schedulerExternal={config.schedulerExternal}
                 className="self-start"
                 title="Tell us what to cover"
-                description="We will tailor the session to your sites and rollout path."
               />
             </div>
           </div>

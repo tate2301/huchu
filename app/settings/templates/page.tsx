@@ -665,7 +665,6 @@ export default function TemplateSettingsPage() {
     <ManagementShell
       area="document-templates"
       title="Document Templates"
-      description="Manage branded export templates with dialog-based create and edit flows."
       actions={
         <Button type="button" onClick={() => openCreateDialog()}>
           New Template

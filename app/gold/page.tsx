@@ -557,7 +557,6 @@ export default function GoldPage() {
           <StatusState
             variant="error"
             title="Unable to load chain data"
-            description={getApiErrorMessage(commandError)}
           />
         ) : (
           <DataTable

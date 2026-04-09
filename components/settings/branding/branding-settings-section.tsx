@@ -417,7 +417,6 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
     <ManagementShell
       area="branding"
       title={sectionMeta.title}
-      description={sectionMeta.description}
       actions={
         <Button
           type="button"

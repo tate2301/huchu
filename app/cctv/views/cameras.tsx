@@ -140,7 +140,6 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
       <StatusState
         variant="error"
         title="Unable to load cameras"
-        description={getApiErrorMessage(error)}
       />
     );
   }
@@ -338,13 +337,11 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
         <StatusState
           variant="empty"
           title="No cameras match the current filters"
-          description="Widen the search or clear the filters to see more cameras."
         />
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <CCTVSection
             title="Camera register"
-            description={`${filteredCameras.length} camera${filteredCameras.length === 1 ? "" : "s"} in the current view.`}
           >
             <CCTVSurface className="overflow-hidden">
               <div className="bg-[var(--surface-base)] text-foreground">
@@ -423,7 +420,7 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
             </CCTVSurface>
           </CCTVSection>
 
-          <CCTVSection title="Camera details" description="Selection summary and quick maintenance actions.">
+          <CCTVSection title="Camera details">
             <CCTVSurface className="p-4">
               {selectedCamera ? (
                 <div className="space-y-5">
@@ -501,7 +498,6 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
                 <StatusState
                   variant="empty"
                   title="No camera selected"
-                  description="Choose a camera from the register to inspect its details."
                 />
               )}
             </CCTVSurface>
@@ -513,7 +509,6 @@ export function CamerasView({ sites, selectedSiteId, onSiteChange, createdId }: 
         <div ref={camerasPdfRef}>
           <PdfTemplate
             title="CCTV Cameras"
-            subtitle={`${activeSiteName} | ${areaFilter || "All areas"} | ${statusFilter || "All statuses"}`}
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Total cameras", value: String(cameras.length) },

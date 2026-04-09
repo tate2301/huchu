@@ -163,7 +163,6 @@ export default function TrialBalancePage() {
     <AccountingShell
       activeTab="trial-balance"
       title="Trial Balance"
-      description="Review posted ledger balances for the selected period or date range."
     >
       {error ? (
         <Alert variant="destructive">

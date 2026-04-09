@@ -271,7 +271,6 @@ export default function RetailOverviewPage() {
   return (
     <RetailShell
       title="Business overview"
-      description="A profitability-first dashboard designed for owners and leadership decisions."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">

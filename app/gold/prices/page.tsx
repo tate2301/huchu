@@ -271,7 +271,6 @@ export default function GoldPricesPage() {
     <GoldShell
       activeTab="prices"
       title="Pricing"
-      description="Daily gold valuation rates used for historical snapshot calculations."
       actions={
         <Button
           size="sm"

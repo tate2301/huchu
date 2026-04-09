@@ -156,7 +156,6 @@ export default function RetailPricingPage() {
   return (
     <RetailShell
       title="Pricing"
-      description="Adjust shelf prices without leaving the retail workbench."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

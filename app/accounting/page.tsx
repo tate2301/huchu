@@ -402,7 +402,6 @@ export default function AccountingOverviewPage() {
     <AccountingShell
       activeTab="overview"
       title="Accounting Overview"
-      description="Company-wide accounting position with grouped navigation and quick actions."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -503,7 +502,6 @@ export default function AccountingOverviewPage() {
         </FrappeChartShell>
         <InsightDonutCard
           title="Position Composition"
-          subtitle="Relative weight of AR, AP, net income, and net cash."
           data={
             loading
               ? []
@@ -518,7 +516,6 @@ export default function AccountingOverviewPage() {
       </div>
       <TradingViewChartCard
         title="Cash Race"
-        subtitle="TradingView-style line race: collections versus supplier payments, with net spread."
         data={loading ? [] : chartData.cashRace}
         xKey="date"
         xAxisType="time"

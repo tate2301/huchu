@@ -186,7 +186,6 @@ export default function RetailShiftsPage() {
   return (
     <RetailShell
       title="Shifts & Cash-up"
-      description="Open tills, monitor expected cash, and close with variance tracking."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button

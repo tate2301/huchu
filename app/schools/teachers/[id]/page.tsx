@@ -18,7 +18,7 @@ export default async function TeacherProfilePage({
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Teacher Profile" description="View teacher details and assignments." />
+      <PageHeading title="Teacher Profile" />
       <TeacherProfileContent teacherId={id} />
     </div>
   );

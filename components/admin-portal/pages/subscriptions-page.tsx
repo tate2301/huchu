@@ -80,7 +80,6 @@ export function SubscriptionsPage() {
     return (
       <AdminModuleLoading
         label="Loading subscriptions"
-        description="Fetching live billing status, renewal timing, and plan assignments."
       />
     );
   }

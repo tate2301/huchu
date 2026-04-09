@@ -302,7 +302,6 @@ export default function GoldReceiptsReportPage() {
     <div className="w-full space-y-6">
       <PageHeading
         title="Gold Receipts"
-        description="Buyer receipt confirmations and settlement details"
       />
 
       {pageError ? (

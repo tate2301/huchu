@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeading title="Downtime Analytics" description="Downtime causes, loss hours, and availability by site" />
+      <PageHeading title="Downtime Analytics" />
 
       {(sitesError || analyticsError) && (
         <Alert variant="destructive">
@@ -293,7 +293,6 @@ export default function AnalyticsPage() {
         <StatusState
           variant="empty"
           title="No analytics available"
-          description="Choose a site and time range to load downtime analytics."
         />
       ) : null}
 
@@ -301,7 +300,6 @@ export default function AnalyticsPage() {
         <StatusState
           variant="success"
           title="No downtime recorded"
-          description="No downtime incidents were found for the selected site and range."
         />
       ) : null}
     </div>

@@ -304,7 +304,6 @@ export default function FiscalisationPage() {
     <AccountingShell
       activeTab="fiscalisation"
       title="ZIMRA Fiscalisation"
-      description="Configure FDMS provider settings and track fiscal receipts."
     >
       {(configError || receiptsError) ? (
         <Alert variant="destructive">

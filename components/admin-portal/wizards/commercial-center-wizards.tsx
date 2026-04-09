@@ -116,7 +116,6 @@ function ConfirmDialog({
         <DialogContent className="sm:max-w-lg">
           <DialogScaffold
             title={title}
-            description={description}
             error={error}
             footer={
               <>
@@ -192,7 +191,6 @@ export function AssignTierDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Assign tier"
-            description="Select the target workspace and tier, then apply the new plan safely."
             error={error}
             footer={
               <>
@@ -288,7 +286,6 @@ export function SubscriptionStatusDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Set subscription status"
-            description="Update the current subscription state for the selected workspace."
             error={error}
             footer={
               <>
@@ -392,7 +389,6 @@ export function ApplyTemplateDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title="Apply template"
-            description="Assign a commercial template to a workspace with additive or replace behavior."
             error={error}
             footer={
               <>
@@ -466,7 +462,6 @@ export function AddonStateDialog({
   return (
     <ConfirmDialog
       title={enable ? "Enable add-on" : "Disable add-on"}
-      description={`${enable ? "Enable" : "Disable"} ${addon.name} for the current workspace. Pricing and entitlement state will be refreshed after this change.`}
       actionLabel={enable ? "Enable add-on" : "Disable add-on"}
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -499,7 +494,6 @@ export function RecomputePricingDialog({
   return (
     <ConfirmDialog
       title="Recompute pricing"
-      description={`Recompute pricing for ${companyName}. This refreshes the stored pricing snapshot and latest monthly amount.`}
       actionLabel="Recompute pricing"
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -529,7 +523,6 @@ export function CatalogSyncDialog({
   return (
     <ConfirmDialog
       title="Sync commercial catalog"
-      description="Refresh feature, bundle, and tier catalog records from platform definitions."
       actionLabel="Sync catalog"
       triggerLabel={triggerLabel}
       buttonVariant={buttonVariant}
@@ -605,7 +598,6 @@ export function BundleUpsertDialog({
         <DialogContent className="sm:max-w-xl">
           <DialogScaffold
             title={bundle ? "Edit bundle" : "Create bundle"}
-            description="Manage commercial bundle definitions used by templates and add-on flows."
             error={error}
             footer={
               <>
@@ -733,7 +725,6 @@ export function BundleFeatureMapDialog({
         <DialogContent className="sm:max-w-3xl">
           <DialogScaffold
             title="Map bundle features"
-            description={`Select the feature set for ${bundle.name}. Search narrows the catalog while the selected draft stays intact.`}
             error={error}
             footer={
               <>

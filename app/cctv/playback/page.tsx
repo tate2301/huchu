@@ -37,7 +37,6 @@ export default function CCTVPlaybackPage() {
       <StatusState
         variant="loading"
         title="Loading playback search"
-        description="Preparing camera and site filters."
       />
     );
   }
@@ -47,7 +46,6 @@ export default function CCTVPlaybackPage() {
       <StatusState
         variant="error"
         title="Unable to load playback search"
-        description={getApiErrorMessage(pageError)}
       />
     );
   }

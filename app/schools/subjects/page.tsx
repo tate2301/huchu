@@ -12,7 +12,7 @@ export default async function SchoolsSubjectsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Subjects" description="Manage school subjects." />
+      <PageHeading title="Subjects" />
       <SchoolsSubjectsContent />
     </div>
   );

@@ -24,7 +24,6 @@ export default function PricingPage() {
   return (
     <MarketingSubpageShell
       title="Pricing shaped around rollout scope."
-      description="Bundles carry explicit pricing. Foundational packs and add-ons stay tied to the live catalog."
     >
       <section className={styles.pricingHero}>
         <div className={styles.pricingNarrative}>

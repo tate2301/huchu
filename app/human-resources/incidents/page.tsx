@@ -999,7 +999,6 @@ export default function HrIncidentsPage() {
     <HrShell
       activeTab="incidents"
       title="Workforce Incidents"
-      description="Manage incidents and disciplinary workflows."
       actions={
         <div className="flex gap-2">
           <Button

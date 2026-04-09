@@ -322,7 +322,6 @@ export default function DowntimeCodesManagementPage() {
     <MasterDataShell
       activeTab="downtime-codes"
       title="Downtime Codes"
-      description="Downtime code reference data for plant reporting."
       actions={
         <Button
           size="sm"

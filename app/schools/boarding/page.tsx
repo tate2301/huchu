@@ -14,7 +14,6 @@ export default async function SchoolsBoardingPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Boarding Management"
-        description="Hostels, allocations, leave workflow, and occupancy oversight."
       />
       <SchoolsBoardingContent />
     </div>

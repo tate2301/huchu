@@ -18,7 +18,7 @@ export default async function StudentProfilePage({
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Student Profile" description="View student details and history." />
+      <PageHeading title="Student Profile" />
       <StudentProfileContent studentId={id} />
     </div>
   );

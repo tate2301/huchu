@@ -173,7 +173,6 @@ export function NVRsView({
       <StatusState
         variant="error"
         title="Unable to load NVRs"
-        description={getApiErrorMessage(error)}
       />
     );
   }
@@ -206,7 +205,6 @@ export function NVRsView({
         <StatusState
           variant="empty"
           title="No NVRs match the current filters"
-          description="Try a broader search or clear the active filters."
         />
       ) : (
         <div className="max-w-3xl pt-4">
@@ -307,7 +305,6 @@ export function NVRsView({
         <div ref={nvrsPdfRef}>
           <PdfTemplate
             title="CCTV NVRs"
-            subtitle={`${activeSiteName} | ${statusFilter || "All statuses"}`}
             meta={[
               { label: "Site", value: activeSiteName },
               { label: "Total NVRs", value: String(nvrs.length) },

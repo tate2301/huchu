@@ -186,7 +186,6 @@ export default function FinancialStatementsPage() {
     <AccountingShell
       activeTab="financials"
       title="Financial Statements"
-      description="Profit & loss and balance sheet views based on posted journals."
     >
       {error ? (
         <Alert variant="destructive">

@@ -14,7 +14,6 @@ export default async function SchoolsResultsPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Results and Publishing"
-        description="Moderation workflow, publish windows, and published outcomes."
       />
       <SchoolsResultsContent />
     </div>

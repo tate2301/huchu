@@ -126,7 +126,6 @@ export default function CurrencyRatesPage() {
     <AccountingShell
       activeTab="currency"
       title="Currency Rates"
-      description="Maintain exchange rates for multi-currency accounting."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

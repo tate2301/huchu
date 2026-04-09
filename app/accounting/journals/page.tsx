@@ -462,7 +462,6 @@ export default function JournalsPage() {
     <AccountingShell
       activeTab="journals"
       title="Journal Entries"
-      description="Create and post manual journals to keep the ledger up to date."
       actions={
         <Button size="sm" onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 size-4" />

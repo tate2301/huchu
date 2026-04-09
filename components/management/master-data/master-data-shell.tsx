@@ -30,7 +30,7 @@ export function MasterDataShell({
 }: MasterDataShellProps) {
   void activeTab;
   return (
-    <ManagementShell area="master-data" title={title} description={description} actions={actions}>
+    <ManagementShell area="master-data" title={title} actions={actions}>
       {children}
     </ManagementShell>
   );

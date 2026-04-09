@@ -165,7 +165,6 @@ export default function RetailSalesPage() {
   return (
     <RetailShell
       title="Sales"
-      description="Track posted sales, reversals, and cashier exceptions."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">

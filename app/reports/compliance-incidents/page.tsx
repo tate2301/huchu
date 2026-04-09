@@ -151,7 +151,6 @@ export default function ComplianceIncidentsReportPage() {
     <div className="w-full space-y-6">
       <PageHeading
         title="Incidents"
-        description="Compliance and safety incident records"
       />
 
       {pageError ? (

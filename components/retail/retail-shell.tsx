@@ -15,7 +15,7 @@ export function RetailShell({ title, description, actions, children }: RetailShe
   return (
     <div className="w-full space-y-4">
       {actions ? <PageActions>{actions}</PageActions> : null}
-      <PageHeading title={title} description={description} className="mb-2" />
+      <PageHeading title={title} className="mb-2" />
       <div className="space-y-4">{children}</div>
     </div>
   );

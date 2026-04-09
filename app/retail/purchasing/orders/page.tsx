@@ -264,7 +264,6 @@ export default function RetailPurchaseOrdersPage() {
   return (
     <RetailShell
       title="Purchasing"
-      description="Raise POs and feed receiving into shared stock."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button

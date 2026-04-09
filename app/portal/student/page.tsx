@@ -18,7 +18,6 @@ export default async function StudentPortalPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeading
         title="Student Portal"
-        description="Enrollment, published results, guardians, and boarding visibility."
       />
       <StudentPortalContent />
     </div>

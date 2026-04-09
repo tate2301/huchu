@@ -151,7 +151,6 @@ export function OverviewFeedView({ sites, nvrs }: OverviewFeedViewProps) {
       <StatusState
         variant="empty"
         title="No NVRs configured"
-        description="Register an NVR to use the combined feed."
       />
     );
   }

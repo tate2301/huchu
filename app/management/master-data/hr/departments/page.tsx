@@ -243,7 +243,6 @@ export default function DepartmentsManagementPage() {
     <MasterDataShell
       activeTab="departments"
       title="Departments"
-      description="Department reference data for employee and compensation workflows."
       actions={
         <Button
           size="sm"

@@ -207,7 +207,6 @@ export default function RetailPromotionsPage() {
   return (
     <RetailShell
       title="Promotions"
-      description="Manage discounts and campaign windows from one queue."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button

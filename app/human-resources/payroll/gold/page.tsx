@@ -815,7 +815,6 @@ export default function GoldPayrollPage() {
     <HrShell
       activeTab="payroll"
       title="Payroll"
-      description="Settlement payroll with guided period selection, run generation, and approvals."
     >
       {(configError || periodsError || runsError) && (
         <Alert variant="destructive">

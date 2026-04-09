@@ -1143,7 +1143,6 @@ export default function AccountingSalesPage() {
     <AccountingShell
       activeTab="sales"
       title="Sales (Accounts Receivable)"
-      description="Manage customers, issue invoices, and record receipts."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => setCustomerFormOpen(true)}>

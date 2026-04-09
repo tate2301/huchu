@@ -167,7 +167,6 @@ export default function RetailStockTransfersPage() {
   return (
     <RetailShell
       title="Stock Transfers"
-      description="Move stock between locations without leaving the Retail workflow."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

@@ -162,7 +162,6 @@ export default function PayablesHomePage() {
     <AccountingShell
       activeTab="payables"
       title="Payables Home"
-      description="Overall payables position, payment trend, and AP access points."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -258,7 +257,6 @@ export default function PayablesHomePage() {
         </FrappeChartShell>
         <InsightDonutCard
           title="Bill Status Distribution"
-          subtitle="Share of bill volume by lifecycle state."
           data={
             isLoading
               ? []
@@ -273,7 +271,6 @@ export default function PayablesHomePage() {
       </div>
       <TradingViewChartCard
         title="Payables Settlement Momentum"
-        subtitle="TradingView-style trend for billed versus paid value."
         data={isLoading ? [] : chartData.trend}
         xKey="date"
         xAxisType="time"
