@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
+import { AdminCategoryBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
@@ -29,7 +31,24 @@ type DashboardPayload = {
     marginPerKg: number;
     marginPercent: number;
   };
+  reconciliation: {
+    varianceByWeek: Array<{
+      weekLabel: string;
+      varianceKg: number;
+      saleCount: number;
+    }>;
+  };
+  supplierPerformance: Array<{
+    supplier: string;
+    weightKg: number;
+    estimatedMarginContribution: number;
+  }>;
 };
+
+const VARIANCE_SERIES: AdminChartSeries[] = [
+  { key: "varianceKg", label: "Variance (kg)", kind: "bar", color: "var(--warning-500)" },
+  { key: "saleCount", label: "Sales", kind: "line", color: "var(--primary-500)" },
+];
 
 function formatMoney(value: number) {
   return `USD ${value.toLocaleString(undefined, {
@@ -44,11 +63,6 @@ function formatKg(value: number) {
     maximumFractionDigits: 2,
   })} kg`;
 }
-
-type SnapshotCard = {
-  label: string;
-  value: string;
-};
 
 export default function ScrapMetalPage() {
   const { data: session } = useSession();
@@ -70,61 +84,89 @@ export default function ScrapMetalPage() {
 
   const summary = query.data?.summary;
   const heldTotal = (summary?.heldInboundTicketsCount ?? 0) + (summary?.heldOutboundTicketsCount ?? 0);
-
-  const cards: SnapshotCard[] = [
-    { label: "Weight In", value: formatKg(summary?.purchasesThisMonthWeight ?? 0) },
-    { label: "Spend", value: formatMoney(summary?.purchasesThisMonthValue ?? 0) },
-    { label: "Avg Buy / kg", value: formatMoney(summary?.averageBuyPricePerKg ?? 0) },
-    { label: "Weight Out", value: formatKg(summary?.salesThisMonthWeight ?? 0) },
-    { label: "Revenue", value: formatMoney(summary?.salesThisMonthValue ?? 0) },
-    { label: "Est. Margin", value: formatMoney(summary?.estimatedMarginThisMonth ?? 0) },
-    { label: "Margin / kg", value: formatMoney(summary?.marginPerKg ?? 0) },
-    { label: "Margin %", value: `${(summary?.marginPercent ?? 0).toFixed(2)}%` },
-    { label: "Pending Sales", value: String(summary?.pendingSalesCount ?? 0) },
-    { label: "Completed Sales", value: String(summary?.completedSalesCount ?? 0) },
-    { label: "Tickets / Hour", value: (summary?.ticketsProcessedPerHour ?? 0).toFixed(2) },
-    { label: "Pending Supplier Payments", value: String(summary?.pendingSupplierPaymentsCount ?? 0) },
-    { label: "Held Tickets", value: `${heldTotal} (${(summary?.heldTicketsOldestAgeHours ?? 0).toFixed(1)}h oldest)` },
-  ];
+  const varianceRows = useMemo(
+    () =>
+      (query.data?.reconciliation.varianceByWeek ?? []).map((row) => ({
+        label: row.weekLabel,
+        varianceKg: row.varianceKg,
+        saleCount: row.saleCount,
+      })),
+    [query.data?.reconciliation.varianceByWeek],
+  );
+  const supplierWeightRows = useMemo(
+    () =>
+      (query.data?.supplierPerformance ?? []).slice(0, 8).map((row) => ({
+        id: row.supplier,
+        label: row.supplier,
+        value: row.weightKg,
+      })),
+    [query.data?.supplierPerformance],
+  );
 
   return (
     <ScrapShell
       title="Daily Snapshot"
-      description="Operator-first view of throughput, cash exposure, and held ticket pressure."
       actions={
-        <div className="grid w-full gap-2 sm:flex sm:flex-wrap">
-          <Button className="w-full sm:w-auto" asChild>
+        <div className="flex w-full flex-wrap gap-2">
+          <Button asChild>
             <Link href="/scrap-metal/tickets">New Inbound Ticket</Link>
           </Button>
-          <Button className="w-full sm:w-auto" variant="outline" asChild>
-            <Link href="/scrap-metal/tickets/held">Held Tickets ({heldTotal})</Link>
+          <Button variant="outline" asChild>
+            <Link href="/scrap-metal/tickets/held">Held ({heldTotal})</Link>
           </Button>
           {canManage ? (
-            <Button className="w-full sm:w-auto" variant="outline" asChild>
+            <Button variant="outline" asChild>
               <Link href="/scrap-metal/sales">Outbound Queue</Link>
-            </Button>
-          ) : null}
-          {canManage ? (
-            <Button className="w-full sm:w-auto" variant="outline" asChild>
-              <Link href="/scrap-metal/reports/daily-snapshot">Open Full Report</Link>
             </Button>
           ) : null}
         </div>
       }
     >
       {query.isLoading ? (
-        <StatusState variant="loading" title="Loading daily snapshot..." />
+        <StatusState variant="loading" title="Loading" />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((card) => (
-            <Card key={card.label}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-muted-foreground">{card.label}</CardTitle>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Weight In</CardTitle></CardHeader><CardContent className="font-mono text-lg">{formatKg(summary?.purchasesThisMonthWeight ?? 0)}</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Spend</CardTitle></CardHeader><CardContent className="font-mono text-lg">{formatMoney(summary?.purchasesThisMonthValue ?? 0)}</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Weight Out</CardTitle></CardHeader><CardContent className="font-mono text-lg">{formatKg(summary?.salesThisMonthWeight ?? 0)}</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Revenue</CardTitle></CardHeader><CardContent className="font-mono text-lg">{formatMoney(summary?.salesThisMonthValue ?? 0)}</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Margin</CardTitle></CardHeader><CardContent className="font-mono text-lg">{formatMoney(summary?.estimatedMarginThisMonth ?? 0)}</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Margin %</CardTitle></CardHeader><CardContent className="font-mono text-lg">{(summary?.marginPercent ?? 0).toFixed(2)}%</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Tickets / Hour</CardTitle></CardHeader><CardContent className="font-mono text-lg">{(summary?.ticketsProcessedPerHour ?? 0).toFixed(2)}</CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Pending Supplier Payments</CardTitle></CardHeader><CardContent className="font-mono text-lg">{summary?.pendingSupplierPaymentsCount ?? 0}</CardContent></Card>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Weekly Variance</CardTitle>
               </CardHeader>
-              <CardContent className="font-mono text-lg">{card.value}</CardContent>
+              <CardContent>
+                <AdminTrendChart
+                  rows={varianceRows}
+                  series={VARIANCE_SERIES}
+                  height={260}
+                  valueFormatter={(value) => value.toFixed(2)}
+                  yTickFormatter={(value) => value.toFixed(0)}
+                />
+              </CardContent>
             </Card>
-          ))}
-        </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Supplier Weight</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminCategoryBarChart
+                  rows={supplierWeightRows}
+                  valueLabel="Weight"
+                  height={260}
+                  valueFormatter={(value) => `${value.toFixed(0)} kg`}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
     </ScrapShell>
   );

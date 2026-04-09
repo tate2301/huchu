@@ -23,12 +23,14 @@ import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { FieldHelp } from "@/components/shared/field-help";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "@/lib/icons";
 
 type Material = { id: string; code: string; name: string; category: string };
 type Seller = { id: string; fullName: string; phone: string; nationalId: string };
@@ -566,6 +568,74 @@ export default function ScrapMetalTicketWorkbenchPage() {
     }
   }
 
+  function saveCurrentDraftLocally() {
+    if (view === "inbound") {
+      saveLocalTicketDraft("inbound", inbound);
+      toast({ title: "Inbound draft saved", variant: "success" });
+      return;
+    }
+    saveLocalTicketDraft("outbound", outbound);
+    toast({ title: "Outbound draft saved", variant: "success" });
+  }
+
+  function loadCurrentDraftLocally() {
+    if (view === "inbound") {
+      const localDraft = loadLocalTicketDraft<InboundForm>("inbound");
+      if (!localDraft) {
+        toast({ title: "No inbound draft found", variant: "destructive" });
+        return;
+      }
+      setInbound(localDraft.payload);
+      toast({ title: "Inbound draft loaded", variant: "success" });
+      return;
+    }
+    const localDraft = loadLocalTicketDraft<OutboundForm>("outbound");
+    if (!localDraft) {
+      toast({ title: "No outbound draft found", variant: "destructive" });
+      return;
+    }
+    setOutbound(localDraft.payload);
+    toast({ title: "Outbound draft loaded", variant: "success" });
+  }
+
+  function holdCurrentTicket() {
+    if (view === "inbound") {
+      if (validateInbound()) inboundMutation.mutate("hold");
+      return;
+    }
+    if (validateOutbound()) outboundMutation.mutate("hold");
+  }
+
+  function finalizeCurrentTicket() {
+    if (view === "inbound") {
+      if (validateInbound()) inboundMutation.mutate("finalize");
+      return;
+    }
+    if (validateOutbound()) {
+      outboundMutation.mutate(canCreateOutbound ? "submit" : "request_approval");
+    }
+  }
+
+  function finalizeAndExportCurrentTicket() {
+    if (view === "inbound") {
+      if (validateInbound()) inboundMutation.mutate("finalize_print");
+      return;
+    }
+    if (validateOutbound()) {
+      outboundMutation.mutate(canCreateOutbound ? "submit_print" : "request_approval");
+    }
+  }
+
+  function cancelCurrentTicket() {
+    if (view === "inbound") {
+      setInbound((prev) => ({ ...emptyInbound(), siteId: prev.siteId, employeeId: prev.employeeId }));
+      setInboundErrors({});
+      return;
+    }
+    setOutbound(emptyOutbound());
+    setOutboundErrors({});
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey)) return;
@@ -590,11 +660,11 @@ export default function ScrapMetalTicketWorkbenchPage() {
       }
 
       if (view === "inbound") {
-        if (validateInbound()) inboundMutation.mutate("finalize_print");
+        if (validateInbound()) inboundMutation.mutate("finalize");
         return;
       }
       if (validateOutbound()) {
-        outboundMutation.mutate(canCreateOutbound ? "submit_print" : "request_approval");
+        outboundMutation.mutate(canCreateOutbound ? "submit" : "request_approval");
       }
     }
 
@@ -606,33 +676,49 @@ export default function ScrapMetalTicketWorkbenchPage() {
     <>
       <ScrapShell
         title="Ticketing Workbench"
-        description="Supplier -> Material -> Weight -> Price -> Photos -> Payment -> Export PDF in one place."
         actions={
-          <div className="grid w-full gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <Button className="w-full sm:w-auto" size="sm" variant={view === "inbound" ? "default" : "outline"} onClick={() => setView("inbound")}>
-              Inbound Ticket
-            </Button>
-            <Button className="w-full sm:w-auto" size="sm" variant={view === "outbound" ? "default" : "outline"} onClick={() => setView("outbound")}>
-              Outbound Ticket
-            </Button>
-            <Button className="w-full sm:w-auto" size="sm" variant="outline" asChild>
-              <Link href="/scrap-metal/tickets/held">Held Tickets ({heldInbound + heldOutbound})</Link>
-            </Button>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">Inbound Held: {heldInbound}</Badge>
-              <Badge variant="outline">Outbound Held: {heldOutbound}</Badge>
-              <Badge variant="outline">Offline Queue: {offlineQueueCount}</Badge>
+          <div className="flex w-full items-center gap-2">
+            <div className="inline-flex min-w-0 flex-1 overflow-hidden rounded-md border border-[var(--edge-subtle)]">
+              <Button
+                size="sm"
+                className="min-w-0 flex-1 rounded-none"
+                variant={view === "inbound" ? "default" : "ghost"}
+                onClick={() => setView("inbound")}
+              >
+                Inbound
+              </Button>
+              <Button
+                size="sm"
+                className="min-w-0 flex-1 rounded-none border-l border-[var(--edge-subtle)]"
+                variant={view === "outbound" ? "default" : "ghost"}
+                onClick={() => setView("outbound")}
+              >
+                Outbound
+              </Button>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              className="w-full sm:w-auto"
-              variant="outline"
-              disabled={syncingOfflineQueue || offlineQueueCount === 0}
-              onClick={() => void syncOfflineTickets()}
-            >
-              {syncingOfflineQueue ? "Syncing..." : "Sync Offline Queue"}
-            </Button>
+            <Badge variant="outline" className="shrink-0">Held {heldInbound + heldOutbound}</Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" variant="outline" className="shrink-0">
+                  More
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void syncOfflineTickets()} disabled={syncingOfflineQueue || offlineQueueCount === 0}>
+                  {syncingOfflineQueue ? "Syncing Queue" : `Sync Queue (${offlineQueueCount})`}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={saveCurrentDraftLocally}>Save Local Draft</DropdownMenuItem>
+                <DropdownMenuItem onClick={loadCurrentDraftLocally}>Load Local Draft</DropdownMenuItem>
+                <DropdownMenuItem onClick={holdCurrentTicket}>Hold Ticket</DropdownMenuItem>
+                <DropdownMenuItem onClick={finalizeAndExportCurrentTicket}>
+                  {view === "inbound" ? "Finalize + PDF" : canCreateOutbound ? "Submit + PDF" : "Request Approval"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       >
@@ -640,8 +726,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
           <Card>
             <CardHeader>
               <CardTitle>New Inbound Ticket</CardTitle>
-              <CardDescription>Simplified for small operators: fill key fields, hold/finalize, and export PDF instantly.</CardDescription>
-              
             </CardHeader>
             <CardContent className="space-y-4 pb-28 md:pb-2">
               {inboundErrors.form ? (
@@ -822,39 +906,13 @@ export default function ScrapMetalTicketWorkbenchPage() {
               </div>
 
               <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
-                <div className="grid gap-2 md:flex md:flex-wrap md:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full md:w-auto"
-                  disabled={busy}
-                  onClick={() => {
-                    saveLocalTicketDraft("inbound", inbound);
-                    toast({ title: "Inbound draft saved locally", variant: "success" });
-                  }}
-                >
-                  Save Local Draft
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full md:w-auto"
-                  disabled={busy}
-                  onClick={() => {
-                    const localDraft = loadLocalTicketDraft<InboundForm>("inbound");
-                    if (!localDraft) {
-                      toast({ title: "No local inbound draft found", variant: "destructive" });
-                      return;
-                    }
-                    setInbound(localDraft.payload);
-                    toast({ title: `Inbound draft restored (${new Date(localDraft.savedAt).toLocaleString()})`, variant: "success" });
-                  }}
-                >
-                  Load Local Draft
-                </Button>
-                <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("hold")}>Hold Ticket</Button>
-                <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("finalize")}>Finalize</Button>
-                <Button className="w-full md:w-auto" type="button" disabled={busy} onClick={() => validateInbound() && inboundMutation.mutate("finalize_print")}>Finalize & Export PDF</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="w-full" type="button" variant="outline" disabled={busy} onClick={cancelCurrentTicket}>
+                    Cancel
+                  </Button>
+                  <Button className="w-full" type="button" disabled={busy} onClick={finalizeCurrentTicket}>
+                    Finalize
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -863,7 +921,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
           <Card>
             <CardHeader>
               <CardTitle>New Outbound Ticket</CardTitle>
-              <CardDescription>Choose lot, capture accepted weight, submit for approval, and export PDF.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pb-28 md:pb-2">
               {outboundErrors.form ? (
@@ -873,7 +930,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
               ) : null}
               {!canCreateOutbound ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                  Managers and Superadmins can submit outbound tickets directly. Operators can save a draft as a Request Approval.
+                  Manager approval required.
                 </div>
               ) : null}
 
@@ -1014,45 +1071,13 @@ export default function ScrapMetalTicketWorkbenchPage() {
               </div>
 
               <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:static md:mx-0 md:bg-transparent md:px-0 md:pt-4">
-                <div className="grid gap-2 md:flex md:flex-wrap md:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full md:w-auto"
-                  disabled={busy}
-                  onClick={() => {
-                    saveLocalTicketDraft("outbound", outbound);
-                    toast({ title: "Outbound draft saved locally", variant: "success" });
-                  }}
-                >
-                  Save Local Draft
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full md:w-auto"
-                  disabled={busy}
-                  onClick={() => {
-                    const localDraft = loadLocalTicketDraft<OutboundForm>("outbound");
-                    if (!localDraft) {
-                      toast({ title: "No local outbound draft found", variant: "destructive" });
-                      return;
-                    }
-                    setOutbound(localDraft.payload);
-                    toast({ title: `Outbound draft restored (${new Date(localDraft.savedAt).toLocaleString()})`, variant: "success" });
-                  }}
-                >
-                  Load Local Draft
-                </Button>
-                <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("hold")}>Hold Ticket</Button>
-                {canCreateOutbound ? (
-                  <>
-                    <Button className="w-full md:w-auto" type="button" variant="outline" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("submit")}>Submit</Button>
-                    <Button className="w-full md:w-auto" type="button" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("submit_print")}>Submit & Export PDF</Button>
-                  </>
-                ) : (
-                  <Button className="w-full md:w-auto" type="button" disabled={busy} onClick={() => validateOutbound() && outboundMutation.mutate("request_approval")}>Request Approval</Button>
-                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="w-full" type="button" variant="outline" disabled={busy} onClick={cancelCurrentTicket}>
+                    Cancel
+                  </Button>
+                  <Button className="w-full" type="button" disabled={busy} onClick={finalizeCurrentTicket}>
+                    {canCreateOutbound ? "Submit" : "Request Approval"}
+                  </Button>
                 </div>
               </div>
             </CardContent>

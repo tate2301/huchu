@@ -5,10 +5,12 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { AdminDualBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
@@ -132,6 +134,11 @@ function formatMoney(value: number) {
 function formatDate(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "-";
 }
+
+const SETTLEMENT_TREND_SERIES: AdminChartSeries[] = [
+  { key: "amount", label: "Batch Value", kind: "bar", color: "var(--primary-500)" },
+  { key: "count", label: "Batches", kind: "line", color: "var(--accent-500)" },
+];
 
 export default function ScrapSettlementsPage() {
   const { toast } = useToast();
@@ -257,6 +264,33 @@ export default function ScrapSettlementsPage() {
   );
   const maxDeliveredValue = Math.max(...balances.map((balance) => balance.deliveredValue), 1);
   const maxBalanceValue = Math.max(...balances.map((balance) => Math.abs(balance.balance)), 1);
+  const balanceChartRows = useMemo(
+    () =>
+      balances.slice(0, 8).map((balance) => ({
+        id: balance.employee.id,
+        label: balance.employee.name,
+        primary: balance.deliveredValue,
+        secondary: Math.abs(balance.balance),
+      })),
+    [balances],
+  );
+  const settlementTrendRows = useMemo(() => {
+    const grouped = new Map<string, { amount: number; count: number }>();
+    for (const batch of batches) {
+      const key = batch.dueDate.slice(0, 10);
+      const current = grouped.get(key) ?? { amount: 0, count: 0 };
+      current.amount += batch.items.reduce((sum, item) => sum + item.amount, 0);
+      current.count += 1;
+      grouped.set(key, current);
+    }
+    return Array.from(grouped.entries())
+      .map(([date, values]) => ({
+        label: date,
+        amount: values.amount,
+        count: values.count,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [batches]);
 
   const batchColumns = useMemo<ColumnDef<PayoutBatch>[]>(
     () => [
@@ -378,6 +412,37 @@ export default function ScrapSettlementsPage() {
           </div>
           <div className="mt-2 text-xl font-semibold">{formatMoney(totalNegativeBalance)}</div>
         </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Settlement Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminTrendChart
+              rows={settlementTrendRows}
+              series={SETTLEMENT_TREND_SERIES}
+              height={240}
+              valueFormatter={(value) => value.toFixed(2)}
+              yTickFormatter={(value) => value.toFixed(0)}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivered vs Balance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminDualBarChart
+              rows={balanceChartRows}
+              height={240}
+              primaryLabel="Delivered Value"
+              secondaryLabel="Open Balance"
+              valueFormatter={(value) => `USD ${value.toFixed(0)}`}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <VerticalDataViews
