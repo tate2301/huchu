@@ -204,7 +204,7 @@ export default function HeldTicketsPage() {
       <VerticalDataViews items={views} value={activeView} onValueChange={setActiveView} railLabel="Ticket Type">
         {activeView === "inbound" ? (
           heldPurchasesQuery.error ? (
-            <StatusState variant="error" title="Unable to load held inbound tickets" description={getApiErrorMessage(heldPurchasesQuery.error)} />
+            <StatusState variant="error" title="Unable to load held inbound tickets" />
           ) : (
             <>
               <div className="hidden md:block">
@@ -252,7 +252,7 @@ export default function HeldTicketsPage() {
             </>
           )
         ) : heldSalesQuery.error ? (
-          <StatusState variant="error" title="Unable to load held outbound tickets" description={getApiErrorMessage(heldSalesQuery.error)} />
+          <StatusState variant="error" title="Unable to load held outbound tickets" />
         ) : (
           <>
             <div className="hidden md:block">

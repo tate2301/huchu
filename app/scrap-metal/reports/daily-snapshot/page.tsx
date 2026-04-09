@@ -116,7 +116,7 @@ export default function ScrapDailySnapshotPage() {
   if (query.error) {
     return (
       <ScrapShell title="Daily Snapshot">
-        <StatusState variant="error" title="Unable to load daily snapshot" description={getApiErrorMessage(query.error)} />
+        <StatusState variant="error" title="Unable to load daily snapshot" />
       </ScrapShell>
     );
   }
@@ -124,7 +124,7 @@ export default function ScrapDailySnapshotPage() {
   return (
     <ScrapShell
       title="Daily Snapshot"
-      description="What happened recently and where value is moving."
+     
       actions={
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => downloadCsv("scrap-daily-snapshot", exportRows)} disabled={!summary}>

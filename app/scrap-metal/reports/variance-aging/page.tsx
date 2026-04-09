@@ -117,7 +117,7 @@ export default function VarianceAgingPage() {
   if (salesQuery.error || batchesQuery.error) {
     return (
       <ScrapShell title="Variance & Aging">
-        <StatusState variant="error" title="Unable to load variance and aging" description={getApiErrorMessage(salesQuery.error ?? batchesQuery.error)} />
+        <StatusState variant="error" title="Unable to load variance and aging" />
       </ScrapShell>
     );
   }
@@ -131,7 +131,7 @@ export default function VarianceAgingPage() {
   return (
     <ScrapShell
       title="Variance & Aging"
-      description="Spot weight variance and aging lots before value leaks."
+     
       actions={
         <div className="flex gap-2">
           <Button

@@ -437,7 +437,7 @@ export default function ScrapMetalBatchesPage() {
         <StatusState
           variant="error"
           title="Unable to load lots"
-          description={getApiErrorMessage(batchesQuery.error)}
+         
           action={
             <Button onClick={() => batchesQuery.refetch()} variant="outline" size="sm">
               Try Again

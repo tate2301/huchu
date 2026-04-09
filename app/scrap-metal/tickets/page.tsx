@@ -928,12 +928,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
                   {outboundErrors.form}
                 </div>
               ) : null}
-              {!canCreateOutbound ? (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                  Manager approval required.
-                </div>
-              ) : null}
-
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Lot</label>

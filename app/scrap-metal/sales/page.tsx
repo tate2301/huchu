@@ -604,7 +604,7 @@ export default function ScrapMetalSalesPage() {
   return (
     <ScrapShell
       title="Outbound Tickets"
-      description="Capture buyer deals, review weight acceptance, and close approved sales."
+     
       actions={
         <div className="flex flex-wrap gap-2">
           <Button
@@ -635,7 +635,7 @@ export default function ScrapMetalSalesPage() {
         <StatusState
           variant="error"
           title="Unable to load sales"
-          description={getApiErrorMessage(salesQuery.error)}
+         
           action={
             <Button onClick={() => salesQuery.refetch()} variant="outline" size="sm">
               Try Again
@@ -665,9 +665,6 @@ export default function ScrapMetalSalesPage() {
             </div>
             <div className="text-right text-sm text-muted-foreground">
               <div>{filteredSales.length} of {(salesQuery.data ?? []).length} outbound tickets</div>
-              {!canManageSales ? (
-                <div className="text-xs">Clerks can create draft approval requests. Managers can submit/approve.</div>
-              ) : null}
             </div>
           </div>
 

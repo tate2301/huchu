@@ -89,7 +89,7 @@ export default function ScrapSalesApprovalRequestsPage() {
   if (requestsQuery.error) {
     return (
       <ScrapShell title="Approval Requests">
-        <StatusState variant="error" title="Unable to load approval requests" description={getApiErrorMessage(requestsQuery.error)} />
+        <StatusState variant="error" title="Unable to load approval requests" />
       </ScrapShell>
     );
   }
@@ -97,7 +97,7 @@ export default function ScrapSalesApprovalRequestsPage() {
   return (
     <ScrapShell
       title="Approval Requests"
-      description="Outbound requests raised by clerks and awaiting manager action."
+     
       actions={
         <div className="flex gap-2">
           <Button asChild size="sm" variant="outline"><Link href="/scrap-metal/sales">Outbound Tickets</Link></Button>

@@ -666,7 +666,7 @@ export default function ScrapMetalPurchasesPage() {
         <StatusState
           variant="error"
           title="Unable to load inbound tickets"
-          description={getApiErrorMessage(purchasesQuery.error)}
+         
           action={
             <Button onClick={() => purchasesQuery.refetch()} variant="outline" size="sm">
               Try Again

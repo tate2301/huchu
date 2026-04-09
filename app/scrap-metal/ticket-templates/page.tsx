@@ -108,7 +108,7 @@ export default function ScrapTicketTemplatesPage() {
   if (templatesQuery.error) {
     return (
       <ScrapShell title="Ticket Templates">
-        <StatusState variant="error" title="Unable to load ticket templates" description={getApiErrorMessage(templatesQuery.error)} />
+        <StatusState variant="error" title="Unable to load ticket templates" />
       </ScrapShell>
     );
   }
@@ -116,7 +116,7 @@ export default function ScrapTicketTemplatesPage() {
   return (
     <ScrapShell
       title="Ticket Templates"
-      description="Manage brandable templates for inbound and outbound scrap tickets."
+     
       actions={
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => bootstrapMutation.mutate()} disabled={bootstrapMutation.isPending}>

@@ -90,7 +90,7 @@ export default function SupplierPerformancePage() {
   if (purchasesQuery.error) {
     return (
       <ScrapShell title="Supplier Performance">
-        <StatusState variant="error" title="Unable to load supplier performance" description={getApiErrorMessage(purchasesQuery.error)} />
+        <StatusState variant="error" title="Unable to load supplier performance" />
       </ScrapShell>
     );
   }
@@ -98,7 +98,7 @@ export default function SupplierPerformancePage() {
   return (
     <ScrapShell
       title="Supplier Performance"
-      description="Top suppliers by ticket volume, repeat frequency, weight, and spend."
+     
       actions={
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => downloadCsv("scrap-supplier-performance", rows)} disabled={rows.length === 0}>

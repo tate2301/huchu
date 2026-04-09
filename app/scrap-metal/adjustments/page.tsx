@@ -111,7 +111,7 @@ export default function ScrapAdjustmentsPage() {
   if (query.error) {
     return (
       <ScrapShell title="Adjustments / Write-offs">
-        <StatusState variant="error" title="Unable to load adjustment register" description={getApiErrorMessage(query.error)} />
+        <StatusState variant="error" title="Unable to load adjustment register" />
       </ScrapShell>
     );
   }
@@ -119,7 +119,7 @@ export default function ScrapAdjustmentsPage() {
   return (
     <ScrapShell
       title="Adjustments / Write-offs"
-      description="Review and annotate variance/write-off tickets."
+     
       actions={
         <div className="flex gap-2">
           <Button asChild size="sm" variant="outline"><Link href="/scrap-metal/sales">Outbound Tickets</Link></Button>

@@ -77,7 +77,7 @@ export default function ScrapMetalPage() {
   if (query.error) {
     return (
       <ScrapShell title="Daily Snapshot">
-        <StatusState variant="error" title="Unable to load snapshot" description={getApiErrorMessage(query.error)} />
+        <StatusState variant="error" title="Unable to load snapshot" />
       </ScrapShell>
     );
   }

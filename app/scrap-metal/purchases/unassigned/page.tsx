@@ -114,7 +114,7 @@ export default function ScrapUnassignedPurchasesPage() {
   return (
     <ScrapShell
       title="Unassigned Purchases"
-      description="Finalized inbound tickets that are not yet assigned to a lot."
+     
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
@@ -130,7 +130,7 @@ export default function ScrapUnassignedPurchasesPage() {
         <StatusState
           variant="error"
           title="Unable to load unassigned purchases"
-          description={getApiErrorMessage(purchasesQuery.error)}
+         
           action={
             <Button onClick={() => purchasesQuery.refetch()} variant="outline" size="sm">
               Try Again

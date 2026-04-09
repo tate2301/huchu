@@ -242,7 +242,7 @@ export default function ScrapComplianceRulesPage() {
   if (rulesQuery.error) {
     return (
       <ScrapShell title="Compliance Rules">
-        <StatusState variant="error" title="Unable to load compliance rules" description={getApiErrorMessage(rulesQuery.error)} />
+        <StatusState variant="error" title="Unable to load compliance rules" />
       </ScrapShell>
     );
   }
@@ -251,7 +251,7 @@ export default function ScrapComplianceRulesPage() {
     <>
       <ScrapShell
         title="Compliance Rules"
-        description="Define required fields for inbound and outbound tickets by scope, material, and category."
+       
         actions={
           <Button
             size="sm"
