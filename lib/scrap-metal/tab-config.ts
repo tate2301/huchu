@@ -38,7 +38,7 @@ export type ScrapTabItem = {
 export const SCRAP_TABS: ScrapTabItem[] = [
   {
     id: "overview",
-    label: "Overview",
+    label: "Home",
     href: "/scrap-metal",
     icon: Recycle,
     roles: ["SUPERADMIN", "MANAGER", "OPERATOR"],
@@ -152,6 +152,7 @@ export const SCRAP_TABS: ScrapTabItem[] = [
 
 export const SCRAP_OPERATIONS_SECTIONS = {
   ticketing: [
+    "/scrap-metal",
     "/scrap-metal/tickets",
     "/scrap-metal/purchases",
     "/scrap-metal/sales",
