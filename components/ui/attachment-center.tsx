@@ -33,7 +33,7 @@ type AttachmentCenterProps = {
 
 export function AttachmentCenter({
   title = "Attachments",
-  description,
+  description: _description,
   items = [],
   className,
   readOnly = false,
@@ -68,7 +68,6 @@ export function AttachmentCenter({
     >
       <header className="space-y-1">
         <h3 className="text-section-title text-foreground">{title}</h3>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </header>
 
       <div
@@ -158,9 +157,6 @@ export function AttachmentCenter({
                     </button>
                   )}
                 </div>
-                {item.description ? (
-                  <p className="truncate text-xs text-muted-foreground">{item.description}</p>
-                ) : null}
                 {item.meta ? <p className="text-xs text-muted-foreground">{item.meta}</p> : null}
               </div>
               {onRemoveItem && !readOnly ? (

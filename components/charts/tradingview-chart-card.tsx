@@ -72,7 +72,7 @@ function toAdminSeries(items: TradingViewSeries[]): AdminChartSeries[] {
 
 export function TradingViewChartCard({
   title,
-  subtitle,
+  subtitle: _subtitle,
   data,
   xKey,
   xAxisType = "category",
@@ -105,7 +105,6 @@ export function TradingViewChartCard({
       <div className="relative">
         <div className="border-b border-border/60 px-4 py-3">
           <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
         <div className={cn("relative w-full px-2 pb-2 pt-1", chartClassName)}>
           <div className="pointer-events-none absolute inset-x-2 top-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />

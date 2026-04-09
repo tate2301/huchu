@@ -13,7 +13,7 @@ type PageSectionProps = {
 
 export function PageSection({
   title,
-  description,
+  description: _description,
   actions,
   className,
   headerClassName,
@@ -33,9 +33,6 @@ export function PageSection({
           <div className="space-y-1.5">
             {title ? (
               <h2 className="text-section-title text-foreground font-bold tracking-tight">{title}</h2>
-            ) : null}
-            {description ? (
-              <p className="text-sm text-[var(--text-muted)]">{description}</p>
             ) : null}
           </div>
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}

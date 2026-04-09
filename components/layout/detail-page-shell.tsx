@@ -162,7 +162,7 @@ interface DetailCTABlockProps {
 
 export function DetailCTABlock({
   title,
-  description,
+  description: _description,
   progress,
   action,
   requirements,
@@ -177,9 +177,6 @@ export function DetailCTABlock({
     >
       <div>
         <h3 className="mb-1 text-section-title text-foreground">{title}</h3>
-        {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        )}
       </div>
 
       {progress && (

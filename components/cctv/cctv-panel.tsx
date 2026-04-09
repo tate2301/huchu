@@ -15,7 +15,7 @@ type CCTVSectionProps = {
 export function CCTVSection({
   eyebrow,
   title,
-  description,
+  description: _description,
   actions,
   children,
   className,
@@ -27,7 +27,7 @@ export function CCTVSection({
         className,
       )}
     >
-      {eyebrow || title || description || actions ? (
+      {eyebrow || title || actions ? (
         <header className="flex flex-wrap items-start justify-between gap-4 px-4 py-4 sm:px-5">
           <div className="space-y-1">
             {eyebrow ? (
@@ -39,11 +39,6 @@ export function CCTVSection({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">
                 {title}
               </h2>
-            ) : null}
-            {description ? (
-              <p className="max-w-3xl text-sm text-muted-foreground">
-                {description}
-              </p>
             ) : null}
           </div>
           {actions ? (

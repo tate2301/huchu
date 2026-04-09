@@ -1,16 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Lightbulb, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-
-const DEFAULT_TIPS = [
-  "Search, filters, and table context stay consistent once the module finishes loading.",
-  "Use the left rail to switch views after the latest admin data is ready.",
-  "Numeric values and timestamps are aligned for quick scanning across admin tables.",
-  "Use Refresh after load if you need a fresh platform snapshot.",
-];
 
 type AdminModuleLoadingProps = {
   label?: string;
@@ -21,21 +13,9 @@ type AdminModuleLoadingProps = {
 
 export function AdminModuleLoading({
   label = "Loading admin module",
-  tips = DEFAULT_TIPS,
+  tips: _tips,
   className,
 }: AdminModuleLoadingProps) {
-  const tipPool = useMemo(
-    () => (tips.length > 0 ? tips : DEFAULT_TIPS),
-    [tips],
-  );
-  const [tipIndex, setTipIndex] = useState(0);
-
-  useEffect(() => {
-    setTipIndex(Math.floor(Math.random() * tipPool.length));
-  }, [tipPool]);
-
-  const activeTip = tipPool[tipIndex] ?? DEFAULT_TIPS[0];
-
   return (
     <section className={cn("admin-page", className)} aria-busy="true">
       <div className="relative overflow-hidden">
@@ -79,17 +59,6 @@ export function AdminModuleLoading({
           >
             <Loader2 className="h-7 w-7 animate-spin text-[var(--primary-600)]" />
           </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col items-center justify-center gap-2 px-5 pb-2 text-center md:px-6">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--accent-500)]">
-          <Lightbulb className="h-5 w-5 fill-current" />
-        </span>
-        <div className="space-y-1">
-          <p className="max-w-xl text-sm text-[var(--text-subtle)]">
-            {activeTip}
-          </p>
         </div>
       </div>
     </section>

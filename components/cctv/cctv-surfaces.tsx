@@ -46,7 +46,7 @@ export function CCTVSurface({ children, className }: CCTVSurfaceProps) {
 
 export function CCTVSection({
   title,
-  description,
+  description: _description,
   actions,
   children,
   className,
@@ -58,9 +58,6 @@ export function CCTVSection({
           <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             {title}
           </h2>
-          {description ? (
-            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
-          ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>

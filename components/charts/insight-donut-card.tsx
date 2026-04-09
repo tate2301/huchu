@@ -28,7 +28,7 @@ function defaultValueFormatter(value: number) {
 
 export function InsightDonutCard({
   title,
-  subtitle,
+  subtitle: _subtitle,
   data,
   valueFormatter = defaultValueFormatter,
   className,
@@ -53,7 +53,6 @@ export function InsightDonutCard({
       <div className="relative">
         <div className="border-b border-border/60 px-4 py-3">
           <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
         <div className={cn("px-2 py-2", chartClassName)}>
           <AdminDonutChart

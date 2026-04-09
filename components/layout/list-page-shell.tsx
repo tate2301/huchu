@@ -49,15 +49,12 @@ interface ListPageTitleProps {
 
 export function ListPageTitle({
   children,
-  description,
+  description: _description,
   className,
 }: ListPageTitleProps) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
       <h1 className="text-page-title text-foreground">{children}</h1>
-      {description && (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      )}
     </div>
   );
 }
