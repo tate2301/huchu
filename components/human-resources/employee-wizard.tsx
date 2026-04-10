@@ -1095,26 +1095,26 @@ export function EmployeeWizard({
   const positionOptions = useMemo(
     () =>
       getEmployeePositionOptions({
-        workspaceProfile,
+        workspaceProfile: normalizedWorkspaceProfile,
         enabledFeatures,
       }),
-    [enabledFeatures, workspaceProfile],
+    [enabledFeatures, normalizedWorkspaceProfile],
   )
   const defaultPosition = useMemo(
     () =>
       getDefaultEmployeePosition({
-        workspaceProfile,
+        workspaceProfile: normalizedWorkspaceProfile,
         enabledFeatures,
       }),
-    [enabledFeatures, workspaceProfile],
+    [enabledFeatures, normalizedWorkspaceProfile],
   )
   const verticalDefaults = useMemo(
     () =>
       resolveVerticalDefaults({
-        workspaceProfile,
+        workspaceProfile: normalizedWorkspaceProfile,
         enabledFeatures,
       }),
-    [enabledFeatures, workspaceProfile],
+    [enabledFeatures, normalizedWorkspaceProfile],
   )
   const availableModules = useMemo(
     () =>

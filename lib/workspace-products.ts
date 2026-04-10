@@ -337,8 +337,27 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
 ];
 
 function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceProfile {
+  return normalizeWorkspaceProfileInput(value) ?? DEFAULT_WORKSPACE_PROFILE;
+}
+
+export function normalizeWorkspaceProfileInput(
+  value: string | null | undefined,
+): WorkspaceProfile | null {
   const normalized = String(value || "").trim().toUpperCase();
-  return WORKSPACE_PROFILES.find((profile) => profile === normalized) ?? DEFAULT_WORKSPACE_PROFILE;
+  if (!normalized) return null;
+
+  if (normalized === "SCRAP") return "SCRAP_METAL";
+  if (normalized === "SCHOOL") return "SCHOOLS";
+  if (
+    normalized === "AUTO" ||
+    normalized === "CAR_SALES" ||
+    normalized === "CAR-SALES" ||
+    normalized === "CARSALES"
+  ) {
+    return "AUTOS";
+  }
+
+  return WORKSPACE_PROFILES.find((profile) => profile === normalized) ?? null;
 }
 
 function getBundleById(id: VerticalProductId): VerticalProductBundleDefinition {

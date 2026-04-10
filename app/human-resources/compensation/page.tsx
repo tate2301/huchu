@@ -58,6 +58,7 @@ import {
   getEmployeePositionOptions,
   type EmployeePositionValue,
 } from "@/lib/platform/vertical-defaults";
+import { resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles";
 
 type ProfileForm = {
   employeeId: string;
@@ -185,13 +186,21 @@ export default function CompensationPage() {
     [session],
   );
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
-  const employeePositionOptions = useMemo(
+  const normalizedWorkspaceProfile = useMemo(
     () =>
-      getEmployeePositionOptions({
+      resolveWorkspaceProfileForRoles({
         workspaceProfile,
         enabledFeatures,
       }),
     [enabledFeatures, workspaceProfile],
+  );
+  const employeePositionOptions = useMemo(
+    () =>
+      getEmployeePositionOptions({
+        workspaceProfile: normalizedWorkspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, normalizedWorkspaceProfile],
   );
   const {
     data: templatesData,
@@ -581,7 +590,7 @@ export default function CompensationPage() {
         maxSize: 108,
       },
     ],
-    [],
+    [employeePositionOptions],
   );
 
   const profileColumns = useMemo<ColumnDef<CompensationProfileRecord>[]>(

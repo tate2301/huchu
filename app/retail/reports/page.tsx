@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AdminDistributionChart,
+  AdminDualBarChart,
+  AdminDonutChart,
+  AdminTrendChart,
+} from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -55,7 +61,48 @@ export default function RetailReportsPage() {
     [],
   );
 
-  const trendPeak = Math.max(...(data?.salesTrend.map((bucket) => bucket.sales) ?? [1]), 1);
+  const chartRows = useMemo(
+    () =>
+      (data?.salesTrend ?? []).map((bucket) => ({
+        id: bucket.id,
+        label: bucket.label,
+        sales: bucket.sales,
+        tickets: bucket.tickets,
+      })),
+    [data?.salesTrend],
+  );
+
+  const tenderRows = useMemo(
+    () =>
+      (data?.tenderMix ?? []).map((row) => ({
+        id: row.tenderType,
+        label: row.tenderType.replaceAll("_", " "),
+        value: row.amount,
+      })),
+    [data?.tenderMix],
+  );
+
+  const topItemRows = useMemo(
+    () =>
+      (data?.topItems ?? []).slice(0, 8).map((item) => ({
+        id: item.itemName,
+        label: item.itemName,
+        primary: item.value,
+        secondary: item.quantity,
+      })),
+    [data?.topItems],
+  );
+
+  const stockRows = useMemo(
+    () =>
+      (data?.lowStock ?? []).slice(0, 8).map((item) => ({
+        id: item.id,
+        label: item.itemCode,
+        value: Math.max(item.minStock - item.currentStock, 0),
+        tone: item.currentStock < item.minStock ? ("warning" as const) : ("success" as const),
+      })),
+    [data?.lowStock],
+  );
 
   return (
     <RetailShell
@@ -83,33 +130,74 @@ export default function RetailReportsPage() {
         </div>
       }
     >
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Sales trend</div>
-          <div className="mt-4 grid gap-2 grid-cols-7">
-            {(data?.salesTrend ?? []).map((bucket) => (
-              <div key={bucket.id} className="rounded-2xl bg-[var(--surface-base)] px-2 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{bucket.label}</div>
-                <div className="mt-3 flex h-14 items-end">
-                  <div className="w-7 rounded-full bg-[#d1a45a]" style={{ height: `${Math.max(8, (bucket.sales / trendPeak) * 56)}px` }} />
-                </div>
-                <div className="mt-2 font-mono text-xs">{bucket.sales.toFixed(0)}</div>
-              </div>
-            ))}
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Retail performance</p>
+            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Trend, tender mix, and stock pressure</h2>
+          </div>
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Recent tickets</p>
+            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {(data?.salesTrend ?? []).reduce((sum, bucket) => sum + bucket.tickets, 0)}
+            </p>
           </div>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Tender mix</div>
-          <div className="mt-4 space-y-2">
-            {(data?.tenderMix ?? []).map((row) => (
-              <div key={row.tenderType} className="flex items-center justify-between gap-3 text-sm">
-                <span>{row.tenderType.replaceAll("_", " ")}</span>
-                <span className="font-mono">{row.amount.toFixed(2)}</span>
-              </div>
-            ))}
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+          <AdminTrendChart
+            rows={chartRows}
+            series={[
+              { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+              { key: "tickets", label: "Tickets", kind: "line", tone: "default", dashed: true },
+            ]}
+            height={300}
+            valueFormatter={(value) => value.toFixed(0)}
+            yTickFormatter={(value) => value.toFixed(0)}
+            emptyLabel="Sales trend is loading"
+          />
+          <AdminDonutChart
+            rows={tenderRows}
+            valueLabel="Tender mix"
+            valueFormatter={(value) => value.toFixed(2)}
+            height={300}
+            emptyLabel="Tender mix is loading"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Contribution</p>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Top items and stock exceptions</h3>
+          </div>
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Top item value</p>
+            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
+              {data?.topItems?.[0] ? data.topItems[0].value.toFixed(0) : "0"}
+            </p>
           </div>
         </div>
-      </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+          <AdminDualBarChart
+            rows={topItemRows}
+            primaryLabel="Sales"
+            secondaryLabel="Units"
+            height={280}
+            valueFormatter={(value) => value.toFixed(0)}
+            emptyLabel="Top items are loading"
+          />
+          <AdminDistributionChart
+            rows={stockRows}
+            valueLabel="Gap"
+            valueFormatter={(value) => value.toFixed(2)}
+            height={280}
+            emptyLabel="Stock exceptions are loading"
+          />
+        </div>
+      </section>
 
       <VerticalDataViews
         value={activeView}

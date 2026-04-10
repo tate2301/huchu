@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AdminDistributionChart,
+  AdminDualBarChart,
+  AdminDonutChart,
+} from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -79,6 +84,46 @@ export default function RetailCustomersPage() {
   const customerRows = useMemo<CustomerRow[]>(
     () => (data?.data ?? []).sort((left, right) => right.totalSpend - left.totalSpend),
     [data?.data],
+  );
+
+  const spendRows = useMemo(
+    () =>
+      customerRows.slice(0, 8).map((customer) => ({
+        id: customer.customerName,
+        label: customer.customerName,
+        primary: customer.totalSpend,
+        secondary: customer.visits,
+      })),
+    [customerRows],
+  );
+
+  const loyaltyRows = useMemo(
+    () => {
+      const tierCounts = new Map<string, number>();
+      for (const customer of customerRows) {
+        tierCounts.set(customer.loyaltyTier, (tierCounts.get(customer.loyaltyTier) ?? 0) + 1);
+      }
+      return Array.from(tierCounts.entries()).map(([tier, value]) => ({
+        id: tier,
+        label: tier,
+        value,
+      }));
+    },
+    [customerRows],
+  );
+
+  const visitRows = useMemo(
+    () =>
+      customerRows
+        .slice()
+        .sort((left, right) => right.visits - left.visits)
+        .slice(0, 8)
+        .map((customer) => ({
+          id: customer.customerName,
+          label: customer.customerName,
+          value: customer.visits,
+        })),
+    [customerRows],
   );
 
   const columns = useMemo<ColumnDef<CustomerRow>[]>(
@@ -172,32 +217,72 @@ export default function RetailCustomersPage() {
         </div>
       }
     >
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Named customers
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Customer signal</p>
+            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Spend, visits, and loyalty depth</h2>
           </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {data?.summary.namedCustomerCount ?? 0}
-          </div>
-        </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Loyalty points
-          </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {data?.summary.totalLoyaltyPoints ?? 0}
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Top spender</p>
+            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {customerRows[0] ? money(customerRows[0].totalSpend) : money(0)}
+            </p>
           </div>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Top spender
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+          <AdminDualBarChart
+            rows={spendRows}
+            primaryLabel="Spend"
+            secondaryLabel="Visits"
+            height={300}
+            valueFormatter={(value) => value.toFixed(0)}
+            emptyLabel="Customer spend is loading"
+          />
+          <AdminDonutChart
+            rows={loyaltyRows.length > 0 ? loyaltyRows : [{ id: "none", label: "No tiers", value: 0, tone: "warning" as const }]}
+            valueLabel="Customers"
+            valueFormatter={(value) => value.toString()}
+            height={300}
+            emptyLabel="Loyalty tiers are loading"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Visit frequency</p>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Most frequent customers in the current window</h3>
           </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {customerRows[0] ? money(customerRows[0].totalSpend) : money(0)}
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Named customers</p>
+            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
+              {data?.summary.namedCustomerCount ?? 0}
+            </p>
           </div>
         </div>
-      </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+          <AdminDistributionChart
+            rows={visitRows}
+            valueLabel="Visits"
+            valueFormatter={(value) => value.toString()}
+            height={280}
+            emptyLabel="Visit frequency is loading"
+          />
+          <div className="rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Loyalty points</p>
+            <p className="mt-2 font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {data?.summary.totalLoyaltyPoints ?? 0}
+            </p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              The table remains for detail work, while the charts carry the scanning layer.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <DataTable
         data={customerRows}

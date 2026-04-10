@@ -4,6 +4,12 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AdminDistributionChart,
+  AdminDonutChart,
+  AdminTrendChart,
+  AdminDualBarChart,
+} from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -101,6 +107,84 @@ export default function RetailSalesPage() {
   const refunds = sales.filter((sale) => sale.saleType === "REFUND");
   const exceptions = sales.filter(
     (sale) => sale.saleType === "VOID" || sale.status === "VOIDED" || Boolean(sale.overrideReason),
+  );
+
+  const trendRows = useMemo(() => {
+    const buckets = new Map<
+      string,
+      { label: string; sales: number; refunds: number; voids: number; tickets: number }
+    >();
+
+    for (const sale of sales) {
+      const day = new Date(sale.postedAt);
+      const key = day.toISOString().slice(0, 10);
+      const label = day.toLocaleDateString([], { month: "short", day: "numeric" });
+      const current = buckets.get(key) ?? { label, sales: 0, refunds: 0, voids: 0, tickets: 0 };
+      current.tickets += 1;
+      if (sale.saleType === "REFUND") current.refunds += Math.abs(sale.totalAmount);
+      else if (sale.saleType === "VOID" || sale.status === "VOIDED") current.voids += Math.abs(sale.totalAmount);
+      else current.sales += sale.totalAmount;
+      buckets.set(key, current);
+    }
+
+    return Array.from(buckets.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([id, value]) => ({
+        id,
+        label: value.label,
+        sales: value.sales,
+        refunds: value.refunds,
+        voids: value.voids,
+        tickets: value.tickets,
+      }));
+  }, [sales]);
+
+  const saleMixRows = useMemo(
+    () => [
+      { id: "sale", label: "Sales", value: postedSales.length, tone: "success" as const },
+      { id: "refund", label: "Refunds", value: refunds.length, tone: "warning" as const },
+      { id: "void", label: "Voids", value: exceptions.length, tone: "danger" as const },
+    ],
+    [exceptions.length, postedSales.length, refunds.length],
+  );
+
+  const valueRows = useMemo(
+    () => [
+      {
+        id: "sale",
+        label: "Sale",
+        value: postedSales.reduce((sum, row) => sum + row.totalAmount, 0),
+        tone: "success" as const,
+      },
+      {
+        id: "refund",
+        label: "Refund",
+        value: refunds.reduce((sum, row) => sum + Math.abs(row.totalAmount), 0),
+        tone: "warning" as const,
+      },
+      {
+        id: "void",
+        label: "Void",
+        value: exceptions.reduce((sum, row) => sum + Math.abs(row.totalAmount), 0),
+        tone: "danger" as const,
+      },
+    ],
+    [exceptions, postedSales, refunds],
+  );
+
+  const topTicketRows = useMemo(
+    () =>
+      sales
+        .slice()
+        .sort((left, right) => right.totalAmount - left.totalAmount)
+        .slice(0, 6)
+        .map((sale) => ({
+          id: sale.id,
+          label: sale.saleNo,
+          primary: sale.totalAmount,
+          secondary: sale.itemCount,
+        })),
+    [sales],
   );
 
   const columns = useMemo<ColumnDef<SaleRow>[]>(
@@ -201,40 +285,80 @@ export default function RetailSalesPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Gross
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Sales at a glance</p>
+            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">
+              Gross, refunds, voids, and net movement
+            </h2>
           </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {money(salesQuery.data?.summary.grossSales ?? 0)}
-          </div>
-        </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Refunds
-          </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {money(salesQuery.data?.summary.refundValue ?? 0)}
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Net sales</p>
+            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {money(salesQuery.data?.summary.netSales ?? 0)}
+            </p>
           </div>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Voids
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+          <AdminTrendChart
+            rows={trendRows}
+            series={[
+              { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+              { key: "refunds", label: "Refunds", kind: "line", tone: "warning", dashed: true },
+              { key: "voids", label: "Voids", kind: "line", tone: "danger", dashed: true },
+            ]}
+            comparisonSeries={[
+              { key: "tickets", label: "Tickets", kind: "line", tone: "default", hiddenByDefault: true },
+            ]}
+            height={300}
+            valueFormatter={money}
+            yTickFormatter={money}
+            emptyLabel="Sales trend is loading"
+          />
+          <AdminDonutChart
+            rows={saleMixRows}
+            valueLabel="Transactions"
+            valueFormatter={(value) => value.toString()}
+            height={300}
+            emptyLabel="Sale mix is loading"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Ticket concentration</p>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Largest tickets in the current view</h3>
           </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {money(salesQuery.data?.summary.voidValue ?? 0)}
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Gross sales</p>
+            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
+              {money(salesQuery.data?.summary.grossSales ?? 0)}
+            </p>
           </div>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Net
-          </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {money(salesQuery.data?.summary.netSales ?? 0)}
-          </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+          <AdminDualBarChart
+            rows={topTicketRows}
+            primaryLabel="Amount"
+            secondaryLabel="Items"
+            height={280}
+            valueFormatter={(value) => value.toFixed(0)}
+            emptyLabel="Top sales are loading"
+          />
+          <AdminDistributionChart
+            rows={valueRows}
+            valueLabel="Value"
+            valueFormatter={money}
+            height={280}
+            emptyLabel="Type totals are loading"
+          />
         </div>
-      </div>
+      </section>
 
       <VerticalDataViews
         value={activeView}

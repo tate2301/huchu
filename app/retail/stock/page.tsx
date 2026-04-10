@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AdminDistributionChart,
+  AdminDualBarChart,
+  AdminDonutChart,
+} from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -40,6 +45,51 @@ export default function RetailStockPage() {
     queryKey: ["retail-stock-overview"],
     queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
   });
+
+  const stockRows = useMemo(
+    () =>
+      (data?.lowStock ?? []).slice(0, 8).map((item) => ({
+        id: item.id,
+        label: item.name,
+        primary: item.currentStock,
+        secondary: item.minStock,
+      })),
+    [data?.lowStock],
+  );
+
+  const gapRows = useMemo(
+    () =>
+      (data?.lowStock ?? [])
+        .slice()
+        .sort((left, right) => (right.minStock - right.currentStock) - (left.minStock - left.currentStock))
+        .slice(0, 8)
+        .map((item) => ({
+          id: item.id,
+          label: item.itemCode,
+          value: Math.max(item.minStock - item.currentStock, 0),
+          tone: (item.minStock - item.currentStock) > 0 ? ("warning" as const) : ("success" as const),
+        })),
+    [data?.lowStock],
+  );
+
+  const stockHealthRows = useMemo(
+    () => [
+      { id: "critical", label: "Critical", value: data?.lowStock.filter((item) => item.currentStock <= 0).length ?? 0, tone: "danger" as const },
+      {
+        id: "low",
+        label: "Low",
+        value: data?.lowStock.filter((item) => item.currentStock > 0 && item.currentStock < item.minStock).length ?? 0,
+        tone: "warning" as const,
+      },
+      {
+        id: "safe",
+        label: "Safe",
+        value: data?.lowStock.filter((item) => item.currentStock >= item.minStock).length ?? 0,
+        tone: "success" as const,
+      },
+    ],
+    [data?.lowStock],
+  );
 
   const columns = useMemo<ColumnDef<RetailDashboardPayload["lowStock"][number]>[]>(
     () => [
@@ -124,32 +174,72 @@ export default function RetailStockPage() {
         </div>
       }
     >
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Low stock
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Stock signal</p>
+            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Availability, reorder pressure, and gap depth</h2>
           </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {data?.summary.lowStockCount ?? 0}
-          </div>
-        </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Goods received
-          </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {money(data?.summary.goodsReceivedValue ?? 0)}
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Low stock items</p>
+            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {data?.summary.lowStockCount ?? 0}
+            </p>
           </div>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            Open orders
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+          <AdminDualBarChart
+            rows={stockRows}
+            primaryLabel="On hand"
+            secondaryLabel="Reorder"
+            height={300}
+            valueFormatter={(value) => value.toFixed(2)}
+            emptyLabel="Stock coverage is loading"
+          />
+          <AdminDonutChart
+            rows={stockHealthRows}
+            valueLabel="Items"
+            valueFormatter={(value) => value.toString()}
+            height={300}
+            emptyLabel="Stock health is loading"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Gap pressure</p>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Largest reorder gaps in the current watchlist</h3>
           </div>
-          <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-            {money(data?.summary.openOrderValue ?? 0)}
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Open orders</p>
+            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
+              {money(data?.summary.openOrderValue ?? 0)}
+            </p>
           </div>
         </div>
-      </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+          <AdminDistributionChart
+            rows={gapRows}
+            valueLabel="Gap"
+            valueFormatter={(value) => value.toFixed(2)}
+            height={280}
+            emptyLabel="Reorder gaps are loading"
+          />
+          <div className="rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Goods received</p>
+            <p className="mt-2 font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {money(data?.summary.goodsReceivedValue ?? 0)}
+            </p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              Stock movement is still listed below, but the chart now carries the visual signal up front.
+            </p>
+          </div>
+        </div>
+      </section>
 
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

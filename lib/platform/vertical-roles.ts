@@ -1,4 +1,7 @@
-import { inferWorkspaceProfileFromEnabledFeatures } from "@/lib/workspace-products";
+import {
+  inferWorkspaceProfileFromEnabledFeatures,
+  normalizeWorkspaceProfileInput,
+} from "@/lib/workspace-products";
 import type { UserRole } from "@/lib/roles";
 import {
   getRegisteredRoles,
@@ -17,8 +20,8 @@ export function resolveWorkspaceProfileForRoles(args: {
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;
 }): ManagedWorkspaceProfile {
-  const normalized = String(args.workspaceProfile ?? "").trim().toUpperCase() as ManagedWorkspaceProfile;
-  if (normalized in VERTICAL_USER_ROLES) return normalized;
+  const normalized = normalizeWorkspaceProfileInput(args.workspaceProfile) as ManagedWorkspaceProfile | null;
+  if (normalized && normalized in VERTICAL_USER_ROLES) return normalized;
   const inferred = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
   if (inferred && inferred in VERTICAL_USER_ROLES) return inferred;
   return "GENERAL";

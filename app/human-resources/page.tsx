@@ -192,18 +192,18 @@ export default function HumanResourcesPage() {
   const employeePositionOptions = useMemo(
     () =>
       getEmployeePositionOptions({
-        workspaceProfile,
+        workspaceProfile: normalizedWorkspaceProfile,
         enabledFeatures,
       }),
-    [enabledFeatures, workspaceProfile],
+    [enabledFeatures, normalizedWorkspaceProfile],
   )
   const defaultPosition = useMemo(
     () =>
       getDefaultEmployeePosition({
-        workspaceProfile,
+        workspaceProfile: normalizedWorkspaceProfile,
         enabledFeatures,
       }),
-    [enabledFeatures, workspaceProfile],
+    [enabledFeatures, normalizedWorkspaceProfile],
   )
 
   const employees = useMemo(() => data?.data ?? [], [data])

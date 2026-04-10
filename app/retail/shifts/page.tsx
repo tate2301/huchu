@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AdminDistributionChart,
+  AdminDualBarChart,
+  AdminDonutChart,
+  AdminTrendChart,
+} from "@/components/charts/admin-headless-charts";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { RetailShell } from "@/components/retail/retail-shell";
@@ -91,6 +97,58 @@ export default function RetailShiftsPage() {
   const siteOptions = useMemo<SearchableOption[]>(
     () => (sitesQuery.data ?? []).map((site) => ({ value: site.id, label: site.name, meta: site.code })),
     [sitesQuery.data],
+  );
+
+  const shiftRows = useMemo(
+    () =>
+      (shiftsQuery.data?.data ?? [])
+        .slice()
+        .sort((left, right) => new Date(left.openedAt).getTime() - new Date(right.openedAt).getTime())
+        .map((shift) => ({
+          id: shift.id,
+          label: shift.shiftNo,
+          opened: shift.salesValue,
+          expected: shift.expectedCash,
+          counted: shift.countedCash ?? 0,
+          variance: Math.abs(shift.variance ?? 0),
+        })),
+    [shiftsQuery.data?.data],
+  );
+
+  const statusRows = useMemo(
+    () => {
+      const counts = new Map<string, number>();
+      for (const shift of shiftsQuery.data?.data ?? []) {
+        counts.set(shift.status, (counts.get(shift.status) ?? 0) + 1);
+      }
+      return Array.from(counts.entries()).map(([status, value]) => ({
+        id: status,
+        label: status,
+        value,
+        tone: status === "OPEN" ? ("success" as const) : ("default" as const),
+      }));
+    },
+    [shiftsQuery.data?.data],
+  );
+
+  const trendRows = useMemo(
+    () => {
+      const buckets = new Map<string, { label: string; opened: number; variance: number; count: number }>();
+      for (const shift of shiftsQuery.data?.data ?? []) {
+        const openedAt = new Date(shift.openedAt);
+        const key = openedAt.toISOString().slice(0, 10);
+        const label = openedAt.toLocaleDateString([], { month: "short", day: "numeric" });
+        const current = buckets.get(key) ?? { label, opened: 0, variance: 0, count: 0 };
+        current.opened += shift.salesValue;
+        current.variance += Math.abs(shift.variance ?? 0);
+        current.count += 1;
+        buckets.set(key, current);
+      }
+      return Array.from(buckets.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([id, value]) => ({ id, label: value.label, opened: value.opened, variance: value.variance, count: value.count }));
+    },
+    [shiftsQuery.data?.data],
   );
 
   const openMutation = useMutation({
@@ -219,6 +277,83 @@ export default function RetailShiftsPage() {
         </div>
       }
     >
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Shift signal</p>
+            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Sales, expected cash, and variance by shift</h2>
+          </div>
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Open shifts</p>
+            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
+              {shiftsQuery.data?.data.filter((shift) => shift.status === "OPEN").length ?? 0}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+          <AdminTrendChart
+            rows={trendRows}
+            series={[
+              { key: "opened", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+              { key: "variance", label: "Variance", kind: "line", tone: "warning", dashed: true },
+              { key: "count", label: "Shifts", kind: "line", tone: "default", hiddenByDefault: true },
+            ]}
+            height={300}
+            valueFormatter={(value) => value.toFixed(2)}
+            yTickFormatter={(value) => value.toFixed(0)}
+            emptyLabel="Shift trend is loading"
+          />
+          <AdminDonutChart
+            rows={statusRows}
+            valueLabel="Shifts"
+            valueFormatter={(value) => value.toString()}
+            height={300}
+            emptyLabel="Shift status is loading"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Shift depth</p>
+            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Sales versus expected cash on the busiest shifts</h3>
+          </div>
+          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Latest variance</p>
+            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
+              {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+                shiftsQuery.data?.data.find((shift) => shift.status === "OPEN")?.variance ?? 0,
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+          <AdminDualBarChart
+            rows={shiftRows.slice(0, 8)}
+            primaryLabel="Sales"
+            secondaryLabel="Expected"
+            height={280}
+            valueFormatter={(value) => value.toFixed(2)}
+            emptyLabel="Shift cash data is loading"
+          />
+          <AdminDistributionChart
+            rows={shiftRows.slice(0, 8).map((shift) => ({
+              id: shift.id,
+              label: shift.label,
+              value: shift.variance,
+              tone: shift.variance > 0 ? ("warning" as const) : ("success" as const),
+            }))}
+            valueLabel="Variance"
+            valueFormatter={(value) => value.toFixed(2)}
+            height={280}
+            emptyLabel="Variance distribution is loading"
+          />
+        </div>
+      </section>
+
       <DataTable
         data={shiftsQuery.data?.data ?? []}
         columns={columns}

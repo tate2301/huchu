@@ -1,5 +1,8 @@
 import type { WorkspaceProfile } from "@/lib/workspace-products";
-import { inferWorkspaceProfileFromEnabledFeatures } from "@/lib/workspace-products";
+import {
+  inferWorkspaceProfileFromEnabledFeatures,
+  normalizeWorkspaceProfileInput,
+} from "@/lib/workspace-products";
 
 export const EMPLOYEE_POSITION_VALUES = [
   "MANAGER",
@@ -234,7 +237,7 @@ export function resolveVerticalDefaults(args: {
   enabledFeatures?: string[] | undefined;
 }): VerticalDefaultConfig {
   const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
-  const normalizedProfile = String(args.workspaceProfile || "").trim().toUpperCase() as WorkspaceProfile;
+  const normalizedProfile = normalizeWorkspaceProfileInput(args.workspaceProfile) as WorkspaceProfile | null;
   const profile =
     normalizedProfile && normalizedProfile in VERTICAL_DEFAULTS
       ? normalizedProfile
