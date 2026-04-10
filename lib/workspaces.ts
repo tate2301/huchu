@@ -17,7 +17,6 @@ import {
 import {
   ArrowDownward,
   Dashboard,
-  DirectionsCar,
   Gem,
   Building2,
   Calendar,
@@ -25,11 +24,13 @@ import {
   Coins,
   FileText,
   LocalShipping,
+  MedusaAcademicCapIcon,
+  MedusaBuildingStorefrontIcon,
+  MedusaDirectionsIcon,
   Package,
   Payments,
   Recycle,
   ReceiptLong,
-  Storefront,
   Users,
   Wallet,
   type LucideIcon,
@@ -107,9 +108,9 @@ const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, Worksp
 const WORKSPACE_PROFILE_ICONS: Record<WorkspaceProfile, LucideIcon> = {
   GOLD_MINE: Gem,
   SCRAP_METAL: Recycle,
-  SCHOOLS: Building2,
-  AUTOS: DirectionsCar,
-  RETAIL: Storefront,
+  SCHOOLS: MedusaAcademicCapIcon,
+  AUTOS: MedusaDirectionsIcon,
+  RETAIL: MedusaBuildingStorefrontIcon,
   GENERAL: Dashboard,
 };
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [

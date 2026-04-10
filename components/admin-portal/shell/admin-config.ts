@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  Building2,
   Dashboard,
-  FileText,
-  ManageAccounts,
-  Settings2,
+  MedusaBuildingsIcon,
+  MedusaCashIcon,
+  MedusaCogSixToothIcon,
+  MedusaIdBadgeIcon,
+  MedusaLifebuoyIcon,
   ShieldAlert,
-  Wallet,
   type LucideIcon,
 } from "@/lib/icons";
 import type { AdminQuickAction } from "@/components/admin-portal/types";
@@ -21,21 +21,21 @@ export type AdminNavItem = {
 
 export const PLATFORM_NAV: AdminNavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", description: "Live queues and operator actions.", icon: Dashboard },
-  { href: "/admin/clients", label: "Workspaces", description: "Directory, health, and workspace drill-down.", icon: Building2 },
-  { href: "/admin/identity", label: "Identity", description: "Admins, users, and access posture.", icon: ManageAccounts },
-  { href: "/admin/support-access", label: "Support Access", description: "Requests, launches, and sessions.", icon: FileText },
+  { href: "/admin/clients", label: "Workspaces", description: "Directory, health, and workspace drill-down.", icon: MedusaBuildingsIcon },
+  { href: "/admin/identity", label: "Identity", description: "Admins, users, and access posture.", icon: MedusaIdBadgeIcon },
+  { href: "/admin/support-access", label: "Support Access", description: "Requests, launches, and sessions.", icon: MedusaLifebuoyIcon },
   { href: "/admin/reliability", label: "Reliability", description: "Incidents, contracts, runbooks, and audit.", icon: ShieldAlert },
-  { href: "/admin/commercial", label: "Commercial", description: "Plans, templates, add-ons, and feature access.", icon: Wallet },
-  { href: "/admin/settings", label: "Settings", description: "Portal defaults and operator preferences.", icon: Settings2 },
+  { href: "/admin/commercial", label: "Commercial", description: "Plans, templates, add-ons, and feature access.", icon: MedusaCashIcon },
+  { href: "/admin/settings", label: "Settings", description: "Portal defaults and operator preferences.", icon: MedusaCogSixToothIcon },
 ];
 
 export function getCompanyNav(companyId: string): AdminNavItem[] {
   return [
     { href: `/admin/clients/${companyId}`, label: "Workspace Overview", description: "Health, pricing, and next actions.", icon: Dashboard },
-    { href: `/admin/company/${companyId}/identity`, label: "Identity", description: "Workspace admins and users.", icon: ManageAccounts },
-    { href: `/admin/company/${companyId}/support-access`, label: "Support Access", description: "Requests and support sessions.", icon: FileText },
+    { href: `/admin/company/${companyId}/identity`, label: "Identity", description: "Workspace admins and users.", icon: MedusaIdBadgeIcon },
+    { href: `/admin/company/${companyId}/support-access`, label: "Support Access", description: "Requests and support sessions.", icon: MedusaLifebuoyIcon },
     { href: `/admin/company/${companyId}/reliability`, label: "Reliability", description: "Incidents, contracts, runbooks, and audit.", icon: ShieldAlert },
-    { href: `/admin/company/${companyId}/commercial`, label: "Commercial", description: "Plan, add-ons, templates, and features.", icon: Wallet },
+    { href: `/admin/company/${companyId}/commercial`, label: "Commercial", description: "Plan, add-ons, templates, and features.", icon: MedusaCashIcon },
   ];
 }
 

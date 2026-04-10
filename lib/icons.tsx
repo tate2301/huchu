@@ -1,4 +1,20 @@
 import * as React from "react";
+import {
+  AcademicCap as MedusaAcademicCapRaw,
+  BookOpen as MedusaBookOpenRaw,
+  Buildings as MedusaBuildingsRaw,
+  BuildingStorefront as MedusaBuildingStorefrontRaw,
+  Cash as MedusaCashRaw,
+  ChartBar as MedusaChartBarRaw,
+  CircleSliders as MedusaCircleSlidersRaw,
+  CircleStack as MedusaCircleStackRaw,
+  CogSixTooth as MedusaCogSixToothRaw,
+  Directions as MedusaDirectionsRaw,
+  GridList as MedusaGridListRaw,
+  HandTruck as MedusaHandTruckRaw,
+  IdBadge as MedusaIdBadgeRaw,
+  Lifebuoy as MedusaLifebuoyRaw,
+} from "@medusajs/icons";
 
 import { cn } from "@/lib/utils";
 
@@ -12,6 +28,12 @@ export type MaterialIconProps = Omit<
 };
 
 export type LucideIcon = React.ComponentType<MaterialIconProps>;
+
+type MedusaSvgIcon = React.ComponentType<
+  React.SVGAttributes<SVGSVGElement> & {
+    color?: string;
+  }
+>;
 
 function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
   const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
@@ -33,6 +55,84 @@ function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
   Icon.displayName = displayName;
   return Icon;
 }
+
+function createMedusaIcon(IconComponent: MedusaSvgIcon, displayName: string): LucideIcon {
+  const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
+    <IconComponent
+      {...(props as unknown as React.SVGAttributes<SVGSVGElement>)}
+      aria-hidden={props["aria-label"] ? undefined : true}
+      className={cn(
+        "inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none",
+        className,
+      )}
+      focusable="false"
+      style={{
+        ...(size !== undefined ? { width: size, height: size } : null),
+        ...style,
+      }}
+    />
+  );
+
+  Icon.displayName = displayName;
+  return Icon;
+}
+
+export const MedusaAcademicCapIcon = createMedusaIcon(
+  MedusaAcademicCapRaw,
+  "MedusaAcademicCapIcon",
+);
+export const MedusaBookOpenIcon = createMedusaIcon(
+  MedusaBookOpenRaw,
+  "MedusaBookOpenIcon",
+);
+export const MedusaBuildingsIcon = createMedusaIcon(
+  MedusaBuildingsRaw,
+  "MedusaBuildingsIcon",
+);
+export const MedusaBuildingStorefrontIcon = createMedusaIcon(
+  MedusaBuildingStorefrontRaw,
+  "MedusaBuildingStorefrontIcon",
+);
+export const MedusaCashIcon = createMedusaIcon(
+  MedusaCashRaw,
+  "MedusaCashIcon",
+);
+export const MedusaChartBarIcon = createMedusaIcon(
+  MedusaChartBarRaw,
+  "MedusaChartBarIcon",
+);
+export const MedusaCircleSlidersIcon = createMedusaIcon(
+  MedusaCircleSlidersRaw,
+  "MedusaCircleSlidersIcon",
+);
+export const MedusaCircleStackIcon = createMedusaIcon(
+  MedusaCircleStackRaw,
+  "MedusaCircleStackIcon",
+);
+export const MedusaCogSixToothIcon = createMedusaIcon(
+  MedusaCogSixToothRaw,
+  "MedusaCogSixToothIcon",
+);
+export const MedusaDirectionsIcon = createMedusaIcon(
+  MedusaDirectionsRaw,
+  "MedusaDirectionsIcon",
+);
+export const MedusaGridListIcon = createMedusaIcon(
+  MedusaGridListRaw,
+  "MedusaGridListIcon",
+);
+export const MedusaHandTruckIcon = createMedusaIcon(
+  MedusaHandTruckRaw,
+  "MedusaHandTruckIcon",
+);
+export const MedusaIdBadgeIcon = createMedusaIcon(
+  MedusaIdBadgeRaw,
+  "MedusaIdBadgeIcon",
+);
+export const MedusaLifebuoyIcon = createMedusaIcon(
+  MedusaLifebuoyRaw,
+  "MedusaLifebuoyIcon",
+);
 
 export const AlertCircle = createMaterialIcon("error", "AlertCircle");
 export const AlertTriangle = createMaterialIcon("warning", "AlertTriangle");

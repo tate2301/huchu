@@ -3,21 +3,27 @@
 import type { NavSection } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 import {
-  BarChart3,
   Building2,
-  DirectionsCar,
-  Dashboard,
   Gem,
   Home,
   LocalShipping,
   ManageAccounts,
+  MedusaAcademicCapIcon,
+  MedusaBookOpenIcon,
+  MedusaBuildingStorefrontIcon,
+  MedusaCashIcon,
+  MedusaChartBarIcon,
+  MedusaCircleSlidersIcon,
+  MedusaCircleStackIcon,
+  MedusaCogSixToothIcon,
+  MedusaDirectionsIcon,
+  MedusaGridListIcon,
+  MedusaHandTruckIcon,
+  MedusaIdBadgeIcon,
   Package,
   ReceiptLong,
   Recycle,
   Scale,
-  Settings2,
-  Storefront,
-  TableRows,
   Video,
   Wallet,
   Wrench,
@@ -25,42 +31,71 @@ import {
 } from "@/lib/icons";
 
 const sectionIcons: Record<string, LucideIcon> = {
-  reporting: BarChart3,
+  reporting: MedusaChartBarIcon,
   gold: Gem,
   "scrap-metal": Recycle,
-  stores: Package,
+  stores: MedusaHandTruckIcon,
   maintenance: Wrench,
-  hr: ManageAccounts,
+  hr: MedusaIdBadgeIcon,
   cctv: Video,
-  settings: Dashboard,
-  schools: Building2,
-  "car-sales": DirectionsCar,
-  retail: Storefront,
+  settings: MedusaCogSixToothIcon,
+  schools: MedusaAcademicCapIcon,
+  "car-sales": MedusaDirectionsIcon,
+  retail: MedusaBuildingStorefrontIcon,
   accounting: Scale,
-  management: ManageAccounts,
+  management: MedusaCircleSlidersIcon,
 };
-const sectionPrefixIcons: Array<{ prefix: string; icon: LucideIcon }> = [
-  { prefix: "gold-", icon: Gem },
-  { prefix: "scrap-", icon: Recycle },
-  { prefix: "schools-", icon: Building2 },
-  { prefix: "autos-", icon: DirectionsCar },
-  { prefix: "retail-", icon: Storefront },
-  { prefix: "accounting-", icon: Scale },
-];
+
+const sectionVariantIcons: Record<string, LucideIcon> = {
+  "gold-operations": Gem,
+  "gold-chain": LocalShipping,
+  "gold-control": MedusaChartBarIcon,
+  "scrap-ticketing": ReceiptLong,
+  "scrap-lots": MedusaCircleStackIcon,
+  "scrap-cash": MedusaCashIcon,
+  "scrap-reports": MedusaChartBarIcon,
+  "scrap-setup": MedusaCogSixToothIcon,
+  "schools-campus": Building2,
+  "schools-academics": MedusaBookOpenIcon,
+  "schools-admin": MedusaIdBadgeIcon,
+  "autos-pipeline": MedusaDirectionsIcon,
+  "autos-stock": Package,
+  "retail-overview": MedusaBuildingStorefrontIcon,
+  "retail-sell": ReceiptLong,
+  "retail-merchandise": MedusaGridListIcon,
+  "retail-stock": MedusaCircleStackIcon,
+  "retail-buy": LocalShipping,
+  "retail-customers": ManageAccounts,
+  "retail-cash-control": MedusaCashIcon,
+  "retail-accounting": Scale,
+  "retail-insights": MedusaChartBarIcon,
+  "retail-setup": MedusaCogSixToothIcon,
+  "accounting-overview": Scale,
+  "accounting-receivables": ReceiptLong,
+  "accounting-payables": Package,
+  "accounting-reporting": MedusaChartBarIcon,
+  "accounting-banking": Wallet,
+  "accounting-master": MedusaCircleSlidersIcon,
+};
+
 const sectionKeywordIcons: Array<{ keyword: string; icon: LucideIcon }> = [
-  { keyword: "report", icon: BarChart3 },
-  { keyword: "insight", icon: BarChart3 },
+  { keyword: "report", icon: MedusaChartBarIcon },
+  { keyword: "insight", icon: MedusaChartBarIcon },
   { keyword: "movement", icon: LocalShipping },
   { keyword: "dispatch", icon: LocalShipping },
   { keyword: "settlement", icon: Wallet },
-  { keyword: "cash", icon: Wallet },
+  { keyword: "cash", icon: MedusaCashIcon },
   { keyword: "finance", icon: Wallet },
   { keyword: "ticket", icon: ReceiptLong },
-  { keyword: "lot", icon: Package },
+  { keyword: "lot", icon: MedusaCircleStackIcon },
   { keyword: "stock", icon: Package },
-  { keyword: "catalog", icon: TableRows },
-  { keyword: "master", icon: TableRows },
-  { keyword: "setup", icon: Settings2 },
+  { keyword: "catalog", icon: MedusaGridListIcon },
+  { keyword: "master", icon: MedusaCircleSlidersIcon },
+  { keyword: "setup", icon: MedusaCogSixToothIcon },
+  { keyword: "customer", icon: ManageAccounts },
+  { keyword: "academic", icon: MedusaBookOpenIcon },
+  { keyword: "campus", icon: Building2 },
+  { keyword: "pipeline", icon: MedusaDirectionsIcon },
 ];
 
 const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "retail"]);
@@ -111,8 +146,8 @@ export function getSectionIcon(section: NavSection) {
   const direct = sectionIcons[section.id];
   if (direct) return direct;
 
-  const prefixed = sectionPrefixIcons.find((entry) => section.id.startsWith(entry.prefix));
-  if (prefixed) return prefixed.icon;
+  const variant = sectionVariantIcons[section.id];
+  if (variant) return variant;
 
   const key = `${section.id} ${section.title}`.toLowerCase();
   const keywordMatch = sectionKeywordIcons.find((entry) => key.includes(entry.keyword));
