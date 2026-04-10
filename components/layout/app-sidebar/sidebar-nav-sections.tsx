@@ -40,13 +40,19 @@ function SidebarNavLink({
         tooltip={item.label}
         className={cn(
           "h-[34px] rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium",
-          "text-[var(--text-body)] hover:bg-[var(--surface-subtle)] hover:text-foreground",
+          "text-[var(--text-body)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+          "hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] hover:text-foreground",
           "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:text-foreground data-[active=true]:shadow-none",
           className,
         )}
       >
         <Link href={item.href}>
-          <item.icon className="h-4 w-4 text-muted-foreground" />
+          <item.icon
+            className={cn(
+              "h-4 w-4 transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+              isActive ? "text-[var(--action-primary-bg)]" : "text-muted-foreground",
+            )}
+          />
           <span className="truncate">{item.label}</span>
         </Link>
       </SidebarMenuButton>
@@ -129,7 +135,7 @@ function SidebarExpandableSection({
               tooltip={section.title}
               className={cn(
                 "h-9 rounded-[10px] border border-transparent px-2.5",
-                "text-[14px] font-medium hover:bg-[var(--surface-subtle)]",
+                "text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)]",
                 "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:shadow-none",
               )}
             >

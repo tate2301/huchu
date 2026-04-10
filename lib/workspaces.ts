@@ -16,6 +16,9 @@ import {
 } from "@/lib/workspace-products";
 import {
   ArrowDownward,
+  Dashboard,
+  DirectionsCar,
+  Gem,
   Building2,
   Calendar,
   BarChart3,
@@ -24,7 +27,9 @@ import {
   LocalShipping,
   Package,
   Payments,
+  Recycle,
   ReceiptLong,
+  Storefront,
   Users,
   Wallet,
   type LucideIcon,
@@ -46,6 +51,7 @@ export type WorkspaceSidebarModel = {
   homeHref: string;
   homeLabel: string;
   workspaceLabel: string;
+  workspaceIcon: LucideIcon;
   quickActions: NavItem[];
   sections: WorkspaceNavSection[];
   supportItems: NavItem[];
@@ -97,6 +103,14 @@ const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, Worksp
   SCHOOLS: "schools",
   AUTOS: "car-sales",
   RETAIL: "retail",
+};
+const WORKSPACE_PROFILE_ICONS: Record<WorkspaceProfile, LucideIcon> = {
+  GOLD_MINE: Gem,
+  SCRAP_METAL: Recycle,
+  SCHOOLS: Building2,
+  AUTOS: DirectionsCar,
+  RETAIL: Storefront,
+  GENERAL: Dashboard,
 };
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "gold",
@@ -847,6 +861,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     homeHref: homeTarget.href,
     homeLabel: homeTarget.label,
     workspaceLabel: verticalProduct.workspaceLabel || recipe.label,
+    workspaceIcon: WORKSPACE_PROFILE_ICONS[profile] ?? Dashboard,
     quickActions: getQuickActions({
       role: args.role,
       enabledFeatures: args.enabledFeatures,

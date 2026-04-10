@@ -23,7 +23,7 @@ export function SidebarSupport({
           <button
             type="button"
             className={cn(
-              "inline-flex size-8 items-center justify-center rounded-full border transition-colors",
+              "inline-flex size-8 items-center justify-center rounded-full border transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:scale-[1.03]",
               guidedModeEnabled
                 ? "border-[var(--action-primary-bg)] bg-[var(--action-secondary-bg)] text-[var(--action-primary-bg)]"
                 : "border-[var(--edge-default)] bg-[var(--surface-base)] text-muted-foreground hover:bg-[var(--surface-subtle)]",

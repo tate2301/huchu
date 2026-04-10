@@ -150,13 +150,14 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="sticky top-0 h-screen rounded-none border-0 bg-[var(--surface-base)] shadow-none [--sidebar-width:18.75rem] [--sidebar-width-icon:3.75rem]"
+      className="sticky top-0 h-screen rounded-none border-0 bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)] shadow-none [--sidebar-width:18.75rem] [--sidebar-width-icon:3.75rem]"
     >
       <SidebarHeader className="px-3 pb-2 pt-3">
         <SidebarAccountMenu
           isCollapsed={isCollapsed}
           isMobile={isMobile}
           workspaceLabel={sidebarModel.workspaceLabel}
+          workspaceIcon={sidebarModel.workspaceIcon}
           quickActions={sidebarModel.quickActions}
           pathname={pathname}
           view={view}

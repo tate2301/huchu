@@ -2,12 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clock3 } from "lucide-react";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getCompanyNav, PLATFORM_NAV } from "./admin-config";
-import { useAdminShell } from "./admin-shell-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 export function AdminSidebar({
@@ -21,11 +18,10 @@ export function AdminSidebar({
 }) {
   const pathname = usePathname();
   const normalizedPath = pathname.replace(/^\/portal/, "");
-  const { recentCompanies } = useAdminShell();
   const nav = activeCompanyId ? getCompanyNav(activeCompanyId) : PLATFORM_NAV;
 
   return (
-    <aside className="flex h-full w-full flex-col bg-[var(--sidebar)]">
+    <aside className="flex h-full w-full flex-col bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)]">
       <div className="flex h-full flex-col overflow-hidden">
         <div className="px-3 pb-3 pt-4">
           <WorkspaceSwitcher
@@ -55,17 +51,17 @@ export function AdminSidebar({
                   href={item.href}
                   onClick={onNavigate}
                   className={cn(
-                    "group flex items-center gap-3 rounded-[10px] px-3 py-1.5  transition-all duration-[160ms]",
+                    "group flex items-center gap-3 rounded-[10px] px-3 py-2 transition-[background-color,color,transform,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
                     isActive
-                      ? "bg-[var(--surface-base)] shadow-sm"
-                      : "text-muted hover:bg-[rgba(255,255,255,0.4)]",
+                      ? "bg-[var(--surface-muted)] text-[var(--text-strong)] shadow-[inset_0_0_0_1px_var(--edge-default)]"
+                      : "text-[var(--text-muted)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)]",
                   )}
                 >
                   <div
                     className={cn(
-                      "flex  shrink-0 items-center justify-center rounded-[10px] border border-transparent",
+                      "flex shrink-0 items-center justify-center rounded-[10px] border border-transparent transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
                       isActive
-                        ? "text-[var(--text-strong)] "
+                        ? "text-[var(--action-primary-bg)]"
                         : "text-[var(--text-muted)]",
                     )}
                   >
@@ -74,10 +70,10 @@ export function AdminSidebar({
                   <div className="min-w-0">
                     <p
                       className={cn(
-                        "truncate text-sm font-semibold",
+                        "truncate text-[14px] font-medium",
                         isActive
-                          ? "text-[var(--text-strong)] "
-                          : "text-[var(--text-body)] text-[var(--text-muted)]",
+                          ? "text-[var(--text-strong)]"
+                          : "text-[var(--text-body)]",
                       )}
                     >
                       {item.label}

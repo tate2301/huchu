@@ -40,12 +40,17 @@ export function SidebarQuickActions({
                   tooltip={item.label}
                   className={cn(
                     "h-9 rounded-[10px] px-2.5 text-[14px] font-medium",
-                    "hover:bg-[var(--surface-subtle)] hover:shadow-none",
+                    "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] hover:shadow-none",
                     "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:text-foreground data-[active=true]:shadow-none",
                   )}
                 >
                   <Link href={item.href}>
-                    <item.icon className="h-4 w-4 text-muted-foreground" />
+                    <item.icon
+                      className={cn(
+                        "h-4 w-4 transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+                        isActive ? "text-[var(--action-primary-bg)]" : "text-muted-foreground",
+                      )}
+                    />
                     <span className="truncate text-[14px] font-medium">{item.label}</span>
                   </Link>
                 </SidebarMenuButton>

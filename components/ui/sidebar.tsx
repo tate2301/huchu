@@ -155,7 +155,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible}
         data-variant={variant}
         className={cn(
-          "peer group/sidebar relative flex h-screen flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width] duration-200",
+          "peer group/sidebar relative flex h-screen flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width,background-color] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
           collapsible === "icon" && state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -302,7 +302,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "relative flex w-full items-center gap-2 rounded-[12px] border border-transparent px-2.5 py-2 text-[13px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color] duration-150 hover:bg-[var(--surface-elevated)] hover:text-foreground hover:shadow-[var(--surface-frame-shadow)] data-[active=true]:border-[var(--border-default)] data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[active=true]:shadow-[var(--surface-frame-shadow)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
+  "relative flex w-full items-center gap-2 rounded-[12px] border border-transparent px-2.5 py-2 text-[13px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-elevated)] hover:text-foreground hover:shadow-[var(--surface-frame-shadow)] data-[active=true]:border-[var(--border-default)] data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[active=true]:shadow-[var(--surface-frame-shadow)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
   {
     variants: {
       variant: {
@@ -428,7 +428,7 @@ const SidebarRail = React.forwardRef<
       aria-label="Toggle sidebar"
       onClick={toggleSidebar}
       className={cn(
-        "absolute -right-1.5 top-1/2 hidden h-12 w-1 -translate-y-1/2 rounded-full bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] opacity-0 transition md:block group-hover/sidebar:opacity-100",
+        "absolute -right-1.5 top-1/2 hidden h-12 w-1 -translate-y-1/2 rounded-full bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] opacity-0 transition-opacity duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] md:block group-hover/sidebar:opacity-100",
         className,
       )}
       {...props}

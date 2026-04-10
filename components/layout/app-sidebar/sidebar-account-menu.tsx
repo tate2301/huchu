@@ -4,12 +4,12 @@ import Link from "next/link";
 
 import type { NavItem } from "@/lib/navigation";
 import {
-  Building2,
   ChevronDown,
   Dashboard,
   LogOut,
   ManageAccounts,
   Plus,
+  type LucideIcon,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import {
@@ -26,6 +26,7 @@ export function SidebarAccountMenu({
   isCollapsed,
   isMobile,
   workspaceLabel,
+  workspaceIcon: WorkspaceIcon,
   quickActions,
   pathname,
   view,
@@ -33,6 +34,7 @@ export function SidebarAccountMenu({
   isCollapsed: boolean;
   isMobile: boolean;
   workspaceLabel: string;
+  workspaceIcon: LucideIcon;
   quickActions: NavItem[];
   pathname: string;
   view: string | null;
@@ -45,10 +47,15 @@ export function SidebarAccountMenu({
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 tooltip="Workspace"
-                className="h-10 min-w-0 rounded-xl border border-transparent px-2.5 text-[14px] font-semibold hover:bg-[var(--surface-subtle)] data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-subtle)]"
+                className={cn(
+                  "h-10 min-w-0 rounded-xl border border-transparent px-2.5 text-[14px] font-semibold",
+                  "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+                  "hover:bg-[var(--surface-subtle)]",
+                  "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-subtle)]",
+                )}
               >
-                <div className="inline-flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-[#1b1d23] text-white">
-                  <Building2 className="h-4 w-4" />
+                <div className="inline-flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-[#1b1d23] text-white transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]">
+                  <WorkspaceIcon className="h-4 w-4" />
                 </div>
                 {!isCollapsed ? (
                   <>
@@ -97,10 +104,10 @@ export function SidebarAccountMenu({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="inline-flex size-8 items-center justify-center rounded-full border border-[var(--edge-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-foreground"
+                className="group/plus inline-flex size-8 items-center justify-center rounded-full border border-[var(--edge-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:bg-[var(--surface-subtle)] hover:text-foreground data-[state=open]:scale-95"
                 aria-label="Quick actions"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/plus:rotate-45" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

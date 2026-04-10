@@ -150,7 +150,7 @@ function KpiCard({
   deltaPct: number;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-4">
+    <div className="bg-[var(--surface-base)] px-2 py-2">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
         {title}
       </div>
@@ -177,7 +177,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-4">
+    <section className="bg-[var(--surface-base)] px-1 py-1">
       <div className="flex items-center justify-between gap-3 border-b border-[var(--edge-subtle)] pb-3">
         <div>
           <h3 className="text-xl font-semibold text-[var(--text-strong)]">{title}</h3>
@@ -331,9 +331,9 @@ export default function RetailOverviewPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-2 border-b border-[var(--edge-subtle)] pb-3 md:grid-cols-2 xl:grid-cols-3">
             <KpiCard
               title="Gross profit"
               value={money(data?.ownerMetrics.kpis.grossProfit ?? 0)}
@@ -386,7 +386,7 @@ export default function RetailOverviewPage() {
             />
           </SectionCard>
 
-          <section className="grid gap-4 xl:grid-cols-2">
+          <section className="grid gap-5 xl:grid-cols-2">
             <SectionCard
               title="Performance"
               metricLabel="Gross margin"
@@ -433,7 +433,7 @@ export default function RetailOverviewPage() {
         </div>
 
         <aside className="space-y-4">
-          <section className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-4">
+          <section className="bg-[var(--surface-base)] px-1 py-1">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-semibold text-[var(--text-strong)]">Priorities</h3>
@@ -445,10 +445,7 @@ export default function RetailOverviewPage() {
             </div>
             <div className="mt-3 space-y-2">
               {(data?.ownerMetrics.highlights ?? []).map((highlight) => (
-                <div
-                  key={highlight.id}
-                  className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3"
-                >
+                <div key={highlight.id} className="border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-1 py-3 last:border-b-0">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-[var(--text-strong)]">{highlight.title}</div>
                     <DeltaPill value={highlight.deltaPct} />
@@ -462,7 +459,7 @@ export default function RetailOverviewPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-4">
+          <section className="bg-[var(--surface-base)] px-1 py-1">
             <h3 className="text-xl font-semibold text-[var(--text-strong)]">Cash and demand mix</h3>
             <p className="mt-1 text-xs text-[var(--text-muted)]">Where money is coming from</p>
             <div className="mt-3">
@@ -476,17 +473,17 @@ export default function RetailOverviewPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-4">
+          <section className="bg-[var(--surface-base)] px-1 py-1">
             <h3 className="text-xl font-semibold text-[var(--text-strong)]">Opportunities</h3>
             <div className="mt-3 space-y-2">
-              <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-1 py-3">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Wallet className="h-4 w-4 text-[var(--text-muted)]" />
                   Seven-day sales
                 </div>
                 <div className="mt-1 font-mono text-lg">{money(data?.summary.sevenDaySales ?? 0)}</div>
               </div>
-              <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-1 py-3">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Package className="h-4 w-4 text-[var(--text-muted)]" />
                   Inventory pressure
@@ -499,7 +496,7 @@ export default function RetailOverviewPage() {
                   {data?.summary.activeCatalogCount ?? 0} active SKUs
                 </p>
               </div>
-              <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="bg-[var(--surface-base)] px-1 py-3">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <CheckCircle2 className="h-4 w-4 text-[var(--text-muted)]" />
                   Profit model source

@@ -3,23 +3,30 @@
 import type { NavSection } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 import {
+  BarChart3,
   Building2,
-  Coins,
+  DirectionsCar,
   Dashboard,
-  FileCheck,
+  Gem,
   Home,
+  LocalShipping,
   ManageAccounts,
   Package,
+  ReceiptLong,
   Recycle,
   Scale,
+  Settings2,
+  Storefront,
+  TableRows,
   Video,
+  Wallet,
   Wrench,
   type LucideIcon,
 } from "@/lib/icons";
 
 const sectionIcons: Record<string, LucideIcon> = {
-  reporting: FileCheck,
-  gold: Coins,
+  reporting: BarChart3,
+  gold: Gem,
   "scrap-metal": Recycle,
   stores: Package,
   maintenance: Wrench,
@@ -27,11 +34,34 @@ const sectionIcons: Record<string, LucideIcon> = {
   cctv: Video,
   settings: Dashboard,
   schools: Building2,
-  "car-sales": Package,
-  retail: Coins,
+  "car-sales": DirectionsCar,
+  retail: Storefront,
   accounting: Scale,
   management: ManageAccounts,
 };
+const sectionPrefixIcons: Array<{ prefix: string; icon: LucideIcon }> = [
+  { prefix: "gold-", icon: Gem },
+  { prefix: "scrap-", icon: Recycle },
+  { prefix: "schools-", icon: Building2 },
+  { prefix: "autos-", icon: DirectionsCar },
+  { prefix: "retail-", icon: Storefront },
+  { prefix: "accounting-", icon: Scale },
+];
+const sectionKeywordIcons: Array<{ keyword: string; icon: LucideIcon }> = [
+  { keyword: "report", icon: BarChart3 },
+  { keyword: "insight", icon: BarChart3 },
+  { keyword: "movement", icon: LocalShipping },
+  { keyword: "dispatch", icon: LocalShipping },
+  { keyword: "settlement", icon: Wallet },
+  { keyword: "cash", icon: Wallet },
+  { keyword: "finance", icon: Wallet },
+  { keyword: "ticket", icon: ReceiptLong },
+  { keyword: "lot", icon: Package },
+  { keyword: "stock", icon: Package },
+  { keyword: "catalog", icon: TableRows },
+  { keyword: "master", icon: TableRows },
+  { keyword: "setup", icon: Settings2 },
+];
 
 const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "retail"]);
 
@@ -78,7 +108,17 @@ export function getInitials(name: string | null | undefined) {
 }
 
 export function getSectionIcon(section: NavSection) {
-  return sectionIcons[section.id] ?? section.items[0]?.icon ?? Home;
+  const direct = sectionIcons[section.id];
+  if (direct) return direct;
+
+  const prefixed = sectionPrefixIcons.find((entry) => section.id.startsWith(entry.prefix));
+  if (prefixed) return prefixed.icon;
+
+  const key = `${section.id} ${section.title}`.toLowerCase();
+  const keywordMatch = sectionKeywordIcons.find((entry) => key.includes(entry.keyword));
+  if (keywordMatch) return keywordMatch.icon;
+
+  return section.items[0]?.icon ?? Home;
 }
 
 export function isDirectLinkSection(section: WorkspaceNavSection) {
