@@ -62,7 +62,7 @@ export type UserManagementMode =
   | "password-reset"
   | "role-change";
 
-type RoleFilter = "MANAGED" | ManagedUserRole;
+type RoleFilter = "ALL" | ManagedUserRole;
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 type FeatureAccessBlockedReason = "COMPANY_DISABLED" | "TEMPLATE_BLOCKED";
 type ManagedUserTargetBase = {
@@ -162,7 +162,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
     pageSize: 25,
     search: "",
   });
-  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("MANAGED");
+  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("ALL");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("ALL");
   const [featureQueryState, setFeatureQueryState] = React.useState<DataTableQueryState>({
     mode: "paginated",
@@ -238,10 +238,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
     ],
     queryFn: () =>
       fetchManagedUsers({
-        role:
-          roleFilter === "MANAGED"
-            ? managedRoles.join(",")
-            : roleFilter,
+        role: roleFilter === "ALL" ? undefined : roleFilter,
         active:
           statusFilter === "ALL"
             ? undefined
@@ -801,7 +798,7 @@ export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
                   <SelectValue placeholder="Role filter" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MANAGED">All Managed Roles</SelectItem>
+                  <SelectItem value="ALL">All Company Users</SelectItem>
                   {managedRoleOptions.map((role) => (
                     <SelectItem key={role.value} value={role.value}>
                       {role.label}s
