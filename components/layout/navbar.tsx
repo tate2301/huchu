@@ -1,18 +1,14 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 
-import { buildCrumbs, Breadcrumbs, getCurrentPageTitle } from "@/components/layout/breadcrumbs"
+import { Breadcrumbs, getCurrentPageTitle } from "@/components/layout/breadcrumbs"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { usePageActions } from "@/components/layout/page-actions"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Home } from "@/lib/icons"
 import { cn } from "@/lib/utils"
 
 export function Navbar() {
@@ -30,7 +26,6 @@ export function Navbar() {
 
   const isScrapRoute = pathname.startsWith("/scrap-metal")
   const currentTitle = getCurrentPageTitle(pathname, view)
-  const crumbs = buildCrumbs(pathname, view)
   const successHint = getSuccessHint(pathname)
 
   return (
@@ -45,31 +40,12 @@ export function Navbar() {
           <>
             <div className="flex h-14 items-center gap-2 md:hidden">
               <SidebarTrigger />
-              <Button type="button" size="icon-sm" variant="outline" asChild aria-label="Go to scrap home">
-                <Link href="/scrap-metal">
-                  <Home className="h-4 w-4" />
-                </Link>
-              </Button>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{currentTitle}</p>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" size="icon-sm" variant="outline" aria-label="Open breadcrumb trail">
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {crumbs.map((crumb, index) => (
-                    <DropdownMenuItem key={`${crumb.label}-${index}`} asChild={Boolean(crumb.href)}>
-                      {crumb.href ? <Link href={crumb.href}>{crumb.label}</Link> : <span>{crumb.label}</span>}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
               {showNotificationCenter ? <NotificationCenter /> : null}
               {actions ? (
-                <div className="flex items-center gap-2 [&>*:not(:first-child)]:hidden">{actions}</div>
+                <div className="flex items-center gap-2 [&>*:nth-child(n+3)]:hidden">{actions}</div>
               ) : null}
             </div>
             <div className="hidden h-14 items-center gap-3 md:flex">
