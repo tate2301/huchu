@@ -174,7 +174,8 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
     if (isMobile) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>
-          <SheetContent side="left"
+          <SheetContent
+            side="left"
             className="w-[--sidebar-width] max-w-[--sidebar-width] p-0"
             style={
               { "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties
@@ -302,13 +303,13 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "relative flex w-full items-center gap-2.5 rounded-[12px] border border-transparent px-2.5 py-2 text-[14px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-foreground hover:shadow-none data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-10 data-[collapsed=true]:w-10 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)] [&_svg]:shrink-0",
+  "relative flex w-full items-center gap-2.5 rounded-[12px] border border-transparent px-2.5 py-2 text-[14px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-foreground hover:shadow-none data-[active=true]:border-[var(--edge-default)] data-[active=true]:border-px data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-10 data-[collapsed=true]:w-10 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)] [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "",
         outline:
-          "border-[var(--border-default)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--surface-frame-shadow)] hover:bg-[var(--action-outline-hover-bg)] data-[active=true]:bg-[var(--action-outline-hover-bg)]",
+          "text-foreground shadow-[var(--surface-frame-shadow)] hover:bg-surface data-[active=true]:bg-surface",
       },
       size: {
         default: "h-10",
@@ -402,7 +403,10 @@ const SidebarTrigger = React.forwardRef<
       ref={ref}
       variant="ghost"
       size="icon-sm"
-      className={cn("h-9 w-9 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] hover:bg-[var(--surface-subtle)]", className)}
+      className={cn(
+        "h-9 w-9 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] hover:bg-[var(--surface-subtle)]",
+        className,
+      )}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
