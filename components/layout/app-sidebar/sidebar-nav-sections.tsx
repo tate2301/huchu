@@ -43,10 +43,10 @@ function SidebarNavLink({
         isActive={isActive}
         tooltip={item.label}
         className={cn(
-          "h-11 rounded-[10px] px-2.5 text-[14px] font-medium lg:h-9",
-          "text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+          "h-11 rounded-[10px] border-transparent! px-2.5 text-[14px] font-medium lg:h-9",
+          "text-text-muted transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
           "hover:translate-x-[1px] hover:bg-surface-base hover:text-text-strong",
-          "data-[active=true]:bg-surface-base data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px]",
+          "data-[active=true]:bg-surface-base data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-popover",
           className,
         )}
       >
@@ -140,7 +140,7 @@ function SidebarExpandableSection({
               isActive={hasActiveChild}
               tooltip={section.title}
               className={cn(
-                "h-11 rounded-[10px] px-2.5 lg:h-9",
+                "h-11 rounded-[10px] px-2.5 lg:h-9 bg-transparent shadow-none!",
                 "text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px]",
               )}
             >
