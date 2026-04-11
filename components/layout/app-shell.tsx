@@ -18,6 +18,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isCctvRoute = pathname.startsWith("/cctv");
   const isScrapRoute = pathname.startsWith("/scrap-metal");
 
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("scrap-vertical-theme", isScrapRoute);
+    return () => {
+      document.body.classList.remove("scrap-vertical-theme");
+    };
+  }, [isScrapRoute]);
+
   if (isAuthRoute || isMarketingRoute || isPortalRoute || isAdminRoute) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
