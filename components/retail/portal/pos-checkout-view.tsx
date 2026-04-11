@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Clock, Package, Payments, QrCode, RefreshCcw, Save, Trash2, User, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
@@ -202,12 +203,40 @@ export function PosCheckoutView() {
       });
       toast({ title: "Customer saved", variant: "success" });
     },
-    onError: (error) =>
+    onError: async (error) => {
+      const message = getApiErrorMessage(error);
+      const offlineCandidate =
+        /network|failed to fetch|load failed/i.test(message) ||
+        (typeof navigator !== "undefined" && !navigator.onLine);
+
+      if (offlineCandidate) {
+        const queued = await createOfflineRetailCustomer({
+          name: customerName.trim(),
+          phone: customerPhone.trim() || null,
+          email: customerEmail.trim() || null,
+        });
+        selectCustomer({
+          id: queued.record.tempId,
+          name: String(queued.record.payload.name ?? customerName.trim()),
+          phone: (queued.record.payload.phone as string | null | undefined) ?? null,
+          email: (queued.record.payload.email as string | null | undefined) ?? null,
+          loyaltyPoints: 0,
+          loyaltyTier: "BRONZE",
+        });
+        toast({
+          title: "Customer queued offline",
+          description: "This customer will sync automatically when the connection is back.",
+          variant: "default",
+        });
+        return;
+      }
+
       toast({
         title: "Unable to save customer",
-        description: getApiErrorMessage(error),
+        description: message,
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   const whatsappHref = (() => {
@@ -401,7 +430,7 @@ export function PosCheckoutView() {
           </div>
           <div className="space-y-1">
             {queuedOfflineSales.slice(0, 4).map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-2 py-1">
+              <div key={entry.operationId} className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-2 py-1">
                 <div className="min-w-0">
                   <div className="font-mono text-[11px]">{entry.payload.saleNo}</div>
                   <div className="text-[10px] uppercase tracking-[0.08em]">
@@ -409,10 +438,10 @@ export function PosCheckoutView() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => retryOfflineSale(entry.id)} disabled={syncOfflineSalesPending}>
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => retryOfflineSale(entry.operationId)} disabled={syncOfflineSalesPending}>
                     <RefreshCcw className="h-3 w-3" />
                   </Button>
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => removeOfflineSale(entry.id)}>
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => removeOfflineSale(entry.operationId)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>

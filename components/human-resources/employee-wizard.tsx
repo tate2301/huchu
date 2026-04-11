@@ -34,6 +34,7 @@ import {
 } from "@/lib/platform/vertical-defaults"
 import {
   getAllowedUserRoleOptionsForWorkspace,
+  resolveWorkspaceProfileForEmployeeModule,
   resolveWorkspaceProfileForRoles,
 } from "@/lib/platform/vertical-roles"
 import type { UserRole } from "@/lib/roles"
@@ -203,6 +204,30 @@ function getVisibleSteps(form: EmployeeWizardForm, canProvisionUser: boolean) {
 
 function getModuleLabel(module: EmployeeModule) {
   return moduleOptions.find((option) => option.value === module)?.label ?? module
+}
+
+function getPreferredPrimaryModule(
+  sessionWorkspaceProfile: string | null | undefined,
+  availableModules: readonly (typeof moduleOptions)[number][],
+): EmployeeModule {
+  const preferredByWorkspace: Partial<Record<string, EmployeeModule>> = {
+    GOLD_MINE: "GOLD",
+    SCRAP_METAL: "SCRAP_METAL",
+    AUTOS: "CAR_SALES",
+    RETAIL: "RETAIL",
+    SCHOOLS: "HR",
+  }
+
+  const preferredModule = preferredByWorkspace[sessionWorkspaceProfile ?? ""]
+  if (preferredModule && availableModules.some((module) => module.value === preferredModule)) {
+    return preferredModule
+  }
+
+  if (availableModules.some((module) => module.value === "HR")) {
+    return "HR"
+  }
+
+  return availableModules[0]?.value ?? "HR"
 }
 
 function getPayoutPathLabel(path: PayoutPath) {
@@ -1083,7 +1108,7 @@ export function EmployeeWizard({
     [session],
   )
   const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile
-  const normalizedWorkspaceProfile = useMemo(
+  const sessionWorkspaceProfile = useMemo(
     () =>
       resolveWorkspaceProfileForRoles({
         workspaceProfile,
@@ -1092,55 +1117,70 @@ export function EmployeeWizard({
     [enabledFeatures, workspaceProfile],
   )
   const canProvisionUser = session?.user?.role === "SUPERADMIN"
-  const positionOptions = useMemo(
-    () =>
-      getEmployeePositionOptions({
-        workspaceProfile: normalizedWorkspaceProfile,
-        enabledFeatures,
-      }),
-    [enabledFeatures, normalizedWorkspaceProfile],
-  )
-  const defaultPosition = useMemo(
-    () =>
-      getDefaultEmployeePosition({
-        workspaceProfile: normalizedWorkspaceProfile,
-        enabledFeatures,
-      }),
-    [enabledFeatures, normalizedWorkspaceProfile],
-  )
-  const verticalDefaults = useMemo(
-    () =>
-      resolveVerticalDefaults({
-        workspaceProfile: normalizedWorkspaceProfile,
-        enabledFeatures,
-      }),
-    [enabledFeatures, normalizedWorkspaceProfile],
-  )
   const availableModules = useMemo(
     () =>
       moduleOptions.filter(
         (module) => {
           if (module.value === "HR") return true
-          if (module.value === "GOLD" && normalizedWorkspaceProfile !== "GOLD_MINE") return false
+          if (module.value === "GOLD" && sessionWorkspaceProfile !== "GOLD_MINE") return false
           return enabledFeatures.some((feature) => module.featureMatcher(feature))
         },
       ),
-    [enabledFeatures, normalizedWorkspaceProfile],
+    [enabledFeatures, sessionWorkspaceProfile],
   )
-  const availableUserRoles = useMemo(() => {
-    return getAllowedUserRoleOptionsForWorkspace({
-      workspaceProfile: normalizedWorkspaceProfile,
-      enabledFeatures,
-    })
-  }, [enabledFeatures, normalizedWorkspaceProfile])
+  const initialPosition = useMemo(
+    () =>
+      getDefaultEmployeePosition({
+        workspaceProfile: sessionWorkspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, sessionWorkspaceProfile],
+  )
+  const defaultPrimaryModule = useMemo(
+    () => getPreferredPrimaryModule(sessionWorkspaceProfile, availableModules),
+    [availableModules, sessionWorkspaceProfile],
+  )
 
   const [form, setForm] = useState<EmployeeWizardForm>({
     ...emptyForm,
-    position: defaultPosition,
+    moduleAssignments: [defaultPrimaryModule],
+    primaryModule: defaultPrimaryModule,
+    position: initialPosition,
     compensationTemplateId: initialTemplateId ?? "",
   })
   const [stepIndex, setStepIndex] = useState(0)
   const [stepError, setStepError] = useState<string | null>(null)
+  const moduleWorkspaceProfile = useMemo(
+    () =>
+      resolveWorkspaceProfileForEmployeeModule({
+        primaryModule: form.primaryModule,
+        workspaceProfile: sessionWorkspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, form.primaryModule, sessionWorkspaceProfile],
+  )
+  const positionOptions = useMemo(
+    () =>
+      getEmployeePositionOptions({
+        workspaceProfile: moduleWorkspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, moduleWorkspaceProfile],
+  )
+  const verticalDefaults = useMemo(
+    () =>
+      resolveVerticalDefaults({
+        workspaceProfile: moduleWorkspaceProfile,
+        enabledFeatures,
+      }),
+    [enabledFeatures, moduleWorkspaceProfile],
+  )
+  const availableUserRoles = useMemo(() => {
+    return getAllowedUserRoleOptionsForWorkspace({
+      workspaceProfile: moduleWorkspaceProfile,
+      enabledFeatures,
+    })
+  }, [enabledFeatures, moduleWorkspaceProfile])
 
   const visibleStepIds = getVisibleSteps(form, canProvisionUser)
   const currentStepId = visibleStepIds[stepIndex]
@@ -1155,19 +1195,26 @@ export function EmployeeWizard({
   )
 
   const resetWizard = useCallback(() => {
-    const nextPrimaryModule = availableModules.some((module) => module.value === "HR")
-      ? "HR"
-      : availableModules[0]?.value ?? "HR"
+    const nextPrimaryModule = getPreferredPrimaryModule(sessionWorkspaceProfile, availableModules)
+    const nextWorkspaceProfile = resolveWorkspaceProfileForEmployeeModule({
+      primaryModule: nextPrimaryModule,
+      workspaceProfile: sessionWorkspaceProfile,
+      enabledFeatures,
+    })
+    const nextDefaultPosition = getDefaultEmployeePosition({
+      workspaceProfile: nextWorkspaceProfile,
+      enabledFeatures,
+    })
     setForm({
       ...emptyForm,
-      position: defaultPosition,
+      position: nextDefaultPosition,
       compensationTemplateId: initialTemplateId ?? "",
       moduleAssignments: [nextPrimaryModule],
       primaryModule: nextPrimaryModule,
     })
     setStepIndex(0)
     setStepError(null)
-  }, [availableModules, defaultPosition, initialTemplateId])
+  }, [availableModules, enabledFeatures, initialTemplateId, sessionWorkspaceProfile])
 
   useEffect(() => {
     if (!open) return
@@ -1192,14 +1239,40 @@ export function EmployeeWizard({
 
       next.moduleAssignments = Array.from(
         new Set(
-          next.moduleAssignments.filter((module) =>
+      next.moduleAssignments.filter((module) =>
             availableModules.some((option) => option.value === module),
           ),
         ),
       )
 
       if (!next.moduleAssignments.includes(next.primaryModule)) {
-        next.primaryModule = next.moduleAssignments[0] ?? "HR"
+        const preferredPrimary = getPreferredPrimaryModule(
+          sessionWorkspaceProfile,
+          availableModules.filter((module) => next.moduleAssignments.includes(module.value)),
+        )
+        next.primaryModule = preferredPrimary
+      }
+
+      const nextWorkspaceProfile = resolveWorkspaceProfileForEmployeeModule({
+        primaryModule: next.primaryModule,
+        workspaceProfile: sessionWorkspaceProfile,
+        enabledFeatures,
+      })
+      const nextPositionOptions = getEmployeePositionOptions({
+        workspaceProfile: nextWorkspaceProfile,
+        enabledFeatures,
+      })
+      const nextDefaultPosition = getDefaultEmployeePosition({
+        workspaceProfile: nextWorkspaceProfile,
+        enabledFeatures,
+      })
+      const nextUserRoles = getAllowedUserRoleOptionsForWorkspace({
+        workspaceProfile: nextWorkspaceProfile,
+        enabledFeatures,
+      })
+
+      if (!nextPositionOptions.some((option) => option.value === next.position)) {
+        next.position = nextDefaultPosition
       }
 
       if (!next.createUserAccount) {
@@ -1207,8 +1280,8 @@ export function EmployeeWizard({
         next.userPassword = ""
       }
 
-      if (next.createUserAccount && !availableUserRoles.some((role) => role.value === next.userRole)) {
-        next.userRole = availableUserRoles[0]?.value ?? "OPERATOR"
+      if (next.createUserAccount && !nextUserRoles.some((role) => role.value === next.userRole)) {
+        next.userRole = nextUserRoles[0]?.value ?? "OPERATOR"
       }
 
       return next
@@ -1222,14 +1295,39 @@ export function EmployeeWizard({
         ? Array.from(new Set<EmployeeModule>([...current.moduleAssignments, module]))
         : current.moduleAssignments.filter((item) => item !== module)
       const nextAssignments: EmployeeModule[] = assignments.length > 0 ? assignments : ["HR"]
+      const allowedNextModules = availableModules.filter((option) => nextAssignments.includes(option.value))
+      const preferredPrimary = getPreferredPrimaryModule(sessionWorkspaceProfile, allowedNextModules)
       const nextPrimary = nextAssignments.includes(current.primaryModule)
         ? current.primaryModule
-        : nextAssignments[0]
+        : preferredPrimary
+      const nextWorkspaceProfile = resolveWorkspaceProfileForEmployeeModule({
+        primaryModule: nextPrimary,
+        workspaceProfile: sessionWorkspaceProfile,
+        enabledFeatures,
+      })
+      const nextPositionOptions = getEmployeePositionOptions({
+        workspaceProfile: nextWorkspaceProfile,
+        enabledFeatures,
+      })
+      const nextDefaultPosition = getDefaultEmployeePosition({
+        workspaceProfile: nextWorkspaceProfile,
+        enabledFeatures,
+      })
+      const nextUserRoles = getAllowedUserRoleOptionsForWorkspace({
+        workspaceProfile: nextWorkspaceProfile,
+        enabledFeatures,
+      })
 
       return {
         ...current,
         moduleAssignments: nextAssignments,
         primaryModule: nextPrimary,
+        position: nextPositionOptions.some((option) => option.value === current.position)
+          ? current.position
+          : nextDefaultPosition,
+        userRole: nextUserRoles.some((role) => role.value === current.userRole)
+          ? current.userRole
+          : nextUserRoles[0]?.value ?? "OPERATOR",
       }
     })
     setStepError(null)

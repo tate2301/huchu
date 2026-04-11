@@ -2,6 +2,8 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { OfflineRuntimeBanner } from "@/components/layout/offline-runtime-banner";
+import { OfflineStatusIndicator } from "@/components/layout/offline-status-indicator";
 import { PageHeading } from "@/components/layout/page-heading";
 import {
   Clock,
@@ -146,11 +148,19 @@ export async function PosPortalPageFrame({
         <div className="min-w-0 p-2">
           <div className="overflow-clip rounded-xl bg-[var(--surface-base)]">
             <header className="border-b border-[var(--edge-subtle)] px-4 py-3 md:px-5">
-              <PageHeading title={title} className="mb-0" />
-              {description ? (
-                <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>
-              ) : null}
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <PageHeading title={title} className="mb-0" />
+                  {description ? (
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>
+                  ) : null}
+                </div>
+                <div className="shrink-0">
+                  <OfflineStatusIndicator />
+                </div>
+              </div>
             </header>
+            <OfflineRuntimeBanner />
             <main className="min-w-0 px-4 pb-8 pt-5 md:pb-10 md:pt-6">
               {children}
             </main>

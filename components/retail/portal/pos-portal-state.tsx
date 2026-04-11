@@ -12,21 +12,26 @@ import {
   type PropsWithChildren,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
-  bumpQueuedPosSaleRetry,
-  failQueuedPosSale,
-  loadQueuedPosSales,
-  markQueuedPosSaleQueued,
-  queuePosSale,
-  removeQueuedPosSale,
-  type PosQueuedSale,
   type PosSaleQueuePayload,
 } from "@/lib/retail/pos-offline-queue";
+import {
+  isOfflineRetailCustomerId,
+  listOfflineRetailOperations,
+  queueOfflineRetailSale,
+  searchOfflineRetailCustomers,
+} from "@/lib/retail/offline-runtime";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
+import {
+  removeOfflineOperation,
+  resetOfflineOperationToQueued,
+} from "@/lib/offline/outbox";
+import type { OfflineOutboxOperation } from "@/lib/offline/types";
 import type {
   CartItem,
   CurrentShift,
@@ -67,6 +72,8 @@ type TenderPolicyPayload = {
     minReferenceLength: number;
   };
 };
+
+type PosQueuedSale = OfflineOutboxOperation<PosSaleQueuePayload>;
 
 type PosPortalStateValue = {
   search: string;
@@ -150,6 +157,7 @@ export function PosPortalProvider({
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { syncNow } = useOfflineRuntime();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -168,6 +176,7 @@ export function PosPortalProvider({
   const [pendingOfflineSales, setPendingOfflineSales] = useState(0);
   const [queuedOfflineSales, setQueuedOfflineSales] = useState<PosQueuedSale[]>([]);
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
+  const [offlineCustomerResults, setOfflineCustomerResults] = useState<CustomerLookupResult[]>([]);
 
   const sitesQuery = useQuery({ queryKey: ["pos-sites"], queryFn: fetchSites });
   const currentShiftQuery = useQuery({
@@ -283,8 +292,8 @@ export function PosPortalProvider({
     setSelectedPromotionId("");
   };
 
-  const refreshOfflineQueue = () => {
-    const queue = loadQueuedPosSales();
+  const refreshOfflineQueue = async () => {
+    const queue = await listOfflineRetailOperations();
     setQueuedOfflineSales(queue);
     setPendingOfflineSales(queue.length);
   };
@@ -317,64 +326,18 @@ export function PosPortalProvider({
     };
   };
 
-  const syncQueuedSale = async (entry: PosQueuedSale) => {
-    markQueuedPosSaleQueued(entry.id);
-    try {
-      await fetchJson<CompletedSale>("/api/v2/retail/pos/sales", {
-        method: "POST",
-        body: JSON.stringify(entry.payload),
-      });
-      removeQueuedPosSale(entry.id);
-      return { synced: 1, failed: 0 };
-    } catch (error) {
-      const message = getApiErrorMessage(error);
-      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
-        failQueuedPosSale(entry.id, message);
-      } else {
-        bumpQueuedPosSaleRetry(entry.id);
-      }
-      return { synced: 0, failed: 1 };
-    }
-  };
-
   const syncOfflineSales = async () => {
     setSyncOfflineSalesPending(true);
     try {
-      const queue = loadQueuedPosSales();
-      if (queue.length === 0) return;
-
-      let synced = 0;
-      let failed = 0;
-      for (const entry of queue) {
-        const result = await syncQueuedSale(entry);
-        synced += result.synced;
-        failed += result.failed;
-      }
-      refreshOfflineQueue();
-      if (synced > 0) {
-        toast({
-          title: "Offline sales synced",
-          description: `${synced} queued sale${synced === 1 ? "" : "s"} posted.`,
-          variant: "success",
-        });
-        queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
-        queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
-        queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
-      }
-      if (failed > 0) {
-        toast({
-          title: "Some offline sales are still pending",
-          description: `${failed} item${failed === 1 ? "" : "s"} will retry on next sync.`,
-          variant: "default",
-        });
-      }
+      await syncNow({ force: true });
+      await refreshOfflineQueue();
     } finally {
       setSyncOfflineSalesPending(false);
     }
   };
 
   useEffect(() => {
-    refreshOfflineQueue();
+    void refreshOfflineQueue();
     const onOnline = () => {
       void syncOfflineSales();
     };
@@ -382,6 +345,16 @@ export function PosPortalProvider({
     return () => window.removeEventListener("online", onOnline);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (customerName.trim().length < 2) {
+      setOfflineCustomerResults([]);
+      return;
+    }
+    void searchOfflineRetailCustomers(customerName.trim()).then((results) =>
+      setOfflineCustomerResults(results),
+    );
+  }, [customerName]);
 
   useEffect(() => {
     if (currentShift?.id) {
@@ -420,10 +393,13 @@ export function PosPortalProvider({
       const isNetworkError =
         !(error instanceof ApiError) &&
         /network|failed to fetch|load failed/i.test(message);
+      const usesOfflineCustomer = isOfflineRetailCustomerId(payload.customerId);
 
-      if (isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        queuePosSale(payload);
-        refreshOfflineQueue();
+      if (isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine) || usesOfflineCustomer) {
+        void queueOfflineRetailSale({
+          payload,
+          customerTempId: usesOfflineCustomer ? payload.customerId : null,
+        }).then(() => refreshOfflineQueue());
         clearCart();
         toast({
           title: "Sale queued offline",
@@ -459,7 +435,12 @@ export function PosPortalProvider({
       setCustomerPhone(customer.phone ?? "");
       setCustomerEmail(customer.email ?? "");
     },
-    customerSearchResults: customerSearchQuery.data?.data ?? [],
+    customerSearchResults: [
+      ...offlineCustomerResults,
+      ...(customerSearchQuery.data?.data ?? []).filter(
+        (customer) => !offlineCustomerResults.some((offline) => offline.id === customer.id),
+      ),
+    ],
     customerSearchLoading: customerSearchQuery.isLoading,
     customerPhone,
     setCustomerPhone,
@@ -552,27 +533,16 @@ export function PosPortalProvider({
     pendingOfflineSales,
     queuedOfflineSales,
     retryOfflineSale: (id) => {
-      const entry = loadQueuedPosSales().find((queued) => queued.id === id);
-      if (!entry) return;
       void (async () => {
         setSyncOfflineSalesPending(true);
-        const result = await syncQueuedSale(entry);
-        refreshOfflineQueue();
+        await resetOfflineOperationToQueued(id);
+        await syncNow({ force: true });
+        await refreshOfflineQueue();
         setSyncOfflineSalesPending(false);
-        if (result.synced > 0) {
-          toast({
-            title: "Queued sale synced",
-            variant: "success",
-          });
-          queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
-          queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
-          queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
-        }
       })();
     },
     removeOfflineSale: (id) => {
-      removeQueuedPosSale(id);
-      refreshOfflineQueue();
+      void removeOfflineOperation(id).then(() => refreshOfflineQueue());
     },
     syncOfflineSales: () => {
       void syncOfflineSales();

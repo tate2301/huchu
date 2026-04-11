@@ -47,6 +47,35 @@ const scrapMetalSaleSchema = z.object({
   status: z.enum(["DRAFT", "PENDING_APPROVAL"]).optional(),
 });
 
+async function loadSaleByNumber(companyId: string, saleNumber: string) {
+  const sale = await prisma.scrapMetalSale.findFirst({
+    where: {
+      companyId,
+      saleNumber,
+    },
+    include: {
+      site: { select: { id: true, name: true, code: true } },
+      batch: {
+        select: {
+          id: true,
+          batchNumber: true,
+          category: true,
+          totalWeight: true,
+        },
+      },
+      material: { select: { id: true, code: true, name: true, category: true } },
+      approvedBy: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  });
+
+  if (!sale) return null;
+  return {
+    ...sale,
+    attachments: parseScrapTicketPhotosJson(sale.attachmentsJson),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
@@ -145,17 +174,6 @@ export async function POST(request: NextRequest) {
         : Promise.resolve(null),
     ]);
 
-    const existingBatchSale = await prisma.scrapMetalSale.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        batchId: validated.batchId,
-        status: {
-          in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "COMPLETED"],
-        },
-      },
-      select: { id: true, saleNumber: true, status: true },
-    });
-
     if (!site || site.companyId !== session.user.companyId) {
       return errorResponse("Invalid site", 403);
     }
@@ -188,31 +206,42 @@ export async function POST(request: NextRequest) {
       return errorResponse("Batch and sale must be at the same site", 400);
     }
 
+    const providedSaleNumber = validated.saleNumber
+      ? normalizeProvidedId(validated.saleNumber, "SCRAP_METAL_SALE")
+      : null;
+    const existingBatchSale = await prisma.scrapMetalSale.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        batchId: validated.batchId,
+        status: {
+          in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "COMPLETED"],
+        },
+      },
+      select: { id: true, saleNumber: true, status: true },
+    });
+
     if (existingBatchSale) {
+      if (providedSaleNumber && existingBatchSale.saleNumber === providedSaleNumber) {
+        const existingSale = await loadSaleByNumber(session.user.companyId, providedSaleNumber);
+        if (existingSale) {
+          return successResponse(existingSale);
+        }
+      }
       return errorResponse(
         `Batch already has an active sale (${existingBatchSale.saleNumber})`,
         409
       );
     }
 
-    const saleNumber = validated.saleNumber
-      ? normalizeProvidedId(validated.saleNumber, "SCRAP_METAL_SALE")
-      : await reserveIdentifier(prisma, {
+    const saleNumber = providedSaleNumber ?? await reserveIdentifier(prisma, {
           companyId: session.user.companyId,
           entity: "SCRAP_METAL_SALE",
           siteId: validated.siteId,
         });
 
-    const existingSaleNumber = await prisma.scrapMetalSale.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        saleNumber,
-      },
-      select: { id: true },
-    });
-
-    if (existingSaleNumber) {
-      return errorResponse("Sale number already exists", 409);
+    const existingSale = await loadSaleByNumber(session.user.companyId, saleNumber);
+    if (existingSale) {
+      return successResponse(existingSale);
     }
 
     const weightDiscrepancy = validated.recordedWeight - validated.soldWeight;

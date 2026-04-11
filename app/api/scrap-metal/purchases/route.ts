@@ -56,6 +56,73 @@ const scrapMetalPurchaseSchema = z.object({
   status: z.enum(["DRAFT", "POSTED", "CANCELLED", "REVERSED"]).optional(),
 });
 
+async function loadPurchaseByNumber(companyId: string, purchaseNumber: string) {
+  const purchase = await prisma.scrapMetalPurchase.findFirst({
+    where: {
+      companyId,
+      purchaseNumber,
+    },
+    include: {
+      site: { select: { id: true, name: true, code: true } },
+      employee: { select: { id: true, name: true, employeeId: true } },
+      sellerProfile: { select: { id: true, fullName: true, phone: true, nationalId: true } },
+      material: { select: { id: true, code: true, name: true, category: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
+  });
+
+  if (!purchase) return null;
+  return {
+    ...purchase,
+    attachments: parseScrapTicketPhotosJson(purchase.attachmentsJson),
+  };
+}
+
+async function ensurePurchaseAccountingEvent(input: {
+  companyId: string;
+  createdById: string;
+  purchase: {
+    id: string;
+    purchaseDate: Date;
+    purchaseNumber: string;
+    totalAmount: number;
+    currency: string;
+    category: string;
+    weight: number;
+    pricePerKg: number;
+    employeeId: string;
+    status: string;
+  };
+}) {
+  if (input.purchase.status !== "POSTED") return;
+
+  try {
+    await captureAccountingEvent({
+      companyId: input.companyId,
+      sourceDomain: "scrap-metal",
+      sourceAction: "purchase",
+      sourceType: "SCRAP_METAL_PURCHASE",
+      sourceId: input.purchase.id,
+      entryDate: input.purchase.purchaseDate,
+      description: `Scrap metal purchase ${input.purchase.purchaseNumber} - ${input.purchase.category}`,
+      amount: input.purchase.totalAmount,
+      netAmount: input.purchase.totalAmount,
+      taxAmount: 0,
+      grossAmount: input.purchase.totalAmount,
+      currency: input.purchase.currency,
+      createdById: input.createdById,
+      payload: {
+        category: input.purchase.category,
+        weight: input.purchase.weight,
+        pricePerKg: input.purchase.pricePerKg,
+        employeeId: input.purchase.employeeId,
+      },
+    });
+  } catch (error) {
+    console.error("[Accounting] Scrap metal purchase event failed:", error);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
@@ -185,16 +252,25 @@ export async function POST(request: NextRequest) {
           siteId: validated.siteId,
         });
 
-    const existingPurchaseNumber = await prisma.scrapMetalPurchase.findFirst({
-      where: {
+    const existingPurchase = await loadPurchaseByNumber(session.user.companyId, purchaseNumber);
+    if (existingPurchase) {
+      await ensurePurchaseAccountingEvent({
         companyId: session.user.companyId,
-        purchaseNumber,
-      },
-      select: { id: true },
-    });
-
-    if (existingPurchaseNumber) {
-      return errorResponse("Purchase number already exists", 409);
+        createdById: session.user.id,
+        purchase: {
+          id: existingPurchase.id,
+          purchaseDate: existingPurchase.purchaseDate,
+          purchaseNumber: existingPurchase.purchaseNumber,
+          totalAmount: existingPurchase.totalAmount,
+          currency: existingPurchase.currency,
+          category: existingPurchase.category,
+          weight: existingPurchase.weight,
+          pricePerKg: existingPurchase.pricePerKg,
+          employeeId: existingPurchase.employeeId,
+          status: existingPurchase.status,
+        },
+      });
+      return successResponse(existingPurchase);
     }
 
     const totalAmount = validated.weight * validated.pricePerKg;
@@ -269,32 +345,22 @@ export async function POST(request: NextRequest) {
       return newPurchase;
     });
 
-    // Capture accounting event
-    try {
-      await captureAccountingEvent({
-        companyId: session.user.companyId,
-        sourceDomain: "scrap-metal",
-        sourceAction: "purchase",
-        sourceType: "SCRAP_METAL_PURCHASE",
-        sourceId: purchase.id,
-        entryDate: purchase.purchaseDate,
-        description: `Scrap metal purchase ${purchase.purchaseNumber} - ${validated.category}`,
-        amount: purchase.totalAmount,
-        netAmount: purchase.totalAmount,
-        taxAmount: 0,
-        grossAmount: purchase.totalAmount,
+    await ensurePurchaseAccountingEvent({
+      companyId: session.user.companyId,
+      createdById: session.user.id,
+      purchase: {
+        id: purchase.id,
+        purchaseDate: purchase.purchaseDate,
+        purchaseNumber: purchase.purchaseNumber,
+        totalAmount: purchase.totalAmount,
         currency: purchase.currency,
-        createdById: session.user.id,
-        payload: {
-          category: validated.category,
-          weight: validated.weight,
-          pricePerKg: validated.pricePerKg,
-          employeeId: validated.employeeId,
-        },
-      });
-    } catch (error) {
-      console.error("[Accounting] Scrap metal purchase event failed:", error);
-    }
+        category: validated.category,
+        weight: validated.weight,
+        pricePerKg: validated.pricePerKg,
+        employeeId: validated.employeeId,
+        status: purchase.status,
+      },
+    });
 
     return successResponse(
       {
