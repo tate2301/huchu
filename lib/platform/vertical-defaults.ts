@@ -238,10 +238,11 @@ export function resolveVerticalDefaults(args: {
 }): VerticalDefaultConfig {
   const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
   const normalizedProfile = normalizeWorkspaceProfileInput(args.workspaceProfile) as WorkspaceProfile | null;
+
   const profile =
-    normalizedProfile && normalizedProfile in VERTICAL_DEFAULTS
+    normalizedProfile && normalizedProfile !== "GENERAL" && normalizedProfile in VERTICAL_DEFAULTS
       ? normalizedProfile
-      : inferredProfile ?? "GENERAL";
+      : inferredProfile ?? normalizedProfile ?? "GENERAL";
 
   return VERTICAL_DEFAULTS[profile] ?? VERTICAL_DEFAULTS.GENERAL;
 }

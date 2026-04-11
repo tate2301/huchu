@@ -18,9 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { SidebarAccountMenu } from "@/components/layout/app-sidebar/sidebar-account-menu";
 import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
-import {
-  SidebarNavSections,
-} from "@/components/layout/app-sidebar/sidebar-nav-sections";
+import { SidebarNavSections } from "@/components/layout/app-sidebar/sidebar-nav-sections";
 import { SidebarQuickActions } from "@/components/layout/app-sidebar/sidebar-quick-actions";
 import { SidebarSupport } from "@/components/layout/app-sidebar/sidebar-support";
 
@@ -31,10 +29,14 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const enabledFeatures = React.useMemo(
-    () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures,
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
     [session],
   );
-  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+  const workspaceProfile = (
+    session?.user as { workspaceProfile?: string } | undefined
+  )?.workspaceProfile;
   const { state, isMobile, setOpen } = useSidebar();
   const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
   const isCollapsed = state === "collapsed";
@@ -49,14 +51,17 @@ export function AppSidebar() {
     [enabledFeatures, role, workspaceProfile],
   );
 
-  const orderedSections = React.useMemo(() => sidebarModel.sections, [sidebarModel.sections]);
+  const orderedSections = React.useMemo(
+    () => sidebarModel.sections,
+    [sidebarModel.sections],
+  );
   const topQuickLinks = React.useMemo(() => {
     return [
       {
-      href: sidebarModel.homeHref,
-      label: sidebarModel.homeLabel,
-      icon: MedusaHouseIcon,
-    },
+        href: sidebarModel.homeHref,
+        label: sidebarModel.homeLabel,
+        icon: MedusaHouseIcon,
+      },
     ];
   }, [sidebarModel.homeHref, sidebarModel.homeLabel]);
   const topQuickLinkHrefs = React.useMemo(
@@ -68,7 +73,9 @@ export function AppSidebar() {
       orderedSections
         .map((section) => ({
           ...section,
-          items: section.items.filter((item) => !topQuickLinkHrefs.has(item.href)),
+          items: section.items.filter(
+            (item) => !topQuickLinkHrefs.has(item.href),
+          ),
         }))
         .filter((section) => section.items.length > 0),
     [orderedSections, topQuickLinkHrefs],
@@ -99,7 +106,9 @@ export function AppSidebar() {
       )?.id ?? null,
     [activeHref, orderedSectionsWithoutTopQuickLinks],
   );
-  const [openSectionId, setOpenSectionId] = React.useState<string | null>(activeSectionId);
+  const [openSectionId, setOpenSectionId] = React.useState<string | null>(
+    activeSectionId,
+  );
 
   React.useEffect(() => {
     if (activeSectionId) {
@@ -121,7 +130,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
+      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem] "
     >
       <SidebarHeader className="px-3 pb-2 pt-3">
         <SidebarAccountMenu

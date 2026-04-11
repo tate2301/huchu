@@ -56,7 +56,6 @@ const OPERATOR_TEMPLATE_ALLOW_PREFIXES = [
   "stores.",
   "maintenance.",
   "reports.",
-  "hr.employees",
   "hr.settlements",
 ] as const;
 

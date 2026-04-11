@@ -33,6 +33,7 @@ const PORTAL_HOME_BY_ROLE = {
   STUDENT: "/portal/student",
   TEACHER: "/portal/teacher",
 } as const;
+const HR_MODULE_ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
 
 type PlatformToken = {
   companyId?: string;
@@ -336,6 +337,12 @@ export default withAuth(
         return redirectToTenantHost(request, normalizedCompanySlug);
       }
       return redirectToAccessBlocked(request);
+    }
+
+    if (token && isPathWithinRoute(pathname, "/human-resources")) {
+      if (!HR_MODULE_ALLOWED_ROLES.has(token.role ?? "")) {
+        return denyAccess(request, "Human resources access is restricted");
+      }
     }
 
     const tenantHostEnforcementDecision = canAccessCapabilityWithToken(

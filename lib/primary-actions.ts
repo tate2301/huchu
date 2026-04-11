@@ -34,18 +34,30 @@ type WorkspaceProfileKey =
 
 function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceProfileKey {
   const normalized = String(value || "").trim().toUpperCase();
-  switch (normalized) {
-    case "SCRAP_METAL":
-    case "SCHOOLS":
-    case "AUTOS":
-    case "RETAIL":
-    case "THRIFT":
-    case "GENERAL":
-    case "GOLD_MINE":
-      return normalized === "THRIFT" ? "RETAIL" : normalized;
-    default:
-      return "GOLD_MINE";
+
+  if (normalized === "SCRAP" || normalized === "SCRAP-METAL" || normalized === "SCRAPMETAL" || normalized === "SCRAP_METAL") {
+    return "SCRAP_METAL";
   }
+  if (normalized === "GOLD" || normalized === "GOLD-MINE" || normalized === "GOLDMINE" || normalized === "GOLD_MINE") {
+    return "GOLD_MINE";
+  }
+  if (normalized === "SCHOOL" || normalized === "SCHOOLS") {
+    return "SCHOOLS";
+  }
+  if (
+    normalized === "AUTO" ||
+    normalized === "CAR_SALES" ||
+    normalized === "CAR-SALES" ||
+    normalized === "CARSALES" ||
+    normalized === "AUTOS"
+  ) {
+    return "AUTOS";
+  }
+  if (normalized === "RETAIL" || normalized === "THRIFT") {
+    return "RETAIL";
+  }
+
+  return "GENERAL";
 }
 
 const GENERAL_PRIMARY_ACTIONS: NavItem[] = [

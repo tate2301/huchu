@@ -346,13 +346,15 @@ export function normalizeWorkspaceProfileInput(
   const normalized = String(value || "").trim().toUpperCase();
   if (!normalized) return null;
 
-  if (normalized === "SCRAP") return "SCRAP_METAL";
-  if (normalized === "SCHOOL") return "SCHOOLS";
+  if (normalized === "SCRAP" || normalized === "SCRAP-METAL" || normalized === "SCRAPMETAL") return "SCRAP_METAL";
+  if (normalized === "GOLD" || normalized === "GOLD-MINE" || normalized === "GOLDMINE") return "GOLD_MINE";
+  if (normalized === "SCHOOL" || normalized === "SCHOOLS") return "SCHOOLS";
   if (
     normalized === "AUTO" ||
     normalized === "CAR_SALES" ||
     normalized === "CAR-SALES" ||
-    normalized === "CARSALES"
+    normalized === "CARSALES" ||
+    normalized === "AUTOS"
   ) {
     return "AUTOS";
   }
@@ -367,22 +369,31 @@ function getBundleById(id: VerticalProductId): VerticalProductBundleDefinition {
 export function inferWorkspaceProfileFromEnabledFeatures(
   enabledFeatures: string[] | undefined,
 ): WorkspaceProfile | null {
+  // 1. Scrap Metal (High Priority)
+  if (
+    hasTokenFeature(enabledFeatures, "scrap-metal.home") ||
+    hasTokenFeature(enabledFeatures, "scrap-metal.purchases") ||
+    hasTokenFeature(enabledFeatures, "scrap-metal.batches")
+  ) {
+    return "SCRAP_METAL";
+  }
+
+  // 2. Retail
   if (hasTokenFeature(enabledFeatures, "retail.core") || hasTokenFeature(enabledFeatures, "portal.pos")) {
     return "RETAIL";
   }
 
-  if (hasTokenFeature(enabledFeatures, "scrap-metal.home")) {
-    return "SCRAP_METAL";
-  }
-
+  // 3. Schools
   if (hasTokenFeature(enabledFeatures, "schools.core")) {
     return "SCHOOLS";
   }
 
+  // 4. Autos
   if (hasTokenFeature(enabledFeatures, "autos.core")) {
     return "AUTOS";
   }
 
+  // 5. Gold Mine (Check last as it has generic positions often confused with General)
   if (hasTokenFeature(enabledFeatures, "gold.home")) {
     return "GOLD_MINE";
   }

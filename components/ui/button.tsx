@@ -16,8 +16,8 @@ const buttonVariants = cva(
         outline:
           "border-[var(--border-default)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--button-shadow-hover)] active:shadow-[var(--button-shadow-pressed)]",
         secondary:
-          "border-[var(--border-default)] bg-[var(--action-secondary-bg)] text-[var(--action-secondary-fg)] shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)] hover:bg-[var(--action-secondary-hover)] hover:shadow-[var(--button-shadow-hover)] active:shadow-[var(--button-shadow-pressed)]",
-        ghost: "border-transparent bg-transparent text-foreground hover:bg-[var(--button-ghost-hover-bg)] active:bg-[var(--button-ghost-active-bg)]",
+          "border-none bg-[var(--action-secondary-bg)] text-[var(--action-secondary-fg)] shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)]  hover:shadow-[var(--button-shadow-pressed)]",
+        ghost: "border-transparent bg-button-ghost-hover-bg text-foreground",
         link: "border-transparent text-primary underline-offset-4 hover:underline",
       },
       size: {

@@ -10,8 +10,16 @@ import {
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/hr-payroll"
-import { EMPLOYEE_POSITION_VALUES, getDefaultEmployeePosition } from "@/lib/platform/vertical-defaults"
-import { getAllowedUserRolesForWorkspace, resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles"
+import {
+  EMPLOYEE_POSITION_VALUES,
+  getDefaultEmployeePosition,
+  getEmployeePositionOptions,
+} from "@/lib/platform/vertical-defaults"
+import {
+  getAllowedUserRolesForWorkspace,
+  resolveWorkspaceProfileForEmployeeModule,
+  resolveWorkspaceProfileForRoles,
+} from "@/lib/platform/vertical-roles"
 import { ROLES, type UserRole } from "@/lib/roles"
 import { EmployeeModule, Prisma } from "@prisma/client"
 
@@ -22,6 +30,7 @@ const EMPLOYEE_MODULE_INPUT_VALUES = [
   "CAR_SALES",
   "RETAIL",
   "THRIFT",
+  "SCHOOLS",
 ] as const
 
 type EmployeeModuleInput = (typeof EMPLOYEE_MODULE_INPUT_VALUES)[number]
@@ -87,19 +96,19 @@ const EMPLOYEE_ID_PAD = 4
 
 const ALLOWED_MODULES_BY_WORKSPACE: Record<
   string,
-  Array<"HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL">
+  Array<"HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL" | "SCHOOLS">
 > = {
   GOLD_MINE: ["HR", "GOLD"],
   SCRAP_METAL: ["HR", "SCRAP_METAL"],
   AUTOS: ["HR", "CAR_SALES"],
   RETAIL: ["HR", "RETAIL"],
-  SCHOOLS: ["HR"],
-  GENERAL: ["HR", "SCRAP_METAL", "CAR_SALES", "RETAIL"],
+  SCHOOLS: ["HR", "SCHOOLS"],
+  GENERAL: ["HR", "SCRAP_METAL", "CAR_SALES", "RETAIL", "SCHOOLS"],
 }
 
 function normalizeEmployeeModule(
   module: EmployeeModuleInput,
-): "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL" {
+): "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL" | "SCHOOLS" {
   return module === "THRIFT" ? "RETAIL" : module
 }
 
@@ -350,42 +359,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const workspaceProfile = resolveWorkspaceProfileForRoles({
+    const sessionWorkspaceProfile = resolveWorkspaceProfileForRoles({
       workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
       enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
     })
-    const allowedRoles = new Set(
-      getAllowedUserRolesForWorkspace({
-        workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
-        enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
-      }),
-    )
-
-    const requestedUserRole = toUserRoleOrNull(validated.userRole)
-    if (validated.createUserAccount) {
-      if (session.user.role !== "SUPERADMIN") {
-        return errorResponse("Only superadmins can provision linked user accounts during onboarding", 403)
-      }
-      if (!validated.userEmail || !validated.userPassword || !requestedUserRole) {
-        return errorResponse("Linked user email, password, and role are required", 400)
-      }
-      if (!allowedRoles.has(requestedUserRole)) {
-        return errorResponse("Selected user role is not available for this workspace", 400)
-      }
-      const existingUser = await prisma.user.findFirst({
-        where: { email: { equals: validated.userEmail.trim(), mode: "insensitive" } },
-        select: { id: true },
-      })
-      if (existingUser) {
-        return errorResponse("A user with this email already exists", 409)
-      }
-    }
-
     const moduleAssignments =
       validated.moduleAssignments && validated.moduleAssignments.length > 0
         ? validated.moduleAssignments
         : [{ module: "HR" as const, isPrimary: true, isActive: true }]
-    const allowedModules = new Set(ALLOWED_MODULES_BY_WORKSPACE[workspaceProfile])
+    const allowedModules = new Set(ALLOWED_MODULES_BY_WORKSPACE[sessionWorkspaceProfile])
     const normalizedModuleAssignments = Array.from(
       new Map(
         moduleAssignments.map((assignment, index) => [
@@ -412,16 +394,72 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    let primaryAssignment = normalizedModuleAssignments.find((assignment) => assignment.isPrimary)
+    if (!primaryAssignment) {
+      primaryAssignment = normalizedModuleAssignments[0]
+      if (primaryAssignment) {
+        primaryAssignment.isPrimary = true
+      }
+    }
+
+    const primaryModule = primaryAssignment?.module ?? "HR"
+    const moduleWorkspaceProfile = resolveWorkspaceProfileForEmployeeModule({
+      primaryModule,
+      workspaceProfile: sessionWorkspaceProfile,
+      enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+    })
+    const allowedRoles = new Set(
+      getAllowedUserRolesForWorkspace({
+        workspaceProfile: moduleWorkspaceProfile,
+        enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+      }),
+    )
+    const allowedPositions = new Set(
+      getEmployeePositionOptions({
+        workspaceProfile: moduleWorkspaceProfile,
+        enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+      }).map((option) => option.value),
+    )
+    const defaultPosition = getDefaultEmployeePosition({
+      workspaceProfile: moduleWorkspaceProfile,
+      enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
+    })
+
+    if (validated.position && !allowedPositions.has(validated.position)) {
+      return errorResponse("Selected position is not available for the chosen primary module", 400)
+    }
+
+    const requestedUserRole = toUserRoleOrNull(validated.userRole)
+    if (validated.createUserAccount) {
+      if (session.user.role !== "SUPERADMIN") {
+        return errorResponse("Only superadmins can provision linked user accounts during onboarding", 403)
+      }
+      if (!validated.userEmail || !validated.userPassword || !requestedUserRole) {
+        return errorResponse("Linked user email, password, and role are required", 400)
+      }
+      if (!allowedRoles.has(requestedUserRole)) {
+        return errorResponse("Selected user role is not available for the chosen primary module", 400)
+      }
+      const existingUser = await prisma.user.findFirst({
+        where: { email: { equals: validated.userEmail.trim(), mode: "insensitive" } },
+        select: { id: true },
+      })
+      if (existingUser) {
+        return errorResponse("A user with this email already exists", 409)
+      }
+    }
+
+    for (const assignment of normalizedModuleAssignments) {
+      if (assignment.accessRole && !allowedRoles.has(assignment.accessRole)) {
+        return errorResponse("Selected module access role is not available for the chosen primary module", 400)
+      }
+    }
+
     const employeeId = await generateEmployeeId(session.user.companyId)
     const hireDate = validated.hireDate ? new Date(validated.hireDate) : undefined
     const terminationDate = validated.terminationDate
       ? new Date(validated.terminationDate)
       : undefined
-
-    const defaultPosition = getDefaultEmployeePosition({
-      workspaceProfile: (session.user as { workspaceProfile?: string }).workspaceProfile,
-      enabledFeatures: (session.user as { enabledFeatures?: string[] }).enabledFeatures,
-    })
 
     const result = await prisma.$transaction(async (tx) => {
       let linkedUserId: string | undefined
