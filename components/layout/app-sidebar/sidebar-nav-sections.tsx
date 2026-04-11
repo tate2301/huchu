@@ -5,7 +5,11 @@ import Link from "next/link";
 
 import type { NavItem } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
-import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@/lib/icons";
+import {
+  MedusaChevronDownIcon,
+  MedusaChevronRightIcon,
+  MedusaHouseIcon,
+} from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import {
   SidebarGroup,
@@ -39,10 +43,10 @@ function SidebarNavLink({
         isActive={isActive}
         tooltip={item.label}
         className={cn(
-          "h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 text-[14px] font-medium lg:h-9",
+          "h-11 rounded-[10px] px-2.5 text-[14px] font-medium lg:h-9",
           "text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-          "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
-          "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
+          "hover:translate-x-[1px] hover:bg-surface-base hover:text-[var(--sidebar-item-hover-fg)]",
+          "data-[active=true]:bg-surface-base data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
           className,
         )}
       >
@@ -50,7 +54,9 @@ function SidebarNavLink({
           <item.icon
             className={cn(
               "h-4 w-4 transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-              isActive ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
+              isActive
+                ? "text-[var(--sidebar-item-active-fg)]"
+                : "text-[var(--sidebar-item-icon)]",
             )}
           />
           <span className="truncate">{item.label}</span>
@@ -163,7 +169,9 @@ function SidebarExpandableSection({
         <div
           className={cn(
             "grid transition-[grid-template-rows,opacity] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
-            isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-70",
+            isOpen
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-70",
           )}
         >
           <div className="overflow-hidden">
@@ -210,7 +218,9 @@ export function SidebarHomeLink({
                 <MedusaHouseIcon
                   className={cn(
                     "h-4 w-4",
-                    isActive ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
+                    isActive
+                      ? "text-[var(--sidebar-item-active-fg)]"
+                      : "text-[var(--sidebar-item-icon)]",
                   )}
                 />
                 <span className="truncate">{label}</span>
