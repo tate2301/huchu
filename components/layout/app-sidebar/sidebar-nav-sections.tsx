@@ -45,8 +45,8 @@ function SidebarNavLink({
         className={cn(
           "h-11 rounded-[10px] px-2.5 text-[14px] font-medium lg:h-9",
           "text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-          "hover:translate-x-[1px] hover:bg-surface-base hover:text-[var(--sidebar-item-hover-fg)]",
-          "data-[active=true]:bg-surface-base data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
+          "hover:translate-x-[1px] hover:bg-surface-base hover:text-text-strong",
+          "data-[active=true]:bg-surface-base data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px]",
           className,
         )}
       >
@@ -140,9 +140,8 @@ function SidebarExpandableSection({
               isActive={hasActiveChild}
               tooltip={section.title}
               className={cn(
-                "h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 lg:h-9",
-                "text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
-                "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
+                "h-11 rounded-[10px] px-2.5 lg:h-9",
+                "text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px]",
               )}
             >
               {React.createElement(sectionIcon, {
