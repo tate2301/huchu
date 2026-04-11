@@ -16,6 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPortalRoute = pathname.startsWith("/portal/");
   const isAdminRoute = pathname.startsWith("/admin");
   const isCctvRoute = pathname.startsWith("/cctv");
+  const isScrapRoute = pathname.startsWith("/scrap-metal");
 
   if (isAuthRoute || isMarketingRoute || isPortalRoute || isAdminRoute) {
     return <div className="min-h-screen bg-background">{children}</div>;
@@ -31,7 +32,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={
               isCctvRoute
                 ? "min-w-0 flex-1 bg-background py-0"
-                : "content-shell min-w-0 flex-1 bg-background py-6"
+                : isScrapRoute
+                  ? "content-shell scrap-vertical-theme min-w-0 flex-1 overflow-hidden bg-background py-4 md:py-6"
+                  : "content-shell min-w-0 flex-1 bg-background py-6"
             }
           >
             <OnboardingProvider>{children}</OnboardingProvider>

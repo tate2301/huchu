@@ -1,17 +1,22 @@
 import * as React from "react";
 import {
   AcademicCap as MedusaAcademicCapRaw,
+  ArrowRightOnRectangle as MedusaArrowRightOnRectangleRaw,
   BookOpen as MedusaBookOpenRaw,
   Buildings as MedusaBuildingsRaw,
   BuildingStorefront as MedusaBuildingStorefrontRaw,
   Cash as MedusaCashRaw,
+  ChevronDown as MedusaChevronDownRaw,
+  ChevronRight as MedusaChevronRightRaw,
   ChartBar as MedusaChartBarRaw,
+  CirclePlus as MedusaCirclePlusRaw,
   CircleSliders as MedusaCircleSlidersRaw,
   CircleStack as MedusaCircleStackRaw,
   CogSixTooth as MedusaCogSixToothRaw,
   Directions as MedusaDirectionsRaw,
   GridList as MedusaGridListRaw,
   HandTruck as MedusaHandTruckRaw,
+  House as MedusaHouseRaw,
   IdBadge as MedusaIdBadgeRaw,
   Lifebuoy as MedusaLifebuoyRaw,
 } from "@medusajs/icons";
@@ -34,10 +39,11 @@ function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
     <span
       {...props}
       className={cn(
-        "material-symbols-rounded inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none",
+        "material-symbols-rounded inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none text-current",
         className,
       )}
       style={{
+        color: "currentColor",
         ...(size !== undefined ? { fontSize: size } : null),
         ...style,
       }}
@@ -56,11 +62,12 @@ function createMedusaIcon(IconComponent: React.ElementType, displayName: string)
       {...(props as unknown as React.SVGAttributes<SVGSVGElement>)}
       aria-hidden={props["aria-label"] ? undefined : true}
       className={cn(
-        "inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none",
+        "inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none text-current",
         className,
       )}
       focusable="false"
       style={{
+        color: "currentColor",
         ...(size !== undefined ? { width: size, height: size } : null),
         ...style,
       }}
@@ -74,6 +81,10 @@ function createMedusaIcon(IconComponent: React.ElementType, displayName: string)
 export const MedusaAcademicCapIcon = createMedusaIcon(
   MedusaAcademicCapRaw,
   "MedusaAcademicCapIcon",
+);
+export const MedusaArrowRightOnRectangleIcon = createMedusaIcon(
+  MedusaArrowRightOnRectangleRaw,
+  "MedusaArrowRightOnRectangleIcon",
 );
 export const MedusaBookOpenIcon = createMedusaIcon(
   MedusaBookOpenRaw,
@@ -91,9 +102,21 @@ export const MedusaCashIcon = createMedusaIcon(
   MedusaCashRaw,
   "MedusaCashIcon",
 );
+export const MedusaChevronDownIcon = createMedusaIcon(
+  MedusaChevronDownRaw,
+  "MedusaChevronDownIcon",
+);
+export const MedusaChevronRightIcon = createMedusaIcon(
+  MedusaChevronRightRaw,
+  "MedusaChevronRightIcon",
+);
 export const MedusaChartBarIcon = createMedusaIcon(
   MedusaChartBarRaw,
   "MedusaChartBarIcon",
+);
+export const MedusaCirclePlusIcon = createMedusaIcon(
+  MedusaCirclePlusRaw,
+  "MedusaCirclePlusIcon",
 );
 export const MedusaCircleSlidersIcon = createMedusaIcon(
   MedusaCircleSlidersRaw,
@@ -118,6 +141,10 @@ export const MedusaGridListIcon = createMedusaIcon(
 export const MedusaHandTruckIcon = createMedusaIcon(
   MedusaHandTruckRaw,
   "MedusaHandTruckIcon",
+);
+export const MedusaHouseIcon = createMedusaIcon(
+  MedusaHouseRaw,
+  "MedusaHouseIcon",
 );
 export const MedusaIdBadgeIcon = createMedusaIcon(
   MedusaIdBadgeRaw,

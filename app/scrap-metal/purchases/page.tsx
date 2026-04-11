@@ -683,109 +683,80 @@ export default function ScrapMetalPurchasesPage() {
           }
         />
       ) : (
-        <>
-          <div className="hidden md:block">
-            <DataTable
-              data={purchases}
-              columns={columns}
-              searchPlaceholder="Search ticket, buyer, supplier, or material"
-              searchSubmitLabel="Search"
-              tableClassName="text-sm"
-              pagination={{ enabled: true }}
-              emptyState={purchasesQuery.isLoading ? "Loading inbound tickets..." : "No inbound tickets yet"}
-            />
-          </div>
-          <div className="space-y-3 md:hidden">
-            {purchases.map((purchase) => (
-              <article
-                key={purchase.id}
-                className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold">{purchase.material?.name ?? purchase.category}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{purchase.purchaseNumber}</div>
-                  </div>
-                  <Badge variant="outline">{purchase.site.code}</Badge>
+        <DataTable
+          data={purchases}
+          columns={columns}
+          searchPlaceholder="Search ticket, buyer, supplier, or material"
+          searchSubmitLabel="Search"
+          tableClassName="text-sm"
+          pagination={{ enabled: true }}
+          emptyState={purchasesQuery.isLoading ? "Loading inbound tickets..." : "No inbound tickets yet"}
+          mobileCardRenderer={({ row: purchase }) => (
+            <article className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{purchase.material?.name ?? purchase.category}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{purchase.purchaseNumber}</p>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Buyer / Cashier</div>
-                    <div className="mt-1 font-semibold">{purchase.employee.name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{purchase.employee.employeeId}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Supplier (Seller)</div>
-                    <div className="mt-1 font-semibold">{purchase.sellerName || "-"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {purchase.sellerProfile?.nationalId ?? purchase.sellerPhone ?? "No profile"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Date</div>
-                    <div className="mt-1 font-semibold">{purchase.purchaseDate.slice(0, 10)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Weight</div>
-                    <div className="mt-1 font-semibold">{purchase.weight.toFixed(2)} kg</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Price</div>
-                    <div className="mt-1 font-semibold">
-                      {purchase.currency} {purchase.pricePerKg.toFixed(2)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Total</div>
-                    <div className="mt-1 font-semibold">
-                      {purchase.currency} {purchase.totalAmount.toFixed(2)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Supplier Payment Status</div>
-                    <div className="mt-1 font-semibold">{purchase.status === "POSTED" ? "Finalized" : "Held / Draft"}</div>
-                  </div>
+                <Badge variant="outline">{purchase.site.code}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Buyer</p>
+                  <p className="font-semibold">{purchase.employee.name}</p>
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditing(purchase);
-                      setPriceTouched(true);
-                      setForm({
-                        purchaseDate: purchase.purchaseDate.slice(0, 16),
-                        siteId: purchase.site.id,
-                        employeeId: purchase.employee.id,
-                        sellerProfileId: purchase.sellerProfile?.id ?? "__none",
-                        materialId: purchase.material?.id ?? "__none",
-                        category: purchase.material?.category ?? purchase.category,
-                        weight: String(purchase.weight),
-                        pricePerKg: String(purchase.pricePerKg),
-                        currency: purchase.currency,
-                        paymentMethod: purchase.paymentMethod ?? "",
-                        paymentReference: purchase.paymentReference ?? "",
-                        overrideReason: "",
-                        notes: purchase.notes ?? "",
-                        attachments: purchase.attachments ?? [],
-                      });
-                      setSubmitIntent("finalize");
-                      setFormOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(purchase)}>
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
+                <div>
+                  <p className="text-xs text-muted-foreground">Supplier</p>
+                  <p className="font-semibold">{purchase.sellerName || "-"}</p>
                 </div>
-              </article>
-            ))}
-          </div>
-        </>
+                <div>
+                  <p className="text-xs text-muted-foreground">Weight</p>
+                  <p className="font-semibold">{purchase.weight.toFixed(2)} kg</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-semibold">
+                    {purchase.currency} {purchase.totalAmount.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(purchase);
+                    setPriceTouched(true);
+                    setForm({
+                      purchaseDate: purchase.purchaseDate.slice(0, 16),
+                      siteId: purchase.site.id,
+                      employeeId: purchase.employee.id,
+                      sellerProfileId: purchase.sellerProfile?.id ?? "__none",
+                      materialId: purchase.material?.id ?? "__none",
+                      category: purchase.material?.category ?? purchase.category,
+                      weight: String(purchase.weight),
+                      pricePerKg: String(purchase.pricePerKg),
+                      currency: purchase.currency,
+                      paymentMethod: purchase.paymentMethod ?? "",
+                      paymentReference: purchase.paymentReference ?? "",
+                      overrideReason: "",
+                      notes: purchase.notes ?? "",
+                      attachments: purchase.attachments ?? [],
+                    });
+                    setSubmitIntent("finalize");
+                    setFormOpen(true);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(purchase)}>
+                  Remove
+                </Button>
+              </div>
+            </article>
+          )}
+        />
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
@@ -801,9 +772,6 @@ export default function ScrapMetalPurchasesPage() {
               saveMutation.mutate({ payload: form, intent: submitIntent });
             }}
           >
-            <p className="text-xs text-muted-foreground">
-              Small-yard quick flow: fields marked with * are required. Everything else is optional.
-            </p>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Ticket Number</label>

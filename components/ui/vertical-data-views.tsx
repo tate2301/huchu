@@ -30,21 +30,21 @@ export function VerticalDataViews({
 }: VerticalDataViewsProps) {
   return (
     <section
-      className={cn("grid gap-5 lg:grid-cols-[190px_minmax(0,1fr)]", className)}
+      className={cn("grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]", className)}
     >
-      <aside className="space-y-3">
+      <aside className="space-y-2 lg:sticky lg:top-16 lg:self-start">
         <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
           {railLabel}
         </h3>
         <div className="-mx-1 overflow-x-auto pb-1 lg:mx-0 lg:overflow-visible lg:pb-0">
-          <div className="flex gap-2 px-1 lg:grid lg:gap-1 lg:px-0">
+          <div className="flex gap-2 px-1 lg:grid lg:gap-1.5 lg:px-0">
           {items.map((item) => (
             <Button
               key={item.id}
               type="button"
               variant="ghost"
               className={cn(
-                "h-10 min-w-fit justify-between rounded-full border border-transparent px-3 text-[13px] shadow-none lg:w-full lg:rounded-xl",
+                "h-11 min-w-fit justify-between rounded-full border border-transparent px-3.5 text-[13px] shadow-none lg:h-10 lg:w-full lg:rounded-xl",
                 item.id === value
                   ? "border-[var(--edge-subtle)] bg-[var(--surface-subtle)] text-[var(--text-strong)] hover:bg-[var(--surface-subtle)]"
                   : "text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-strong)]",

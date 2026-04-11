@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 
-import type { NavItem } from "@/lib/navigation";
 import {
-  ChevronDown,
-  Dashboard,
-  LogOut,
-  ManageAccounts,
-  Plus,
+  MedusaArrowRightOnRectangleIcon,
+  MedusaBuildingsIcon,
+  MedusaChevronDownIcon,
+  MedusaCogSixToothIcon,
+  MedusaIdBadgeIcon,
   type LucideIcon,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -20,29 +19,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 
-import { matchesNavHref } from "./sidebar-helpers";
-
 export function SidebarAccountMenu({
   isCollapsed,
   isMobile,
   workspaceLabel,
   workspaceIcon: WorkspaceIcon,
-  quickActions,
-  pathname,
-  view,
 }: {
   isCollapsed: boolean;
   isMobile: boolean;
   workspaceLabel: string;
   workspaceIcon: LucideIcon;
-  quickActions: NavItem[];
-  pathname: string;
-  view: string | null;
 }) {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className={cn("flex gap-1.5", isCollapsed ? "flex-col items-center" : "items-center")}>
+        <div className={cn("flex", isCollapsed ? "justify-center" : "items-center")}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
@@ -50,7 +41,7 @@ export function SidebarAccountMenu({
                 className={cn(
                   "h-11 min-w-0 rounded-xl border border-transparent px-2.5 text-[14px] font-semibold lg:h-10",
                   "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-                  "hover:bg-[var(--surface-subtle)]",
+                  "hover:bg-[var(--sidebar-accent)]",
                   "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)]",
                 )}
               >
@@ -60,7 +51,7 @@ export function SidebarAccountMenu({
                 {!isCollapsed ? (
                   <>
                     <span className="truncate">{workspaceLabel}</span>
-                    <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
+                    <MedusaChevronDownIcon className="ml-auto h-4 w-4 text-muted-foreground" />
                   </>
                 ) : null}
               </SidebarMenuButton>
@@ -72,19 +63,19 @@ export function SidebarAccountMenu({
             >
               <DropdownMenuItem asChild className="px-4 py-2.5 text-[14px]">
                 <Link href="/settings/branding">
-                  <Dashboard className="h-4 w-4" />
+                  <MedusaCogSixToothIcon className="h-4 w-4" />
                   Preferences
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="px-4 py-2.5 text-[14px]">
                 <Link href="/management/master-data">
-                  <ManageAccounts className="h-4 w-4" />
+                  <MedusaBuildingsIcon className="h-4 w-4" />
                   Workspace settings
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="px-4 py-2.5 text-[14px]">
                 <Link href="/management/users">
-                  <ManageAccounts className="h-4 w-4" />
+                  <MedusaIdBadgeIcon className="h-4 w-4" />
                   Invite and manage members
                 </Link>
               </DropdownMenuItem>
@@ -93,52 +84,10 @@ export function SidebarAccountMenu({
                 className="px-4 py-2.5 text-[14px] text-[var(--action-destructive-bg)] focus:bg-[var(--status-error-bg)] focus:text-[var(--action-destructive-bg)]"
               >
                 <Link href="/api/auth/signout" className="text-[var(--action-destructive-bg)]">
-                  <LogOut className="h-4 w-4" />
+                  <MedusaArrowRightOnRectangleIcon className="h-4 w-4" />
                   Log out
                 </Link>
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="group/plus inline-flex size-10 items-center justify-center rounded-full border border-[var(--edge-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:bg-[var(--surface-subtle)] hover:text-foreground data-[state=open]:scale-95 lg:size-8"
-                aria-label="Quick actions"
-              >
-                <Plus className="h-4 w-4 transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/plus:rotate-45" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              side={isCollapsed ? "right" : isMobile ? "bottom" : "right"}
-              className="w-[min(22rem,calc(100vw-1rem))] rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] p-0 shadow-[var(--elevation-3)]"
-            >
-              <div className="max-h-80 overflow-y-auto py-1">
-                {quickActions.length === 0 ? (
-                  <p className="px-4 py-3 text-sm text-muted-foreground">No quick actions available.</p>
-                ) : (
-                  quickActions.map((item) => {
-                    const isActive = matchesNavHref(item.href, pathname, view);
-                    return (
-                      <DropdownMenuItem
-                        asChild
-                        key={item.href}
-                        className="px-4 py-2.5 text-[14px]"
-                      >
-                        <Link
-                          href={item.href}
-                          className={isActive ? "bg-[var(--surface-subtle)] text-foreground" : ""}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    );
-                  })
-                )}
-              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

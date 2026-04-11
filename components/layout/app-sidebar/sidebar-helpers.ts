@@ -3,13 +3,12 @@
 import type { NavSection } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 import {
-  Building2,
   Gem,
   Home,
   LocalShipping,
-  ManageAccounts,
   MedusaAcademicCapIcon,
   MedusaBookOpenIcon,
+  MedusaBuildingsIcon,
   MedusaBuildingStorefrontIcon,
   MedusaCashIcon,
   MedusaChartBarIcon,
@@ -55,7 +54,7 @@ const sectionVariantIcons: Record<string, LucideIcon> = {
   "scrap-cash": MedusaCashIcon,
   "scrap-reports": MedusaChartBarIcon,
   "scrap-setup": MedusaCogSixToothIcon,
-  "schools-campus": Building2,
+  "schools-campus": MedusaBuildingsIcon,
   "schools-academics": MedusaBookOpenIcon,
   "schools-admin": MedusaIdBadgeIcon,
   "autos-pipeline": MedusaDirectionsIcon,
@@ -65,7 +64,7 @@ const sectionVariantIcons: Record<string, LucideIcon> = {
   "retail-merchandise": MedusaGridListIcon,
   "retail-stock": MedusaCircleStackIcon,
   "retail-buy": LocalShipping,
-  "retail-customers": ManageAccounts,
+  "retail-customers": MedusaIdBadgeIcon,
   "retail-cash-control": MedusaCashIcon,
   "retail-accounting": Scale,
   "retail-insights": MedusaChartBarIcon,
@@ -92,9 +91,9 @@ const sectionKeywordIcons: Array<{ keyword: string; icon: LucideIcon }> = [
   { keyword: "catalog", icon: MedusaGridListIcon },
   { keyword: "master", icon: MedusaCircleSlidersIcon },
   { keyword: "setup", icon: MedusaCogSixToothIcon },
-  { keyword: "customer", icon: ManageAccounts },
+  { keyword: "customer", icon: MedusaIdBadgeIcon },
   { keyword: "academic", icon: MedusaBookOpenIcon },
-  { keyword: "campus", icon: Building2 },
+  { keyword: "campus", icon: MedusaBuildingsIcon },
   { keyword: "pipeline", icon: MedusaDirectionsIcon },
 ];
 

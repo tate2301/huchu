@@ -21,7 +21,7 @@ export function AdminSidebar({
   const nav = activeCompanyId ? getCompanyNav(activeCompanyId) : PLATFORM_NAV;
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-[var(--edge-subtle)] bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)]">
+    <aside className="flex h-full w-full flex-col border-r border-[var(--edge-subtle)] bg-[linear-gradient(180deg,var(--sidebar)_0%,color-mix(in_oklab,var(--sidebar)_84%,var(--action-primary-bg)_16%)_100%)]">
       <div className="flex h-full flex-col overflow-hidden">
         <div className="px-3 pb-2 pt-3">
           <WorkspaceSwitcher
@@ -58,7 +58,7 @@ export function AdminSidebar({
                     "group flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 transition-[background-color,color,transform,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] lg:min-h-10",
                     isActive
                       ? "bg-[var(--action-secondary-bg)] text-[var(--text-strong)] shadow-[inset_0_0_0_1px_var(--edge-default)]"
-                      : "text-[var(--text-muted)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)]",
+                      : "text-[var(--text-muted)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)]",
                   )}
                 >
                   <div

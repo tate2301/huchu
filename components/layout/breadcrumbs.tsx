@@ -27,6 +27,22 @@ const routeLabels: Record<string, string> = {
   shift: "Shift",
   "shift-report": "Shift Report",
   stores: "Stock & Fuel",
+  "scrap-metal": "Scrap",
+  tickets: "Ticketing",
+  purchases: "Inbound Tickets",
+  sales: "Outbound Tickets",
+  settlements: "Staff Settlements",
+  batches: "Lots",
+  pricing: "Price Board",
+  adjustments: "Adjustments",
+  "ticket-templates": "Ticket Templates",
+  "compliance-rules": "Compliance Rules",
+  "daily-snapshot": "Daily Snapshot",
+  "supplier-performance": "Supplier Performance",
+  "variance-aging": "Variance & Aging",
+  unassigned: "Unassigned",
+  held: "Held / Draft",
+  "approval-requests": "Approval Requests",
   "password-reset": "Password Reset",
   "role-change": "Role Change",
 };
@@ -100,7 +116,7 @@ function toTitleCase(value: string) {
     .join(" ");
 }
 
-function buildCrumbs(pathname: string, view?: string | null): Crumb[] {
+export function buildCrumbs(pathname: string, view?: string | null): Crumb[] {
   const segments = pathname.split("/").filter(Boolean);
   const crumbs: Crumb[] = [{ label: "Home", href: "/" }];
 
@@ -122,6 +138,11 @@ function buildCrumbs(pathname: string, view?: string | null): Crumb[] {
   }
 
   return crumbs;
+}
+
+export function getCurrentPageTitle(pathname: string, view?: string | null) {
+  const crumbs = buildCrumbs(pathname, view);
+  return crumbs[crumbs.length - 1]?.label ?? "Home";
 }
 
 export function Breadcrumbs() {

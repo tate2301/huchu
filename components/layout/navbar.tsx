@@ -1,18 +1,25 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import Link from "next/link"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 
+import { buildCrumbs, Breadcrumbs, getCurrentPageTitle } from "@/components/layout/breadcrumbs"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { usePageActions } from "@/components/layout/page-actions"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ChevronDown, Home } from "@/lib/icons"
+import { cn } from "@/lib/utils"
 
 export function Navbar() {
   const { actions } = usePageActions()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const view = searchParams.get("view")
   const { data: session } = useSession()
   const enabledFeatures =
     (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures
@@ -21,26 +28,86 @@ export function Navbar() {
     enabledFeatures,
   ).allowed
 
+  const isScrapRoute = pathname.startsWith("/scrap-metal")
+  const currentTitle = getCurrentPageTitle(pathname, view)
+  const crumbs = buildCrumbs(pathname, view)
   const successHint = getSuccessHint(pathname)
 
   return (
-    <header className="sticky top-0 z-20 h-14 max-h-14 bg-[var(--surface-overlay)] shadow-[inset_0_-1px_0_0_var(--edge-subtle)] backdrop-blur-md">
-      <div className="content-shell flex h-14 items-center gap-3">
-        <SidebarTrigger />
-        <Separator orientation="vertical" className="hidden h-6 md:block" />
-        <div className="min-w-0">
-          <Breadcrumbs />
-          {successHint ? (
-            <p className="hidden truncate text-xs text-muted-foreground lg:block">
-              {successHint}
-            </p>
-          ) : null}
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          {showNotificationCenter ? <NotificationCenter /> : null}
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
-        </div>
+    <header
+      className={cn(
+        "sticky top-0 z-20 h-14 max-h-14 bg-[var(--surface-overlay)] shadow-[inset_0_-1px_0_0_var(--edge-subtle)] backdrop-blur-md",
+        isScrapRoute && "scrap-vertical-theme",
+      )}
+    >
+      <div className="content-shell h-14">
+        {isScrapRoute ? (
+          <>
+            <div className="flex h-14 items-center gap-2 md:hidden">
+              <SidebarTrigger />
+              <Button type="button" size="icon-sm" variant="outline" asChild aria-label="Go to scrap home">
+                <Link href="/scrap-metal">
+                  <Home className="h-4 w-4" />
+                </Link>
+              </Button>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{currentTitle}</p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" size="icon-sm" variant="outline" aria-label="Open breadcrumb trail">
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {crumbs.map((crumb, index) => (
+                    <DropdownMenuItem key={`${crumb.label}-${index}`} asChild={Boolean(crumb.href)}>
+                      {crumb.href ? <Link href={crumb.href}>{crumb.label}</Link> : <span>{crumb.label}</span>}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {showNotificationCenter ? <NotificationCenter /> : null}
+              {actions ? (
+                <div className="flex items-center gap-2 [&>*:not(:first-child)]:hidden">{actions}</div>
+              ) : null}
+            </div>
+            <div className="hidden h-14 items-center gap-3 md:flex">
+              <SidebarTrigger />
+              <Separator orientation="vertical" className="h-6" />
+              <div className="min-w-0">
+                <Breadcrumbs />
+              </div>
+              <div className="ml-auto flex items-center gap-3">
+                {showNotificationCenter ? <NotificationCenter /> : null}
+                {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-14 items-center gap-3">
+            <SidebarTrigger />
+            <Separator orientation="vertical" className="hidden h-6 md:block" />
+            <div className="min-w-0">
+              <Breadcrumbs />
+              {successHint ? (
+                <p className="hidden truncate text-xs text-muted-foreground lg:block">
+                  {successHint}
+                </p>
+              ) : null}
+            </div>
+            <div className="ml-auto flex items-center gap-3">
+              {showNotificationCenter ? <NotificationCenter /> : null}
+              {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+            </div>
+          </div>
+        )}
       </div>
+      {isScrapRoute && successHint ? (
+        <div className="hidden border-t border-[var(--edge-subtle)] bg-[var(--surface-subtle)]/80 px-[var(--content-gutter-x)] py-1.5 text-xs text-muted-foreground lg:block">
+          {successHint}
+        </div>
+      ) : null}
     </header>
   )
 }

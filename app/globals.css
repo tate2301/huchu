@@ -9,7 +9,7 @@
 .material-symbols-rounded {
     font-variation-settings:
         "FILL" 1,
-        "wght" 700,
+        "wght" 400,
         "GRAD" 0,
         "opsz" 24;
     font-size: 1em;
@@ -426,13 +426,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --chart-inactive: var(--erp-inactive);
     --chart-grid: var(--edge-default);
     --chart-text: var(--text-muted);
-    --sidebar: var(--erp-canvas);
+    --sidebar: color-mix(in oklab, var(--erp-canvas) 92%, var(--erp-primary) 8%);
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: #f7f7f2;
+    --sidebar-accent: color-mix(in oklab, var(--erp-primary-soft) 76%, var(--erp-surface) 24%);
     --sidebar-accent-foreground: var(--text-body);
-    --sidebar-border: var(--edge-default);
+    --sidebar-border: color-mix(in oklab, var(--edge-default) 82%, var(--erp-primary) 18%);
     --sidebar-ring: var(--focus-ring);
     /* Warm paper gradient - subtle */
     --app-canvas-wash: linear-gradient(180deg, #fcfcf4 0%, #f7f7f2 100%);
@@ -573,15 +573,57 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --chart-3: #f8c978;
     --chart-4: #ff8ec7;
     --chart-5: #b9a2ff;
-    --sidebar: #101d21;
+    --sidebar: color-mix(in oklab, #101d21 86%, #7d9bff 14%);
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: #1a2b30;
+    --sidebar-accent: color-mix(in oklab, #1a2b30 70%, #7d9bff 30%);
     --sidebar-accent-foreground: var(--text-body);
-    --sidebar-border: #2a4248;
+    --sidebar-border: color-mix(in oklab, #2a4248 78%, #7d9bff 22%);
     --sidebar-ring: var(--focus-ring);
     --app-canvas-wash: none;
+}
+
+.scrap-vertical-theme {
+    --surface-canvas: #f8f4ef;
+    --surface-base: #fffdf9;
+    --surface-raised: #ffffff;
+    --surface-muted: #f2ece5;
+    --surface-subtle: #f7f1eb;
+    --surface-overlay: rgb(248 244 239 / 90%);
+    --text-strong: #1f2528;
+    --text-body: #1f2528;
+    --text-muted: #5b6366;
+    --text-subtle: #7b858a;
+    --action-primary-bg: #b56a3a;
+    --action-primary-fg: #ffffff;
+    --action-primary-hover: #9f5b30;
+    --action-primary-pressed: #8d4f2a;
+    --action-secondary-bg: #efe2d6;
+    --action-secondary-fg: #6d462a;
+    --action-secondary-hover: #e8d7c8;
+    --focus-ring: #b56a3a;
+    --status-success-bg: #e8f3ef;
+    --status-success-border: #1f8a70;
+    --status-success-text: #1f8a70;
+    --status-warning-bg: #f8eee6;
+    --status-warning-border: #b56a3a;
+    --status-warning-text: #9f5b30;
+    --edge-subtle: #ddd2c6;
+    --edge-default: #d5c8ba;
+    --edge-strong: #c9b9a8;
+    --primary: var(--action-primary-bg);
+    --primary-foreground: var(--action-primary-fg);
+    --secondary: var(--action-secondary-bg);
+    --secondary-foreground: var(--action-secondary-fg);
+    --chart-1: #b56a3a;
+    --chart-2: #1f8a70;
+    --chart-3: #6d777d;
+    --chart-4: #c14f40;
+    --chart-5: #8f6a50;
+    --primary-500: #b56a3a;
+    --success-500: #1f8a70;
+    --warning-500: #b56a3a;
 }
 
 @layer base {

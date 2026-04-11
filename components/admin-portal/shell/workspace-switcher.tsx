@@ -58,7 +58,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="group/switcher h-11 w-full justify-between rounded-[10px] bg-[var(--surface-base)] px-2.5 text-left shadow-none transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] data-[state=open]:bg-[var(--action-secondary-bg)] lg:h-10"
+          className="group/switcher h-11 w-full justify-between rounded-[10px] bg-[var(--surface-base)] px-2.5 text-left shadow-none transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] data-[state=open]:bg-[var(--action-secondary-bg)] lg:h-10"
         >
           <span className="flex min-w-0 items-center gap-2.5 text-left">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-[#1f1c18] text-[10px] font-semibold text-white">

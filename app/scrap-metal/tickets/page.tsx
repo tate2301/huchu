@@ -750,7 +750,29 @@ export default function ScrapMetalTicketWorkbenchPage() {
       <ScrapShell
         title="Ticketing Workbench"
         actions={
-          <div className="flex w-full flex-wrap items-center gap-2">
+          <div className="flex w-full items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" variant="outline" className="shrink-0">
+                  More
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void syncOfflineTickets()} disabled={syncingOfflineQueue || offlineQueueCount === 0}>
+                  {syncingOfflineQueue ? "Syncing Queue" : `Sync Queue (${offlineQueueCount})`}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={saveCurrentDraftLocally}>Save Local Draft</DropdownMenuItem>
+                <DropdownMenuItem onClick={loadCurrentDraftLocally}>Load Local Draft</DropdownMenuItem>
+                <DropdownMenuItem onClick={holdCurrentTicket}>Hold Ticket</DropdownMenuItem>
+                <DropdownMenuItem onClick={finalizeAndExportCurrentTicket}>
+                  {view === "inbound" ? "Finalize + PDF" : canCreateOutbound ? "Submit + PDF" : "Request Approval"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ButtonGroup className="min-w-0 flex-1">
               <Button
                 size="sm"
@@ -769,31 +791,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 Outbound
               </Button>
             </ButtonGroup>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <Badge variant="outline" className="shrink-0">Held {heldInbound + heldOutbound}</Badge>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" size="sm" variant="outline" className="shrink-0">
-                    More
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link href="/scrap-metal/tickets/held">Held Tickets</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void syncOfflineTickets()} disabled={syncingOfflineQueue || offlineQueueCount === 0}>
-                    {syncingOfflineQueue ? "Syncing Queue" : `Sync Queue (${offlineQueueCount})`}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={saveCurrentDraftLocally}>Save Local Draft</DropdownMenuItem>
-                  <DropdownMenuItem onClick={loadCurrentDraftLocally}>Load Local Draft</DropdownMenuItem>
-                  <DropdownMenuItem onClick={holdCurrentTicket}>Hold Ticket</DropdownMenuItem>
-                  <DropdownMenuItem onClick={finalizeAndExportCurrentTicket}>
-                    {view === "inbound" ? "Finalize + PDF" : canCreateOutbound ? "Submit + PDF" : "Request Approval"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <Badge variant="outline" className="ml-auto hidden shrink-0 sm:inline-flex">Held {heldInbound + heldOutbound}</Badge>
           </div>
         }
       >

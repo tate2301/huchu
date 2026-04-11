@@ -542,47 +542,38 @@ export default function ScrapSettlementsPage() {
             })}
           </div>
         ) : (
-          <>
-            <div className="hidden md:block">
-              <DataTable
-                data={batches}
-                columns={batchColumns}
-                features={{ sorting: true, globalFilter: true, pagination: true }}
-                pagination={{ enabled: true, server: false }}
-                searchPlaceholder="Search batch"
-                tableClassName="text-sm"
-                emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
-              />
-            </div>
-            <div className="space-y-3 md:hidden">
-              {batches.map((batch) => (
-                <article
-                  key={batch.id}
-                  className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">{batch.label}</div>
-                      <div className="text-xs text-muted-foreground">{batch.items.length} people</div>
-                    </div>
-                    <Badge variant="secondary">{batch.workflowStatus}</Badge>
+          <DataTable
+            data={batches}
+            columns={batchColumns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search batch"
+            tableClassName="text-sm"
+            emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
+            mobileCardRenderer={({ row: batch }) => (
+              <article className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{batch.label}</p>
+                    <p className="text-xs text-muted-foreground">{batch.items.length} people</p>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Due</div>
-                      <div className="mt-1 font-semibold">{formatDate(batch.dueDate)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Value</div>
-                      <div className="mt-1 font-semibold">
-                        {formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}
-                      </div>
-                    </div>
+                  <Badge variant="secondary">{batch.workflowStatus}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Due</p>
+                    <p className="font-semibold">{formatDate(batch.dueDate)}</p>
                   </div>
-                </article>
-              ))}
-            </div>
-          </>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Value</p>
+                    <p className="font-semibold">
+                      {formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            )}
+          />
         )}
       </VerticalDataViews>
 

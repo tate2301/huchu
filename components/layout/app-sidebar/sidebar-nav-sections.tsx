@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import type { NavItem } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
-import { ChevronDown, ChevronRight, Home } from "@/lib/icons";
+import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import {
   SidebarGroup,
@@ -41,7 +41,7 @@ function SidebarNavLink({
         className={cn(
           "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium lg:h-9",
           "text-[var(--text-body)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-          "hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] hover:text-foreground",
+          "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-foreground",
           "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
           className,
         )}
@@ -135,7 +135,7 @@ function SidebarExpandableSection({
               tooltip={section.title}
               className={cn(
                 "h-11 rounded-[10px] border border-transparent px-2.5 lg:h-9",
-                "text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)]",
+                "text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)]",
                 "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
               )}
             >
@@ -150,9 +150,9 @@ function SidebarExpandableSection({
               </span>
               {!isCollapsed ? (
                 isOpen ? (
-                  <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground" />
+                  <MedusaChevronDownIcon className="ml-auto h-4 w-4 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+                  <MedusaChevronRightIcon className="ml-auto h-4 w-4 text-muted-foreground" />
                 )
               ) : null}
             </SidebarMenuButton>
@@ -204,10 +204,10 @@ export function SidebarHomeLink({
               asChild
               isActive={isActive}
               tooltip={label}
-              className="h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] lg:h-9"
+              className="h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] lg:h-9"
             >
               <Link href={href}>
-                <Home className="h-4 w-4 text-muted-foreground" />
+                <MedusaHouseIcon className="h-4 w-4 text-muted-foreground" />
                 <span className="truncate">{label}</span>
               </Link>
             </SidebarMenuButton>

@@ -776,7 +776,6 @@ export default function ScrapMetalSalesPage() {
         <DialogContent size="full" tabletBehavior="fullscreen" className="max-h-[100dvh] sm:max-h-[92dvh]">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Outbound Ticket" : "New Outbound Ticket"}</DialogTitle>
-            <DialogDescription>Lock the buyer deal, accepted weight, and final sale value.</DialogDescription>
           </DialogHeader>
           <form
             ref={formRef}
@@ -786,9 +785,6 @@ export default function ScrapMetalSalesPage() {
               saveMutation.mutate({ payload: form, intent: submitIntent });
             }}
           >
-            <p className="text-xs text-muted-foreground">
-              Small-yard quick flow: fields marked with * are required. Everything else is optional.
-            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Ticket Number</label>
@@ -1101,9 +1097,6 @@ export default function ScrapMetalSalesPage() {
               <SaleCalculator recordedWeight={selectedSale.recordedWeight} onWeightCalculated={() => {}} />
 
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Approve locks pricing and reserves the lot. Complete records final payment closeout.
-                </p>
                 <label className="text-sm text-muted-foreground">Cancellation note</label>
                 <textarea
                   className="min-h-[74px] w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -1169,10 +1162,10 @@ export default function ScrapMetalSalesPage() {
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Remove Outbound Ticket</DialogTitle>
-            <DialogDescription>
-              {deleteTarget ? `Remove ${deleteTarget.saleNumber}?` : "Remove this outbound ticket?"}
-            </DialogDescription>
           </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {deleteTarget ? `Remove ${deleteTarget.saleNumber}?` : "Remove this outbound ticket?"}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel

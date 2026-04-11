@@ -5,8 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { useGuidedMode } from "@/hooks/use-guided-mode";
-import { ChevronDown, Home } from "@/lib/icons";
-import type { NavItem } from "@/lib/navigation";
+import { MedusaChevronDownIcon, MedusaHouseIcon } from "@/lib/icons";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,
@@ -52,42 +51,14 @@ export function AppSidebar() {
 
   const orderedSections = React.useMemo(() => sidebarModel.sections, [sidebarModel.sections]);
   const topQuickLinks = React.useMemo(() => {
-    const links: NavItem[] = [];
-    const seen = new Set<string>();
-    const push = (item: NavItem | null | undefined) => {
-      if (!item || seen.has(item.href)) return;
-      seen.add(item.href);
-      links.push(item);
-    };
-
-    push({
+    return [
+      {
       href: sidebarModel.homeHref,
       label: sidebarModel.homeLabel,
-      icon: Home,
-    });
-
-    for (const item of sidebarModel.quickActions) {
-      if (links.length >= 2) break;
-      push(item);
-    }
-
-    if (links.length < 2) {
-      for (const section of orderedSections) {
-        for (const item of section.items) {
-          if (links.length >= 2) break;
-          push(item);
-        }
-        if (links.length >= 2) break;
-      }
-    }
-
-    return links.slice(0, 2);
-  }, [
-    orderedSections,
-    sidebarModel.homeHref,
-    sidebarModel.homeLabel,
-    sidebarModel.quickActions,
-  ]);
+      icon: MedusaHouseIcon,
+    },
+    ];
+  }, [sidebarModel.homeHref, sidebarModel.homeLabel]);
   const topQuickLinkHrefs = React.useMemo(
     () => new Set(topQuickLinks.map((item) => item.href)),
     [topQuickLinks],
@@ -150,7 +121,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
+      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[linear-gradient(180deg,var(--sidebar)_0%,color-mix(in_oklab,var(--sidebar)_84%,var(--action-primary-bg)_16%)_100%)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
     >
       <SidebarHeader className="px-3 pb-2 pt-3">
         <SidebarAccountMenu
@@ -158,12 +129,12 @@ export function AppSidebar() {
           isMobile={isMobile}
           workspaceLabel={sidebarModel.workspaceLabel}
           workspaceIcon={sidebarModel.workspaceIcon}
-          quickActions={sidebarModel.quickActions}
-          pathname={pathname}
-          view={view}
         />
         <SidebarQuickActions
           items={topQuickLinks}
+          quickActions={sidebarModel.quickActions}
+          isCollapsed={isCollapsed}
+          isMobile={isMobile}
           pathname={pathname}
           view={view}
         />
@@ -221,7 +192,7 @@ function SidebarSectionHeading({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-[12px] font-medium text-muted-foreground">
       <span className="truncate">{label}</span>
-      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+      <MedusaChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground" />
     </div>
   );
 }
