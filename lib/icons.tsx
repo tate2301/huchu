@@ -29,12 +29,6 @@ export type MaterialIconProps = Omit<
 
 export type LucideIcon = React.ComponentType<MaterialIconProps>;
 
-type MedusaSvgIcon = React.ComponentType<
-  React.SVGAttributes<SVGSVGElement> & {
-    color?: string;
-  }
->;
-
 function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
   const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
     <span
@@ -56,7 +50,7 @@ function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
   return Icon;
 }
 
-function createMedusaIcon(IconComponent: MedusaSvgIcon, displayName: string): LucideIcon {
+function createMedusaIcon(IconComponent: React.ElementType, displayName: string): LucideIcon {
   const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
     <IconComponent
       {...(props as unknown as React.SVGAttributes<SVGSVGElement>)}
@@ -201,6 +195,7 @@ export const Minus = createMaterialIcon("remove", "Minus");
 export const NoteAdd = createMaterialIcon("note_add", "NoteAdd");
 export const Package = createMaterialIcon("inventory_2", "Package");
 export const PackageCheck = createMaterialIcon("inventory", "PackageCheck");
+export const Palette = createMaterialIcon("palette", "Palette");
 export const PanelLeft = createMaterialIcon("left_panel_open", "PanelLeft");
 export const Payments = createMaterialIcon("payments", "Payments");
 export const Pencil = createMaterialIcon("edit", "Pencil");
@@ -227,6 +222,7 @@ export const Shield = createMaterialIcon("shield", "Shield");
 export const ShieldAlert = createMaterialIcon("gpp_bad", "ShieldAlert");
 export const ShieldCheck = createMaterialIcon("verified_user", "ShieldCheck");
 export const Storefront = createMaterialIcon("storefront", "Storefront");
+export const Sparkles = createMaterialIcon("auto_awesome", "Sparkles");
 export const TableRows = createMaterialIcon("table_rows", "TableRows");
 export const Trash2 = createMaterialIcon("delete", "Trash2");
 export const TrendingDown = createMaterialIcon("trending_down", "TrendingDown");

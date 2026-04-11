@@ -107,6 +107,8 @@ export default function RetailShiftsPage() {
         .map((shift) => ({
           id: shift.id,
           label: shift.shiftNo,
+          primary: shift.salesValue,
+          secondary: shift.expectedCash,
           opened: shift.salesValue,
           expected: shift.expectedCash,
           counted: shift.countedCash ?? 0,

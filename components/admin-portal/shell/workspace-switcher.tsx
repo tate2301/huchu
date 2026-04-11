@@ -58,7 +58,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="group/switcher h-10 w-full justify-between rounded-[10px] bg-[var(--surface-base)] px-2.5 text-left shadow-none"
+          className="group/switcher h-11 w-full justify-between rounded-[10px] bg-[var(--surface-base)] px-2.5 text-left shadow-none transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] data-[state=open]:bg-[var(--action-secondary-bg)] lg:h-10"
         >
           <span className="flex min-w-0 items-center gap-2.5 text-left">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-[#1f1c18] text-[10px] font-semibold text-white">
@@ -71,7 +71,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)] transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/switcher:rotate-180" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[23rem] p-1.5" align="start">
+      <PopoverContent className="w-[min(23rem,calc(100vw-1rem))] p-1.5" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             value={query}
@@ -86,7 +86,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
               <CommandItem
                 value="platform global control plane"
                 onSelect={() => selectWorkspace()}
-                className="rounded-[12px] px-2 py-2"
+                className="min-h-11 rounded-[12px] px-2 py-2 transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px]"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-[#1f1c18] text-[11px] font-semibold text-white">
                   <Zap className="h-3.5 w-3.5" />
@@ -101,7 +101,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
               </CommandItem>
             </CommandGroup>
             <div className="p-2">
-              <p className="font-semibold text-[var(--text-muted)]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
                 Organizations
               </p>
             </div>
@@ -112,7 +112,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                   key={company.id}
                   value={`${company.name} ${company.slug ?? ""} ${company.id}`}
                   onSelect={() => selectWorkspace(company.id)}
-                  className="rounded-[12px] px-2 py-2 border-none"
+                  className="min-h-11 rounded-[12px] border-none px-2 py-2 transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px]"
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-[var(--surface-soft)] text-[11px] font-semibold text-[var(--text-strong)]">
                     {getMonogram(company.name)}
@@ -120,7 +120,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-[13px] font-medium">{company.name}</p>
-                      {!company.status ? (
+                      {company.status && company.status !== "ACTIVE" ? (
                         <Badge
                           variant="danger"
                           className="rounded-full px-2 py-0 text-[10px]"

@@ -39,10 +39,10 @@ function SidebarNavLink({
         isActive={isActive}
         tooltip={item.label}
         className={cn(
-          "h-[34px] rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium",
+          "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium lg:h-9",
           "text-[var(--text-body)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
           "hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] hover:text-foreground",
-          "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:text-foreground data-[active=true]:shadow-none",
+          "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
           className,
         )}
       >
@@ -75,7 +75,7 @@ function SidebarDirectSectionLink({
           <SidebarNavLink
             item={item}
             isActive={item.href === activeHref}
-            className="h-9 text-[14px]"
+            className="h-11 text-[14px] lg:h-10"
           />
         </SidebarMenu>
       </SidebarGroupContent>
@@ -134,9 +134,9 @@ function SidebarExpandableSection({
               isActive={hasActiveChild}
               tooltip={section.title}
               className={cn(
-                "h-9 rounded-[10px] border border-transparent px-2.5",
+                "h-11 rounded-[10px] border border-transparent px-2.5 lg:h-9",
                 "text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)]",
-                "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:shadow-none",
+                "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
               )}
             >
               {React.createElement(sectionIcon, {
@@ -159,19 +159,28 @@ function SidebarExpandableSection({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupLabel>
-      {!isCollapsed && isOpen ? (
-        <SidebarGroupContent className="mt-0 pl-4 pr-0.5">
-          <SidebarMenu className="relative ml-2 gap-0 border-l border-[var(--edge-default)] pl-2.5">
-            {section.items.map((item) => (
-              <SidebarNavLink
-                key={item.href}
-                item={item}
-                isActive={item.href === activeHref}
-                className="h-8 rounded-[8px] px-2 text-[14px]"
-              />
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
+      {!isCollapsed ? (
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
+            isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-70",
+          )}
+        >
+          <div className="overflow-hidden">
+            <SidebarGroupContent className="mt-0 pl-4 pr-0.5">
+              <SidebarMenu className="relative ml-2 gap-0 border-l border-[var(--edge-default)] pl-2.5">
+                {section.items.map((item) => (
+                  <SidebarNavLink
+                    key={item.href}
+                    item={item}
+                    isActive={item.href === activeHref}
+                    className="h-10 rounded-[8px] px-2 text-[14px] lg:h-8"
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </div>
+        </div>
       ) : null}
     </SidebarGroup>
   );
@@ -195,7 +204,7 @@ export function SidebarHomeLink({
               asChild
               isActive={isActive}
               tooltip={label}
-              className="h-9 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:shadow-none"
+              className="h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] lg:h-9"
             >
               <Link href={href}>
                 <Home className="h-4 w-4 text-muted-foreground" />

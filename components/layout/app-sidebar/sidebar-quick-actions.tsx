@@ -39,9 +39,9 @@ export function SidebarQuickActions({
                   isActive={isActive}
                   tooltip={item.label}
                   className={cn(
-                    "h-9 rounded-[10px] px-2.5 text-[14px] font-medium",
+                    "h-11 rounded-[10px] px-2.5 text-[14px] font-medium lg:h-9",
                     "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] hover:shadow-none",
-                    "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-muted)] data-[active=true]:text-foreground data-[active=true]:shadow-none",
+                    "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
                   )}
                 >
                   <Link href={item.href}>

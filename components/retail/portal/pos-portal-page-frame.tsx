@@ -109,23 +109,23 @@ export async function PosPortalPageFrame({
   return (
     <div className="admin-shell-frame text-[15px] text-[var(--text-strong)]">
       <div className="admin-shell-window relative overflow-hidden lg:grid lg:min-h-[calc(100vh-1rem)] lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="h-full w-full bg-[var(--sidebar)] p-4">
-          <div className="px-2">
+        <aside className="h-full w-full border-b border-[var(--edge-subtle)] bg-[var(--sidebar)] px-3 pb-3 pt-3 lg:border-b-0 lg:border-r lg:px-4 lg:py-4">
+          <div className="px-1 lg:px-2">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
               POS portal
             </div>
             <div className="mt-1 text-sm font-semibold">{session.user.name || "Cashier"}</div>
           </div>
-          <nav className="mt-5 space-y-1.5">
+          <nav className="mt-4 flex gap-1.5 overflow-x-auto pb-1 lg:mt-5 lg:block lg:space-y-1.5 lg:overflow-visible lg:pb-0">
             {renderedLinks.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "group flex min-h-14 w-full items-center gap-3 rounded-xl px-4 py-2.5 text-base font-semibold transition-all duration-[160ms]",
+                  "group inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-full px-3.5 py-2 text-[14px] font-semibold transition-all duration-[160ms] lg:flex lg:min-h-12 lg:w-full lg:rounded-xl lg:px-4 lg:py-2.5 lg:text-base",
                   publicPathname === item.href || pathname === item.href
-                    ? "bg-[var(--surface-base)]"
-                    : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.4)]",
+                    ? "bg-[var(--surface-base)] text-[var(--text-strong)] shadow-[inset_0_0_0_1px_var(--edge-default)]"
+                    : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-base)_68%,transparent)]",
                 )}
               >
                 <div
@@ -136,9 +136,9 @@ export async function PosPortalPageFrame({
                       : "text-[var(--text-muted)]",
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className="h-4 w-4 lg:h-5 lg:w-5" />
                 </div>
-                <span>{item.label}</span>
+                <span className="whitespace-nowrap">{item.label}</span>
               </Link>
             ))}
           </nav>
@@ -147,6 +147,9 @@ export async function PosPortalPageFrame({
           <div className="overflow-clip rounded-xl bg-[var(--surface-base)]">
             <header className="border-b border-[var(--edge-subtle)] px-4 py-3 md:px-5">
               <PageHeading title={title} className="mb-0" />
+              {description ? (
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>
+              ) : null}
             </header>
             <main className="min-w-0 px-4 pb-8 pt-5 md:pb-10 md:pt-6">
               {children}

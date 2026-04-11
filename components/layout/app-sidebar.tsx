@@ -150,7 +150,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="sticky top-0 h-screen rounded-none border-0 bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)] shadow-none [--sidebar-width:18.75rem] [--sidebar-width-icon:3.75rem]"
+      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
     >
       <SidebarHeader className="px-3 pb-2 pt-3">
         <SidebarAccountMenu
@@ -212,7 +212,7 @@ export function AppSidebar() {
         />
       </SidebarContent>
 
-      <SidebarRail className="right-[-3px] h-10 w-[3px] rounded-full bg-[var(--edge-strong)]" />
+      <SidebarRail className="right-[-2px] h-10 w-[2px] rounded-full bg-[var(--action-primary-bg)]/35" />
     </Sidebar>
   );
 }

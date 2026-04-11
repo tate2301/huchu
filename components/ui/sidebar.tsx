@@ -20,9 +20,9 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16.5rem";
-const SIDEBAR_WIDTH_ICON = "3.25rem";
-const SIDEBAR_WIDTH_MOBILE = "17.5rem";
+const SIDEBAR_WIDTH = "17.5rem";
+const SIDEBAR_WIDTH_ICON = "3.75rem";
+const SIDEBAR_WIDTH_MOBILE = "min(19rem, calc(100vw - 1rem))";
 
 type SidebarContextValue = {
   state: "expanded" | "collapsed";
@@ -155,7 +155,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible}
         data-variant={variant}
         className={cn(
-          "peer group/sidebar relative flex h-screen flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width,background-color] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
+          "peer group/sidebar relative flex h-[100dvh] min-h-[100dvh] flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width,background-color] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
           collapsible === "icon" && state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -175,7 +175,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>
           <SheetContent side="left"
-            className="w-[--sidebar-width] p-0"
+            className="w-[--sidebar-width] max-w-[--sidebar-width] p-0"
             style={
               { "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties
             }
@@ -225,7 +225,7 @@ const SidebarContent = React.forwardRef<
     ref={ref}
     data-sidebar="content"
     className={cn(
-      "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-2",
+      "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
       className,
     )}
     {...props}
@@ -302,7 +302,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "relative flex w-full items-center gap-2 rounded-[12px] border border-transparent px-2.5 py-2 text-[13px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-elevated)] hover:text-foreground hover:shadow-[var(--surface-frame-shadow)] data-[active=true]:border-[var(--border-default)] data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[active=true]:shadow-[var(--surface-frame-shadow)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-9 data-[collapsed=true]:w-9 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)]",
+  "relative flex w-full items-center gap-2.5 rounded-[12px] border border-transparent px-2.5 py-2 text-[14px] font-medium text-sidebar-foreground/76 transition-[color,background-color,box-shadow,border-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)] hover:text-foreground hover:shadow-none data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] data-[collapsed=true]:mx-auto data-[collapsed=true]:h-10 data-[collapsed=true]:w-10 data-[collapsed=true]:justify-center data-[collapsed=true]:px-0 data-[collapsed=true]:py-0 data-[collapsed=true]:[&_span]:hidden [&_.material-symbols-rounded]:shrink-0 [&_.material-symbols-rounded]:text-[var(--icon-size-sm)] [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -311,9 +311,9 @@ const sidebarMenuButtonVariants = cva(
           "border-[var(--border-default)] bg-[var(--action-outline-bg)] text-foreground shadow-[var(--surface-frame-shadow)] hover:bg-[var(--action-outline-hover-bg)] data-[active=true]:bg-[var(--action-outline-hover-bg)]",
       },
       size: {
-        default: "h-9",
-        sm: "h-8 text-[12px]",
-        lg: "h-11 text-[13px]",
+        default: "h-10",
+        sm: "h-9 text-[13px]",
+        lg: "h-11 text-[14px]",
       },
     },
     defaultVariants: {
@@ -402,7 +402,7 @@ const SidebarTrigger = React.forwardRef<
       ref={ref}
       variant="ghost"
       size="icon-sm"
-      className={cn("h-8 w-8 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] hover:bg-[var(--surface-subtle)]", className)}
+      className={cn("h-9 w-9 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] hover:bg-[var(--surface-subtle)]", className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();

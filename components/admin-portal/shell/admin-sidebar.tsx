@@ -21,16 +21,20 @@ export function AdminSidebar({
   const nav = activeCompanyId ? getCompanyNav(activeCompanyId) : PLATFORM_NAV;
 
   return (
-    <aside className="flex h-full w-full flex-col bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)]">
+    <aside className="flex h-full w-full flex-col border-r border-[var(--edge-subtle)] bg-[linear-gradient(180deg,var(--surface-base)_0%,var(--surface-subtle)_100%)]">
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="px-3 pb-3 pt-4">
+        <div className="px-3 pb-2 pt-3">
           <WorkspaceSwitcher
             activeCompanyId={activeCompanyId}
             companies={companies}
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 pb-4 pt-4">
+        <div className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+          Navigation
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
           <nav className="space-y-2">
             {nav.map((item) => {
               const targetPath = item.href.replace(/#.*/, "");
@@ -51,9 +55,9 @@ export function AdminSidebar({
                   href={item.href}
                   onClick={onNavigate}
                   className={cn(
-                    "group flex items-center gap-3 rounded-[10px] px-3 py-2 transition-[background-color,color,transform,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+                    "group flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 transition-[background-color,color,transform,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] lg:min-h-10",
                     isActive
-                      ? "bg-[var(--surface-muted)] text-[var(--text-strong)] shadow-[inset_0_0_0_1px_var(--edge-default)]"
+                      ? "bg-[var(--action-secondary-bg)] text-[var(--text-strong)] shadow-[inset_0_0_0_1px_var(--edge-default)]"
                       : "text-[var(--text-muted)] hover:translate-x-[1px] hover:bg-[var(--surface-subtle)]",
                   )}
                 >

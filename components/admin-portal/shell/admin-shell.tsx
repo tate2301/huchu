@@ -121,7 +121,7 @@ function AdminShellFrame({
       data-portal="admin"
       className="admin-shell-frame text-[var(--text-strong)]"
     >
-      <div className="admin-shell-window relative overflow-hidden xl:grid xl:grid-cols-[16rem_minmax(0,1fr)]">
+      <div className="admin-shell-window relative overflow-hidden xl:grid xl:grid-cols-[17.5rem_minmax(0,1fr)]">
         {isSidebarOpen ? (
           <div
             className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px] xl:hidden"
@@ -131,7 +131,7 @@ function AdminShellFrame({
         ) : null}
 
         <div
-          className={`admin-shell-sidebar fixed inset-y-0 left-0 z-50 w-[16rem] transform transition-transform duration-[var(--motion-duration-base)] ease-[var(--motion-ease-default)] xl:relative xl:inset-auto xl:z-auto xl:w-auto xl:translate-x-0 ${
+          className={`admin-shell-sidebar fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-2rem))] transform transition-transform duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)] xl:relative xl:inset-auto xl:z-auto xl:w-auto xl:translate-x-0 ${
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -151,6 +151,7 @@ function AdminShellFrame({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    className="xl:hidden"
                     onClick={() => setIsSidebarOpen((current) => !current)}
                     aria-label="Toggle admin navigation"
                   >

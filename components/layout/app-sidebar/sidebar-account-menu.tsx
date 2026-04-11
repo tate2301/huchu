@@ -48,10 +48,10 @@ export function SidebarAccountMenu({
               <SidebarMenuButton
                 tooltip="Workspace"
                 className={cn(
-                  "h-10 min-w-0 rounded-xl border border-transparent px-2.5 text-[14px] font-semibold",
+                  "h-11 min-w-0 rounded-xl border border-transparent px-2.5 text-[14px] font-semibold lg:h-10",
                   "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
                   "hover:bg-[var(--surface-subtle)]",
-                  "data-[active=true]:border-transparent data-[active=true]:bg-[var(--surface-subtle)]",
+                  "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)]",
                 )}
               >
                 <div className="inline-flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-[#1b1d23] text-white transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]">
@@ -68,7 +68,7 @@ export function SidebarAccountMenu({
             <DropdownMenuContent
               align="start"
               side={isCollapsed ? "right" : isMobile ? "bottom" : "right"}
-              className="w-72 rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] p-0 shadow-[var(--elevation-3)]"
+              className="w-[min(22rem,calc(100vw-1rem))] rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] p-0 shadow-[var(--elevation-3)]"
             >
               <DropdownMenuItem asChild className="px-4 py-2.5 text-[14px]">
                 <Link href="/settings/branding">
@@ -104,7 +104,7 @@ export function SidebarAccountMenu({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="group/plus inline-flex size-8 items-center justify-center rounded-full border border-[var(--edge-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:bg-[var(--surface-subtle)] hover:text-foreground data-[state=open]:scale-95"
+                className="group/plus inline-flex size-10 items-center justify-center rounded-full border border-[var(--edge-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:bg-[var(--surface-subtle)] hover:text-foreground data-[state=open]:scale-95 lg:size-8"
                 aria-label="Quick actions"
               >
                 <Plus className="h-4 w-4 transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/plus:rotate-45" />
@@ -113,7 +113,7 @@ export function SidebarAccountMenu({
             <DropdownMenuContent
               align="end"
               side={isCollapsed ? "right" : isMobile ? "bottom" : "right"}
-              className="w-72 rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] p-0 shadow-[var(--elevation-3)]"
+              className="w-[min(22rem,calc(100vw-1rem))] rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] p-0 shadow-[var(--elevation-3)]"
             >
               <div className="max-h-80 overflow-y-auto py-1">
                 {quickActions.length === 0 ? (
