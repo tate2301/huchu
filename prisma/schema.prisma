@@ -21,7 +21,7 @@ model Company {
   suspendedAt          DateTime?
   disabledAt           DateTime?
   payrollCycle         PayrollCycle       @default(MONTHLY)
-  goldPayoutCycle      PayrollCycle       @default(FORTNIGHTLY)
+  goldPayoutCycle      PayrollCycle       @default(MONTHLY)
   goldSettlementMode   GoldSettlementMode @default(CURRENT_PERIOD)
   cashDisbursementOnly Boolean            @default(true)
   autoGeneratePayrollPeriods  Boolean     @default(true)

@@ -92,7 +92,7 @@ type RunDetailLine = RunDetails["lineItems"][number];
 
 const defaultManualPeriodForm: ManualPeriodForm = {
   monthKey: format(new Date(), "yyyy-MM"),
-  cycle: "FORTNIGHTLY",
+  cycle: "MONTHLY",
   half: "H1",
   dueDate: format(new Date(), "yyyy-MM-dd"),
   notes: "",

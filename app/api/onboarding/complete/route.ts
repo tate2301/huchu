@@ -24,14 +24,7 @@ type OnboardingPayload = {
 };
 
 function getWorkspaceOnboardingDefaults(workspaceProfile: string | null | undefined) {
-  const profile = String(workspaceProfile || "").trim().toUpperCase();
-  if (profile === "GOLD_MINE") {
-    return {
-      goldPayoutCycle: "FORTNIGHTLY" as const,
-      goldSettlementMode: "CURRENT_PERIOD" as const,
-    };
-  }
-
+  void workspaceProfile;
   return {
     goldPayoutCycle: "MONTHLY" as const,
     goldSettlementMode: "CURRENT_PERIOD" as const,

@@ -16,15 +16,61 @@ export const VERTICAL_USER_ROLES: Record<ManagedWorkspaceProfile, UserRole[]> = 
   Object.entries(VERTICAL_ROLE_REGISTRY).map(([profile, config]) => [profile, config.roles]),
 ) as Record<ManagedWorkspaceProfile, UserRole[]>;
 
+export type EmployeePrimaryModule =
+  | "HR"
+  | "GOLD"
+  | "SCRAP_METAL"
+  | "CAR_SALES"
+  | "RETAIL"
+  | "THRIFT"
+  | "SCHOOLS";
+
+const EMPLOYEE_MODULE_PROFILE_MAP: Record<EmployeePrimaryModule, ManagedWorkspaceProfile | null> = {
+  HR: null,
+  GOLD: "GOLD_MINE",
+  SCRAP_METAL: "SCRAP_METAL",
+  CAR_SALES: "AUTOS",
+  RETAIL: "RETAIL",
+  THRIFT: "RETAIL",
+  SCHOOLS: "SCHOOLS",
+};
+
 export function resolveWorkspaceProfileForRoles(args: {
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;
 }): ManagedWorkspaceProfile {
-  const normalized = normalizeWorkspaceProfileInput(args.workspaceProfile) as ManagedWorkspaceProfile | null;
-  if (normalized && normalized in VERTICAL_USER_ROLES) return normalized;
   const inferred = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
-  if (inferred && inferred in VERTICAL_USER_ROLES) return inferred;
-  return "GENERAL";
+  const normalized = normalizeWorkspaceProfileInput(args.workspaceProfile) as ManagedWorkspaceProfile | null;
+
+  const profile =
+    normalized && normalized !== "GENERAL" && normalized in VERTICAL_USER_ROLES
+      ? normalized
+      : (inferred as ManagedWorkspaceProfile | null) ?? normalized ?? "GENERAL";
+
+  return profile;
+}
+
+export function resolveWorkspaceProfileForEmployeeModule(args: {
+  primaryModule: string | null | undefined;
+  workspaceProfile: string | null | undefined;
+  enabledFeatures?: string[] | undefined;
+}): ManagedWorkspaceProfile {
+  const normalizedPrimaryModule = args.primaryModule?.trim().toUpperCase() as
+    | EmployeePrimaryModule
+    | undefined;
+  const mappedProfile =
+    normalizedPrimaryModule && normalizedPrimaryModule in EMPLOYEE_MODULE_PROFILE_MAP
+      ? EMPLOYEE_MODULE_PROFILE_MAP[normalizedPrimaryModule]
+      : null;
+
+  if (mappedProfile) {
+    return mappedProfile;
+  }
+
+  return resolveWorkspaceProfileForRoles({
+    workspaceProfile: args.workspaceProfile,
+    enabledFeatures: args.enabledFeatures,
+  });
 }
 
 export function getAllowedUserRolesForWorkspace(args: {

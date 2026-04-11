@@ -499,6 +499,26 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
 
 export function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceProfile {
   const normalized = String(value || "").trim().toUpperCase();
+
+  if (normalized === "SCRAP" || normalized === "SCRAP-METAL" || normalized === "SCRAPMETAL") {
+    return "SCRAP_METAL";
+  }
+  if (normalized === "GOLD" || normalized === "GOLD-MINE" || normalized === "GOLDMINE") {
+    return "GOLD_MINE";
+  }
+  if (normalized === "SCHOOL" || normalized === "SCHOOLS") {
+    return "SCHOOLS";
+  }
+  if (
+    normalized === "AUTO" ||
+    normalized === "CAR_SALES" ||
+    normalized === "CAR-SALES" ||
+    normalized === "CARSALES" ||
+    normalized === "AUTOS"
+  ) {
+    return "AUTOS";
+  }
+
   return WORKSPACE_PROFILES.find((profile) => profile === normalized) ?? DEFAULT_WORKSPACE_PROFILE;
 }
 

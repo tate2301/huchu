@@ -43,6 +43,8 @@ import { RETAIL_TABS } from "@/lib/retail/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
 import { SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 
+const HR_MODULE_ALLOWED_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "CLERK"];
+
 export type NavItem = {
   href: string;
   label: string;
@@ -171,7 +173,10 @@ export const navSections: NavSection[] = [
       href: tab.href,
       icon: tab.icon,
       label: tab.label,
-      roles: tab.id === "compensation" ? ["SUPERADMIN", "MANAGER"] : undefined,
+      roles:
+        tab.id === "compensation"
+          ? ["SUPERADMIN", "MANAGER"]
+          : HR_MODULE_ALLOWED_ROLES,
     })),
   },
   {

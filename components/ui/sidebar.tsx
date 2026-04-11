@@ -17,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { SidebarLeft } from "@medusajs/icons";
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -404,7 +405,7 @@ const SidebarTrigger = React.forwardRef<
       variant="ghost"
       size="icon-sm"
       className={cn(
-        "h-9 w-9 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-panel)] shadow-[var(--surface-frame-shadow)] hover:bg-[var(--surface-subtle)]",
+        "h-9 w-9 rounded-[10px] hover:bg-[var(--surface-subtle)]",
         className,
       )}
       onClick={(event) => {
@@ -413,7 +414,7 @@ const SidebarTrigger = React.forwardRef<
       }}
       {...props}
     >
-      <PanelLeft className="h-4 w-4" />
+      <SidebarLeft className="h-4 w-4" />
       <span className="sr-only">Toggle sidebar</span>
     </Button>
   );
