@@ -83,11 +83,34 @@ export async function POST(request: NextRequest) {
         companyId: session.user.companyId,
         nationalId: validated.nationalId,
       },
-      select: { id: true },
+      include: {
+        _count: {
+          select: {
+            purchases: true,
+          },
+        },
+      },
     });
 
     if (existing) {
-      return errorResponse("Seller national ID already exists", 409);
+      const seller = await prisma.scrapSellerProfile.update({
+        where: { id: existing.id },
+        data: {
+          fullName: validated.fullName,
+          phone: validated.phone,
+          address: validated.address || undefined,
+          notes: validated.notes || undefined,
+          isActive: validated.isActive ?? existing.isActive,
+        },
+        include: {
+          _count: {
+            select: {
+              purchases: true,
+            },
+          },
+        },
+      });
+      return successResponse(seller);
     }
 
     const seller = await prisma.scrapSellerProfile.create({
@@ -118,4 +141,3 @@ export async function POST(request: NextRequest) {
     return errorResponse("Failed to create scrap seller");
   }
 }
-

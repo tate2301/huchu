@@ -135,13 +135,52 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = createCustomerSchema.parse(body);
+    const normalizedName = input.name.trim();
+    const normalizedPhone = input.phone?.trim() || null;
+    const normalizedEmail = input.email?.trim().toLowerCase() || null;
+
+    const existing = await prisma.customer.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        isActive: true,
+        OR: [
+          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+          ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+          { name: { equals: normalizedName, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+      },
+    });
+
+    if (existing) {
+      const updated = await prisma.customer.update({
+        where: { id: existing.id },
+        data: {
+          ...(existing.name !== normalizedName ? { name: normalizedName } : {}),
+          ...(normalizedPhone && existing.phone !== normalizedPhone ? { phone: normalizedPhone } : {}),
+          ...(normalizedEmail && existing.email !== normalizedEmail ? { email: normalizedEmail } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+        },
+      });
+      return successResponse({ data: updated });
+    }
 
     const created = await prisma.customer.create({
       data: {
         companyId: session.user.companyId,
-        name: input.name.trim(),
-        phone: input.phone?.trim() || null,
-        email: input.email?.trim().toLowerCase() || null,
+        name: normalizedName,
+        phone: normalizedPhone,
+        email: normalizedEmail,
       },
       select: {
         id: true,
