@@ -53,9 +53,11 @@ const OPERATOR_TEMPLATE_ALLOW_PREFIXES = [
   "core.notifications.",
   "core.multitenancy.",
   "scrap-metal.",
+  "stores.",
+  "maintenance.",
+  "reports.",
   "hr.employees",
   "hr.settlements",
-  "reports.dashboard",
 ] as const;
 
 const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {

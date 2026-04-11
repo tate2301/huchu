@@ -39,7 +39,7 @@ function SidebarNavLink({
         isActive={isActive}
         tooltip={item.label}
         className={cn(
-          "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium lg:h-9",
+          "h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 text-[14px] font-medium lg:h-9",
           "text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
           "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
           "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
@@ -69,9 +69,9 @@ function SidebarDirectSectionLink({
 }) {
   const item = section.items[0];
   return (
-    <SidebarGroup key={section.id} className="space-y-0 py-0">
+    <SidebarGroup key={section.id} className="space-y-0 py-0.5">
       <SidebarGroupContent className="mt-0">
-        <SidebarMenu className="gap-0">
+        <SidebarMenu className="gap-1">
           <SidebarNavLink
             item={item}
             isActive={item.href === activeHref}
@@ -91,9 +91,9 @@ function SidebarFlatSection({
   activeHref: string | null;
 }) {
   return (
-    <SidebarGroup key={section.id} className="space-y-0 py-0">
+    <SidebarGroup key={section.id} className="space-y-0 py-0.5">
       <SidebarGroupContent className="mt-0">
-        <SidebarMenu className="gap-0">
+        <SidebarMenu className="gap-1">
           {section.items.map((item) => (
             <SidebarNavLink
               key={item.href}
@@ -124,9 +124,9 @@ function SidebarExpandableSection({
   const hasActiveChild = section.items.some((item) => item.href === activeHref);
 
   return (
-    <SidebarGroup key={section.id} className="space-y-0 py-0">
+    <SidebarGroup key={section.id} className="space-y-0 py-0.5">
       <SidebarGroupLabel className="p-0">
-        <SidebarMenu className="gap-0">
+        <SidebarMenu className="gap-1">
           <SidebarMenuItem>
             <SidebarMenuButton
               type="button"
@@ -134,7 +134,7 @@ function SidebarExpandableSection({
               isActive={hasActiveChild}
               tooltip={section.title}
               className={cn(
-                "h-11 rounded-[10px] border border-transparent px-2.5 lg:h-9",
+                "h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 lg:h-9",
                 "text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
                 "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
               )}
@@ -168,7 +168,7 @@ function SidebarExpandableSection({
         >
           <div className="overflow-hidden">
             <SidebarGroupContent className="mt-0 pl-4 pr-0.5">
-              <SidebarMenu className="relative ml-2 gap-0 border-l border-[var(--edge-default)] pl-2.5">
+              <SidebarMenu className="relative ml-2 gap-1 border-l border-[var(--edge-subtle)] pl-2.5">
                 {section.items.map((item) => (
                   <SidebarNavLink
                     key={item.href}
@@ -196,15 +196,15 @@ export function SidebarHomeLink({
   isActive: boolean;
 }) {
   return (
-    <SidebarGroup className="py-0">
+    <SidebarGroup className="py-0.5">
       <SidebarGroupContent className="mt-0">
-        <SidebarMenu className="gap-0">
+        <SidebarMenu className="gap-1">
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={isActive}
               tooltip={label}
-              className="h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)] data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)] lg:h-9"
+              className="h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)] data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)] lg:h-9"
             >
               <Link href={href}>
                 <MedusaHouseIcon

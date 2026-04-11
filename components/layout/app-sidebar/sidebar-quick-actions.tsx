@@ -40,9 +40,9 @@ export function SidebarQuickActions({
   if (items.length === 0 && quickActions.length === 0) return null;
 
   return (
-    <SidebarGroup className="mb-1">
+    <SidebarGroup className="mb-1 py-0.5">
       <SidebarGroupContent className="mt-0.5">
-        <SidebarMenu className="gap-0">
+        <SidebarMenu className="gap-1">
           {items.map((item, index) => {
             const isActive = matchesNavHref(item.href, pathname, view);
 
@@ -54,7 +54,7 @@ export function SidebarQuickActions({
                     isActive={isActive}
                     tooltip={item.label}
                     className={cn(
-                      "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:h-9",
+                      "h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:h-9",
                       "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:shadow-none",
                       "hover:text-[var(--sidebar-item-hover-fg)]",
                       "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
@@ -78,7 +78,7 @@ export function SidebarQuickActions({
                         <SidebarMenuButton
                           tooltip="Create"
                           className={cn(
-                            "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:h-9",
+                            "h-11 rounded-[10px] border border-[var(--edge-subtle)]/70 px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:h-9",
                             "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)]",
                             "hover:text-[var(--sidebar-item-hover-fg)]",
                             "data-[state=open]:border-[var(--sidebar-item-active-border)] data-[state=open]:bg-[var(--sidebar-item-active-bg)] data-[state=open]:text-[var(--sidebar-item-active-fg)]",

@@ -9,7 +9,6 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { usePageActions } from "@/components/layout/page-actions"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check"
-import { cn } from "@/lib/utils"
 
 export function Navbar() {
   const { actions } = usePageActions()
@@ -30,10 +29,7 @@ export function Navbar() {
 
   return (
     <header
-      className={cn(
-        "sticky top-0 z-20 h-14 max-h-14 bg-[var(--surface-overlay)] shadow-[inset_0_-1px_0_0_var(--edge-subtle)] backdrop-blur-md",
-        isScrapRoute && "scrap-vertical-theme",
-      )}
+      className="sticky top-0 z-20 h-14 max-h-14 bg-[var(--surface-overlay)] shadow-[inset_0_-1px_0_0_var(--edge-subtle)] backdrop-blur-md"
     >
       <div className="content-shell h-14">
         {isScrapRoute ? (

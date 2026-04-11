@@ -184,6 +184,98 @@ function toNullable(value: string) {
   return trimmed ? trimmed : null;
 }
 
+function normalizeHexColor(input: string): string | null {
+  const value = input.trim().toUpperCase();
+  if (!/^#([0-9A-F]{6})$/.test(value)) return null;
+  return value;
+}
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return null;
+  const raw = normalized.slice(1);
+  const r = Number.parseInt(raw.slice(0, 2), 16) / 255;
+  const g = Number.parseInt(raw.slice(2, 4), 16) / 255;
+  const b = Number.parseInt(raw.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (delta > 0) {
+    s = delta / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = ((g - b) / delta) % 6;
+    else if (max === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+
+  return { h, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sat = Math.max(0, Math.min(100, s)) / 100;
+  const light = Math.max(0, Math.min(100, l)) / 100;
+  const chroma = (1 - Math.abs(2 * light - 1)) * sat;
+  const sector = h / 60;
+  const x = chroma * (1 - Math.abs((sector % 2) - 1));
+  const m = light - chroma / 2;
+
+  let rPrime = 0;
+  let gPrime = 0;
+  let bPrime = 0;
+  if (sector >= 0 && sector < 1) [rPrime, gPrime, bPrime] = [chroma, x, 0];
+  else if (sector < 2) [rPrime, gPrime, bPrime] = [x, chroma, 0];
+  else if (sector < 3) [rPrime, gPrime, bPrime] = [0, chroma, x];
+  else if (sector < 4) [rPrime, gPrime, bPrime] = [0, x, chroma];
+  else if (sector < 5) [rPrime, gPrime, bPrime] = [x, 0, chroma];
+  else [rPrime, gPrime, bPrime] = [chroma, 0, x];
+
+  const toHex = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, "0")
+      .toUpperCase();
+
+  return `#${toHex(rPrime)}${toHex(gPrime)}${toHex(bPrime)}`;
+}
+
+type PaletteOption = {
+  id: string;
+  label: string;
+  secondary: string;
+  accent: string;
+};
+
+function buildPaletteOptions(primaryColor: string): PaletteOption[] {
+  const hsl = hexToHsl(primaryColor) ?? { h: 176, s: 84, l: 31 };
+  const shifted = (hsl.h + 18) % 360;
+
+  return [
+    {
+      id: "soft-neutral",
+      label: "Soft Neutral",
+      secondary: hslToHex(hsl.h, Math.max(18, hsl.s * 0.28), 96),
+      accent: hslToHex(hsl.h, Math.max(22, hsl.s * 0.35), 91),
+    },
+    {
+      id: "balanced-brand",
+      label: "Balanced Brand",
+      secondary: hslToHex(hsl.h, Math.max(20, hsl.s * 0.36), 95),
+      accent: hslToHex(hsl.h, Math.max(32, hsl.s * 0.48), 86),
+    },
+    {
+      id: "high-contrast",
+      label: "High Contrast",
+      secondary: hslToHex(hsl.h, Math.max(16, hsl.s * 0.24), 97),
+      accent: hslToHex(shifted, Math.max(28, hsl.s * 0.42), 84),
+    },
+  ];
+}
+
 async function fetchBrandingSettings(): Promise<BrandingSettingsResponse> {
   const response = await fetch("/api/settings/branding", { method: "GET" });
   if (!response.ok) {
@@ -395,6 +487,10 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
     }),
     [form, settings?.company?.name],
   );
+  const paletteOptions = useMemo(
+    () => buildPaletteOptions(form.primaryColor),
+    [form.primaryColor],
+  );
 
   const sectionMeta = {
     identity: {
@@ -444,10 +540,8 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
           {section === "identity" ? (
             <Card>
             <CardHeader>
-              <CardTitle>Identity and Theme</CardTitle>
-              <CardDescription>
-                Core company identity and the color/typography palette used on generated documents.
-              </CardDescription>
+              <CardTitle>Identity</CardTitle>
+              <CardDescription>Brand name, font, and color system.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
@@ -484,42 +578,103 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                {[
-                  { id: "primary-color", key: "primaryColor", label: "Primary", value: form.primaryColor },
-                  { id: "secondary-color", key: "secondaryColor", label: "Secondary", value: form.secondaryColor },
-                  { id: "accent-color", key: "accentColor", label: "Accent", value: form.accentColor },
-                ].map((colorField) => (
-                  <div key={colorField.id} className="space-y-2">
-                    <label className="text-sm font-semibold" htmlFor={colorField.id}>
-                      {colorField.label} Color
+              <div className="space-y-4 rounded-lg border border-[var(--edge-subtle)] p-4">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" htmlFor="primary-color">
+                      Primary Color
+                    </label>
+                    <Input
+                      id="primary-color"
+                      value={form.primaryColor}
+                      onChange={(event) => setField("primaryColor", event.target.value)}
+                      placeholder="#0F8F86"
+                    />
+                  </div>
+                  <Input
+                    type="color"
+                    className="h-10 w-16 p-1"
+                    value={normalizeHexColor(form.primaryColor) ?? "#0F8F86"}
+                    onChange={(event) => setField("primaryColor", event.target.value.toUpperCase())}
+                    aria-label="Select primary color"
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  {paletteOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        setField("secondaryColor", option.secondary);
+                        setField("accentColor", option.accent);
+                      }}
+                      className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-3 text-left transition-colors hover:bg-[var(--surface-soft)]"
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span
+                          className="h-6 w-6 rounded border border-[var(--edge-subtle)]"
+                          style={{ backgroundColor: form.primaryColor }}
+                          aria-hidden="true"
+                        />
+                        <span
+                          className="h-6 w-6 rounded border border-[var(--edge-subtle)]"
+                          style={{ backgroundColor: option.secondary }}
+                          aria-hidden="true"
+                        />
+                        <span
+                          className="h-6 w-6 rounded border border-[var(--edge-subtle)]"
+                          style={{ backgroundColor: option.accent }}
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" htmlFor="secondary-color">
+                      Secondary Color
                     </label>
                     <div className="flex items-center gap-3">
                       <Input
-                        id={colorField.id}
-                        type="color"
-                        className="h-10 w-14 p-1"
-                        value={colorField.value}
-                        onChange={(event) =>
-                          setField(
-                            colorField.key as "primaryColor" | "secondaryColor" | "accentColor",
-                            event.target.value,
-                          )
-                        }
+                        id="secondary-color"
+                        value={form.secondaryColor}
+                        onChange={(event) => setField("secondaryColor", event.target.value)}
+                        placeholder="#DCF4F1"
                       />
                       <Input
-                        value={colorField.value}
-                        onChange={(event) =>
-                          setField(
-                            colorField.key as "primaryColor" | "secondaryColor" | "accentColor",
-                            event.target.value,
-                          )
-                        }
-                        placeholder="#000000"
+                        type="color"
+                        className="h-10 w-14 p-1"
+                        value={normalizeHexColor(form.secondaryColor) ?? "#DCF4F1"}
+                        onChange={(event) => setField("secondaryColor", event.target.value.toUpperCase())}
+                        aria-label="Select secondary color"
                       />
                     </div>
                   </div>
-                ))}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" htmlFor="accent-color">
+                      Accent Color
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="accent-color"
+                        value={form.accentColor}
+                        onChange={(event) => setField("accentColor", event.target.value)}
+                        placeholder="#EBF7F5"
+                      />
+                      <Input
+                        type="color"
+                        className="h-10 w-14 p-1"
+                        value={normalizeHexColor(form.accentColor) ?? "#EBF7F5"}
+                        onChange={(event) => setField("accentColor", event.target.value.toUpperCase())}
+                        aria-label="Select accent color"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -550,18 +705,16 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
                 />
               </div>
 
-              <div className="rounded-lg border bg-muted/20 p-4">
+              <div className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Live Preview
                 </p>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="h-9 w-9 rounded-md" style={{ backgroundColor: effectivePreview.primaryColor }} />
+                  <div className="h-9 w-9 rounded-md border border-[var(--edge-subtle)]" style={{ backgroundColor: effectivePreview.secondaryColor }} />
+                  <div className="h-9 w-9 rounded-md border border-[var(--edge-subtle)]" style={{ backgroundColor: effectivePreview.accentColor }} />
                   <div>
                     <p className="text-sm font-semibold">{effectivePreview.displayName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Primary {effectivePreview.primaryColor} | Secondary {effectivePreview.secondaryColor} | Accent{" "}
-                      {effectivePreview.accentColor}
-                    </p>
                   </div>
                 </div>
               </div>

@@ -313,8 +313,8 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     preferredHomeHref: "/scrap-metal",
     quickActions: [
       roleItem("/scrap-metal/tickets", "New Inbound Ticket", Payments),
-      roleItem("/scrap-metal/batches", "Open Lot", Package, ["SUPERADMIN", "MANAGER"]),
-      roleItem("/scrap-metal/sales", "New Outbound Ticket", ReceiptLong, ["SUPERADMIN", "MANAGER"]),
+      roleItem("/scrap-metal/batches", "Open Lot", Package),
+      roleItem("/scrap-metal/sales", "New Outbound Ticket", ReceiptLong),
       roleItem("/scrap-metal/tickets/held", "Held Tickets", Wallet),
       roleItem("/stores/receive", "Receive Stock", ArrowDownward),
     ],
@@ -327,7 +327,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
       {
         id: "scrap-lots",
-        title: "Lots (Inventory)",
+        title: "Lots",
         refs: SCRAP_OPERATIONS_SECTIONS.lots.map((href) => ({ moduleId: "scrap-metal" as const, href })),
       },
       {

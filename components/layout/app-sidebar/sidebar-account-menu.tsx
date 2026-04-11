@@ -39,7 +39,7 @@ export function SidebarAccountMenu({
               <SidebarMenuButton
                 tooltip="Workspace"
                 className={cn(
-                  "h-11 min-w-0 rounded-xl border border-transparent px-2.5 text-[14px] font-semibold text-[var(--sidebar-item-fg)] lg:h-10",
+                  "h-11 min-w-0 rounded-xl border border-[var(--edge-subtle)]/70 px-2.5 text-[14px] font-semibold text-[var(--sidebar-item-fg)] lg:h-10",
                   "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
                   "hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
                   "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)]",

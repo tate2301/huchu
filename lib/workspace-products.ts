@@ -196,7 +196,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_SCRAP_METAL"],
     preferredHomeHref: "/scrap-metal",
     primaryModules: ["scrap-metal", "reporting"],
-    foundationalModules: ["hr", "stores", "accounting", "management"],
+    foundationalModules: ["hr", "stores", "maintenance", "accounting", "management"],
     moduleCopy: {
       hr: {
         description: "",

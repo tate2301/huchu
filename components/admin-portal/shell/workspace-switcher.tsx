@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { CompanyWorkspace } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,14 +28,17 @@ type Props = {
 
 export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
   const router = useRouter();
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const activeCompany = companies.find(
     (company) => company.id === activeCompanyId,
   );
+  const viewerName =
+    (session?.user?.name?.trim() || session?.user?.email?.trim() || "").trim() || "User";
   const triggerMonogram =
-    (activeCompany?.name ?? "Platform").trim().charAt(0).toUpperCase() || "P";
+    viewerName.charAt(0).toUpperCase() || "U";
   const getMonogram = (value: string) =>
     value.trim().charAt(0).toUpperCase() || "W";
   const filteredCompanies = useMemo(() => {
@@ -65,7 +69,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
               {triggerMonogram}
             </span>
             <span className="truncate text-[14px] font-medium text-[var(--sidebar-item-fg)]">
-              {activeCompany?.name ?? "Platform"}
+              {viewerName}
             </span>
           </span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--sidebar-item-icon)] transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/switcher:rotate-180" />

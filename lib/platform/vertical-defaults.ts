@@ -111,8 +111,8 @@ const VERTICAL_DEFAULTS: Record<WorkspaceProfile, VerticalDefaultConfig> = {
     },
   },
   SCRAP_METAL: {
-    employeePositions: [...SHARED_POSITIONS, "BUYER", "OPERATOR", "DRIVER", "STOREKEEPER"],
-    defaultEmployeePosition: "OPERATOR",
+    employeePositions: ["MANAGER", "BUYER", "SUPPORT_STAFF"],
+    defaultEmployeePosition: "BUYER",
     workspace: {
       siteNamePlaceholder: "Main Yard",
       siteCodeExample: "YARD",

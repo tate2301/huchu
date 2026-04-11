@@ -140,7 +140,7 @@ export function AppSidebar() {
         />
       </SidebarHeader>
 
-      <SidebarContent className="gap-2 px-2 pb-3 pt-0">
+      <SidebarContent className="gap-2.5 px-2 pb-3 pt-0">
         {!isCollapsed ? (
           <SidebarSectionHeading label={sidebarModel.workspaceLabel} />
         ) : null}

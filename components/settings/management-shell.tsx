@@ -31,6 +31,7 @@ export function ManagementShell({
   actions,
   children,
 }: ManagementShellProps) {
+  void description;
   const pathname = usePathname();
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
@@ -63,7 +64,7 @@ export function ManagementShell({
       <div className="grid w-full gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="space-y-5 lg:sticky lg:top-[calc(var(--app-header-height,3.5rem)+0.75rem)] lg:h-[calc(100vh-var(--app-header-height,3.5rem)-1.5rem)] lg:overflow-y-auto">
           <div className="space-y-2">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/60">
+            <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-subtle)]">
               Settings
             </p>
             <nav
@@ -79,17 +80,17 @@ export function ManagementShell({
                       href={module.href}
                       data-active={moduleActive}
                       className={cn(
-                        "relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-[var(--edge-subtle)] bg-background px-3 text-[13px] font-medium text-sidebar-foreground/80 lg:w-full lg:rounded-xl",
-                        "before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary before:opacity-0 before:transition-opacity lg:before:left-1",
-                        "transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-[var(--edge-strong)] hover:bg-[var(--surface-elevated)] hover:text-foreground",
-                        "data-[active=true]:border-[color:color-mix(in_srgb,var(--primary)_28%,var(--edge-subtle))] data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[active=true]:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:before:opacity-100",
+                        "inline-flex h-10 shrink-0 items-center gap-2 rounded-[10px] border border-transparent bg-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:w-full",
+                        "transition-[background-color,color,transform,box-shadow,border-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+                        "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
+                        "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
                       )}
                     >
                       {ModuleIcon ? (
                         <ModuleIcon
                           className={cn(
                             "h-4 w-4 shrink-0",
-                            moduleActive ? "text-primary" : "text-muted-foreground",
+                            moduleActive ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
                           )}
                         />
                       ) : null}
@@ -101,7 +102,7 @@ export function ManagementShell({
           </div>
 
           <div className="space-y-2">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/60">
+            <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-subtle)]">
               {areaLabel}
             </p>
             <nav
@@ -110,18 +111,27 @@ export function ManagementShell({
             >
                 {visibleAreaTabs.map((tab) => {
                   const active = isActiveHref(pathname, tab.href);
+                  const TabIcon = tab.icon;
                   return (
                     <Link
                       key={tab.id}
                       href={tab.href}
                       data-active={active}
                       className={cn(
-                        "relative inline-flex h-9 shrink-0 items-center rounded-full border border-transparent px-3 text-[13px] font-medium text-sidebar-foreground/80 lg:w-full lg:rounded-xl",
-                        "before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary before:opacity-0 before:transition-opacity lg:before:left-1",
-                        "transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-[var(--edge-subtle)] hover:bg-[var(--surface-elevated)] hover:text-foreground",
-                        "data-[active=true]:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--edge-subtle))] data-[active=true]:bg-[var(--surface-elevated)] data-[active=true]:text-foreground data-[active=true]:shadow-[var(--action-outline-shadow-hover)] data-[active=true]:before:opacity-100",
+                        "inline-flex h-10 shrink-0 items-center gap-2 rounded-[10px] border border-transparent bg-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:w-full",
+                        "transition-[background-color,color,transform,box-shadow,border-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+                        "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
+                        "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
                       )}
                     >
+                      {TabIcon ? (
+                        <TabIcon
+                          className={cn(
+                            "h-4 w-4 shrink-0",
+                            active ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
+                          )}
+                        />
+                      ) : null}
                       <span className="truncate">{tab.label}</span>
                     </Link>
                   );
