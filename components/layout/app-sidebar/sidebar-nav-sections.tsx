@@ -40,9 +40,9 @@ function SidebarNavLink({
         tooltip={item.label}
         className={cn(
           "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium lg:h-9",
-          "text-[var(--text-body)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-          "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-foreground",
-          "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
+          "text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
+          "hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
+          "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
           className,
         )}
       >
@@ -50,7 +50,7 @@ function SidebarNavLink({
           <item.icon
             className={cn(
               "h-4 w-4 transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-              isActive ? "text-[var(--action-primary-bg)]" : "text-muted-foreground",
+              isActive ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
             )}
           />
           <span className="truncate">{item.label}</span>
@@ -135,24 +135,24 @@ function SidebarExpandableSection({
               tooltip={section.title}
               className={cn(
                 "h-11 rounded-[10px] border border-transparent px-2.5 lg:h-9",
-                "text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)]",
-                "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
+                "text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)]",
+                "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
               )}
             >
               {React.createElement(sectionIcon, {
                 className: cn(
-                  "h-4 w-4 text-muted-foreground",
-                  hasActiveChild ? "text-foreground" : "",
+                  "h-4 w-4 text-[var(--sidebar-item-icon)]",
+                  hasActiveChild ? "text-[var(--sidebar-item-active-fg)]" : "",
                 ),
               })}
-              <span className="truncate normal-case font-medium tracking-normal text-[var(--text-body)]">
+              <span className="truncate normal-case font-medium tracking-normal">
                 {section.title}
               </span>
               {!isCollapsed ? (
                 isOpen ? (
-                  <MedusaChevronDownIcon className="ml-auto h-4 w-4 text-muted-foreground" />
+                  <MedusaChevronDownIcon className="ml-auto h-4 w-4 text-[var(--sidebar-item-icon)]" />
                 ) : (
-                  <MedusaChevronRightIcon className="ml-auto h-4 w-4 text-muted-foreground" />
+                  <MedusaChevronRightIcon className="ml-auto h-4 w-4 text-[var(--sidebar-item-icon)]" />
                 )
               ) : null}
             </SidebarMenuButton>
@@ -204,10 +204,15 @@ export function SidebarHomeLink({
               asChild
               isActive={isActive}
               tooltip={label}
-              className="h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)] lg:h-9"
+              className="h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)] data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)] lg:h-9"
             >
               <Link href={href}>
-                <MedusaHouseIcon className="h-4 w-4 text-muted-foreground" />
+                <MedusaHouseIcon
+                  className={cn(
+                    "h-4 w-4",
+                    isActive ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
+                  )}
+                />
                 <span className="truncate">{label}</span>
               </Link>
             </SidebarMenuButton>

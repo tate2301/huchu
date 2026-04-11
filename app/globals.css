@@ -426,13 +426,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --chart-inactive: var(--erp-inactive);
     --chart-grid: var(--edge-default);
     --chart-text: var(--text-muted);
-    --sidebar: color-mix(in oklab, var(--erp-canvas) 92%, var(--erp-primary) 8%);
+    --sidebar: color-mix(in oklab, var(--erp-canvas) 96%, var(--erp-primary) 4%);
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: color-mix(in oklab, var(--erp-primary-soft) 76%, var(--erp-surface) 24%);
+    --sidebar-accent: color-mix(in oklab, var(--erp-primary-soft) 52%, var(--erp-surface) 48%);
     --sidebar-accent-foreground: var(--text-body);
     --sidebar-border: color-mix(in oklab, var(--edge-default) 82%, var(--erp-primary) 18%);
+    --sidebar-item-fg: color-mix(in oklab, var(--text-body) 86%, var(--text-muted) 14%);
+    --sidebar-item-fg-muted: color-mix(in oklab, var(--text-muted) 84%, var(--text-body) 16%);
+    --sidebar-item-icon: color-mix(in oklab, var(--text-muted) 80%, var(--text-body) 20%);
+    --sidebar-item-hover-fg: var(--text-body);
+    --sidebar-item-active-bg: color-mix(in oklab, var(--action-primary-bg) 12%, var(--surface-base) 88%);
+    --sidebar-item-active-fg: color-mix(in oklab, var(--action-primary-bg) 66%, var(--text-body) 34%);
+    --sidebar-item-active-border: color-mix(in oklab, var(--action-primary-bg) 28%, var(--edge-default) 72%);
     --sidebar-ring: var(--focus-ring);
     /* Warm paper gradient - subtle */
     --app-canvas-wash: linear-gradient(180deg, #fcfcf4 0%, #f7f7f2 100%);
@@ -573,13 +580,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     --chart-3: #f8c978;
     --chart-4: #ff8ec7;
     --chart-5: #b9a2ff;
-    --sidebar: color-mix(in oklab, #101d21 86%, #7d9bff 14%);
+    --sidebar: color-mix(in oklab, #101d21 92%, #7d9bff 8%);
     --sidebar-foreground: var(--text-body);
     --sidebar-primary: var(--action-primary-bg);
     --sidebar-primary-foreground: var(--action-primary-fg);
-    --sidebar-accent: color-mix(in oklab, #1a2b30 70%, #7d9bff 30%);
+    --sidebar-accent: color-mix(in oklab, #1a2b30 78%, #7d9bff 22%);
     --sidebar-accent-foreground: var(--text-body);
     --sidebar-border: color-mix(in oklab, #2a4248 78%, #7d9bff 22%);
+    --sidebar-item-fg: color-mix(in oklab, var(--text-body) 84%, var(--text-muted) 16%);
+    --sidebar-item-fg-muted: color-mix(in oklab, var(--text-muted) 82%, var(--text-body) 18%);
+    --sidebar-item-icon: color-mix(in oklab, var(--text-muted) 74%, var(--text-body) 26%);
+    --sidebar-item-hover-fg: var(--text-body);
+    --sidebar-item-active-bg: color-mix(in oklab, var(--action-primary-bg) 22%, var(--surface-base) 78%);
+    --sidebar-item-active-fg: color-mix(in oklab, var(--action-primary-bg) 52%, var(--text-body) 48%);
+    --sidebar-item-active-border: color-mix(in oklab, var(--action-primary-bg) 42%, var(--edge-default) 58%);
     --sidebar-ring: var(--focus-ring);
     --app-canvas-wash: none;
 }

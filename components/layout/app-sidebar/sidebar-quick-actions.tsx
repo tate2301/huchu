@@ -54,16 +54,17 @@ export function SidebarQuickActions({
                     isActive={isActive}
                     tooltip={item.label}
                     className={cn(
-                      "h-11 rounded-[10px] px-2.5 text-[14px] font-medium lg:h-9",
+                      "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:h-9",
                       "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:shadow-none",
-                      "data-[active=true]:border-[var(--edge-default)] data-[active=true]:bg-[var(--action-secondary-bg)] data-[active=true]:text-foreground data-[active=true]:shadow-[inset_0_0_0_1px_var(--edge-default)]",
+                      "hover:text-[var(--sidebar-item-hover-fg)]",
+                      "data-[active=true]:border-[var(--sidebar-item-active-border)] data-[active=true]:bg-[var(--sidebar-item-active-bg)] data-[active=true]:text-[var(--sidebar-item-active-fg)] data-[active=true]:shadow-[inset_0_0_0_1px_var(--sidebar-item-active-border)]",
                     )}
                   >
                     <Link href={item.href}>
                       <item.icon
                         className={cn(
                           "h-4 w-4 transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)]",
-                          isActive ? "text-[var(--action-primary-bg)]" : "text-muted-foreground",
+                          isActive ? "text-[var(--sidebar-item-active-fg)]" : "text-[var(--sidebar-item-icon)]",
                         )}
                       />
                       <span className="truncate text-[14px] font-medium">{item.label}</span>
@@ -75,15 +76,16 @@ export function SidebarQuickActions({
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
-                          tooltip="Quick actions"
+                          tooltip="Create"
                           className={cn(
-                            "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium lg:h-9",
+                            "h-11 rounded-[10px] border border-transparent px-2.5 text-[14px] font-medium text-[var(--sidebar-item-fg-muted)] lg:h-9",
                             "transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)]",
-                            "data-[state=open]:border-[var(--edge-default)] data-[state=open]:bg-[var(--action-secondary-bg)]",
+                            "hover:text-[var(--sidebar-item-hover-fg)]",
+                            "data-[state=open]:border-[var(--sidebar-item-active-border)] data-[state=open]:bg-[var(--sidebar-item-active-bg)] data-[state=open]:text-[var(--sidebar-item-active-fg)]",
                           )}
                         >
-                          <MedusaCirclePlusIcon className="h-4 w-4 text-[var(--action-primary-bg)]" />
-                          <span className="truncate text-[14px] font-medium">Quick actions</span>
+                          <MedusaCirclePlusIcon className="h-4 w-4" />
+                          <span className="truncate text-[14px] font-medium">Create</span>
                         </SidebarMenuButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -93,7 +95,7 @@ export function SidebarQuickActions({
                       >
                         <div className="max-h-80 overflow-y-auto py-1">
                           {quickActions.length === 0 ? (
-                            <p className="px-4 py-3 text-sm text-muted-foreground">No quick actions available.</p>
+                            <p className="px-4 py-3 text-sm text-[var(--sidebar-item-fg-muted)]">No actions available.</p>
                           ) : (
                             quickActions.map((quickAction) => {
                               const quickActionActive = matchesNavHref(quickAction.href, pathname, view);
@@ -105,7 +107,11 @@ export function SidebarQuickActions({
                                 >
                                   <Link
                                     href={quickAction.href}
-                                    className={quickActionActive ? "bg-[var(--surface-subtle)] text-foreground" : ""}
+                                    className={
+                                      quickActionActive
+                                        ? "bg-[var(--sidebar-item-active-bg)] text-[var(--sidebar-item-active-fg)]"
+                                        : "text-[var(--sidebar-item-fg)]"
+                                    }
                                   >
                                     <quickAction.icon className="h-4 w-4" />
                                     <span>{quickAction.label}</span>

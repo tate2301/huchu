@@ -58,29 +58,29 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="group/switcher h-11 w-full justify-between rounded-[10px] bg-[var(--surface-base)] px-2.5 text-left shadow-none transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] data-[state=open]:bg-[var(--action-secondary-bg)] lg:h-10"
+          className="group/switcher h-11 w-full justify-between rounded-[10px] bg-[var(--surface-base)] px-2.5 text-left text-[var(--sidebar-item-fg-muted)] shadow-none transition-[background-color,color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:translate-x-[1px] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-item-hover-fg)] data-[state=open]:border-[var(--sidebar-item-active-border)] data-[state=open]:bg-[var(--sidebar-item-active-bg)] data-[state=open]:text-[var(--sidebar-item-active-fg)] lg:h-10"
         >
           <span className="flex min-w-0 items-center gap-2.5 text-left">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-[#1f1c18] text-[10px] font-semibold text-white">
               {triggerMonogram}
             </span>
-            <span className="truncate text-[14px] font-medium text-[var(--text-strong)]">
+            <span className="truncate text-[14px] font-medium text-[var(--sidebar-item-fg)]">
               {activeCompany?.name ?? "Platform"}
             </span>
           </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)] transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/switcher:rotate-180" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--sidebar-item-icon)] transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] group-data-[state=open]/switcher:rotate-180" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(23rem,calc(100vw-1rem))] p-1.5" align="start">
         <Command shouldFilter={false}>
-          <CommandInput
-            value={query}
-            onValueChange={setQuery}
-            placeholder="Search workspaces"
-            className="h-10"
-          />
+            <CommandInput
+              value={query}
+              onValueChange={setQuery}
+              placeholder="Find a workspace"
+              className="h-10"
+            />
           <CommandList className="max-h-[24rem]">
-            <CommandEmpty>No matching workspace.</CommandEmpty>
+            <CommandEmpty>No workspace found.</CommandEmpty>
 
             <CommandGroup>
               <CommandItem
@@ -94,7 +94,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
                 <div className="flex-1">
                   <p className="text-[13px] font-medium">Platform</p>
                   <p className="text-[11px] text-[var(--text-muted)]">
-                    Global control plane
+                    Global controls
                   </p>
                 </div>
                 {!activeCompany ? <CheckIcon className="h-4 w-4" /> : null}
@@ -102,7 +102,7 @@ export function WorkspaceSwitcher({ activeCompanyId, companies }: Props) {
             </CommandGroup>
             <div className="p-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                Organizations
+                Workspaces
               </p>
             </div>
 

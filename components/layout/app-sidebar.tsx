@@ -121,7 +121,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[linear-gradient(180deg,var(--sidebar)_0%,color-mix(in_oklab,var(--sidebar)_84%,var(--action-primary-bg)_16%)_100%)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
+      className="sticky top-0 h-[100dvh] rounded-none border-0 bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
     >
       <SidebarHeader className="px-3 pb-2 pt-3">
         <SidebarAccountMenu
@@ -161,7 +161,7 @@ export function AppSidebar() {
 
         {additionalSections.length > 0 ? (
           <>
-            {!isCollapsed ? <SidebarSectionHeading label="Additional" /> : null}
+            {!isCollapsed ? <SidebarSectionHeading label="More" /> : null}
             <SidebarGroup className="mb-0.5 py-0">
               <SidebarGroupContent className="mt-0 gap-0">
                 <SidebarNavSections
@@ -190,9 +190,9 @@ export function AppSidebar() {
 
 function SidebarSectionHeading({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-[12px] font-medium text-muted-foreground">
+    <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-[12px] font-medium text-[var(--text-subtle)]">
       <span className="truncate">{label}</span>
-      <MedusaChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground" />
+      <MedusaChevronDownIcon className="h-3.5 w-3.5 text-[var(--text-subtle)]" />
     </div>
   );
 }
