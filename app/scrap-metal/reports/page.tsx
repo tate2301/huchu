@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
 import { AdminCategoryBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
+import { ScrapMobileCard, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Calendar, Coins, Package, ReceiptLong, Scale, Wallet } from "@/lib/icons";
 
 type DashboardPayload = {
   summary: {
@@ -287,15 +289,17 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search material mix"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.label}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>Bought: {row.purchaseWeight.toFixed(2)} kg</p>
-                  <p>Sold: {row.saleWeight.toFixed(2)} kg</p>
-                  <p>Buy: USD {row.purchaseValue.toFixed(2)}</p>
-                  <p>Sell: USD {row.saleValue.toFixed(2)}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.label} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Scale, value: `${row.purchaseWeight.toFixed(2)} kg`, srLabel: "Bought weight" },
+                    { icon: Package, value: `${row.saleWeight.toFixed(2)} kg`, srLabel: "Sold weight" },
+                    { icon: Wallet, value: `USD ${row.purchaseValue.toFixed(2)}`, srLabel: "Buy value" },
+                    { icon: Coins, value: `USD ${row.saleValue.toFixed(2)}`, srLabel: "Sell value" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : null}
@@ -307,11 +311,10 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search operator exposure"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.employee.name}</p>
-                <p className="font-mono text-xs text-muted-foreground">{row.employee.employeeId}</p>
-                <p className="font-semibold">USD {row.balance.toFixed(2)}</p>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.employee.name} subtitle={row.employee.employeeId} />
+                <ScrapMobileMetricStrip items={[{ icon: Wallet, value: `USD ${row.balance.toFixed(2)}`, srLabel: "Balance" }]} />
+              </ScrapMobileCard>
             )}
           />
         ) : null}
@@ -323,14 +326,15 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search pending sales"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.buyerName}</p>
-                <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>{row.soldWeight.toFixed(2)} kg</p>
-                  <p>USD {row.totalAmount.toFixed(2)}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.buyerName} subtitle={row.batch.batchNumber} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Scale, value: `${row.soldWeight.toFixed(2)} kg`, srLabel: "Weight" },
+                    { icon: Wallet, value: `USD ${row.totalAmount.toFixed(2)}`, srLabel: "Value" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : null}
@@ -342,14 +346,15 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search supplier payments"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.purchaseNumber}</p>
-                <p className="text-xs text-muted-foreground">{row.sellerName ?? "Unknown supplier"}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>{new Date(row.purchaseDate).toLocaleDateString()}</p>
-                  <p className="font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.purchaseNumber} subtitle={row.sellerName ?? "Unknown supplier"} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Calendar, value: new Date(row.purchaseDate).toLocaleDateString(), srLabel: "Purchase date" },
+                    { icon: Wallet, value: `${row.currency} ${row.totalAmount.toFixed(2)}`, srLabel: "Amount" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : null}
@@ -361,14 +366,16 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search WAC"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.label}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>WAC: USD {row.weightedAverageCostPerKg.toFixed(2)}</p>
-                  <p>Weight: {row.purchaseWeight.toFixed(2)} kg</p>
-                  <p>Cost: USD {row.purchaseValue.toFixed(2)}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.label} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Coins, value: `USD ${row.weightedAverageCostPerKg.toFixed(2)}`, srLabel: "Weighted average cost" },
+                    { icon: Scale, value: `${row.purchaseWeight.toFixed(2)} kg`, srLabel: "Weight" },
+                    { icon: Wallet, value: `USD ${row.purchaseValue.toFixed(2)}`, srLabel: "Cost" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : null}
@@ -380,15 +387,17 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search supplier margin"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.supplier}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>Tickets: {row.tickets}</p>
-                  <p>Repeat months: {row.repeatMonths}</p>
-                  <p>Weight: {row.weightKg.toFixed(2)} kg</p>
-                  <p>Margin: {row.currency} {row.estimatedMarginContribution.toFixed(2)}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.supplier} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: ReceiptLong, value: row.tickets, srLabel: "Tickets" },
+                    { icon: Calendar, value: row.repeatMonths, srLabel: "Repeat months" },
+                    { icon: Scale, value: `${row.weightKg.toFixed(2)} kg`, srLabel: "Weight" },
+                    { icon: Wallet, value: `${row.currency} ${row.estimatedMarginContribution.toFixed(2)}`, srLabel: "Margin" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : null}
@@ -400,13 +409,15 @@ export default function ScrapReportsPage() {
             searchPlaceholder="Search variance"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.weekLabel}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>Sales: {row.saleCount}</p>
-                  <p>Variance: {row.varianceKg.toFixed(2)} kg</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.weekLabel} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: ReceiptLong, value: row.saleCount, srLabel: "Sales count" },
+                    { icon: Scale, value: `${row.varianceKg.toFixed(2)} kg`, srLabel: "Variance" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : null}

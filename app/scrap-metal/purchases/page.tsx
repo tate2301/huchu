@@ -10,6 +10,12 @@ import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { fetchEmployees, fetchSites } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  ScrapMobileCard,
+  ScrapMobileCardActions,
+  ScrapMobileCardHeader,
+  ScrapMobileMetricStrip,
+} from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { FieldHelp } from "@/components/shared/field-help";
 import { StatusState } from "@/components/shared/status-state";
@@ -36,7 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { SplitButton } from "@/components/ui/split-button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { Pencil, Plus, Scale, Trash2, User, UserCheck, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
 import { exportTicketPdf } from "@/lib/scrap-metal/print-adapter";
@@ -692,35 +698,21 @@ export default function ScrapMetalPurchasesPage() {
           pagination={{ enabled: true }}
           emptyState={purchasesQuery.isLoading ? "Loading inbound tickets..." : "No inbound tickets yet"}
           mobileCardRenderer={({ row: purchase }) => (
-            <article className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{purchase.material?.name ?? purchase.category}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{purchase.purchaseNumber}</p>
-                </div>
-                <Badge variant="outline">{purchase.site.code}</Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Buyer</p>
-                  <p className="font-semibold">{purchase.employee.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Supplier</p>
-                  <p className="font-semibold">{purchase.sellerName || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Weight</p>
-                  <p className="font-semibold">{purchase.weight.toFixed(2)} kg</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="font-semibold">
-                    {purchase.currency} {purchase.totalAmount.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
+            <ScrapMobileCard>
+              <ScrapMobileCardHeader
+                title={purchase.material?.name ?? purchase.category}
+                subtitle={purchase.purchaseNumber}
+                aside={<Badge variant="outline">{purchase.site.code}</Badge>}
+              />
+              <ScrapMobileMetricStrip
+                items={[
+                  { icon: User, value: purchase.employee.name, srLabel: "Buyer" },
+                  { icon: UserCheck, value: purchase.sellerName || "-", srLabel: "Supplier" },
+                  { icon: Scale, value: `${purchase.weight.toFixed(2)} kg`, srLabel: "Weight" },
+                  { icon: Wallet, value: `${purchase.currency} ${purchase.totalAmount.toFixed(2)}`, srLabel: "Total" },
+                ]}
+              />
+              <ScrapMobileCardActions>
                 <Button
                   type="button"
                   size="sm"
@@ -753,8 +745,8 @@ export default function ScrapMetalPurchasesPage() {
                 <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(purchase)}>
                   Remove
                 </Button>
-              </div>
-            </article>
+              </ScrapMobileCardActions>
+            </ScrapMobileCard>
           )}
         />
       )}

@@ -5,13 +5,15 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
+import { ScrapMobileCard, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
+import { Scale, User, UserCheck, Wallet } from "@/lib/icons";
 
 type UnassignedPurchase = {
   id: string;
@@ -147,33 +149,21 @@ export default function ScrapUnassignedPurchasesPage() {
           pagination={{ enabled: true }}
           emptyState={purchasesQuery.isLoading ? "Loading unassigned purchases..." : "No unassigned purchases."}
           mobileCardRenderer={({ row }) => (
-            <article className="space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold">{row.purchaseNumber}</p>
-                  <p className="text-xs text-muted-foreground">{row.material?.name ?? row.category}</p>
-                </div>
-                <Badge variant="outline">{row.site.code}</Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Supplier</p>
-                  <p className="font-semibold">{row.sellerName ?? "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Buyer</p>
-                  <p className="font-semibold">{row.employee.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Weight</p>
-                  <p className="font-semibold">{row.weight.toFixed(2)} kg</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>
-                </div>
-              </div>
-            </article>
+            <ScrapMobileCard>
+              <ScrapMobileCardHeader
+                title={row.purchaseNumber}
+                subtitle={row.material?.name ?? row.category}
+                aside={<Badge variant="outline">{row.site.code}</Badge>}
+              />
+              <ScrapMobileMetricStrip
+                items={[
+                  { icon: UserCheck, value: row.sellerName ?? "-", srLabel: "Supplier" },
+                  { icon: User, value: row.employee.name, srLabel: "Buyer" },
+                  { icon: Scale, value: `${row.weight.toFixed(2)} kg`, srLabel: "Weight" },
+                  { icon: Wallet, value: `${row.currency} ${row.totalAmount.toFixed(2)}`, srLabel: "Amount" },
+                ]}
+              />
+            </ScrapMobileCard>
           )}
         />
       )}

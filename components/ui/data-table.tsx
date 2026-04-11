@@ -1200,12 +1200,12 @@ export function DataTable<TData, TValue>({
       ) : null}
 
       {mobileCardRenderer ? (
-        <div className={cn("space-y-3 md:hidden", mobileCardListClassName)}>
+        <div className={cn("space-y-2 md:hidden", mobileCardListClassName)}>
           {renderedRows.length > 0 ? (
             renderedRows.map((row, rowIndex) => (
               <div
                 key={row.id}
-                className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4 shadow-[var(--surface-frame-shadow)]"
+                className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5 shadow-[var(--surface-frame-shadow)]"
               >
                 {mobileCardRenderer({ row: row.original, rowIndex })}
               </div>

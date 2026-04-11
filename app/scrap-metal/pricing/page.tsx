@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
+import { ScrapMobileCard, ScrapMobileCardActions, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ import {
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Calendar, Coins } from "@/lib/icons";
 import { ChevronDown, Pencil, Plus, Trash2 } from "@/lib/icons";
 
 type PriceRecord = {
@@ -281,28 +283,22 @@ export default function ScrapMetalPricingPage() {
         tableClassName="text-sm"
         emptyState={pricesQuery.isLoading ? "Loading prices..." : "No prices configured yet"}
         mobileCardRenderer={({ row }) => (
-          <article className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{row.material?.name ?? "Category default"}</p>
-                <p className="text-xs text-muted-foreground">{row.material?.code ?? row.category}</p>
-              </div>
-              <Badge variant="outline">{row.category}</Badge>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Effective</p>
-                <p className="font-semibold">{row.effectiveDate.slice(0, 10)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Price / kg</p>
-                <p className="font-semibold">{row.currency} {row.pricePerKg.toFixed(2)}</p>
-              </div>
-            </div>
+          <ScrapMobileCard>
+            <ScrapMobileCardHeader
+              title={row.material?.name ?? "Category default"}
+              subtitle={row.material?.code ?? row.category}
+              aside={<Badge variant="outline">{row.category}</Badge>}
+            />
+            <ScrapMobileMetricStrip
+              items={[
+                { icon: Calendar, value: row.effectiveDate.slice(0, 10), srLabel: "Effective date" },
+                { icon: Coins, value: `${row.currency} ${row.pricePerKg.toFixed(2)}`, srLabel: "Price per kilogram" },
+              ]}
+            />
             {row.note ? (
               <p className="rounded-md bg-[var(--surface-muted)] px-3 py-2 text-sm text-muted-foreground">{row.note}</p>
             ) : null}
-            <div className="flex gap-2">
+            <ScrapMobileCardActions>
               <Button
                 type="button"
                 size="sm"
@@ -325,8 +321,8 @@ export default function ScrapMetalPricingPage() {
               <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(row)}>
                 Remove
               </Button>
-            </div>
-          </article>
+            </ScrapMobileCardActions>
+          </ScrapMobileCard>
         )}
       />
 

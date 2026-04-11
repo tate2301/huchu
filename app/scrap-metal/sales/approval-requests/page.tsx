@@ -6,12 +6,14 @@ import { useSession } from "next-auth/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ScrapMobileCard, ScrapMobileCardActions, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { User, UserCheck, Wallet } from "@/lib/icons";
 import { hasRole } from "@/lib/roles";
 
 type ApprovalRequestSale = {
@@ -112,25 +114,20 @@ export default function ScrapSalesApprovalRequestsPage() {
         pagination={{ enabled: true }}
         emptyState={requestsQuery.isLoading ? "Loading approval requests..." : "No approval requests yet."}
         mobileCardRenderer={({ row }) => (
-          <article className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold">{row.saleNumber}</p>
-                <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
-              </div>
-              <p className="text-sm font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Buyer</p>
-                <p className="font-semibold">{row.buyerName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Requested By</p>
-                <p className="font-semibold">{row.createdBy?.name ?? "-"}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
+          <ScrapMobileCard>
+            <ScrapMobileCardHeader
+              title={row.saleNumber}
+              subtitle={row.batch.batchNumber}
+              aside={<p className="text-sm font-semibold">{row.currency} {row.totalAmount.toFixed(2)}</p>}
+            />
+            <ScrapMobileMetricStrip
+              items={[
+                { icon: User, value: row.buyerName, srLabel: "Buyer" },
+                { icon: UserCheck, value: row.createdBy?.name ?? "-", srLabel: "Requested by" },
+                { icon: Wallet, value: `${row.currency} ${row.totalAmount.toFixed(2)}`, srLabel: "Total amount" },
+              ]}
+            />
+            <ScrapMobileCardActions>
               <Button size="sm" variant="outline" asChild>
                 <Link href={`/scrap-metal/sales?edit=${row.id}`}>Open</Link>
               </Button>
@@ -142,8 +139,8 @@ export default function ScrapSalesApprovalRequestsPage() {
               >
                 Submit
               </Button>
-            </div>
-          </article>
+            </ScrapMobileCardActions>
+          </ScrapMobileCard>
         )}
       />
     </ScrapShell>

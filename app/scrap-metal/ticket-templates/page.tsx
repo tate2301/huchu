@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ScrapMobileCard, ScrapMobileCardActions, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { DEFAULT_TEMPLATE_CATALOG } from "@/lib/documents/default-template-catalog";
+import { CheckCircle2, FileText } from "@/lib/icons";
 
 type TemplateRow = {
   id: string;
@@ -133,18 +135,23 @@ export default function ScrapTicketTemplatesPage() {
         pagination={{ enabled: true }}
         emptyState={templatesQuery.isLoading ? "Loading templates..." : "No ticket templates found."}
         mobileCardRenderer={({ row }) => (
-          <article className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{row.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{row.sourceKey}</p>
-              </div>
-              <Badge variant={row.scope === "COMPANY" ? "default" : "outline"}>{row.scope}</Badge>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {row.isDefault ? "Current default template" : "Not set as default"}
-            </div>
-            <div className="flex flex-wrap gap-2">
+          <ScrapMobileCard>
+            <ScrapMobileCardHeader
+              title={row.name}
+              subtitle={row.sourceKey}
+              aside={<Badge variant={row.scope === "COMPANY" ? "default" : "outline"}>{row.scope}</Badge>}
+            />
+            <ScrapMobileMetricStrip
+              items={[
+                { icon: FileText, value: row.scope, srLabel: "Template scope" },
+                {
+                  icon: CheckCircle2,
+                  value: row.isDefault ? "Default" : "Available",
+                  srLabel: row.isDefault ? "Current default template" : "Not set as default",
+                },
+              ]}
+            />
+            <ScrapMobileCardActions>
               <Button size="sm" variant="outline" asChild>
                 <Link href="/settings/templates">Edit</Link>
               </Button>
@@ -153,8 +160,8 @@ export default function ScrapTicketTemplatesPage() {
                   Set Default
                 </Button>
               ) : null}
-            </div>
-          </article>
+            </ScrapMobileCardActions>
+          </ScrapMobileCard>
         )}
       />
     </ScrapShell>

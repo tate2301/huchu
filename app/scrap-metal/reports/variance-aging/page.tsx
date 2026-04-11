@@ -5,13 +5,15 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
+import { ScrapMobileCard, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
+import { Calendar, Package, ReceiptLong, Scale } from "@/lib/icons";
 
 type Sale = {
   saleNumber: string;
@@ -203,19 +205,16 @@ export default function VarianceAgingPage() {
             pagination={{ enabled: true }}
             emptyState={salesQuery.isLoading ? "Loading variance..." : "No variance records found."}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{row.saleNumber}</p>
-                    <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
-                  </div>
-                  <p className="font-semibold">{row.weightDiscrepancy.toFixed(2)} kg</p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>{new Date(row.saleDate).toLocaleDateString()}</p>
-                  <p>{row.status}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.saleNumber} subtitle={row.batch.batchNumber} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Scale, value: `${row.weightDiscrepancy.toFixed(2)} kg`, srLabel: "Variance" },
+                    { icon: Calendar, value: new Date(row.saleDate).toLocaleDateString(), srLabel: "Sale date" },
+                    { icon: ReceiptLong, value: row.status, srLabel: "Status" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         ) : (
@@ -227,14 +226,16 @@ export default function VarianceAgingPage() {
             pagination={{ enabled: true }}
             emptyState={batchesQuery.isLoading ? "Loading aging..." : "No lots found."}
             mobileCardRenderer={({ row }) => (
-              <article className="space-y-2 text-sm">
-                <p className="font-semibold">{row.batchNumber}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <p>Status: {row.status}</p>
-                  <p>Age: {row.ageDays}d</p>
-                  <p>Opened: {new Date(row.collectionStartDate).toLocaleDateString()}</p>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader title={row.batchNumber} />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Package, value: row.status, srLabel: "Lot status" },
+                    { icon: ReceiptLong, value: `${row.ageDays}d`, srLabel: "Age in days" },
+                    { icon: Calendar, value: new Date(row.collectionStartDate).toLocaleDateString(), srLabel: "Opened" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
           ) : (
@@ -245,14 +246,15 @@ export default function VarianceAgingPage() {
               pagination={{ enabled: true }}
               emptyState={salesQuery.isLoading ? "Loading approval aging..." : "No pending approvals."}
               mobileCardRenderer={({ row }) => (
-                <article className="space-y-2 text-sm">
-                  <p className="font-semibold">{row.saleNumber}</p>
-                  <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <p>Requested: {new Date(row.createdAt).toLocaleDateString()}</p>
-                    <p>Age: {row.ageDays}d</p>
-                  </div>
-                </article>
+                <ScrapMobileCard>
+                  <ScrapMobileCardHeader title={row.saleNumber} subtitle={row.batch.batchNumber} />
+                  <ScrapMobileMetricStrip
+                    items={[
+                      { icon: Calendar, value: new Date(row.createdAt).toLocaleDateString(), srLabel: "Requested date" },
+                      { icon: ReceiptLong, value: `${row.ageDays}d`, srLabel: "Age in days" },
+                    ]}
+                  />
+                </ScrapMobileCard>
               )}
             />
           )

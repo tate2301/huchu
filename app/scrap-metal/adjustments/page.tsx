@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ScrapMobileCard, ScrapMobileCardActions, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Calendar, ReceiptLong, Scale, User } from "@/lib/icons";
 
 type Sale = {
   id: string;
@@ -134,38 +136,28 @@ export default function ScrapAdjustmentsPage() {
         pagination={{ enabled: true }}
         emptyState={query.isLoading ? "Loading adjustments..." : "No adjustment entries yet."}
         mobileCardRenderer={({ row }) => (
-          <article className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold">{row.saleNumber}</p>
-                <p className="text-xs text-muted-foreground">{row.batch.batchNumber}</p>
-              </div>
-              {row.reviewed ? <Badge>Reviewed</Badge> : <Badge variant="outline">Open</Badge>}
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Variance (kg)</p>
-                <p className="font-semibold">{row.weightDiscrepancy.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <p className="font-semibold">{row.status}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Buyer</p>
-                <p className="font-semibold">{row.buyerName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Date</p>
-                <p className="font-semibold">{new Date(row.saleDate).toLocaleDateString()}</p>
-              </div>
-            </div>
+          <ScrapMobileCard>
+            <ScrapMobileCardHeader
+              title={row.saleNumber}
+              subtitle={row.batch.batchNumber}
+              aside={row.reviewed ? <Badge>Reviewed</Badge> : <Badge variant="outline">Open</Badge>}
+            />
+            <ScrapMobileMetricStrip
+              items={[
+                { icon: Scale, value: `${row.weightDiscrepancy.toFixed(2)} kg`, srLabel: "Variance" },
+                { icon: ReceiptLong, value: row.status, srLabel: "Status" },
+                { icon: User, value: row.buyerName, srLabel: "Buyer" },
+                { icon: Calendar, value: new Date(row.saleDate).toLocaleDateString(), srLabel: "Date" },
+              ]}
+            />
             {!row.reviewed ? (
-              <Button size="sm" variant="outline" onClick={() => reviewMutation.mutate(row)} disabled={reviewMutation.isPending}>
-                Mark Reviewed
-              </Button>
+              <ScrapMobileCardActions>
+                <Button size="sm" variant="outline" onClick={() => reviewMutation.mutate(row)} disabled={reviewMutation.isPending}>
+                  Mark Reviewed
+                </Button>
+              </ScrapMobileCardActions>
             ) : null}
-          </article>
+          </ScrapMobileCard>
         )}
       />
     </ScrapShell>

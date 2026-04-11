@@ -5,12 +5,14 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
+import { ScrapMobileCard, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
+import { Calendar, Coins, ReceiptLong, Scale, Wallet } from "@/lib/icons";
 
 type Purchase = {
   supplier: string;
@@ -117,17 +119,19 @@ export default function SupplierPerformancePage() {
         searchPlaceholder="Search suppliers"
         emptyState={purchasesQuery.isLoading ? "Loading supplier performance..." : "No supplier activity yet."}
         mobileCardRenderer={({ row }) => (
-          <article className="space-y-2 text-sm">
-            <p className="font-semibold">{row.supplier}</p>
-            <div className="grid grid-cols-2 gap-2">
-              <p>Tickets: {row.tickets}</p>
-              <p>Repeat months: {row.repeatMonths}</p>
-              <p>Weight: {row.weightKg.toFixed(2)} kg</p>
-              <p>Spend: {row.currency} {row.spend.toFixed(2)}</p>
-              <p>Avg/kg: {row.currency} {row.avgBuyPricePerKg.toFixed(2)}</p>
-              <p>Margin: {row.currency} {row.estimatedMarginContribution.toFixed(2)}</p>
-            </div>
-          </article>
+          <ScrapMobileCard>
+            <ScrapMobileCardHeader title={row.supplier} />
+            <ScrapMobileMetricStrip
+              items={[
+                { icon: ReceiptLong, value: row.tickets, srLabel: "Tickets" },
+                { icon: Calendar, value: row.repeatMonths, srLabel: "Repeat months" },
+                { icon: Scale, value: `${row.weightKg.toFixed(2)} kg`, srLabel: "Weight" },
+                { icon: Wallet, value: `${row.currency} ${row.spend.toFixed(2)}`, srLabel: "Spend" },
+                { icon: Coins, value: `${row.currency} ${row.avgBuyPricePerKg.toFixed(2)}`, srLabel: "Average buy price per kilogram" },
+                { icon: Wallet, value: `${row.currency} ${row.estimatedMarginContribution.toFixed(2)}`, srLabel: "Margin" },
+              ]}
+            />
+          </ScrapMobileCard>
         )}
       />
     </ScrapShell>

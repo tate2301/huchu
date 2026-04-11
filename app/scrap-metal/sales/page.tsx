@@ -9,6 +9,12 @@ import { useSession } from "next-auth/react";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
+import {
+  ScrapMobileCard,
+  ScrapMobileCardActions,
+  ScrapMobileCardHeader,
+  ScrapMobileMetricStrip,
+} from "@/components/scrap-metal/mobile-list-card";
 import { SaleCalculator } from "@/components/scrap-metal/sale-calculator";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { FieldHelp } from "@/components/shared/field-help";
@@ -37,7 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { Package, Pencil, Plus, Scale, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { hasRole } from "@/lib/roles";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
@@ -698,33 +704,21 @@ export default function ScrapMetalSalesPage() {
                   : `No outbound tickets with status "${statusFilter.replace(/_/g, " ")}"`
             }
             mobileCardRenderer={({ row: sale }) => (
-              <article className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{sale.buyerName}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{sale.saleNumber}</p>
-                  </div>
-                  <StatusChip status={sale.status} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lot</p>
-                    <p className="font-semibold">{sale.batch.batchNumber}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Site</p>
-                    <p className="font-semibold">{sale.site.code}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Sold kg</p>
-                    <p className="font-semibold">{sale.soldWeight.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="font-semibold">{sale.currency} {sale.totalAmount.toFixed(2)}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader
+                  title={sale.buyerName}
+                  subtitle={sale.saleNumber}
+                  aside={<StatusChip status={sale.status} />}
+                />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Package, value: sale.batch.batchNumber, srLabel: "Lot" },
+                    { icon: Package, value: sale.site.code, srLabel: "Site" },
+                    { icon: Scale, value: `${sale.soldWeight.toFixed(2)} kg`, srLabel: "Sold weight" },
+                    { icon: Wallet, value: `${sale.currency} ${sale.totalAmount.toFixed(2)}`, srLabel: "Total" },
+                  ]}
+                />
+                <ScrapMobileCardActions>
                   {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
                     <Button
                       type="button"
@@ -764,8 +758,8 @@ export default function ScrapMetalSalesPage() {
                       Remove
                     </Button>
                   ) : null}
-                </div>
-              </article>
+                </ScrapMobileCardActions>
+              </ScrapMobileCard>
             )}
           />
         </>

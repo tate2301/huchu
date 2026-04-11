@@ -6,6 +6,11 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AdminDualBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
+import {
+  ScrapMobileCard,
+  ScrapMobileCardHeader,
+  ScrapMobileMetricStrip,
+} from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Wallet, Plus, ReceiptLong, Payments, History } from "@/lib/icons";
+import { Wallet, Plus, ReceiptLong, Payments, History, Calendar, Users } from "@/lib/icons";
 import { SplitButton } from "@/components/ui/split-button";
 import {
   DropdownMenuItem,
@@ -253,7 +258,7 @@ export default function ScrapSettlementsPage() {
     () => (balancesQuery.data?.data ?? []).sort((left, right) => Math.abs(right.balance) - Math.abs(left.balance)),
     [balancesQuery.data?.data],
   );
-  const batches = batchesQuery.data?.data ?? [];
+  const batches = useMemo(() => batchesQuery.data?.data ?? [], [batchesQuery.data?.data]);
   const employees = employeesQuery.data?.data ?? [];
   const totalDeliveredValue = balances.reduce((sum, balance) => sum + balance.deliveredValue, 0);
   const totalPositiveBalance = balances
@@ -551,27 +556,24 @@ export default function ScrapSettlementsPage() {
             tableClassName="text-sm"
             emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
             mobileCardRenderer={({ row: batch }) => (
-              <article className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{batch.label}</p>
-                    <p className="text-xs text-muted-foreground">{batch.items.length} people</p>
-                  </div>
-                  <Badge variant="secondary">{batch.workflowStatus}</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Due</p>
-                    <p className="font-semibold">{formatDate(batch.dueDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Value</p>
-                    <p className="font-semibold">
-                      {formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}
-                    </p>
-                  </div>
-                </div>
-              </article>
+              <ScrapMobileCard>
+                <ScrapMobileCardHeader
+                  title={batch.label}
+                  subtitle={`${batch.items.length} people`}
+                  aside={<Badge variant="secondary">{batch.workflowStatus}</Badge>}
+                />
+                <ScrapMobileMetricStrip
+                  items={[
+                    { icon: Calendar, value: formatDate(batch.dueDate), srLabel: "Due date" },
+                    {
+                      icon: Wallet,
+                      value: formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0)),
+                      srLabel: "Batch value",
+                    },
+                    { icon: Users, value: `${batch.items.length}`, srLabel: "People count" },
+                  ]}
+                />
+              </ScrapMobileCard>
             )}
           />
         )}
