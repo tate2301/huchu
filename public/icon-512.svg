@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Huchu icon">
-  <rect width="512" height="512" rx="120" fill="#0f172a" />
-  <rect x="52" y="52" width="408" height="408" rx="92" fill="#2563eb" />
-  <path d="M154 138h56v90h92v-90h56v236h-56v-96h-92v96h-56z" fill="#f8fafc" />
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="Huchu icon" role="img" viewBox="0 0 512 512"><rect width="512" height="512" fill="#0f172a" rx="120"/><rect width="408" height="408" x="52" y="52" fill="#2563eb" rx="92"/><path fill="#f8fafc" d="M154 138h56v90h92v-90h56v236h-56v-96h-92v96h-56z"/></svg>
