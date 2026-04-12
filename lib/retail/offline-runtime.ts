@@ -15,8 +15,12 @@ export type RetailOfflineCustomerPayload = {
   email?: string | null;
 };
 
-export async function createOfflineRetailCustomer(payload: RetailOfflineCustomerPayload) {
+export async function createOfflineRetailCustomer(
+  tenantKey: string,
+  payload: RetailOfflineCustomerPayload,
+) {
   const record = await upsertOfflineLocalEntity({
+    tenantKey,
     moduleId: RETAIL_POS_OFFLINE_MODULE_ID,
     entityType: "customer",
     displayLabel: payload.name,
@@ -25,6 +29,7 @@ export async function createOfflineRetailCustomer(payload: RetailOfflineCustomer
   });
 
   const operation = await enqueueOfflineOperation({
+    tenantKey,
     moduleId: RETAIL_POS_OFFLINE_MODULE_ID,
     clientRequestId: record.tempId,
     entityType: "customer",
@@ -44,8 +49,12 @@ export async function createOfflineRetailCustomer(payload: RetailOfflineCustomer
   };
 }
 
-export async function searchOfflineRetailCustomers(search: string) {
+export async function searchOfflineRetailCustomers(
+  tenantKey: string,
+  search: string,
+) {
   const records = await listOfflineLocalEntities({
+    tenantKey,
     moduleId: RETAIL_POS_OFFLINE_MODULE_ID,
     entityType: "customer",
   });
@@ -63,6 +72,7 @@ export async function searchOfflineRetailCustomers(search: string) {
 }
 
 export async function queueOfflineRetailSale(input: {
+  tenantKey: string;
   payload: Record<string, unknown>;
   customerTempId?: string | null;
 }) {
@@ -70,12 +80,14 @@ export async function queueOfflineRetailSale(input: {
     input.customerTempId
       ? await findOfflineOperationForLocalEntity(
           RETAIL_POS_OFFLINE_MODULE_ID,
+          input.tenantKey,
           input.customerTempId,
           "create-customer",
         )
       : null;
 
   return enqueueOfflineOperation({
+    tenantKey: input.tenantKey,
     moduleId: RETAIL_POS_OFFLINE_MODULE_ID,
     clientRequestId: String(input.payload.saleNo ?? `sale:${Date.now()}`),
     entityType: "retail-sale",
@@ -92,8 +104,11 @@ export async function queueOfflineRetailSale(input: {
   });
 }
 
-export function listOfflineRetailOperations() {
-  return listOfflineOperationsForModule(RETAIL_POS_OFFLINE_MODULE_ID).then((operations) =>
+export function listOfflineRetailOperations(tenantKey?: string) {
+  return listOfflineOperationsForModule(
+    RETAIL_POS_OFFLINE_MODULE_ID,
+    tenantKey,
+  ).then((operations) =>
     operations.filter(
       (operation): operation is OfflineOutboxOperation<PosSaleQueuePayload> =>
         operation.operation === "create-sale",

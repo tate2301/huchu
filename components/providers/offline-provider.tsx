@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import {
   createOfflineBootstrapProgress,
+  getOfflineRouteDefinitions,
   getOfflineBootstrapProgress,
   saveOfflineBootstrapProgress,
 } from "@/lib/offline/bootstrap-state";
@@ -25,7 +26,11 @@ import {
   OFFLINE_SESSION_CHANGED_EVENT,
 } from "@/lib/offline/events";
 import { getEnabledOfflineModules } from "@/lib/offline/module-registry";
-import { getOfflineOutboxSummary } from "@/lib/offline/outbox";
+import {
+  getOfflineOutboxSummaryForTenant,
+  removeOfflineOperation,
+  resetOfflineOperationToQueued,
+} from "@/lib/offline/outbox";
 import {
   persistOfflineQueryRecord,
   pruneOfflineQueries,
@@ -38,13 +43,20 @@ import {
   isOfflineSessionBootstrapExpired,
   saveOfflineSessionBootstrap,
 } from "@/lib/offline/session-bootstrap";
+import {
+  clearTenantOfflineData,
+  getActiveOfflineTenantContext,
+  setActiveOfflineTenantContext,
+} from "@/lib/offline/tenant-context";
 import type {
   OfflineBootstrapProgress,
   OfflineModuleDefinition,
   OfflineModulePreparation,
   OfflineModulePreparationState,
+  OfflineOutboxSummaryItem,
   OfflineSessionBootstrap,
   OfflineStatus,
+  OfflineTenantKey,
   OfflineUpdateState,
 } from "@/lib/offline/types";
 
@@ -53,16 +65,19 @@ const OFFLINE_BOOTSTRAP_SYNC_TAG = "offline-runtime-sync";
 const SHELL_ASSET_URLS = [
   "/offline",
   "/manifest.webmanifest",
-  "/icon-192.svg",
-  "/icon-512.svg",
+  "/icon-192.png",
+  "/icon-512.png",
   "/regular.4b554656.woff2",
   "/medium.501e532c.woff2",
   "/bold.37baf660.woff2",
 ];
 
 type OfflineContextValue = {
+  tenantKey: OfflineTenantKey | null;
   isOffline: boolean;
   isSyncing: boolean;
+  canApplyUpdate: boolean;
+  canInstallApp: boolean;
   pendingCount: number;
   blockingCount: number;
   status: OfflineStatus;
@@ -74,12 +89,30 @@ type OfflineContextValue = {
   lastSyncedAt: string | null;
   updateState: OfflineUpdateState;
   showUpdatePrompt: boolean;
+  operations: OfflineOutboxSummaryItem[];
+  tenantConflict:
+    | {
+        previousTenantKey: string;
+        pendingCount: number;
+        blockingCount: number;
+      }
+    | null;
   syncNow: (options?: { force?: boolean }) => Promise<void>;
+  retryOperation: (operationId: string) => Promise<void>;
+  removeOperation: (operationId: string) => Promise<void>;
+  clearTenantConflict: () => Promise<void>;
   applyUpdate: () => Promise<void>;
   dismissUpdate: () => void;
+  installApp: () => Promise<void>;
 };
 
 const OfflineContext = createContext<OfflineContextValue | null>(null);
+
+type BeforeInstallPromptEventLike = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  platforms?: string[];
+};
 
 function isPublicPathname(pathname: string) {
   return (
@@ -133,11 +166,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function getWarmupRoutes(moduleDefinition: OfflineModuleDefinition) {
-  return uniqueStrings([
-    ...moduleDefinition.criticalRoutes,
-    ...(moduleDefinition.warmupRoutes ?? []),
-  ]);
+function getWarmupRouteDefinitions(moduleDefinition: OfflineModuleDefinition) {
+  return getOfflineRouteDefinitions(moduleDefinition);
 }
 
 function getStatusLabel(
@@ -160,7 +190,7 @@ function getStatusLabel(
   if (status === "ATTENTION") {
     return pendingCount > 0 ? `Attention ${pendingCount}` : "Attention needed";
   }
-  return "Synced";
+  return "Ready";
 }
 
 function mergeModulePreparedRoutes(
@@ -214,10 +244,6 @@ function mergeModulePreparedQueries(
 }
 
 function recalculateBootstrapProgress(progress: OfflineBootstrapProgress) {
-  const preparedRoutes = uniqueStrings([
-    ...progress.preparedRoutes,
-    ...progress.modules.flatMap((modulePreparation) => modulePreparation.preparedRoutes),
-  ]);
   const completedSteps = progress.modules.reduce(
     (sum, modulePreparation) =>
       sum +
@@ -228,10 +254,31 @@ function recalculateBootstrapProgress(progress: OfflineBootstrapProgress) {
 
   return {
     ...progress,
-    preparedRoutes,
     completedSteps,
     updatedAt: nowIso(),
   };
+}
+
+function isModulePrepared(modulePreparation: OfflineModulePreparation) {
+  return (
+    modulePreparation.preparedRoutes.length >= modulePreparation.totalRoutes &&
+    modulePreparation.preparedQueryKeys.length >= modulePreparation.totalQueries
+  );
+}
+
+function needsBootstrapWork(
+  progress: OfflineBootstrapProgress | null,
+  pathname: string,
+) {
+  if (!progress) return true;
+  if (progress.modules.length === 0) return true;
+  if (progress.modules.some((modulePreparation) => !isModulePrepared(modulePreparation))) {
+    return true;
+  }
+  if (isPublicPathname(pathname)) {
+    return false;
+  }
+  return !progress.preparedRoutes.some((candidate) => routeMatches(pathname, candidate));
 }
 
 async function registerServiceWorker() {
@@ -288,31 +335,58 @@ async function prewarmAssets(assets: string[]) {
   return preparedAssets;
 }
 
-async function prewarmRoutes(routes: string[], messageType: "OFFLINE_PREWARM" | "OFFLINE_BOOTSTRAP_WARM") {
-  const preparedRoutes = [];
+async function prewarmRoutes(
+  routeDefinitions: Array<{
+    canonicalRoute: string;
+    matchPaths: string[];
+    warmupUrls: string[];
+  }>,
+  messageType: "OFFLINE_PREWARM" | "OFFLINE_BOOTSTRAP_WARM",
+) {
+  const preparedCanonicalRoutes: string[] = [];
+  const preparedPathnames: string[] = [];
 
-  for (const route of uniqueStrings(routes)) {
-    try {
-      const response = await fetch(route, {
-        credentials: "include",
-      });
-      if (response.ok) {
-        preparedRoutes.push(route);
+  for (const route of routeDefinitions) {
+    let didPrepare = false;
+    for (const warmupUrl of uniqueStrings(route.warmupUrls)) {
+      try {
+        const response = await fetch(warmupUrl, {
+          credentials: "include",
+        });
+        if (response.ok) {
+          didPrepare = true;
+        }
+      } catch {
+        // Ignore route warmup failures.
       }
+    }
+
+    if (didPrepare) {
+      preparedCanonicalRoutes.push(route.canonicalRoute);
+      preparedPathnames.push(...route.matchPaths);
+    }
+  }
+
+  const nextPreparedPathnames = uniqueStrings(preparedPathnames);
+  if (nextPreparedPathnames.length > 0) {
+    const matchedRoutes = routeDefinitions.filter((route) =>
+      preparedCanonicalRoutes.includes(route.canonicalRoute),
+    );
+    try {
+      await postServiceWorkerMessage({
+        type: messageType,
+        routes: uniqueStrings(matchedRoutes.flatMap((route) => route.warmupUrls)),
+        assets: [],
+      });
     } catch {
       // Ignore route warmup failures.
     }
   }
 
-  if (preparedRoutes.length > 0) {
-    await postServiceWorkerMessage({
-      type: messageType,
-      routes: preparedRoutes,
-      assets: [],
-    });
-  }
-
-  return preparedRoutes;
+  return {
+    preparedCanonicalRoutes: uniqueStrings(preparedCanonicalRoutes),
+    preparedPathnames: nextPreparedPathnames,
+  };
 }
 
 export function OfflineProvider({ children }: PropsWithChildren) {
@@ -327,14 +401,25 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [blockingCount, setBlockingCount] = useState(0);
+  const [tenantKey, setTenantKey] = useState<OfflineTenantKey | null>(null);
+  const [hydratedTenantKey, setHydratedTenantKey] = useState<OfflineTenantKey | null>(null);
   const [sessionBootstrap, setSessionBootstrap] =
     useState<OfflineSessionBootstrap | null>(null);
   const [bootstrapProgress, setBootstrapProgress] =
     useState<OfflineBootstrapProgress | null>(null);
   const [updateState, setUpdateState] = useState<OfflineUpdateState>("idle");
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] =
+    useState<BeforeInstallPromptEventLike | null>(null);
+  const [operations, setOperations] = useState<OfflineOutboxSummaryItem[]>([]);
+  const [tenantConflict, setTenantConflict] = useState<{
+    previousTenantKey: string;
+    pendingCount: number;
+    blockingCount: number;
+  } | null>(null);
   const lastOnlineRef = useRef<boolean | null>(null);
   const restoredQueriesRef = useRef(false);
+  const lastHydratedTenantKeyRef = useRef<string | null>(null);
   const bootstrapRunRef = useRef<Promise<void> | null>(null);
   const serviceWorkerRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
@@ -350,12 +435,68 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     () => getEnabledOfflineModules(enabledFeatures),
     [enabledFeatures],
   );
+  const currentSessionTenantKey =
+    (session?.user as { companyId?: string } | undefined)?.companyId ?? null;
   const sessionBootstrapExpired = isOfflineSessionBootstrapExpired(sessionBootstrap);
   const preparedModules = useMemo(
     () => bootstrapProgress?.modules ?? [],
     [bootstrapProgress],
   );
   const lastSyncedAt = bootstrapProgress?.lastSyncedAt ?? null;
+  const effectiveTenantKey = useMemo(
+    () =>
+      tenantConflict
+        ? null
+        : currentSessionTenantKey ??
+      tenantKey ??
+      sessionBootstrap?.tenantKey ??
+      null,
+    [currentSessionTenantKey, sessionBootstrap?.tenantKey, tenantConflict, tenantKey],
+  );
+
+  const refreshOutboxSummary = useCallback(async (targetTenantKey?: string | null) => {
+    if (!targetTenantKey) {
+      setPendingCount(0);
+      setBlockingCount(0);
+      setOperations([]);
+      return;
+    }
+    const summary = await getOfflineOutboxSummaryForTenant(targetTenantKey);
+    setPendingCount(summary.pendingCount);
+    setBlockingCount(summary.blockingCount);
+    setOperations(summary.items);
+  }, []);
+
+  const loadTenantState = useCallback(
+    async (targetTenantKey: string | null) => {
+      if (!targetTenantKey) {
+        setSessionBootstrap(null);
+        setBootstrapProgress(null);
+        setHydratedTenantKey(null);
+        lastHydratedTenantKeyRef.current = null;
+        await refreshOutboxSummary(null);
+        return;
+      }
+
+      if (lastHydratedTenantKeyRef.current !== targetTenantKey) {
+        queryClient.clear();
+        setHydratedTenantKey(null);
+        lastHydratedTenantKeyRef.current = targetTenantKey;
+      }
+
+      await restoreOfflineQueries(queryClient, targetTenantKey);
+      await pruneOfflineQueries(targetTenantKey);
+      const [cachedSession, cachedBootstrapState] = await Promise.all([
+        getOfflineSessionBootstrap(targetTenantKey).catch(() => null),
+        getOfflineBootstrapProgress(targetTenantKey).catch(() => null),
+      ]);
+      setSessionBootstrap(cachedSession);
+      setBootstrapProgress(cachedBootstrapState);
+      setHydratedTenantKey(targetTenantKey);
+      await refreshOutboxSummary(targetTenantKey);
+    },
+    [queryClient, refreshOutboxSummary],
+  );
 
   const commitBootstrapProgress = useCallback(
     async (nextProgress: OfflineBootstrapProgress) => {
@@ -365,12 +506,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     },
     [],
   );
-
-  const refreshOutboxSummary = useCallback(async () => {
-    const summary = await getOfflineOutboxSummary();
-    setPendingCount(summary.pendingCount);
-    setBlockingCount(summary.blockingCount);
-  }, []);
 
   const checkForUpdates = useCallback(async () => {
     const registration = serviceWorkerRegistrationRef.current;
@@ -390,6 +525,15 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       setUpdateState((current) => (current === "checking" ? "idle" : current));
       return;
     }
+    if (registration.waiting) {
+      setUpdateState("ready");
+      setUpdateDismissed(false);
+      return;
+    }
+    if (registration.installing) {
+      setUpdateState("downloading");
+      return;
+    }
     setUpdateState((current) => (current === "checking" ? "idle" : current));
   }, []);
 
@@ -398,8 +542,14 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (
         typeof window === "undefined" ||
         sessionStatus !== "authenticated" ||
-        enabledModules.length === 0
+        enabledModules.length === 0 ||
+        !effectiveTenantKey ||
+        hydratedTenantKey !== effectiveTenantKey ||
+        tenantConflict
       ) {
+        return;
+      }
+      if (!options?.force && !needsBootstrapWork(bootstrapProgress, pathname)) {
         return;
       }
       if (bootstrapRunRef.current && !options?.force) {
@@ -408,6 +558,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
       const run = (async () => {
         const seedProgress = createOfflineBootstrapProgress(
+          effectiveTenantKey,
           enabledModules,
           bootstrapProgress,
         );
@@ -429,6 +580,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         for (const moduleDefinition of [...enabledModules].sort(
           (left, right) => left.bootstrapPriority - right.bootstrapPriority,
         )) {
+          const routeDefinitions = getWarmupRouteDefinitions(moduleDefinition);
           nextProgress = recalculateBootstrapProgress({
             ...nextProgress,
             currentStepLabel: `Preparing ${moduleDefinition.primaryFlowLabel}`,
@@ -445,6 +597,14 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
           for (const preloadQuery of moduleDefinition.preloadQueries) {
             if (preloadQuery.enabled && !preloadQuery.enabled()) {
+              nextProgress = recalculateBootstrapProgress({
+                ...nextProgress,
+                modules: nextProgress.modules.map((modulePreparation) =>
+                  modulePreparation.moduleId === moduleDefinition.moduleId
+                    ? mergeModulePreparedQueries(modulePreparation, [preloadQuery.key])
+                    : modulePreparation,
+                ),
+              });
               continue;
             }
 
@@ -452,7 +612,17 @@ export function OfflineProvider({ children }: PropsWithChildren) {
               typeof preloadQuery.queryKey === "function"
                 ? await preloadQuery.queryKey()
                 : preloadQuery.queryKey;
-            if (!queryKey) continue;
+            if (!queryKey) {
+              nextProgress = recalculateBootstrapProgress({
+                ...nextProgress,
+                modules: nextProgress.modules.map((modulePreparation) =>
+                  modulePreparation.moduleId === moduleDefinition.moduleId
+                    ? mergeModulePreparedQueries(modulePreparation, [preloadQuery.key])
+                    : modulePreparation,
+                ),
+              });
+              continue;
+            }
 
             try {
               await queryClient.prefetchQuery({
@@ -474,16 +644,22 @@ export function OfflineProvider({ children }: PropsWithChildren) {
             }
           }
 
-          const moduleRoutes = getWarmupRoutes(moduleDefinition);
-          const preparedRoutes = await prewarmRoutes(
-            moduleRoutes,
+          const preparedRouteState = await prewarmRoutes(
+            routeDefinitions,
             "OFFLINE_BOOTSTRAP_WARM",
           );
           nextProgress = recalculateBootstrapProgress({
             ...nextProgress,
+            preparedRoutes: uniqueStrings([
+              ...nextProgress.preparedRoutes,
+              ...preparedRouteState.preparedPathnames,
+            ]),
             modules: nextProgress.modules.map((modulePreparation) =>
               modulePreparation.moduleId === moduleDefinition.moduleId
-                ? mergeModulePreparedRoutes(modulePreparation, preparedRoutes)
+                ? mergeModulePreparedRoutes(
+                    modulePreparation,
+                    preparedRouteState.preparedCanonicalRoutes,
+                  )
                 : modulePreparation,
             ),
           });
@@ -513,12 +689,19 @@ export function OfflineProvider({ children }: PropsWithChildren) {
           (route) => !nextProgress.preparedRoutes.includes(route) && !isPublicPathname(route),
         );
         if (extraRoutes.length > 0) {
-          const preparedExtraRoutes = await prewarmRoutes(extraRoutes, "OFFLINE_PREWARM");
+          const preparedExtraRoutes = await prewarmRoutes(
+            extraRoutes.map((route) => ({
+              canonicalRoute: route,
+              matchPaths: [route],
+              warmupUrls: [route],
+            })),
+            "OFFLINE_PREWARM",
+          );
           nextProgress = recalculateBootstrapProgress({
             ...nextProgress,
             preparedRoutes: uniqueStrings([
               ...nextProgress.preparedRoutes,
-              ...preparedExtraRoutes,
+              ...preparedExtraRoutes.preparedPathnames,
             ]),
           });
         }
@@ -540,21 +723,35 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         bootstrapRunRef.current = null;
       }
     },
-    [bootstrapProgress, commitBootstrapProgress, enabledModules, pathname, queryClient, sessionStatus],
+    [
+      bootstrapProgress,
+      commitBootstrapProgress,
+      effectiveTenantKey,
+      hydratedTenantKey,
+      enabledModules,
+      pathname,
+      queryClient,
+      sessionStatus,
+      tenantConflict,
+    ],
   );
 
   const syncNow = useCallback(
     async (options?: { force?: boolean }) => {
+      if (!effectiveTenantKey || tenantConflict) {
+        return;
+      }
       setIsSyncing(true);
       try {
         const result = await syncOfflineRuntime({
           enabledFeatures,
           force: options?.force,
+          tenantKey: effectiveTenantKey,
         });
         for (const queryKey of result.invalidateQueryKeys) {
           void queryClient.invalidateQueries({ queryKey });
         }
-        await refreshOutboxSummary();
+        await refreshOutboxSummary(effectiveTenantKey);
         const syncCompletedAt = nowIso();
         if (bootstrapProgress) {
           void commitBootstrapProgress({
@@ -591,24 +788,89 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     [
       bootstrapProgress,
       commitBootstrapProgress,
+      effectiveTenantKey,
       enabledFeatures,
       queryClient,
       refreshOutboxSummary,
+      tenantConflict,
       toast,
     ],
+  );
+
+  const retryOperation = useCallback(
+    async (operationId: string) => {
+      await resetOfflineOperationToQueued(operationId);
+      if (effectiveTenantKey) {
+        await refreshOutboxSummary(effectiveTenantKey);
+      }
+      await syncNow({ force: true });
+    },
+    [effectiveTenantKey, refreshOutboxSummary, syncNow],
+  );
+
+  const removeOperationFromShell = useCallback(
+    async (operationId: string) => {
+      await removeOfflineOperation(operationId);
+      if (effectiveTenantKey) {
+        await refreshOutboxSummary(effectiveTenantKey);
+      }
+    },
+    [effectiveTenantKey, refreshOutboxSummary],
   );
 
   const applyUpdate = useCallback(async () => {
     const registration = serviceWorkerRegistrationRef.current;
     const waitingWorker = registration?.waiting ?? null;
-    if (!waitingWorker) return;
+    if (!waitingWorker || isSyncing) return;
     setUpdateState("activating");
     waitingWorker.postMessage({ type: "SKIP_WAITING" });
-  }, []);
+  }, [isSyncing]);
 
   const dismissUpdate = useCallback(() => {
     setUpdateDismissed(true);
   }, []);
+
+  const installApp = useCallback(async () => {
+    if (!installPromptEvent) return;
+    await installPromptEvent.prompt();
+    try {
+      const choice = await installPromptEvent.userChoice;
+      if (choice.outcome === "accepted") {
+        toast({
+          title: "App install started",
+          description: "Finish the browser prompt to add this workspace to the device.",
+          variant: "success",
+        });
+      }
+    } finally {
+      setInstallPromptEvent(null);
+    }
+  }, [installPromptEvent, toast]);
+
+  const clearTenantConflict = useCallback(async () => {
+    if (!tenantConflict || !currentSessionTenantKey || !session?.user) {
+      return;
+    }
+    await clearTenantOfflineData(tenantConflict.previousTenantKey);
+    await setActiveOfflineTenantContext({
+      tenantKey: currentSessionTenantKey,
+      companySlug:
+        (session.user as OfflineSessionBootstrap["user"]).companySlug ?? null,
+      workspaceProfile:
+        (session.user as OfflineSessionBootstrap["user"]).workspaceProfile ??
+        null,
+      host: typeof window !== "undefined" ? window.location.host : null,
+    });
+    setTenantConflict(null);
+    setTenantKey(currentSessionTenantKey);
+    await loadTenantState(currentSessionTenantKey);
+    toast({
+      title: "Device offline workspace reset",
+      description:
+        "This device is ready to prepare offline data for the current tenant.",
+      variant: "default",
+    });
+  }, [currentSessionTenantKey, loadTenantState, session?.user, tenantConflict, toast]);
 
   useEffect(() => {
     rememberRoute(pathname);
@@ -693,48 +955,55 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     if (restoredQueriesRef.current) return;
     restoredQueriesRef.current = true;
     void (async () => {
-      await restoreOfflineQueries(queryClient);
-      await pruneOfflineQueries();
-      await refreshOutboxSummary();
-      const [cachedSession, cachedBootstrapState] = await Promise.all([
-        getOfflineSessionBootstrap().catch(() => null),
-        getOfflineBootstrapProgress().catch(() => null),
-      ]);
-      setSessionBootstrap(cachedSession);
-      setBootstrapProgress(cachedBootstrapState);
+      const activeContext = await getActiveOfflineTenantContext().catch(() => null);
+      const restoredTenantKey = activeContext?.tenantKey ?? null;
+      setTenantKey(restoredTenantKey);
+      await loadTenantState(restoredTenantKey);
     })();
-  }, [queryClient, refreshOutboxSummary]);
+  }, [loadTenantState]);
 
   useEffect(() => {
-    if (bootstrapProgress) return;
-    setBootstrapProgress(createOfflineBootstrapProgress(enabledModules, null));
-  }, [bootstrapProgress, enabledModules]);
+    if (bootstrapProgress || !effectiveTenantKey) return;
+    setBootstrapProgress(
+      createOfflineBootstrapProgress(effectiveTenantKey, enabledModules, null),
+    );
+  }, [bootstrapProgress, effectiveTenantKey, enabledModules]);
 
   useEffect(() => {
-    if (!bootstrapProgress) return;
-    const nextProgress = createOfflineBootstrapProgress(enabledModules, bootstrapProgress);
+    if (!bootstrapProgress || !effectiveTenantKey) return;
+    const nextProgress = createOfflineBootstrapProgress(
+      effectiveTenantKey,
+      enabledModules,
+      bootstrapProgress,
+    );
     setBootstrapProgress(nextProgress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabledModules]);
+  }, [effectiveTenantKey, enabledModules]);
 
   useEffect(() => {
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      if (!event?.query) return;
-      void persistOfflineQueryRecord(event.query);
+      if (!event?.query || !effectiveTenantKey || tenantConflict) return;
+      void persistOfflineQueryRecord(event.query, effectiveTenantKey);
     });
     return unsubscribe;
-  }, [queryClient]);
+  }, [effectiveTenantKey, queryClient, tenantConflict]);
 
   useEffect(() => {
     const onOutboxChanged = () => {
-      void refreshOutboxSummary();
+      void refreshOutboxSummary(effectiveTenantKey);
       void requestBackgroundSync();
     };
     const onSessionChanged = () => {
-      void getOfflineSessionBootstrap().then(setSessionBootstrap).catch(() => null);
+      if (!effectiveTenantKey) return;
+      void getOfflineSessionBootstrap(effectiveTenantKey)
+        .then(setSessionBootstrap)
+        .catch(() => null);
     };
     const onBootstrapChanged = () => {
-      void getOfflineBootstrapProgress().then(setBootstrapProgress).catch(() => null);
+      if (!effectiveTenantKey) return;
+      void getOfflineBootstrapProgress(effectiveTenantKey)
+        .then(setBootstrapProgress)
+        .catch(() => null);
     };
     window.addEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, onOutboxChanged);
     window.addEventListener(OFFLINE_SESSION_CHANGED_EVENT, onSessionChanged);
@@ -744,7 +1013,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       window.removeEventListener(OFFLINE_SESSION_CHANGED_EVENT, onSessionChanged);
       window.removeEventListener(OFFLINE_BOOTSTRAP_CHANGED_EVENT, onBootstrapChanged);
     };
-  }, [refreshOutboxSummary]);
+  }, [effectiveTenantKey, refreshOutboxSummary]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -802,6 +1071,29 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   }, [bootstrapSession, checkForUpdates, syncNow]);
 
   useEffect(() => {
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEventLike);
+    };
+
+    const onAppInstalled = () => {
+      setInstallPromptEvent(null);
+      toast({
+        title: "App installed",
+        description: "This workspace is now available as an app on the device.",
+        variant: "success",
+      });
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
+  }, [toast]);
+
+  useEffect(() => {
     const onServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === "OFFLINE_SYNC_REQUEST") {
         if (!navigator.onLine) return;
@@ -810,6 +1102,12 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       }
       if (event.data?.type === "OFFLINE_SW_ACTIVATED") {
         setUpdateState("idle");
+        setUpdateDismissed(false);
+        return;
+      }
+      if (event.data?.type === "OFFLINE_UPDATE_WAITING") {
+        setUpdateState("ready");
+        setUpdateDismissed(false);
       }
     };
     navigator.serviceWorker?.addEventListener("message", onServiceWorkerMessage);
@@ -818,23 +1116,90 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   }, [syncNow]);
 
   useEffect(() => {
-    if (sessionStatus !== "authenticated" || !session?.user) return;
-    void saveOfflineSessionBootstrap(
-      session.user as OfflineSessionBootstrap["user"],
-    ).then(setSessionBootstrap);
-  }, [session, sessionStatus]);
-
-  useEffect(() => {
-    if (sessionStatus === "unauthenticated" && navigator.onLine) {
-      void clearOfflineSessionBootstrap().then(() => setSessionBootstrap(null));
+    if (sessionStatus !== "authenticated" || !session?.user || !currentSessionTenantKey) {
+      return;
     }
-  }, [sessionStatus]);
+
+    void (async () => {
+      const savedBootstrap = await saveOfflineSessionBootstrap(
+        currentSessionTenantKey,
+        session.user as OfflineSessionBootstrap["user"],
+      );
+      const activeContext = await getActiveOfflineTenantContext().catch(() => null);
+      if (!activeContext || activeContext.tenantKey === currentSessionTenantKey) {
+        setTenantConflict(null);
+        setTenantKey(currentSessionTenantKey);
+        await setActiveOfflineTenantContext({
+          tenantKey: currentSessionTenantKey,
+          companySlug: savedBootstrap.user.companySlug ?? null,
+          workspaceProfile: savedBootstrap.user.workspaceProfile ?? null,
+          host: typeof window !== "undefined" ? window.location.host : null,
+        });
+        await loadTenantState(currentSessionTenantKey);
+        return;
+      }
+
+      const previousSummary = await getOfflineOutboxSummaryForTenant(
+        activeContext.tenantKey,
+      );
+      if (previousSummary.pendingCount > 0) {
+        setTenantConflict({
+          previousTenantKey: activeContext.tenantKey,
+          pendingCount: previousSummary.pendingCount,
+          blockingCount: previousSummary.blockingCount,
+        });
+        setSessionBootstrap(savedBootstrap);
+        setBootstrapProgress(
+          createOfflineBootstrapProgress(
+            currentSessionTenantKey,
+            enabledModules,
+            null,
+          ),
+        );
+        setPendingCount(0);
+        setBlockingCount(0);
+        setOperations([]);
+        return;
+      }
+
+      await clearTenantOfflineData(activeContext.tenantKey);
+      setTenantConflict(null);
+      setTenantKey(currentSessionTenantKey);
+      await setActiveOfflineTenantContext({
+        tenantKey: currentSessionTenantKey,
+        companySlug: savedBootstrap.user.companySlug ?? null,
+        workspaceProfile: savedBootstrap.user.workspaceProfile ?? null,
+        host: typeof window !== "undefined" ? window.location.host : null,
+      });
+      await loadTenantState(currentSessionTenantKey);
+    })();
+  }, [
+    currentSessionTenantKey,
+    enabledModules,
+    loadTenantState,
+    session,
+    sessionStatus,
+  ]);
 
   useEffect(() => {
-    if (sessionStatus !== "authenticated") return;
+    if (sessionStatus === "unauthenticated" && navigator.onLine && tenantKey) {
+      void clearOfflineSessionBootstrap(tenantKey).then(() => setSessionBootstrap(null));
+    }
+  }, [sessionStatus, tenantKey]);
+
+  useEffect(() => {
+    if (sessionStatus !== "authenticated" || tenantConflict) return;
+    if (!effectiveTenantKey || hydratedTenantKey !== effectiveTenantKey) return;
     void bootstrapSession();
     void checkForUpdates();
-  }, [bootstrapSession, checkForUpdates, sessionStatus]);
+  }, [
+    bootstrapSession,
+    checkForUpdates,
+    effectiveTenantKey,
+    hydratedTenantKey,
+    sessionStatus,
+    tenantConflict,
+  ]);
 
   useEffect(() => {
     if (updateState !== "ready") {
@@ -844,20 +1209,34 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
   const status: OfflineStatus = useMemo(() => {
     if (isOffline) return "OFFLINE";
-    if (updateState === "ready" || updateState === "activating") {
-      return "UPDATE_READY";
-    }
     if (bootstrapProgress?.phase === "preparing") return "PREPARING";
     if (isSyncing) return "SYNCING";
     if (isReconnecting) return "RECONNECTING";
-    if (blockingCount > 0) return "ATTENTION";
+    if (tenantConflict || blockingCount > 0) return "ATTENTION";
+    if (updateState === "ready" || updateState === "activating") {
+      return "UPDATE_READY";
+    }
     return "ONLINE";
-  }, [blockingCount, bootstrapProgress?.phase, isOffline, isReconnecting, isSyncing, updateState]);
+  }, [
+    blockingCount,
+    bootstrapProgress?.phase,
+    isOffline,
+    isReconnecting,
+    isSyncing,
+    tenantConflict,
+    updateState,
+  ]);
+
+  const canApplyUpdate = updateState === "ready" && !isSyncing;
+  const canInstallApp = installPromptEvent !== null;
 
   const contextValue = useMemo<OfflineContextValue>(
     () => ({
+      tenantKey: effectiveTenantKey,
       isOffline,
       isSyncing,
+      canApplyUpdate,
+      canInstallApp,
       pendingCount,
       blockingCount,
       status,
@@ -869,22 +1248,37 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       lastSyncedAt,
       updateState,
       showUpdatePrompt: updateState === "ready" && !updateDismissed,
+      operations,
+      tenantConflict,
       syncNow,
+      retryOperation,
+      removeOperation: removeOperationFromShell,
+      clearTenantConflict,
       applyUpdate,
       dismissUpdate,
+      installApp,
     }),
     [
       applyUpdate,
       blockingCount,
       bootstrapProgress,
+      canApplyUpdate,
+      canInstallApp,
+      clearTenantConflict,
       dismissUpdate,
+      effectiveTenantKey,
       isOffline,
       isSyncing,
       lastSyncedAt,
+      operations,
       pendingCount,
       preparedModules,
       sessionBootstrap,
       sessionBootstrapExpired,
+      installApp,
+      removeOperationFromShell,
+      retryOperation,
+      tenantConflict,
       updateDismissed,
       status,
       syncNow,
@@ -898,39 +1292,60 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const shouldShowOfflineGuard =
     isOffline &&
     !isPublicPathname(pathname) &&
-    (!sessionBootstrap || sessionBootstrapExpired || !routeOfflineReady);
+    (Boolean(tenantConflict) ||
+      !sessionBootstrap ||
+      sessionBootstrapExpired ||
+      !routeOfflineReady);
 
   return (
     <OfflineContext.Provider value={contextValue}>
       {shouldShowOfflineGuard ? (
-        <div className="flex min-h-screen items-center justify-center bg-background px-6">
-          <div className="max-w-md rounded-2xl border bg-card p-6 shadow-sm">
-            <h1 className="text-xl font-semibold text-foreground">
+        <div className="flex min-h-screen items-center justify-center bg-[color-mix(in_srgb,var(--surface-canvas)_92%,white)] px-6 py-10">
+          <div className="w-full max-w-3xl rounded-[28px] bg-[color-mix(in_srgb,var(--surface-base)_92%,white)] px-8 py-10 shadow-[0_12px_32px_-24px_rgba(17,17,17,0.18)]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              <span className="size-1.5 rounded-full bg-[color-mix(in_srgb,var(--status-warning-text)_72%,white)]" />
+              Offline guard
+            </div>
+            <h1 className="mt-4 max-w-[18ch] text-[2rem] font-semibold tracking-[-0.03em] text-foreground">
               {sessionBootstrapExpired
                 ? "Reconnect to continue"
-                : routeOfflineReady
+                : tenantConflict
+                  ? "Clear previous offline workspace"
+                  : routeOfflineReady
                   ? "Offline session unavailable"
                   : "This page is not ready offline"}
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="mt-3 max-w-[58ch] text-sm leading-6 text-[var(--text-muted)]">
               {sessionBootstrapExpired
                 ? "Your cached session has expired. Connect to the internet so we can refresh your access."
+                : tenantConflict
+                  ? "This device still holds queued offline work from another tenant. Clear that offline workspace before preparing this one."
                 : !sessionBootstrap
                   ? "This device has not completed an online bootstrap for the current workspace yet."
                   : "Reconnect and let the app finish preparing this route for offline use."}
             </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => void syncNow({ force: true })}
-                className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background"
-              >
-                Retry now
-              </button>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {tenantConflict ? (
+                <button
+                  type="button"
+                  onClick={() => void clearTenantConflict()}
+                  className="inline-flex h-9 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-4 text-sm font-medium text-[var(--action-primary-fg)]"
+                >
+                  Clear device offline data
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void syncNow({ force: true })}
+                  className="inline-flex h-9 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-4 text-sm font-medium text-[var(--action-primary-fg)]"
+                >
+                  Retry now
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="rounded-lg border px-3 py-2 text-sm font-medium"
+                className="inline-flex h-9 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] px-4 text-sm font-medium text-[var(--text-strong)]"
               >
                 Reload
               </button>

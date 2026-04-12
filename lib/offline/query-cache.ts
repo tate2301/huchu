@@ -24,13 +24,17 @@ function inferModuleId(queryKey: QueryKey) {
   return null;
 }
 
-export async function persistOfflineQueryRecord(query: Query) {
+export async function persistOfflineQueryRecord(
+  query: Query,
+  tenantKey: string,
+) {
   if (query.state.status !== "success") return;
   if (typeof query.state.data === "undefined") return;
 
   const queryKey = query.queryKey;
   const record: PersistedQueryRecord = {
-    id: serializeQueryKey(queryKey),
+    id: `${tenantKey}:${serializeQueryKey(queryKey)}`,
+    tenantKey,
     queryKey: [...queryKey],
     data: query.state.data,
     updatedAt: Date.now(),
@@ -40,10 +44,16 @@ export async function persistOfflineQueryRecord(query: Query) {
   await putOfflineRecord(OFFLINE_DB_STORES.queryCache, record);
 }
 
-export async function restoreOfflineQueries(queryClient: QueryClient) {
+export async function restoreOfflineQueries(
+  queryClient: QueryClient,
+  tenantKey: string,
+) {
   const records = await listOfflineRecords<PersistedQueryRecord>(OFFLINE_DB_STORES.queryCache);
   const now = Date.now();
   for (const record of records) {
+    if (record.tenantKey !== tenantKey) {
+      continue;
+    }
     if (record.updatedAt + record.maxAgeMs < now) {
       await deleteOfflineRecord(OFFLINE_DB_STORES.queryCache, record.id);
       continue;
@@ -54,12 +64,16 @@ export async function restoreOfflineQueries(queryClient: QueryClient) {
   }
 }
 
-export async function pruneOfflineQueries() {
+export async function pruneOfflineQueries(tenantKey?: string) {
   const records = await listOfflineRecords<PersistedQueryRecord>(OFFLINE_DB_STORES.queryCache);
   const now = Date.now();
   await Promise.all(
     records
-      .filter((record) => record.updatedAt + record.maxAgeMs < now)
+      .filter(
+        (record) =>
+          (!tenantKey || record.tenantKey === tenantKey) &&
+          record.updatedAt + record.maxAgeMs < now,
+      )
       .map((record) => deleteOfflineRecord(OFFLINE_DB_STORES.queryCache, record.id)),
   );
 }

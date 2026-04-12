@@ -1,7 +1,8 @@
 const OFFLINE_DB_NAME = "huchu-offline";
-const OFFLINE_DB_VERSION = 2;
+const OFFLINE_DB_VERSION = 3;
 
 export const OFFLINE_DB_STORES = {
+  offlineContext: "offlineContext",
   sessionBootstrap: "sessionBootstrap",
   bootstrapState: "bootstrapState",
   queryCache: "queryCache",
@@ -29,7 +30,16 @@ function waitForTransaction(transaction: IDBTransaction) {
   });
 }
 
-function createStores(database: IDBDatabase) {
+function createStores(
+  database: IDBDatabase,
+  transaction?: IDBTransaction | null,
+) {
+  if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.offlineContext)) {
+    database.createObjectStore(OFFLINE_DB_STORES.offlineContext, {
+      keyPath: "id",
+    });
+  }
+
   if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.sessionBootstrap)) {
     database.createObjectStore(OFFLINE_DB_STORES.sessionBootstrap, {
       keyPath: "id",
@@ -47,6 +57,17 @@ function createStores(database: IDBDatabase) {
       keyPath: "id",
     });
     store.createIndex("updatedAt", "updatedAt");
+    store.createIndex("tenantKey", "tenantKey");
+  } else {
+    const store = transaction?.objectStore(OFFLINE_DB_STORES.queryCache);
+    if (store) {
+      if (!store.indexNames.contains("updatedAt")) {
+        store.createIndex("updatedAt", "updatedAt");
+      }
+      if (!store.indexNames.contains("tenantKey")) {
+        store.createIndex("tenantKey", "tenantKey");
+      }
+    }
   }
 
   if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.entityStore)) {
@@ -57,6 +78,12 @@ function createStores(database: IDBDatabase) {
     store.createIndex("moduleId", "moduleId");
     store.createIndex("entityType", "entityType");
     store.createIndex("status", "status");
+    store.createIndex("tenantKey", "tenantKey");
+  } else {
+    const store = transaction?.objectStore(OFFLINE_DB_STORES.entityStore);
+    if (store && !store.indexNames.contains("tenantKey")) {
+      store.createIndex("tenantKey", "tenantKey");
+    }
   }
 
   if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.outbox)) {
@@ -66,12 +93,24 @@ function createStores(database: IDBDatabase) {
     store.createIndex("status", "status");
     store.createIndex("moduleId", "moduleId");
     store.createIndex("nextRetryAt", "nextRetryAt");
+    store.createIndex("tenantKey", "tenantKey");
+  } else {
+    const store = transaction?.objectStore(OFFLINE_DB_STORES.outbox);
+    if (store && !store.indexNames.contains("tenantKey")) {
+      store.createIndex("tenantKey", "tenantKey");
+    }
   }
 
   if (!database.objectStoreNames.contains(OFFLINE_DB_STORES.attachmentStore)) {
-    database.createObjectStore(OFFLINE_DB_STORES.attachmentStore, {
+    const store = database.createObjectStore(OFFLINE_DB_STORES.attachmentStore, {
       keyPath: "attachmentId",
     });
+    store.createIndex("tenantKey", "tenantKey");
+  } else {
+    const store = transaction?.objectStore(OFFLINE_DB_STORES.attachmentStore);
+    if (store && !store.indexNames.contains("tenantKey")) {
+      store.createIndex("tenantKey", "tenantKey");
+    }
   }
 }
 
@@ -84,7 +123,7 @@ export function openOfflineDatabase() {
     openPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
       request.onupgradeneeded = () => {
-        createStores(request.result);
+        createStores(request.result, request.transaction);
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB."));

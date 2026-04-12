@@ -1,12 +1,12 @@
 import { OFFLINE_DB_STORES, getOfflineRecord, putOfflineRecord } from "@/lib/offline/db";
 import { emitOfflineBootstrapChanged } from "@/lib/offline/events";
+import { buildTenantScopedBootstrapId } from "@/lib/offline/tenant-context";
 import type {
   OfflineBootstrapProgress,
   OfflineModuleDefinition,
   OfflineModulePreparation,
+  OfflineRouteDefinition,
 } from "@/lib/offline/types";
-
-const OFFLINE_BOOTSTRAP_PROGRESS_ID = "current";
 
 function nowIso() {
   return new Date().toISOString();
@@ -16,20 +16,38 @@ function unique(values: string[]) {
   return [...new Set(values)];
 }
 
-function getWarmupRoutes(moduleDefinition: OfflineModuleDefinition) {
+export function getOfflineRouteDefinitions(
+  moduleDefinition: OfflineModuleDefinition,
+): OfflineRouteDefinition[] {
+  if (moduleDefinition.routes && moduleDefinition.routes.length > 0) {
+    return moduleDefinition.routes.map((route) => ({
+      ...route,
+      matchPaths: unique(route.matchPaths),
+      warmupUrls: unique(route.warmupUrls),
+    }));
+  }
+
   return unique([
     ...moduleDefinition.criticalRoutes,
     ...(moduleDefinition.warmupRoutes ?? []),
-  ]);
+  ]).map((route) => ({
+    canonicalRoute: route,
+    matchPaths: [route],
+    warmupUrls: [route],
+    critical: moduleDefinition.criticalRoutes.includes(route),
+  }));
 }
 
 function createModulePreparation(
   moduleDefinition: OfflineModuleDefinition,
   existing?: OfflineModulePreparation | null,
 ): OfflineModulePreparation {
-  const warmupRoutes = getWarmupRoutes(moduleDefinition);
+  const warmupRoutes = getOfflineRouteDefinitions(moduleDefinition);
+  const canonicalRoutes = warmupRoutes.map((route) => route.canonicalRoute);
   const preparedRoutes = unique(
-    (existing?.preparedRoutes ?? []).filter((route) => warmupRoutes.includes(route)),
+    (existing?.preparedRoutes ?? []).filter((route) =>
+      canonicalRoutes.includes(route),
+    ),
   );
   const preparedQueryKeys = unique(existing?.preparedQueryKeys ?? []);
   const totalRoutes = warmupRoutes.length;
@@ -52,6 +70,7 @@ function createModulePreparation(
 }
 
 export function createOfflineBootstrapProgress(
+  tenantKey: string,
   moduleDefinitions: OfflineModuleDefinition[],
   existing?: OfflineBootstrapProgress | null,
 ) {
@@ -89,7 +108,8 @@ export function createOfflineBootstrapProgress(
   ]);
 
   return {
-    id: OFFLINE_BOOTSTRAP_PROGRESS_ID,
+    id: buildTenantScopedBootstrapId(tenantKey),
+    tenantKey,
     phase:
       totalSteps > 0 && completedSteps >= totalSteps
         ? "complete"
@@ -106,10 +126,10 @@ export function createOfflineBootstrapProgress(
   } satisfies OfflineBootstrapProgress;
 }
 
-export function getOfflineBootstrapProgress() {
+export function getOfflineBootstrapProgress(tenantKey: string) {
   return getOfflineRecord<OfflineBootstrapProgress>(
     OFFLINE_DB_STORES.bootstrapState,
-    OFFLINE_BOOTSTRAP_PROGRESS_ID,
+    buildTenantScopedBootstrapId(tenantKey),
   );
 }
 

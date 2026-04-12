@@ -5,8 +5,8 @@ const OFFLINE_FALLBACK_URL = "/offline";
 const PRECACHE_URLS = [
   OFFLINE_FALLBACK_URL,
   "/manifest.webmanifest",
-  "/icon-192.svg",
-  "/icon-512.svg",
+  "/icon-192.png",
+  "/icon-512.png",
   "/regular.4b554656.woff2",
   "/medium.501e532c.woff2",
   "/bold.37baf660.woff2",
@@ -46,7 +46,7 @@ async function warmCacheEntries(message) {
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()),
+    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)),
   );
 });
 
@@ -110,8 +110,10 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const response = await fetch(request);
-          const cache = await caches.open(PAGE_CACHE);
-          cache.put(request, response.clone());
+          if (response && response.ok) {
+            const cache = await caches.open(PAGE_CACHE);
+            cache.put(request, response.clone());
+          }
           return response;
         } catch {
           const cache = await caches.open(PAGE_CACHE);
@@ -161,8 +163,10 @@ self.addEventListener("fetch", (event) => {
       caches.match(request).then(async (cached) => {
         if (cached) return cached;
         const response = await fetch(request);
-        const cache = await caches.open(STATIC_CACHE);
-        cache.put(request, response.clone());
+        if (response && response.ok) {
+          const cache = await caches.open(STATIC_CACHE);
+          cache.put(request, response.clone());
+        }
         return response;
       }),
     );

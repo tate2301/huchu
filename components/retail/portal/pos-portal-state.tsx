@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -157,7 +158,7 @@ export function PosPortalProvider({
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { syncNow } = useOfflineRuntime();
+  const { syncNow, tenantKey } = useOfflineRuntime();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -292,11 +293,16 @@ export function PosPortalProvider({
     setSelectedPromotionId("");
   };
 
-  const refreshOfflineQueue = async () => {
-    const queue = await listOfflineRetailOperations();
+  const refreshOfflineQueue = useCallback(async () => {
+    if (!tenantKey) {
+      setQueuedOfflineSales([]);
+      setPendingOfflineSales(0);
+      return;
+    }
+    const queue = await listOfflineRetailOperations(tenantKey);
     setQueuedOfflineSales(queue);
     setPendingOfflineSales(queue.length);
-  };
+  }, [tenantKey]);
 
   const buildSalePayload = (): PosSaleQueuePayload | null => {
     if (!currentShift?.id || !siteId) return null;
@@ -326,7 +332,7 @@ export function PosPortalProvider({
     };
   };
 
-  const syncOfflineSales = async () => {
+  const syncOfflineSales = useCallback(async () => {
     setSyncOfflineSalesPending(true);
     try {
       await syncNow({ force: true });
@@ -334,7 +340,7 @@ export function PosPortalProvider({
     } finally {
       setSyncOfflineSalesPending(false);
     }
-  };
+  }, [refreshOfflineQueue, syncNow]);
 
   useEffect(() => {
     void refreshOfflineQueue();
@@ -343,18 +349,21 @@ export function PosPortalProvider({
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshOfflineQueue, syncOfflineSales]);
 
   useEffect(() => {
     if (customerName.trim().length < 2) {
       setOfflineCustomerResults([]);
       return;
     }
-    void searchOfflineRetailCustomers(customerName.trim()).then((results) =>
+    if (!tenantKey) {
+      setOfflineCustomerResults([]);
+      return;
+    }
+    void searchOfflineRetailCustomers(tenantKey, customerName.trim()).then((results) =>
       setOfflineCustomerResults(results),
     );
-  }, [customerName]);
+  }, [customerName, tenantKey]);
 
   useEffect(() => {
     if (currentShift?.id) {
@@ -395,8 +404,14 @@ export function PosPortalProvider({
         /network|failed to fetch|load failed/i.test(message);
       const usesOfflineCustomer = isOfflineRetailCustomerId(payload.customerId);
 
-      if (isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine) || usesOfflineCustomer) {
+      if (
+        tenantKey &&
+        (isNetworkError ||
+          (typeof navigator !== "undefined" && !navigator.onLine) ||
+          usesOfflineCustomer)
+      ) {
         void queueOfflineRetailSale({
+          tenantKey,
           payload,
           customerTempId: usesOfflineCustomer ? payload.customerId : null,
         }).then(() => refreshOfflineQueue());

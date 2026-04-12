@@ -24,12 +24,13 @@ function shouldSkipForRetryWindow(nextRetryAt: string | undefined, force: boolea
 export async function syncOfflineRuntime(options?: {
   enabledFeatures?: string[];
   force?: boolean;
+  tenantKey?: string;
 }) {
   const modules = getEnabledOfflineModules(options?.enabledFeatures);
   const allowedModuleIds = new Set(modules.map((moduleDefinition) => moduleDefinition.moduleId));
-  const pendingOperations = (await listPendingOfflineOperations()).filter((operation) =>
-    allowedModuleIds.has(operation.moduleId),
-  );
+  const pendingOperations = (
+    await listPendingOfflineOperations({ tenantKey: options?.tenantKey })
+  ).filter((operation) => allowedModuleIds.has(operation.moduleId));
 
   const pendingOperationIds = new Set(
     pendingOperations.map((operation) => operation.operationId),
@@ -45,7 +46,6 @@ export async function syncOfflineRuntime(options?: {
       operation.status === "FAILED_BLOCKING" &&
       !options?.force
     ) {
-      syncedOrSkipped.add(operation.operationId);
       blockingCount += 1;
       continue;
     }

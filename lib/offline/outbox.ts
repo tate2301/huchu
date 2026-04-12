@@ -1,9 +1,30 @@
 import { OFFLINE_DB_STORES, deleteOfflineRecord, getOfflineRecord, listOfflineRecords, putOfflineRecord } from "@/lib/offline/db";
 import { emitOfflineOutboxChanged } from "@/lib/offline/events";
-import type { OfflineOutboxOperation, OfflineOutboxStatus } from "@/lib/offline/types";
+import type {
+  OfflineOutboxOperation,
+  OfflineOutboxStatus,
+  OfflineOutboxSummaryItem,
+} from "@/lib/offline/types";
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function describeOperation(operation: OfflineOutboxOperation) {
+  switch (operation.operation) {
+    case "create-seller":
+      return "Seller create";
+    case "create-inbound-ticket":
+      return "Inbound ticket";
+    case "create-outbound-ticket":
+      return "Outbound ticket";
+    case "create-customer":
+      return "Customer create";
+    case "create-sale":
+      return "POS sale";
+    default:
+      return operation.operation;
+  }
 }
 
 export function createOfflineOperationId(moduleId: string, operation: string) {
@@ -53,10 +74,14 @@ export async function updateOfflineOperation(
   return next;
 }
 
-export function listPendingOfflineOperations() {
+export function listPendingOfflineOperations(options?: { tenantKey?: string }) {
   return listOfflineOperations().then((operations) =>
     operations
-      .filter((operation) => operation.status !== "SYNCED")
+      .filter(
+        (operation) =>
+          operation.status !== "SYNCED" &&
+          (!options?.tenantKey || operation.tenantKey === options.tenantKey),
+      )
       .sort((left, right) => {
         if (left.syncPriority !== right.syncPriority) {
           return left.syncPriority - right.syncPriority;
@@ -66,23 +91,30 @@ export function listPendingOfflineOperations() {
   );
 }
 
-export function listOfflineOperationsForModule(moduleId: string) {
+export function listOfflineOperationsForModule(
+  moduleId: string,
+  tenantKey?: string,
+) {
   return listOfflineOperations().then((operations) =>
     operations.filter(
       (operation) =>
-        operation.moduleId === moduleId && operation.status !== "SYNCED",
+        operation.moduleId === moduleId &&
+        operation.status !== "SYNCED" &&
+        (!tenantKey || operation.tenantKey === tenantKey),
     ),
   );
 }
 
 export function findOfflineOperationForLocalEntity(
   moduleId: string,
+  tenantKey: string,
   tempId: string,
   operation?: string,
 ) {
   return listOfflineOperations().then((operations) =>
     operations.find(
       (candidate) =>
+        candidate.tenantKey === tenantKey &&
         candidate.moduleId === moduleId &&
         candidate.status !== "SYNCED" &&
         candidate.localRefs?.entityId === tempId &&
@@ -156,11 +188,49 @@ export async function removeOfflineOperation(operationId: string) {
 }
 
 export async function getOfflineOutboxSummary() {
+  return getOfflineOutboxSummaryForTenant();
+}
+
+export async function getOfflineOutboxSummaryForTenant(tenantKey?: string) {
   const operations = await listOfflineOperations();
-  const pending = operations.filter((operation) => operation.status !== "SYNCED");
+  const pending = operations.filter(
+    (operation) =>
+      operation.status !== "SYNCED" &&
+      (!tenantKey || operation.tenantKey === tenantKey),
+  );
+  const operationMap = new Map(
+    pending.map((operation) => [operation.operationId, operation]),
+  );
+  const items: OfflineOutboxSummaryItem[] = pending.map((operation) => {
+    const blockingDependency = operation.dependsOn
+      .map((dependencyId) => operationMap.get(dependencyId) ?? null)
+      .find((dependency) => dependency?.status === "FAILED_BLOCKING");
+
+    return {
+      operationId: operation.operationId,
+      tenantKey: operation.tenantKey,
+      moduleId: operation.moduleId,
+      entityType: operation.entityType,
+      operation: operation.operation,
+      label: describeOperation(operation),
+      status: operation.status,
+      createdAt: operation.createdAt,
+      lastError: operation.lastError,
+      blockedByOperationId: blockingDependency?.operationId,
+      blockedReason: blockingDependency
+        ? blockingDependency.lastError ||
+          `Waiting for ${describeOperation(blockingDependency)}`
+        : undefined,
+    };
+  });
   return {
     pendingCount: pending.length,
-    blockingCount: pending.filter((operation) => operation.status === "FAILED_BLOCKING").length,
+    blockingCount: items.filter(
+      (operation) =>
+        operation.status === "FAILED_BLOCKING" ||
+        Boolean(operation.blockedByOperationId),
+    ).length,
     operations: pending,
+    items,
   };
 }

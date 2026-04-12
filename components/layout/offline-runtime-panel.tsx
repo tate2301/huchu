@@ -1,9 +1,11 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { type CSSProperties } from "react";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { getOfflineModuleStateTone, getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import {
   AlertTriangle,
@@ -21,22 +23,37 @@ function formatTimestamp(value: string | null) {
   return date.toLocaleString();
 }
 
-function moduleStateVariant(state: ReturnType<typeof useOfflineRuntime>["preparedModules"][number]["state"]) {
-  if (state === "PREPARED") return "success";
-  if (state === "PREPARING") return "info";
-  return "warning";
-}
-
-function moduleStateLabel(state: ReturnType<typeof useOfflineRuntime>["preparedModules"][number]["state"]) {
-  if (state === "PREPARED") return "Prepared";
-  if (state === "PREPARING") return "Preparing";
-  return "Not ready";
+function MetricBlock({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string | number;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_76%,white)] px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+        {label}
+      </div>
+      <div
+        className={[
+          "mt-1 text-sm font-medium text-foreground",
+          mono ? "font-mono tabular-nums" : "",
+        ].join(" ")}
+      >
+        {value}
+      </div>
+    </div>
+  );
 }
 
 export function OfflineRuntimePanel() {
   const {
     status,
     statusLabel,
+    canInstallApp,
     pendingCount,
     blockingCount,
     preparedModules,
@@ -46,7 +63,10 @@ export function OfflineRuntimePanel() {
     syncNow,
     applyUpdate,
     dismissUpdate,
+    installApp,
   } = useOfflineRuntime();
+  const statusTone = getOfflineStatusTone(status);
+  const StatusIcon = statusTone.icon;
 
   const bootstrapPercent =
     bootstrapProgress && bootstrapProgress.totalSteps > 0
@@ -56,189 +76,218 @@ export function OfflineRuntimePanel() {
       : 0;
 
   return (
-    <div className="flex h-full flex-col gap-4 bg-[color-mix(in_srgb,var(--surface-base)_92%,white)]">
-      <Card className="border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--surface-base)_94%,white)] shadow-none">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                Offline runtime
+    <div className="flex h-full flex-col bg-[color-mix(in_srgb,var(--surface-base)_94%,white)]">
+      <div className="px-6 pb-5 pt-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_86%,white)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <RefreshCcw className="size-3" />
+                Sync and offline
+              </div>
+              <h2 className="mt-3 text-[1.625rem] font-semibold tracking-[-0.02em] text-foreground">
+                {statusLabel}
+              </h2>
+              <p className="mt-1 max-w-[34ch] text-sm leading-6 text-[var(--text-muted)]">
+                Prepared routes stay available on this device, and queued work can
+                replay quietly in the background when the connection settles.
               </p>
-              <CardTitle className="mt-1 text-xl">{statusLabel}</CardTitle>
             </div>
-            <Badge variant={status === "ATTENTION" ? "danger" : status === "OFFLINE" ? "warning" : "neutral"}>
-              {status}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_86%,white)] px-3 py-3">
-              <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                Pending sync
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                style={{ "--status-chip": `var(${statusTone.colorVar})` } as CSSProperties}
+                className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1.5 text-xs font-medium text-[var(--status-chip)]"
+              >
+                <StatusIcon className={["size-3.5", statusTone.iconClassName ?? ""].join(" ")} />
+                {statusTone.text}
               </div>
-              <div className="mt-1 text-2xl font-semibold">{pendingCount}</div>
-            </div>
-            <div className="rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_86%,white)] px-3 py-3">
-              <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                Last sync
-              </div>
-              <div className="mt-1 text-sm font-medium text-foreground">
-                {formatTimestamp(lastSyncedAt)}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_84%,white)] px-3 py-3">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-[var(--text-muted)]">Connectivity</span>
-              <span className="font-medium text-foreground">
-                {status === "OFFLINE" ? "Offline" : "Connected"}
-              </span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-              <span className="text-[var(--text-muted)]">Blocking failures</span>
-              <span className="font-medium text-foreground">{blockingCount}</span>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => void syncNow({ force: true })}>
+              <Button
+                type="button"
+                size="sm"
+                variant={pendingCount > 0 || blockingCount > 0 ? "default" : "outline"}
+                onClick={() => void syncNow({ force: true })}
+              >
                 <RefreshCcw className="size-4" />
                 Sync now
               </Button>
               {updateState === "ready" ? (
-                <Button type="button" className="flex-1" onClick={() => void applyUpdate()}>
+                <Button type="button" size="sm" variant="outline" onClick={() => void applyUpdate()}>
                   <Download className="size-4" />
                   Refresh
                 </Button>
               ) : null}
+              {canInstallApp ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => void installApp()}>
+                  <Download className="size-4" />
+                  Install app
+                </Button>
+              ) : null}
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricBlock label="Pending sync" value={pendingCount} mono />
+            <MetricBlock label="Blocking items" value={blockingCount} mono />
+            <MetricBlock label="Last sync" value={formatTimestamp(lastSyncedAt)} mono />
+          </div>
+        </div>
+      </div>
 
       {bootstrapProgress ? (
-        <Card className="border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--surface-base)_95%,white)] shadow-none">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+        <>
+          <Separator />
+          <section className="px-6 py-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                   Prepared workspace
-                </p>
-                <CardTitle className="mt-1 text-base">
+                </div>
+                <div className="mt-2 text-sm font-medium text-foreground">
                   {bootstrapProgress.currentStepLabel ?? "Offline packs ready"}
-                </CardTitle>
+                </div>
               </div>
-              <Badge variant={bootstrapProgress.phase === "preparing" ? "info" : "success"}>
+              <div className="rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] px-3 py-1 text-xs font-mono font-medium tabular-nums text-[var(--text-muted)]">
                 {bootstrapPercent}%
-              </Badge>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Progress value={bootstrapProgress.completedSteps} max={Math.max(bootstrapProgress.totalSteps, 1)} />
-            <div className="flex items-center justify-between gap-3 text-sm text-[var(--text-muted)]">
-              <span>
-                {bootstrapProgress.completedSteps} of {bootstrapProgress.totalSteps} warmup steps
-              </span>
-              <span>{formatTimestamp(bootstrapProgress.lastPreparedAt ?? null)}</span>
+            <div className="mt-4 rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_72%,white)] px-4 py-4">
+              <Progress
+                value={bootstrapProgress.completedSteps}
+                max={Math.max(bootstrapProgress.totalSteps, 1)}
+                className="h-2 border-0 bg-[color-mix(in_srgb,var(--surface-base)_78%,white)] shadow-none"
+              />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+                <span className="font-mono tabular-nums">
+                  {bootstrapProgress.completedSteps} of {bootstrapProgress.totalSteps} warmup steps
+                </span>
+                <span className="font-mono tabular-nums">
+                  {formatTimestamp(bootstrapProgress.lastPreparedAt ?? null)}
+                </span>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </section>
+        </>
       ) : null}
 
-      <Card className="border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--surface-base)_95%,white)] shadow-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Primary flows</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {preparedModules.map((modulePreparation) => (
-            <div
-              key={modulePreparation.moduleId}
-              className="rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_82%,white)] px-3 py-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-medium text-foreground">
-                    {modulePreparation.primaryFlowLabel}
+      <Separator />
+      <section className="px-6 py-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            Primary flows
+          </div>
+          <div className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
+            {preparedModules.length} modules
+          </div>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-[20px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)]">
+          {preparedModules.map((modulePreparation, index) => {
+            const moduleTone = getOfflineModuleStateTone(modulePreparation.state);
+            const ModuleIcon = moduleTone.icon;
+
+            return (
+              <div key={modulePreparation.moduleId}>
+                {index > 0 ? <Separator className="bg-[color-mix(in_srgb,var(--border-default)_72%,transparent)]" /> : null}
+                <div className="flex items-start justify-between gap-4 px-4 py-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">
+                      {modulePreparation.primaryFlowLabel}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">
+                      <span className="font-mono tabular-nums">
+                        {modulePreparation.preparedRoutes.length}/{modulePreparation.totalRoutes}
+                      </span>{" "}
+                      routes
+                      {" · "}
+                      <span className="font-mono tabular-nums">
+                        {modulePreparation.preparedQueryKeys.length}/{modulePreparation.totalQueries}
+                      </span>{" "}
+                      data packs
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-[var(--text-muted)]">
-                    {modulePreparation.preparedRoutes.length}/{modulePreparation.totalRoutes} routes ·{" "}
-                    {modulePreparation.preparedQueryKeys.length}/{modulePreparation.totalQueries} data packs
+                  <div
+                    style={{ "--status-chip": `var(${moduleTone.colorVar})` } as CSSProperties}
+                    className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1 text-xs font-medium text-[var(--status-chip)]"
+                  >
+                    <ModuleIcon className={["size-3.5", moduleTone.iconClassName ?? ""].join(" ")} />
+                    {moduleTone.text}
                   </div>
                 </div>
-                <Badge variant={moduleStateVariant(modulePreparation.state)}>
-                  {moduleStateLabel(modulePreparation.state)}
-                </Badge>
               </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            );
+          })}
+        </div>
+      </section>
 
       {(updateState === "ready" || updateState === "downloading" || updateState === "activating") ? (
-        <Card className="border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--surface-base)_95%,white)] shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">App updates</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_82%,white)] px-3 py-3">
-              {updateState === "ready" ? (
-                <Download className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
-              ) : updateState === "activating" ? (
-                <Loader2 className="mt-0.5 size-4 animate-spin text-[var(--action-primary-bg)]" />
-              ) : (
-                <Clock className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-foreground">
-                  {updateState === "ready"
-                    ? "A new version is ready on this device."
-                    : updateState === "activating"
-                      ? "Applying the downloaded update."
-                      : "Checking and downloading app updates."}
-                </div>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                  {updateState === "ready"
-                    ? "Refresh when you have a safe moment. Your offline queue stays intact."
-                    : updateState === "activating"
-                      ? "The app will reload into the new version once activation completes."
-                      : "The current session stays usable while the new version prepares in the background."}
-                </p>
-              </div>
+        <>
+          <Separator />
+          <section className="px-6 py-5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              App updates
             </div>
-            {updateState === "ready" ? (
-              <div className="flex gap-2">
-                <Button type="button" className="flex-1" onClick={() => void applyUpdate()}>
-                  <Download className="size-4" />
-                  Refresh now
-                </Button>
-                <Button type="button" variant="outline" className="flex-1" onClick={dismissUpdate}>
-                  Later
-                </Button>
+            <div className="mt-4 rounded-[20px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)] px-4 py-4">
+              <div className="flex items-start gap-3">
+                {updateState === "ready" ? (
+                  <Download className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
+                ) : updateState === "activating" ? (
+                  <Loader2 className="mt-0.5 size-4 animate-spin text-[var(--action-primary-bg)]" />
+                ) : (
+                  <Clock className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">
+                    {updateState === "ready"
+                      ? "A new version is ready on this device."
+                      : updateState === "activating"
+                        ? "Applying the downloaded update."
+                        : "Checking and downloading app updates."}
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                    {updateState === "ready"
+                      ? "Refresh when you have a safe moment. Your offline queue stays intact."
+                      : updateState === "activating"
+                        ? "The app will reload into the new version once activation completes."
+                        : "The current session stays usable while the new version prepares in the background."}
+                  </p>
+                </div>
               </div>
-            ) : null}
-          </CardContent>
-        </Card>
+              {updateState === "ready" ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={() => void applyUpdate()}>
+                    <Download className="size-4" />
+                    Refresh now
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={dismissUpdate}>
+                    Later
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </>
       ) : null}
 
-      <div className="rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_84%,white)] px-4 py-3 text-sm text-[var(--text-muted)]">
-        <div className="flex items-center gap-2 text-foreground">
+      <div className="mt-auto border-t border-[color-mix(in_srgb,var(--border-default)_72%,transparent)] px-6 py-5">
+        <div className="flex items-start gap-3 rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)] px-4 py-4 text-sm text-[var(--text-muted)]">
           {blockingCount > 0 ? (
-            <AlertTriangle className="size-4 text-[var(--status-warning-text)]" />
+            <AlertTriangle className="mt-0.5 size-4 text-[var(--status-warning-text)]" />
           ) : pendingCount > 0 ? (
-            <Clock className="size-4 text-[var(--action-primary-bg)]" />
+            <Clock className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
           ) : (
-            <ShieldCheck className="size-4 text-[var(--status-success-text)]" />
+            <ShieldCheck className="mt-0.5 size-4 text-[var(--status-success-text)]" />
           )}
-          <span className="font-medium">
-            {blockingCount > 0
-              ? "A few queued changes need operator attention."
-              : pendingCount > 0
-                ? "Queued work will replay automatically when the link is stable."
-                : "This device is ready for normal offline-first operation."}
-          </span>
-        </div>
-        <div className="mt-2 text-xs text-[var(--text-muted)]">
-          Prepared flows stay available offline after a successful online bootstrap.
+          <div className="min-w-0">
+            <div className="font-medium text-foreground">
+              {blockingCount > 0
+                ? "A few queued changes need operator attention."
+                : pendingCount > 0
+                  ? "Queued work will replay automatically when the link is stable."
+                  : "This device is ready for normal offline-first operation."}
+            </div>
+            <div className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+              Prepared flows stay available offline after a successful online bootstrap.
+            </div>
+          </div>
         </div>
       </div>
     </div>
