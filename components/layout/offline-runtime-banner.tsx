@@ -29,13 +29,14 @@ export function OfflineRuntimeBanner() {
   }
 
   return (
-    <div className="border-b border-[var(--edge-subtle)] bg-[color-mix(in_srgb,var(--surface-base)_94%,white)] px-3 py-2 md:px-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_82%,white)] px-4 py-3 md:flex-row md:items-center md:justify-between">
+    <div className="border-b border-[color-mix(in_srgb,var(--edge-subtle)_78%,transparent)] bg-[color-mix(in_srgb,var(--surface-base)_95%,white)] px-4 py-3 md:px-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-            {showUpdatePrompt ? "App update" : "Offline bootstrap"}
+          <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            <span className="size-1.5 rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_72%,white)]" />
+            {showUpdatePrompt ? "Update ready" : "Offline setup"}
           </div>
-          <div className="mt-1 text-sm font-semibold text-foreground">
+          <div className="mt-1 text-sm font-medium text-foreground">
             {showUpdatePrompt
               ? "A newer version is ready for this device."
               : updateState === "activating"
@@ -43,10 +44,16 @@ export function OfflineRuntimeBanner() {
                 : bootstrapProgress?.currentStepLabel ?? "Preparing offline workspace."}
           </div>
           {isPreparing ? (
-            <div className="mt-3 max-w-xl space-y-2">
-              <Progress value={progressValue} max={progressMax} />
-              <div className="text-xs text-[var(--text-muted)]">
-                {bootstrapProgress?.completedSteps ?? 0} of {bootstrapProgress?.totalSteps ?? 0} warmup steps complete
+            <div className="mt-3 max-w-xl">
+              <div className="flex items-center gap-3">
+                <Progress
+                  value={progressValue}
+                  max={progressMax}
+                  className="h-2 flex-1 border-0 bg-[color-mix(in_srgb,var(--surface-muted)_78%,white)] shadow-none"
+                />
+                <span className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
+                  {bootstrapProgress?.completedSteps ?? 0}/{bootstrapProgress?.totalSteps ?? 0}
+                </span>
               </div>
             </div>
           ) : (
@@ -65,12 +72,12 @@ export function OfflineRuntimeBanner() {
                 <Download className="size-4" />
                 Refresh now
               </Button>
-              <Button type="button" size="sm" variant="outline" onClick={dismissUpdate}>
+              <Button type="button" size="sm" variant="ghost" onClick={dismissUpdate}>
                 Later
               </Button>
             </>
           ) : updateState === "downloading" || updateState === "activating" ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-muted)]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_82%,white)] px-3 py-1.5 text-sm text-[var(--text-muted)]">
               <Loader2 className="size-4 animate-spin text-[var(--action-primary-bg)]" />
               {updateState === "activating" ? "Activating update" : "Downloading update"}
             </div>

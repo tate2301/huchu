@@ -22,8 +22,12 @@ export type ScrapLocalSellerPayload = {
   notes?: string;
 };
 
-export async function createOfflineScrapSeller(payload: ScrapLocalSellerPayload) {
+export async function createOfflineScrapSeller(
+  tenantKey: string,
+  payload: ScrapLocalSellerPayload,
+) {
   const record = await upsertOfflineLocalEntity({
+    tenantKey,
     moduleId: SCRAP_OFFLINE_MODULE_ID,
     entityType: "seller",
     displayLabel: payload.fullName,
@@ -32,6 +36,7 @@ export async function createOfflineScrapSeller(payload: ScrapLocalSellerPayload)
   });
 
   const operation = await enqueueOfflineOperation({
+    tenantKey,
     moduleId: SCRAP_OFFLINE_MODULE_ID,
     clientRequestId: record.tempId,
     entityType: "seller",
@@ -51,8 +56,9 @@ export async function createOfflineScrapSeller(payload: ScrapLocalSellerPayload)
   };
 }
 
-export async function listOfflineScrapSellers() {
+export async function listOfflineScrapSellers(tenantKey: string) {
   const records = await listOfflineLocalEntities({
+    tenantKey,
     moduleId: SCRAP_OFFLINE_MODULE_ID,
     entityType: "seller",
   });
@@ -68,10 +74,11 @@ export async function listOfflineScrapSellers() {
 }
 
 export async function createOfflineScrapAttachment(
+  tenantKey: string,
   file: File,
   context: "scrap-purchase-ticket-photo" | "scrap-sale-ticket-photo",
 ) {
-  const { ref } = await storeOfflineAttachment(file, context);
+  const { ref } = await storeOfflineAttachment(file, context, tenantKey);
   const previewUrl = URL.createObjectURL(file);
   const photo: LocalScrapTicketPhoto = {
     url: previewUrl,
@@ -93,13 +100,17 @@ export async function createOfflineScrapAttachment(
   };
 }
 
-function splitScrapAttachmentState(attachments: LocalScrapTicketPhoto[]) {
+function splitScrapAttachmentState(
+  tenantKey: string,
+  attachments: LocalScrapTicketPhoto[],
+) {
   const remoteAttachments: ScrapTicketPhoto[] = [];
   const offlineRefs: OfflineAttachmentRef[] = [];
 
   for (const attachment of attachments) {
     if (attachment.offlineAttachmentId) {
       offlineRefs.push({
+        tenantKey,
         attachmentId: attachment.offlineAttachmentId,
         context: attachment.context,
         fileName: attachment.pathname?.replace("offline-attachment:", "") || attachment.offlineAttachmentId,
@@ -125,6 +136,7 @@ function splitScrapAttachmentState(attachments: LocalScrapTicketPhoto[]) {
 }
 
 export async function queueOfflineScrapInboundTicket(input: {
+  tenantKey: string;
   clientRequestId: string;
   payload: Record<string, unknown>;
   attachments: LocalScrapTicketPhoto[];
@@ -135,12 +147,17 @@ export async function queueOfflineScrapInboundTicket(input: {
     input.sellerTempId
       ? await findOfflineOperationForLocalEntity(
           SCRAP_OFFLINE_MODULE_ID,
+          input.tenantKey,
           input.sellerTempId,
           "create-seller",
         )
       : null;
-  const attachmentState = splitScrapAttachmentState(input.attachments);
+  const attachmentState = splitScrapAttachmentState(
+    input.tenantKey,
+    input.attachments,
+  );
   return enqueueOfflineOperation({
+    tenantKey: input.tenantKey,
     moduleId: SCRAP_OFFLINE_MODULE_ID,
     clientRequestId: input.clientRequestId,
     entityType: "scrap-inbound-ticket",
@@ -164,13 +181,18 @@ export async function queueOfflineScrapInboundTicket(input: {
 }
 
 export async function queueOfflineScrapOutboundTicket(input: {
+  tenantKey: string;
   clientRequestId: string;
   payload: Record<string, unknown>;
   attachments: LocalScrapTicketPhoto[];
   dependsOn?: string[];
 }) {
-  const attachmentState = splitScrapAttachmentState(input.attachments);
+  const attachmentState = splitScrapAttachmentState(
+    input.tenantKey,
+    input.attachments,
+  );
   return enqueueOfflineOperation({
+    tenantKey: input.tenantKey,
     moduleId: SCRAP_OFFLINE_MODULE_ID,
     clientRequestId: input.clientRequestId,
     entityType: "scrap-outbound-ticket",
@@ -185,8 +207,8 @@ export async function queueOfflineScrapOutboundTicket(input: {
   });
 }
 
-export function listOfflineScrapOperations() {
-  return listOfflineOperationsForModule(SCRAP_OFFLINE_MODULE_ID);
+export function listOfflineScrapOperations(tenantKey?: string) {
+  return listOfflineOperationsForModule(SCRAP_OFFLINE_MODULE_ID, tenantKey);
 }
 
 export function isOfflineScrapEntityId(value: string | null | undefined) {

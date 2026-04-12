@@ -1,7 +1,10 @@
 import type { AuthSessionClaims } from "@/lib/auth-core/types";
 
+export type OfflineTenantKey = string;
+
 export type OfflineSessionBootstrap = {
-  id: "current";
+  id: string;
+  tenantKey: OfflineTenantKey;
   capturedAt: string;
   expiresAt?: string | null;
   user: AuthSessionClaims;
@@ -9,6 +12,7 @@ export type OfflineSessionBootstrap = {
 
 export type PersistedQueryRecord = {
   id: string;
+  tenantKey: OfflineTenantKey;
   queryKey: unknown[];
   data: unknown;
   updatedAt: number;
@@ -20,6 +24,7 @@ export type LocalEntityStatus = "LOCAL" | "SYNCED";
 
 export type LocalEntityRecord<TPayload = Record<string, unknown>> = {
   id: string;
+  tenantKey: OfflineTenantKey;
   moduleId: string;
   entityType: string;
   tempId: string;
@@ -33,6 +38,7 @@ export type LocalEntityRecord<TPayload = Record<string, unknown>> = {
 };
 
 export type OfflineAttachmentRecord = {
+  tenantKey: OfflineTenantKey;
   attachmentId: string;
   context: string;
   fileName: string;
@@ -42,7 +48,10 @@ export type OfflineAttachmentRecord = {
   blob: Blob;
 };
 
-export type OfflineAttachmentRef = Omit<OfflineAttachmentRecord, "blob" | "createdAt">;
+export type OfflineAttachmentRef = Omit<
+  OfflineAttachmentRecord,
+  "blob" | "createdAt"
+>;
 
 export type OfflineOutboxStatus =
   | "QUEUED"
@@ -53,6 +62,7 @@ export type OfflineOutboxStatus =
 
 export type OfflineOutboxOperation<TPayload = Record<string, unknown>> = {
   operationId: string;
+  tenantKey: OfflineTenantKey;
   moduleId: string;
   clientRequestId: string;
   entityType: string;
@@ -113,6 +123,13 @@ export type OfflinePreloadQuery = {
   enabled?: () => boolean;
 };
 
+export type OfflineRouteDefinition = {
+  canonicalRoute: string;
+  matchPaths: string[];
+  warmupUrls: string[];
+  critical?: boolean;
+};
+
 export type OfflineWarmupBudget = "light" | "standard" | "aggressive";
 
 export type OfflineModulePreparationState =
@@ -134,7 +151,8 @@ export type OfflineModulePreparation = {
 };
 
 export type OfflineBootstrapProgress = {
-  id: "current";
+  id: string;
+  tenantKey: OfflineTenantKey;
   phase: "idle" | "preparing" | "complete";
   currentStepLabel?: string | null;
   totalSteps: number;
@@ -162,10 +180,34 @@ export type OfflineModuleDefinition = {
   warmupBudget: OfflineWarmupBudget;
   criticalRoutes: string[];
   warmupRoutes?: string[];
+  routes?: OfflineRouteDefinition[];
   shellAssets?: string[];
   preloadQueries: OfflinePreloadQuery[];
   entityAdapters: OfflineEntityAdapter[];
   mutationAdapters: OfflineMutationAdapter[];
+};
+
+export type OfflineActiveTenantContext = {
+  id: "active";
+  tenantKey: OfflineTenantKey;
+  companySlug?: string | null;
+  workspaceProfile?: string | null;
+  host?: string | null;
+  updatedAt: string;
+};
+
+export type OfflineOutboxSummaryItem = {
+  operationId: string;
+  tenantKey: OfflineTenantKey;
+  moduleId: string;
+  entityType: string;
+  operation: string;
+  label: string;
+  status: OfflineOutboxStatus;
+  createdAt: string;
+  lastError?: string;
+  blockedByOperationId?: string;
+  blockedReason?: string;
 };
 
 export type OfflineStatus =

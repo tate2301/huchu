@@ -5,9 +5,14 @@ export function createOfflineAttachmentId(context: string) {
   return `attachment:${context}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function storeOfflineAttachment(file: File, context: string) {
+export async function storeOfflineAttachment(
+  file: File,
+  context: string,
+  tenantKey: string,
+) {
   const attachmentId = createOfflineAttachmentId(context);
   const record: OfflineAttachmentRecord = {
+    tenantKey,
     attachmentId,
     context,
     fileName: file.name,
@@ -18,6 +23,7 @@ export async function storeOfflineAttachment(file: File, context: string) {
   };
   await putOfflineRecord(OFFLINE_DB_STORES.attachmentStore, record);
   const ref: OfflineAttachmentRef = {
+    tenantKey,
     attachmentId,
     context,
     fileName: record.fileName,
@@ -30,12 +36,27 @@ export async function storeOfflineAttachment(file: File, context: string) {
   };
 }
 
-export function getOfflineAttachmentRecord(attachmentId: string) {
-  return getOfflineRecord<OfflineAttachmentRecord>(OFFLINE_DB_STORES.attachmentStore, attachmentId);
+export async function getOfflineAttachmentRecord(
+  attachmentId: string,
+  tenantKey?: string,
+) {
+  const record = await getOfflineRecord<OfflineAttachmentRecord>(
+    OFFLINE_DB_STORES.attachmentStore,
+    attachmentId,
+  );
+  if (!record) return null;
+  if (tenantKey && record.tenantKey !== tenantKey) return null;
+  return record;
 }
 
-export function listOfflineAttachmentRecords() {
-  return listOfflineRecords<OfflineAttachmentRecord>(OFFLINE_DB_STORES.attachmentStore);
+export function listOfflineAttachmentRecords(tenantKey?: string) {
+  return listOfflineRecords<OfflineAttachmentRecord>(
+    OFFLINE_DB_STORES.attachmentStore,
+  ).then((records) =>
+    tenantKey
+      ? records.filter((record) => record.tenantKey === tenantKey)
+      : records,
+  );
 }
 
 export async function deleteOfflineAttachmentRecord(attachmentId: string) {

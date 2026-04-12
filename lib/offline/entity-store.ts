@@ -10,11 +10,17 @@ export function createOfflineTempEntityId(moduleId: string, entityType: string) 
   return `local:${moduleId}:${entityType}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function buildRecordId(moduleId: string, entityType: string, tempId: string) {
-  return `${moduleId}:${entityType}:${tempId}`;
+function buildRecordId(
+  tenantKey: string,
+  moduleId: string,
+  entityType: string,
+  tempId: string,
+) {
+  return `${tenantKey}:${moduleId}:${entityType}:${tempId}`;
 }
 
 export async function upsertOfflineLocalEntity<TPayload = Record<string, unknown>>(input: {
+  tenantKey: string;
   moduleId: string;
   entityType: string;
   tempId?: string;
@@ -30,7 +36,15 @@ export async function upsertOfflineLocalEntity<TPayload = Record<string, unknown
     tempId,
   );
   const record: LocalEntityRecord<TPayload> = {
-    id: existing?.id ?? buildRecordId(input.moduleId, input.entityType, tempId),
+    id:
+      existing?.id ??
+      buildRecordId(
+        input.tenantKey,
+        input.moduleId,
+        input.entityType,
+        tempId,
+      ),
+    tenantKey: input.tenantKey,
     moduleId: input.moduleId,
     entityType: input.entityType,
     tempId,
@@ -48,12 +62,14 @@ export async function upsertOfflineLocalEntity<TPayload = Record<string, unknown
 }
 
 export async function listOfflineLocalEntities(filters?: {
+  tenantKey?: string;
   moduleId?: string;
   entityType?: string;
   status?: "LOCAL" | "SYNCED";
 }) {
   const records = await listOfflineRecords<LocalEntityRecord>(OFFLINE_DB_STORES.entityStore);
   return records.filter((record) => {
+    if (filters?.tenantKey && record.tenantKey !== filters.tenantKey) return false;
     if (filters?.moduleId && record.moduleId !== filters.moduleId) return false;
     if (filters?.entityType && record.entityType !== filters.entityType) return false;
     if (filters?.status && record.status !== filters.status) return false;
@@ -70,16 +86,27 @@ export function searchOfflineLocalEntities(
   return records.filter((record) => record.searchableText.toLowerCase().includes(normalized));
 }
 
-export function findOfflineLocalEntityByTempId(tempId: string) {
-  return findOfflineRecordByIndex<LocalEntityRecord>(
+export async function findOfflineLocalEntityByTempId(
+  tenantKey: string,
+  tempId: string,
+) {
+  const existing = await findOfflineRecordByIndex<LocalEntityRecord>(
     OFFLINE_DB_STORES.entityStore,
     "tempId",
     tempId,
   );
+  if (!existing || existing.tenantKey !== tenantKey) {
+    return null;
+  }
+  return existing;
 }
 
-export async function markOfflineLocalEntitySynced(tempId: string, serverId: string) {
-  const existing = await findOfflineLocalEntityByTempId(tempId);
+export async function markOfflineLocalEntitySynced(
+  tenantKey: string,
+  tempId: string,
+  serverId: string,
+) {
+  const existing = await findOfflineLocalEntityByTempId(tenantKey, tempId);
   if (!existing) return null;
   const next: LocalEntityRecord = {
     ...existing,
@@ -92,7 +119,10 @@ export async function markOfflineLocalEntitySynced(tempId: string, serverId: str
   return next;
 }
 
-export async function resolveOfflineEntityServerId(tempId: string) {
-  const existing = await findOfflineLocalEntityByTempId(tempId);
+export async function resolveOfflineEntityServerId(
+  tenantKey: string,
+  tempId: string,
+) {
+  const existing = await findOfflineLocalEntityByTempId(tenantKey, tempId);
   return existing?.serverId ?? null;
 }

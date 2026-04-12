@@ -14,22 +14,36 @@ import { useOfflineRuntime } from "@/components/providers/offline-provider";
 
 function toneClasses(status: ReturnType<typeof useOfflineRuntime>["status"]) {
   if (status === "OFFLINE") {
-    return "border-amber-300 bg-amber-50 text-amber-900";
-  }
-  if (status === "PREPARING" || status === "UPDATE_READY") {
-    return "border-slate-300 bg-slate-50 text-slate-900";
-  }
-  if (status === "SYNCING" || status === "RECONNECTING") {
-    return "border-blue-300 bg-blue-50 text-blue-900";
+    return {
+      dot: "bg-[color-mix(in_srgb,var(--status-warning-text)_72%,white)]",
+      capsule:
+        "border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] text-[var(--text-strong)]",
+    };
   }
   if (status === "ATTENTION") {
-    return "border-red-300 bg-red-50 text-red-900";
+    return {
+      dot: "bg-[color-mix(in_srgb,var(--status-error-text)_76%,white)]",
+      capsule:
+        "border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] text-[var(--text-strong)]",
+    };
   }
-  return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  if (status === "PREPARING" || status === "UPDATE_READY" || status === "SYNCING" || status === "RECONNECTING") {
+    return {
+      dot: "bg-[color-mix(in_srgb,var(--action-primary-bg)_72%,white)]",
+      capsule:
+        "border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] text-[var(--text-strong)]",
+    };
+  }
+  return {
+    dot: "bg-[color-mix(in_srgb,var(--status-success-text)_72%,white)]",
+    capsule:
+      "border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] text-[var(--text-strong)]",
+  };
 }
 
 export function OfflineStatusIndicator() {
   const { status, statusLabel, pendingCount, blockingCount, syncNow } = useOfflineRuntime();
+  const tone = toneClasses(status);
 
   return (
     <Sheet>
@@ -37,11 +51,20 @@ export function OfflineStatusIndicator() {
         <SheetTrigger asChild>
           <button
             type="button"
-            className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClasses(status)}`}
+            className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-[color-mix(in_srgb,var(--surface-muted)_92%,white)] ${tone.capsule}`}
           >
+            <span className={`size-1.5 rounded-full ${tone.dot}`} />
             <span>{statusLabel}</span>
-            {pendingCount > 0 ? <span className="font-mono">{pendingCount}</span> : null}
-            {blockingCount > 0 ? <span className="font-mono">!{blockingCount}</span> : null}
+            {pendingCount > 0 ? (
+              <span className="font-mono tabular-nums text-[var(--text-muted)]">
+                {pendingCount}
+              </span>
+            ) : null}
+            {blockingCount > 0 ? (
+              <span className="font-mono tabular-nums text-[var(--text-muted)]">
+                !{blockingCount}
+              </span>
+            ) : null}
           </button>
         </SheetTrigger>
         {status !== "SYNCING" && pendingCount > 0 ? (
@@ -49,23 +72,26 @@ export function OfflineStatusIndicator() {
             type="button"
             size="sm"
             variant="ghost"
-            className="h-6 rounded-full px-2 text-[11px]"
+            className="h-8 rounded-full px-3 text-[12px] font-medium text-[var(--text-muted)] hover:text-foreground"
             onClick={() => void syncNow({ force: true })}
           >
             Sync
           </Button>
         ) : null}
       </div>
-      <SheetContent side="right" size="md" inset className="sm:max-w-[34rem]">
-        <SheetHeader>
-          <SheetTitle>Offline and updates</SheetTitle>
+      <SheetContent
+        side="right"
+        size="md"
+        inset
+        className="overflow-hidden bg-[color-mix(in_srgb,var(--surface-base)_96%,white)] p-0 shadow-[var(--shadow-popover)] sm:max-w-[36rem]"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Sync and offline</SheetTitle>
           <SheetDescription>
             Current connectivity, warmup readiness, queued sync activity, and app update state.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-5">
-          <OfflineRuntimePanel />
-        </div>
+        <OfflineRuntimePanel />
       </SheetContent>
     </Sheet>
   );

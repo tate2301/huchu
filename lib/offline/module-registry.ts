@@ -43,7 +43,10 @@ async function uploadOfflineAttachments(
 
   const uploaded = [];
   for (const attachment of operation.attachments) {
-    const record = await getOfflineAttachmentRecord(attachment.attachmentId);
+    const record = await getOfflineAttachmentRecord(
+      attachment.attachmentId,
+      operation.tenantKey,
+    );
     if (!record) {
       continue;
     }
@@ -315,11 +318,29 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
     primaryFlowLabel: "Scrap ticketing",
     warmupBudget: "aggressive",
     criticalRoutes: ["/scrap-metal/tickets", "/scrap-metal/tickets/held"],
-    warmupRoutes: [
-      "/scrap-metal/tickets",
-      "/scrap-metal/tickets/held",
-      "/scrap-metal/purchases",
-      "/scrap-metal/sales",
+    routes: [
+      {
+        canonicalRoute: "scrap-tickets",
+        matchPaths: ["/scrap-metal/tickets"],
+        warmupUrls: ["/scrap-metal/tickets"],
+        critical: true,
+      },
+      {
+        canonicalRoute: "scrap-held-tickets",
+        matchPaths: ["/scrap-metal/tickets/held"],
+        warmupUrls: ["/scrap-metal/tickets/held"],
+        critical: true,
+      },
+      {
+        canonicalRoute: "scrap-purchases",
+        matchPaths: ["/scrap-metal/purchases"],
+        warmupUrls: ["/scrap-metal/purchases"],
+      },
+      {
+        canonicalRoute: "scrap-sales",
+        matchPaths: ["/scrap-metal/sales"],
+        warmupUrls: ["/scrap-metal/sales"],
+      },
     ],
     shellAssets: ["/icon-192.svg", "/icon-512.svg"],
     preloadQueries: scrapPreloadQueries,
@@ -340,14 +361,46 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
     primaryFlowLabel: "POS checkout",
     warmupBudget: "aggressive",
     criticalRoutes: ["/portal/pos", "/portal/pos/overview", "/portal/pos/history", "/portal/pos/held"],
-    warmupRoutes: [
-      "/portal/pos",
-      "/portal/pos/overview",
-      "/portal/pos/history",
-      "/portal/pos/held",
-      "/portal/pos/customers",
-      "/portal/pos/shift",
-      "/portal/pos/price-check",
+    routes: [
+      {
+        canonicalRoute: "pos-checkout",
+        matchPaths: ["/portal/pos", "/"],
+        warmupUrls: ["/portal/pos", "/"],
+        critical: true,
+      },
+      {
+        canonicalRoute: "pos-overview",
+        matchPaths: ["/portal/pos/overview"],
+        warmupUrls: ["/portal/pos/overview"],
+        critical: true,
+      },
+      {
+        canonicalRoute: "pos-history",
+        matchPaths: ["/portal/pos/history", "/history"],
+        warmupUrls: ["/portal/pos/history", "/history"],
+        critical: true,
+      },
+      {
+        canonicalRoute: "pos-held",
+        matchPaths: ["/portal/pos/held", "/held"],
+        warmupUrls: ["/portal/pos/held", "/held"],
+        critical: true,
+      },
+      {
+        canonicalRoute: "pos-customers",
+        matchPaths: ["/portal/pos/customers", "/customers"],
+        warmupUrls: ["/portal/pos/customers", "/customers"],
+      },
+      {
+        canonicalRoute: "pos-shift",
+        matchPaths: ["/portal/pos/shift", "/shift"],
+        warmupUrls: ["/portal/pos/shift", "/shift"],
+      },
+      {
+        canonicalRoute: "pos-price-check",
+        matchPaths: ["/portal/pos/price-check", "/price-check"],
+        warmupUrls: ["/portal/pos/price-check", "/price-check"],
+      },
     ],
     shellAssets: ["/icon-192.svg", "/icon-512.svg"],
     preloadQueries: retailPreloadQueries,
@@ -399,7 +452,10 @@ async function resolvePayloadLocalRefs(operation: OfflineOutboxOperation) {
   if (!operation.localRefs) return payload;
   for (const [field, tempId] of Object.entries(operation.localRefs)) {
     if (field === "entityId") continue;
-    const serverId = await resolveOfflineEntityServerId(tempId);
+    const serverId = await resolveOfflineEntityServerId(
+      operation.tenantKey,
+      tempId,
+    );
     if (serverId) {
       payload[field] = serverId;
     }
@@ -437,7 +493,11 @@ export async function syncOfflineOperation(operation: OfflineOutboxOperation) {
     await markOfflineOperationSynced(operation.operationId);
     const localEntityId = operation.localRefs?.entityId;
     if (localEntityId && outcome.serverEntityId) {
-      await markOfflineLocalEntitySynced(localEntityId, outcome.serverEntityId);
+      await markOfflineLocalEntitySynced(
+        operation.tenantKey,
+        localEntityId,
+        outcome.serverEntityId,
+      );
     }
     return {
       moduleId: operation.moduleId,

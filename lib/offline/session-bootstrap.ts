@@ -1,13 +1,16 @@
 import type { AuthSessionClaims } from "@/lib/auth-core/types";
 import { OFFLINE_DB_STORES, deleteOfflineRecord, getOfflineRecord, putOfflineRecord } from "@/lib/offline/db";
 import { emitOfflineSessionChanged } from "@/lib/offline/events";
+import { buildTenantScopedSessionId } from "@/lib/offline/tenant-context";
 import type { OfflineSessionBootstrap } from "@/lib/offline/types";
 
-const CURRENT_SESSION_BOOTSTRAP_ID = "current";
-
-export async function saveOfflineSessionBootstrap(user: AuthSessionClaims) {
+export async function saveOfflineSessionBootstrap(
+  tenantKey: string,
+  user: AuthSessionClaims,
+) {
   const record: OfflineSessionBootstrap = {
-    id: CURRENT_SESSION_BOOTSTRAP_ID,
+    id: buildTenantScopedSessionId(tenantKey),
+    tenantKey,
     capturedAt: new Date().toISOString(),
     expiresAt: user.authExpiresAt ?? null,
     user,
@@ -17,15 +20,18 @@ export async function saveOfflineSessionBootstrap(user: AuthSessionClaims) {
   return record;
 }
 
-export function getOfflineSessionBootstrap() {
+export function getOfflineSessionBootstrap(tenantKey: string) {
   return getOfflineRecord<OfflineSessionBootstrap>(
     OFFLINE_DB_STORES.sessionBootstrap,
-    CURRENT_SESSION_BOOTSTRAP_ID,
+    buildTenantScopedSessionId(tenantKey),
   );
 }
 
-export async function clearOfflineSessionBootstrap() {
-  await deleteOfflineRecord(OFFLINE_DB_STORES.sessionBootstrap, CURRENT_SESSION_BOOTSTRAP_ID);
+export async function clearOfflineSessionBootstrap(tenantKey: string) {
+  await deleteOfflineRecord(
+    OFFLINE_DB_STORES.sessionBootstrap,
+    buildTenantScopedSessionId(tenantKey),
+  );
   emitOfflineSessionChanged();
 }
 

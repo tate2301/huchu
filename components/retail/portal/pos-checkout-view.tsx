@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Clock, Package, Payments, QrCode, RefreshCcw, Save, Trash2, User, Wallet } from "@/lib/icons";
@@ -59,6 +60,7 @@ export function PosCheckoutView() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { tenantKey } = useOfflineRuntime();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [holdDialog, setHoldDialog] = useState(false);
   const [holdLabel, setHoldLabel] = useState("");
@@ -209,8 +211,8 @@ export function PosCheckoutView() {
         /network|failed to fetch|load failed/i.test(message) ||
         (typeof navigator !== "undefined" && !navigator.onLine);
 
-      if (offlineCandidate) {
-        const queued = await createOfflineRetailCustomer({
+      if (offlineCandidate && tenantKey) {
+        const queued = await createOfflineRetailCustomer(tenantKey, {
           name: customerName.trim(),
           phone: customerPhone.trim() || null,
           email: customerEmail.trim() || null,
