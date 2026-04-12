@@ -5,8 +5,8 @@ const OFFLINE_FALLBACK_URL = "/offline";
 const PRECACHE_URLS = [
   OFFLINE_FALLBACK_URL,
   "/manifest.webmanifest",
-  "/icon-192.svg",
-  "/icon-512.svg",
+  "/icon-192.png",
+  "/icon-512.png",
   "/regular.4b554656.woff2",
   "/medium.501e532c.woff2",
   "/bold.37baf660.woff2",

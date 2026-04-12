@@ -1,8 +1,11 @@
 "use client";
 
+import { type CSSProperties } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { getOfflineModuleStateTone, getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import {
   AlertTriangle,
@@ -18,51 +21,6 @@ function formatTimestamp(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Not yet";
   return date.toLocaleString();
-}
-
-function statusDotClasses(status: ReturnType<typeof useOfflineRuntime>["status"]) {
-  if (status === "OFFLINE") return "bg-[color-mix(in_srgb,var(--status-warning-text)_70%,white)]";
-  if (status === "ATTENTION") return "bg-[color-mix(in_srgb,var(--status-error-text)_78%,white)]";
-  if (status === "PREPARING" || status === "UPDATE_READY") {
-    return "bg-[color-mix(in_srgb,var(--action-primary-bg)_76%,white)]";
-  }
-  if (status === "SYNCING" || status === "RECONNECTING") {
-    return "bg-[color-mix(in_srgb,var(--action-primary-bg)_62%,white)]";
-  }
-  return "bg-[color-mix(in_srgb,var(--status-success-text)_72%,white)]";
-}
-
-function statusPillClasses(status: ReturnType<typeof useOfflineRuntime>["status"]) {
-  if (status === "OFFLINE") {
-    return "bg-[color-mix(in_srgb,var(--status-warning-bg)_82%,var(--surface-base))] text-[color-mix(in_srgb,var(--status-warning-text)_78%,var(--text-strong))]";
-  }
-  if (status === "ATTENTION") {
-    return "bg-[color-mix(in_srgb,var(--status-error-bg)_78%,var(--surface-base))] text-[color-mix(in_srgb,var(--status-error-text)_78%,var(--text-strong))]";
-  }
-  if (status === "PREPARING" || status === "UPDATE_READY" || status === "SYNCING" || status === "RECONNECTING") {
-    return "bg-[color-mix(in_srgb,var(--action-secondary-bg)_86%,var(--surface-base))] text-[color-mix(in_srgb,var(--action-primary-bg)_82%,var(--text-strong))]";
-  }
-  return "bg-[color-mix(in_srgb,var(--status-success-bg)_84%,var(--surface-base))] text-[color-mix(in_srgb,var(--status-success-text)_82%,var(--text-strong))]";
-}
-
-function moduleStateDotClasses(
-  state: ReturnType<typeof useOfflineRuntime>["preparedModules"][number]["state"],
-) {
-  if (state === "PREPARED") {
-    return "bg-[color-mix(in_srgb,var(--status-success-text)_72%,white)]";
-  }
-  if (state === "PREPARING") {
-    return "bg-[color-mix(in_srgb,var(--action-primary-bg)_72%,white)]";
-  }
-  return "bg-[color-mix(in_srgb,var(--status-warning-text)_72%,white)]";
-}
-
-function moduleStateLabel(
-  state: ReturnType<typeof useOfflineRuntime>["preparedModules"][number]["state"],
-) {
-  if (state === "PREPARED") return "Prepared";
-  if (state === "PREPARING") return "Preparing";
-  return "Not ready";
 }
 
 function MetricBlock({
@@ -95,6 +53,7 @@ export function OfflineRuntimePanel() {
   const {
     status,
     statusLabel,
+    canInstallApp,
     pendingCount,
     blockingCount,
     preparedModules,
@@ -104,7 +63,10 @@ export function OfflineRuntimePanel() {
     syncNow,
     applyUpdate,
     dismissUpdate,
+    installApp,
   } = useOfflineRuntime();
+  const statusTone = getOfflineStatusTone(status);
+  const StatusIcon = statusTone.icon;
 
   const bootstrapPercent =
     bootstrapProgress && bootstrapProgress.totalSteps > 0
@@ -120,7 +82,7 @@ export function OfflineRuntimePanel() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_86%,white)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                <span className={`size-1.5 rounded-full ${statusDotClasses(status)}`} />
+                <RefreshCcw className="size-3" />
                 Sync and offline
               </div>
               <h2 className="mt-3 text-[1.625rem] font-semibold tracking-[-0.02em] text-foreground">
@@ -133,10 +95,11 @@ export function OfflineRuntimePanel() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${statusPillClasses(status)}`}
+                style={{ "--status-chip": `var(${statusTone.colorVar})` } as CSSProperties}
+                className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1.5 text-xs font-medium text-[var(--status-chip)]"
               >
-                <span className={`size-1.5 rounded-full ${statusDotClasses(status)}`} />
-                {status}
+                <StatusIcon className={["size-3.5", statusTone.iconClassName ?? ""].join(" ")} />
+                {statusTone.text}
               </div>
               <Button
                 type="button"
@@ -151,6 +114,12 @@ export function OfflineRuntimePanel() {
                 <Button type="button" size="sm" variant="outline" onClick={() => void applyUpdate()}>
                   <Download className="size-4" />
                   Refresh
+                </Button>
+              ) : null}
+              {canInstallApp ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => void installApp()}>
+                  <Download className="size-4" />
+                  Install app
                 </Button>
               ) : null}
             </div>
@@ -211,35 +180,41 @@ export function OfflineRuntimePanel() {
           </div>
         </div>
         <div className="mt-4 overflow-hidden rounded-[20px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)]">
-          {preparedModules.map((modulePreparation, index) => (
-            <div key={modulePreparation.moduleId}>
-              {index > 0 ? <Separator className="bg-[color-mix(in_srgb,var(--border-default)_72%,transparent)]" /> : null}
-              <div className="flex items-start justify-between gap-4 px-4 py-4">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-foreground">
-                    {modulePreparation.primaryFlowLabel}
+          {preparedModules.map((modulePreparation, index) => {
+            const moduleTone = getOfflineModuleStateTone(modulePreparation.state);
+            const ModuleIcon = moduleTone.icon;
+
+            return (
+              <div key={modulePreparation.moduleId}>
+                {index > 0 ? <Separator className="bg-[color-mix(in_srgb,var(--border-default)_72%,transparent)]" /> : null}
+                <div className="flex items-start justify-between gap-4 px-4 py-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">
+                      {modulePreparation.primaryFlowLabel}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">
+                      <span className="font-mono tabular-nums">
+                        {modulePreparation.preparedRoutes.length}/{modulePreparation.totalRoutes}
+                      </span>{" "}
+                      routes
+                      {" · "}
+                      <span className="font-mono tabular-nums">
+                        {modulePreparation.preparedQueryKeys.length}/{modulePreparation.totalQueries}
+                      </span>{" "}
+                      data packs
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-[var(--text-muted)]">
-                    <span className="font-mono tabular-nums">
-                      {modulePreparation.preparedRoutes.length}/{modulePreparation.totalRoutes}
-                    </span>{" "}
-                    routes
-                    {" · "}
-                    <span className="font-mono tabular-nums">
-                      {modulePreparation.preparedQueryKeys.length}/{modulePreparation.totalQueries}
-                    </span>{" "}
-                    data packs
+                  <div
+                    style={{ "--status-chip": `var(${moduleTone.colorVar})` } as CSSProperties}
+                    className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1 text-xs font-medium text-[var(--status-chip)]"
+                  >
+                    <ModuleIcon className={["size-3.5", moduleTone.iconClassName ?? ""].join(" ")} />
+                    {moduleTone.text}
                   </div>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-base)_72%,white)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
-                  <span
-                    className={`size-1.5 rounded-full ${moduleStateDotClasses(modulePreparation.state)}`}
-                  />
-                  {moduleStateLabel(modulePreparation.state)}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

@@ -65,8 +65,8 @@ const OFFLINE_BOOTSTRAP_SYNC_TAG = "offline-runtime-sync";
 const SHELL_ASSET_URLS = [
   "/offline",
   "/manifest.webmanifest",
-  "/icon-192.svg",
-  "/icon-512.svg",
+  "/icon-192.png",
+  "/icon-512.png",
   "/regular.4b554656.woff2",
   "/medium.501e532c.woff2",
   "/bold.37baf660.woff2",
@@ -77,6 +77,7 @@ type OfflineContextValue = {
   isOffline: boolean;
   isSyncing: boolean;
   canApplyUpdate: boolean;
+  canInstallApp: boolean;
   pendingCount: number;
   blockingCount: number;
   status: OfflineStatus;
@@ -102,9 +103,16 @@ type OfflineContextValue = {
   clearTenantConflict: () => Promise<void>;
   applyUpdate: () => Promise<void>;
   dismissUpdate: () => void;
+  installApp: () => Promise<void>;
 };
 
 const OfflineContext = createContext<OfflineContextValue | null>(null);
+
+type BeforeInstallPromptEventLike = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  platforms?: string[];
+};
 
 function isPublicPathname(pathname: string) {
   return (
@@ -401,6 +409,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     useState<OfflineBootstrapProgress | null>(null);
   const [updateState, setUpdateState] = useState<OfflineUpdateState>("idle");
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] =
+    useState<BeforeInstallPromptEventLike | null>(null);
   const [operations, setOperations] = useState<OfflineOutboxSummaryItem[]>([]);
   const [tenantConflict, setTenantConflict] = useState<{
     previousTenantKey: string;
@@ -820,6 +830,23 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     setUpdateDismissed(true);
   }, []);
 
+  const installApp = useCallback(async () => {
+    if (!installPromptEvent) return;
+    await installPromptEvent.prompt();
+    try {
+      const choice = await installPromptEvent.userChoice;
+      if (choice.outcome === "accepted") {
+        toast({
+          title: "App install started",
+          description: "Finish the browser prompt to add this workspace to the device.",
+          variant: "success",
+        });
+      }
+    } finally {
+      setInstallPromptEvent(null);
+    }
+  }, [installPromptEvent, toast]);
+
   const clearTenantConflict = useCallback(async () => {
     if (!tenantConflict || !currentSessionTenantKey || !session?.user) {
       return;
@@ -1044,6 +1071,29 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   }, [bootstrapSession, checkForUpdates, syncNow]);
 
   useEffect(() => {
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEventLike);
+    };
+
+    const onAppInstalled = () => {
+      setInstallPromptEvent(null);
+      toast({
+        title: "App installed",
+        description: "This workspace is now available as an app on the device.",
+        variant: "success",
+      });
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
+  }, [toast]);
+
+  useEffect(() => {
     const onServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === "OFFLINE_SYNC_REQUEST") {
         if (!navigator.onLine) return;
@@ -1178,6 +1228,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   ]);
 
   const canApplyUpdate = updateState === "ready" && !isSyncing;
+  const canInstallApp = installPromptEvent !== null;
 
   const contextValue = useMemo<OfflineContextValue>(
     () => ({
@@ -1185,6 +1236,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       isOffline,
       isSyncing,
       canApplyUpdate,
+      canInstallApp,
       pendingCount,
       blockingCount,
       status,
@@ -1204,12 +1256,14 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       clearTenantConflict,
       applyUpdate,
       dismissUpdate,
+      installApp,
     }),
     [
       applyUpdate,
       blockingCount,
       bootstrapProgress,
       canApplyUpdate,
+      canInstallApp,
       clearTenantConflict,
       dismissUpdate,
       effectiveTenantKey,
@@ -1221,6 +1275,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       preparedModules,
       sessionBootstrap,
       sessionBootstrapExpired,
+      installApp,
       removeOperationFromShell,
       retryOperation,
       tenantConflict,
