@@ -17,59 +17,63 @@ export function OfflineStatusIndicator() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {status !== "ONLINE" && (
-        <DialogTrigger
-          style={{ "--status-chip": `var(${tone.colorVar})` } as CSSProperties}
-          className={[
-            "group inline-flex h-10 items-center gap-2 rounded-full px-2.5 pr-3.5 text-sm font-semibold outline-none",
-            "bg-[color-mix(in_srgb,var(--status-chip)_18%,var(--surface-base))] text-[var(--status-chip)]",
-            "transition-[transform,background-color,border-color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
-            "motion-safe:hover:-translate-y-px motion-safe:hover:scale-[1.015] motion-safe:active:scale-[0.985]",
-            "hover:bg-[color-mix(in_srgb,var(--status-chip)_22%,var(--surface-base))] focus-visible:ring-2 focus-visible:ring-ring/25",
-          ].join(" ")}
-        >
-          <span className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--status-chip)] text-[var(--surface-base)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--status-chip)_18%,transparent)]">
-            <StatusIcon
-              className={[
-                "size-4 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:scale-[1.08]",
-                tone.iconClassName ?? "",
-              ].join(" ")}
-            />
-          </span>
-          <span
+      {status !== "ONLINE" ||
+        pendingCount > 0 ||
+        (blockingCount > 0 && (
+          <DialogTrigger
+            style={
+              { "--status-chip": `var(${tone.colorVar})` } as CSSProperties
+            }
             className={[
-              "transition-[transform,opacity] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
-              open ? "motion-safe:translate-x-[1px]" : "",
+              "group inline-flex h-10 items-center gap-2 rounded-full px-2.5 pr-3.5 text-sm font-semibold outline-none",
+              "bg-[color-mix(in_srgb,var(--status-chip)_18%,var(--surface-base))] text-[var(--status-chip)]",
+              "transition-[transform,background-color,border-color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+              "motion-safe:hover:-translate-y-px motion-safe:hover:scale-[1.015] motion-safe:active:scale-[0.985]",
+              "hover:bg-[color-mix(in_srgb,var(--status-chip)_22%,var(--surface-base))] focus-visible:ring-2 focus-visible:ring-ring/25",
             ].join(" ")}
           >
-            {statusLabel}
-          </span>
-          {pendingCount > 0 ? (
+            <span className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--status-chip)] text-[var(--surface-base)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--status-chip)_18%,transparent)]">
+              <StatusIcon
+                className={[
+                  "size-4 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:scale-[1.08]",
+                  tone.iconClassName ?? "",
+                ].join(" ")}
+              />
+            </span>
             <span
               className={[
-                "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-[color-mix(in_srgb,var(--status-chip)_82%,var(--text-strong))]",
-                "transition-[transform,opacity,background-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
-                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-200",
-                hasUrgency ? "motion-safe:group-hover:scale-[1.06]" : "",
+                "transition-[transform,opacity] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+                open ? "motion-safe:translate-x-[1px]" : "",
               ].join(" ")}
             >
-              {pendingCount}
+              {statusLabel}
             </span>
-          ) : null}
-          {blockingCount > 0 ? (
-            <span
-              className={[
-                "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-[color-mix(in_srgb,var(--status-chip)_82%,var(--text-strong))]",
-                "transition-[transform,opacity,background-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
-                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-200",
-                "motion-safe:group-hover:scale-[1.06]",
-              ].join(" ")}
-            >
-              !{blockingCount}
-            </span>
-          ) : null}
-        </DialogTrigger>
-      )}
+            {pendingCount > 0 ? (
+              <span
+                className={[
+                  "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-[color-mix(in_srgb,var(--status-chip)_82%,var(--text-strong))]",
+                  "transition-[transform,opacity,background-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-200",
+                  hasUrgency ? "motion-safe:group-hover:scale-[1.06]" : "",
+                ].join(" ")}
+              >
+                {pendingCount}
+              </span>
+            ) : null}
+            {blockingCount > 0 ? (
+              <span
+                className={[
+                  "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-[color-mix(in_srgb,var(--status-chip)_82%,var(--text-strong))]",
+                  "transition-[transform,opacity,background-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-200",
+                  "motion-safe:group-hover:scale-[1.06]",
+                ].join(" ")}
+              >
+                !{blockingCount}
+              </span>
+            ) : null}
+          </DialogTrigger>
+        ))}
 
       <DialogContent
         size="md"
