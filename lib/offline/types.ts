@@ -132,6 +132,29 @@ export type OfflineRouteDefinition = {
 
 export type OfflineWarmupBudget = "light" | "standard" | "aggressive";
 
+export type OfflineLifecycleState =
+  | "booting"
+  | "hydrating_cache"
+  | "ready_offline"
+  | "ready_online"
+  | "warming"
+  | "syncing";
+
+export type OfflineWarmupScope = "required" | "snapshot";
+
+export type OfflineMutationPolicy = "offline-safe" | "online-only" | "excluded";
+
+export type OfflineWorkflowCatalogEntry = {
+  workflowId: string;
+  vertical: string;
+  audience: string;
+  warmupScope: OfflineWarmupScope;
+  routes: string[];
+  queryKeys: string[];
+  moduleIds: string[];
+  excludedRoutes?: string[];
+};
+
 export type OfflineModulePreparationState =
   | "NOT_PREPARED"
   | "PREPARING"

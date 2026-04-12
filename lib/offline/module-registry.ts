@@ -1,8 +1,16 @@
-import { fetchEmployees, fetchSites } from "@/lib/api";
+import {
+  fetchDisciplinaryActions,
+  fetchEmployees,
+  fetchHrIncidents,
+  fetchShiftGroups,
+  fetchShiftGroupSchedules,
+  fetchSites,
+} from "@/lib/api";
 import { fetchJson } from "@/lib/api-client";
 import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
 import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
+import { getOfflineWarmupModuleIds } from "@/lib/offline/workflow-catalog";
 import {
   markOfflineOperationBlockingFailure,
   markOfflineOperationRetryableFailure,
@@ -11,6 +19,7 @@ import {
 } from "@/lib/offline/outbox";
 import type {
   OfflineModuleDefinition,
+  OfflineMutationPolicy,
   OfflineMutationAdapter,
   OfflineOutboxOperation,
   OfflinePreloadQuery,
@@ -298,11 +307,6 @@ const scrapTicketingPreloadQueries: OfflinePreloadQuery[] = [
     queryKey: ["scrap-ready-batches"],
     fetcher: async () => fetchJson("/api/scrap-metal/batches?status=READY&limit=500"),
   },
-  {
-    key: "scrap-sales-approval-requests",
-    queryKey: ["scrap-sale-approval-requests"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sales?status=DRAFT&limit=400"),
-  },
 ];
 
 const scrapLotsPreloadQueries: OfflinePreloadQuery[] = [
@@ -325,6 +329,82 @@ const scrapLotsPreloadQueries: OfflinePreloadQuery[] = [
     key: "scrap-unassigned-purchases-page",
     queryKey: ["scrap-unassigned-purchases-page"],
     fetcher: async () => fetchJson("/api/scrap-metal/purchases?limit=500&unbatched=true"),
+  },
+];
+
+const scrapReportsSnapshotPreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "scrap-home-daily-snapshot",
+    queryKey: ["scrap-home-daily-snapshot"],
+    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
+  },
+  {
+    key: "scrap-dashboard-reporting",
+    queryKey: ["scrap-dashboard-reporting"],
+    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
+  },
+  {
+    key: "scrap-daily-snapshot",
+    queryKey: ["scrap-daily-snapshot"],
+    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
+  },
+  {
+    key: "scrap-supplier-performance",
+    queryKey: ["scrap-supplier-performance"],
+    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
+  },
+  {
+    key: "scrap-variance-report",
+    queryKey: ["scrap-variance-report"],
+    fetcher: async () => fetchJson("/api/scrap-metal/sales?limit=400"),
+  },
+  {
+    key: "scrap-aging-report",
+    queryKey: ["scrap-aging-report"],
+    fetcher: async () => fetchJson("/api/scrap-metal/batches?limit=400"),
+  },
+];
+
+const hrWorkforceCorePreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "hr-employees-active",
+    queryKey: ["employees", "", "active"],
+    fetcher: async () => fetchEmployees({ active: true, limit: 500 }),
+  },
+  {
+    key: "hr-sites-default",
+    queryKey: ["sites"],
+    fetcher: async () => fetchSites(),
+  },
+  {
+    key: "hr-shift-groups-default",
+    queryKey: ["shift-groups", "", undefined],
+    fetcher: async () => fetchShiftGroups({ limit: 300 }),
+  },
+  {
+    key: "hr-shift-schedules-default",
+    queryKey: ["shift-group-schedules", "", undefined],
+    fetcher: async () => fetchShiftGroupSchedules({ limit: 300 }),
+  },
+  {
+    key: "hr-incident-employees",
+    queryKey: ["employees", "hr-incidents"],
+    fetcher: async () => fetchEmployees({ active: true, limit: 500 }),
+  },
+  {
+    key: "hr-incident-sites",
+    queryKey: ["sites", "hr-incidents"],
+    fetcher: async () => fetchSites(),
+  },
+  {
+    key: "hr-incidents-default",
+    queryKey: ["hr-incidents", "", "ALL"],
+    fetcher: async () => fetchHrIncidents({ limit: 300 }),
+  },
+  {
+    key: "hr-disciplinary-actions-default",
+    queryKey: ["disciplinary-actions", "", "ALL"],
+    fetcher: async () => fetchDisciplinaryActions({ limit: 300 }),
   },
 ];
 
@@ -379,14 +459,6 @@ const scrapStaffSettlementsPreloadQueries: OfflinePreloadQuery[] = [
     key: "scrap-settlement-employees",
     queryKey: ["employees", "scrap-settlements"],
     fetcher: async () => fetchJson("/api/employees?active=true&limit=500"),
-  },
-];
-
-const scrapDailySnapshotPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-daily-snapshot",
-    queryKey: ["scrap-daily-snapshot"],
-    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
   },
 ];
 
@@ -524,12 +596,13 @@ function createWarmupRoutes(
   }));
 }
 
-const scrapTicketingRoutes = Array.from(
-  new Set([
-    ...SCRAP_OPERATIONS_SECTIONS.ticketing,
-    "/scrap-metal/tickets/held",
-  ]),
-);
+const scrapTicketingRoutes = [
+  "/scrap-metal",
+  "/scrap-metal/tickets",
+  "/scrap-metal/purchases",
+  "/scrap-metal/sales",
+  "/scrap-metal/tickets/held",
+];
 const scrapLotsRoutes = Array.from(new Set(SCRAP_OPERATIONS_SECTIONS.lots));
 const scrapMasterDataRoutes = [
   "/management/master-data/operations/scrap-materials",
@@ -537,8 +610,16 @@ const scrapMasterDataRoutes = [
 ];
 const scrapPriceBoardRoutes = ["/scrap-metal/pricing"];
 const scrapStaffSettlementRoutes = ["/scrap-metal/settlements"];
-const scrapDailySnapshotRoutes = [
+const scrapReportSnapshotRoutes = [
+  "/scrap-metal/reports",
   "/scrap-metal/reports/daily-snapshot",
+  "/scrap-metal/reports/supplier-performance",
+  "/scrap-metal/reports/variance-aging",
+];
+const hrWorkforceCoreRoutes = [
+  "/human-resources",
+  "/human-resources/shift-groups",
+  "/human-resources/incidents",
 ];
 
 export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
@@ -611,14 +692,29 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
     mutationAdapters: [],
   },
   {
-    moduleId: "scrap-daily-snapshot",
+    moduleId: "scrap-reports-snapshot",
     syncPriority: 15,
     bootstrapPriority: 15,
-    primaryFlowLabel: "Scrap daily snapshot",
+    primaryFlowLabel: "Scrap reporting snapshots",
     warmupBudget: "aggressive",
-    criticalRoutes: scrapDailySnapshotRoutes,
-    routes: createWarmupRoutes(scrapDailySnapshotRoutes),
-    preloadQueries: scrapDailySnapshotPreloadQueries,
+    criticalRoutes: scrapReportSnapshotRoutes,
+    routes: createWarmupRoutes(scrapReportSnapshotRoutes, [
+      "/scrap-metal/reports",
+      "/scrap-metal/reports/daily-snapshot",
+    ]),
+    preloadQueries: scrapReportsSnapshotPreloadQueries,
+    entityAdapters: [],
+    mutationAdapters: [],
+  },
+  {
+    moduleId: "hr-workforce-core",
+    syncPriority: 16,
+    bootstrapPriority: 16,
+    primaryFlowLabel: "HR workforce support",
+    warmupBudget: "standard",
+    criticalRoutes: hrWorkforceCoreRoutes,
+    routes: createWarmupRoutes(hrWorkforceCoreRoutes),
+    preloadQueries: hrWorkforceCorePreloadQueries,
     entityAdapters: [],
     mutationAdapters: [],
   },
@@ -703,25 +799,27 @@ export function getOfflineModule(moduleId: string) {
 }
 
 export function getEnabledOfflineModules(enabledFeatures?: string[]) {
-  const features = new Set(enabledFeatures ?? []);
-  return OFFLINE_MODULES.filter((moduleDefinition) => {
-    if (
-      moduleDefinition.moduleId === "scrap-metal" ||
-      moduleDefinition.moduleId === "scrap-lots" ||
-      moduleDefinition.moduleId === "scrap-master-data" ||
-      moduleDefinition.moduleId === "scrap-price-board" ||
-      moduleDefinition.moduleId === "scrap-staff-settlements" ||
-      moduleDefinition.moduleId === "scrap-daily-snapshot"
-    ) {
-      return [...features].some((feature) => feature.startsWith("scrap-metal."));
-    }
-    if (moduleDefinition.moduleId === "retail-pos") {
-      return [...features].some(
-        (feature) => feature.startsWith("retail.") || feature.startsWith("portal.pos"),
-      );
-    }
-    return true;
-  });
+  const allowedModuleIds = new Set(getOfflineWarmupModuleIds(enabledFeatures));
+  return OFFLINE_MODULES.filter((moduleDefinition) =>
+    allowedModuleIds.has(moduleDefinition.moduleId),
+  );
+}
+
+export function getOfflineMutationPolicy(
+  moduleId: string,
+  operation: string,
+): OfflineMutationPolicy {
+  const moduleDefinition = getOfflineModule(moduleId);
+  if (!moduleDefinition) {
+    return "excluded";
+  }
+  const adapter = moduleDefinition.mutationAdapters.find(
+    (candidate) => candidate.operation === operation,
+  );
+  if (adapter) {
+    return "offline-safe";
+  }
+  return "online-only";
 }
 
 function defaultRetryAt(retryCount: number) {
@@ -815,3 +913,4 @@ export async function syncOfflineOperation(operation: OfflineOutboxOperation) {
     invalidateQueryKeys: outcome.invalidateQueryKeys ?? [],
   };
 }
+

@@ -1,8 +1,9 @@
 # Scrap Module Implementation Tracker
 
-Last updated: 2026-04-08
+Last updated: 2026-04-12
 
 ## Completed
+- Hardened offline lifecycle for scrap operator + workforce core, including hydration-first offline startup, online-gated warmup, and durable mutation replay. See `docs/scrap-metal/offline-lifecycle.md`.
 - Scrap ticket compliance rules page and API wiring (`/scrap-metal/compliance-rules`, `/api/scrap-metal/compliance-rules/resolve`).
 - Compliance validation hooks enforced in purchase and sale create/update APIs.
 - Ticket UX baseline updates (hold/finalize + keyboard shortcuts in tickets page).

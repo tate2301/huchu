@@ -19,12 +19,21 @@ import {
   getOfflineBootstrapProgress,
   saveOfflineBootstrapProgress,
 } from "@/lib/offline/bootstrap-state";
+import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
 import {
   OFFLINE_BOOTSTRAP_CHANGED_EVENT,
   OFFLINE_OUTBOX_CHANGED_EVENT,
   OFFLINE_SESSION_CHANGED_EVENT,
 } from "@/lib/offline/events";
 import { getEnabledOfflineModules } from "@/lib/offline/module-registry";
+import {
+  resolveReadyOfflineLifecycleState,
+  transitionOfflineLifecycle,
+} from "@/lib/offline/lifecycle-machine";
+import {
+  canReplayOfflineQueue,
+  canRunOfflineWarmup,
+} from "@/lib/offline/orchestration-guards";
 import {
   getOfflineOutboxSummaryForTenant,
   removeOfflineOperation,
@@ -47,10 +56,16 @@ import {
   getActiveOfflineTenantContext,
   setActiveOfflineTenantContext,
 } from "@/lib/offline/tenant-context";
-import { getWorkspaceSidebarModel } from "@/lib/workspaces";
+import {
+  filterRoutesToOfflineWarmupScope,
+  getOfflineRouteAvailability,
+  getRouteOfflineMutationPolicy,
+} from "@/lib/offline/workflow-catalog";
 import type {
   OfflineBootstrapProgress,
+  OfflineLifecycleState,
   OfflineModuleDefinition,
+  OfflineMutationPolicy,
   OfflineModulePreparation,
   OfflineModulePreparationState,
   OfflineOutboxSummaryItem,
@@ -75,6 +90,7 @@ const SHELL_ASSET_URLS = [
 type OfflineContextValue = {
   tenantKey: OfflineTenantKey | null;
   isOffline: boolean;
+  lifecycleState: OfflineLifecycleState;
   isSyncing: boolean;
   canApplyUpdate: boolean;
   canInstallApp: boolean;
@@ -97,6 +113,8 @@ type OfflineContextValue = {
         blockingCount: number;
       }
     | null;
+  routeMutationPolicy: OfflineMutationPolicy;
+  routeAvailabilityReason: string | null;
   syncNow: (options?: { force?: boolean }) => Promise<void>;
   retryOperation: (operationId: string) => Promise<void>;
   removeOperation: (operationId: string) => Promise<void>;
@@ -177,19 +195,6 @@ function moduleOwnsPath(
   return getWarmupRouteDefinitions(moduleDefinition).some((routeDefinition) =>
     routeDefinition.matchPaths.some((candidate) => routeMatches(pathname, candidate)),
   );
-}
-
-function collectWorkspaceWarmRoutes(
-  sidebarModel: ReturnType<typeof getWorkspaceSidebarModel>,
-) {
-  return uniqueStrings([
-    sidebarModel.homeHref,
-    ...sidebarModel.quickActions.map((item) => item.href),
-    ...sidebarModel.supportItems.map((item) => item.href),
-    ...sidebarModel.sections.flatMap((section) =>
-      section.items.map((item) => item.href),
-    ),
-  ]).filter((href) => !isPublicPathname(href));
 }
 
 async function prefetchModuleQueries(
@@ -452,9 +457,10 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { data: session, status: sessionStatus } = useSession();
-  const [isOffline, setIsOffline] = useState(
-    typeof navigator !== "undefined" ? !navigator.onLine : false,
-  );
+  const { isOffline, lastOnlineAt } = useOfflineConnectivity();
+  const [lifecycleState, setLifecycleState] =
+    useState<OfflineLifecycleState>("booting");
+  const [hydrationCompleted, setHydrationCompleted] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -476,8 +482,11 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     blockingCount: number;
   } | null>(null);
   const restoredQueriesRef = useRef(false);
+  const isOfflineRef = useRef(isOffline);
+  const lastReconnectHandledRef = useRef<string | null>(null);
   const lastHydratedTenantKeyRef = useRef<string | null>(null);
   const bootstrapRunRef = useRef<Promise<void> | null>(null);
+  const syncRunRef = useRef<Promise<void> | null>(null);
   const serviceWorkerRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
   const effectiveUser =
@@ -491,19 +500,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const enabledModules = useMemo(
     () => getEnabledOfflineModules(enabledFeatures),
     [enabledFeatures],
-  );
-  const workspaceSidebarModel = useMemo(
-    () =>
-      getWorkspaceSidebarModel({
-        role: effectiveUser?.role ?? null,
-        enabledFeatures,
-        workspaceProfile: effectiveUser?.workspaceProfile ?? null,
-      }),
-    [effectiveUser?.role, effectiveUser?.workspaceProfile, enabledFeatures],
-  );
-  const workspaceWarmRoutes = useMemo(
-    () => collectWorkspaceWarmRoutes(workspaceSidebarModel),
-    [workspaceSidebarModel],
   );
   const currentSessionTenantKey =
     (session?.user as { companyId?: string } | undefined)?.companyId ?? null;
@@ -522,6 +518,14 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       sessionBootstrap?.tenantKey ??
       null,
     [currentSessionTenantKey, sessionBootstrap?.tenantKey, tenantConflict, tenantKey],
+  );
+  const routeAvailability = useMemo(
+    () => getOfflineRouteAvailability(pathname, enabledFeatures),
+    [enabledFeatures, pathname],
+  );
+  const routeMutationPolicy = useMemo(
+    () => getRouteOfflineMutationPolicy(pathname),
+    [pathname],
   );
 
   const refreshOutboxSummary = useCallback(async (targetTenantKey?: string | null) => {
@@ -568,6 +572,24 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     [queryClient, refreshOutboxSummary],
   );
 
+  const hydrateTenantState = useCallback(
+    async (targetTenantKey: string | null) => {
+      setHydrationCompleted(false);
+      setLifecycleState((current) =>
+        transitionOfflineLifecycle(current, "hydrating_cache"),
+      );
+      await loadTenantState(targetTenantKey);
+      setHydrationCompleted(true);
+      setLifecycleState((current) =>
+        transitionOfflineLifecycle(
+          current,
+          resolveReadyOfflineLifecycleState(isOfflineRef.current),
+        ),
+      );
+    },
+    [loadTenantState],
+  );
+
   const commitBootstrapProgress = useCallback(
     async (nextProgress: OfflineBootstrapProgress) => {
       setBootstrapProgress(nextProgress);
@@ -609,14 +631,23 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
   const bootstrapSession = useCallback(
     async (options?: { force?: boolean }) => {
+      if (typeof window === "undefined") {
+        return;
+      }
       if (
-        typeof window === "undefined" ||
-        sessionStatus !== "authenticated" ||
-        enabledModules.length === 0 ||
-        !effectiveTenantKey ||
-        hydratedTenantKey !== effectiveTenantKey ||
-        tenantConflict
+        !canRunOfflineWarmup({
+          isOffline,
+          sessionStatus,
+          enabledModulesCount: enabledModules.length,
+          hasEffectiveTenant: Boolean(effectiveTenantKey),
+          tenantHydrated: hydratedTenantKey === effectiveTenantKey,
+          hasTenantConflict: Boolean(tenantConflict),
+          hydrationCompleted,
+        })
       ) {
+        return;
+      }
+      if (!navigator.onLine || isOfflineRef.current) {
         return;
       }
       if (!options?.force && !needsBootstrapWork(bootstrapProgress, pathname)) {
@@ -627,6 +658,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       }
 
       const run = (async () => {
+        setLifecycleState((current) =>
+          transitionOfflineLifecycle(current, "warming"),
+        );
         const seedProgress = createOfflineBootstrapProgress(
           effectiveTenantKey,
           enabledModules,
@@ -646,10 +680,16 @@ export function OfflineProvider({ children }: PropsWithChildren) {
           ...enabledModules.flatMap((moduleDefinition) => moduleDefinition.shellAssets ?? []),
         ]);
         await prewarmAssets(shellAssets);
+        if (!navigator.onLine || isOfflineRef.current) {
+          return;
+        }
 
         for (const moduleDefinition of [...enabledModules].sort(
           (left, right) => left.bootstrapPriority - right.bootstrapPriority,
         )) {
+          if (!navigator.onLine || isOfflineRef.current) {
+            return;
+          }
           const routeDefinitions = getWarmupRouteDefinitions(moduleDefinition);
           nextProgress = recalculateBootstrapProgress({
             ...nextProgress,
@@ -712,6 +752,10 @@ export function OfflineProvider({ children }: PropsWithChildren) {
             } catch {
               // Ignore bootstrap query failures and keep the module partially prepared.
             }
+
+            if (!navigator.onLine || isOfflineRef.current) {
+              return;
+            }
           }
 
           const preparedRouteState = await prewarmRoutes(
@@ -752,12 +796,13 @@ export function OfflineProvider({ children }: PropsWithChildren) {
           await commitBootstrapProgress(nextProgress);
         }
 
-        const extraRoutes = uniqueStrings([
-          ...workspaceWarmRoutes,
-          pathname,
-          ...readRecentRoutes(),
-        ]).filter(
-          (route) => !nextProgress.preparedRoutes.includes(route) && !isPublicPathname(route),
+        const extraRoutes = filterRoutesToOfflineWarmupScope(
+          uniqueStrings([pathname, ...readRecentRoutes()]).filter(
+            (route) =>
+              !nextProgress.preparedRoutes.includes(route) &&
+              !isPublicPathname(route),
+          ),
+          enabledFeatures,
         );
         if (extraRoutes.length > 0) {
           const preparedExtraRoutes = await prewarmRoutes(
@@ -792,6 +837,12 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         await run;
       } finally {
         bootstrapRunRef.current = null;
+        setLifecycleState((current) =>
+          transitionOfflineLifecycle(
+            current,
+            resolveReadyOfflineLifecycleState(isOfflineRef.current),
+          ),
+        );
       }
     },
     [
@@ -800,40 +851,70 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       effectiveTenantKey,
       hydratedTenantKey,
       enabledModules,
+      enabledFeatures,
+      hydrationCompleted,
+      isOffline,
       pathname,
       queryClient,
       sessionStatus,
       tenantConflict,
-      workspaceWarmRoutes,
     ],
   );
 
   const syncNow = useCallback(
     async (options?: { force?: boolean }) => {
-      if (!effectiveTenantKey || tenantConflict) {
+      if (
+        !canReplayOfflineQueue({
+          isOffline,
+          hasEffectiveTenant: Boolean(effectiveTenantKey),
+          hasTenantConflict: Boolean(tenantConflict),
+        })
+      ) {
         return;
       }
-      setIsSyncing(true);
-      try {
-        const result = await syncOfflineRuntime({
-          enabledFeatures,
-          force: options?.force,
-          tenantKey: effectiveTenantKey,
-        });
-        for (const queryKey of result.invalidateQueryKeys) {
-          void queryClient.invalidateQueries({ queryKey });
-        }
-        await refreshOutboxSummary(effectiveTenantKey);
-        const syncCompletedAt = nowIso();
-        if (bootstrapProgress) {
-          void commitBootstrapProgress({
-            ...bootstrapProgress,
-            lastSyncedAt: syncCompletedAt,
+      if (syncRunRef.current) {
+        return syncRunRef.current;
+      }
+
+      const run = (async () => {
+        setLifecycleState((current) =>
+          transitionOfflineLifecycle(current, "syncing"),
+        );
+        setIsSyncing(true);
+        try {
+          const result = await syncOfflineRuntime({
+            enabledFeatures,
+            force: options?.force,
+            tenantKey: effectiveTenantKey ?? undefined,
           });
+          for (const queryKey of result.invalidateQueryKeys) {
+            void queryClient.invalidateQueries({ queryKey });
+          }
+          await refreshOutboxSummary(effectiveTenantKey);
+          const syncCompletedAt = nowIso();
+          if (bootstrapProgress) {
+            void commitBootstrapProgress({
+              ...bootstrapProgress,
+              lastSyncedAt: syncCompletedAt,
+            });
+          }
+        } finally {
+          setIsSyncing(false);
+          setIsReconnecting(false);
+          setLifecycleState((current) =>
+            transitionOfflineLifecycle(
+              current,
+              resolveReadyOfflineLifecycleState(isOfflineRef.current),
+            ),
+          );
         }
+      })();
+
+      syncRunRef.current = run;
+      try {
+        await run;
       } finally {
-        setIsSyncing(false);
-        setIsReconnecting(false);
+        syncRunRef.current = null;
       }
     },
     [
@@ -841,6 +922,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       commitBootstrapProgress,
       effectiveTenantKey,
       enabledFeatures,
+      isOffline,
       queryClient,
       refreshOutboxSummary,
       tenantConflict,
@@ -853,7 +935,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (effectiveTenantKey) {
         await refreshOutboxSummary(effectiveTenantKey);
       }
-      await syncNow({ force: true });
+      if (navigator.onLine && !isOfflineRef.current) {
+        await syncNow({ force: true });
+      }
     },
     [effectiveTenantKey, refreshOutboxSummary, syncNow],
   );
@@ -906,8 +990,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     });
     setTenantConflict(null);
     setTenantKey(currentSessionTenantKey);
-    await loadTenantState(currentSessionTenantKey);
-  }, [currentSessionTenantKey, loadTenantState, session?.user, tenantConflict]);
+    await hydrateTenantState(currentSessionTenantKey);
+  }, [currentSessionTenantKey, hydrateTenantState, session?.user, tenantConflict]);
 
   useEffect(() => {
     rememberRoute(pathname);
@@ -917,11 +1001,13 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     if (
       typeof window === "undefined" ||
       isOffline ||
+      !navigator.onLine ||
       isPublicPathname(pathname) ||
       sessionStatus !== "authenticated" ||
       !effectiveTenantKey ||
       hydratedTenantKey !== effectiveTenantKey ||
-      tenantConflict
+      tenantConflict ||
+      !hydrationCompleted
     ) {
       return;
     }
@@ -931,20 +1017,19 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         enabledModules.find((moduleDefinition) =>
           moduleOwnsPath(moduleDefinition, pathname),
         ) ?? null;
+      if (!matchedModule) {
+        return;
+      }
 
-      const routeDefinitions = matchedModule
-        ? getWarmupRouteDefinitions(matchedModule).filter((routeDefinition) =>
-            routeDefinition.matchPaths.some((candidate) =>
-              routeMatches(pathname, candidate),
-            ),
-          )
-        : [
-            {
-              canonicalRoute: pathname,
-              matchPaths: [pathname],
-              warmupUrls: [pathname],
-            },
-          ];
+      const routeDefinitions = getWarmupRouteDefinitions(matchedModule).filter(
+        (routeDefinition) =>
+          routeDefinition.matchPaths.some((candidate) =>
+            routeMatches(pathname, candidate),
+          ),
+      );
+      if (routeDefinitions.length === 0) {
+        return;
+      }
 
       const [{ preparedCanonicalRoutes, preparedPathnames }, preparedQueryKeys] =
         await Promise.all([
@@ -1022,6 +1107,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     effectiveTenantKey,
     enabledModules,
     hydratedTenantKey,
+    hydrationCompleted,
     isOffline,
     pathname,
     queryClient,
@@ -1103,12 +1189,17 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     if (restoredQueriesRef.current) return;
     restoredQueriesRef.current = true;
     void (async () => {
+      setLifecycleState("booting");
       const activeContext = await getActiveOfflineTenantContext().catch(() => null);
       const restoredTenantKey = activeContext?.tenantKey ?? null;
       setTenantKey(restoredTenantKey);
-      await loadTenantState(restoredTenantKey);
+      await hydrateTenantState(restoredTenantKey);
     })();
-  }, [loadTenantState]);
+  }, [hydrateTenantState]);
+
+  useEffect(() => {
+    isOfflineRef.current = isOffline;
+  }, [isOffline]);
 
   useEffect(() => {
     if (bootstrapProgress || !effectiveTenantKey) return;
@@ -1164,36 +1255,56 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   }, [effectiveTenantKey, refreshOutboxSummary]);
 
   useEffect(() => {
-    const onOnline = () => {
-      setIsOffline(false);
+    if (!hydrationCompleted) {
+      return;
+    }
+    if (isOffline) {
+      setIsReconnecting(false);
+      setLifecycleState((current) =>
+        transitionOfflineLifecycle(current, "ready_offline"),
+      );
+      return;
+    }
+
+    setLifecycleState((current) =>
+      transitionOfflineLifecycle(current, "ready_online"),
+    );
+    if (
+      lastOnlineAt &&
+      lastReconnectHandledRef.current !== lastOnlineAt &&
+      sessionStatus === "authenticated" &&
+      effectiveTenantKey &&
+      !tenantConflict
+    ) {
+      lastReconnectHandledRef.current = lastOnlineAt;
       setIsReconnecting(true);
       void bootstrapSession({ force: true });
       void requestBackgroundSync();
       void checkForUpdates();
       void syncNow();
-    };
-    const onOffline = () => {
-      setIsOffline(true);
-      setIsReconnecting(false);
-    };
-
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, [bootstrapSession, checkForUpdates, syncNow]);
+    }
+  }, [
+    bootstrapSession,
+    checkForUpdates,
+    effectiveTenantKey,
+    hydrationCompleted,
+    isOffline,
+    lastOnlineAt,
+    sessionStatus,
+    syncNow,
+    tenantConflict,
+  ]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
-      void bootstrapSession();
-      if (navigator.onLine) {
-        void requestBackgroundSync();
-        void checkForUpdates();
-        void syncNow();
+      if (!navigator.onLine || isOfflineRef.current) {
+        return;
       }
+      void bootstrapSession();
+      void requestBackgroundSync();
+      void checkForUpdates();
+      void syncNow();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () =>
@@ -1221,7 +1332,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const onServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === "OFFLINE_SYNC_REQUEST") {
-        if (!navigator.onLine) return;
+        if (!navigator.onLine || isOfflineRef.current) return;
         void syncNow();
         return;
       }
@@ -1260,7 +1371,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
           workspaceProfile: savedBootstrap.user.workspaceProfile ?? null,
           host: typeof window !== "undefined" ? window.location.host : null,
         });
-        await loadTenantState(currentSessionTenantKey);
+        await hydrateTenantState(currentSessionTenantKey);
         return;
       }
 
@@ -1296,12 +1407,12 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         workspaceProfile: savedBootstrap.user.workspaceProfile ?? null,
         host: typeof window !== "undefined" ? window.location.host : null,
       });
-      await loadTenantState(currentSessionTenantKey);
+      await hydrateTenantState(currentSessionTenantKey);
     })();
   }, [
     currentSessionTenantKey,
     enabledModules,
-    loadTenantState,
+    hydrateTenantState,
     session,
     sessionStatus,
   ]);
@@ -1315,6 +1426,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (sessionStatus !== "authenticated" || tenantConflict) return;
     if (!effectiveTenantKey || hydratedTenantKey !== effectiveTenantKey) return;
+    if (isOffline || !navigator.onLine || !hydrationCompleted) return;
     void bootstrapSession();
     void checkForUpdates();
   }, [
@@ -1322,6 +1434,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     checkForUpdates,
     effectiveTenantKey,
     hydratedTenantKey,
+    hydrationCompleted,
+    isOffline,
     sessionStatus,
     tenantConflict,
   ]);
@@ -1334,8 +1448,14 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
   const status: OfflineStatus = useMemo(() => {
     if (isOffline) return "OFFLINE";
-    if (bootstrapProgress?.phase === "preparing") return "PREPARING";
-    if (isSyncing) return "SYNCING";
+    if (
+      lifecycleState === "hydrating_cache" ||
+      lifecycleState === "warming" ||
+      bootstrapProgress?.phase === "preparing"
+    ) {
+      return "PREPARING";
+    }
+    if (lifecycleState === "syncing" || isSyncing) return "SYNCING";
     if (isReconnecting) return "RECONNECTING";
     if (tenantConflict || blockingCount > 0) return "ATTENTION";
     if (updateState === "ready" || updateState === "activating") {
@@ -1348,6 +1468,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     isOffline,
     isReconnecting,
     isSyncing,
+    lifecycleState,
     tenantConflict,
     updateState,
   ]);
@@ -1359,6 +1480,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     () => ({
       tenantKey: effectiveTenantKey,
       isOffline,
+      lifecycleState,
       isSyncing,
       canApplyUpdate,
       canInstallApp,
@@ -1375,6 +1497,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       showUpdatePrompt: updateState === "ready" && !updateDismissed,
       operations,
       tenantConflict,
+      routeMutationPolicy,
+      routeAvailabilityReason: routeAvailability.reason,
       syncNow,
       retryOperation,
       removeOperation: removeOperationFromShell,
@@ -1394,6 +1518,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       effectiveTenantKey,
       isOffline,
       isSyncing,
+      lifecycleState,
       lastSyncedAt,
       operations,
       pendingCount,
@@ -1403,6 +1528,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       installApp,
       removeOperationFromShell,
       retryOperation,
+      routeAvailability.reason,
+      routeMutationPolicy,
       tenantConflict,
       updateDismissed,
       status,
@@ -1411,15 +1538,18 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     ],
   );
 
-  const routeOfflineReady = (bootstrapProgress?.preparedRoutes ?? []).some((candidate) =>
-    routeMatches(pathname, candidate),
-  );
+  const routeOfflineReady =
+    routeAvailability.availability === "warmed" &&
+    (bootstrapProgress?.preparedRoutes ?? []).some((candidate) =>
+      routeMatches(pathname, candidate),
+    );
   const shouldShowOfflineGuard =
     isOffline &&
     !isPublicPathname(pathname) &&
     (Boolean(tenantConflict) ||
       !sessionBootstrap ||
       sessionBootstrapExpired ||
+      routeAvailability.availability === "excluded" ||
       !routeOfflineReady);
 
   return (
@@ -1436,6 +1566,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
                 ? "Reconnect to continue"
                 : tenantConflict
                   ? "Clear previous offline workspace"
+                  : routeAvailability.availability === "excluded"
+                    ? "This workflow is online only"
                   : routeOfflineReady
                   ? "Offline session unavailable"
                   : "This page is not ready offline"}
@@ -1445,7 +1577,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
                 ? "Your cached session has expired. Connect to the internet so we can refresh your access."
                 : tenantConflict
                   ? "This device still holds queued offline work from another tenant. Clear that offline workspace before preparing this one."
-                : !sessionBootstrap
+                  : routeAvailability.reason
+                    ? routeAvailability.reason
+                  : !sessionBootstrap
                   ? "This device has not completed an online bootstrap for the current workspace yet."
                   : "Reconnect and let the app finish preparing this route for offline use."}
             </p>

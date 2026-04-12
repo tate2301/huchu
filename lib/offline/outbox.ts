@@ -37,6 +37,20 @@ export async function enqueueOfflineOperation<TPayload = Record<string, unknown>
     "operationId" | "status" | "retryCount" | "createdAt" | "updatedAt"
   > & { operationId?: string },
 ) {
+  const duplicate = (
+    await listOfflineOperations()
+  ).find(
+    (candidate) =>
+      candidate.tenantKey === input.tenantKey &&
+      candidate.moduleId === input.moduleId &&
+      candidate.operation === input.operation &&
+      candidate.clientRequestId === input.clientRequestId &&
+      candidate.status !== "SYNCED",
+  );
+  if (duplicate) {
+    return duplicate as OfflineOutboxOperation<TPayload>;
+  }
+
   const timestamp = nowIso();
   const operation: OfflineOutboxOperation<TPayload> = {
     ...input,

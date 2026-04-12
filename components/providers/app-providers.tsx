@@ -15,8 +15,25 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            networkMode: "offlineFirst",
+            gcTime: 30 * 24 * 60 * 60 * 1000,
+            staleTime: 60_000,
             refetchOnWindowFocus: false,
+            retry: (failureCount) => {
+              if (typeof navigator !== "undefined" && !navigator.onLine) {
+                return false
+              }
+              return failureCount < 2
+            },
+          },
+          mutations: {
+            networkMode: "offlineFirst",
+            retry: (failureCount) => {
+              if (typeof navigator !== "undefined" && !navigator.onLine) {
+                return false
+              }
+              return failureCount < 1
+            },
           },
         },
       }),

@@ -1,8 +1,13 @@
 import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
-import { OFFLINE_DB_STORES, deleteOfflineRecord, listOfflineRecords, putOfflineRecord } from "@/lib/offline/db";
+import {
+  OFFLINE_DB_STORES,
+  deleteOfflineRecord,
+  listOfflineRecords,
+  putOfflineRecord,
+} from "@/lib/offline/db";
 import type { PersistedQueryRecord } from "@/lib/offline/types";
 
-const DEFAULT_QUERY_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_QUERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function serializeQueryKey(queryKey: QueryKey) {
   return JSON.stringify(queryKey);
@@ -17,6 +22,14 @@ function inferModuleId(queryKey: QueryKey) {
     first === "employees"
   ) {
     return "scrap-metal";
+  }
+  if (
+    first.startsWith("hr-") ||
+    first === "shift-groups" ||
+    first === "shift-group-schedules" ||
+    first === "disciplinary-actions"
+  ) {
+    return "hr-workforce-core";
   }
   if (first.startsWith("retail-") || first === "pos-sites") {
     return "retail-pos";
