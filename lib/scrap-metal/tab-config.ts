@@ -83,14 +83,14 @@ export const SCRAP_TABS: ScrapTabItem[] = [
     label: "Adjustments / Write-offs",
     href: "/scrap-metal/adjustments",
     icon: Wallet,
-    roles: ["SUPERADMIN", "MANAGER", "OPERATOR"],
+    roles: ["SUPERADMIN", "MANAGER"],
   },
   {
     id: "unassigned-purchases",
     label: "Unassigned Purchases",
     href: "/scrap-metal/purchases/unassigned",
     icon: Package,
-    roles: ["SUPERADMIN", "MANAGER", "OPERATOR"],
+    roles: ["SUPERADMIN", "MANAGER"],
   },
   {
     id: "sales",

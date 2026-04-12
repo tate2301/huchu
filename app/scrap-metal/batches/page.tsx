@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -38,6 +39,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { SplitButton } from "@/components/ui/split-button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Pencil, Plus, Trash2 } from "@/lib/icons";
+import { hasRole } from "@/lib/roles";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Batch = {
@@ -122,6 +124,7 @@ export default function ScrapMetalBatchesPage() {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
@@ -129,6 +132,8 @@ export default function ScrapMetalBatchesPage() {
   const [batchForItems, setBatchForItems] = useState<Batch | null>(null);
   const [selectedPurchaseIds, setSelectedPurchaseIds] = useState<string[]>([]);
   const [form, setForm] = useState<BatchForm>(getEmptyForm);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const canAccessExtendedLotViews = hasRole(role, ["SUPERADMIN", "MANAGER"]);
   const {
     reservedId: batchNumber,
     isReserving: reservingBatchNumber,
@@ -418,9 +423,11 @@ export default function ScrapMetalBatchesPage() {
               <DropdownMenuItem asChild>
                 <Link href="/stores/inventory">Stock on hand</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/scrap-metal/purchases/unassigned">Unassigned Purchases</Link>
-              </DropdownMenuItem>
+              {canAccessExtendedLotViews ? (
+                <DropdownMenuItem asChild>
+                  <Link href="/scrap-metal/purchases/unassigned">Unassigned Purchases</Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/scrap-metal/sales">Outbound Tickets</Link>

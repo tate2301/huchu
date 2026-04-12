@@ -35,6 +35,8 @@ const PORTAL_HOME_BY_ROLE = {
   TEACHER: "/portal/teacher",
 } as const;
 const HR_MODULE_ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
+const SCRAP_LOTS_ONLY_ROLES = new Set(["OPERATOR", "CLERK"]);
+const SCRAP_OPERATOR_RESTRICTED_PATHS = ["/scrap-metal/purchases/unassigned", "/scrap-metal/adjustments"] as const;
 
 type PlatformToken = {
   companyId?: string;
@@ -97,6 +99,14 @@ function getPortalHomeForRole(role: string | undefined | null) {
   }
 
   return null;
+}
+
+function isScrapLotsOnlyRole(role: string | undefined | null) {
+  return SCRAP_LOTS_ONLY_ROLES.has(role ?? "");
+}
+
+function isScrapOperatorRestrictedPath(pathname: string) {
+  return SCRAP_OPERATOR_RESTRICTED_PATHS.some((path) => isPathWithinRoute(pathname, path));
 }
 
 function redirectToPath(request: NextRequestWithAuth, pathname: string) {
@@ -344,6 +354,10 @@ export default withAuth(
       if (!HR_MODULE_ALLOWED_ROLES.has(token.role ?? "")) {
         return denyAccess(request, "Human resources access is restricted");
       }
+    }
+
+    if (token && isScrapLotsOnlyRole(token.role) && isScrapOperatorRestrictedPath(pathname)) {
+      return denyAccess(request, "This route is restricted for this role");
     }
 
     const tenantHostEnforcementDecision = canAccessCapabilityWithToken(
