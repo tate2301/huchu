@@ -815,6 +815,11 @@ function flattenVisibleItems(sections: WorkspaceNavSection[]): NavItem[] {
   return sections.flatMap((section) => section.items);
 }
 
+function isScrapOperatorExperienceRole(role: string | null | undefined): boolean {
+  const normalized = String(role ?? "").trim().toUpperCase();
+  return normalized === "OPERATOR" || normalized === "CLERK";
+}
+
 function getHomeTarget(args: {
   recipe: WorkspaceProfileRecipe;
   context: WorkspaceBuildContext;
@@ -870,7 +875,19 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
     ? []
     : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
-  const sections = [...primarySections, ...additionalSections];
+  const sections = [...primarySections, ...additionalSections].filter((section) => {
+    if (
+      profile === "SCRAP_METAL" &&
+      isScrapOperatorExperienceRole(context.role) &&
+      (section.id === "management" ||
+        section.id === "hr" ||
+        section.id === "accounting" ||
+        section.id.startsWith("accounting-"))
+    ) {
+      return false;
+    }
+    return true;
+  });
   const homeTarget = getHomeTarget({
     recipe,
     context,

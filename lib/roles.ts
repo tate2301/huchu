@@ -24,5 +24,13 @@ export function hasRole(
   allowed: UserRole[],
 ) {
   if (!role) return false
-  return allowed.includes(role as UserRole)
+  const normalizedRole = role.trim().toUpperCase() as UserRole
+  if (allowed.includes(normalizedRole)) return true
+
+  // Legacy compatibility: in scrap operations, CLERK users run the OPERATOR workflow.
+  if (normalizedRole === "CLERK" && allowed.includes("OPERATOR")) {
+    return true
+  }
+
+  return false
 }
