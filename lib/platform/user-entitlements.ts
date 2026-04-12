@@ -237,6 +237,27 @@ function isCompanyFeatureEnabled(featureKey: string, companyMap: FeatureMap): bo
   return CATALOG_DEFAULTS.get(normalized) === true;
 }
 
+function hasEnabledFeaturePrefix(companyMap: FeatureMap, prefix: string): boolean {
+  for (const [featureKey, isEnabled] of Object.entries(companyMap)) {
+    if (!isEnabled) continue;
+    if (normalizeFeatureKey(featureKey).startsWith(prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function resolveTemplateRoleForCompany(
+  role: string,
+  companyMap: FeatureMap,
+): string {
+  const normalizedRole = role.trim().toUpperCase();
+  if (normalizedRole === "CLERK" && hasEnabledFeaturePrefix(companyMap, "scrap-metal.")) {
+    return "OPERATOR";
+  }
+  return normalizedRole;
+}
+
 function getAllCompanyEnabledFeatureKeys(companyMap: FeatureMap): string[] {
   const enabled = new Set<string>();
 
@@ -313,14 +334,15 @@ export async function getEffectiveFeaturesForUser(input: {
 
   const companyMap = await getCompanyFeatureMap(companyId);
   const companyEnabled = getAllCompanyEnabledFeatureKeys(companyMap);
+  const templateRole = resolveTemplateRoleForCompany(role, companyMap);
 
-  if (!userId || !isManagedUserRole(role)) {
+  if (!userId || !isManagedUserRole(templateRole)) {
     return companyEnabled;
   }
 
   const overrideMap = await getUserFeatureOverrideMap(userId);
   return companyEnabled.filter((featureKey) => {
-    if (!isTemplateAllowedForRole(role, featureKey)) return false;
+    if (!isTemplateAllowedForRole(templateRole, featureKey)) return false;
     const override = overrideMap.get(featureKey);
     if (override === false) return false;
     return true;
@@ -340,6 +362,7 @@ export async function getManagedUserFeatureAccessEntries(input: {
     getCompanyFeatureMap(companyId),
     getUserFeatureOverrideMap(userId),
   ]);
+  const templateRole = resolveTemplateRoleForCompany(input.role, companyMap);
 
   const keys = new Set<string>([
     ...FEATURE_CATALOG.map((feature) => normalizeFeatureKey(feature.key)),
@@ -351,7 +374,7 @@ export async function getManagedUserFeatureAccessEntries(input: {
   for (const featureKey of keys) {
     const catalog = CATALOG_BY_KEY.get(featureKey);
     const companyEnabled = isCompanyFeatureEnabled(featureKey, companyMap);
-    const templateAllowed = isTemplateAllowedForRole(input.role, featureKey);
+    const templateAllowed = isTemplateAllowedForRole(templateRole, featureKey);
     const available = companyEnabled && templateAllowed;
     const override = overrideMap.get(featureKey);
     const hasOverride = override !== undefined;
@@ -394,11 +417,12 @@ export async function setManagedUserFeatureOverride(input: {
 }): Promise<void> {
   const normalizedFeatureKey = normalizeFeatureKey(input.featureKey);
   const companyMap = await getCompanyFeatureMap(input.companyId.trim());
+  const templateRole = resolveTemplateRoleForCompany(input.role, companyMap);
 
   if (!isCompanyFeatureEnabled(normalizedFeatureKey, companyMap)) {
     throw new Error("FEATURE_NOT_ENABLED_FOR_COMPANY");
   }
-  if (!isTemplateAllowedForRole(input.role, normalizedFeatureKey)) {
+  if (!isTemplateAllowedForRole(templateRole, normalizedFeatureKey)) {
     throw new Error("FEATURE_BLOCKED_BY_TEMPLATE");
   }
 
