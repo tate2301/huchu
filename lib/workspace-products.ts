@@ -369,8 +369,14 @@ function getBundleById(id: VerticalProductId): VerticalProductBundleDefinition {
 export function inferWorkspaceProfileFromEnabledFeatures(
   enabledFeatures: string[] | undefined,
 ): WorkspaceProfile | null {
+  const hasFeaturePrefix = (prefix: string) =>
+    (enabledFeatures ?? []).some((feature) =>
+      feature.trim().toLowerCase().startsWith(prefix),
+    );
+
   // 1. Scrap Metal (High Priority)
   if (
+    hasFeaturePrefix("scrap-metal.") ||
     hasTokenFeature(enabledFeatures, "scrap-metal.home") ||
     hasTokenFeature(enabledFeatures, "scrap-metal.purchases") ||
     hasTokenFeature(enabledFeatures, "scrap-metal.batches")
@@ -379,22 +385,26 @@ export function inferWorkspaceProfileFromEnabledFeatures(
   }
 
   // 2. Retail
-  if (hasTokenFeature(enabledFeatures, "retail.core") || hasTokenFeature(enabledFeatures, "portal.pos")) {
+  if (
+    hasFeaturePrefix("retail.") ||
+    hasTokenFeature(enabledFeatures, "retail.core") ||
+    hasTokenFeature(enabledFeatures, "portal.pos")
+  ) {
     return "RETAIL";
   }
 
   // 3. Schools
-  if (hasTokenFeature(enabledFeatures, "schools.core")) {
+  if (hasFeaturePrefix("schools.") || hasTokenFeature(enabledFeatures, "schools.core")) {
     return "SCHOOLS";
   }
 
   // 4. Autos
-  if (hasTokenFeature(enabledFeatures, "autos.core")) {
+  if (hasFeaturePrefix("autos.") || hasTokenFeature(enabledFeatures, "autos.core")) {
     return "AUTOS";
   }
 
   // 5. Gold Mine (Check last as it has generic positions often confused with General)
-  if (hasTokenFeature(enabledFeatures, "gold.home")) {
+  if (hasFeaturePrefix("gold.") || hasTokenFeature(enabledFeatures, "gold.home")) {
     return "GOLD_MINE";
   }
 

@@ -34,6 +34,7 @@ import {
 } from "@/lib/platform/vertical-defaults"
 import {
   getAllowedUserRoleOptionsForWorkspace,
+  type ManagedWorkspaceProfile,
   resolveWorkspaceProfileForEmployeeModule,
   resolveWorkspaceProfileForRoles,
 } from "@/lib/platform/vertical-roles"
@@ -103,6 +104,13 @@ type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
 type EmployeeModule = (typeof moduleOptions)[number]["value"]
 type PayoutPath = (typeof payoutPaths)[number]["value"]
+
+const MODULE_WORKSPACE_PROFILE_MAP: Partial<Record<EmployeeModule, ManagedWorkspaceProfile>> = {
+  GOLD: "GOLD_MINE",
+  SCRAP_METAL: "SCRAP_METAL",
+  CAR_SALES: "AUTOS",
+  RETAIL: "RETAIL",
+}
 
 type StepId =
   | "employment"
@@ -207,10 +215,10 @@ function getModuleLabel(module: EmployeeModule) {
 }
 
 function getPreferredPrimaryModule(
-  sessionWorkspaceProfile: string | null | undefined,
+  sessionWorkspaceProfile: ManagedWorkspaceProfile | null | undefined,
   availableModules: readonly (typeof moduleOptions)[number][],
 ): EmployeeModule {
-  const preferredByWorkspace: Partial<Record<string, EmployeeModule>> = {
+  const preferredByWorkspace: Partial<Record<ManagedWorkspaceProfile, EmployeeModule>> = {
     GOLD_MINE: "GOLD",
     SCRAP_METAL: "SCRAP_METAL",
     AUTOS: "CAR_SALES",
@@ -218,16 +226,23 @@ function getPreferredPrimaryModule(
     SCHOOLS: "HR",
   }
 
-  const preferredModule = preferredByWorkspace[sessionWorkspaceProfile ?? ""]
+  const preferredModule = sessionWorkspaceProfile
+    ? preferredByWorkspace[sessionWorkspaceProfile]
+    : undefined
   if (preferredModule && availableModules.some((module) => module.value === preferredModule)) {
     return preferredModule
+  }
+
+  const nonHrModules = availableModules.filter((module) => module.value !== "HR")
+  if (nonHrModules.length === 1) {
+    return nonHrModules[0].value
   }
 
   if (availableModules.some((module) => module.value === "HR")) {
     return "HR"
   }
 
-  return availableModules[0]?.value ?? "HR"
+  return nonHrModules[0]?.value ?? "HR"
 }
 
 function getPayoutPathLabel(path: PayoutPath) {
@@ -1122,7 +1137,8 @@ export function EmployeeWizard({
       moduleOptions.filter(
         (module) => {
           if (module.value === "HR") return true
-          if (module.value === "GOLD" && sessionWorkspaceProfile !== "GOLD_MINE") return false
+          const requiredProfile = MODULE_WORKSPACE_PROFILE_MAP[module.value]
+          if (requiredProfile && sessionWorkspaceProfile === requiredProfile) return true
           return enabledFeatures.some((feature) => module.featureMatcher(feature))
         },
       ),
