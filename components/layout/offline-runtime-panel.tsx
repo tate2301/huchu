@@ -93,10 +93,12 @@ function StatusChip({
   return (
     <div
       style={{ "--status-chip": `var(${colorVar})` } as CSSProperties}
-      className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1.5 text-xs font-medium text-[var(--status-chip)]"
+      className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--status-chip)_18%,var(--surface-base))] px-2.5 py-2 pr-3.5 text-sm font-semibold text-[var(--status-chip)]"
     >
-      <Icon className={cn("size-3.5", iconClassName)} />
-      {label}
+      <span className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--status-chip)] text-[var(--surface-base)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--status-chip)_18%,transparent)]">
+        <Icon className={cn("size-4", iconClassName)} />
+      </span>
+      <span className="leading-none">{label}</span>
     </div>
   );
 }

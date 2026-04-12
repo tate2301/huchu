@@ -7,7 +7,6 @@ import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
@@ -25,19 +24,21 @@ export function OfflineStatusIndicator() {
       <DialogTrigger
         style={{ "--status-chip": `var(${tone.colorVar})` } as CSSProperties}
         className={[
-          "group inline-flex h-8 items-center gap-2 overflow-hidden font-medium outline-none",
-          "bg-[color-mix(in_srgb,var(--status-chip)_16%,var(--surface-base))] text-[var(--status-chip)]",
+          "group inline-flex h-10 items-center gap-2 rounded-full px-2.5 pr-3.5 text-sm font-semibold outline-none",
+          "bg-[color-mix(in_srgb,var(--status-chip)_18%,var(--surface-base))] text-[var(--status-chip)]",
           "transition-[transform,background-color,border-color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
           "motion-safe:hover:-translate-y-px motion-safe:hover:scale-[1.015] motion-safe:active:scale-[0.985]",
-          "hover:bg-[color-mix(in_srgb,var(--status-chip)_20%,var(--surface-base))] focus-visible:ring-2 focus-visible:ring-ring/25",
+          "hover:bg-[color-mix(in_srgb,var(--status-chip)_22%,var(--surface-base))] focus-visible:ring-2 focus-visible:ring-ring/25",
         ].join(" ")}
       >
-        <StatusIcon
-          className={[
-            "size-3.5 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:scale-[1.12]",
-            tone.iconClassName ?? "",
-          ].join(" ")}
-        />
+        <span className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--status-chip)] text-[var(--surface-base)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--status-chip)_18%,transparent)]">
+          <StatusIcon
+            className={[
+              "size-4 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:scale-[1.08]",
+              tone.iconClassName ?? "",
+            ].join(" ")}
+          />
+        </span>
         <span
           className={[
             "transition-[transform,opacity] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
@@ -49,7 +50,7 @@ export function OfflineStatusIndicator() {
         {pendingCount > 0 ? (
           <span
             className={[
-              "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_10%,var(--surface-base))] px-1.5 py-0.5 font-mono tabular-nums text-[color-mix(in_srgb,var(--status-chip)_72%,var(--text-strong))]",
+              "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-[color-mix(in_srgb,var(--status-chip)_82%,var(--text-strong))]",
               "transition-[transform,opacity,background-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
               "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-200",
               hasUrgency ? "motion-safe:group-hover:scale-[1.06]" : "",
@@ -61,7 +62,7 @@ export function OfflineStatusIndicator() {
         {blockingCount > 0 ? (
           <span
             className={[
-              "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_10%,var(--surface-base))] px-1.5 py-0.5 font-mono tabular-nums text-[color-mix(in_srgb,var(--status-chip)_72%,var(--text-strong))]",
+              "rounded-full bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-[color-mix(in_srgb,var(--status-chip)_82%,var(--text-strong))]",
               "transition-[transform,opacity,background-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
               "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-200",
               "motion-safe:group-hover:scale-[1.06]",
