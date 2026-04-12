@@ -43,6 +43,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 type BalanceRecord = {
   id: string;
@@ -132,12 +133,61 @@ type BalanceHistoryPayload = {
   }>;
 };
 
+type StatusBadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline"
+  | "neutral"
+  | "brand"
+  | "info"
+  | "success"
+  | "warning"
+  | "danger";
+
 function formatMoney(value: number) {
   return `USD ${value.toFixed(2)}`;
 }
 
 function formatDate(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "-";
+}
+
+function formatWorkflowStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function getWorkflowBadgeVariant(status: string): StatusBadgeVariant {
+  const normalized = status.trim().toLowerCase();
+  if (
+    normalized.includes("cancel") ||
+    normalized.includes("reject") ||
+    normalized.includes("fail")
+  ) {
+    return "danger";
+  }
+  if (
+    normalized.includes("paid") ||
+    normalized.includes("settled") ||
+    normalized.includes("complete")
+  ) {
+    return "success";
+  }
+  if (
+    normalized.includes("approve") ||
+    normalized.includes("process") ||
+    normalized.includes("review")
+  ) {
+    return "info";
+  }
+  if (
+    normalized.includes("pending") ||
+    normalized.includes("draft") ||
+    normalized.includes("queue")
+  ) {
+    return "warning";
+  }
+  return "neutral";
 }
 
 const SETTLEMENT_TREND_SERIES: AdminChartSeries[] = [
@@ -313,7 +363,11 @@ export default function ScrapSettlementsPage() {
       {
         id: "status",
         header: "Workflow",
-        cell: ({ row }) => <Badge variant="secondary">{row.original.workflowStatus}</Badge>,
+        cell: ({ row }) => (
+          <Badge variant={getWorkflowBadgeVariant(row.original.workflowStatus)}>
+            {formatWorkflowStatus(row.original.workflowStatus)}
+          </Badge>
+        ),
         size: 120,
       },
       {
@@ -389,29 +443,29 @@ export default function ScrapSettlementsPage() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-[var(--status-pending-border)] bg-[var(--status-pending-bg)] p-4">
+          <div className="flex items-center gap-2 text-xs text-[var(--status-pending-text)]">
             <Wallet className="h-4 w-4" />
             Open balances
           </div>
           <div className="mt-2 text-xl font-semibold">{balances.length}</div>
         </div>
-        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4">
+          <div className="flex items-center gap-2 text-xs text-[var(--status-success-text)]">
             <ReceiptLong className="h-4 w-4" />
             Delivered value
           </div>
           <div className="mt-2 text-xl font-semibold">{formatMoney(totalDeliveredValue)}</div>
         </div>
-        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4">
+          <div className="flex items-center gap-2 text-xs text-[var(--status-warning-text)]">
             <Payments className="h-4 w-4" />
             Owed to us
           </div>
           <div className="mt-2 text-xl font-semibold">{formatMoney(totalPositiveBalance)}</div>
         </div>
-        <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4">
+          <div className="flex items-center gap-2 text-xs text-[var(--status-info-text)]">
             <History className="h-4 w-4" />
             We owe
           </div>
@@ -476,7 +530,12 @@ export default function ScrapSettlementsPage() {
               return (
                 <article
                   key={balance.id}
-                  className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                  className={cn(
+                    "rounded-2xl border p-4",
+                    owesUs
+                      ? "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)]"
+                      : "border-[var(--status-info-border)] bg-[var(--status-info-bg)]",
+                  )}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-1">
@@ -486,7 +545,7 @@ export default function ScrapSettlementsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={owesUs ? "outline" : "secondary"}>{amountLabel}</Badge>
+                      <Badge variant={owesUs ? "warning" : "info"}>{amountLabel}</Badge>
                       <Button type="button" size="sm" variant="outline" onClick={() => openAdjustmentModal(balance)}>
                         Update balance
                       </Button>
@@ -505,7 +564,16 @@ export default function ScrapSettlementsPage() {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">{amountLabel}</div>
-                        <div className="mt-1 font-semibold">{formatMoney(Math.abs(balance.balance))}</div>
+                        <div
+                          className={cn(
+                            "mt-1 font-semibold",
+                            owesUs
+                              ? "text-[var(--status-warning-text)]"
+                              : "text-[var(--status-info-text)]",
+                          )}
+                        >
+                          {formatMoney(Math.abs(balance.balance))}
+                        </div>
                         <div className="text-xs text-muted-foreground">{balance.historyCount} entries</div>
                       </div>
                       <div>
@@ -530,12 +598,16 @@ export default function ScrapSettlementsPage() {
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-3 text-xs">
-                          <span className="text-muted-foreground">{amountLabel}</span>
-                          <span className="font-mono text-foreground">{formatMoney(Math.abs(balance.balance))}</span>
+                          <span className={owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]"}>
+                            {amountLabel}
+                          </span>
+                          <span className={cn("font-mono", owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]")}>
+                            {formatMoney(Math.abs(balance.balance))}
+                          </span>
                         </div>
                         <div className="h-2 rounded-full bg-[var(--surface-muted)]">
                           <div
-                            className={owesUs ? "h-2 rounded-full bg-[var(--warning-500)]" : "h-2 rounded-full bg-[var(--success-500)]"}
+                            className={owesUs ? "h-2 rounded-full bg-[var(--status-warning-border)]" : "h-2 rounded-full bg-[var(--status-info-border)]"}
                             style={{ width: `${Math.min(balanceRatio * 100, 100)}%` }}
                           />
                         </div>
@@ -560,7 +632,11 @@ export default function ScrapSettlementsPage() {
                 <ScrapMobileCardHeader
                   title={batch.label}
                   subtitle={`${batch.items.length} people`}
-                  aside={<Badge variant="secondary">{batch.workflowStatus}</Badge>}
+                  aside={
+                    <Badge variant={getWorkflowBadgeVariant(batch.workflowStatus)}>
+                      {formatWorkflowStatus(batch.workflowStatus)}
+                    </Badge>
+                  }
                 />
                 <ScrapMobileMetricStrip
                   items={[
@@ -754,7 +830,14 @@ export default function ScrapSettlementsPage() {
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
                     <div className="text-xs text-muted-foreground">Balance</div>
-                    <div className="mt-2 text-xl font-semibold">
+                    <div
+                      className={cn(
+                        "mt-2 text-xl font-semibold",
+                        balanceHistoryQuery.data.balance.amount >= 0
+                          ? "text-[var(--status-warning-text)]"
+                          : "text-[var(--status-info-text)]",
+                      )}
+                    >
                       {formatMoney(Math.abs(balanceHistoryQuery.data.balance.amount))}
                     </div>
                   </div>
@@ -792,7 +875,16 @@ export default function ScrapSettlementsPage() {
                             <div className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</div>
                           </div>
                           <div className="space-y-1 text-left sm:text-right">
-                            <div className="font-mono font-semibold">{formatMoney(entry.amountDelta)}</div>
+                            <div
+                              className={cn(
+                                "font-mono font-semibold",
+                                entry.amountDelta >= 0
+                                  ? "text-[var(--status-success-text)]"
+                                  : "text-[var(--status-warning-text)]",
+                              )}
+                            >
+                              {formatMoney(entry.amountDelta)}
+                            </div>
                             <div className="text-xs text-muted-foreground">
                               After {formatMoney(entry.balanceAfter)}
                             </div>
@@ -854,9 +946,10 @@ export default function ScrapSettlementsPage() {
                           <div className="space-y-1 text-left sm:text-right">
                             <div className="font-mono font-semibold">{formatMoney(settlement.amount)}</div>
                             {settlement.payment ? (
-                              <div className="text-xs text-muted-foreground">
-                                Paid {formatMoney(settlement.payment.paidAmount)} - {settlement.payment.status}
-                              </div>
+                              <Badge variant={getWorkflowBadgeVariant(settlement.payment.status)}>
+                                Paid {formatMoney(settlement.payment.paidAmount)} -{" "}
+                                {formatWorkflowStatus(settlement.payment.status)}
+                              </Badge>
                             ) : (
                               <div className="text-xs text-muted-foreground">Not paid yet</div>
                             )}
