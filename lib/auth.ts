@@ -563,7 +563,12 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Account is inactive");
         }
 
-        if (hostContext.portalCanonicalPrefix === "pos" && !isCashierRole(user.role)) {
+        // TODO: Restore cashier only limits
+        if (
+          hostContext.portalCanonicalPrefix === "pos" /*   &&
+          !isCashierRole(user.role)
+          */
+        ) {
           await logAuthEvent({
             eventType: "auth.login.failed",
             actor: email,
