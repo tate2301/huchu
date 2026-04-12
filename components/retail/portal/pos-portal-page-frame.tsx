@@ -2,7 +2,6 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { OfflineRuntimeBanner } from "@/components/layout/offline-runtime-banner";
 import { OfflineStatusIndicator } from "@/components/layout/offline-status-indicator";
 import { PageHeading } from "@/components/layout/page-heading";
 import {
@@ -160,7 +159,6 @@ export async function PosPortalPageFrame({
                 </div>
               </div>
             </header>
-            <OfflineRuntimeBanner />
             <main className="min-w-0 px-4 pb-8 pt-5 md:pb-10 md:pt-6">
               {children}
             </main>

@@ -4,7 +4,6 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 
 import { Navbar } from "@/components/layout/navbar";
-import { OfflineRuntimeBanner } from "@/components/layout/offline-runtime-banner";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { PageActionsProvider } from "@/components/layout/page-actions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -30,7 +29,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <SidebarInset className="flex min-h-screen flex-col bg-surface-base m-2 rounded-xl shadow-sm overflow-clip border">
           <Navbar />
-          <OfflineRuntimeBanner />
           <main
             className={
               isCctvRoute

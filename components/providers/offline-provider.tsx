@@ -242,8 +242,12 @@ function getStatusLabel(
   if (status === "OFFLINE") return "Offline";
   if (status === "PREPARING") {
     if (!bootstrapProgress || bootstrapProgress.totalSteps === 0) return "Preparing";
+    const clampedCompleted = Math.min(
+      bootstrapProgress.completedSteps,
+      bootstrapProgress.totalSteps,
+    );
     return `Preparing ${Math.round(
-      (bootstrapProgress.completedSteps / bootstrapProgress.totalSteps) * 100,
+      (clampedCompleted / bootstrapProgress.totalSteps) * 100,
     )}%`;
   }
   if (status === "UPDATE_READY") return "Update ready";
@@ -308,13 +312,14 @@ function mergeModulePreparedQueries(
 }
 
 function recalculateBootstrapProgress(progress: OfflineBootstrapProgress) {
-  const completedSteps = progress.modules.reduce(
+  const rawCompletedSteps = progress.modules.reduce(
     (sum, modulePreparation) =>
       sum +
       modulePreparation.preparedRoutes.length +
       modulePreparation.preparedQueryKeys.length,
     0,
   );
+  const completedSteps = Math.min(rawCompletedSteps, progress.totalSteps);
 
   return {
     ...progress,
@@ -1006,6 +1011,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       typeof window === "undefined" ||
       isOffline ||
       !navigator.onLine ||
+      lifecycleState === "warming" ||
+      Boolean(bootstrapRunRef.current) ||
       isPublicPathname(pathname) ||
       sessionStatus !== "authenticated" ||
       !effectiveTenantKey ||
@@ -1034,6 +1041,25 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (routeDefinitions.length === 0) {
         return;
       }
+      const currentProgress = createOfflineBootstrapProgress(
+        effectiveTenantKey,
+        enabledModules,
+        bootstrapProgress,
+      );
+      const currentModulePreparation = currentProgress.modules.find(
+        (modulePreparation) =>
+          modulePreparation.moduleId === matchedModule.moduleId,
+      );
+      const routeAlreadyPrepared = routeDefinitions.every((routeDefinition) =>
+        currentModulePreparation?.preparedRoutes.includes(routeDefinition.canonicalRoute),
+      );
+      const queriesAlreadyPrepared = currentModulePreparation
+        ? currentModulePreparation.preparedQueryKeys.length >=
+          currentModulePreparation.totalQueries
+        : false;
+      if (routeAlreadyPrepared && queriesAlreadyPrepared) {
+        return;
+      }
 
       const [{ preparedCanonicalRoutes, preparedPathnames }, preparedQueryKeys] =
         await Promise.all([
@@ -1051,31 +1077,30 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      const currentProgress = createOfflineBootstrapProgress(
+      const refreshedProgress = createOfflineBootstrapProgress(
         effectiveTenantKey,
         enabledModules,
         bootstrapProgress,
       );
-      const currentModulePreparation = matchedModule
-        ? currentProgress.modules.find(
-            (modulePreparation) =>
-              modulePreparation.moduleId === matchedModule.moduleId,
-          ) ?? null
-        : null;
+      const refreshedModulePreparation =
+        refreshedProgress.modules.find(
+          (modulePreparation) =>
+            modulePreparation.moduleId === matchedModule.moduleId,
+        ) ?? null;
       const hasNewPreparedPaths = preparedPathnames.some(
-        (candidate) => !currentProgress.preparedRoutes.includes(candidate),
+        (candidate) => !refreshedProgress.preparedRoutes.includes(candidate),
       );
       const hasNewPreparedRoute =
-        currentModulePreparation !== null &&
+        refreshedModulePreparation !== null &&
         preparedCanonicalRoutes.some(
           (candidate) =>
-            !currentModulePreparation.preparedRoutes.includes(candidate),
+            !refreshedModulePreparation.preparedRoutes.includes(candidate),
         );
       const hasNewPreparedQuery =
-        currentModulePreparation !== null &&
+        refreshedModulePreparation !== null &&
         preparedQueryKeys.some(
           (candidate) =>
-            !currentModulePreparation.preparedQueryKeys.includes(candidate),
+            !refreshedModulePreparation.preparedQueryKeys.includes(candidate),
         );
 
       if (!hasNewPreparedPaths && !hasNewPreparedRoute && !hasNewPreparedQuery) {
@@ -1083,12 +1108,12 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       }
 
       const nextProgress = recalculateBootstrapProgress({
-        ...currentProgress,
+        ...refreshedProgress,
         preparedRoutes: uniqueStrings([
-          ...currentProgress.preparedRoutes,
+          ...refreshedProgress.preparedRoutes,
           ...preparedPathnames,
         ]),
-        modules: currentProgress.modules.map((modulePreparation) => {
+        modules: refreshedProgress.modules.map((modulePreparation) => {
           if (!matchedModule || modulePreparation.moduleId !== matchedModule.moduleId) {
             return modulePreparation;
           }
@@ -1113,6 +1138,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     hydratedTenantKey,
     hydrationCompleted,
     isOffline,
+    lifecycleState,
     pathname,
     queryClient,
     sessionStatus,

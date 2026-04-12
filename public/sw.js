@@ -12,31 +12,77 @@ const PRECACHE_URLS = [
   "/bold.37baf660.woff2",
 ];
 
+const NEXT_ASSET_URL_PATTERN = /(?:src|href)=["']([^"']*\/_next\/static\/[^"']+\.(?:js|css|woff2?))["']/g;
+
+function normalizeSameOriginUrl(value) {
+  if (!value || typeof value !== "string") return null;
+  try {
+    const url = new URL(value, self.location.origin);
+    if (url.origin !== self.location.origin) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractNextStaticAssetsFromHtml(html) {
+  if (!html || typeof html !== "string") return [];
+  const assets = new Set();
+  let match = NEXT_ASSET_URL_PATTERN.exec(html);
+  while (match) {
+    const normalized = normalizeSameOriginUrl(match[1]);
+    if (normalized) {
+      assets.add(normalized);
+    }
+    match = NEXT_ASSET_URL_PATTERN.exec(html);
+  }
+  NEXT_ASSET_URL_PATTERN.lastIndex = 0;
+  return [...assets];
+}
+
 async function warmCacheEntries(message) {
-  const routes = Array.isArray(message.routes) ? message.routes : [];
-  const assets = Array.isArray(message.assets) ? message.assets : [];
+  const routes = Array.isArray(message.routes)
+    ? message.routes
+        .map((value) => normalizeSameOriginUrl(value))
+        .filter(Boolean)
+    : [];
+  const assets = Array.isArray(message.assets)
+    ? message.assets
+        .map((value) => normalizeSameOriginUrl(value))
+        .filter(Boolean)
+    : [];
 
   const [pageCache, staticCache] = await Promise.all([
     caches.open(PAGE_CACHE),
     caches.open(STATIC_CACHE),
   ]);
 
-  for (const route of routes) {
+  const discoveredAssets = new Set();
+
+  for (const routeUrl of routes) {
     try {
-      const response = await fetch(route, { credentials: "include" });
+      const response = await fetch(routeUrl, { credentials: "include" });
       if (response && response.ok) {
-        await pageCache.put(route, response.clone());
+        await pageCache.put(routeUrl, response.clone());
+        const contentType = response.headers.get("content-type") ?? "";
+        if (contentType.includes("text/html")) {
+          const html = await response.clone().text();
+          for (const assetUrl of extractNextStaticAssetsFromHtml(html)) {
+            discoveredAssets.add(assetUrl);
+          }
+        }
       }
     } catch {
       // Ignore warmup failures.
     }
   }
 
-  for (const asset of assets) {
+  const allAssets = [...new Set([...assets, ...discoveredAssets])];
+  for (const assetUrl of allAssets) {
     try {
-      const response = await fetch(asset, { credentials: "include" });
+      const response = await fetch(assetUrl, { credentials: "omit" });
       if (response && response.ok) {
-        await staticCache.put(asset, response.clone());
+        await staticCache.put(assetUrl, response.clone());
       }
     } catch {
       // Ignore warmup failures.
@@ -160,14 +206,20 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".woff2")
   ) {
     event.respondWith(
-      caches.match(request).then(async (cached) => {
+      caches.match(request, { ignoreSearch: true }).then(async (cached) => {
         if (cached) return cached;
-        const response = await fetch(request);
-        if (response && response.ok) {
-          const cache = await caches.open(STATIC_CACHE);
-          cache.put(request, response.clone());
+        try {
+          const response = await fetch(request);
+          if (response && response.ok) {
+            const cache = await caches.open(STATIC_CACHE);
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch {
+          const fallback = await caches.match(request, { ignoreSearch: true });
+          if (fallback) return fallback;
+          throw new Error("Static asset unavailable while offline.");
         }
-        return response;
       }),
     );
   }

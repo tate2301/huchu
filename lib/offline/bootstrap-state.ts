@@ -44,12 +44,17 @@ function createModulePreparation(
 ): OfflineModulePreparation {
   const warmupRoutes = getOfflineRouteDefinitions(moduleDefinition);
   const canonicalRoutes = warmupRoutes.map((route) => route.canonicalRoute);
+  const preloadQueryKeys = moduleDefinition.preloadQueries.map((query) => query.key);
   const preparedRoutes = unique(
     (existing?.preparedRoutes ?? []).filter((route) =>
       canonicalRoutes.includes(route),
     ),
   );
-  const preparedQueryKeys = unique(existing?.preparedQueryKeys ?? []);
+  const preparedQueryKeys = unique(
+    (existing?.preparedQueryKeys ?? []).filter((queryKey) =>
+      preloadQueryKeys.includes(queryKey),
+    ),
+  );
   const totalRoutes = warmupRoutes.length;
   const totalQueries = moduleDefinition.preloadQueries.length;
   const isPrepared =
