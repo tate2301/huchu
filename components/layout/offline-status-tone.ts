@@ -1,16 +1,12 @@
 import {
   AlertTriangle,
-  Clock,
   Download,
   Loader2,
   RefreshCcw,
   ShieldCheck,
   type LucideIcon,
 } from "@/lib/icons";
-import type {
-  OfflineModulePreparationState,
-  OfflineStatus,
-} from "@/lib/offline/types";
+import type { OfflineStatus } from "@/lib/offline/types";
 
 type StatusTone = {
   colorVar: string;
@@ -69,30 +65,5 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
     colorVar: "--status-success-text",
     icon: ShieldCheck,
     text: "Ready",
-  };
-}
-
-export function getOfflineModuleStateTone(
-  state: OfflineModulePreparationState,
-): StatusTone {
-  if (state === "PREPARED") {
-    return {
-      colorVar: "--status-success-text",
-      icon: ShieldCheck,
-      text: "Prepared",
-    };
-  }
-  if (state === "PREPARING") {
-    return {
-      colorVar: "--action-primary-bg",
-      icon: Loader2,
-      text: "Preparing",
-      iconClassName: "motion-safe:animate-spin",
-    };
-  }
-  return {
-    colorVar: "--status-warning-text",
-    icon: Clock,
-    text: "Not ready",
   };
 }

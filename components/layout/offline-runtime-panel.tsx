@@ -2,19 +2,19 @@
 
 import { type CSSProperties } from "react";
 
+import {
+  DialogClose,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { getOfflineModuleStateTone, getOfflineStatusTone } from "@/components/layout/offline-status-tone";
+import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import {
-  AlertTriangle,
-  Clock,
-  Download,
-  Loader2,
-  RefreshCcw,
-  ShieldCheck,
-} from "@/lib/icons";
+import { Loader2 } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 
 function formatTimestamp(value: string | null) {
   if (!value) return "Not yet";
@@ -23,7 +23,37 @@ function formatTimestamp(value: string | null) {
   return date.toLocaleString();
 }
 
-function MetricBlock({
+function getStatusMessage(
+  status: ReturnType<typeof useOfflineRuntime>["status"],
+  pendingCount: number,
+  blockingCount: number,
+) {
+  if (status === "OFFLINE") {
+    return "This device is offline. Saved work will stay here until the connection comes back.";
+  }
+  if (status === "PREPARING") {
+    return "The device is still getting its offline data ready. Keep the app open until setup finishes.";
+  }
+  if (status === "SYNCING") {
+    return pendingCount > 0
+      ? `Sending ${pendingCount} queued change${pendingCount === 1 ? "" : "s"} now.`
+      : "Sending queued changes now.";
+  }
+  if (status === "RECONNECTING") {
+    return "The connection is returning. Queued work will resume once the link is stable.";
+  }
+  if (status === "ATTENTION") {
+    return blockingCount > 0
+      ? `${blockingCount} queued item${blockingCount === 1 ? "" : "s"} need review before they can sync.`
+      : "A few queued changes need review before they can sync.";
+  }
+  if (status === "UPDATE_READY") {
+    return "This device is ready to sync. A newer app version can be applied when you have a safe moment.";
+  }
+  return "This device is ready for normal offline work.";
+}
+
+function SummaryItem({
   label,
   value,
   mono = false,
@@ -33,18 +63,40 @@ function MetricBlock({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_76%,white)] px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-subtle)]">
         {label}
-      </div>
-      <div
-        className={[
-          "mt-1 text-sm font-medium text-foreground",
-          mono ? "font-mono tabular-nums" : "",
-        ].join(" ")}
+      </span>
+      <span
+        className={cn(
+          "text-sm font-medium text-[var(--text-strong)]",
+          mono && "font-mono tabular-nums",
+        )}
       >
         {value}
-      </div>
+      </span>
+    </div>
+  );
+}
+
+function StatusChip({
+  colorVar,
+  icon: Icon,
+  label,
+  iconClassName,
+}: {
+  colorVar: string;
+  icon: ReturnType<typeof getOfflineStatusTone>["icon"];
+  label: string;
+  iconClassName?: string;
+}) {
+  return (
+    <div
+      style={{ "--status-chip": `var(${colorVar})` } as CSSProperties}
+      className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1.5 text-xs font-medium text-[var(--status-chip)]"
+    >
+      <Icon className={cn("size-3.5", iconClassName)} />
+      {label}
     </div>
   );
 }
@@ -52,7 +104,6 @@ function MetricBlock({
 export function OfflineRuntimePanel() {
   const {
     status,
-    statusLabel,
     canInstallApp,
     pendingCount,
     blockingCount,
@@ -62,234 +113,181 @@ export function OfflineRuntimePanel() {
     updateState,
     syncNow,
     applyUpdate,
-    dismissUpdate,
     installApp,
   } = useOfflineRuntime();
-  const statusTone = getOfflineStatusTone(status);
-  const StatusIcon = statusTone.icon;
 
-  const bootstrapPercent =
+  const statusTone = getOfflineStatusTone(status);
+  const readyModules = preparedModules.filter(
+    (modulePreparation) => modulePreparation.state === "PREPARED",
+  ).length;
+  const unreadyModules = preparedModules.filter(
+    (modulePreparation) => modulePreparation.state !== "PREPARED",
+  );
+  const bootstrapProgressValue =
     bootstrapProgress && bootstrapProgress.totalSteps > 0
       ? Math.round(
           (bootstrapProgress.completedSteps / bootstrapProgress.totalSteps) * 100,
         )
       : 0;
+  const stillPreparingLabels = unreadyModules
+    .slice(0, 3)
+    .map((modulePreparation) => modulePreparation.primaryFlowLabel);
+  const showReadiness =
+    preparedModules.length > 0 &&
+    (bootstrapProgress !== null || unreadyModules.length > 0);
+  const showUpdateCard =
+    updateState === "ready" ||
+    updateState === "downloading" ||
+    updateState === "activating";
+  const showInstallCard = canInstallApp;
 
   return (
-    <div className="flex h-full flex-col bg-[color-mix(in_srgb,var(--surface-base)_94%,white)]">
-      <div className="px-6 pb-5 pt-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_86%,white)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                <RefreshCcw className="size-3" />
-                Sync and offline
-              </div>
-              <h2 className="mt-3 text-[1.625rem] font-semibold tracking-[-0.02em] text-foreground">
-                {statusLabel}
-              </h2>
-              <p className="mt-1 max-w-[34ch] text-sm leading-6 text-[var(--text-muted)]">
-                Prepared routes stay available on this device, and queued work can
-                replay quietly in the background when the connection settles.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div
-                style={{ "--status-chip": `var(${statusTone.colorVar})` } as CSSProperties}
-                className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1.5 text-xs font-medium text-[var(--status-chip)]"
-              >
-                <StatusIcon className={["size-3.5", statusTone.iconClassName ?? ""].join(" ")} />
-                {statusTone.text}
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant={pendingCount > 0 || blockingCount > 0 ? "default" : "outline"}
-                onClick={() => void syncNow({ force: true })}
-              >
-                <RefreshCcw className="size-4" />
-                Sync now
-              </Button>
-              {updateState === "ready" ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => void applyUpdate()}>
-                  <Download className="size-4" />
-                  Refresh
-                </Button>
-              ) : null}
-              {canInstallApp ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => void installApp()}>
-                  <Download className="size-4" />
-                  Install app
-                </Button>
-              ) : null}
-            </div>
+    <div className="flex flex-col">
+      <DialogHeader className="gap-3 border-b border-[color-mix(in_srgb,var(--border-default)_72%,transparent)] px-6 py-6 pr-14">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <DialogTitle className="text-[1.35rem] font-semibold tracking-[-0.025em] text-[var(--text-strong)]">
+              Device sync
+            </DialogTitle>
+            <p className="mt-2 max-w-[52ch] text-sm leading-6 text-[var(--text-muted)]">
+              {getStatusMessage(status, pendingCount, blockingCount)}
+            </p>
           </div>
+          <StatusChip
+            colorVar={statusTone.colorVar}
+            icon={statusTone.icon}
+            iconClassName={statusTone.iconClassName}
+            label={statusTone.text}
+          />
+        </div>
+      </DialogHeader>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MetricBlock label="Pending sync" value={pendingCount} mono />
-            <MetricBlock label="Blocking items" value={blockingCount} mono />
-            <MetricBlock label="Last sync" value={formatTimestamp(lastSyncedAt)} mono />
+      <div className="flex flex-col gap-5 px-6 py-5">
+        <div className="rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)] px-4 py-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SummaryItem label="Queued changes" value={pendingCount} mono />
+            <SummaryItem label="Need review" value={blockingCount} mono />
+            <SummaryItem label="Last synced" value={formatTimestamp(lastSyncedAt)} mono />
           </div>
         </div>
-      </div>
 
-      {bootstrapProgress ? (
-        <>
-          <Separator />
-          <section className="px-6 py-5">
+        {showReadiness ? (
+          <div className="rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_66%,white)] px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  Prepared workspace
-                </div>
-                <div className="mt-2 text-sm font-medium text-foreground">
-                  {bootstrapProgress.currentStepLabel ?? "Offline packs ready"}
-                </div>
+                <h3 className="text-sm font-medium text-[var(--text-strong)]">
+                  Offline readiness
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                  {unreadyModules.length > 0
+                    ? `Ready on ${readyModules} of ${preparedModules.length} enabled flow${
+                        preparedModules.length === 1 ? "" : "s"
+                      }.`
+                    : `All ${preparedModules.length} enabled flow${
+                        preparedModules.length === 1 ? " is" : "s are"
+                      } ready on this device.`}
+                </p>
               </div>
-              <div className="rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] px-3 py-1 text-xs font-mono font-medium tabular-nums text-[var(--text-muted)]">
-                {bootstrapPercent}%
-              </div>
-            </div>
-            <div className="mt-4 rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_72%,white)] px-4 py-4">
-              <Progress
-                value={bootstrapProgress.completedSteps}
-                max={Math.max(bootstrapProgress.totalSteps, 1)}
-                className="h-2 border-0 bg-[color-mix(in_srgb,var(--surface-base)_78%,white)] shadow-none"
-              />
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
-                <span className="font-mono tabular-nums">
-                  {bootstrapProgress.completedSteps} of {bootstrapProgress.totalSteps} warmup steps
+              {bootstrapProgress ? (
+                <span className="rounded-full bg-[color-mix(in_srgb,var(--surface-base)_72%,white)] px-3 py-1 text-xs font-mono tabular-nums text-[var(--text-muted)]">
+                  {bootstrapProgressValue}%
                 </span>
-                <span className="font-mono tabular-nums">
-                  {formatTimestamp(bootstrapProgress.lastPreparedAt ?? null)}
-                </span>
-              </div>
-            </div>
-          </section>
-        </>
-      ) : null}
-
-      <Separator />
-      <section className="px-6 py-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            Primary flows
-          </div>
-          <div className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
-            {preparedModules.length} modules
-          </div>
-        </div>
-        <div className="mt-4 overflow-hidden rounded-[20px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)]">
-          {preparedModules.map((modulePreparation, index) => {
-            const moduleTone = getOfflineModuleStateTone(modulePreparation.state);
-            const ModuleIcon = moduleTone.icon;
-
-            return (
-              <div key={modulePreparation.moduleId}>
-                {index > 0 ? <Separator className="bg-[color-mix(in_srgb,var(--border-default)_72%,transparent)]" /> : null}
-                <div className="flex items-start justify-between gap-4 px-4 py-4">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">
-                      {modulePreparation.primaryFlowLabel}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--text-muted)]">
-                      <span className="font-mono tabular-nums">
-                        {modulePreparation.preparedRoutes.length}/{modulePreparation.totalRoutes}
-                      </span>{" "}
-                      routes
-                      {" · "}
-                      <span className="font-mono tabular-nums">
-                        {modulePreparation.preparedQueryKeys.length}/{modulePreparation.totalQueries}
-                      </span>{" "}
-                      data packs
-                    </div>
-                  </div>
-                  <div
-                    style={{ "--status-chip": `var(${moduleTone.colorVar})` } as CSSProperties}
-                    className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1 text-xs font-medium text-[var(--status-chip)]"
-                  >
-                    <ModuleIcon className={["size-3.5", moduleTone.iconClassName ?? ""].join(" ")} />
-                    {moduleTone.text}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {(updateState === "ready" || updateState === "downloading" || updateState === "activating") ? (
-        <>
-          <Separator />
-          <section className="px-6 py-5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-              App updates
-            </div>
-            <div className="mt-4 rounded-[20px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)] px-4 py-4">
-              <div className="flex items-start gap-3">
-                {updateState === "ready" ? (
-                  <Download className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
-                ) : updateState === "activating" ? (
-                  <Loader2 className="mt-0.5 size-4 animate-spin text-[var(--action-primary-bg)]" />
-                ) : (
-                  <Clock className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-foreground">
-                    {updateState === "ready"
-                      ? "A new version is ready on this device."
-                      : updateState === "activating"
-                        ? "Applying the downloaded update."
-                        : "Checking and downloading app updates."}
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-                    {updateState === "ready"
-                      ? "Refresh when you have a safe moment. Your offline queue stays intact."
-                      : updateState === "activating"
-                        ? "The app will reload into the new version once activation completes."
-                        : "The current session stays usable while the new version prepares in the background."}
-                  </p>
-                </div>
-              </div>
-              {updateState === "ready" ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" onClick={() => void applyUpdate()}>
-                    <Download className="size-4" />
-                    Refresh now
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={dismissUpdate}>
-                    Later
-                  </Button>
-                </div>
               ) : null}
             </div>
-          </section>
-        </>
-      ) : null}
-
-      <div className="mt-auto border-t border-[color-mix(in_srgb,var(--border-default)_72%,transparent)] px-6 py-5">
-        <div className="flex items-start gap-3 rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_74%,white)] px-4 py-4 text-sm text-[var(--text-muted)]">
-          {blockingCount > 0 ? (
-            <AlertTriangle className="mt-0.5 size-4 text-[var(--status-warning-text)]" />
-          ) : pendingCount > 0 ? (
-            <Clock className="mt-0.5 size-4 text-[var(--action-primary-bg)]" />
-          ) : (
-            <ShieldCheck className="mt-0.5 size-4 text-[var(--status-success-text)]" />
-          )}
-          <div className="min-w-0">
-            <div className="font-medium text-foreground">
-              {blockingCount > 0
-                ? "A few queued changes need operator attention."
-                : pendingCount > 0
-                  ? "Queued work will replay automatically when the link is stable."
-                  : "This device is ready for normal offline-first operation."}
-            </div>
-            <div className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              Prepared flows stay available offline after a successful online bootstrap.
-            </div>
+            {bootstrapProgress ? (
+              <div className="mt-4">
+                <Progress
+                  value={bootstrapProgress.completedSteps}
+                  max={Math.max(bootstrapProgress.totalSteps, 1)}
+                  className="h-2 border-0 bg-[color-mix(in_srgb,var(--surface-base)_78%,white)] shadow-none"
+                />
+                <p className="mt-2 text-xs text-[var(--text-muted)]">
+                  {bootstrapProgress.currentStepLabel ?? "Preparing offline data."}
+                </p>
+              </div>
+            ) : null}
+            {stillPreparingLabels.length > 0 ? (
+              <p className="mt-3 text-xs text-[var(--text-muted)]">
+                Still preparing: {stillPreparingLabels.join(", ")}
+                {unreadyModules.length > stillPreparingLabels.length ? ", and more." : "."}
+              </p>
+            ) : null}
           </div>
-        </div>
+        ) : null}
+
+        {showUpdateCard || showInstallCard ? (
+          <div className="rounded-[18px] bg-[color-mix(in_srgb,var(--surface-muted)_66%,white)] px-4 py-4">
+            {showUpdateCard ? (
+              <div className={cn("flex items-start justify-between gap-3", showInstallCard && "pb-4")}>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-medium text-[var(--text-strong)]">
+                    App update
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                    {updateState === "ready"
+                      ? "A newer version is ready. Refresh when the operator reaches a safe stopping point."
+                      : updateState === "activating"
+                        ? "Applying the downloaded update now."
+                        : "Downloading the latest version in the background."}
+                  </p>
+                </div>
+                {updateState === "ready" ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => void applyUpdate()}>
+                    Apply update
+                  </Button>
+                ) : (
+                  <StatusChip
+                    colorVar="--action-primary-bg"
+                    icon={Loader2}
+                    label={updateState === "activating" ? "Updating" : "Downloading"}
+                    iconClassName="motion-safe:animate-spin"
+                  />
+                )}
+              </div>
+            ) : null}
+
+            {showUpdateCard && showInstallCard ? (
+              <Separator className="bg-[color-mix(in_srgb,var(--border-default)_70%,transparent)]" />
+            ) : null}
+
+            {showInstallCard ? (
+              <div className={cn("flex items-start justify-between gap-3", showUpdateCard && "pt-4")}>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-medium text-[var(--text-strong)]">
+                    Install on this device
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                    Install the app for quicker launch and better offline reliability on this device.
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={() => void installApp()}>
+                  Install app
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+
+      <DialogFooter className="border-t border-[color-mix(in_srgb,var(--border-default)_72%,transparent)] px-6 py-4 sm:items-center sm:justify-between">
+        <p className="text-xs text-[var(--text-muted)]">
+          Queued changes stay on the device until they can sync safely.
+        </p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          <DialogClose className="inline-flex h-9 items-center justify-center rounded-[var(--button-radius)] px-3 text-sm font-semibold text-[var(--text-muted)] transition-[background-color,color] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-default)] hover:bg-[var(--button-ghost-hover-bg)] hover:text-[var(--text-strong)] focus:outline-none focus:ring-2 focus:ring-ring/20">
+            Close
+          </DialogClose>
+          {status !== "SYNCING" ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void syncNow({ force: true })}
+            >
+              Sync now
+            </Button>
+          ) : null}
+        </div>
+      </DialogFooter>
     </div>
   );
 }
