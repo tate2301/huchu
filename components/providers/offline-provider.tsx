@@ -656,13 +656,17 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (bootstrapRunRef.current && !options?.force) {
         return bootstrapRunRef.current;
       }
+      const activeTenantKey = effectiveTenantKey;
+      if (!activeTenantKey) {
+        return;
+      }
 
       const run = (async () => {
         setLifecycleState((current) =>
           transitionOfflineLifecycle(current, "warming"),
         );
         const seedProgress = createOfflineBootstrapProgress(
-          effectiveTenantKey,
+          activeTenantKey,
           enabledModules,
           bootstrapProgress,
         );
