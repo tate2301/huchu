@@ -3,8 +3,41 @@ export const SUBSCRIPTION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "CANCELE
 export const ADMIN_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
 export const ADMIN_ROLES = ["SUPERADMIN", "MANAGER"] as const;
 export const USER_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
-export const USER_ROLES = ["SUPERADMIN", "MANAGER", "CLERK"] as const;
-export const USER_MANAGEMENT_ROLES = ["MANAGER", "CLERK"] as const;
+export const USER_ROLES = [
+  "SUPERADMIN",
+  "MANAGER",
+  "CLERK",
+  "OPERATOR",
+  "SCHOOL_ADMIN",
+  "REGISTRAR",
+  "BURSAR",
+  "TEACHER",
+  "PARENT",
+  "STUDENT",
+  "AUTO_MANAGER",
+  "SALES_EXEC",
+  "FINANCE_OFFICER",
+  "SHOP_MANAGER",
+  "CASHIER",
+  "STOCK_CLERK",
+] as const;
+export const USER_MANAGEMENT_ROLES = [
+  "MANAGER",
+  "CLERK",
+  "OPERATOR",
+  "SCHOOL_ADMIN",
+  "REGISTRAR",
+  "BURSAR",
+  "TEACHER",
+  "PARENT",
+  "STUDENT",
+  "AUTO_MANAGER",
+  "SALES_EXEC",
+  "FINANCE_OFFICER",
+  "SHOP_MANAGER",
+  "CASHIER",
+  "STOCK_CLERK",
+] as const;
 export const SITE_MEASUREMENT_UNITS = [
   "units",
   "assets",
@@ -523,7 +556,7 @@ export interface UserCreateResult {
   companyName: string;
   email: string;
   name: string;
-  role: UserManagementRole;
+  role: UserRole;
   isActive: boolean;
   createdAt: string | null;
   auditEventId: string;
@@ -556,7 +589,7 @@ export interface UserRoleChangeResult {
   email: string;
   name: string;
   beforeRole: UserRole;
-  afterRole: UserManagementRole;
+  afterRole: UserRole;
   isActive: boolean;
   companyId: string;
   companyName: string;
@@ -921,7 +954,7 @@ export interface CreateUserInput {
   email: string;
   name: string;
   password: string;
-  role: UserManagementRole | string;
+  role: UserRole | string;
   actor: string;
 }
 
@@ -940,7 +973,7 @@ export interface ResetUserPasswordInput {
 
 export interface ChangeUserRoleInput {
   userId: string;
-  role: UserManagementRole | string;
+  role: UserRole | string;
   actor: string;
   reason?: string;
 }

@@ -12,7 +12,6 @@ import {
   type ResetUserPasswordInput,
   type SetUserStatusInput,
   type UserCreateResult,
-  type UserManagementRole,
   type UserResetPasswordResult,
   type UserRole,
   type UserRoleChangeResult,
@@ -22,8 +21,8 @@ import {
 import { appendAuditEvent } from "./audit-ledger";
 import { formatDate, normalizeEmail, normalizeEnum, normalizePasswordInput } from "./helpers";
 
-function normalizeManagedRole(role: string): UserManagementRole {
-  return normalizeEnum(role, "role", USER_MANAGEMENT_ROLES);
+function normalizeAssignableRole(role: string): UserRole {
+  return normalizeEnum(role, "role", USER_ROLES);
 }
 
 function assertManagedLifecycleTarget(user: { role: string; email: string }) {
@@ -137,7 +136,7 @@ export async function createUser(input: CreateUserInput): Promise<UserCreateResu
   const name = String(input.name || "").trim();
   if (!name) throw new Error("User name cannot be empty.");
   const normalizedPassword = normalizePasswordInput(input.password, "Password");
-  const role = normalizeManagedRole(input.role || "CLERK");
+  const role = normalizeAssignableRole(input.role || "CLERK");
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) throw new Error(`User already exists for email: ${email}`);
@@ -179,7 +178,7 @@ export async function createUser(input: CreateUserInput): Promise<UserCreateResu
     companyName: company.name,
     email: user.email,
     name: user.name,
-    role: user.role as UserManagementRole,
+    role: user.role as UserRole,
     isActive: user.isActive,
     createdAt: formatDate(user.createdAt),
     auditEventId: audit.id,
@@ -291,7 +290,7 @@ export async function resetUserPassword(input: ResetUserPasswordInput): Promise<
 }
 
 export async function changeUserRole(input: ChangeUserRoleInput): Promise<UserRoleChangeResult> {
-  const afterRole = normalizeManagedRole(input.role);
+  const afterRole = normalizeAssignableRole(input.role);
   const before = await prisma.user.findUnique({
     where: { id: input.userId },
     select: {

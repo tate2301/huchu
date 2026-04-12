@@ -7,6 +7,8 @@ import type { SearchableOption } from "@/app/gold/types";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";
 import { executeOperation } from "@/components/admin-portal/api";
+import { ROLES, type UserRole } from "@/lib/roles";
+import { USER_ROLE_LABELS } from "@/lib/platform/vertical-role-registry";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -61,6 +63,21 @@ function buildCompanyOptions(companies: CompanyWorkspace[]): SearchableOption[] 
     badgeVariant: company.status === "ACTIVE" ? "secondary" : "outline",
   }));
 }
+
+function toRoleLabel(role: UserRole): string {
+  const configured = USER_ROLE_LABELS[role];
+  if (configured) return configured;
+  return role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+const USER_ROLE_OPTIONS = ROLES.map((role) => ({
+  value: role,
+  label: toRoleLabel(role),
+}));
 
 function ConfirmDialog({
   title,
@@ -254,7 +271,7 @@ export function CreateUserDialog({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("CLERK");
+  const [role, setRole] = useState<UserRole>("CLERK");
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -320,11 +337,14 @@ export function CreateUserDialog({
               </div>
               <div className="space-y-1">
                 <Label>Role</Label>
-                <Select value={role} onValueChange={(value) => setRole(value as "MANAGER" | "CLERK")}>
+                <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="MANAGER">Manager</SelectItem>
-                    <SelectItem value="CLERK">Clerk</SelectItem>
+                    {USER_ROLE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -496,7 +516,7 @@ export function UserRoleDialog({
   onCompleted?: () => void;
 } & TriggerProps) {
   const [open, setOpen] = useState(false);
-  const [role, setRole] = useState(user.role === "SUPERADMIN" ? "MANAGER" : user.role);
+  const [role, setRole] = useState<UserRole>(user.role);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -540,11 +560,14 @@ export function UserRoleDialog({
           >
             <div className="space-y-1">
               <Label>Role</Label>
-              <Select value={role} onValueChange={(value) => setRole(value as "MANAGER" | "CLERK")}>
+              <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
-                  <SelectItem value="CLERK">Clerk</SelectItem>
+                  {USER_ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
