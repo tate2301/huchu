@@ -12,8 +12,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/components/ui/use-toast";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
   createOfflineBootstrapProgress,
   getOfflineRouteDefinitions,
@@ -48,6 +47,7 @@ import {
   getActiveOfflineTenantContext,
   setActiveOfflineTenantContext,
 } from "@/lib/offline/tenant-context";
+import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import type {
   OfflineBootstrapProgress,
   OfflineModuleDefinition,
@@ -168,6 +168,65 @@ function nowIso() {
 
 function getWarmupRouteDefinitions(moduleDefinition: OfflineModuleDefinition) {
   return getOfflineRouteDefinitions(moduleDefinition);
+}
+
+function moduleOwnsPath(
+  moduleDefinition: OfflineModuleDefinition,
+  pathname: string,
+) {
+  return getWarmupRouteDefinitions(moduleDefinition).some((routeDefinition) =>
+    routeDefinition.matchPaths.some((candidate) => routeMatches(pathname, candidate)),
+  );
+}
+
+function collectWorkspaceWarmRoutes(
+  sidebarModel: ReturnType<typeof getWorkspaceSidebarModel>,
+) {
+  return uniqueStrings([
+    sidebarModel.homeHref,
+    ...sidebarModel.quickActions.map((item) => item.href),
+    ...sidebarModel.supportItems.map((item) => item.href),
+    ...sidebarModel.sections.flatMap((section) =>
+      section.items.map((item) => item.href),
+    ),
+  ]).filter((href) => !isPublicPathname(href));
+}
+
+async function prefetchModuleQueries(
+  moduleDefinition: OfflineModuleDefinition,
+  queryClient: QueryClient,
+) {
+  const preparedQueryKeys: string[] = [];
+
+  for (const preloadQuery of moduleDefinition.preloadQueries) {
+    if (preloadQuery.enabled && !preloadQuery.enabled()) {
+      preparedQueryKeys.push(preloadQuery.key);
+      continue;
+    }
+
+    const queryKey =
+      typeof preloadQuery.queryKey === "function"
+        ? await preloadQuery.queryKey()
+        : preloadQuery.queryKey;
+
+    if (!queryKey) {
+      preparedQueryKeys.push(preloadQuery.key);
+      continue;
+    }
+
+    try {
+      await queryClient.prefetchQuery({
+        queryKey,
+        queryFn: () => preloadQuery.fetcher(queryKey),
+        staleTime: preloadQuery.maxAgeMs ?? 5 * 60_000,
+      });
+      preparedQueryKeys.push(preloadQuery.key);
+    } catch {
+      // Ignore route-driven query warmup failures.
+    }
+  }
+
+  return uniqueStrings(preparedQueryKeys);
 }
 
 function getStatusLabel(
@@ -392,7 +451,6 @@ async function prewarmRoutes(
 export function OfflineProvider({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const { data: session, status: sessionStatus } = useSession();
   const [isOffline, setIsOffline] = useState(
     typeof navigator !== "undefined" ? !navigator.onLine : false,
@@ -417,7 +475,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     pendingCount: number;
     blockingCount: number;
   } | null>(null);
-  const lastOnlineRef = useRef<boolean | null>(null);
   const restoredQueriesRef = useRef(false);
   const lastHydratedTenantKeyRef = useRef<string | null>(null);
   const bootstrapRunRef = useRef<Promise<void> | null>(null);
@@ -434,6 +491,19 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const enabledModules = useMemo(
     () => getEnabledOfflineModules(enabledFeatures),
     [enabledFeatures],
+  );
+  const workspaceSidebarModel = useMemo(
+    () =>
+      getWorkspaceSidebarModel({
+        role: effectiveUser?.role ?? null,
+        enabledFeatures,
+        workspaceProfile: effectiveUser?.workspaceProfile ?? null,
+      }),
+    [effectiveUser?.role, effectiveUser?.workspaceProfile, enabledFeatures],
+  );
+  const workspaceWarmRoutes = useMemo(
+    () => collectWorkspaceWarmRoutes(workspaceSidebarModel),
+    [workspaceSidebarModel],
   );
   const currentSessionTenantKey =
     (session?.user as { companyId?: string } | undefined)?.companyId ?? null;
@@ -683,8 +753,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         }
 
         const extraRoutes = uniqueStrings([
+          ...workspaceWarmRoutes,
           pathname,
-          ...readRecentRoutes().slice(0, 6),
+          ...readRecentRoutes(),
         ]).filter(
           (route) => !nextProgress.preparedRoutes.includes(route) && !isPublicPathname(route),
         );
@@ -733,6 +804,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       queryClient,
       sessionStatus,
       tenantConflict,
+      workspaceWarmRoutes,
     ],
   );
 
@@ -759,27 +831,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
             lastSyncedAt: syncCompletedAt,
           });
         }
-        if (result.syncedCount > 0) {
-          toast({
-            title: "Offline changes synced",
-            description: `${result.syncedCount} queued item${result.syncedCount === 1 ? "" : "s"} posted.`,
-            variant: "success",
-          });
-        }
-        if (result.retryableCount > 0) {
-          toast({
-            title: "Some offline changes are still pending",
-            description: `${result.retryableCount} item${result.retryableCount === 1 ? "" : "s"} will retry automatically.`,
-            variant: "default",
-          });
-        }
-        if (result.blockingCount > 0) {
-          toast({
-            title: "Some offline changes need attention",
-            description: `${result.blockingCount} item${result.blockingCount === 1 ? "" : "s"} could not sync automatically.`,
-            variant: "destructive",
-          });
-        }
       } finally {
         setIsSyncing(false);
         setIsReconnecting(false);
@@ -793,7 +844,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       queryClient,
       refreshOutboxSummary,
       tenantConflict,
-      toast,
     ],
   );
 
@@ -834,18 +884,11 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     if (!installPromptEvent) return;
     await installPromptEvent.prompt();
     try {
-      const choice = await installPromptEvent.userChoice;
-      if (choice.outcome === "accepted") {
-        toast({
-          title: "App install started",
-          description: "Finish the browser prompt to add this workspace to the device.",
-          variant: "success",
-        });
-      }
+      await installPromptEvent.userChoice;
     } finally {
       setInstallPromptEvent(null);
     }
-  }, [installPromptEvent, toast]);
+  }, [installPromptEvent]);
 
   const clearTenantConflict = useCallback(async () => {
     if (!tenantConflict || !currentSessionTenantKey || !session?.user) {
@@ -864,17 +907,127 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     setTenantConflict(null);
     setTenantKey(currentSessionTenantKey);
     await loadTenantState(currentSessionTenantKey);
-    toast({
-      title: "Device offline workspace reset",
-      description:
-        "This device is ready to prepare offline data for the current tenant.",
-      variant: "default",
-    });
-  }, [currentSessionTenantKey, loadTenantState, session?.user, tenantConflict, toast]);
+  }, [currentSessionTenantKey, loadTenantState, session?.user, tenantConflict]);
 
   useEffect(() => {
     rememberRoute(pathname);
   }, [pathname]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      isOffline ||
+      isPublicPathname(pathname) ||
+      sessionStatus !== "authenticated" ||
+      !effectiveTenantKey ||
+      hydratedTenantKey !== effectiveTenantKey ||
+      tenantConflict
+    ) {
+      return;
+    }
+
+    void (async () => {
+      const matchedModule =
+        enabledModules.find((moduleDefinition) =>
+          moduleOwnsPath(moduleDefinition, pathname),
+        ) ?? null;
+
+      const routeDefinitions = matchedModule
+        ? getWarmupRouteDefinitions(matchedModule).filter((routeDefinition) =>
+            routeDefinition.matchPaths.some((candidate) =>
+              routeMatches(pathname, candidate),
+            ),
+          )
+        : [
+            {
+              canonicalRoute: pathname,
+              matchPaths: [pathname],
+              warmupUrls: [pathname],
+            },
+          ];
+
+      const [{ preparedCanonicalRoutes, preparedPathnames }, preparedQueryKeys] =
+        await Promise.all([
+          prewarmRoutes(routeDefinitions, "OFFLINE_PREWARM"),
+          matchedModule
+            ? prefetchModuleQueries(matchedModule, queryClient)
+            : Promise.resolve([]),
+        ]);
+
+      if (
+        preparedCanonicalRoutes.length === 0 &&
+        preparedPathnames.length === 0 &&
+        preparedQueryKeys.length === 0
+      ) {
+        return;
+      }
+
+      const currentProgress = createOfflineBootstrapProgress(
+        effectiveTenantKey,
+        enabledModules,
+        bootstrapProgress,
+      );
+      const currentModulePreparation = matchedModule
+        ? currentProgress.modules.find(
+            (modulePreparation) =>
+              modulePreparation.moduleId === matchedModule.moduleId,
+          ) ?? null
+        : null;
+      const hasNewPreparedPaths = preparedPathnames.some(
+        (candidate) => !currentProgress.preparedRoutes.includes(candidate),
+      );
+      const hasNewPreparedRoute =
+        currentModulePreparation !== null &&
+        preparedCanonicalRoutes.some(
+          (candidate) =>
+            !currentModulePreparation.preparedRoutes.includes(candidate),
+        );
+      const hasNewPreparedQuery =
+        currentModulePreparation !== null &&
+        preparedQueryKeys.some(
+          (candidate) =>
+            !currentModulePreparation.preparedQueryKeys.includes(candidate),
+        );
+
+      if (!hasNewPreparedPaths && !hasNewPreparedRoute && !hasNewPreparedQuery) {
+        return;
+      }
+
+      const nextProgress = recalculateBootstrapProgress({
+        ...currentProgress,
+        preparedRoutes: uniqueStrings([
+          ...currentProgress.preparedRoutes,
+          ...preparedPathnames,
+        ]),
+        modules: currentProgress.modules.map((modulePreparation) => {
+          if (!matchedModule || modulePreparation.moduleId !== matchedModule.moduleId) {
+            return modulePreparation;
+          }
+
+          return mergeModulePreparedQueries(
+            mergeModulePreparedRoutes(
+              modulePreparation,
+              preparedCanonicalRoutes,
+            ),
+            preparedQueryKeys,
+          );
+        }),
+      });
+
+      await commitBootstrapProgress(nextProgress);
+    })();
+  }, [
+    bootstrapProgress,
+    commitBootstrapProgress,
+    effectiveTenantKey,
+    enabledModules,
+    hydratedTenantKey,
+    isOffline,
+    pathname,
+    queryClient,
+    sessionStatus,
+    tenantConflict,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -898,11 +1051,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
               if (navigator.serviceWorker.controller) {
                 setUpdateState("ready");
                 setUpdateDismissed(false);
-                toast({
-                  title: "Update ready",
-                  description: "A newer version has been downloaded for this device.",
-                  variant: "default",
-                });
                 return;
               }
               setUpdateState("idle");
@@ -949,7 +1097,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         );
       }
     };
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     if (restoredQueriesRef.current) return;
@@ -1019,13 +1167,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     const onOnline = () => {
       setIsOffline(false);
       setIsReconnecting(true);
-      if (lastOnlineRef.current === false) {
-        toast({
-          title: "Connection restored",
-          description: "Syncing offline changes now.",
-          variant: "success",
-        });
-      }
       void bootstrapSession({ force: true });
       void requestBackgroundSync();
       void checkForUpdates();
@@ -1034,13 +1175,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     const onOffline = () => {
       setIsOffline(true);
       setIsReconnecting(false);
-      if (lastOnlineRef.current !== null) {
-        toast({
-          title: "You are offline",
-          description: "Offline-ready screens and queued actions will keep working.",
-          variant: "default",
-        });
-      }
     };
 
     window.addEventListener("online", onOnline);
@@ -1049,11 +1183,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [bootstrapSession, checkForUpdates, syncNow, toast]);
-
-  useEffect(() => {
-    lastOnlineRef.current = !isOffline;
-  }, [isOffline]);
+  }, [bootstrapSession, checkForUpdates, syncNow]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -1078,11 +1208,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
     const onAppInstalled = () => {
       setInstallPromptEvent(null);
-      toast({
-        title: "App installed",
-        description: "This workspace is now available as an app on the device.",
-        variant: "success",
-      });
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
@@ -1091,7 +1216,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
     };
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     const onServiceWorkerMessage = (event: MessageEvent) => {

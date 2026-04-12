@@ -330,6 +330,12 @@ export default function ScrapMetalTicketWorkbenchPage() {
     return parsed.toISOString();
   }
 
+  function makeOfflineDocumentNumber(prefix: "SCPUR" | "SCSAL", seed: string) {
+    const digits = seed.replace(/\D/g, "");
+    const fallback = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    return `${prefix}-${(digits || fallback).slice(-12)}`;
+  }
+
   function getComplianceMessages(error: unknown) {
     if (!(error instanceof ApiError) || typeof error.details !== "object" || !error.details) return [];
     const payload = error.details as { details?: unknown };
@@ -349,13 +355,19 @@ export default function ScrapMetalTicketWorkbenchPage() {
     return errors;
   }
 
-  function buildInboundPayload(intent: InboundIntent, form: InboundForm, clientRequestId?: string) {
+  function buildInboundPayload(
+    intent: InboundIntent,
+    form: InboundForm,
+    options?: { clientRequestId?: string; useOfflineDocumentNumber?: boolean },
+  ) {
     const materialCategory =
       materials.find((material) => material.id === form.materialId)?.category ??
       form.category;
 
     return {
-      purchaseNumber: clientRequestId ? `SMP-${clientRequestId}`.slice(0, 50) : undefined,
+      purchaseNumber: options?.useOfflineDocumentNumber && options.clientRequestId
+        ? makeOfflineDocumentNumber("SCPUR", options.clientRequestId)
+        : undefined,
       purchaseDate: toIsoStringOrNow(form.date),
       siteId: form.siteId,
       employeeId: form.employeeId,
@@ -373,10 +385,16 @@ export default function ScrapMetalTicketWorkbenchPage() {
     };
   }
 
-  function buildOutboundPayload(intent: OutboundIntent, form: OutboundForm, clientRequestId?: string) {
+  function buildOutboundPayload(
+    intent: OutboundIntent,
+    form: OutboundForm,
+    options?: { clientRequestId?: string; useOfflineDocumentNumber?: boolean },
+  ) {
     if (!selectedBatch) throw new Error("Select a lot first.");
     return {
-      saleNumber: clientRequestId ? `SMS-${clientRequestId}`.slice(0, 50) : undefined,
+      saleNumber: options?.useOfflineDocumentNumber && options.clientRequestId
+        ? makeOfflineDocumentNumber("SCSAL", options.clientRequestId)
+        : undefined,
       saleDate: toIsoStringOrNow(form.date),
       siteId: selectedBatch.site.id,
       batchId: form.batchId,
@@ -422,11 +440,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
         setNewSeller({ fullName: "", phone: "", nationalId: "" });
         setInbound((prev) => ({ ...prev, sellerId: queued.record.tempId }));
         await refreshOfflineQueueCount();
-        toast({
-          title: "Supplier queued offline",
-          description: "You can keep ticketing and this seller will sync automatically.",
-          variant: "default",
-        });
         return;
       }
       toast({ title: "Unable to create supplier", description: getApiErrorMessage(error), variant: "destructive" });
@@ -437,7 +450,11 @@ export default function ScrapMetalTicketWorkbenchPage() {
     mutationFn: ({ intent, clientRequestId }: { intent: InboundIntent; clientRequestId: string }) =>
       fetchJson<{ id: string; purchaseNumber: string }>("/api/scrap-metal/purchases", {
         method: "POST",
-        body: JSON.stringify(buildInboundPayload(intent, inbound, clientRequestId)),
+        body: JSON.stringify(
+          buildInboundPayload(intent, inbound, {
+            clientRequestId,
+          }),
+        ),
       }),
     onSuccess: (created, variables) => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
@@ -459,16 +476,26 @@ export default function ScrapMetalTicketWorkbenchPage() {
         await queueOfflineScrapInboundTicket({
           tenantKey,
           clientRequestId: variables.clientRequestId,
-          payload: buildInboundPayload(variables.intent, inbound, variables.clientRequestId),
+          payload: buildInboundPayload(variables.intent, inbound, {
+            clientRequestId: variables.clientRequestId,
+            useOfflineDocumentNumber: true,
+          }),
           attachments: inbound.attachments,
           sellerTempId: isOfflineScrapEntityId(inbound.sellerId) ? inbound.sellerId : null,
         });
         await refreshOfflineQueueCount();
-        toast({
-          title: "Inbound ticket queued offline",
-          description: "This ticket will auto-sync when the connection is back.",
-          variant: "default",
-        });
+        if (variables.intent === "hold") {
+          queryClient.setQueryData<{ pagination?: { total?: number } }>(
+            ["scrap-held-inbound-total"],
+            (current) => ({
+              ...current,
+              pagination: {
+                ...current?.pagination,
+                total: (current?.pagination?.total ?? 0) + 1,
+              },
+            }),
+          );
+        }
         setInbound((prev) => ({ ...emptyInbound(), siteId: prev.siteId, employeeId: defaultBuyerId || prev.employeeId }));
         return;
       }
@@ -488,7 +515,11 @@ export default function ScrapMetalTicketWorkbenchPage() {
     mutationFn: ({ intent, clientRequestId }: { intent: OutboundIntent; clientRequestId: string }) => {
       return fetchJson<{ id: string; saleNumber: string }>("/api/scrap-metal/sales", {
         method: "POST",
-        body: JSON.stringify(buildOutboundPayload(intent, outbound, clientRequestId)),
+        body: JSON.stringify(
+          buildOutboundPayload(intent, outbound, {
+            clientRequestId,
+          }),
+        ),
       });
     },
     onSuccess: (created, variables) => {
@@ -520,15 +551,25 @@ export default function ScrapMetalTicketWorkbenchPage() {
             await queueOfflineScrapOutboundTicket({
               tenantKey,
               clientRequestId: variables.clientRequestId,
-              payload: buildOutboundPayload(variables.intent, outbound, variables.clientRequestId),
+              payload: buildOutboundPayload(variables.intent, outbound, {
+                clientRequestId: variables.clientRequestId,
+                useOfflineDocumentNumber: true,
+              }),
               attachments: outbound.attachments,
             });
             await refreshOfflineQueueCount();
-            toast({
-              title: "Outbound ticket queued offline",
-              description: "This ticket will auto-sync when the connection is back.",
-              variant: "default",
-            });
+            if (variables.intent === "hold") {
+              queryClient.setQueryData<{ pagination?: { total?: number } }>(
+                ["scrap-held-outbound-total"],
+                (current) => ({
+                  ...current,
+                  pagination: {
+                    ...current?.pagination,
+                    total: (current?.pagination?.total ?? 0) + 1,
+                  },
+                }),
+              );
+            }
             setOutbound(emptyOutbound());
             return;
           }
@@ -605,7 +646,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
     try {
       const photo = await uploadPhoto(file, "scrap-purchase-ticket-photo");
       setInbound((prev) => ({ ...prev, attachments: [...prev.attachments, photo] }));
-      toast({ title: "Photo attached", variant: "success" });
     } catch (error) {
       if (isOfflineCandidate(error) && tenantKey) {
         const localAttachment = await createOfflineScrapAttachment(
@@ -614,11 +654,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
           "scrap-purchase-ticket-photo",
         );
         setInbound((prev) => ({ ...prev, attachments: [...prev.attachments, localAttachment.photo] }));
-        toast({
-          title: "Photo saved offline",
-          description: "The attachment will upload automatically during sync.",
-          variant: "default",
-        });
         return;
       }
       toast({ title: "Unable to upload photo", description: getApiErrorMessage(error), variant: "destructive" });
@@ -629,7 +664,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
     try {
       const photo = await uploadPhoto(file, "scrap-sale-ticket-photo");
       setOutbound((prev) => ({ ...prev, attachments: [...prev.attachments, photo] }));
-      toast({ title: "Photo attached", variant: "success" });
     } catch (error) {
       if (isOfflineCandidate(error) && tenantKey) {
         const localAttachment = await createOfflineScrapAttachment(
@@ -638,11 +672,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
           "scrap-sale-ticket-photo",
         );
         setOutbound((prev) => ({ ...prev, attachments: [...prev.attachments, localAttachment.photo] }));
-        toast({
-          title: "Photo saved offline",
-          description: "The attachment will upload automatically during sync.",
-          variant: "default",
-        });
         return;
       }
       toast({ title: "Unable to upload photo", description: getApiErrorMessage(error), variant: "destructive" });

@@ -29,7 +29,6 @@ export function OfflineRuntimeBanner() {
   if (
     !isPreparing &&
     !showUpdatePrompt &&
-    updateState !== "downloading" &&
     updateState !== "activating"
   ) {
     return null;
@@ -63,7 +62,7 @@ export function OfflineRuntimeBanner() {
         <div className="min-w-0 flex-1">
           <div
             style={{ "--status-chip": `var(${bannerTone.colorVar})` } as CSSProperties}
-            className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_16%,transparent)] bg-[color-mix(in_srgb,var(--status-chip)_12%,var(--surface-base))] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--status-chip)]"
+            className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--status-chip)_12%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_82%,white)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]"
           >
             <BannerIcon className={["size-3", bannerTone.iconClassName].join(" ")} />
             {bannerTone.text}
@@ -102,7 +101,7 @@ export function OfflineRuntimeBanner() {
             <div className="mt-1 text-xs text-[var(--text-muted)]">
               {showUpdatePrompt
                 ? "Refresh when the operator is at a safe stopping point. Offline data stays in place."
-                : "The runtime is checking, downloading, or activating the new version in the background."}
+                : "Applying the downloaded update now."}
             </div>
           )}
         </div>
@@ -123,12 +122,10 @@ export function OfflineRuntimeBanner() {
                 Later
               </Button>
             </>
-          ) : updateState === "downloading" || updateState === "activating" ? (
+          ) : updateState === "activating" ? (
             <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_82%,white)] px-3 py-1.5 text-sm text-[var(--text-muted)]">
               <Loader2 className="size-4 animate-spin text-[var(--action-primary-bg)]" />
-              {updateState === "activating"
-                ? "Activating update"
-                : "Downloading update"}
+              Activating update
             </div>
           ) : null}
         </div>

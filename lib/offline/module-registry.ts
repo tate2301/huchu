@@ -2,6 +2,7 @@ import { fetchEmployees, fetchSites } from "@/lib/api";
 import { fetchJson } from "@/lib/api-client";
 import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
+import { SCRAP_OPERATIONS_SECTIONS, SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 import {
   markOfflineOperationBlockingFailure,
   markOfflineOperationRetryableFailure,
@@ -366,6 +367,27 @@ const retailMutationAdapters: OfflineMutationAdapter[] = [
   },
 ];
 
+const scrapWarmRoutes = Array.from(
+  new Set([
+    ...SCRAP_TABS.map((tab) => tab.href),
+    ...SCRAP_OPERATIONS_SECTIONS.ticketing,
+    ...SCRAP_OPERATIONS_SECTIONS.lots,
+    ...SCRAP_OPERATIONS_SECTIONS.cash,
+    ...SCRAP_OPERATIONS_SECTIONS.reporting,
+    ...SCRAP_OPERATIONS_SECTIONS.setup,
+  ]),
+).map((href) => ({
+  canonicalRoute: href,
+  matchPaths: [href],
+  warmupUrls: [href],
+  critical:
+    href === "/scrap-metal" ||
+    href === "/scrap-metal/tickets" ||
+    href === "/scrap-metal/purchases" ||
+    href === "/scrap-metal/sales" ||
+    href === "/scrap-metal/tickets/held",
+}));
+
 export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
   {
     moduleId: "scrap-metal",
@@ -373,31 +395,14 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
     bootstrapPriority: 10,
     primaryFlowLabel: "Scrap ticketing",
     warmupBudget: "aggressive",
-    criticalRoutes: ["/scrap-metal/tickets", "/scrap-metal/tickets/held"],
-    routes: [
-      {
-        canonicalRoute: "scrap-tickets",
-        matchPaths: ["/scrap-metal/tickets"],
-        warmupUrls: ["/scrap-metal/tickets"],
-        critical: true,
-      },
-      {
-        canonicalRoute: "scrap-held-tickets",
-        matchPaths: ["/scrap-metal/tickets/held"],
-        warmupUrls: ["/scrap-metal/tickets/held"],
-        critical: true,
-      },
-      {
-        canonicalRoute: "scrap-purchases",
-        matchPaths: ["/scrap-metal/purchases"],
-        warmupUrls: ["/scrap-metal/purchases"],
-      },
-      {
-        canonicalRoute: "scrap-sales",
-        matchPaths: ["/scrap-metal/sales"],
-        warmupUrls: ["/scrap-metal/sales"],
-      },
+    criticalRoutes: [
+      "/scrap-metal",
+      "/scrap-metal/tickets",
+      "/scrap-metal/purchases",
+      "/scrap-metal/sales",
+      "/scrap-metal/tickets/held",
     ],
+    routes: scrapWarmRoutes,
     shellAssets: ["/icon-192.svg", "/icon-512.svg"],
     preloadQueries: scrapPreloadQueries,
     entityAdapters: [

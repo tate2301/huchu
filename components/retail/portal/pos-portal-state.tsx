@@ -416,11 +416,6 @@ export function PosPortalProvider({
           customerTempId: usesOfflineCustomer ? payload.customerId : null,
         }).then(() => refreshOfflineQueue());
         clearCart();
-        toast({
-          title: "Sale queued offline",
-          description: "This sale will auto-sync when the connection is back.",
-          variant: "default",
-        });
         return;
       }
 
