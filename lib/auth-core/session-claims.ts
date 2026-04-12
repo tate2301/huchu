@@ -18,6 +18,13 @@ function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boole
   return subscriptionActive ? "ACTIVE" : "SUBSCRIPTION_INACTIVE";
 }
 
+function isLegacyScrapClerkRole(role: string | undefined, enabledFeatures: string[]) {
+  if (role?.trim().toUpperCase() !== "CLERK") return false;
+  return enabledFeatures.some((feature) =>
+    feature.trim().toLowerCase().startsWith("scrap-metal."),
+  );
+}
+
 export function buildInitialTokenClaims(input: {
   id: string;
   role?: string;
@@ -60,6 +67,9 @@ export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<Platf
   token.companySlug = tenantClaims.companySlug;
   token.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
   token.workspaceProfile = tenantClaims.workspaceProfile;
+  if (isLegacyScrapClerkRole(token.role, enabledFeatures)) {
+    token.role = "OPERATOR";
+  }
   token.subscriptionHealth = subscriptionHealth.state;
   token.enabledFeatures = enabledFeatures;
   token.allowedHosts = allowedHosts;

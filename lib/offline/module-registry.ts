@@ -2,7 +2,7 @@ import { fetchEmployees, fetchSites } from "@/lib/api";
 import { fetchJson } from "@/lib/api-client";
 import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
-import { SCRAP_OPERATIONS_SECTIONS, SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
+import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
 import {
   markOfflineOperationBlockingFailure,
   markOfflineOperationRetryableFailure,
@@ -232,7 +232,7 @@ async function syncRetailSale(payload: Record<string, unknown>): Promise<Offline
   }
 }
 
-const scrapPreloadQueries: OfflinePreloadQuery[] = [
+const scrapTicketingPreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "scrap-sites",
     queryKey: ["sites", "scrap-tickets"],
@@ -272,6 +272,121 @@ const scrapPreloadQueries: OfflinePreloadQuery[] = [
     key: "scrap-held-outbound-total",
     queryKey: ["scrap-held-outbound-total"],
     fetcher: async () => fetchJson("/api/scrap-metal/sales?status=DRAFT&limit=1"),
+  },
+  {
+    key: "scrap-held-inbound-tickets",
+    queryKey: ["scrap-held-inbound-tickets"],
+    fetcher: async () => fetchJson("/api/scrap-metal/purchases?status=DRAFT&limit=500"),
+  },
+  {
+    key: "scrap-held-outbound-tickets",
+    queryKey: ["scrap-held-outbound-tickets"],
+    fetcher: async () => fetchJson("/api/scrap-metal/sales?status=DRAFT&limit=500"),
+  },
+  {
+    key: "scrap-purchases-register",
+    queryKey: ["scrap-metal-purchases"],
+    fetcher: async () => fetchJson("/api/scrap-metal/purchases?limit=500"),
+  },
+  {
+    key: "scrap-sales-register",
+    queryKey: ["scrap-metal-sales"],
+    fetcher: async () => fetchJson("/api/scrap-metal/sales?limit=500"),
+  },
+  {
+    key: "scrap-ready-batches",
+    queryKey: ["scrap-ready-batches"],
+    fetcher: async () => fetchJson("/api/scrap-metal/batches?status=READY&limit=500"),
+  },
+  {
+    key: "scrap-sales-approval-requests",
+    queryKey: ["scrap-sale-approval-requests"],
+    fetcher: async () => fetchJson("/api/scrap-metal/sales?status=DRAFT&limit=400"),
+  },
+];
+
+const scrapLotsPreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "scrap-metal-batches",
+    queryKey: ["scrap-metal-batches"],
+    fetcher: async () => fetchJson("/api/scrap-metal/batches?limit=200"),
+  },
+  {
+    key: "scrap-sites-batches",
+    queryKey: ["sites", "scrap-batches"],
+    fetcher: async () => fetchSites(),
+  },
+  {
+    key: "scrap-materials-batch-form",
+    queryKey: ["scrap-materials", "batch-form"],
+    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
+  },
+  {
+    key: "scrap-unassigned-purchases-page",
+    queryKey: ["scrap-unassigned-purchases-page"],
+    fetcher: async () => fetchJson("/api/scrap-metal/purchases?limit=500&unbatched=true"),
+  },
+];
+
+const scrapMasterDataPreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "scrap-master-materials",
+    queryKey: ["management", "master-data", "scrap-materials", ""],
+    fetcher: async () => fetchJson("/api/scrap-metal/materials?limit=500"),
+  },
+  {
+    key: "scrap-master-sellers",
+    queryKey: ["management", "master-data", "scrap-sellers", ""],
+    fetcher: async () => fetchJson("/api/scrap-metal/sellers?limit=500"),
+  },
+  {
+    key: "scrap-materials-selector",
+    queryKey: ["scrap-materials"],
+    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
+  },
+  {
+    key: "scrap-sellers-selector",
+    queryKey: ["scrap-seller-profiles"],
+    fetcher: async () => fetchJson("/api/scrap-metal/sellers?active=true&limit=500"),
+  },
+];
+
+const scrapPriceBoardPreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "scrap-pricing-board",
+    queryKey: ["scrap-pricing"],
+    fetcher: async () => fetchJson("/api/scrap-metal/pricing?limit=500"),
+  },
+  {
+    key: "scrap-materials-for-pricing",
+    queryKey: ["scrap-materials-for-pricing"],
+    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
+  },
+];
+
+const scrapStaffSettlementsPreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "scrap-balances",
+    queryKey: ["scrap-balances"],
+    fetcher: async () => fetchJson("/api/scrap-metal/employee-balances?limit=500&nonZero=true"),
+  },
+  {
+    key: "scrap-payout-batches",
+    queryKey: ["scrap-payout-batches"],
+    fetcher: async () => fetchJson("/api/hr/payout-batches?source=SCRAP&limit=500"),
+  },
+  {
+    key: "scrap-settlement-employees",
+    queryKey: ["employees", "scrap-settlements"],
+    fetcher: async () => fetchJson("/api/employees?active=true&limit=500"),
+  },
+];
+
+const scrapDailySnapshotPreloadQueries: OfflinePreloadQuery[] = [
+  {
+    key: "scrap-daily-snapshot",
+    queryKey: ["scrap-daily-snapshot"],
+    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
   },
 ];
 
@@ -396,26 +511,35 @@ const retailMutationAdapters: OfflineMutationAdapter[] = [
   },
 ];
 
-const scrapWarmRoutes = Array.from(
+function createWarmupRoutes(
+  routes: string[],
+  criticalRoutes?: string[],
+) {
+  const criticalSet = new Set(criticalRoutes ?? routes);
+  return Array.from(new Set(routes)).map((href) => ({
+    canonicalRoute: href,
+    matchPaths: [href],
+    warmupUrls: [href],
+    critical: criticalSet.has(href),
+  }));
+}
+
+const scrapTicketingRoutes = Array.from(
   new Set([
-    ...SCRAP_TABS.map((tab) => tab.href),
     ...SCRAP_OPERATIONS_SECTIONS.ticketing,
-    ...SCRAP_OPERATIONS_SECTIONS.lots,
-    ...SCRAP_OPERATIONS_SECTIONS.cash,
-    ...SCRAP_OPERATIONS_SECTIONS.reporting,
-    ...SCRAP_OPERATIONS_SECTIONS.setup,
+    "/scrap-metal/tickets/held",
   ]),
-).map((href) => ({
-  canonicalRoute: href,
-  matchPaths: [href],
-  warmupUrls: [href],
-  critical:
-    href === "/scrap-metal" ||
-    href === "/scrap-metal/tickets" ||
-    href === "/scrap-metal/purchases" ||
-    href === "/scrap-metal/sales" ||
-    href === "/scrap-metal/tickets/held",
-}));
+);
+const scrapLotsRoutes = Array.from(new Set(SCRAP_OPERATIONS_SECTIONS.lots));
+const scrapMasterDataRoutes = [
+  "/management/master-data/operations/scrap-materials",
+  "/management/master-data/operations/scrap-sellers",
+];
+const scrapPriceBoardRoutes = ["/scrap-metal/pricing"];
+const scrapStaffSettlementRoutes = ["/scrap-metal/settlements"];
+const scrapDailySnapshotRoutes = [
+  "/scrap-metal/reports/daily-snapshot",
+];
 
 export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
   {
@@ -424,16 +548,10 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
     bootstrapPriority: 10,
     primaryFlowLabel: "Scrap ticketing",
     warmupBudget: "aggressive",
-    criticalRoutes: [
-      "/scrap-metal",
-      "/scrap-metal/tickets",
-      "/scrap-metal/purchases",
-      "/scrap-metal/sales",
-      "/scrap-metal/tickets/held",
-    ],
-    routes: scrapWarmRoutes,
+    criticalRoutes: scrapTicketingRoutes,
+    routes: createWarmupRoutes(scrapTicketingRoutes),
     shellAssets: ["/icon-192.svg", "/icon-512.svg"],
-    preloadQueries: scrapPreloadQueries,
+    preloadQueries: scrapTicketingPreloadQueries,
     entityAdapters: [
       {
         entityType: "seller",
@@ -443,6 +561,66 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
       },
     ],
     mutationAdapters: scrapMutationAdapters,
+  },
+  {
+    moduleId: "scrap-lots",
+    syncPriority: 11,
+    bootstrapPriority: 11,
+    primaryFlowLabel: "Scrap lots",
+    warmupBudget: "aggressive",
+    criticalRoutes: scrapLotsRoutes,
+    routes: createWarmupRoutes(scrapLotsRoutes),
+    preloadQueries: scrapLotsPreloadQueries,
+    entityAdapters: [],
+    mutationAdapters: [],
+  },
+  {
+    moduleId: "scrap-master-data",
+    syncPriority: 12,
+    bootstrapPriority: 12,
+    primaryFlowLabel: "Scrap master data",
+    warmupBudget: "aggressive",
+    criticalRoutes: scrapMasterDataRoutes,
+    routes: createWarmupRoutes(scrapMasterDataRoutes),
+    preloadQueries: scrapMasterDataPreloadQueries,
+    entityAdapters: [],
+    mutationAdapters: [],
+  },
+  {
+    moduleId: "scrap-price-board",
+    syncPriority: 13,
+    bootstrapPriority: 13,
+    primaryFlowLabel: "Scrap price board",
+    warmupBudget: "aggressive",
+    criticalRoutes: scrapPriceBoardRoutes,
+    routes: createWarmupRoutes(scrapPriceBoardRoutes),
+    preloadQueries: scrapPriceBoardPreloadQueries,
+    entityAdapters: [],
+    mutationAdapters: [],
+  },
+  {
+    moduleId: "scrap-staff-settlements",
+    syncPriority: 14,
+    bootstrapPriority: 14,
+    primaryFlowLabel: "Scrap staff settlements",
+    warmupBudget: "aggressive",
+    criticalRoutes: scrapStaffSettlementRoutes,
+    routes: createWarmupRoutes(scrapStaffSettlementRoutes),
+    preloadQueries: scrapStaffSettlementsPreloadQueries,
+    entityAdapters: [],
+    mutationAdapters: [],
+  },
+  {
+    moduleId: "scrap-daily-snapshot",
+    syncPriority: 15,
+    bootstrapPriority: 15,
+    primaryFlowLabel: "Scrap daily snapshot",
+    warmupBudget: "aggressive",
+    criticalRoutes: scrapDailySnapshotRoutes,
+    routes: createWarmupRoutes(scrapDailySnapshotRoutes),
+    preloadQueries: scrapDailySnapshotPreloadQueries,
+    entityAdapters: [],
+    mutationAdapters: [],
   },
   {
     moduleId: "retail-pos",
@@ -527,7 +705,14 @@ export function getOfflineModule(moduleId: string) {
 export function getEnabledOfflineModules(enabledFeatures?: string[]) {
   const features = new Set(enabledFeatures ?? []);
   return OFFLINE_MODULES.filter((moduleDefinition) => {
-    if (moduleDefinition.moduleId === "scrap-metal") {
+    if (
+      moduleDefinition.moduleId === "scrap-metal" ||
+      moduleDefinition.moduleId === "scrap-lots" ||
+      moduleDefinition.moduleId === "scrap-master-data" ||
+      moduleDefinition.moduleId === "scrap-price-board" ||
+      moduleDefinition.moduleId === "scrap-staff-settlements" ||
+      moduleDefinition.moduleId === "scrap-daily-snapshot"
+    ) {
       return [...features].some((feature) => feature.startsWith("scrap-metal."));
     }
     if (moduleDefinition.moduleId === "retail-pos") {
