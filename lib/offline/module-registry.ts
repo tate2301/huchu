@@ -33,6 +33,21 @@ function asErrorMessage(error: unknown) {
   return "Offline sync failed";
 }
 
+function normalizeLegacyDocumentNumber(
+  prefix: "SCPUR" | "SCSAL" | "RSL",
+  rawValue: unknown,
+) {
+  if (typeof rawValue !== "string") return undefined;
+  const trimmed = rawValue.trim().toUpperCase();
+  if (!trimmed) return undefined;
+  if (new RegExp(`^${prefix}-\\d+$`, "i").test(trimmed)) {
+    return trimmed;
+  }
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return undefined;
+  return `${prefix}-${digits.slice(-12)}`;
+}
+
 async function uploadOfflineAttachments(
   operation: OfflineOutboxOperation,
   existing: unknown,
@@ -109,11 +124,16 @@ async function syncScrapInboundTicket(
   payload: Record<string, unknown>,
 ): Promise<OfflineSyncOutcome> {
   try {
+    const purchaseNumber = normalizeLegacyDocumentNumber(
+      "SCPUR",
+      payload.purchaseNumber,
+    );
     const attachments = await uploadOfflineAttachments(operation, payload.attachments);
     const created = await fetchJson<{ id: string }>("/api/scrap-metal/purchases", {
       method: "POST",
       body: JSON.stringify({
         ...payload,
+        purchaseNumber,
         attachments,
       }),
     });
@@ -138,11 +158,16 @@ async function syncScrapOutboundTicket(
   payload: Record<string, unknown>,
 ): Promise<OfflineSyncOutcome> {
   try {
+    const saleNumber = normalizeLegacyDocumentNumber(
+      "SCSAL",
+      payload.saleNumber,
+    );
     const attachments = await uploadOfflineAttachments(operation, payload.attachments);
     const created = await fetchJson<{ id: string }>("/api/scrap-metal/sales", {
       method: "POST",
       body: JSON.stringify({
         ...payload,
+        saleNumber,
         attachments,
       }),
     });
@@ -183,9 +208,13 @@ async function syncRetailCustomer(payload: Record<string, unknown>): Promise<Off
 
 async function syncRetailSale(payload: Record<string, unknown>): Promise<OfflineSyncOutcome> {
   try {
+    const saleNo = normalizeLegacyDocumentNumber("RSL", payload.saleNo);
     await fetchJson("/api/v2/retail/pos/sales", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        saleNo,
+      }),
     });
     return {
       status: "synced",

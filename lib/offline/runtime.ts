@@ -1,5 +1,6 @@
 import { getEnabledOfflineModules, syncOfflineOperation } from "@/lib/offline/module-registry";
 import { listPendingOfflineOperations } from "@/lib/offline/outbox";
+import type { OfflineOutboxOperation } from "@/lib/offline/types";
 
 function operationIsReady(
   operationId: string,
@@ -19,6 +20,41 @@ function shouldSkipForRetryWindow(nextRetryAt: string | undefined, force: boolea
   const parsed = Date.parse(nextRetryAt);
   if (Number.isNaN(parsed)) return false;
   return parsed > Date.now();
+}
+
+function asRecordPayload(
+  payload: unknown,
+): Record<string, unknown> | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  return payload as Record<string, unknown>;
+}
+
+function isLegacyScrapIdRecoverable(operation: OfflineOutboxOperation) {
+  if (operation.moduleId !== "scrap-metal") return false;
+  if (operation.status !== "FAILED_BLOCKING") return false;
+
+  const payload = asRecordPayload(operation.payload);
+  const lastError = String(operation.lastError ?? "").toUpperCase();
+
+  if (operation.operation === "create-inbound-ticket") {
+    const number = String(payload?.purchaseNumber ?? "").toUpperCase();
+    return (
+      number.startsWith("SMP-") ||
+      lastError.includes("INVALID SCRAP_METAL_PURCHASE IDENTIFIER FORMAT")
+    );
+  }
+
+  if (operation.operation === "create-outbound-ticket") {
+    const number = String(payload?.saleNumber ?? "").toUpperCase();
+    return (
+      number.startsWith("SMS-") ||
+      lastError.includes("INVALID SCRAP_METAL_SALE IDENTIFIER FORMAT")
+    );
+  }
+
+  return false;
 }
 
 export async function syncOfflineRuntime(options?: {
@@ -42,9 +78,12 @@ export async function syncOfflineRuntime(options?: {
   let blockingCount = 0;
 
   for (const operation of pendingOperations) {
+    const autoRecoverableBlocking = isLegacyScrapIdRecoverable(operation);
+
     if (
       operation.status === "FAILED_BLOCKING" &&
-      !options?.force
+      !options?.force &&
+      !autoRecoverableBlocking
     ) {
       blockingCount += 1;
       continue;
