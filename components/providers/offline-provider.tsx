@@ -158,27 +158,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function getHostWarmupUrls(
-  pathname: string,
-  moduleDefinition: OfflineModuleDefinition,
-) {
-  return getOfflineRouteDefinitions(moduleDefinition).map((route) => {
-    if (moduleDefinition.moduleId !== "retail-pos") {
-      return route;
-    }
-
-    const usingInternalPosPaths = pathname.startsWith("/portal/pos");
-    const warmupUrls = route.warmupUrls.filter((candidate) =>
-      usingInternalPosPaths
-        ? candidate.startsWith("/portal/pos")
-        : !candidate.startsWith("/portal/pos"),
-    );
-
-    return {
-      ...route,
-      warmupUrls: warmupUrls.length > 0 ? warmupUrls : route.warmupUrls,
-    };
-  });
+function getWarmupRouteDefinitions(moduleDefinition: OfflineModuleDefinition) {
+  return getOfflineRouteDefinitions(moduleDefinition);
 }
 
 function getStatusLabel(
@@ -268,6 +249,28 @@ function recalculateBootstrapProgress(progress: OfflineBootstrapProgress) {
     completedSteps,
     updatedAt: nowIso(),
   };
+}
+
+function isModulePrepared(modulePreparation: OfflineModulePreparation) {
+  return (
+    modulePreparation.preparedRoutes.length >= modulePreparation.totalRoutes &&
+    modulePreparation.preparedQueryKeys.length >= modulePreparation.totalQueries
+  );
+}
+
+function needsBootstrapWork(
+  progress: OfflineBootstrapProgress | null,
+  pathname: string,
+) {
+  if (!progress) return true;
+  if (progress.modules.length === 0) return true;
+  if (progress.modules.some((modulePreparation) => !isModulePrepared(modulePreparation))) {
+    return true;
+  }
+  if (isPublicPathname(pathname)) {
+    return false;
+  }
+  return !progress.preparedRoutes.some((candidate) => routeMatches(pathname, candidate));
 }
 
 async function registerServiceWorker() {
@@ -391,6 +394,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const [pendingCount, setPendingCount] = useState(0);
   const [blockingCount, setBlockingCount] = useState(0);
   const [tenantKey, setTenantKey] = useState<OfflineTenantKey | null>(null);
+  const [hydratedTenantKey, setHydratedTenantKey] = useState<OfflineTenantKey | null>(null);
   const [sessionBootstrap, setSessionBootstrap] =
     useState<OfflineSessionBootstrap | null>(null);
   const [bootstrapProgress, setBootstrapProgress] =
@@ -458,6 +462,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (!targetTenantKey) {
         setSessionBootstrap(null);
         setBootstrapProgress(null);
+        setHydratedTenantKey(null);
         lastHydratedTenantKeyRef.current = null;
         await refreshOutboxSummary(null);
         return;
@@ -465,6 +470,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
       if (lastHydratedTenantKeyRef.current !== targetTenantKey) {
         queryClient.clear();
+        setHydratedTenantKey(null);
         lastHydratedTenantKeyRef.current = targetTenantKey;
       }
 
@@ -476,6 +482,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       ]);
       setSessionBootstrap(cachedSession);
       setBootstrapProgress(cachedBootstrapState);
+      setHydratedTenantKey(targetTenantKey);
       await refreshOutboxSummary(targetTenantKey);
     },
     [queryClient, refreshOutboxSummary],
@@ -527,8 +534,12 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         sessionStatus !== "authenticated" ||
         enabledModules.length === 0 ||
         !effectiveTenantKey ||
+        hydratedTenantKey !== effectiveTenantKey ||
         tenantConflict
       ) {
+        return;
+      }
+      if (!options?.force && !needsBootstrapWork(bootstrapProgress, pathname)) {
         return;
       }
       if (bootstrapRunRef.current && !options?.force) {
@@ -559,7 +570,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
         for (const moduleDefinition of [...enabledModules].sort(
           (left, right) => left.bootstrapPriority - right.bootstrapPriority,
         )) {
-          const routeDefinitions = getHostWarmupUrls(pathname, moduleDefinition);
+          const routeDefinitions = getWarmupRouteDefinitions(moduleDefinition);
           nextProgress = recalculateBootstrapProgress({
             ...nextProgress,
             currentStepLabel: `Preparing ${moduleDefinition.primaryFlowLabel}`,
@@ -576,6 +587,14 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
           for (const preloadQuery of moduleDefinition.preloadQueries) {
             if (preloadQuery.enabled && !preloadQuery.enabled()) {
+              nextProgress = recalculateBootstrapProgress({
+                ...nextProgress,
+                modules: nextProgress.modules.map((modulePreparation) =>
+                  modulePreparation.moduleId === moduleDefinition.moduleId
+                    ? mergeModulePreparedQueries(modulePreparation, [preloadQuery.key])
+                    : modulePreparation,
+                ),
+              });
               continue;
             }
 
@@ -583,7 +602,17 @@ export function OfflineProvider({ children }: PropsWithChildren) {
               typeof preloadQuery.queryKey === "function"
                 ? await preloadQuery.queryKey()
                 : preloadQuery.queryKey;
-            if (!queryKey) continue;
+            if (!queryKey) {
+              nextProgress = recalculateBootstrapProgress({
+                ...nextProgress,
+                modules: nextProgress.modules.map((modulePreparation) =>
+                  modulePreparation.moduleId === moduleDefinition.moduleId
+                    ? mergeModulePreparedQueries(modulePreparation, [preloadQuery.key])
+                    : modulePreparation,
+                ),
+              });
+              continue;
+            }
 
             try {
               await queryClient.prefetchQuery({
@@ -688,6 +717,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       bootstrapProgress,
       commitBootstrapProgress,
       effectiveTenantKey,
+      hydratedTenantKey,
       enabledModules,
       pathname,
       queryClient,
@@ -1109,9 +1139,17 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (sessionStatus !== "authenticated" || tenantConflict) return;
+    if (!effectiveTenantKey || hydratedTenantKey !== effectiveTenantKey) return;
     void bootstrapSession();
     void checkForUpdates();
-  }, [bootstrapSession, checkForUpdates, sessionStatus, tenantConflict]);
+  }, [
+    bootstrapSession,
+    checkForUpdates,
+    effectiveTenantKey,
+    hydratedTenantKey,
+    sessionStatus,
+    tenantConflict,
+  ]);
 
   useEffect(() => {
     if (updateState !== "ready") {

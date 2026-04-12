@@ -282,6 +282,62 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
       );
     },
   },
+  {
+    key: "retail-held-carts",
+    queryKey: async () => {
+      const shift = await fetchJson<{ data: { id?: string | null } | null }>(
+        "/api/v2/retail/pos/current-shift",
+      );
+      const shiftId = shift.data?.id;
+      return shiftId ? ["retail-held-carts", shiftId] : null;
+    },
+    fetcher: async (queryKey) => {
+      const shiftId = String(queryKey[1] ?? "");
+      return fetchJson(
+        `/api/v2/retail/pos/held-carts?shiftId=${encodeURIComponent(shiftId)}`,
+      );
+    },
+  },
+  {
+    key: "retail-pos-sales-overview",
+    queryKey: async () => {
+      const shift = await fetchJson<{ data: { id?: string | null } | null }>(
+        "/api/v2/retail/pos/current-shift",
+      );
+      const shiftId = shift.data?.id;
+      return shiftId ? ["retail-pos-sales-overview", shiftId] : null;
+    },
+    fetcher: async () =>
+      fetchJson("/api/v2/retail/pos/sales?scope=mine&limit=12"),
+  },
+  {
+    key: "retail-pos-sales-history",
+    queryKey: ["retail-pos-sales", ""],
+    fetcher: async () =>
+      fetchJson("/api/v2/retail/pos/sales?scope=mine&limit=120&search="),
+  },
+  {
+    key: "retail-pos-customers-default",
+    queryKey: ["retail-pos-customers", ""],
+    fetcher: async () =>
+      fetchJson("/api/v2/retail/customers/search?q=&limit=40"),
+  },
+  {
+    key: "retail-pos-price-check-default",
+    queryKey: async () => {
+      const shift = await fetchJson<{ data: { siteId?: string | null } | null }>(
+        "/api/v2/retail/pos/current-shift",
+      );
+      const siteId = shift.data?.siteId;
+      return siteId ? ["retail-pos-price-check", siteId, ""] : null;
+    },
+    fetcher: async (queryKey) => {
+      const siteId = String(queryKey[1] ?? "");
+      return fetchJson(
+        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}&search=`,
+      );
+    },
+  },
 ];
 
 const scrapMutationAdapters: OfflineMutationAdapter[] = [
@@ -360,7 +416,16 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
     bootstrapPriority: 20,
     primaryFlowLabel: "POS checkout",
     warmupBudget: "aggressive",
-    criticalRoutes: ["/portal/pos", "/portal/pos/overview", "/portal/pos/history", "/portal/pos/held"],
+    criticalRoutes: [
+      "/portal/pos",
+      "/portal/pos/overview",
+      "/portal/pos/history",
+      "/portal/pos/held",
+      "/portal/pos/customers",
+      "/portal/pos/shift",
+      "/portal/pos/price-check",
+      "/portal/pos/login",
+    ],
     routes: [
       {
         canonicalRoute: "pos-checkout",
@@ -370,8 +435,8 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
       },
       {
         canonicalRoute: "pos-overview",
-        matchPaths: ["/portal/pos/overview"],
-        warmupUrls: ["/portal/pos/overview"],
+        matchPaths: ["/portal/pos/overview", "/overview"],
+        warmupUrls: ["/portal/pos/overview", "/overview"],
         critical: true,
       },
       {
@@ -400,6 +465,11 @@ export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
         canonicalRoute: "pos-price-check",
         matchPaths: ["/portal/pos/price-check", "/price-check"],
         warmupUrls: ["/portal/pos/price-check", "/price-check"],
+      },
+      {
+        canonicalRoute: "pos-login",
+        matchPaths: ["/portal/pos/login", "/login"],
+        warmupUrls: ["/portal/pos/login", "/login"],
       },
     ],
     shellAssets: ["/icon-192.svg", "/icon-512.svg"],

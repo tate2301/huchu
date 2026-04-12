@@ -55,6 +55,11 @@ export function OfflineRuntimeBanner() {
                   {bootstrapProgress?.completedSteps ?? 0}/{bootstrapProgress?.totalSteps ?? 0}
                 </span>
               </div>
+              <div className="mt-2 text-xs text-[var(--text-muted)]">
+                {(bootstrapProgress?.completedSteps ?? 0) === (bootstrapProgress?.totalSteps ?? 0)
+                  ? "Core offline setup is ready."
+                  : `${bootstrapProgress?.completedSteps ?? 0} of ${bootstrapProgress?.totalSteps ?? 0} setup steps ready.`}
+              </div>
             </div>
           ) : (
             <div className="mt-1 text-xs text-[var(--text-muted)]">
