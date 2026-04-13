@@ -1,6 +1,12 @@
 "use client";
 
-import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from "react";
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -90,8 +96,15 @@ function MobileNavbarActions({ actions }: { actions: ReactNode }) {
       {primaryAction}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="icon-sm" aria-label="More actions">
-            <span className="material-symbols-rounded text-base">more_horiz</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label="More actions"
+          >
+            <span className="material-symbols-rounded text-base">
+              more_horiz
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[14rem]">
@@ -121,11 +134,16 @@ function flattenNavbarActions(actions: ReactNode): ReactElement[] {
       }
 
       if (child.type === Fragment) {
+        // @ts-expect-error - child.props.children is ReactNode, but we know it's safe to pass to collect
         collect(child.props.children);
         return;
       }
 
-      if (typeof child.type === "string" && (child.type === "div" || child.type === "span")) {
+      if (
+        typeof child.type === "string" &&
+        (child.type === "div" || child.type === "span")
+      ) {
+        // @ts-expect-error - child.props.children is ReactNode, but we know it's safe to pass to collect
         collect(child.props.children);
         return;
       }
