@@ -6,11 +6,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AdminDualBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
-import {
-  ScrapMobileCard,
-  ScrapMobileCardHeader,
-  ScrapMobileMetricStrip,
-} from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -410,6 +405,41 @@ export default function ScrapSettlementsPage() {
     setAdjustmentOpen(true);
   };
 
+  const summaryTiles = [
+    {
+      id: "open-balances",
+      label: "Open balances",
+      value: `${balances.length}`,
+      icon: Wallet,
+      toneText: "text-[var(--status-pending-text)]",
+      toneBg: "bg-[var(--status-pending-bg)]/70",
+    },
+    {
+      id: "delivered-value",
+      label: "Delivered value",
+      value: formatMoney(totalDeliveredValue),
+      icon: ReceiptLong,
+      toneText: "text-[var(--status-success-text)]",
+      toneBg: "bg-[var(--status-success-bg)]/70",
+    },
+    {
+      id: "owed-to-us",
+      label: "Owed to us",
+      value: formatMoney(totalPositiveBalance),
+      icon: Payments,
+      toneText: "text-[var(--status-warning-text)]",
+      toneBg: "bg-[var(--status-warning-bg)]/70",
+    },
+    {
+      id: "we-owe",
+      label: "We owe",
+      value: formatMoney(totalNegativeBalance),
+      icon: History,
+      toneText: "text-[var(--status-info-text)]",
+      toneBg: "bg-[var(--status-info-bg)]/70",
+    },
+  ];
+
   return (
     <ScrapShell
       title="Staff Settlements (Buyers)"
@@ -447,105 +477,91 @@ export default function ScrapSettlementsPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl bg-[var(--status-pending-bg)] p-4">
-          <div className="flex items-center gap-2 text-xs text-[var(--status-pending-text)]">
-            <Wallet className="h-4 w-4" />
-            Open balances
-          </div>
-          <div className="mt-2 text-xl font-semibold">{balances.length}</div>
+      <section className="overflow-hidden rounded-3xl bg-[var(--surface-muted)]">
+        <div className="grid gap-px bg-[var(--surface-base)]/65 sm:grid-cols-2 xl:grid-cols-4">
+          {summaryTiles.map((tile) => (
+            <div key={tile.id} className={cn("px-4 py-3 sm:px-5", tile.toneBg)}>
+              <div className={cn("flex items-center gap-2 text-xs", tile.toneText)}>
+                <tile.icon className="h-4 w-4" />
+                {tile.label}
+              </div>
+              <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">{tile.value}</div>
+            </div>
+          ))}
         </div>
-        <div className="rounded-2xl bg-[var(--status-success-bg)] p-4">
-          <div className="flex items-center gap-2 text-xs text-[var(--status-success-text)]">
-            <ReceiptLong className="h-4 w-4" />
-            Delivered value
-          </div>
-          <div className="mt-2 text-xl font-semibold">{formatMoney(totalDeliveredValue)}</div>
-        </div>
-        <div className="rounded-2xl bg-[var(--status-warning-bg)] p-4">
-          <div className="flex items-center gap-2 text-xs text-[var(--status-warning-text)]">
-            <Payments className="h-4 w-4" />
-            Owed to us
-          </div>
-          <div className="mt-2 text-xl font-semibold">{formatMoney(totalPositiveBalance)}</div>
-        </div>
-        <div className="rounded-2xl bg-[var(--status-info-bg)] p-4">
-          <div className="flex items-center gap-2 text-xs text-[var(--status-info-text)]">
-            <History className="h-4 w-4" />
-            We owe
-          </div>
-          <div className="mt-2 text-xl font-semibold">{formatMoney(totalNegativeBalance)}</div>
-        </div>
-      </div>
+      </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <section className="rounded-3xl bg-[var(--status-success-bg)]/80 p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-[var(--status-success-text)]">Settlement trend</h3>
-              <p className="text-xs text-[var(--text-muted)]">Batch value and average payout by due date</p>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-[var(--status-success-text)]">Settled value</div>
-              <div className="font-mono text-sm font-semibold">{formatMoney(totalBatchValue)}</div>
-            </div>
-          </div>
-          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
-              <div className="text-[var(--text-muted)]">Batches</div>
-              <div className="mt-0.5 font-mono text-[var(--text-strong)]">{batches.length}</div>
-            </div>
-            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
-              <div className="text-[var(--text-muted)]">Average payout</div>
-              <div className="mt-0.5 font-mono text-[var(--text-strong)]">{formatMoney(averageBatchValue)}</div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-2xl bg-[var(--surface-base)]/70 p-3 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)] [&_button]:shadow-none">
-            <AdminTrendChart
-              rows={settlementTrendRows}
-              series={SETTLEMENT_TREND_SERIES}
-              height={240}
-              valueFormatter={(value) => formatMoney(value)}
-              yTickFormatter={(value) => value.toFixed(0)}
-            />
-          </div>
-        </section>
-        <section className="rounded-3xl bg-[var(--status-info-bg)]/85 p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-[var(--status-info-text)]">Delivered vs exposure</h3>
-              <p className="text-xs text-[var(--text-muted)]">Top operators by delivered value and open balance</p>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-[var(--status-info-text)]">Net exposure</div>
-              <div className="font-mono text-sm font-semibold">
-                {formatMoney(totalPositiveBalance + totalNegativeBalance)}
+      <section className="overflow-hidden rounded-3xl bg-[var(--surface-subtle)]">
+        <div className="grid gap-px bg-[var(--surface-base)]/65 xl:grid-cols-2">
+          <div className="bg-[var(--status-success-bg)]/70 px-4 py-4 sm:px-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-[var(--status-success-text)]">Settlement trend</h3>
+                <p className="text-xs text-[var(--text-muted)]">Batch value and average payout by due date</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-[var(--status-success-text)]">Settled value</div>
+                <div className="font-mono text-sm font-semibold">{formatMoney(totalBatchValue)}</div>
               </div>
             </div>
-          </div>
-          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
-              <div className="text-[var(--text-muted)]">Owed to us</div>
-              <div className="mt-0.5 font-mono text-[var(--status-warning-text)]">{formatMoney(totalPositiveBalance)}</div>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+              <div>
+                <div className="text-[var(--text-muted)]">Batches</div>
+                <div className="mt-0.5 font-mono text-[var(--text-strong)]">{batches.length}</div>
+              </div>
+              <div>
+                <div className="text-[var(--text-muted)]">Average payout</div>
+                <div className="mt-0.5 font-mono text-[var(--text-strong)]">{formatMoney(averageBatchValue)}</div>
+              </div>
             </div>
-            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
-              <div className="text-[var(--text-muted)]">We owe</div>
-              <div className="mt-0.5 font-mono text-[var(--status-info-text)]">{formatMoney(totalNegativeBalance)}</div>
+            <div className="mt-4 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)]/90 [&_button]:shadow-none">
+              <AdminTrendChart
+                rows={settlementTrendRows}
+                series={SETTLEMENT_TREND_SERIES}
+                height={240}
+                valueFormatter={(value) => formatMoney(value)}
+                yTickFormatter={(value) => value.toFixed(0)}
+              />
             </div>
           </div>
-          <div className="mt-4 rounded-2xl bg-[var(--surface-base)]/70 p-3 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)] [&_button]:shadow-none">
-            <AdminDualBarChart
-              rows={balanceChartRows}
-              height={240}
-              primaryLabel="Delivered Value"
-              secondaryLabel="Open Balance"
-              primaryColor="var(--status-success-border)"
-              secondaryColor="var(--status-warning-border)"
-              valueFormatter={(value) => `USD ${value.toFixed(0)}`}
-            />
+
+          <div className="bg-[var(--status-info-bg)]/70 px-4 py-4 sm:px-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-[var(--status-info-text)]">Delivered vs exposure</h3>
+                <p className="text-xs text-[var(--text-muted)]">Top operators by delivered value and open balance</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-[var(--status-info-text)]">Net exposure</div>
+                <div className="font-mono text-sm font-semibold">
+                  {formatMoney(totalPositiveBalance + totalNegativeBalance)}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+              <div>
+                <div className="text-[var(--text-muted)]">Owed to us</div>
+                <div className="mt-0.5 font-mono text-[var(--status-warning-text)]">{formatMoney(totalPositiveBalance)}</div>
+              </div>
+              <div>
+                <div className="text-[var(--text-muted)]">We owe</div>
+                <div className="mt-0.5 font-mono text-[var(--status-info-text)]">{formatMoney(totalNegativeBalance)}</div>
+              </div>
+            </div>
+            <div className="mt-4 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)]/90 [&_button]:shadow-none">
+              <AdminDualBarChart
+                rows={balanceChartRows}
+                height={240}
+                primaryLabel="Delivered Value"
+                secondaryLabel="Open Balance"
+                primaryColor="var(--status-success-border)"
+                secondaryColor="var(--status-warning-border)"
+                valueFormatter={(value) => `USD ${value.toFixed(0)}`}
+              />
+            </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <VerticalDataViews
         items={views}
@@ -565,101 +581,107 @@ export default function ScrapSettlementsPage() {
                 No open balances.
               </div>
             ) : null}
-            {balances.map((balance) => {
-              const deliveredRatio = Math.max(balance.deliveredValue / maxDeliveredValue, 0.04);
-              const balanceRatio = Math.max(Math.abs(balance.balance) / maxBalanceValue, 0.04);
-              const owesUs = balance.balance > 0;
-              const amountLabel = owesUs ? "Owes us" : "We owe";
-              return (
-                <article
-                  key={balance.id}
-                  className={cn(
-                    "rounded-2xl p-4",
-                    owesUs
-                      ? "bg-[var(--status-warning-bg)]"
-                      : "bg-[var(--status-info-bg)]",
-                  )}
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <div className="font-semibold">{balance.employee.name}</div>
-                      <div className="font-mono text-xs text-muted-foreground">
-                        {balance.employee.employeeId}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={owesUs ? "warning" : "info"}>{amountLabel}</Badge>
-                      <Button type="button" size="sm" variant="outline" onClick={() => openAdjustmentModal(balance)}>
-                        Update balance
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => setSelectedBalance(balance)}>
-                        History
-                      </Button>
-                    </div>
-                  </div>
+            {!balancesQuery.isLoading && balances.length > 0 ? (
+              <div className="overflow-hidden rounded-3xl bg-[var(--surface-subtle)]">
+                {balances.map((balance, index) => {
+                  const deliveredRatio = Math.max(balance.deliveredValue / maxDeliveredValue, 0.04);
+                  const balanceRatio = Math.max(Math.abs(balance.balance) / maxBalanceValue, 0.04);
+                  const owesUs = balance.balance > 0;
+                  const amountLabel = owesUs ? "Owes us" : "We owe";
 
-                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                      <div>
-                        <div className="text-xs text-muted-foreground">Delivered</div>
-                        <div className="mt-1 font-semibold">{formatMoney(balance.deliveredValue)}</div>
-                        <div className="text-xs text-muted-foreground">{balance.deliveredWeight.toFixed(2)} kg</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">{amountLabel}</div>
-                        <div
-                          className={cn(
-                            "mt-1 font-semibold",
-                            owesUs
-                              ? "text-[var(--status-warning-text)]"
-                              : "text-[var(--status-info-text)]",
-                          )}
-                        >
-                          {formatMoney(Math.abs(balance.balance))}
+                  return (
+                    <article
+                      key={balance.id}
+                      className={cn(
+                        "px-4 py-4 sm:px-5",
+                        index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]",
+                        owesUs
+                          ? "bg-[var(--status-warning-bg)]/45"
+                          : "bg-[var(--status-info-bg)]/45",
+                      )}
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <div className="font-semibold">{balance.employee.name}</div>
+                          <div className="font-mono text-xs text-muted-foreground">
+                            {balance.employee.employeeId}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">{balance.historyCount} entries</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={owesUs ? "warning" : "info"}>{amountLabel}</Badge>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => openAdjustmentModal(balance)}>
+                            Update balance
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedBalance(balance)}>
+                            History
+                          </Button>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Last delivery</div>
-                        <div className="mt-1 font-semibold">{formatDate(balance.lastPurchaseDate)}</div>
-                        <div className="text-xs text-muted-foreground">{balance.purchaseCount} purchases</div>
-                      </div>
-                    </div>
 
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3 text-xs">
-                          <span className="text-muted-foreground">Delivered value</span>
-                          <span className="font-mono text-foreground">{formatMoney(balance.deliveredValue)}</span>
+                      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                          <div>
+                            <div className="text-xs text-muted-foreground">Delivered</div>
+                            <div className="mt-1 font-semibold">{formatMoney(balance.deliveredValue)}</div>
+                            <div className="text-xs text-muted-foreground">{balance.deliveredWeight.toFixed(2)} kg</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">{amountLabel}</div>
+                            <div
+                              className={cn(
+                                "mt-1 font-semibold",
+                                owesUs
+                                  ? "text-[var(--status-warning-text)]"
+                                  : "text-[var(--status-info-text)]",
+                              )}
+                            >
+                              {formatMoney(Math.abs(balance.balance))}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{balance.historyCount} entries</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Last delivery</div>
+                            <div className="mt-1 font-semibold">{formatDate(balance.lastPurchaseDate)}</div>
+                            <div className="text-xs text-muted-foreground">{balance.purchaseCount} purchases</div>
+                          </div>
                         </div>
-                        <div className="h-2 rounded-full bg-[var(--surface-muted)]">
-                          <div
-                            className="h-2 rounded-full bg-[var(--primary-500)]"
-                            style={{ width: `${Math.min(deliveredRatio * 100, 100)}%` }}
-                          />
+
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <span className="text-muted-foreground">Delivered value</span>
+                              <span className="font-mono text-foreground">{formatMoney(balance.deliveredValue)}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-[var(--surface-base)]/80">
+                              <div
+                                className="h-2 rounded-full bg-[var(--status-success-border)]"
+                                style={{ width: `${Math.min(deliveredRatio * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <span className={owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]"}>
+                                {amountLabel}
+                              </span>
+                              <span className={cn("font-mono", owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]")}>
+                                {formatMoney(Math.abs(balance.balance))}
+                              </span>
+                            </div>
+                            <div className="h-2 rounded-full bg-[var(--surface-base)]/80">
+                              <div
+                                className={owesUs ? "h-2 rounded-full bg-[var(--status-warning-border)]" : "h-2 rounded-full bg-[var(--status-info-border)]"}
+                                style={{ width: `${Math.min(balanceRatio * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3 text-xs">
-                          <span className={owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]"}>
-                            {amountLabel}
-                          </span>
-                          <span className={cn("font-mono", owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]")}>
-                            {formatMoney(Math.abs(balance.balance))}
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[var(--surface-muted)]">
-                          <div
-                            className={owesUs ? "h-2 rounded-full bg-[var(--status-warning-border)]" : "h-2 rounded-full bg-[var(--status-info-border)]"}
-                            style={{ width: `${Math.min(balanceRatio * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         ) : (
           <DataTable
@@ -671,28 +693,42 @@ export default function ScrapSettlementsPage() {
             tableClassName="text-sm"
             emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
             mobileCardRenderer={({ row: batch }) => (
-              <ScrapMobileCard>
-                <ScrapMobileCardHeader
-                  title={batch.label}
-                  subtitle={`${batch.items.length} people`}
-                  aside={
-                    <Badge variant={getWorkflowBadgeVariant(batch.workflowStatus)}>
-                      {formatWorkflowStatus(batch.workflowStatus)}
-                    </Badge>
-                  }
-                />
-                <ScrapMobileMetricStrip
-                  items={[
-                    { icon: Calendar, value: formatDate(batch.dueDate), srLabel: "Due date" },
-                    {
-                      icon: Wallet,
-                      value: formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0)),
-                      srLabel: "Batch value",
-                    },
-                    { icon: Users, value: `${batch.items.length}`, srLabel: "People count" },
-                  ]}
-                />
-              </ScrapMobileCard>
+              <div className="bg-[var(--surface-muted)] px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{batch.label}</div>
+                    <div className="text-xs text-muted-foreground">{batch.items.length} people</div>
+                  </div>
+                  <Badge variant={getWorkflowBadgeVariant(batch.workflowStatus)}>
+                    {formatWorkflowStatus(batch.workflowStatus)}
+                  </Badge>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <div className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Due
+                    </div>
+                    <div className="mt-1 font-mono">{formatDate(batch.dueDate)}</div>
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Wallet className="h-3.5 w-3.5" />
+                      Value
+                    </div>
+                    <div className="mt-1 font-mono">
+                      {formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Users className="h-3.5 w-3.5" />
+                      People
+                    </div>
+                    <div className="mt-1 font-mono">{batch.items.length}</div>
+                  </div>
+                </div>
+              </div>
             )}
           />
         )}
@@ -712,7 +748,7 @@ export default function ScrapSettlementsPage() {
             </div>
             <Textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes" />
             {items.map((item, index) => (
-              <div key={`scrap-item-${index}`} className="grid gap-3 rounded-xl bg-[var(--surface-muted)] p-3 lg:grid-cols-[2fr_1fr_2fr_auto]">
+              <div key={`scrap-item-${index}`} className="grid gap-3 bg-[var(--surface-muted)]/70 p-3 lg:grid-cols-[2fr_1fr_2fr_auto]">
                 <Select
                   value={item.employeeId || "__none"}
                   onValueChange={(value) =>
@@ -870,47 +906,49 @@ export default function ScrapSettlementsPage() {
               </Alert>
             ) : balanceHistoryQuery.data ? (
               <div className="space-y-6">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
-                    <div className="text-xs text-muted-foreground">Balance</div>
-                    <div
-                      className={cn(
-                        "mt-2 text-xl font-semibold",
-                        balanceHistoryQuery.data.balance.amount >= 0
-                          ? "text-[var(--status-warning-text)]"
-                          : "text-[var(--status-info-text)]",
-                      )}
-                    >
-                      {formatMoney(Math.abs(balanceHistoryQuery.data.balance.amount))}
+                <section className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                  <div className="grid gap-px bg-[var(--surface-base)]/65 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="px-4 py-3">
+                      <div className="text-xs text-muted-foreground">Balance</div>
+                      <div
+                        className={cn(
+                          "mt-1.5 font-mono text-lg font-semibold",
+                          balanceHistoryQuery.data.balance.amount >= 0
+                            ? "text-[var(--status-warning-text)]"
+                            : "text-[var(--status-info-text)]",
+                        )}
+                      >
+                        {formatMoney(Math.abs(balanceHistoryQuery.data.balance.amount))}
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-xs text-muted-foreground">Last updated</div>
+                      <div className="mt-1.5 font-mono text-lg font-semibold">
+                        {formatDate(balanceHistoryQuery.data.balance.lastUpdated)}
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-xs text-muted-foreground">Deliveries</div>
+                      <div className="mt-1.5 font-mono text-lg font-semibold">
+                        {balanceHistoryQuery.data.deliveries.length}
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-xs text-muted-foreground">Settlement batches</div>
+                      <div className="mt-1.5 font-mono text-lg font-semibold">
+                        {balanceHistoryQuery.data.settlements.length}
+                      </div>
                     </div>
                   </div>
-                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
-                    <div className="text-xs text-muted-foreground">Last updated</div>
-                    <div className="mt-2 text-xl font-semibold">
-                      {formatDate(balanceHistoryQuery.data.balance.lastUpdated)}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
-                    <div className="text-xs text-muted-foreground">Deliveries</div>
-                    <div className="mt-2 text-xl font-semibold">
-                      {balanceHistoryQuery.data.deliveries.length}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
-                    <div className="text-xs text-muted-foreground">Settlement batches</div>
-                    <div className="mt-2 text-xl font-semibold">
-                      {balanceHistoryQuery.data.settlements.length}
-                    </div>
-                  </div>
-                </div>
+                </section>
 
                 <section className="space-y-3">
                   <h3 className="text-sm font-semibold">Balance history</h3>
-                  <div className="space-y-3">
-                    {balanceHistoryQuery.data.entries.map((entry) => (
+                  <div className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                    {balanceHistoryQuery.data.entries.map((entry, index) => (
                       <article
                         key={entry.id}
-                        className="rounded-2xl bg-[var(--surface-muted)] p-4"
+                        className={cn("px-4 py-3", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1">
@@ -941,11 +979,11 @@ export default function ScrapSettlementsPage() {
 
                 <section className="space-y-3">
                   <h3 className="text-sm font-semibold">Delivered scrap</h3>
-                  <div className="space-y-3">
-                    {balanceHistoryQuery.data.deliveries.map((delivery) => (
+                  <div className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                    {balanceHistoryQuery.data.deliveries.map((delivery, index) => (
                       <article
                         key={delivery.id}
-                        className="rounded-2xl bg-[var(--surface-muted)] p-4"
+                        className={cn("px-4 py-3", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
@@ -973,11 +1011,11 @@ export default function ScrapSettlementsPage() {
 
                 <section className="space-y-3">
                   <h3 className="text-sm font-semibold">Settlement batches</h3>
-                  <div className="space-y-3">
-                    {balanceHistoryQuery.data.settlements.map((settlement) => (
+                  <div className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                    {balanceHistoryQuery.data.settlements.map((settlement, index) => (
                       <article
                         key={settlement.id}
-                        className="rounded-2xl bg-[var(--surface-muted)] p-4"
+                        className={cn("px-4 py-3", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
