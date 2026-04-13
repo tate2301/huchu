@@ -4,6 +4,7 @@ import { type CSSProperties } from "react";
 
 import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { cn } from "@/lib/utils";
 
 function clampedPercent(completed: number, total: number) {
   if (total <= 0) return 0;
@@ -11,11 +12,18 @@ function clampedPercent(completed: number, total: number) {
 }
 
 export function OfflineStatusIndicator() {
-  const { status, pendingCount, blockingCount, bootstrapProgress } = useOfflineRuntime();
+  const { status, bootstrapProgress, showUpdatePrompt } = useOfflineRuntime();
   const tone = getOfflineStatusTone(status);
   const StatusIcon = tone.icon;
 
-  const shouldShow = status !== "ONLINE" || blockingCount > 0 || pendingCount > 0;
+  const shouldShow =
+    status === "PREPARING" ||
+    status === "SYNCING" ||
+    status === "RECONNECTING" ||
+    status === "OFFLINE" ||
+    status === "ATTENTION" ||
+    (status === "UPDATE_READY" && showUpdatePrompt);
+
   if (!shouldShow) {
     return null;
   }
@@ -36,20 +44,26 @@ export function OfflineStatusIndicator() {
     bootstrapProgress?.totalSteps ?? 0,
   );
 
-  const label =
-    status === "PREPARING"
-      ? setupRunningLong
-        ? `Setting up ${percent}%`
-        : "Setting up"
-      : status === "SYNCING" || status === "RECONNECTING"
-        ? "Updating"
-        : status === "OFFLINE"
-          ? "Offline"
-          : status === "ATTENTION"
-            ? "Needs attention"
-            : tone.text;
+  const label = (() => {
+    if (status === "PREPARING") {
+      return setupRunningLong ? `Setting up ${percent}%` : "Setting up";
+    }
+    if (status === "SYNCING" || status === "RECONNECTING") {
+      return "Updating";
+    }
+    if (status === "UPDATE_READY") {
+      return "Update available";
+    }
+    if (status === "OFFLINE") {
+      return "Offline";
+    }
+    if (status === "ATTENTION") {
+      return "Action needed";
+    }
+    return tone.text;
+  })();
 
-  const useMutedSurface =
+  const isActivityState =
     status === "SYNCING" ||
     status === "RECONNECTING" ||
     status === "PREPARING";
@@ -57,29 +71,20 @@ export function OfflineStatusIndicator() {
   return (
     <div
       style={{ "--status-chip": `var(${tone.colorVar})` } as CSSProperties}
-      className={[
-        "inline-flex h-9 items-center gap-2 rounded-full px-2.5 pr-3 text-sm font-medium",
-        useMutedSurface
-          ? "border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_84%,white)] text-[var(--text-muted)]"
-          : "bg-[color-mix(in_srgb,var(--status-chip)_14%,var(--surface-base))] text-[var(--status-chip)]",
-      ].join(" ")}
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 rounded-[12px] border px-2.5 text-xs font-semibold tracking-[-0.01em]",
+        isActivityState &&
+          "border-[color-mix(in_srgb,var(--border-default)_70%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_90%,white)] text-[var(--text-muted)]",
+        status === "UPDATE_READY" &&
+          "border-[color-mix(in_srgb,var(--status-success-text)_22%,transparent)] bg-[color-mix(in_srgb,var(--status-success-text)_15%,white)] text-[var(--status-success-text)]",
+        status === "OFFLINE" &&
+          "border-[color-mix(in_srgb,var(--status-warning-text)_26%,transparent)] bg-[color-mix(in_srgb,var(--status-warning-text)_14%,white)] text-[var(--status-warning-text)]",
+        status === "ATTENTION" &&
+          "border-[color-mix(in_srgb,var(--status-error-text)_26%,transparent)] bg-[color-mix(in_srgb,var(--status-error-text)_14%,white)] text-[var(--status-error-text)]",
+      )}
     >
-      <span
-        className={[
-          "inline-flex size-5 items-center justify-center rounded-full",
-          useMutedSurface
-            ? "bg-[color-mix(in_srgb,var(--surface-base)_88%,white)] text-[var(--text-muted)]"
-            : "bg-[var(--status-chip)] text-[var(--surface-base)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--status-chip)_18%,transparent)]",
-        ].join(" ")}
-      >
-        <StatusIcon
-          className={[
-            "size-3.5",
-            tone.iconClassName ?? "",
-          ].join(" ")}
-        />
-      </span>
       <span>{label}</span>
+      <StatusIcon className={cn("size-3.5", tone.iconClassName)} />
     </div>
   );
 }

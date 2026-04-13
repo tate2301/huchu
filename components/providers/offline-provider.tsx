@@ -250,7 +250,7 @@ function getStatusLabel(
       (clampedCompleted / bootstrapProgress.totalSteps) * 100,
     )}%`;
   }
-  if (status === "UPDATE_READY") return "Update ready";
+  if (status === "UPDATE_READY") return "Update available";
   if (status === "RECONNECTING") return "Reconnecting";
   if (status === "SYNCING") {
     return pendingCount > 0 ? `Syncing ${pendingCount}` : "Syncing";
@@ -1477,6 +1477,11 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   }, [updateState]);
 
   const status: OfflineStatus = useMemo(() => {
+    const isUpdateApplying =
+      updateState === "checking" ||
+      updateState === "downloading" ||
+      updateState === "activating";
+
     if (isOffline) return "OFFLINE";
     if (
       lifecycleState === "hydrating_cache" ||
@@ -1485,10 +1490,10 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     ) {
       return "PREPARING";
     }
-    if (lifecycleState === "syncing" || isSyncing) return "SYNCING";
+    if (lifecycleState === "syncing" || isSyncing || isUpdateApplying) return "SYNCING";
     if (isReconnecting) return "RECONNECTING";
     if (tenantConflict || blockingCount > 0) return "ATTENTION";
-    if (updateState === "ready" || updateState === "activating") {
+    if (updateState === "ready" && !updateDismissed) {
       return "UPDATE_READY";
     }
     return "ONLINE";
@@ -1500,6 +1505,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     isSyncing,
     lifecycleState,
     tenantConflict,
+    updateDismissed,
     updateState,
   ]);
 
