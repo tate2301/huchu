@@ -337,14 +337,14 @@ function isModulePrepared(modulePreparation: OfflineModulePreparation) {
 
 function needsBootstrapWork(
   progress: OfflineBootstrapProgress | null,
-  pathname: string,
+  pathname: string | null,
 ) {
   if (!progress) return true;
   if (progress.modules.length === 0) return true;
   if (progress.modules.some((modulePreparation) => !isModulePrepared(modulePreparation))) {
     return true;
   }
-  if (isPublicPathname(pathname)) {
+  if (!pathname || isPublicPathname(pathname)) {
     return false;
   }
   return !progress.preparedRoutes.some((candidate) => routeMatches(pathname, candidate));
@@ -655,7 +655,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (!navigator.onLine || isOfflineRef.current) {
         return;
       }
-      if (!options?.force && !needsBootstrapWork(bootstrapProgress, pathname)) {
+      const activeWarmRoute =
+        routeAvailability.availability === "warmed" ? pathname : null;
+      if (!options?.force && !needsBootstrapWork(bootstrapProgress, activeWarmRoute)) {
         return;
       }
       if (bootstrapRunRef.current && !options?.force) {
@@ -865,6 +867,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       isOffline,
       pathname,
       queryClient,
+      routeAvailability.availability,
       sessionStatus,
       tenantConflict,
     ],
@@ -879,6 +882,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
           hasTenantConflict: Boolean(tenantConflict),
         })
       ) {
+        return;
+      }
+      if (!options?.force && pendingCount === 0) {
         return;
       }
       if (syncRunRef.current) {
@@ -932,6 +938,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       effectiveTenantKey,
       enabledFeatures,
       isOffline,
+      pendingCount,
       queryClient,
       refreshOutboxSummary,
       tenantConflict,
@@ -1308,7 +1315,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     ) {
       lastReconnectHandledRef.current = lastOnlineAt;
       setIsReconnecting(true);
-      void bootstrapSession({ force: true });
+      void bootstrapSession();
       void requestBackgroundSync();
       void checkForUpdates();
       void syncNow();
@@ -1481,16 +1488,19 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       updateState === "checking" ||
       updateState === "downloading" ||
       updateState === "activating";
+    const initialBootstrapPending =
+      (lifecycleState === "warming" || bootstrapProgress?.phase === "preparing") &&
+      !bootstrapProgress?.lastPreparedAt;
+    const warmupRefreshInFlight =
+      lifecycleState === "warming" && Boolean(bootstrapProgress?.lastPreparedAt);
 
     if (isOffline) return "OFFLINE";
-    if (
-      lifecycleState === "hydrating_cache" ||
-      lifecycleState === "warming" ||
-      bootstrapProgress?.phase === "preparing"
-    ) {
+    if (initialBootstrapPending) {
       return "PREPARING";
     }
-    if (lifecycleState === "syncing" || isSyncing || isUpdateApplying) return "SYNCING";
+    if (lifecycleState === "syncing" || isSyncing || isUpdateApplying || warmupRefreshInFlight) {
+      return "SYNCING";
+    }
     if (isReconnecting) return "RECONNECTING";
     if (tenantConflict || blockingCount > 0) return "ATTENTION";
     if (updateState === "ready" && !updateDismissed) {
@@ -1499,6 +1509,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     return "ONLINE";
   }, [
     blockingCount,
+    bootstrapProgress?.lastPreparedAt,
     bootstrapProgress?.phase,
     isOffline,
     isReconnecting,

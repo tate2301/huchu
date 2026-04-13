@@ -5,12 +5,12 @@ import {
   ShieldCheck,
   Spinner,
 } from "@medusajs/icons";
-import type { ComponentType, SVGProps } from "react";
+import type { ElementType } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
 
 type StatusTone = {
   colorVar: string;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  icon: ElementType<{ className?: string }>;
   text: string;
   iconClassName?: string;
 };
