@@ -58,14 +58,18 @@ export function Navbar() {
             <OfflineStatusIndicator />
             <MobileNavbarActions actions={actions} />
           </div>
-          <div className="hidden h-14 items-center gap-3 md:flex">
-            <SidebarTrigger />
-            <Separator orientation="vertical" className="h-6" />
-            <div className="min-w-0">
-              <Breadcrumbs />
+
+          <div className="hidden h-14 items-center gap-3 md:flex justify-between">
+            <div className="flex gap-3 items-center">
+              <SidebarTrigger />
+              <Separator orientation="vertical" className="h-6" />
+              <div className="min-w-0">
+                <Breadcrumbs />
+              </div>
             </div>
-            <div className="ml-auto flex items-center gap-3">
-              <OfflineStatusIndicator />
+            <OfflineStatusIndicator />
+
+            <div className="flex items-center gap-3">
               {showNotificationCenter ? <NotificationCenter /> : null}
               {actions ? (
                 <div className="flex items-center gap-2">{actions}</div>

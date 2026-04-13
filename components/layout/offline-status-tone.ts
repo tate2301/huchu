@@ -1,22 +1,13 @@
 import {
-  ArrowPath,
   CheckCircleSolid,
   CircleDottedLine,
   CircleHalfDottedClock,
   CircleThreeQuartersSolid,
-  CloudArrowDown,
   ExclamationCircleSolid,
-  ShieldCheck,
-  Spinner,
 } from "@medusajs/icons";
 import type { ElementType } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
-import {
-  ArrowUploadProgress,
-  CloudSync,
-  DeployedCodeUpdate,
-  SignalWifiOff,
-} from "@/lib/icons";
+import { DeployedCodeUpdate, SignalWifiOff } from "@/lib/icons";
 
 type StatusTone = {
   colorVar: string;
@@ -45,7 +36,6 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
       colorVar: "--action-primary-bg",
       icon: CircleHalfDottedClock,
       text: "Preparing",
-      iconClassName: "motion-safe:animate-spin",
     };
   }
   if (status === "UPDATE_READY") {
@@ -60,7 +50,6 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
       colorVar: "--action-primary-bg",
       icon: CircleDottedLine,
       text: "Reconnecting",
-      iconClassName: "motion-safe:animate-spin",
     };
   }
   if (status === "SYNCING") {
@@ -68,7 +57,6 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
       colorVar: "--action-primary-bg",
       icon: CircleThreeQuartersSolid,
       text: "Syncing",
-      iconClassName: "motion-safe:animate-spin",
     };
   }
   return {

@@ -14,10 +14,11 @@ const buttonVariants = cva(
         destructive:
           "bg-[var(--status-error-bg)] text-[var(--status-error-text)] shadow-none hover:bg-[var(--status-error-bg)]",
         outline:
-          "border-[var(--border-default)] text-foreground shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--button-shadow-hover)] active:shadow-[var(--button-shadow-pressed)]",
+          "border border-[var(--border-default)] text-foreground shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)] hover:bg-[var(--action-outline-hover-bg)] hover:shadow-[var(--button-shadow-hover)] active:shadow-[var(--button-shadow-pressed)]",
         secondary:
-          "bg-[var(--action-secondary-bg)] text-[var(--action-secondary-fg)] shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)]  hover:shadow-[var(--button-shadow-pressed)]",
-        ghost: "border-transparent bg-button-ghost-hover-bg text-foreground",
+          "bg-surface-muted text-secondary-fg shadow-[var(--button-shadow-rest)] hover:border-[var(--border-strong)]  hover:shadow-[var(--button-shadow-pressed)]",
+        ghost:
+          "border-transparent bg-button-ghost-hover-bg hover:bg-surface-muted text-foreground",
         link: "border-transparent text-primary underline-offset-4 hover:underline",
       },
       size: {

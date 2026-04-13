@@ -64,27 +64,23 @@ export function OfflineStatusIndicator() {
   })();
 
   const isActivityState =
-    status === "SYNCING" ||
-    status === "RECONNECTING" ||
-    status === "PREPARING";
+    status === "SYNCING" || status === "RECONNECTING" || status === "PREPARING";
 
   return (
     <div
       style={{ "--status-chip": `var(${tone.colorVar})` } as CSSProperties}
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-[12px] border px-2.5 text-xs font-semibold tracking-[-0.01em]",
-        isActivityState &&
-          "border-[color-mix(in_srgb,var(--border-default)_70%,transparent)] bg-[color-mix(in_srgb,var(--surface-muted)_90%,white)] text-[var(--text-muted)]",
+        "inline-flex items-center gap-2 pl-4 rounded-lg px-2.5 font-semibold tracking-[-0.01em] py-1.5",
+        isActivityState && "bg-surface-muted text-text-muted",
         status === "UPDATE_READY" &&
-          "border-[color-mix(in_srgb,var(--status-success-text)_22%,transparent)] bg-[color-mix(in_srgb,var(--status-success-text)_15%,white)] text-[var(--status-success-text)]",
+          " bg-status-success-bg text-status-success-text",
         status === "OFFLINE" &&
-          "border-[color-mix(in_srgb,var(--status-warning-text)_26%,transparent)] bg-[color-mix(in_srgb,var(--status-warning-text)_14%,white)] text-[var(--status-warning-text)]",
-        status === "ATTENTION" &&
-          "border-[color-mix(in_srgb,var(--status-error-text)_26%,transparent)] bg-[color-mix(in_srgb,var(--status-error-text)_14%,white)] text-[var(--status-error-text)]",
+          " bg-status-warning-bg text-status-warning-text",
+        status === "ATTENTION" && " bg-status-error-bg text-status-error-text",
       )}
     >
       <span>{label}</span>
-      <StatusIcon className={cn("size-3.5", tone.iconClassName)} />
+      <StatusIcon className={cn("size-4", tone.iconClassName)} />
     </div>
   );
 }
