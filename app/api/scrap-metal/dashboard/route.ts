@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { format, startOfMonth, startOfWeek, subWeeks } from "date-fns";
+import {
+  addDays,
+  addHours,
+  addMonths,
+  endOfDay,
+  endOfMonth,
+  endOfWeek,
+  format,
+  parseISO,
+  startOfDay,
+  startOfHour,
+  startOfMonth,
+  startOfWeek,
+  subWeeks,
+} from "date-fns";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +23,8 @@ const MATERIAL_LIMIT = 6;
 const CLOSED_SALE_STATUSES = new Set(["APPROVED", "COMPLETED"]);
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+type SnapshotWindow = "day" | "week" | "month" | "all";
+type SnapshotGranularity = "hour" | "day" | "month";
 
 function resolveMaterialLabel(input: {
   materialName?: string | null;
@@ -30,6 +46,78 @@ function resolveLatestPrice(
   );
 }
 
+function parseSnapshotWindow(input: string | null): SnapshotWindow {
+  const normalized = String(input ?? "").trim().toLowerCase();
+  if (normalized === "day" || normalized === "daily") return "day";
+  if (normalized === "week" || normalized === "weekly") return "week";
+  if (normalized === "month" || normalized === "monthly") return "month";
+  if (normalized === "all" || normalized === "all-time" || normalized === "alltime") return "all";
+  return "month";
+}
+
+function parseAnchorDate(input: string | null, fallback: Date) {
+  if (!input) return fallback;
+  try {
+    const parsed = parseISO(input);
+    return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+  } catch {
+    return fallback;
+  }
+}
+
+function resolveWindowBounds(window: SnapshotWindow, anchor: Date): { start: Date | null; end: Date } {
+  if (window === "day") {
+    return { start: startOfDay(anchor), end: endOfDay(anchor) };
+  }
+  if (window === "week") {
+    return {
+      start: startOfWeek(anchor, { weekStartsOn: 1 }),
+      end: endOfWeek(anchor, { weekStartsOn: 1 }),
+    };
+  }
+  if (window === "month") {
+    return { start: startOfMonth(anchor), end: endOfMonth(anchor) };
+  }
+  return { start: null, end: endOfDay(anchor) };
+}
+
+function resolveSnapshotGranularity(window: SnapshotWindow): SnapshotGranularity {
+  if (window === "day") return "hour";
+  if (window === "all") return "month";
+  return "day";
+}
+
+function startOfGranularityBucket(date: Date, granularity: SnapshotGranularity) {
+  if (granularity === "hour") return startOfHour(date);
+  if (granularity === "day") return startOfDay(date);
+  return startOfMonth(date);
+}
+
+function addGranularityBucket(date: Date, granularity: SnapshotGranularity) {
+  if (granularity === "hour") return addHours(date, 1);
+  if (granularity === "day") return addDays(date, 1);
+  return addMonths(date, 1);
+}
+
+function formatGranularityLabel(date: Date, granularity: SnapshotGranularity) {
+  if (granularity === "hour") return format(date, "HH:mm");
+  if (granularity === "day") return format(date, "MMM d");
+  return format(date, "MMM yyyy");
+}
+
+function isWithinRange(date: Date, start: Date | null, end: Date) {
+  if (start && date < start) return false;
+  if (date > end) return false;
+  return true;
+}
+
+function describeWindow(window: SnapshotWindow) {
+  if (window === "day") return "Daily";
+  if (window === "week") return "Weekly";
+  if (window === "month") return "Monthly";
+  return "All Time";
+}
+
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
@@ -37,16 +125,22 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
     const companyId = session.user.companyId;
     const now = new Date();
-    const monthStart = startOfMonth(now);
-    const trendStart = startOfWeek(subWeeks(now, STORAGE_TREND_WEEKS - 1), {
+    const { searchParams } = new URL(request.url);
+    const windowMode = parseSnapshotWindow(searchParams.get("window"));
+    const anchorDate = parseAnchorDate(searchParams.get("anchorDate"), now);
+    const { start: windowStart, end: windowEnd } = resolveWindowBounds(windowMode, anchorDate);
+    const trendStart = startOfWeek(subWeeks(windowEnd, STORAGE_TREND_WEEKS - 1), {
       weekStartsOn: 1,
     });
     const trendBuckets = Array.from({ length: STORAGE_TREND_WEEKS }, (_, index) =>
-      startOfWeek(subWeeks(now, STORAGE_TREND_WEEKS - 1 - index), {
+      startOfWeek(subWeeks(windowEnd, STORAGE_TREND_WEEKS - 1 - index), {
         weekStartsOn: 1,
       }),
     );
     const trendBucketKeys = trendBuckets.map((bucket) => bucket.toISOString());
+    const fetchStart = windowStart && windowStart < trendStart ? windowStart : trendStart;
+    const purchaseDateWhere: { gte?: Date; lte?: Date } = { gte: fetchStart, lte: windowEnd };
+    const saleDateWhere: { gte?: Date; lte?: Date } = { gte: fetchStart, lte: windowEnd };
 
     const [
       recentPurchases,
@@ -71,9 +165,7 @@ export async function GET(request: NextRequest) {
       prisma.scrapMetalPurchase.findMany({
         where: {
           companyId,
-          purchaseDate: {
-            gte: trendStart,
-          },
+          purchaseDate: purchaseDateWhere,
         },
         select: {
           id: true,
@@ -93,9 +185,7 @@ export async function GET(request: NextRequest) {
       prisma.scrapMetalSale.findMany({
         where: {
           companyId,
-          saleDate: {
-            gte: trendStart,
-          },
+          saleDate: saleDateWhere,
         },
         select: {
           id: true,
@@ -243,6 +333,7 @@ export async function GET(request: NextRequest) {
           companyId,
           status: "POSTED",
           purchasePaymentId: null,
+          purchaseDate: { lte: windowEnd },
         },
         select: {
           id: true,
@@ -260,6 +351,7 @@ export async function GET(request: NextRequest) {
           companyId,
           status: "POSTED",
           purchasePaymentId: null,
+          purchaseDate: { lte: windowEnd },
         },
       }),
       prisma.scrapMetalPurchase.aggregate({
@@ -267,6 +359,7 @@ export async function GET(request: NextRequest) {
           companyId,
           status: "POSTED",
           purchasePaymentId: null,
+          purchaseDate: { lte: windowEnd },
         },
         _sum: { totalAmount: true },
       }),
@@ -278,16 +371,38 @@ export async function GET(request: NextRequest) {
 
     const purchases = recentPurchases;
     const sales = recentSales;
-    const monthPurchases = purchases.filter((purchase) => purchase.purchaseDate >= monthStart);
-    const monthSales = sales.filter(
-      (sale) => sale.saleDate >= monthStart && CLOSED_SALE_STATUSES.has(sale.status),
+    const periodPurchases = purchases.filter((purchase) =>
+      isWithinRange(purchase.purchaseDate, windowStart, windowEnd),
     );
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayPurchases = purchases.filter((purchase) => purchase.purchaseDate >= todayStart);
-    const todaySales = sales.filter((sale) => sale.saleDate >= todayStart && CLOSED_SALE_STATUSES.has(sale.status));
-    const elapsedHoursToday = Math.max((now.getTime() - todayStart.getTime()) / MS_PER_HOUR, 1 / 60);
-    const ticketsProcessedToday = todayPurchases.length + todaySales.length;
-    const ticketsProcessedPerHour = ticketsProcessedToday / elapsedHoursToday;
+    const periodSales = sales.filter((sale) => isWithinRange(sale.saleDate, windowStart, windowEnd));
+    const periodClosedSales = periodSales.filter((sale) => CLOSED_SALE_STATUSES.has(sale.status));
+    const elapsedHoursInWindow =
+      windowMode === "day"
+        ? Math.max(
+            isWithinRange(now, windowStart, windowEnd)
+              ? (now.getTime() - (windowStart?.getTime() ?? now.getTime())) / MS_PER_HOUR
+              : 24,
+            1 / 60,
+          )
+        : windowMode === "week"
+          ? 24 * 7
+          : windowMode === "month"
+            ? Math.max((windowEnd.getTime() - (windowStart?.getTime() ?? windowEnd.getTime())) / MS_PER_HOUR, 24)
+            : Math.max(
+                periodPurchases.length || periodClosedSales.length
+                  ? (windowEnd.getTime() -
+                      Math.min(
+                        ...[
+                          ...periodPurchases.map((purchase) => purchase.purchaseDate.getTime()),
+                          ...periodClosedSales.map((sale) => sale.saleDate.getTime()),
+                        ],
+                      )) /
+                      MS_PER_HOUR
+                  : 24,
+                24,
+              );
+    const ticketsProcessedInWindow = periodPurchases.length + periodClosedSales.length;
+    const ticketsProcessedPerHour = ticketsProcessedInWindow / elapsedHoursInWindow;
     const heldTickets = [...heldPurchases, ...heldSales];
     const oldestHeldCreatedAt = heldTickets.length
       ? heldTickets.reduce(
@@ -301,9 +416,9 @@ export async function GET(request: NextRequest) {
       : 0;
     const readyBatches = batches.filter((batch) => batch.status === "READY");
     const collectingBatches = batches.filter((batch) => batch.status === "COLLECTING");
-    const pendingSales = sales.filter((sale) => sale.status === "PENDING_APPROVAL");
-    const approvedSales = sales.filter((sale) => sale.status === "APPROVED");
-    const completedSales = sales.filter((sale) => sale.status === "COMPLETED");
+    const pendingSales = periodSales.filter((sale) => sale.status === "PENDING_APPROVAL");
+    const approvedSales = periodSales.filter((sale) => sale.status === "APPROVED");
+    const completedSales = periodSales.filter((sale) => sale.status === "COMPLETED");
     const overdueSettlementAmount = overduePayments.reduce(
       (sum, payment) => sum + (payment.amountUsd ?? payment.amount ?? 0),
       0,
@@ -491,7 +606,7 @@ export async function GET(request: NextRequest) {
         saleValue: number;
       }
     >();
-    for (const purchase of purchases) {
+    for (const purchase of periodPurchases) {
       const key = resolveMaterialLabel({
         materialName: purchase.material?.name,
         materialCode: purchase.material?.code,
@@ -526,7 +641,7 @@ export async function GET(request: NextRequest) {
         months: Set<string>;
       }
     >();
-    for (const purchase of monthPurchases) {
+    for (const purchase of periodPurchases) {
       const supplier = purchase.sellerName?.trim() || "Unknown supplier";
       const current = monthSupplierMap.get(supplier) ?? {
         supplier,
@@ -545,7 +660,7 @@ export async function GET(request: NextRequest) {
 
     const avgSalePriceByCategory = new Map<string, number>();
     const saleTotalsByCategory = new Map<string, { value: number; weight: number }>();
-    for (const sale of monthSales) {
+    for (const sale of periodClosedSales) {
       const key = sale.batch.category;
       const current = saleTotalsByCategory.get(key) ?? { value: 0, weight: 0 };
       current.value += sale.totalAmount;
@@ -558,7 +673,7 @@ export async function GET(request: NextRequest) {
 
     const supplierPerformance = Array.from(monthSupplierMap.values())
       .map((supplier) => {
-        const supplierPurchases = monthPurchases.filter(
+        const supplierPurchases = periodPurchases.filter(
           (purchase) => (purchase.sellerName?.trim() || "Unknown supplier") === supplier.supplier,
         );
         const estimatedSellPricePerKg =
@@ -583,13 +698,13 @@ export async function GET(request: NextRequest) {
       })
       .sort((left, right) => right.weightKg - left.weightKg);
 
-    const grossMargin = monthSales.reduce((sum, sale) => sum + sale.totalAmount, 0) -
-      monthPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
-    const marginPerKg = monthSales.reduce((sum, sale) => sum + sale.soldWeight, 0) > 0
-      ? grossMargin / monthSales.reduce((sum, sale) => sum + sale.soldWeight, 0)
+    const grossMargin = periodClosedSales.reduce((sum, sale) => sum + sale.totalAmount, 0) -
+      periodPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
+    const marginPerKg = periodClosedSales.reduce((sum, sale) => sum + sale.soldWeight, 0) > 0
+      ? grossMargin / periodClosedSales.reduce((sum, sale) => sum + sale.soldWeight, 0)
       : 0;
-    const marginPercent = monthSales.reduce((sum, sale) => sum + sale.totalAmount, 0) > 0
-      ? (grossMargin / monthSales.reduce((sum, sale) => sum + sale.totalAmount, 0)) * 100
+    const marginPercent = periodClosedSales.reduce((sum, sale) => sum + sale.totalAmount, 0) > 0
+      ? (grossMargin / periodClosedSales.reduce((sum, sale) => sum + sale.totalAmount, 0)) * 100
       : 0;
 
     const pendingApprovalAgesDays = pendingSales.map((sale) =>
@@ -618,10 +733,99 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const snapshotGranularity = resolveSnapshotGranularity(windowMode);
+    const snapshotSourceTimes = [
+      ...periodPurchases.map((purchase) => purchase.purchaseDate.getTime()),
+      ...periodClosedSales.map((sale) => sale.saleDate.getTime()),
+    ];
+    const snapshotRangeStart =
+      windowStart ??
+      (snapshotSourceTimes.length
+        ? new Date(Math.min(...snapshotSourceTimes))
+        : startOfMonth(windowEnd));
+    const snapshotRangeEnd = windowEnd;
+    const snapshotBuckets: Date[] = [];
+    const bucketLimit = snapshotGranularity === "month" ? 240 : 400;
+    let snapshotCursor = startOfGranularityBucket(snapshotRangeStart, snapshotGranularity);
+    while (snapshotCursor.getTime() <= snapshotRangeEnd.getTime() && snapshotBuckets.length < bucketLimit) {
+      snapshotBuckets.push(snapshotCursor);
+      snapshotCursor = addGranularityBucket(snapshotCursor, snapshotGranularity);
+    }
+    if (snapshotBuckets.length === 0) {
+      snapshotBuckets.push(startOfGranularityBucket(snapshotRangeEnd, snapshotGranularity));
+    }
+
+    const snapshotTrendMap = new Map<
+      string,
+      {
+        label: string;
+        purchaseWeight: number;
+        saleWeight: number;
+        purchaseValue: number;
+        saleValue: number;
+        margin: number;
+        tickets: number;
+        varianceKg: number;
+        saleCount: number;
+      }
+    >(
+      snapshotBuckets.map((bucket) => [
+        bucket.toISOString(),
+        {
+          label: formatGranularityLabel(bucket, snapshotGranularity),
+          purchaseWeight: 0,
+          saleWeight: 0,
+          purchaseValue: 0,
+          saleValue: 0,
+          margin: 0,
+          tickets: 0,
+          varianceKg: 0,
+          saleCount: 0,
+        },
+      ]),
+    );
+
+    for (const purchase of periodPurchases) {
+      const bucketKey = startOfGranularityBucket(purchase.purchaseDate, snapshotGranularity).toISOString();
+      const bucket = snapshotTrendMap.get(bucketKey);
+      if (!bucket) continue;
+      bucket.purchaseWeight += purchase.weight;
+      bucket.purchaseValue += purchase.totalAmount;
+      bucket.tickets += 1;
+      bucket.margin = bucket.saleValue - bucket.purchaseValue;
+    }
+
+    for (const sale of periodClosedSales) {
+      const bucketKey = startOfGranularityBucket(sale.saleDate, snapshotGranularity).toISOString();
+      const bucket = snapshotTrendMap.get(bucketKey);
+      if (!bucket) continue;
+      bucket.saleWeight += sale.soldWeight;
+      bucket.saleValue += sale.totalAmount;
+      bucket.tickets += 1;
+      bucket.saleCount += 1;
+      bucket.varianceKg += sale.soldWeight - sale.batch.totalWeight;
+      bucket.margin = bucket.saleValue - bucket.purchaseValue;
+    }
+
+    const snapshotTrendRows = snapshotBuckets.map((bucket) => {
+      const row = snapshotTrendMap.get(bucket.toISOString());
+      return {
+        label: formatGranularityLabel(bucket, snapshotGranularity),
+        purchaseWeight: row?.purchaseWeight ?? 0,
+        saleWeight: row?.saleWeight ?? 0,
+        purchaseValue: row?.purchaseValue ?? 0,
+        saleValue: row?.saleValue ?? 0,
+        margin: row?.margin ?? 0,
+        tickets: row?.tickets ?? 0,
+        varianceKg: row?.varianceKg ?? 0,
+        saleCount: row?.saleCount ?? 0,
+      };
+    });
+
     const currentBalanceTotal = balances.reduce((sum, balance) => sum + balance.balance, 0);
     const balanceEntryNetValue = balanceEntryNet._sum.amountDelta ?? 0;
     const balanceIntegrityDifference = currentBalanceTotal - balanceEntryNetValue;
-    for (const sale of sales) {
+    for (const sale of periodClosedSales) {
       const key = resolveMaterialLabel({
         materialName: sale.material?.name,
         materialCode: sale.material?.code,
@@ -661,14 +865,21 @@ export async function GET(request: NextRequest) {
       .sort((left, right) => Math.abs(right.balance) - Math.abs(left.balance));
 
     return successResponse({
+      window: {
+        mode: windowMode,
+        label: describeWindow(windowMode),
+        anchorDate: format(anchorDate, "yyyy-MM-dd"),
+        startDate: windowStart ? format(windowStart, "yyyy-MM-dd") : null,
+        endDate: format(windowEnd, "yyyy-MM-dd"),
+      },
       summary: {
-        purchasesThisMonthValue: monthPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0),
-        purchasesThisMonthWeight: monthPurchases.reduce((sum, purchase) => sum + purchase.weight, 0),
-        salesThisMonthValue: monthSales.reduce((sum, sale) => sum + sale.totalAmount, 0),
-        salesThisMonthWeight: monthSales.reduce((sum, sale) => sum + sale.soldWeight, 0),
+        purchasesThisMonthValue: periodPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0),
+        purchasesThisMonthWeight: periodPurchases.reduce((sum, purchase) => sum + purchase.weight, 0),
+        salesThisMonthValue: periodClosedSales.reduce((sum, sale) => sum + sale.totalAmount, 0),
+        salesThisMonthWeight: periodClosedSales.reduce((sum, sale) => sum + sale.soldWeight, 0),
         estimatedMarginThisMonth:
-          monthSales.reduce((sum, sale) => sum + sale.totalAmount, 0) -
-          monthPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0),
+          periodClosedSales.reduce((sum, sale) => sum + sale.totalAmount, 0) -
+          periodPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0),
         readyBatchCount: readyBatches.length,
         collectingBatchCount: collectingBatches.length,
         pendingSalesCount: pendingSales.length,
@@ -683,11 +894,11 @@ export async function GET(request: NextRequest) {
         amountCompanyOwes,
         balanceCount: balanceOperators.length,
         averageBuyPricePerKg:
-          monthPurchases.reduce((sum, purchase) => sum + purchase.weight, 0) > 0
-            ? monthPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0) /
-              monthPurchases.reduce((sum, purchase) => sum + purchase.weight, 0)
+          periodPurchases.reduce((sum, purchase) => sum + purchase.weight, 0) > 0
+            ? periodPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0) /
+              periodPurchases.reduce((sum, purchase) => sum + purchase.weight, 0)
             : 0,
-        ticketsProcessedToday,
+        ticketsProcessedToday: ticketsProcessedInWindow,
         ticketsProcessedPerHour,
         pendingSupplierPaymentsCount,
         pendingSupplierPaymentsAmount: pendingSupplierPaymentsTotals._sum.totalAmount ?? 0,
@@ -695,9 +906,9 @@ export async function GET(request: NextRequest) {
         heldOutboundTicketsCount: heldSales.length,
         heldTicketsOldestAgeHours: heldTicketOldestAgeHours,
         weightedAverageCostPerKg:
-          monthPurchases.reduce((sum, purchase) => sum + purchase.weight, 0) > 0
-            ? monthPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0) /
-              monthPurchases.reduce((sum, purchase) => sum + purchase.weight, 0)
+          periodPurchases.reduce((sum, purchase) => sum + purchase.weight, 0) > 0
+            ? periodPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0) /
+              periodPurchases.reduce((sum, purchase) => sum + purchase.weight, 0)
             : 0,
         grossMargin,
         marginPerKg,
@@ -707,6 +918,10 @@ export async function GET(request: NextRequest) {
         maxPendingApprovalAgeDays,
         balanceEntryNet: balanceEntryNetValue,
         balanceIntegrityDifference,
+      },
+      snapshotTrend: {
+        granularity: snapshotGranularity,
+        rows: snapshotTrendRows,
       },
       yardStock: {
         totalWeight: yardStockWeight,

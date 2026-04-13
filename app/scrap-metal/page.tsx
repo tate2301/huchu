@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { AdminCategoryBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
+import { AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
@@ -46,8 +46,12 @@ type DashboardPayload = {
 };
 
 const VARIANCE_SERIES: AdminChartSeries[] = [
-  { key: "varianceKg", label: "Variance (kg)", kind: "bar", color: "var(--warning-500)" },
+  { key: "varianceKg", label: "Variance (kg)", kind: "line", color: "var(--warning-500)" },
   { key: "saleCount", label: "Sales", kind: "line", color: "var(--primary-500)" },
+];
+
+const SUPPLIER_WEIGHT_SERIES: AdminChartSeries[] = [
+  { key: "weightKg", label: "Supplier Weight (kg)", kind: "line", color: "var(--info-500)" },
 ];
 
 function formatMoney(value: number) {
@@ -88,9 +92,8 @@ export default function ScrapMetalPage() {
   const supplierWeightRows = useMemo(
     () =>
       (query.data?.supplierPerformance ?? []).slice(0, 8).map((row) => ({
-        id: row.supplier,
         label: row.supplier,
-        value: row.weightKg,
+        weightKg: row.weightKg,
       })),
     [query.data?.supplierPerformance],
   );
@@ -157,11 +160,13 @@ export default function ScrapMetalPage() {
                 <CardTitle>Supplier Weight</CardTitle>
               </CardHeader>
               <CardContent>
-                <AdminCategoryBarChart
+                <AdminTrendChart
                   rows={supplierWeightRows}
-                  valueLabel="Weight"
+                  series={SUPPLIER_WEIGHT_SERIES}
                   height={260}
-                  valueFormatter={(value) => `${value.toFixed(0)} kg`}
+                  valueFormatter={(value) => `${value.toFixed(2)} kg`}
+                  yTickFormatter={(value) => value.toFixed(0)}
+                  xTickInterval={0}
                 />
               </CardContent>
             </Card>

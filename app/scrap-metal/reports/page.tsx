@@ -1,19 +1,24 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
-import { AdminCategoryBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapMobileCard, ScrapMobileCardHeader, ScrapMobileMetricStrip } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Calendar, Coins, Package, ReceiptLong, Scale, Wallet } from "@/lib/icons";
+
+type SnapshotWindowMode = "day" | "week" | "month" | "all";
 
 type DashboardPayload = {
   summary: {
@@ -78,55 +83,26 @@ type DashboardPayload = {
       varianceKg: number;
       saleCount: number;
     }>;
-    balanceIntegrity: {
-      currentBalanceTotal: number;
-      balanceEntryNet: number;
-      difference: number;
-    };
   };
 };
 
-const VARIANCE_SERIES: AdminChartSeries[] = [
-  { key: "varianceKg", label: "Variance (kg)", kind: "bar", color: "var(--warning-500)" },
-  { key: "saleCount", label: "Sales", kind: "line", color: "var(--primary-500)" },
-];
+function getUniqueOptions(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right));
+}
 
 export default function ScrapReportsPage() {
   const [activeView, setActiveView] = useState("materials");
+  const [windowMode, setWindowMode] = useState<SnapshotWindowMode>("month");
+  const [anchorDate, setAnchorDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fieldFilters, setFieldFilters] = useState<Record<string, string>>({});
+  const activeFieldFilter = fieldFilters[activeView] ?? "all";
   const { data, error, isLoading } = useQuery({
-    queryKey: ["scrap-dashboard-reporting"],
-    queryFn: () => fetchJson<DashboardPayload>("/api/scrap-metal/dashboard"),
+    queryKey: ["scrap-dashboard-reporting", windowMode, anchorDate],
+    queryFn: () =>
+      fetchJson<DashboardPayload>(
+        `/api/scrap-metal/dashboard?window=${encodeURIComponent(windowMode)}&anchorDate=${encodeURIComponent(anchorDate)}`,
+      ),
   });
-
-  const varianceRows = useMemo(
-    () =>
-      (data?.reconciliation.varianceByWeek ?? []).map((row) => ({
-        label: row.weekLabel,
-        varianceKg: row.varianceKg,
-        saleCount: row.saleCount,
-      })),
-    [data?.reconciliation.varianceByWeek],
-  );
-
-  const supplierWeightRows = useMemo(
-    () =>
-      (data?.supplierPerformance ?? []).slice(0, 10).map((row) => ({
-        id: row.supplier,
-        label: row.supplier,
-        value: row.weightKg,
-      })),
-    [data?.supplierPerformance],
-  );
-
-  const wacRows = useMemo(
-    () =>
-      (data?.weightedAverageCostByMaterial ?? []).slice(0, 10).map((row) => ({
-        id: row.label,
-        label: row.label,
-        value: row.weightedAverageCostPerKg,
-      })),
-    [data?.weightedAverageCostByMaterial],
-  );
 
   const materialColumns = useMemo<ColumnDef<DashboardPayload["topMaterials"][number]>[]>(
     () => [
@@ -172,6 +148,7 @@ export default function ScrapReportsPage() {
       },
       { id: "weight", header: "Sold kg", cell: ({ row }) => <NumericCell>{row.original.soldWeight.toFixed(2)}</NumericCell> },
       { id: "value", header: "Value", cell: ({ row }) => <NumericCell>USD {row.original.totalAmount.toFixed(2)}</NumericCell> },
+      { id: "status", header: "Status", accessorKey: "status" },
     ],
     [],
   );
@@ -216,18 +193,143 @@ export default function ScrapReportsPage() {
     [],
   );
 
+  const materialRows = useMemo(() => {
+    const rows = data?.topMaterials ?? [];
+    if (activeView !== "materials" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => row.label === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.topMaterials]);
+
+  const exposureRows = useMemo(() => {
+    const rows = data?.queues.balances ?? [];
+    if (activeView !== "exposure" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => row.employee.name === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.queues.balances]);
+
+  const pendingSalesRows = useMemo(() => {
+    const rows = data?.queues.pendingSales ?? [];
+    if (activeView !== "pending-sales" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => row.batch.batchNumber === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.queues.pendingSales]);
+
+  const supplierPaymentRows = useMemo(() => {
+    const rows = data?.queues.pendingSupplierPayments ?? [];
+    if (activeView !== "supplier-payments" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => (row.sellerName || "Unknown supplier") === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.queues.pendingSupplierPayments]);
+
+  const wacRows = useMemo(() => {
+    const rows = data?.weightedAverageCostByMaterial ?? [];
+    if (activeView !== "wac" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => row.label === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.weightedAverageCostByMaterial]);
+
+  const supplierMarginRows = useMemo(() => {
+    const rows = data?.supplierPerformance ?? [];
+    if (activeView !== "supplier-margin" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => row.supplier === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.supplierPerformance]);
+
+  const reconciliationRows = useMemo(() => {
+    const rows = data?.reconciliation.varianceByWeek ?? [];
+    if (activeView !== "reconciliation" || activeFieldFilter === "all") return rows;
+    return rows.filter((row) => row.weekLabel === activeFieldFilter);
+  }, [activeFieldFilter, activeView, data?.reconciliation.varianceByWeek]);
+
+  const activeFieldOptions = useMemo(() => {
+    if (activeView === "materials") return getUniqueOptions((data?.topMaterials ?? []).map((row) => row.label));
+    if (activeView === "exposure") return getUniqueOptions((data?.queues.balances ?? []).map((row) => row.employee.name));
+    if (activeView === "pending-sales") return getUniqueOptions((data?.queues.pendingSales ?? []).map((row) => row.batch.batchNumber));
+    if (activeView === "supplier-payments") {
+      return getUniqueOptions((data?.queues.pendingSupplierPayments ?? []).map((row) => row.sellerName || "Unknown supplier"));
+    }
+    if (activeView === "wac") return getUniqueOptions((data?.weightedAverageCostByMaterial ?? []).map((row) => row.label));
+    if (activeView === "supplier-margin") return getUniqueOptions((data?.supplierPerformance ?? []).map((row) => row.supplier));
+    if (activeView === "reconciliation") return getUniqueOptions((data?.reconciliation.varianceByWeek ?? []).map((row) => row.weekLabel));
+    return [];
+  }, [activeView, data]);
+
   const views = [
-    { id: "materials", label: "Material mix", count: data?.topMaterials.length ?? 0 },
-    { id: "exposure", label: "Operator exposure", count: data?.queues.balances.length ?? 0 },
-    { id: "pending-sales", label: "Pending sales", count: data?.queues.pendingSales.length ?? 0 },
-    { id: "supplier-payments", label: "Supplier payments", count: data?.queues.pendingSupplierPayments.length ?? 0 },
-    { id: "wac", label: "Weighted avg cost", count: data?.weightedAverageCostByMaterial.length ?? 0 },
-    { id: "supplier-margin", label: "Supplier margin", count: data?.supplierPerformance.length ?? 0 },
-    { id: "reconciliation", label: "Reconciliation", count: data?.reconciliation.varianceByWeek.length ?? 0 },
+    { id: "materials", label: "Material mix", count: materialRows.length },
+    { id: "exposure", label: "Operator exposure", count: exposureRows.length },
+    { id: "pending-sales", label: "Pending sales", count: pendingSalesRows.length },
+    { id: "supplier-payments", label: "Supplier payments", count: supplierPaymentRows.length },
+    { id: "wac", label: "Weighted avg cost", count: wacRows.length },
+    { id: "supplier-margin", label: "Supplier margin", count: supplierMarginRows.length },
+    { id: "reconciliation", label: "Reconciliation", count: reconciliationRows.length },
   ];
 
+  const filterToolbar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="text-xs text-muted-foreground">Field filter</div>
+      <Select
+        value={activeFieldFilter}
+        onValueChange={(value) =>
+          setFieldFilters((current) => ({
+            ...current,
+            [activeView]: value,
+          }))
+        }
+      >
+        <SelectTrigger size="sm" className="w-[220px] bg-[var(--surface-base)]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          {activeFieldOptions.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() =>
+          setFieldFilters((current) => ({
+            ...current,
+            [activeView]: "all",
+          }))
+        }
+      >
+        Clear
+      </Button>
+    </div>
+  );
+
   return (
-    <ScrapShell title="Reports">
+    <ScrapShell
+      title="Reports"
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/scrap-metal/reports/daily-snapshot">Open Snapshot Charts</Link>
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-3">
+        <div className="min-w-[180px] space-y-1">
+          <div className="text-xs text-muted-foreground">Window</div>
+          <Select value={windowMode} onValueChange={(value) => setWindowMode(value as SnapshotWindowMode)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Daily</SelectItem>
+              <SelectItem value="week">Weekly</SelectItem>
+              <SelectItem value="month">Monthly</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[180px] space-y-1">
+          <div className="text-xs text-muted-foreground">Anchor Date</div>
+          <Input type="date" value={anchorDate} onChange={(event) => setAnchorDate(event.target.value)} />
+        </div>
+      </div>
+
       {data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Tickets / Hour</CardTitle></CardHeader><CardContent className="font-mono text-lg">{data.summary.ticketsProcessedPerHour.toFixed(2)}</CardContent></Card>
@@ -236,42 +338,6 @@ export default function ScrapReportsPage() {
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Balance Integrity Delta</CardTitle></CardHeader><CardContent className="font-mono text-lg">USD {data.summary.balanceIntegrityDifference.toFixed(2)}</CardContent></Card>
         </div>
       ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card>
-          <CardHeader><CardTitle>Weekly Variance</CardTitle></CardHeader>
-          <CardContent>
-            <AdminTrendChart
-              rows={varianceRows}
-              series={VARIANCE_SERIES}
-              height={240}
-              valueFormatter={(value) => value.toFixed(2)}
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Supplier Weight</CardTitle></CardHeader>
-          <CardContent>
-            <AdminCategoryBarChart
-              rows={supplierWeightRows}
-              height={240}
-              valueLabel="Weight"
-              valueFormatter={(value) => `${value.toFixed(0)} kg`}
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>WAC / kg</CardTitle></CardHeader>
-          <CardContent>
-            <AdminCategoryBarChart
-              rows={wacRows}
-              height={240}
-              valueLabel="WAC / kg"
-              valueFormatter={(value) => `USD ${value.toFixed(2)}`}
-            />
-          </CardContent>
-        </Card>
-      </div>
 
       {error ? (
         <Alert variant="destructive">
@@ -283,9 +349,10 @@ export default function ScrapReportsPage() {
       <VerticalDataViews items={views} value={activeView} onValueChange={setActiveView} railLabel="Views">
         {activeView === "materials" ? (
           <DataTable
-            data={data?.topMaterials ?? []}
+            data={materialRows}
             columns={materialColumns}
-            pagination={{ enabled: true, server: false }}
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
             searchPlaceholder="Search material mix"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
@@ -305,9 +372,10 @@ export default function ScrapReportsPage() {
         ) : null}
         {activeView === "exposure" ? (
           <DataTable
-            data={data?.queues.balances ?? []}
+            data={exposureRows}
             columns={exposureColumns}
-            pagination={{ enabled: true, server: false }}
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
             searchPlaceholder="Search operator exposure"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
@@ -320,9 +388,10 @@ export default function ScrapReportsPage() {
         ) : null}
         {activeView === "pending-sales" ? (
           <DataTable
-            data={data?.queues.pendingSales ?? []}
+            data={pendingSalesRows}
             columns={pendingSalesColumns}
-            pagination={{ enabled: true, server: false }}
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
             searchPlaceholder="Search pending sales"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
@@ -332,6 +401,7 @@ export default function ScrapReportsPage() {
                   items={[
                     { icon: Scale, value: `${row.soldWeight.toFixed(2)} kg`, srLabel: "Weight" },
                     { icon: Wallet, value: `USD ${row.totalAmount.toFixed(2)}`, srLabel: "Value" },
+                    { icon: ReceiptLong, value: row.status, srLabel: "Status" },
                   ]}
                 />
               </ScrapMobileCard>
@@ -340,9 +410,10 @@ export default function ScrapReportsPage() {
         ) : null}
         {activeView === "supplier-payments" ? (
           <DataTable
-            data={data?.queues.pendingSupplierPayments ?? []}
+            data={supplierPaymentRows}
             columns={supplierPaymentColumns}
-            pagination={{ enabled: true, server: false }}
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
             searchPlaceholder="Search supplier payments"
             emptyState={isLoading ? "Loading..." : "No data"}
             mobileCardRenderer={({ row }) => (
@@ -360,65 +431,32 @@ export default function ScrapReportsPage() {
         ) : null}
         {activeView === "wac" ? (
           <DataTable
-            data={data?.weightedAverageCostByMaterial ?? []}
+            data={wacRows}
             columns={weightedAverageCostColumns}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search WAC"
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
+            searchPlaceholder="Search weighted average cost"
             emptyState={isLoading ? "Loading..." : "No data"}
-            mobileCardRenderer={({ row }) => (
-              <ScrapMobileCard>
-                <ScrapMobileCardHeader title={row.label} />
-                <ScrapMobileMetricStrip
-                  items={[
-                    { icon: Coins, value: `USD ${row.weightedAverageCostPerKg.toFixed(2)}`, srLabel: "Weighted average cost" },
-                    { icon: Scale, value: `${row.purchaseWeight.toFixed(2)} kg`, srLabel: "Weight" },
-                    { icon: Wallet, value: `USD ${row.purchaseValue.toFixed(2)}`, srLabel: "Cost" },
-                  ]}
-                />
-              </ScrapMobileCard>
-            )}
           />
         ) : null}
         {activeView === "supplier-margin" ? (
           <DataTable
-            data={data?.supplierPerformance ?? []}
+            data={supplierMarginRows}
             columns={supplierPerformanceColumns}
-            pagination={{ enabled: true, server: false }}
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
             searchPlaceholder="Search supplier margin"
             emptyState={isLoading ? "Loading..." : "No data"}
-            mobileCardRenderer={({ row }) => (
-              <ScrapMobileCard>
-                <ScrapMobileCardHeader title={row.supplier} />
-                <ScrapMobileMetricStrip
-                  items={[
-                    { icon: ReceiptLong, value: row.tickets, srLabel: "Tickets" },
-                    { icon: Calendar, value: row.repeatMonths, srLabel: "Repeat months" },
-                    { icon: Scale, value: `${row.weightKg.toFixed(2)} kg`, srLabel: "Weight" },
-                    { icon: Wallet, value: `${row.currency} ${row.estimatedMarginContribution.toFixed(2)}`, srLabel: "Margin" },
-                  ]}
-                />
-              </ScrapMobileCard>
-            )}
           />
         ) : null}
         {activeView === "reconciliation" ? (
           <DataTable
-            data={data?.reconciliation.varianceByWeek ?? []}
+            data={reconciliationRows}
             columns={reconciliationColumns}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search variance"
+            toolbar={filterToolbar}
+            pagination={{ enabled: true }}
+            searchPlaceholder="Search reconciliation"
             emptyState={isLoading ? "Loading..." : "No data"}
-            mobileCardRenderer={({ row }) => (
-              <ScrapMobileCard>
-                <ScrapMobileCardHeader title={row.weekLabel} />
-                <ScrapMobileMetricStrip
-                  items={[
-                    { icon: ReceiptLong, value: row.saleCount, srLabel: "Sales count" },
-                    { icon: Scale, value: `${row.varianceKg.toFixed(2)} kg`, srLabel: "Variance" },
-                  ]}
-                />
-              </ScrapMobileCard>
-            )}
           />
         ) : null}
       </VerticalDataViews>

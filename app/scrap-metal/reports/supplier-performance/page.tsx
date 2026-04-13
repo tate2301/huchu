@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
@@ -10,7 +10,9 @@ import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchJson } from "@/lib/api-client";
 import { Calendar, Coins, ReceiptLong, Scale, Wallet } from "@/lib/icons";
 
@@ -36,27 +38,17 @@ type SupplierRow = {
   currency: string;
 };
 
-function downloadCsv(name: string, rows: SupplierRow[]) {
-  const headers = ["supplier", "tickets", "repeatMonths", "weightKg", "spend", "avgBuyPrice", "currency"];
-  const lines = [
-    headers.join(","),
-    ...rows.map((row) =>
-      headers.map((header) => `"${String((row as Record<string, unknown>)[header] ?? "").replace(/"/g, "\"\"")}"`).join(","),
-    ),
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${name}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+type SnapshotWindowMode = "day" | "week" | "month" | "all";
 
 export default function SupplierPerformancePage() {
+  const [windowMode, setWindowMode] = useState<SnapshotWindowMode>("month");
+  const [anchorDate, setAnchorDate] = useState(() => new Date().toISOString().slice(0, 10));
   const purchasesQuery = useQuery({
-    queryKey: ["scrap-supplier-performance"],
-    queryFn: () => fetchJson<{ supplierPerformance: Purchase[] }>("/api/scrap-metal/dashboard"),
+    queryKey: ["scrap-supplier-performance", windowMode, anchorDate],
+    queryFn: () =>
+      fetchJson<{ supplierPerformance: Purchase[] }>(
+        `/api/scrap-metal/dashboard?window=${encodeURIComponent(windowMode)}&anchorDate=${encodeURIComponent(anchorDate)}`,
+      ),
   });
 
   const rows = useMemo<SupplierRow[]>(() => {
@@ -103,15 +95,32 @@ export default function SupplierPerformancePage() {
      
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => downloadCsv("scrap-supplier-performance", rows)} disabled={rows.length === 0}>
-            Export CSV
-          </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/scrap-metal/reports">Open Full Reports</Link>
           </Button>
         </div>
       }
     >
+      <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-3">
+        <div className="min-w-[180px] space-y-1">
+          <div className="text-xs text-muted-foreground">Window</div>
+          <Select value={windowMode} onValueChange={(value) => setWindowMode(value as SnapshotWindowMode)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Daily</SelectItem>
+              <SelectItem value="week">Weekly</SelectItem>
+              <SelectItem value="month">Monthly</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[180px] space-y-1">
+          <div className="text-xs text-muted-foreground">Anchor Date</div>
+          <Input type="date" value={anchorDate} onChange={(event) => setAnchorDate(event.target.value)} />
+        </div>
+      </div>
       <DataTable
         data={rows}
         columns={columns}

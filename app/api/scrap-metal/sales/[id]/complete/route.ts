@@ -25,6 +25,8 @@ export async function POST(
         id: true,
         companyId: true,
         status: true,
+        saleDate: true,
+        batchId: true,
       },
     });
 
@@ -36,22 +38,34 @@ export async function POST(
       return errorResponse("Only approved sales can be marked as completed", 400);
     }
 
-    const updatedSale = await prisma.scrapMetalSale.update({
-      where: { id: saleId },
-      data: { status: "COMPLETED" },
-      include: {
-        site: { select: { id: true, name: true, code: true } },
-        batch: {
-          select: {
-            id: true,
-            batchNumber: true,
-            category: true,
-            totalWeight: true,
+    const updatedSale = await prisma.$transaction(async (tx) => {
+      const completedSale = await tx.scrapMetalSale.update({
+        where: { id: saleId },
+        data: { status: "COMPLETED" },
+        include: {
+          site: { select: { id: true, name: true, code: true } },
+          batch: {
+            select: {
+              id: true,
+              batchNumber: true,
+              category: true,
+              totalWeight: true,
+            },
           },
+          approvedBy: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, name: true } },
         },
-        approvedBy: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
+      });
+
+      await tx.scrapMetalBatch.update({
+        where: { id: sale.batchId },
+        data: {
+          status: "SOLD",
+          collectionEndDate: sale.saleDate,
+        },
+      });
+
+      return completedSale;
     });
 
     return successResponse({

@@ -37,13 +37,21 @@ export async function PATCH(
 
     const existing = await prisma.scrapMetalBatch.findFirst({
       where: { id, companyId: session.user.companyId },
-      select: { id: true, category: true, _count: { select: { sales: true } } },
+      select: { id: true, category: true, collectionEndDate: true, _count: { select: { sales: true } } },
     });
     if (!existing) return errorResponse("Batch not found", 404);
 
     const body = await request.json();
     const validated = batchUpdateSchema.parse(body);
     const nextCategory = validated.category ?? existing.category;
+    const resolvedCollectionEndDate =
+      validated.collectionEndDate === null
+        ? null
+        : validated.collectionEndDate
+          ? new Date(validated.collectionEndDate)
+          : validated.status === "SOLD" && !existing.collectionEndDate
+            ? new Date()
+            : undefined;
 
     if (validated.materialId) {
       const material = await prisma.scrapMaterial.findFirst({
@@ -67,12 +75,7 @@ export async function PATCH(
         collectionStartDate: validated.collectionStartDate
           ? new Date(validated.collectionStartDate)
           : undefined,
-        collectionEndDate:
-          validated.collectionEndDate === null
-            ? null
-            : validated.collectionEndDate
-              ? new Date(validated.collectionEndDate)
-              : undefined,
+        collectionEndDate: resolvedCollectionEndDate,
         notes: validated.notes === null ? null : validated.notes,
       },
       include: {

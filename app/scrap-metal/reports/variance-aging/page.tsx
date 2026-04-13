@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 
@@ -10,7 +10,9 @@ import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson } from "@/lib/api-client";
 import { Calendar, Package, ReceiptLong, Scale } from "@/lib/icons";
@@ -57,6 +59,9 @@ function downloadCsv(name: string, rows: Array<Record<string, string | number>>)
 
 export default function VarianceAgingPage() {
   const [activeView, setActiveView] = useState("variance");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const salesQuery = useQuery({
     queryKey: ["scrap-variance-report"],
     queryFn: () => fetchJson<{ data: Sale[] }>("/api/scrap-metal/sales?limit=400"),
@@ -90,6 +95,28 @@ export default function VarianceAgingPage() {
     });
   }, [batchesQuery.data?.data]);
 
+  const withinDateRange = useCallback((value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return true;
+    if (fromDate && date < new Date(`${fromDate}T00:00:00`)) return false;
+    if (toDate && date > new Date(`${toDate}T23:59:59`)) return false;
+    return true;
+  }, [fromDate, toDate]);
+
+  const filteredVarianceRows = useMemo(() => {
+    return (salesQuery.data?.data ?? []).filter((sale) => {
+      if (statusFilter !== "all" && sale.status !== statusFilter) return false;
+      return withinDateRange(sale.saleDate);
+    });
+  }, [salesQuery.data?.data, statusFilter, withinDateRange]);
+
+  const filteredAgingRows = useMemo(() => {
+    return agingRows.filter((row) => {
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      return withinDateRange(row.collectionStartDate);
+    });
+  }, [agingRows, statusFilter, withinDateRange]);
+
   const pendingApprovalRows = useMemo(() => {
     return (salesQuery.data?.data ?? [])
       .filter((sale) => sale.status === "PENDING_APPROVAL")
@@ -101,6 +128,11 @@ export default function VarianceAgingPage() {
         return { ...sale, ageDays };
       });
   }, [salesQuery.data?.data]);
+
+  const filteredPendingApprovalRows = useMemo(
+    () => pendingApprovalRows.filter((row) => withinDateRange(row.createdAt)),
+    [pendingApprovalRows, withinDateRange],
+  );
 
   const agingColumns = useMemo<ColumnDef<(typeof agingRows)[number]>[]>(() => [
     { id: "lot", header: "Lot", accessorKey: "batchNumber" },
@@ -125,9 +157,9 @@ export default function VarianceAgingPage() {
   }
 
   const views = [
-    { id: "variance", label: "Variance", count: salesQuery.data?.data?.length ?? 0 },
-    { id: "aging", label: "Lot Aging", count: agingRows.length },
-    { id: "approval-aging", label: "Approval Aging", count: pendingApprovalRows.length },
+    { id: "variance", label: "Variance", count: filteredVarianceRows.length },
+    { id: "aging", label: "Lot Aging", count: filteredAgingRows.length },
+    { id: "approval-aging", label: "Approval Aging", count: filteredPendingApprovalRows.length },
   ];
 
   return (
@@ -142,7 +174,7 @@ export default function VarianceAgingPage() {
             onClick={() =>
               downloadCsv(
                 "scrap-variance",
-                (salesQuery.data?.data ?? []).map((row) => ({
+                filteredVarianceRows.map((row) => ({
                   saleNumber: row.saleNumber,
                   batchNumber: row.batch.batchNumber,
                   saleDate: row.saleDate,
@@ -161,7 +193,7 @@ export default function VarianceAgingPage() {
             onClick={() =>
               downloadCsv(
                 "scrap-aging",
-                agingRows.map((row) => ({
+                filteredAgingRows.map((row) => ({
                   batchNumber: row.batchNumber,
                   status: row.status,
                   opened: row.collectionStartDate,
@@ -179,7 +211,7 @@ export default function VarianceAgingPage() {
             onClick={() =>
               downloadCsv(
                 "scrap-approval-aging",
-                pendingApprovalRows.map((row) => ({
+                filteredPendingApprovalRows.map((row) => ({
                   saleNumber: row.saleNumber,
                   batchNumber: row.batch.batchNumber,
                   requestedAt: row.createdAt,
@@ -196,10 +228,38 @@ export default function VarianceAgingPage() {
         </div>
       }
     >
+      <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-3">
+        <div className="space-y-1">
+          <div className="text-xs text-muted-foreground">From</div>
+          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <div className="text-xs text-muted-foreground">To</div>
+          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+        </div>
+        <div className="min-w-[180px] space-y-1">
+          <div className="text-xs text-muted-foreground">Status</div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="PENDING_APPROVAL">Pending approval</SelectItem>
+              <SelectItem value="APPROVED">Approved</SelectItem>
+              <SelectItem value="COMPLETED">Completed</SelectItem>
+              <SelectItem value="DRAFT">Draft</SelectItem>
+              <SelectItem value="SOLD">Sold</SelectItem>
+              <SelectItem value="READY">Ready</SelectItem>
+              <SelectItem value="COLLECTING">Collecting</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <VerticalDataViews items={views} value={activeView} onValueChange={setActiveView} railLabel="Report View">
         {activeView === "variance" ? (
           <DataTable
-            data={salesQuery.data?.data ?? []}
+            data={filteredVarianceRows}
             columns={varianceColumns}
             searchPlaceholder="Search variance by ticket or lot"
             pagination={{ enabled: true }}
@@ -220,7 +280,7 @@ export default function VarianceAgingPage() {
         ) : (
           activeView === "aging" ? (
           <DataTable
-            data={agingRows}
+            data={filteredAgingRows}
             columns={agingColumns}
             searchPlaceholder="Search lot aging"
             pagination={{ enabled: true }}
@@ -240,7 +300,7 @@ export default function VarianceAgingPage() {
           />
           ) : (
             <DataTable
-              data={pendingApprovalRows}
+              data={filteredPendingApprovalRows}
               columns={pendingApprovalColumns}
               searchPlaceholder="Search pending approvals"
               pagination={{ enabled: true }}
