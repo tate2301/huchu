@@ -411,32 +411,28 @@ export default function ScrapSettlementsPage() {
       label: "Open balances",
       value: `${balances.length}`,
       icon: Wallet,
-      toneText: "text-[var(--status-pending-text)]",
-      toneBg: "bg-[var(--status-pending-bg)]/70",
+      accentDot: "bg-[var(--status-pending-border)]",
     },
     {
       id: "delivered-value",
       label: "Delivered value",
       value: formatMoney(totalDeliveredValue),
       icon: ReceiptLong,
-      toneText: "text-[var(--status-success-text)]",
-      toneBg: "bg-[var(--status-success-bg)]/70",
+      accentDot: "bg-[var(--status-success-border)]",
     },
     {
       id: "owed-to-us",
       label: "Owed to us",
       value: formatMoney(totalPositiveBalance),
       icon: Payments,
-      toneText: "text-[var(--status-warning-text)]",
-      toneBg: "bg-[var(--status-warning-bg)]/70",
+      accentDot: "bg-[var(--status-warning-border)]",
     },
     {
       id: "we-owe",
       label: "We owe",
       value: formatMoney(totalNegativeBalance),
       icon: History,
-      toneText: "text-[var(--status-info-text)]",
-      toneBg: "bg-[var(--status-info-bg)]/70",
+      accentDot: "bg-[var(--status-info-border)]",
     },
   ];
 
@@ -477,34 +473,36 @@ export default function ScrapSettlementsPage() {
         </Alert>
       ) : null}
 
-      <section className="overflow-hidden rounded-3xl bg-[var(--surface-muted)]">
+      <section className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
         <div className="grid gap-px bg-[var(--surface-base)]/65 sm:grid-cols-2 xl:grid-cols-4">
           {summaryTiles.map((tile) => (
-            <div key={tile.id} className={cn("px-4 py-3 sm:px-5", tile.toneBg)}>
-              <div className={cn("flex items-center gap-2 text-xs", tile.toneText)}>
-                <tile.icon className="h-4 w-4" />
+            <div key={tile.id} className="bg-[var(--surface-base)] px-4 py-3.5 sm:px-5">
+              <div className="flex items-center gap-2 text-[11px] font-medium tracking-[0.01em] text-[var(--text-muted)]">
+                <span className={cn("h-2 w-2 rounded-full", tile.accentDot)} />
+                <tile.icon className="h-3.5 w-3.5" />
                 {tile.label}
               </div>
-              <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">{tile.value}</div>
+              <div className="mt-1.5 font-mono text-[1.55rem] font-semibold leading-[1.05] text-[var(--text-strong)]">{tile.value}</div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl bg-[var(--surface-subtle)]">
+      <section className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-subtle)]">
         <div className="grid gap-px bg-[var(--surface-base)]/65 xl:grid-cols-2">
-          <div className="bg-[var(--status-success-bg)]/70 px-4 py-4 sm:px-5">
+          <div className="bg-[var(--surface-base)] px-4 py-4 sm:px-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-[var(--status-success-text)]">Settlement trend</h3>
-                <p className="text-xs text-[var(--text-muted)]">Batch value and average payout by due date</p>
+                <Badge variant="success">Trend</Badge>
+                <h3 className="text-base font-semibold leading-tight text-[var(--text-strong)]">Settlement trend</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Batch value and average payout by due date</p>
               </div>
               <div className="text-right">
-                <div className="text-xs text-[var(--status-success-text)]">Settled value</div>
-                <div className="font-mono text-sm font-semibold">{formatMoney(totalBatchValue)}</div>
+                <div className="text-[11px] text-[var(--text-muted)]">Settled value</div>
+                <div className="font-mono text-base font-semibold">{formatMoney(totalBatchValue)}</div>
               </div>
             </div>
-            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
               <div>
                 <div className="text-[var(--text-muted)]">Batches</div>
                 <div className="mt-0.5 font-mono text-[var(--text-strong)]">{batches.length}</div>
@@ -525,27 +523,28 @@ export default function ScrapSettlementsPage() {
             </div>
           </div>
 
-          <div className="bg-[var(--status-info-bg)]/70 px-4 py-4 sm:px-5">
+          <div className="bg-[var(--surface-base)] px-4 py-4 sm:px-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-[var(--status-info-text)]">Delivered vs exposure</h3>
-                <p className="text-xs text-[var(--text-muted)]">Top operators by delivered value and open balance</p>
+                <Badge variant="info">Exposure</Badge>
+                <h3 className="text-base font-semibold leading-tight text-[var(--text-strong)]">Delivered vs exposure</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Top operators by delivered value and open balance</p>
               </div>
               <div className="text-right">
-                <div className="text-xs text-[var(--status-info-text)]">Net exposure</div>
-                <div className="font-mono text-sm font-semibold">
+                <div className="text-[11px] text-[var(--text-muted)]">Net exposure</div>
+                <div className="font-mono text-base font-semibold">
                   {formatMoney(totalPositiveBalance + totalNegativeBalance)}
                 </div>
               </div>
             </div>
-            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
               <div>
                 <div className="text-[var(--text-muted)]">Owed to us</div>
-                <div className="mt-0.5 font-mono text-[var(--status-warning-text)]">{formatMoney(totalPositiveBalance)}</div>
+                <div className="mt-0.5 font-mono text-[var(--text-strong)]">{formatMoney(totalPositiveBalance)}</div>
               </div>
               <div>
                 <div className="text-[var(--text-muted)]">We owe</div>
-                <div className="mt-0.5 font-mono text-[var(--status-info-text)]">{formatMoney(totalNegativeBalance)}</div>
+                <div className="mt-0.5 font-mono text-[var(--text-strong)]">{formatMoney(totalNegativeBalance)}</div>
               </div>
             </div>
             <div className="mt-4 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)]/90 [&_button]:shadow-none">
@@ -570,7 +569,7 @@ export default function ScrapSettlementsPage() {
         railLabel="Views"
       >
         {activeView === "balances" ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {balancesQuery.isLoading ? (
               <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-muted-foreground">
                 Loading balances...
@@ -582,7 +581,7 @@ export default function ScrapSettlementsPage() {
               </div>
             ) : null}
             {!balancesQuery.isLoading && balances.length > 0 ? (
-              <div className="overflow-hidden rounded-3xl bg-[var(--surface-subtle)]">
+              <div className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-subtle)]">
                 {balances.map((balance, index) => {
                   const deliveredRatio = Math.max(balance.deliveredValue / maxDeliveredValue, 0.04);
                   const balanceRatio = Math.max(Math.abs(balance.balance) / maxBalanceValue, 0.04);
@@ -593,17 +592,15 @@ export default function ScrapSettlementsPage() {
                     <article
                       key={balance.id}
                       className={cn(
-                        "px-4 py-4 sm:px-5",
+                        "px-4 py-3 sm:px-5",
                         index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]",
-                        owesUs
-                          ? "bg-[var(--status-warning-bg)]/45"
-                          : "bg-[var(--status-info-bg)]/45",
+                        "bg-[var(--surface-base)]",
                       )}
                     >
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 space-y-1">
-                          <div className="font-semibold">{balance.employee.name}</div>
-                          <div className="font-mono text-xs text-muted-foreground">
+                          <div className="text-[15px] font-semibold leading-tight">{balance.employee.name}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">
                             {balance.employee.employeeId}
                           </div>
                         </div>
@@ -618,37 +615,30 @@ export default function ScrapSettlementsPage() {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                      <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
                         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                           <div>
-                            <div className="text-xs text-muted-foreground">Delivered</div>
+                            <div className="text-[11px] text-muted-foreground">Delivered</div>
                             <div className="mt-1 font-semibold">{formatMoney(balance.deliveredValue)}</div>
-                            <div className="text-xs text-muted-foreground">{balance.deliveredWeight.toFixed(2)} kg</div>
+                            <div className="text-[11px] text-muted-foreground">{balance.deliveredWeight.toFixed(2)} kg</div>
                           </div>
                           <div>
-                            <div className="text-xs text-muted-foreground">{amountLabel}</div>
-                            <div
-                              className={cn(
-                                "mt-1 font-semibold",
-                                owesUs
-                                  ? "text-[var(--status-warning-text)]"
-                                  : "text-[var(--status-info-text)]",
-                              )}
-                            >
+                            <div className="text-[11px] text-muted-foreground">{amountLabel}</div>
+                            <div className="mt-1 font-semibold text-[var(--text-strong)]">
                               {formatMoney(Math.abs(balance.balance))}
                             </div>
-                            <div className="text-xs text-muted-foreground">{balance.historyCount} entries</div>
+                            <div className="text-[11px] text-muted-foreground">{balance.historyCount} entries</div>
                           </div>
                           <div>
-                            <div className="text-xs text-muted-foreground">Last delivery</div>
+                            <div className="text-[11px] text-muted-foreground">Last delivery</div>
                             <div className="mt-1 font-semibold">{formatDate(balance.lastPurchaseDate)}</div>
-                            <div className="text-xs text-muted-foreground">{balance.purchaseCount} purchases</div>
+                            <div className="text-[11px] text-muted-foreground">{balance.purchaseCount} purchases</div>
                           </div>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           <div className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center justify-between gap-3 text-[11px]">
                               <span className="text-muted-foreground">Delivered value</span>
                               <span className="font-mono text-foreground">{formatMoney(balance.deliveredValue)}</span>
                             </div>
@@ -660,11 +650,9 @@ export default function ScrapSettlementsPage() {
                             </div>
                           </div>
                           <div className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-3 text-xs">
-                              <span className={owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]"}>
-                                {amountLabel}
-                              </span>
-                              <span className={cn("font-mono", owesUs ? "text-[var(--status-warning-text)]" : "text-[var(--status-info-text)]")}>
+                            <div className="flex items-center justify-between gap-3 text-[11px]">
+                              <span className="text-[var(--text-muted)]">{amountLabel}</span>
+                              <span className="font-mono text-[var(--text-strong)]">
                                 {formatMoney(Math.abs(balance.balance))}
                               </span>
                             </div>
@@ -906,13 +894,13 @@ export default function ScrapSettlementsPage() {
               </Alert>
             ) : balanceHistoryQuery.data ? (
               <div className="space-y-6">
-                <section className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                <section className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                   <div className="grid gap-px bg-[var(--surface-base)]/65 sm:grid-cols-2 xl:grid-cols-4">
                     <div className="px-4 py-3">
-                      <div className="text-xs text-muted-foreground">Balance</div>
+                      <div className="text-[11px] text-muted-foreground">Balance</div>
                       <div
                         className={cn(
-                          "mt-1.5 font-mono text-lg font-semibold",
+                          "mt-1.5 font-mono text-[1.35rem] font-semibold leading-[1.08]",
                           balanceHistoryQuery.data.balance.amount >= 0
                             ? "text-[var(--status-warning-text)]"
                             : "text-[var(--status-info-text)]",
@@ -922,38 +910,38 @@ export default function ScrapSettlementsPage() {
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-xs text-muted-foreground">Last updated</div>
-                      <div className="mt-1.5 font-mono text-lg font-semibold">
+                      <div className="text-[11px] text-muted-foreground">Last updated</div>
+                      <div className="mt-1.5 font-mono text-[1.35rem] font-semibold leading-[1.08]">
                         {formatDate(balanceHistoryQuery.data.balance.lastUpdated)}
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-xs text-muted-foreground">Deliveries</div>
-                      <div className="mt-1.5 font-mono text-lg font-semibold">
+                      <div className="text-[11px] text-muted-foreground">Deliveries</div>
+                      <div className="mt-1.5 font-mono text-[1.35rem] font-semibold leading-[1.08]">
                         {balanceHistoryQuery.data.deliveries.length}
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-xs text-muted-foreground">Settlement batches</div>
-                      <div className="mt-1.5 font-mono text-lg font-semibold">
+                      <div className="text-[11px] text-muted-foreground">Settlement batches</div>
+                      <div className="mt-1.5 font-mono text-[1.35rem] font-semibold leading-[1.08]">
                         {balanceHistoryQuery.data.settlements.length}
                       </div>
                     </div>
                   </div>
                 </section>
 
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold">Balance history</h3>
-                  <div className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                <section className="space-y-2.5">
+                  <h3 className="text-[13px] font-semibold tracking-[0.01em] text-[var(--text-strong)]">Balance history</h3>
+                  <div className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                     {balanceHistoryQuery.data.entries.map((entry, index) => (
                       <article
                         key={entry.id}
-                        className={cn("px-4 py-3", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
+                        className={cn("px-4 py-2.5", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1">
                             <div className="font-semibold">{entry.entryType.replace(/_/g, " ")}</div>
-                            <div className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</div>
+                            <div className="text-[11px] text-muted-foreground">{formatDate(entry.createdAt)}</div>
                           </div>
                           <div className="space-y-1 text-left sm:text-right">
                             <div
@@ -966,7 +954,7 @@ export default function ScrapSettlementsPage() {
                             >
                               {formatMoney(entry.amountDelta)}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground">
                               After {formatMoney(entry.balanceAfter)}
                             </div>
                           </div>
@@ -977,30 +965,30 @@ export default function ScrapSettlementsPage() {
                   </div>
                 </section>
 
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold">Delivered scrap</h3>
-                  <div className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                <section className="space-y-2.5">
+                  <h3 className="text-[13px] font-semibold tracking-[0.01em] text-[var(--text-strong)]">Delivered scrap</h3>
+                  <div className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                     {balanceHistoryQuery.data.deliveries.map((delivery, index) => (
                       <article
                         key={delivery.id}
-                        className={cn("px-4 py-3", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
+                        className={cn("px-4 py-2.5", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="font-semibold">
                               {delivery.purchaseNumber} - {delivery.material?.name ?? delivery.category}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground">
                               {formatDate(delivery.purchaseDate)} - {delivery.site.code} - {delivery.sellerName ?? "No seller"}
                             </div>
                           </div>
                           <div className="space-y-1 text-left sm:text-right">
                             <div className="font-mono font-semibold">{formatMoney(delivery.totalAmount)}</div>
-                            <div className="text-xs text-muted-foreground">{delivery.weight.toFixed(2)} kg</div>
+                            <div className="text-[11px] text-muted-foreground">{delivery.weight.toFixed(2)} kg</div>
                           </div>
                         </div>
                         {delivery.batch ? (
-                          <div className="mt-3 text-xs text-muted-foreground">
+                          <div className="mt-3 text-[11px] text-muted-foreground">
                             Batch {delivery.batch.batchNumber} - {delivery.batch.status}
                           </div>
                         ) : null}
@@ -1009,18 +997,18 @@ export default function ScrapSettlementsPage() {
                   </div>
                 </section>
 
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold">Settlement batches</h3>
-                  <div className="overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                <section className="space-y-2.5">
+                  <h3 className="text-[13px] font-semibold tracking-[0.01em] text-[var(--text-strong)]">Settlement batches</h3>
+                  <div className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                     {balanceHistoryQuery.data.settlements.map((settlement, index) => (
                       <article
                         key={settlement.id}
-                        className={cn("px-4 py-3", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
+                        className={cn("px-4 py-2.5", index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]")}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="font-semibold">{settlement.batch.label}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground">
                               {settlement.batch.workflowStatus} - Due {formatDate(settlement.batch.dueDate)}
                             </div>
                           </div>
@@ -1032,7 +1020,7 @@ export default function ScrapSettlementsPage() {
                                 {formatWorkflowStatus(settlement.payment.status)}
                               </Badge>
                             ) : (
-                              <div className="text-xs text-muted-foreground">Not paid yet</div>
+                              <div className="text-[11px] text-muted-foreground">Not paid yet</div>
                             )}
                           </div>
                         </div>
