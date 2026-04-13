@@ -15,7 +15,6 @@ import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
@@ -191,8 +190,8 @@ function getWorkflowBadgeVariant(status: string): StatusBadgeVariant {
 }
 
 const SETTLEMENT_TREND_SERIES: AdminChartSeries[] = [
-  { key: "amount", label: "Batch Value", kind: "bar", color: "var(--primary-500)" },
-  { key: "count", label: "Batches", kind: "line", color: "var(--accent-500)" },
+  { key: "amount", label: "Batch Value", kind: "bar", color: "var(--status-success-border)" },
+  { key: "averageAmount", label: "Average Payout", kind: "line", color: "var(--status-info-border)" },
 ];
 
 export default function ScrapSettlementsPage() {
@@ -319,6 +318,11 @@ export default function ScrapSettlementsPage() {
   );
   const maxDeliveredValue = Math.max(...balances.map((balance) => balance.deliveredValue), 1);
   const maxBalanceValue = Math.max(...balances.map((balance) => Math.abs(balance.balance)), 1);
+  const totalBatchValue = batches.reduce(
+    (sum, batch) => sum + batch.items.reduce((itemSum, item) => itemSum + item.amount, 0),
+    0,
+  );
+  const averageBatchValue = batches.length > 0 ? totalBatchValue / batches.length : 0;
   const balanceChartRows = useMemo(
     () =>
       balances.slice(0, 8).map((balance) => ({
@@ -343,6 +347,7 @@ export default function ScrapSettlementsPage() {
         label: date,
         amount: values.amount,
         count: values.count,
+        averageAmount: values.count > 0 ? values.amount / values.count : 0,
       }))
       .sort((left, right) => left.label.localeCompare(right.label));
   }, [batches]);
@@ -443,28 +448,28 @@ export default function ScrapSettlementsPage() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-[var(--status-pending-border)] bg-[var(--status-pending-bg)] p-4">
+        <div className="rounded-2xl bg-[var(--status-pending-bg)] p-4">
           <div className="flex items-center gap-2 text-xs text-[var(--status-pending-text)]">
             <Wallet className="h-4 w-4" />
             Open balances
           </div>
           <div className="mt-2 text-xl font-semibold">{balances.length}</div>
         </div>
-        <div className="rounded-2xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4">
+        <div className="rounded-2xl bg-[var(--status-success-bg)] p-4">
           <div className="flex items-center gap-2 text-xs text-[var(--status-success-text)]">
             <ReceiptLong className="h-4 w-4" />
             Delivered value
           </div>
           <div className="mt-2 text-xl font-semibold">{formatMoney(totalDeliveredValue)}</div>
         </div>
-        <div className="rounded-2xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4">
+        <div className="rounded-2xl bg-[var(--status-warning-bg)] p-4">
           <div className="flex items-center gap-2 text-xs text-[var(--status-warning-text)]">
             <Payments className="h-4 w-4" />
             Owed to us
           </div>
           <div className="mt-2 text-xl font-semibold">{formatMoney(totalPositiveBalance)}</div>
         </div>
-        <div className="rounded-2xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4">
+        <div className="rounded-2xl bg-[var(--status-info-bg)] p-4">
           <div className="flex items-center gap-2 text-xs text-[var(--status-info-text)]">
             <History className="h-4 w-4" />
             We owe
@@ -474,34 +479,72 @@ export default function ScrapSettlementsPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Settlement Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <section className="rounded-3xl bg-[var(--status-success-bg)]/80 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-[var(--status-success-text)]">Settlement trend</h3>
+              <p className="text-xs text-[var(--text-muted)]">Batch value and average payout by due date</p>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-[var(--status-success-text)]">Settled value</div>
+              <div className="font-mono text-sm font-semibold">{formatMoney(totalBatchValue)}</div>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
+              <div className="text-[var(--text-muted)]">Batches</div>
+              <div className="mt-0.5 font-mono text-[var(--text-strong)]">{batches.length}</div>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
+              <div className="text-[var(--text-muted)]">Average payout</div>
+              <div className="mt-0.5 font-mono text-[var(--text-strong)]">{formatMoney(averageBatchValue)}</div>
+            </div>
+          </div>
+          <div className="mt-4 rounded-2xl bg-[var(--surface-base)]/70 p-3 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)] [&_button]:shadow-none">
             <AdminTrendChart
               rows={settlementTrendRows}
               series={SETTLEMENT_TREND_SERIES}
               height={240}
-              valueFormatter={(value) => value.toFixed(2)}
+              valueFormatter={(value) => formatMoney(value)}
               yTickFormatter={(value) => value.toFixed(0)}
             />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Delivered vs Balance</CardTitle>
-          </CardHeader>
-          <CardContent>
+          </div>
+        </section>
+        <section className="rounded-3xl bg-[var(--status-info-bg)]/85 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-[var(--status-info-text)]">Delivered vs exposure</h3>
+              <p className="text-xs text-[var(--text-muted)]">Top operators by delivered value and open balance</p>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-[var(--status-info-text)]">Net exposure</div>
+              <div className="font-mono text-sm font-semibold">
+                {formatMoney(totalPositiveBalance + totalNegativeBalance)}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
+              <div className="text-[var(--text-muted)]">Owed to us</div>
+              <div className="mt-0.5 font-mono text-[var(--status-warning-text)]">{formatMoney(totalPositiveBalance)}</div>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-base)]/70 px-3 py-2">
+              <div className="text-[var(--text-muted)]">We owe</div>
+              <div className="mt-0.5 font-mono text-[var(--status-info-text)]">{formatMoney(totalNegativeBalance)}</div>
+            </div>
+          </div>
+          <div className="mt-4 rounded-2xl bg-[var(--surface-base)]/70 p-3 [&_.pointer-events-none>div]:border-0 [&_button]:border-0 [&_button]:bg-[var(--surface-base)] [&_button]:shadow-none">
             <AdminDualBarChart
               rows={balanceChartRows}
               height={240}
               primaryLabel="Delivered Value"
               secondaryLabel="Open Balance"
+              primaryColor="var(--status-success-border)"
+              secondaryColor="var(--status-warning-border)"
               valueFormatter={(value) => `USD ${value.toFixed(0)}`}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
 
       <VerticalDataViews
@@ -513,12 +556,12 @@ export default function ScrapSettlementsPage() {
         {activeView === "balances" ? (
           <div className="space-y-3">
             {balancesQuery.isLoading ? (
-              <div className="rounded-2xl border border-dashed border-[var(--edge-subtle)] px-4 py-8 text-sm text-muted-foreground">
+              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-muted-foreground">
                 Loading balances...
               </div>
             ) : null}
             {!balancesQuery.isLoading && balances.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--edge-subtle)] px-4 py-8 text-sm text-muted-foreground">
+              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-muted-foreground">
                 No open balances.
               </div>
             ) : null}
@@ -531,10 +574,10 @@ export default function ScrapSettlementsPage() {
                 <article
                   key={balance.id}
                   className={cn(
-                    "rounded-2xl border p-4",
+                    "rounded-2xl p-4",
                     owesUs
-                      ? "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)]"
-                      : "border-[var(--status-info-border)] bg-[var(--status-info-bg)]",
+                      ? "bg-[var(--status-warning-bg)]"
+                      : "bg-[var(--status-info-bg)]",
                   )}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -736,7 +779,7 @@ export default function ScrapSettlementsPage() {
               Add Operator
             </Button>
           </div>
-          <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
+          <DialogFooter className="sticky bottom-0 z-10 -mx-1 bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
@@ -795,7 +838,7 @@ export default function ScrapSettlementsPage() {
               placeholder="Note"
             />
           </div>
-          <DialogFooter className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
+          <DialogFooter className="sticky bottom-0 z-10 -mx-1 bg-background/95 px-1 pt-3 supports-[backdrop-filter]:bg-background/85">
             <Button type="button" variant="outline" onClick={() => setAdjustmentOpen(false)}>
               Cancel
             </Button>
@@ -817,7 +860,7 @@ export default function ScrapSettlementsPage() {
           </DialogHeader>
           {selectedBalance ? (
             balanceHistoryQuery.isLoading ? (
-              <div className="rounded-2xl border border-dashed border-[var(--edge-subtle)] px-4 py-8 text-sm text-muted-foreground">
+              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-muted-foreground">
                 Loading history...
               </div>
             ) : balanceHistoryQuery.error ? (
@@ -828,7 +871,7 @@ export default function ScrapSettlementsPage() {
             ) : balanceHistoryQuery.data ? (
               <div className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
                     <div className="text-xs text-muted-foreground">Balance</div>
                     <div
                       className={cn(
@@ -841,19 +884,19 @@ export default function ScrapSettlementsPage() {
                       {formatMoney(Math.abs(balanceHistoryQuery.data.balance.amount))}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
                     <div className="text-xs text-muted-foreground">Last updated</div>
                     <div className="mt-2 text-xl font-semibold">
                       {formatDate(balanceHistoryQuery.data.balance.lastUpdated)}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
                     <div className="text-xs text-muted-foreground">Deliveries</div>
                     <div className="mt-2 text-xl font-semibold">
                       {balanceHistoryQuery.data.deliveries.length}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] p-4">
+                  <div className="rounded-2xl bg-[var(--surface-muted)] p-4">
                     <div className="text-xs text-muted-foreground">Settlement batches</div>
                     <div className="mt-2 text-xl font-semibold">
                       {balanceHistoryQuery.data.settlements.length}
@@ -867,7 +910,7 @@ export default function ScrapSettlementsPage() {
                     {balanceHistoryQuery.data.entries.map((entry) => (
                       <article
                         key={entry.id}
-                        className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                        className="rounded-2xl bg-[var(--surface-muted)] p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1">
@@ -902,7 +945,7 @@ export default function ScrapSettlementsPage() {
                     {balanceHistoryQuery.data.deliveries.map((delivery) => (
                       <article
                         key={delivery.id}
-                        className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                        className="rounded-2xl bg-[var(--surface-muted)] p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
@@ -934,7 +977,7 @@ export default function ScrapSettlementsPage() {
                     {balanceHistoryQuery.data.settlements.map((settlement) => (
                       <article
                         key={settlement.id}
-                        className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                        className="rounded-2xl bg-[var(--surface-muted)] p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
