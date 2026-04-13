@@ -5,7 +5,7 @@ import { type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { Clock, Download, Loader2 } from "@/lib/icons";
+import { Clock, CloudArrowDown, Spinner } from "@medusajs/icons";
 
 export function OfflineRuntimeBanner() {
   const {
@@ -37,14 +37,14 @@ export function OfflineRuntimeBanner() {
   const bannerTone = showUpdatePrompt
     ? {
         colorVar: "--action-primary-bg",
-        icon: Download,
-        text: "Update ready",
+        icon: CloudArrowDown,
+        text: "Update available",
         iconClassName: "",
       }
     : updateState === "activating"
       ? {
           colorVar: "--action-primary-bg",
-          icon: Loader2,
+          icon: Spinner,
           text: "Activating update",
           iconClassName: "motion-safe:animate-spin",
         }
@@ -110,7 +110,7 @@ export function OfflineRuntimeBanner() {
           {showUpdatePrompt ? (
             <>
               <Button type="button" size="sm" onClick={() => void applyUpdate()}>
-                <Download className="size-4" />
+                <CloudArrowDown className="size-4" />
                 Refresh now
               </Button>
               <Button
@@ -124,7 +124,7 @@ export function OfflineRuntimeBanner() {
             </>
           ) : updateState === "activating" ? (
             <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--surface-muted)_82%,white)] px-3 py-1.5 text-sm text-[var(--text-muted)]">
-              <Loader2 className="size-4 animate-spin text-[var(--action-primary-bg)]" />
+              <Spinner className="size-4 animate-spin text-[var(--action-primary-bg)]" />
               Activating update
             </div>
           ) : null}

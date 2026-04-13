@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { Loader2 } from "@/lib/icons";
+import { Spinner } from "@medusajs/icons";
 import { cn } from "@/lib/utils";
 
 function formatTimestamp(value: string | null) {
@@ -240,7 +240,7 @@ export function OfflineRuntimePanel() {
                 ) : (
                   <StatusChip
                     colorVar="--action-primary-bg"
-                    icon={Loader2}
+                    icon={Spinner}
                     label={updateState === "activating" ? "Updating" : "Downloading"}
                     iconClassName="motion-safe:animate-spin"
                   />

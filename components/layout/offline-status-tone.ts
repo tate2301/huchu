@@ -1,16 +1,16 @@
 import {
-  AlertTriangle,
-  Download,
-  Loader2,
-  RefreshCcw,
+  ArrowPath,
+  CloudArrowDown,
+  ExclamationCircleSolid,
   ShieldCheck,
-  type LucideIcon,
-} from "@/lib/icons";
+  Spinner,
+} from "@medusajs/icons";
+import type { ComponentType, SVGProps } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
 
 type StatusTone = {
   colorVar: string;
-  icon: LucideIcon;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
   text: string;
   iconClassName?: string;
 };
@@ -19,21 +19,21 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "OFFLINE") {
     return {
       colorVar: "--status-warning-text",
-      icon: AlertTriangle,
+      icon: ExclamationCircleSolid,
       text: "Offline",
     };
   }
   if (status === "ATTENTION") {
     return {
       colorVar: "--status-error-text",
-      icon: AlertTriangle,
+      icon: ExclamationCircleSolid,
       text: "Needs attention",
     };
   }
   if (status === "PREPARING") {
     return {
       colorVar: "--action-primary-bg",
-      icon: Loader2,
+      icon: Spinner,
       text: "Preparing",
       iconClassName: "motion-safe:animate-spin",
     };
@@ -41,14 +41,14 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "UPDATE_READY") {
     return {
       colorVar: "--action-primary-bg",
-      icon: Download,
-      text: "Update ready",
+      icon: CloudArrowDown,
+      text: "Update available",
     };
   }
   if (status === "RECONNECTING") {
     return {
       colorVar: "--action-primary-bg",
-      icon: RefreshCcw,
+      icon: ArrowPath,
       text: "Reconnecting",
       iconClassName: "motion-safe:animate-spin",
     };
@@ -56,7 +56,7 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "SYNCING") {
     return {
       colorVar: "--action-primary-bg",
-      icon: RefreshCcw,
+      icon: ArrowPath,
       text: "Syncing",
       iconClassName: "motion-safe:animate-spin",
     };
