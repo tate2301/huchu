@@ -56,7 +56,10 @@ function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
   return Icon;
 }
 
-function createMedusaIcon(IconComponent: React.ElementType, displayName: string): LucideIcon {
+function createMedusaIcon(
+  IconComponent: React.ElementType,
+  displayName: string,
+): LucideIcon {
   const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
     <IconComponent
       {...(props as unknown as React.SVGAttributes<SVGSVGElement>)}
@@ -98,10 +101,7 @@ export const MedusaBuildingStorefrontIcon = createMedusaIcon(
   MedusaBuildingStorefrontRaw,
   "MedusaBuildingStorefrontIcon",
 );
-export const MedusaCashIcon = createMedusaIcon(
-  MedusaCashRaw,
-  "MedusaCashIcon",
-);
+export const MedusaCashIcon = createMedusaIcon(MedusaCashRaw, "MedusaCashIcon");
 export const MedusaChevronDownIcon = createMedusaIcon(
   MedusaChevronDownRaw,
   "MedusaChevronDownIcon",
@@ -155,6 +155,10 @@ export const MedusaLifebuoyIcon = createMedusaIcon(
   "MedusaLifebuoyIcon",
 );
 
+export const ArrowUploadProgress = createMaterialIcon(
+  "arrow_upload",
+  "ArrowUploadProgress",
+);
 export const AlertCircle = createMaterialIcon("error", "AlertCircle");
 export const AlertTriangle = createMaterialIcon("warning", "AlertTriangle");
 export const ArrowRight = createMaterialIcon("arrow_forward", "ArrowRight");
@@ -186,10 +190,19 @@ export const ChevronUpIcon = createMaterialIcon("expand_less", "ChevronUpIcon");
 export const Circle = createMaterialIcon("circle", "Circle");
 export const ClipboardList = createMaterialIcon("assignment", "ClipboardList");
 export const Clock = createMaterialIcon("schedule", "Clock");
+export const CloudSync = createMaterialIcon("cloud_sync", "CloudSync");
+export const CloudAlert = createMaterialIcon("cloud_off", "CloudAlert");
 export const Coins = createMaterialIcon("monetization_on", "Coins");
+export const DeployedCodeUpdate = createMaterialIcon(
+  "deployed_code",
+  "DeployedCodeUpdate",
+);
 export const Dashboard = createMaterialIcon("dashboard", "Dashboard");
 export const Dataset = createMaterialIcon("dataset", "Dataset");
-export const DirectionsCar = createMaterialIcon("directions_car", "DirectionsCar");
+export const DirectionsCar = createMaterialIcon(
+  "directions_car",
+  "DirectionsCar",
+);
 export const Download = createMaterialIcon("download", "Download");
 export const EventNote = createMaterialIcon("event_note", "EventNote");
 export const Factory = createMaterialIcon("factory", "Factory");
@@ -237,6 +250,10 @@ export const ReportProblem = createMaterialIcon(
   "ReportProblem",
 );
 export const RefreshCcw = createMaterialIcon("refresh", "Refresh");
+export const SignalWifiOff = createMaterialIcon(
+  "signal_wifi_off",
+  "SignalWifiOff",
+);
 
 export const Save = createMaterialIcon("save", "Save");
 export const Scale = createMaterialIcon("balance", "Scale");

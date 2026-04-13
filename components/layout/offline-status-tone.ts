@@ -1,5 +1,9 @@
 import {
   ArrowPath,
+  CheckCircleSolid,
+  CircleDottedLine,
+  CircleHalfDottedClock,
+  CircleThreeQuartersSolid,
   CloudArrowDown,
   ExclamationCircleSolid,
   ShieldCheck,
@@ -7,6 +11,12 @@ import {
 } from "@medusajs/icons";
 import type { ElementType } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
+import {
+  ArrowUploadProgress,
+  CloudSync,
+  DeployedCodeUpdate,
+  SignalWifiOff,
+} from "@/lib/icons";
 
 type StatusTone = {
   colorVar: string;
@@ -19,7 +29,7 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "OFFLINE") {
     return {
       colorVar: "--status-warning-text",
-      icon: ExclamationCircleSolid,
+      icon: SignalWifiOff,
       text: "Offline",
     };
   }
@@ -33,7 +43,7 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "PREPARING") {
     return {
       colorVar: "--action-primary-bg",
-      icon: Spinner,
+      icon: CircleHalfDottedClock,
       text: "Preparing",
       iconClassName: "motion-safe:animate-spin",
     };
@@ -41,14 +51,14 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "UPDATE_READY") {
     return {
       colorVar: "--action-primary-bg",
-      icon: CloudArrowDown,
+      icon: DeployedCodeUpdate,
       text: "Update available",
     };
   }
   if (status === "RECONNECTING") {
     return {
       colorVar: "--action-primary-bg",
-      icon: ArrowPath,
+      icon: CircleDottedLine,
       text: "Reconnecting",
       iconClassName: "motion-safe:animate-spin",
     };
@@ -56,14 +66,14 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
   if (status === "SYNCING") {
     return {
       colorVar: "--action-primary-bg",
-      icon: ArrowPath,
+      icon: CircleThreeQuartersSolid,
       text: "Syncing",
       iconClassName: "motion-safe:animate-spin",
     };
   }
   return {
     colorVar: "--status-success-text",
-    icon: ShieldCheck,
+    icon: CheckCircleSolid,
     text: "Ready",
   };
 }
