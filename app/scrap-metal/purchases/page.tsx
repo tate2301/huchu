@@ -42,7 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { SplitButton } from "@/components/ui/split-button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Pencil, Plus, Scale, Trash2, User, UserCheck, Wallet } from "@/lib/icons";
+import { Calendar, Pencil, Plus, Scale, Trash2, User, UserCheck, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
 import { exportTicketPdf } from "@/lib/scrap-metal/print-adapter";
@@ -513,9 +513,13 @@ export default function ScrapMetalPurchasesPage() {
       },
       {
         id: "purchaseDate",
-        header: "Date",
-        cell: ({ row }) => <NumericCell align="left">{row.original.purchaseDate.slice(0, 10)}</NumericCell>,
-        size: 100,
+        header: "Ticket Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {new Date(row.original.purchaseDate).toLocaleString()}
+          </NumericCell>
+        ),
+        size: 180,
       },
       {
         id: "material",
@@ -647,15 +651,13 @@ export default function ScrapMetalPurchasesPage() {
       actions={
         <SplitButton
           size="sm"
-          onClick={() => {
-            setEditing(null);
-            setPriceTouched(false);
-            setForm(getEmptyForm());
-            setSubmitIntent("finalize");
-            setFormOpen(true);
-          }}
+          onClick={() => router.push("/scrap-metal/tickets")}
           menuContent={
             <>
+              <DropdownMenuItem asChild>
+                <Link href="/scrap-metal/tickets">New Inbound Ticket</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/management/master-data/operations/scrap-materials">Materials</Link>
               </DropdownMenuItem>
@@ -706,6 +708,7 @@ export default function ScrapMetalPurchasesPage() {
               />
               <ScrapMobileMetricStrip
                 items={[
+                  { icon: Calendar, value: new Date(purchase.purchaseDate).toLocaleDateString(), srLabel: "Date" },
                   { icon: User, value: purchase.employee.name, srLabel: "Buyer" },
                   { icon: UserCheck, value: purchase.sellerName || "-", srLabel: "Supplier" },
                   { icon: Scale, value: `${purchase.weight.toFixed(2)} kg`, srLabel: "Weight" },

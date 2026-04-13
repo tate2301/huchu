@@ -1,5 +1,6 @@
 "use client";
 
+import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -7,6 +8,13 @@ import {
   Breadcrumbs,
   getCurrentPageTitle,
 } from "@/components/layout/breadcrumbs";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { usePageActions } from "@/components/layout/page-actions";
@@ -28,9 +36,7 @@ export function Navbar() {
     enabledFeatures,
   ).allowed;
 
-  const isScrapRoute = pathname.startsWith("/scrap-metal");
   const currentTitle = getCurrentPageTitle(pathname, view);
-  const successHint = getSuccessHint(pathname);
 
   return (
     <header className="sticky top-0 z-20 h-14 max-h-14 bg-surface-base  backdrop-blur-md">
@@ -44,12 +50,7 @@ export function Navbar() {
               </p>
             </div>
             <OfflineStatusIndicator />
-            {showNotificationCenter ? <NotificationCenter /> : null}
-            {actions ? (
-              <div className="flex items-center gap-2 [&>*:nth-child(n+3)]:hidden">
-                {actions}
-              </div>
-            ) : null}
+            <MobileNavbarActions actions={actions} />
           </div>
           <div className="hidden h-14 items-center gap-3 md:flex">
             <SidebarTrigger />
@@ -71,29 +72,69 @@ export function Navbar() {
   );
 }
 
-function getSuccessHint(pathname: string) {
-  const hints: Array<{ prefix: string; hint: string }> = [
-    {
-      prefix: "/shift-report",
-      hint: "Success: report is submitted and highlighted in the table.",
-    },
-    {
-      prefix: "/attendance",
-      hint: "Success: today's attendance batch appears in the records list.",
-    },
-    {
-      prefix: "/plant-report",
-      hint: "Success: report appears in the list for the selected date range.",
-    },
-    {
-      prefix: "/stores",
-      hint: "Success: stock action appears in the movement log.",
-    },
-    {
-      prefix: "/gold",
-      hint: "Success: the saved gold record appears in history below the form.",
-    },
-  ];
+function MobileNavbarActions({ actions }: { actions: ReactNode }) {
+  const flattenedActions = flattenNavbarActions(actions);
 
-  return hints.find((entry) => pathname.startsWith(entry.prefix))?.hint ?? null;
+  if (flattenedActions.length === 0) {
+    return null;
+  }
+
+  if (flattenedActions.length === 1) {
+    return <div className="flex items-center">{flattenedActions[0]}</div>;
+  }
+
+  const [primaryAction, ...overflowActions] = flattenedActions;
+
+  return (
+    <ButtonGroup className="shrink-0">
+      {primaryAction}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="icon-sm" aria-label="More actions">
+            <span className="material-symbols-rounded text-base">more_horiz</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[14rem]">
+          <div className="flex flex-col gap-1">
+            {overflowActions.map((action, index) => (
+              <div
+                key={`${action.key ?? "action"}-${index}`}
+                className="[&>[data-slot=button]]:w-full [&_a[data-slot=button]]:w-full"
+              >
+                {action}
+              </div>
+            ))}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </ButtonGroup>
+  );
+}
+
+function flattenNavbarActions(actions: ReactNode): ReactElement[] {
+  const flattened: ReactElement[] = [];
+
+  const collect = (node: ReactNode) => {
+    Children.forEach(node, (child) => {
+      if (!isValidElement(child)) {
+        return;
+      }
+
+      if (child.type === Fragment) {
+        collect(child.props.children);
+        return;
+      }
+
+      if (typeof child.type === "string" && (child.type === "div" || child.type === "span")) {
+        collect(child.props.children);
+        return;
+      }
+
+      flattened.push(child);
+    });
+  };
+
+  collect(actions);
+
+  return flattened;
 }

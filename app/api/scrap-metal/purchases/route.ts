@@ -136,18 +136,32 @@ export async function GET(request: NextRequest) {
     const materialId = searchParams.get("materialId");
     const status = searchParams.get("status");
     const unbatched = searchParams.get("unbatched") === "true";
+    const includeArchived = searchParams.get("includeArchived") === "true";
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
       companyId: session.user.companyId,
     };
+    const andFilters: Record<string, unknown>[] = [];
 
     if (siteId) where.siteId = siteId;
     if (employeeId) where.employeeId = employeeId;
     if (category) where.category = category;
     if (materialId) where.materialId = materialId;
     if (status) where.status = status;
-    if (unbatched) where.batchItems = { none: {} };
+    if (unbatched) andFilters.push({ batchItems: { none: {} } });
+    if (!includeArchived) {
+      andFilters.push({
+        batchItems: {
+          none: {
+            batch: {
+              status: "SOLD",
+            },
+          },
+        },
+      });
+    }
+    if (andFilters.length > 0) where.AND = andFilters;
 
     const [purchases, total] = await Promise.all([
       prisma.scrapMetalPurchase.findMany({
