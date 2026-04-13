@@ -1573,6 +1573,28 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     (bootstrapProgress?.preparedRoutes ?? []).some((candidate) =>
       routeMatches(pathname, candidate),
     );
+  const shouldShowTransientRouteSpinner =
+    isOffline &&
+    !isPublicPathname(pathname) &&
+    !tenantConflict &&
+    Boolean(sessionBootstrap) &&
+    !sessionBootstrapExpired &&
+    routeAvailability.availability === "warmed" &&
+    !routeOfflineReady &&
+    (lifecycleState === "hydrating_cache" || lifecycleState === "warming");
+  const [showRouteSpinner, setShowRouteSpinner] = useState(false);
+
+  useEffect(() => {
+    if (!shouldShowTransientRouteSpinner) {
+      setShowRouteSpinner(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setShowRouteSpinner(true);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [pathname, shouldShowTransientRouteSpinner]);
+
   const shouldShowOfflineGuard =
     isOffline &&
     !isPublicPathname(pathname) &&
@@ -1580,7 +1602,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       !sessionBootstrap ||
       sessionBootstrapExpired ||
       routeAvailability.availability === "excluded" ||
-      !routeOfflineReady);
+      routeAvailability.availability === "online-only");
 
   return (
     <OfflineContext.Provider value={contextValue}>
@@ -1596,10 +1618,9 @@ export function OfflineProvider({ children }: PropsWithChildren) {
                 ? "Reconnect to continue"
                 : tenantConflict
                   ? "Clear previous offline workspace"
-                  : routeAvailability.availability === "excluded"
+                  : routeAvailability.availability === "excluded" ||
+                      routeAvailability.availability === "online-only"
                     ? "This workflow is online only"
-                  : routeOfflineReady
-                  ? "Offline session unavailable"
                   : "This page is not ready offline"}
             </h1>
             <p className="mt-3 max-w-[58ch] text-sm leading-6 text-[var(--text-muted)]">
@@ -1640,6 +1661,15 @@ export function OfflineProvider({ children }: PropsWithChildren) {
               </button>
             </div>
           </div>
+        </div>
+      ) : showRouteSpinner ? (
+        <div className="flex min-h-screen items-center justify-center bg-[color-mix(in_srgb,var(--surface-canvas)_92%,white)] px-6 py-10">
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Loading"
+            className="size-10 animate-spin rounded-full border-2 border-[color-mix(in_srgb,var(--surface-muted)_88%,white)] border-t-[var(--action-primary-bg)]"
+          />
         </div>
       ) : (
         children
