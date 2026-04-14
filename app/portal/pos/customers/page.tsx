@@ -1,13 +1,5 @@
-import { PosCustomersView } from "@/components/retail/portal/pos-customers-view";
-import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
+import { redirect } from "next/navigation";
 
-export default async function PosPortalCustomersPage() {
-  return (
-    <PosPortalPageFrame
-      pathname="/portal/pos/customers"
-      title="Customers"
-    >
-      <PosCustomersView />
-    </PosPortalPageFrame>
-  );
+export default function PosPortalCustomersPage() {
+  redirect("/portal/pos");
 }

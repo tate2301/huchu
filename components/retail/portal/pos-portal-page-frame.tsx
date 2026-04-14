@@ -6,11 +6,8 @@ import { OfflineStatusIndicator } from "@/components/layout/offline-status-indic
 import {
   Clock,
   History,
-  Home,
   Package,
   Payments,
-  ReceiptLong,
-  User,
   type LucideIcon,
 } from "@/lib/icons";
 import { requirePageAuth } from "@/lib/auth-core/guards";
@@ -28,28 +25,10 @@ type PosPortalLink = {
 
 const POS_PORTAL_LINKS: PosPortalLink[] = [
   {
-    label: "Overview",
-    icon: Home,
-    publicHref: "/overview",
-    internalHref: "/portal/pos/overview",
-  },
-  {
     label: "Checkout",
     icon: Payments,
     publicHref: "/",
     internalHref: "/portal/pos",
-  },
-  {
-    label: "Price check",
-    icon: ReceiptLong,
-    publicHref: "/price-check",
-    internalHref: "/portal/pos/price-check",
-  },
-  {
-    label: "Customers",
-    icon: User,
-    publicHref: "/customers",
-    internalHref: "/portal/pos/customers",
   },
   {
     label: "Held",
