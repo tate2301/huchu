@@ -1,6 +1,6 @@
 import "material-symbols";
 import "@rtcamp/frappe-ui-react/theme";
-
+import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
@@ -8,8 +8,15 @@ import "./globals.css";
 import "./themes/client.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
-import { PLATFORM_APP_DESCRIPTION, PLATFORM_BRAND_NAME, PLATFORM_MARKETING_TAGLINE } from "@/lib/platform/brand";
-import { getBrandingCssVariables, getEffectiveBrandingForHost } from "@/lib/platform/branding";
+import {
+  PLATFORM_APP_DESCRIPTION,
+  PLATFORM_BRAND_NAME,
+  PLATFORM_MARKETING_TAGLINE,
+} from "@/lib/platform/brand";
+import {
+  getBrandingCssVariables,
+  getEffectiveBrandingForHost,
+} from "@/lib/platform/branding";
 import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -17,7 +24,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
   const branding = await getEffectiveBrandingForHost(hostHeader);
 
-  const workspaceName = branding.displayName?.trim() || branding.companyName?.trim() || PLATFORM_BRAND_NAME;
+  const workspaceName =
+    branding.displayName?.trim() ||
+    branding.companyName?.trim() ||
+    PLATFORM_BRAND_NAME;
   const legalCompanyName = branding.companyName?.trim() || null;
   const workspaceIdentity =
     legalCompanyName && legalCompanyName !== workspaceName
@@ -35,15 +45,21 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: {
       default: defaultTitle,
-      template: isProvisionedWorkspace ? `%s | ${workspaceIdentity}` : `%s | ${PLATFORM_BRAND_NAME}`,
+      template: isProvisionedWorkspace
+        ? `%s | ${workspaceIdentity}`
+        : `%s | ${PLATFORM_BRAND_NAME}`,
     },
-    applicationName: isProvisionedWorkspace ? workspaceIdentity : PLATFORM_BRAND_NAME,
+    applicationName: isProvisionedWorkspace
+      ? workspaceIdentity
+      : PLATFORM_BRAND_NAME,
     description,
     openGraph: {
       title: defaultTitle,
       description,
       type: "website",
-      siteName: isProvisionedWorkspace ? workspaceIdentity : PLATFORM_BRAND_NAME,
+      siteName: isProvisionedWorkspace
+        ? workspaceIdentity
+        : PLATFORM_BRAND_NAME,
     },
     twitter: {
       card: "summary_large_image",
@@ -95,6 +111,7 @@ export default async function RootLayout({
           } as React.CSSProperties
         }
       >
+        <Analytics />
         <div className="app-root">
           <AppProviders>
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
