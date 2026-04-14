@@ -35,7 +35,7 @@ export function PosNumericKeypad({
   return (
     <section
       className={cn(
-        "rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-3",
+        "rounded-[1.35rem] border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]",
         className,
       )}
     >
@@ -43,13 +43,13 @@ export function PosNumericKeypad({
         {title}
       </div>
       {presets.length ? (
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           {presets.map((preset) => (
             <Button
               key={`${preset.label}:${preset.value}`}
               type="button"
               variant="outline"
-              className="min-h-11 text-xs"
+              className="min-h-11 rounded-2xl text-xs"
               onClick={() => onAction({ type: "preset", value: preset.value })}
             >
               {preset.label}
@@ -57,13 +57,13 @@ export function PosNumericKeypad({
           ))}
         </div>
       ) : null}
-      <div className="mt-2 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-3 gap-2">
         {KEYS.map((key) => (
           <Button
             key={key.label}
             type="button"
             variant="outline"
-            className="min-h-12 text-lg font-medium"
+            className="min-h-14 rounded-2xl text-xl font-medium"
             onClick={() => onAction(key.action)}
           >
             {key.label}
@@ -72,7 +72,7 @@ export function PosNumericKeypad({
         <Button
           type="button"
           variant="outline"
-          className="min-h-12 text-xs font-semibold"
+          className="min-h-14 rounded-2xl text-xs font-semibold"
           onClick={() => onAction({ type: "clear" })}
         >
           Clear
@@ -80,7 +80,7 @@ export function PosNumericKeypad({
         <Button
           type="button"
           variant="outline"
-          className="min-h-12"
+          className="min-h-14 rounded-2xl"
           onClick={() => onAction({ type: "backspace" })}
         >
           <XCircle className="h-5 w-5" />

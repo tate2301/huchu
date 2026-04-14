@@ -5,10 +5,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Package, RefreshCcw } from "@/lib/icons";
+import { Clock, Package, ReceiptLong, RefreshCcw, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
+import {
+  PosEmptyState,
+  PosMetricCard,
+  PosPanel,
+  PosPanelHeader,
+  PosStatusPill,
+} from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart } from "./pos-types";
+import { money } from "./pos-utils";
 
 export function PosHeldView() {
   const router = useRouter();
@@ -46,66 +54,167 @@ export function PosHeldView() {
       }),
   });
 
-  return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2.5">
-        <div className="inline-flex items-center gap-2 text-sm font-semibold">
-          <Package className="h-5 w-5 text-[var(--text-muted)]" />
-          Held carts
-        </div>
-        <div className="text-xs text-[var(--text-muted)]">
-          {heldCartsQuery.data?.data?.length ?? 0} waiting
-        </div>
-        <div className="ml-auto">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] })}
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+  const heldCarts = heldCartsQuery.data?.data ?? [];
 
-      <div className="min-h-0 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-        <div className="h-full min-h-0 space-y-2 overflow-y-auto pr-1">
-          {(heldCartsQuery.data?.data ?? []).length === 0 ? (
-            <div className="rounded-[1rem] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-3 py-10 text-center text-sm text-[var(--text-muted)]">
-              {heldCartsQuery.isLoading ? "Loading held carts..." : "No held carts for this shift."}
-            </div>
+  return (
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
+      <PosPanel>
+        <PosPanelHeader
+          eyebrow="Held queue"
+          title="Resume parked sales quickly"
+          description="Held carts should feel like a short pause in checkout, not a separate workflow."
+          actions={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] })
+              }
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </Button>
+          }
+        />
+        <div className="grid gap-3 md:grid-cols-3">
+          <PosMetricCard
+            icon={ReceiptLong}
+            label="Held carts"
+            value={String(heldCarts.length)}
+            meta="Waiting to be recalled"
+            tone={heldCarts.length > 0 ? "warning" : "neutral"}
+          />
+          <PosMetricCard
+            icon={Clock}
+            label="Shift"
+            value={currentShift?.shiftNo ?? "Not open"}
+            meta={currentShift?.registerName ?? "Open a shift to park carts"}
+            tone={currentShift ? "brand" : "warning"}
+          />
+          <PosMetricCard
+            icon={Package}
+            label="Checkout"
+            value="Return fast"
+            meta="Recalling a cart should put the cashier back in the active sale lane."
+            tone="success"
+          />
+        </div>
+      </PosPanel>
+
+      <PosPanel className="min-h-0">
+        <PosPanelHeader
+          eyebrow="Queue"
+          title="Held carts"
+          description="Strong labels, timestamps, totals, and one obvious recall action."
+        />
+
+        <div className="h-full min-h-0 overflow-y-auto pr-1">
+          {!currentShift ? (
+            <PosEmptyState
+              icon={Clock}
+              title="Open a shift to use held carts"
+              description="Held carts are tied to the active register shift, so this queue stays closed until the drawer is open."
+            />
+          ) : heldCarts.length === 0 ? (
+            <PosEmptyState
+              icon={ReceiptLong}
+              title="No held carts for this shift"
+              description={
+                heldCartsQuery.isLoading
+                  ? "Loading the queue now."
+                  : "Once a cashier parks a sale, it will appear here for quick recall."
+              }
+            />
           ) : (
-            (heldCartsQuery.data?.data ?? []).map((heldCart) => (
-              <div
-                key={heldCart.id}
-                className="flex items-center justify-between gap-3 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium">{heldCart.label || heldCart.holdNo}</div>
-                  <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
-                    {heldCart.holdNo}
+            <div className="grid gap-3 xl:grid-cols-2">
+              {heldCarts.map((heldCart) => {
+                const itemCount = heldCart.cartSnapshot.items?.length ?? 0;
+                const total =
+                  heldCart.cartSnapshot.items?.reduce(
+                    (sum, item) =>
+                      sum +
+                      item.quantity * item.unitPrice -
+                      (item.lineDiscountAmount ?? 0),
+                    0,
+                  ) ?? 0;
+
+                return (
+                  <div
+                    key={heldCart.id}
+                    className="rounded-[1.35rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="truncate text-base font-semibold text-[var(--text-strong)]">
+                            {heldCart.label || heldCart.holdNo}
+                          </div>
+                          <PosStatusPill tone="warning">Held</PosStatusPill>
+                        </div>
+                        <div className="mt-1 font-mono text-xs text-[var(--text-muted)]">
+                          {heldCart.holdNo}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-lg font-semibold text-[var(--text-strong)]">
+                          {money(total)}
+                        </div>
+                        <div className="mt-1 text-xs text-[var(--text-muted)]">
+                          {itemCount} line{itemCount === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                          Customer
+                        </div>
+                        <div className="mt-2 truncate text-sm font-medium text-[var(--text-strong)]">
+                          {heldCart.cartSnapshot.customerName || "Walk-in"}
+                        </div>
+                      </div>
+                      <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                          Held at
+                        </div>
+                        <div className="mt-2 text-sm font-medium text-[var(--text-strong)]">
+                          {new Date(heldCart.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </div>
+                      <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                          Value
+                        </div>
+                        <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
+                          {money(total)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                        <Wallet className="h-4 w-4" />
+                        Recalling drops this cart back into checkout immediately.
+                      </div>
+                      <Button
+                        className="min-h-11"
+                        onClick={() => recallMutation.mutate(heldCart)}
+                        disabled={recallMutation.isPending}
+                      >
+                        Recall cart
+                      </Button>
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-[var(--text-muted)]">
-                    {(heldCart.cartSnapshot.items?.length ?? 0)} lines -{" "}
-                    {new Date(heldCart.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  className="min-h-11 min-w-20"
-                  onClick={() => recallMutation.mutate(heldCart)}
-                  disabled={recallMutation.isPending}
-                >
-                  Recall
-                </Button>
-              </div>
-            ))
+                );
+              })}
+            </div>
           )}
         </div>
-      </div>
+      </PosPanel>
     </div>
   );
 }
