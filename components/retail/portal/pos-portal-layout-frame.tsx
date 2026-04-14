@@ -1,6 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import { OfflineStatusIndicator } from "@/components/layout/offline-status-indicator";
 import {
@@ -11,11 +13,8 @@ import {
   Payments,
   type LucideIcon,
 } from "@/lib/icons";
-import { requirePageAuth } from "@/lib/auth-core/guards";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { cn } from "@/lib/utils";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
-import { getPortalHostDescriptorByPath, getPortalPublicPathForInternalPath } from "@/lib/platform/portal-hosts";
+import { usePosPortalState } from "./pos-portal-state";
 
 type PosPortalLink = {
   label: string;
@@ -57,41 +56,38 @@ const POS_PORTAL_LINKS: PosPortalLink[] = [
   },
 ];
 
-type PosPortalPageFrameProps = {
-  pathname: string;
-  title: string;
-  description?: string;
-  /** When true the main area fills remaining viewport height with no padding (for checkout). */
-  fillHeight?: boolean;
-  children: ReactNode;
+const ROUTE_CONFIG: Record<
+  string,
+  { title: string; description?: string; fillHeight?: boolean }
+> = {
+  "/portal/pos": { title: "Point of Sale", fillHeight: true },
+  "/": { title: "Point of Sale", fillHeight: true },
+  "/held": { title: "Held Carts" },
+  "/portal/pos/held": { title: "Held Carts" },
+  "/history": { title: "Sales History" },
+  "/portal/pos/history": { title: "Sales History" },
+  "/reports": { title: "Reports", description: "Your sales at a glance" },
+  "/portal/pos/reports": { title: "Reports", description: "Your sales at a glance" },
+  "/shift": { title: "Shift Management" },
+  "/portal/pos/shift": { title: "Shift Management" },
 };
 
-export async function PosPortalPageFrame({
-  pathname,
-  title,
-  description,
-  fillHeight = false,
-  children,
-}: PosPortalPageFrameProps) {
-  const headersList = await headers();
-  const hostHeader = getHostHeaderFromRequestHeaders(headersList);
-  const portalRouting = getPortalRequestRouting(hostHeader, "/portal/pos");
-  const session = await requirePageAuth({
-    pathname,
-    callbackUrl: portalRouting.callbackPath,
-    loginPath: portalRouting.loginPath,
-  });
-  if (!canAccessPosPortal(session.user.role)) {
-    redirect("/access-blocked");
+export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const { isPosHost } = usePosPortalState();
+  const { data: session } = useSession();
+
+  // Login page should not be wrapped in the POS frame
+  if (
+    pathname === "/portal/pos/login" ||
+    pathname === "/login"
+  ) {
+    return <>{children}</>;
   }
 
-  const portalDescriptor = getPortalHostDescriptorByPath("/portal/pos");
-  const publicPathname =
-    portalRouting.isPortalHost && portalDescriptor
-      ? getPortalPublicPathForInternalPath(pathname, portalDescriptor) ?? pathname
-      : pathname;
+  const config = ROUTE_CONFIG[pathname] ?? { title: "Point of Sale" };
 
-  const renderedLinks = portalRouting.isPortalHost
+  const renderedLinks = isPosHost
     ? POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.publicHref }))
     : POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.internalHref }));
 
@@ -105,12 +101,12 @@ export async function PosPortalPageFrame({
             <div className="hidden shrink-0 px-4 pt-5 pb-3 lg:block">
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">POS</div>
               <div className="mt-0.5 truncate text-[13px] font-bold text-[var(--text-strong)]">
-                {session.user.name || "Operator"}
+                {session?.user?.name || "Operator"}
               </div>
             </div>
             <nav className="flex gap-1 overflow-x-auto px-3 pb-2 pt-2 lg:mt-1 lg:flex-1 lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:overflow-x-visible lg:px-2.5 lg:pb-3 lg:pt-0">
               {renderedLinks.map((item) => {
-                const isActive = publicPathname === item.href || pathname === item.href;
+                const isActive = pathname === item.href;
                 return (
                   <Link
                     key={item.href}
@@ -136,17 +132,17 @@ export async function PosPortalPageFrame({
 
         {/* ── Content area ────────────────────────────────── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {!fillHeight ? (
+          {!config.fillHeight ? (
             <>
               <header className="shrink-0 border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-2.5 md:px-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h1 className="text-base font-semibold text-[var(--text-strong)]">{title}</h1>
+                  <h1 className="text-base font-semibold text-[var(--text-strong)]">{config.title}</h1>
                   <div className="shrink-0 lg:hidden">
                     <OfflineStatusIndicator />
                   </div>
                 </div>
-                {description ? (
-                  <p className="mt-0.5 text-sm text-[var(--text-muted)]">{description}</p>
+                {config.description ? (
+                  <p className="mt-0.5 text-sm text-[var(--text-muted)]">{config.description}</p>
                 ) : null}
               </header>
               <main className="flex-1 overflow-auto px-4 pb-8 pt-5 md:px-5 md:pb-10 md:pt-6">

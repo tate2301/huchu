@@ -1,13 +1,10 @@
 import { PosHeldView } from "@/components/retail/portal/pos-held-view";
-import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
+import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
 
 export default async function PosPortalHeldPage() {
   return (
-    <PosPortalPageFrame
-      pathname="/portal/pos/held"
-      title="Held Carts"
-    >
+    <PosPortalAuthGuard pathname="/portal/pos/held">
       <PosHeldView />
-    </PosPortalPageFrame>
+    </PosPortalAuthGuard>
   );
 }

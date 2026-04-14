@@ -1,14 +1,10 @@
 import { PosCheckoutView } from "@/components/retail/portal/pos-checkout-view";
-import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
+import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
 
 export default async function PosPortalPage() {
   return (
-    <PosPortalPageFrame
-      pathname="/portal/pos"
-      title="Point of Sale"
-      fillHeight
-    >
+    <PosPortalAuthGuard pathname="/portal/pos">
       <PosCheckoutView />
-    </PosPortalPageFrame>
+    </PosPortalAuthGuard>
   );
 }

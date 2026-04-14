@@ -1,14 +1,10 @@
 import { PosReportsView } from "@/components/retail/portal/pos-reports-view";
-import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
+import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
 
 export default async function PosPortalReportsPage() {
   return (
-    <PosPortalPageFrame
-      pathname="/portal/pos/reports"
-      title="Reports"
-      description="Your sales at a glance"
-    >
+    <PosPortalAuthGuard pathname="/portal/pos/reports">
       <PosReportsView />
-    </PosPortalPageFrame>
+    </PosPortalAuthGuard>
   );
 }
