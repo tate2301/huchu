@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { OfflineStatusIndicator } from "@/components/layout/offline-status-indicator";
 import {
+  BarChart3,
   Clock,
   History,
   Package,
@@ -41,6 +42,12 @@ const POS_PORTAL_LINKS: PosPortalLink[] = [
     icon: History,
     publicHref: "/history",
     internalHref: "/portal/pos/history",
+  },
+  {
+    label: "Reports",
+    icon: BarChart3,
+    publicHref: "/reports",
+    internalHref: "/portal/pos/reports",
   },
   {
     label: "Shift",

@@ -44,7 +44,6 @@ import {
   Save,
   Search,
   Sparkles,
-  Trash2,
   User,
   Users,
   Wallet,
@@ -75,10 +74,6 @@ type CheckoutNumericTarget =
 
 function requiresReference(tenderType: TenderType, requiredReferenceTenders: TenderType[]) {
   return requiredReferenceTenders.includes(tenderType);
-}
-
-function normalizeWhatsappPhone(input: string | null | undefined) {
-  return String(input ?? "").replace(/\D/g, "");
 }
 
 function roundUp(value: number, step: number) {
@@ -146,9 +141,9 @@ function NumField({
   );
 }
 
-/* ─── Tender type tab button ─────────────────────────────────────── */
+/* ─── Tender type grid button ─────────────────────────────────────── */
 
-function TenderTab({
+function TenderButton({
   type,
   selected,
   onClick,
@@ -162,13 +157,13 @@ function TenderTab({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-1 flex-col items-center gap-1 rounded-lg border py-2 text-[10px] font-semibold uppercase tracking-wide transition-all duration-100 active:scale-[0.96]",
+        "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-[11px] font-bold uppercase tracking-wide transition-all duration-100 active:scale-[0.96]",
         selected
-          ? "border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] text-white shadow-sm"
+          ? "border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
           : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]",
       )}
     >
-      <TenderIcon type={type} className="h-4 w-4" />
+      <TenderIcon type={type} className="h-5 w-5" />
       {tenderLabel(type)}
     </button>
   );
@@ -300,6 +295,31 @@ export function PosCheckoutView() {
       p.reference.trim().length < minReferenceLength,
   );
 
+  /* ── Keyboard shortcuts ─────────────────────── */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      if (isTyping) return;
+
+      if (e.key === "/") {
+        e.preventDefault();
+        focusSearchInput();
+      }
+      if (e.key === "Escape") {
+        if (search.trim()) {
+          setSearch("");
+          focusSearchInput();
+        } else if (selectedLineId) {
+          setSelectedLineId(null);
+          setActiveTarget(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [search, selectedLineId, setSearch]);
+
   const blockers = useMemo(() => {
     const next = [...checkoutBaseBlockers];
     if (nonCashTotal > total + 0.01) next.push("Non-cash tenders cannot exceed sale total.");
@@ -322,6 +342,7 @@ export function PosCheckoutView() {
       return;
     }
     if (target.type === "tender_amount") {
+      // eslint-disable-next-line react-hooks/immutability
       paymentUserEditedRef.current = true;
       const nextValue = applyPosKeypadAction(payments[target.index]?.amount ?? "", action);
       updatePayment(target.index, { amount: nextValue });
@@ -475,20 +496,6 @@ export function PosCheckoutView() {
     setPayments((current) => [...current, { tenderType: "CARD", amount: "", reference: "" }]);
   };
 
-  const whatsappHref = (() => {
-    if (!lastCompletedSale) return null;
-    const message = [
-      `Receipt ${lastCompletedSale.saleNo}`,
-      `Amount: ${money(lastCompletedSale.totalAmount)}`,
-      `Change: ${money(lastCompletedSale.changeAmount)}`,
-      lastCompletedSale.customerName ? `Customer: ${lastCompletedSale.customerName}` : null,
-      "Thank you for shopping with us.",
-    ].filter(Boolean).join("\n");
-    const encoded = encodeURIComponent(message);
-    const phone = normalizeWhatsappPhone(lastCompletedSale.customerPhone);
-    return phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-  })();
-
   const TENDER_TYPES: TenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"];
 
   /* ═══════════════════════════════════════════════════
@@ -579,6 +586,16 @@ export function PosCheckoutView() {
             </Link>
           </Button>
         </div>
+
+        {/* Shortcut hint */}
+        <div className="hidden shrink-0 items-center gap-1.5 text-[10px] text-[var(--text-muted)] lg:flex">
+          <span className="rounded bg-[var(--surface-muted)] px-1 py-0.5 font-mono text-[10px]">/</span>
+          <span>search</span>
+          <span className="rounded bg-[var(--surface-muted)] px-1 py-0.5 font-mono text-[10px]">↵</span>
+          <span>add</span>
+          <span className="rounded bg-[var(--surface-muted)] px-1 py-0.5 font-mono text-[10px]">Esc</span>
+          <span>clear</span>
+        </div>
       </div>
 
       {/* ── Three-column layout ─────────────────────────── */}
@@ -666,30 +683,30 @@ export function PosCheckoutView() {
                       onClick={() => handleAddCatalogItem(item)}
                       disabled={!currentShift}
                       className={cn(
-                        "group relative flex items-center gap-3 rounded-xl border bg-[var(--surface-base)] p-2.5 text-left transition-all duration-100 active:scale-[0.97]",
+                        "group relative flex items-center gap-3.5 rounded-xl border bg-[var(--surface-base)] p-3 text-left transition-all duration-100 active:scale-[0.97]",
                         inCart
-                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_40%,var(--border-default))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--action-primary-bg)_20%,transparent)]"
-                          : "border-[var(--border-default)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_30%,var(--border-default))] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)]",
+                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_50%,var(--border-default))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--action-primary-bg)_25%,transparent),0_4px_12px_rgba(0,0,0,0.05)]"
+                          : "border-[var(--border-default)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))] hover:shadow-[0_4px_14px_rgba(0,0,0,0.08)]",
                       )}
                     >
                       {/* Image / placeholder */}
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-muted)]">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-muted)]">
                         {item.imageUrl ? (
-                          <Image src={item.imageUrl} alt={item.name} width={44} height={44} className="h-full w-full object-cover" unoptimized />
+                          <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-full w-full object-cover" unoptimized />
                         ) : (
-                          <Package className="h-5 w-5 text-[var(--text-muted)]" />
+                          <Package className="h-6 w-6 text-[var(--text-muted)]" />
                         )}
                       </div>
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <div className="line-clamp-1 text-[13px] font-semibold leading-tight text-[var(--text-strong)]">
+                        <div className="line-clamp-1 text-sm font-semibold leading-tight text-[var(--text-strong)]">
                           {item.name}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-1.5">
+                        <div className="mt-1 flex items-center gap-2">
                           {item.inventoryItem && (
                             <span className={cn(
-                              "rounded px-1 py-0 text-[10px] font-semibold",
+                              "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
                               item.inventoryItem.currentStock <= 5
                                 ? "bg-amber-50 text-amber-700"
                                 : "bg-emerald-50 text-emerald-700",
@@ -712,19 +729,19 @@ export function PosCheckoutView() {
                             {money(item.compareAtPrice)}
                           </div>
                         ) : null}
-                        <div className="font-mono text-sm font-bold text-[var(--text-strong)]">
+                        <div className="font-mono text-[15px] font-bold text-[var(--text-strong)]">
                           {money(item.unitPrice)}
                         </div>
                       </div>
 
                       {/* In-cart badge */}
                       {inCart ? (
-                        <div className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-1 text-[10px] font-bold text-white shadow-sm">
-                          {inCart.quantity}
+                        <div className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-1.5 text-[11px] font-bold text-white shadow-md">
+                          {inCart.quantity % 1 === 0 ? inCart.quantity : inCart.quantity.toFixed(2)}
                         </div>
                       ) : (
-                        <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--action-primary-bg)] text-white opacity-0 shadow-sm transition-opacity duration-100 group-hover:opacity-100">
-                          <Plus className="h-3 w-3" />
+                        <div className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--action-primary-bg)] text-white opacity-0 shadow-md transition-opacity duration-100 group-hover:opacity-100">
+                          <Plus className="h-3.5 w-3.5" />
                         </div>
                       )}
                     </button>
@@ -769,7 +786,11 @@ export function PosCheckoutView() {
             {cart.length > 0 ? (
               <button
                 type="button"
-                onClick={() => { paymentUserEditedRef.current = false; clearCart(); }}
+                onClick={() => {
+                  // eslint-disable-next-line react-hooks/immutability
+                  paymentUserEditedRef.current = false;
+                  clearCart();
+                }}
                 className="rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
               >
                 Clear
@@ -796,10 +817,10 @@ export function PosCheckoutView() {
                     <div
                       key={item.catalogItemId}
                       className={cn(
-                        "flex items-center gap-2 px-3 py-2.5 transition-colors duration-100",
+                        "flex items-center gap-2 px-3 py-3 transition-colors duration-100",
                         isSelected
-                          ? "border-l-[3px] border-l-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,var(--surface-base))]"
-                          : "border-l-[3px] border-l-transparent hover:bg-[var(--surface-muted)]",
+                          ? "border-l-4 border-l-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,var(--surface-base))]"
+                          : "border-l-4 border-l-transparent hover:bg-[var(--surface-muted)]",
                       )}
                     >
                       {/* Item info — clickable to select */}
@@ -838,9 +859,9 @@ export function PosCheckoutView() {
                               updateQty(item.catalogItemId, next);
                             }
                           }}
-                          className="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.9]"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.92]"
                         >
-                          <Minus className="h-3 w-3" />
+                          <Minus className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
@@ -849,9 +870,9 @@ export function PosCheckoutView() {
                             setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
                           }}
                           className={cn(
-                            "h-6 min-w-[2rem] rounded-md border px-1.5 font-mono text-xs font-bold transition-colors",
+                            "h-8 min-w-[2.25rem] rounded-lg border px-2 font-mono text-sm font-bold transition-colors",
                             isSelected && activeTarget?.type === "line_qty"
-                              ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,white)] text-[var(--action-primary-bg)]"
+                              ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,white)] text-[var(--action-primary-bg)]"
                               : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-strong)] hover:border-[var(--action-primary-bg)]",
                           )}
                         >
@@ -860,15 +881,15 @@ export function PosCheckoutView() {
                         <button
                           type="button"
                           onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
-                          className="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.9]"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.92]"
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-3.5 w-3.5" />
                         </button>
                       </div>
 
                       {/* Line total */}
-                      <div className="shrink-0 w-16 text-right">
-                        <div className="font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                      <div className="shrink-0 w-[4.5rem] text-right">
+                        <div className="font-mono text-sm font-bold text-[var(--text-strong)]">
                           {money(lineTotal)}
                         </div>
                       </div>
@@ -883,9 +904,9 @@ export function PosCheckoutView() {
                             setActiveTarget(null);
                           }
                         }}
-                        className="shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
+                        className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   );
@@ -893,44 +914,6 @@ export function PosCheckoutView() {
               </div>
             )}
           </div>
-
-          {/* Line editor (when line is selected) */}
-          {selectedLine ? (
-            <div className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2.5">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  {selectedLine.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedLineId(null); setActiveTarget(null); }}
-                  className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-base)] hover:text-[var(--text-strong)]"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                <NumField
-                  label="Qty"
-                  value={String(selectedLine.quantity)}
-                  active={activeTarget?.type === "line_qty" && activeTarget.lineId === selectedLine.catalogItemId}
-                  onActivate={() => setActiveTarget({ type: "line_qty", lineId: selectedLine.catalogItemId })}
-                />
-                <NumField
-                  label="Price"
-                  value={String(selectedLine.unitPrice)}
-                  active={activeTarget?.type === "line_price" && activeTarget.lineId === selectedLine.catalogItemId}
-                  onActivate={() => setActiveTarget({ type: "line_price", lineId: selectedLine.catalogItemId })}
-                />
-                <NumField
-                  label="Disc"
-                  value={String(selectedLine.lineDiscountAmount ?? 0)}
-                  active={activeTarget?.type === "line_discount" && activeTarget.lineId === selectedLine.catalogItemId}
-                  onActivate={() => setActiveTarget({ type: "line_discount", lineId: selectedLine.catalogItemId })}
-                />
-              </div>
-            </div>
-          ) : null}
 
           {/* Cart summary */}
           <div className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5">
@@ -964,66 +947,66 @@ export function PosCheckoutView() {
 
           {/* Amount due header */}
           <div className={cn(
-            "shrink-0 px-4 pt-4 pb-3 text-center",
+            "shrink-0 px-4 pt-5 pb-3 text-center",
             cart.length > 0
-              ? "bg-[color-mix(in_srgb,var(--action-primary-bg)_4%,var(--surface-base))]"
+              ? "bg-gradient-to-b from-[color-mix(in_srgb,var(--action-primary-bg)_6%,var(--surface-base))] to-[color-mix(in_srgb,var(--action-primary-bg)_2%,var(--surface-base))]"
               : "",
           )}>
             <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">
               Amount Due
             </div>
             <div className={cn(
-              "mt-0.5 font-mono font-black leading-none tracking-tight transition-all duration-150",
-              total >= 10000 ? "text-3xl" : total >= 1000 ? "text-4xl" : "text-[2.75rem]",
+              "mt-1 font-mono font-black leading-none tracking-tight transition-all duration-150",
+              total >= 10000 ? "text-4xl" : total >= 1000 ? "text-5xl" : "text-[3.25rem]",
               cart.length > 0 ? "text-[var(--text-strong)]" : "text-[var(--text-muted)]",
             )}>
               {money(total)}
             </div>
 
             {changeAmount > 0 ? (
-              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-700">
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-700">
                 Change: {money(changeAmount)}
               </div>
             ) : tenderedTotal > 0 && tenderedTotal < total ? (
-              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
                 Still due: {money(total - tenderedTotal)}
               </div>
             ) : tenderedTotal > 0 ? (
-              <div className="mt-1.5 text-xs text-[var(--text-muted)]">
+              <div className="mt-2 text-xs text-[var(--text-muted)]">
                 Tendered: <span className="font-mono font-semibold">{money(tenderedTotal)}</span>
               </div>
             ) : null}
 
             {/* Quick action pills */}
-            <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => setAdjustmentsOpen(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]"
               >
-                <Sparkles className="h-3 w-3" />
+                <Sparkles className="h-3.5 w-3.5" />
                 Adjust
               </button>
               <button
                 type="button"
                 onClick={() => setSplitTenderMode(!splitTenderMode)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-100",
+                  "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-all duration-100",
                   splitTenderMode
-                    ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,var(--surface-base))] text-[var(--action-primary-bg)]"
+                    ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] text-[var(--action-primary-bg)]"
                     : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]",
                 )}
               >
-                <Payments className="h-3 w-3" />
+                <Payments className="h-3.5 w-3.5" />
                 {splitTenderMode ? "Single pay" : "Split"}
               </button>
               <button
                 type="button"
                 onClick={() => setHoldDialog(true)}
                 disabled={cart.length === 0 || !currentShift}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)] disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)] disabled:opacity-40"
               >
-                <ReceiptLong className="h-3 w-3" />
+                <ReceiptLong className="h-3.5 w-3.5" />
                 Hold
               </button>
             </div>
@@ -1056,10 +1039,10 @@ export function PosCheckoutView() {
                       </div>
                     )}
 
-                    {/* Tender type tabs */}
-                    <div className="flex gap-1">
+                    {/* Tender type grid */}
+                    <div className="grid grid-cols-3 gap-1.5">
                       {TENDER_TYPES.map((type) => (
-                        <TenderTab
+                        <TenderButton
                           key={type}
                           type={type}
                           selected={payment.tenderType === type}
@@ -1124,11 +1107,28 @@ export function PosCheckoutView() {
             <div className="px-3 pb-3">
               {/* Active target label */}
               <div className="mb-2 flex items-center justify-center">
-                <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,var(--surface-base))] px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--action-primary-bg)]">
+                <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--action-primary-bg)]">
                   {activeTargetLabel}
                 </span>
               </div>
-              <PosNumericKeypad onAction={handleKeypadAction} presets={keypadPresets} />
+
+              {/* Quick-cash presets */}
+              {keypadPresets.length > 0 && activeTarget?.type === "tender_amount" ? (
+                <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
+                  {keypadPresets.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => handleKeypadAction({ type: "preset", value: p.value })}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 hover:border-emerald-300"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <PosNumericKeypad onAction={handleKeypadAction} />
             </div>
           </div>
 
@@ -1425,6 +1425,49 @@ export function PosCheckoutView() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Line editor sheet ───────────────────────────── */}
+      <Sheet open={Boolean(selectedLine)} onOpenChange={(open) => !open && (setSelectedLineId(null), setActiveTarget(null))}>
+        <SheetContent side="bottom" className="h-auto max-h-[40vh] p-0">
+          <div className="flex flex-col p-4 sm:p-5">
+            <SheetHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <SheetTitle className="text-base">{selectedLine?.name}</SheetTitle>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedLineId(null); setActiveTarget(null); }}
+                  className="rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-strong)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <SheetDescription>
+                Tap a field, then use the keypad to edit.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <NumField
+                label="Qty"
+                value={String(selectedLine?.quantity ?? 0)}
+                active={activeTarget?.type === "line_qty" && activeTarget.lineId === selectedLine?.catalogItemId}
+                onActivate={() => setActiveTarget({ type: "line_qty", lineId: selectedLine?.catalogItemId ?? "" })}
+              />
+              <NumField
+                label="Price"
+                value={String(selectedLine?.unitPrice ?? 0)}
+                active={activeTarget?.type === "line_price" && activeTarget.lineId === selectedLine?.catalogItemId}
+                onActivate={() => setActiveTarget({ type: "line_price", lineId: selectedLine?.catalogItemId ?? "" })}
+              />
+              <NumField
+                label="Disc"
+                value={String(selectedLine?.lineDiscountAmount ?? 0)}
+                active={activeTarget?.type === "line_discount" && activeTarget.lineId === selectedLine?.catalogItemId}
+                onActivate={() => setActiveTarget({ type: "line_discount", lineId: selectedLine?.catalogItemId ?? "" })}
+              />
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* ── Sale completed ──────────────────────────────── */}
       <Dialog open={Boolean(lastCompletedSale)} onOpenChange={(open) => !open && dismissCompletedSale()}>
         <DialogContent className="sm:max-w-sm p-0 overflow-hidden">
@@ -1442,7 +1485,7 @@ export function PosCheckoutView() {
           </div>
 
           {/* Details */}
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 py-6 space-y-5">
             {/* Change — the most important number for a cashier */}
             <div className="text-center">
               <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">
@@ -1451,8 +1494,8 @@ export function PosCheckoutView() {
               <div className={cn(
                 "font-mono font-black leading-none mt-1",
                 (lastCompletedSale?.changeAmount ?? 0) > 0
-                  ? "text-5xl text-emerald-600"
-                  : "text-3xl text-[var(--text-muted)]",
+                  ? "text-6xl text-emerald-600"
+                  : "text-4xl text-[var(--text-muted)]",
               )}>
                 {money(lastCompletedSale?.changeAmount ?? 0)}
               </div>
@@ -1477,15 +1520,10 @@ export function PosCheckoutView() {
             </div>
           </div>
 
-          <DialogFooter className="px-6 pb-5 gap-2">
+          <DialogFooter className="px-6 pb-6 gap-2">
             <Button variant="outline" size="sm" onClick={dismissCompletedSale} className="flex-1">
               Next sale
             </Button>
-            {whatsappHref ? (
-              <Button variant="outline" size="sm" className="flex-1 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" asChild>
-                <a href={whatsappHref} target="_blank" rel="noreferrer">WhatsApp</a>
-              </Button>
-            ) : null}
             <Button size="sm" className="flex-1" asChild>
               <Link href={getPosPortalHref("history", isPosHost)}>
                 <History className="h-4 w-4" />
