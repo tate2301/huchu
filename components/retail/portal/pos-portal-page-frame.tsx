@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 import { requirePageAuth } from "@/lib/auth-core/guards";
-import { isCashierRole } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { cn } from "@/lib/utils";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
 import { getPortalHostDescriptorByPath, getPortalPublicPathForInternalPath } from "@/lib/platform/portal-hosts";
@@ -93,7 +93,7 @@ export async function PosPortalPageFrame({
     callbackUrl: portalRouting.callbackPath,
     loginPath: portalRouting.loginPath,
   });
-  if (!isCashierRole(session.user.role)) {
+  if (!canAccessPosPortal(session.user.role)) {
     redirect("/access-blocked");
   }
 
@@ -113,9 +113,9 @@ export async function PosPortalPageFrame({
         <aside className="h-full w-full border-b border-[var(--edge-subtle)] bg-[var(--sidebar)] px-3 pb-3 pt-3 lg:border-b-0 lg:border-r lg:px-4 lg:py-4">
           <div className="px-1 lg:px-2">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              POS portal
+              Store operations
             </div>
-            <div className="mt-1 text-sm font-semibold">{session.user.name || "Cashier"}</div>
+            <div className="mt-1 text-sm font-semibold">{session.user.name || "Operator"}</div>
           </div>
           <nav className="mt-4 flex gap-1.5 overflow-x-auto pb-1 lg:mt-5 lg:block lg:space-y-1.5 lg:overflow-visible lg:pb-0">
             {renderedLinks.map((item) => (
