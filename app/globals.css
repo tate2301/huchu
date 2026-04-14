@@ -583,6 +583,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     font-weight: var(--type-body-weight);
   }
 
+  @media (hover: none) and (pointer: coarse) {
+    body {
+      background-attachment: scroll;
+    }
+  }
+
   :where(
       a,
       button,

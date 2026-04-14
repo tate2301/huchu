@@ -27,14 +27,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <PageActionsProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="flex min-h-screen flex-col bg-surface-base m-2 rounded-xl shadow-sm overflow-clip border">
+        <SidebarInset className="m-2 flex min-h-screen flex-col rounded-xl border bg-surface-base shadow-sm overflow-visible md:overflow-clip">
           <Navbar />
           <main
             className={
               isCctvRoute
                 ? "min-w-0 flex-1  py-0"
                 : isScrapRoute
-                  ? "content-shell min-w-0 flex-1 overflow-hidden py-4 md:py-6"
+                  ? "content-shell min-w-0 flex-1 overflow-visible md:overflow-hidden py-4 md:py-6"
                   : "content-shell min-w-0 flex-1  py-6"
             }
           >
