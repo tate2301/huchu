@@ -179,48 +179,39 @@ export async function recordRetailInventoryMovement(input: {
 
   const createdAt = input.entryDate ?? new Date();
   const writeMovement = async (tx: Prisma.TransactionClient) => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const referenceId = await reserveIdentifier(tx, {
-        companyId: input.companyId,
-        entity: "STOCK_MOVEMENT",
-      });
+    // No retry loop here: reserveIdentifier uses an atomic sequence increment so
+    // P2002 collisions on stockMovement.create are not expected. A retry loop that
+    // catches P2002 and continues inside a PostgreSQL transaction would leave the
+    // transaction in an "aborted" state, causing every subsequent query to fail with
+    // "current transaction is aborted". Let any error propagate cleanly.
+    const referenceId = await reserveIdentifier(tx, {
+      companyId: input.companyId,
+      entity: "STOCK_MOVEMENT",
+    });
 
-      try {
-        const created = await tx.stockMovement.create({
-          data: {
-            referenceId,
-            itemId: input.itemId,
-            toLocationId: input.toLocationId ?? undefined,
-            movementType: input.movementType,
-            quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
-            unit: input.unit,
-            notes: input.notes ?? undefined,
-            issuedById: input.userId,
-            createdAt,
-          },
-        });
+    const created = await tx.stockMovement.create({
+      data: {
+        referenceId,
+        itemId: input.itemId,
+        toLocationId: input.toLocationId ?? undefined,
+        movementType: input.movementType,
+        quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
+        unit: input.unit,
+        notes: input.notes ?? undefined,
+        issuedById: input.userId,
+        createdAt,
+      },
+    });
 
-        await tx.inventoryItem.update({
-          where: { id: input.itemId },
-          data: {
-            currentStock: nextStock,
-            ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
-          },
-        });
+    await tx.inventoryItem.update({
+      where: { id: input.itemId },
+      data: {
+        currentStock: nextStock,
+        ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
+      },
+    });
 
-        return created;
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw new Error("Unable to generate stock movement reference.");
+    return created;
   };
   const movement = input.tx ? await writeMovement(input.tx) : await prisma.$transaction(writeMovement);
 

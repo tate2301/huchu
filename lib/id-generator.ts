@@ -441,21 +441,22 @@ export async function reserveIdentifier(
 
     if (!existing) {
       const maxExisting = await findEntityMaxExistingCode(tx, input);
-      try {
-        await tx.idSequence.create({
-          data: {
+      // Use createMany with skipDuplicates instead of create + P2002 catch.
+      // Catching P2002 and continuing inside a transaction causes PostgreSQL to enter
+      // an "aborted" state, making every subsequent query fail with
+      // "current transaction is aborted". createMany/skipDuplicates translates to
+      // INSERT ... ON CONFLICT DO NOTHING which is safe inside a parent transaction.
+      await tx.idSequence.createMany({
+        data: [
+          {
             companyId: input.companyId,
             entityKey: input.entity,
             scopeKey,
             lastNumber: maxExisting,
           },
-        });
-      } catch (error) {
-        const known = error as Prisma.PrismaClientKnownRequestError;
-        if (!(known && known.code === "P2002")) {
-          throw error;
-        }
-      }
+        ],
+        skipDuplicates: true,
+      });
     }
 
     const next = await tx.idSequence.update({
