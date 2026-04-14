@@ -1176,6 +1176,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
   return (
     <>
       <ScrapShell
+        title=""
         actions={
           <div className="flex w-full items-center gap-2">
             <ButtonGroup className="min-w-0 flex-1 divide-x">
