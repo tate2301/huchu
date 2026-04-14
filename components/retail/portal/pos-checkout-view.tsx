@@ -20,17 +20,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Clock, Package, Payments, QrCode, RefreshCcw, Save, Trash2, User, Wallet } from "@/lib/icons";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Package,
+  Payments,
+  QrCode,
+  ReceiptLong,
+  RefreshCcw,
+  Save,
+  Search,
+  Sparkles,
+  Trash2,
+  User,
+  Users,
+  Wallet,
+} from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { PosFocusedEditorDrawer } from "./pos-focused-editor-drawer";
 import { PosInlineValidationBanner } from "./pos-inline-validation-banner";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
+import {
+  PosEmptyState,
+  PosMetricCard,
+  PosPanel,
+  PosPanelHeader,
+  PosStatusPill,
+} from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, TenderType } from "./pos-types";
 import { money } from "./pos-utils";
@@ -56,6 +87,23 @@ function roundUp(value: number, step: number) {
   return Math.ceil(value / step) * step;
 }
 
+function tenderLabel(tenderType: TenderType) {
+  switch (tenderType) {
+    case "CASH":
+      return "Cash";
+    case "CARD":
+      return "Card";
+    case "MOBILE_MONEY":
+      return "Mobile money";
+    case "TRANSFER":
+      return "Transfer";
+    case "VOUCHER":
+      return "Voucher";
+    default:
+      return tenderType;
+  }
+}
+
 export function PosCheckoutView() {
   const router = useRouter();
   const { toast } = useToast();
@@ -66,6 +114,7 @@ export function PosCheckoutView() {
   const [holdLabel, setHoldLabel] = useState("");
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [activeTarget, setActiveTarget] = useState<CheckoutNumericTarget | null>(null);
+  const [customerSheetOpen, setCustomerSheetOpen] = useState(false);
 
   const {
     search,
@@ -203,6 +252,7 @@ export function PosCheckoutView() {
         loyaltyPoints: 0,
         loyaltyTier: "BRONZE",
       });
+      setCustomerSheetOpen(false);
       toast({ title: "Customer saved", variant: "success" });
     },
     onError: async (error) => {
@@ -225,6 +275,7 @@ export function PosCheckoutView() {
           loyaltyPoints: 0,
           loyaltyTier: "BRONZE",
         });
+        setCustomerSheetOpen(false);
         toast({
           title: "Customer queued offline",
           description: "This customer will sync automatically when the connection is back.",
@@ -393,175 +444,462 @@ export function PosCheckoutView() {
     ];
   }, [total]);
 
+  const activeTargetLabel = (() => {
+    if (!activeTarget) return "Tap a field to use the keypad";
+    if (activeTarget.type === "order_discount") return "Editing order discount";
+    if (activeTarget.type === "redeem_points") return "Editing loyalty points";
+    if (activeTarget.type === "tender_amount") {
+      return `Editing ${tenderLabel(
+        payments[activeTarget.index]?.tenderType ?? "CASH",
+      )} amount`;
+    }
+    if (activeTarget.type === "line_qty") return "Editing quantity";
+    if (activeTarget.type === "line_price") return "Editing unit price";
+    return "Editing line discount";
+  })();
+
+  const selectedPromotion =
+    promotions.find((promotion) => promotion.id === selectedPromotionId) ?? null;
+  const lineCountLabel = `${cart.length} line${cart.length === 1 ? "" : "s"}`;
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2">
-        <div className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--surface-muted)] px-3 text-xs font-medium text-[var(--text-muted)]">
-          <Clock className="h-4 w-4" />
-          {currentShift ? currentShift.shiftNo : "No open shift"}
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <PosPanel>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              Counter checkout
+            </p>
+            <h1 className="mt-1 text-[1.8rem] font-semibold tracking-[-0.04em] text-[var(--text-strong)]">
+              Sell fast, fix exceptions later
+            </h1>
+            <p className="mt-2 max-w-[58ch] text-sm leading-6 text-[var(--text-muted)]">
+              Keep the cashier focused on item lookup, cart review, and payment.
+              Customer lookup, held carts, and sync issues stay close, but out of
+              the way.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {currentShift ? (
+              <>
+                <Button variant="outline" className="min-h-11" asChild>
+                  <Link href={getPosPortalHref("held", isPosHost)}>
+                    <ReceiptLong className="h-4 w-4" />
+                    Held carts
+                  </Link>
+                </Button>
+                <Button
+                  className="min-h-11"
+                  onClick={() => setHoldDialog(true)}
+                  disabled={cart.length === 0}
+                >
+                  Hold current sale
+                </Button>
+              </>
+            ) : (
+              <Button className="min-h-11" asChild>
+                <Link href={getPosPortalHref("shift", isPosHost)}>Open shift</Link>
+              </Button>
+            )}
+          </div>
         </div>
-        {currentShift ? (
-          <>
-            <div className="text-sm font-medium">{currentShift.site?.name ?? "Site"}</div>
-            <div className="text-xs text-[var(--text-muted)]">{currentShift.registerName}</div>
-            <div className="font-mono text-xs text-[var(--text-muted)]">{money(currentShift.netSalesValue)} net</div>
-          </>
-        ) : null}
-        <div className="ml-auto flex flex-wrap gap-2">
-          {!currentShift ? (
-            <Button asChild size="sm">
-              <Link href={getPosPortalHref("shift", isPosHost)}>Open shift</Link>
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" onClick={() => setHoldDialog(true)} disabled={cart.length === 0}>
-              Hold
-            </Button>
-          )}
+        <div className="mt-5 grid gap-3 lg:grid-cols-4">
+          <PosMetricCard
+            icon={Clock}
+            label="Shift"
+            value={currentShift ? currentShift.shiftNo : "No open shift"}
+            meta={
+              currentShift
+                ? `${currentShift.site?.name ?? "Site"} / ${currentShift.registerName}`
+                : "Open a drawer before selling"
+            }
+            tone={currentShift ? "brand" : "warning"}
+          />
+          <PosMetricCard
+            icon={Package}
+            label="Basket"
+            value={lineCountLabel}
+            meta={
+              cart.length > 0
+                ? `${cart.reduce((sum, item) => sum + item.quantity, 0).toFixed(2)} units in cart`
+                : "Scan or search to start"
+            }
+            tone={cart.length > 0 ? "success" : "neutral"}
+          />
+          <PosMetricCard
+            icon={Wallet}
+            label="Amount due"
+            value={money(total)}
+            meta={
+              discountAmount > 0
+                ? `${money(discountAmount)} discount applied`
+                : "No sale discounts yet"
+            }
+            tone={total > 0 ? "brand" : "neutral"}
+          />
+          <PosMetricCard
+            icon={Payments}
+            label="Offline queue"
+            value={String(pendingOfflineSales)}
+            meta={
+              pendingOfflineSales > 0
+                ? "Queued sales need sync"
+                : "All offline sales are synced"
+            }
+            tone={pendingOfflineSales > 0 ? "warning" : "success"}
+          />
         </div>
-      </div>
+      </PosPanel>
 
       {pendingOfflineSales > 0 ? (
-        <div className="space-y-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          <div className="flex items-center justify-between gap-3">
-            <span>
-              {pendingOfflineSales} sale{pendingOfflineSales === 1 ? "" : "s"} pending offline sync
-            </span>
-            <Button type="button" size="sm" variant="outline" onClick={syncOfflineSales} disabled={syncOfflineSalesPending}>
-              Sync now
-            </Button>
-          </div>
-          <div className="space-y-1">
+        <PosPanel className="border-amber-200 bg-[color-mix(in_srgb,var(--status-warning-bg)_88%,white)]">
+          <PosPanelHeader
+            eyebrow="Offline"
+            title="Queued sales are waiting to sync"
+            description="Keep selling. Retry or clean up the queue without blocking the active checkout."
+            actions={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={syncOfflineSales}
+                disabled={syncOfflineSalesPending}
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Sync now
+              </Button>
+            }
+          />
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             {queuedOfflineSales.slice(0, 4).map((entry) => (
-              <div key={entry.operationId} className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-2 py-1">
-                <div className="min-w-0">
-                  <div className="font-mono text-[11px]">{entry.payload.saleNo}</div>
-                  <div className="text-[10px] uppercase tracking-[0.08em]">
-                    {entry.status} - retries {entry.retryCount}
+              <div
+                key={entry.operationId}
+                className="rounded-[1.15rem] border border-amber-200 bg-white/80 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-sm font-semibold text-[var(--text-strong)]">
+                      {entry.payload.saleNo}
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-amber-900/80">
+                      {entry.status} / retry {entry.retryCount}
+                    </div>
                   </div>
+                  <PosStatusPill tone="warning">Queued</PosStatusPill>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => retryOfflineSale(entry.operationId)} disabled={syncOfflineSalesPending}>
-                    <RefreshCcw className="h-3 w-3" />
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="min-h-10 flex-1"
+                    onClick={() => retryOfflineSale(entry.operationId)}
+                    disabled={syncOfflineSalesPending}
+                  >
+                    Retry
                   </Button>
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => removeOfflineSale(entry.operationId)}>
-                    <Trash2 className="h-3 w-3" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="min-h-10"
+                    onClick={() => removeOfflineSale(entry.operationId)}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </PosPanel>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_380px]">
-        <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2 text-sm font-semibold">
-            <Package className="h-5 w-5 text-[var(--text-muted)]" />
-            Catalog
-          </div>
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
-            <QrCode className="h-4 w-4 text-[var(--text-muted)]" />
-            <Input
-              ref={searchInputRef}
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                if (catalogItems.length === 0) return;
-                event.preventDefault();
-                handleAddCatalogItem(catalogItems[0]);
-              }}
-              placeholder="Scan barcode or search item"
-              className="h-10 border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
-            />
-            <div className="rounded-md bg-[var(--surface-base)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              Enter = Add top match
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.95fr)_minmax(320px,0.9fr)]">
+        <PosPanel className="flex min-h-0 flex-col">
+          <PosPanelHeader
+            eyebrow="Find items"
+            title="Search or scan"
+            description="The fastest path stays first: scan a barcode, hit Enter, and keep moving."
+            actions={
+              selectedPromotion ? (
+                <PosStatusPill tone="brand">
+                  Promo: {selectedPromotion.name}
+                </PosStatusPill>
+              ) : null
+            }
+          />
+
+          <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
+            <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--action-primary-bg)]">
+                <Search className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  <QrCode className="h-4 w-4" />
+                  Scanner-ready lookup
+                </div>
+                <Input
+                  ref={searchInputRef}
+                  autoFocus
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    if (catalogItems.length === 0) return;
+                    event.preventDefault();
+                    handleAddCatalogItem(catalogItems[0]);
+                  }}
+                  placeholder="Scan barcode or search item"
+                  className="mt-1 h-11 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+                />
+              </div>
+              <div className="hidden rounded-full bg-[var(--surface-muted)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)] md:block">
+                Enter adds top match
+              </div>
             </div>
-          </div>
-          {promotions.length > 0 ? (
-            <div className="flex gap-2 overflow-auto pb-1">
-              <button
-                type="button"
-                onClick={() => setSelectedPromotionId("")}
-                className={selectedPromotionId ? "rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs" : "rounded-full border border-[var(--text-strong)] bg-[var(--text-strong)] px-3 py-1.5 text-xs text-white"}
-              >
-                No promotion
-              </button>
-              {promotions.map((promotion) => (
+
+            {promotions.length > 0 ? (
+              <div className="mt-3 flex gap-2 overflow-auto pb-1">
                 <button
-                  key={promotion.id}
                   type="button"
-                  onClick={() => setSelectedPromotionId(promotion.id)}
-                  className={selectedPromotionId === promotion.id ? "rounded-full border border-[var(--text-strong)] bg-[var(--text-strong)] px-3 py-1.5 text-xs text-white" : "rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs"}
+                  onClick={() => setSelectedPromotionId("")}
+                  className={
+                    selectedPromotionId
+                      ? "rounded-full border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-muted)]"
+                      : "rounded-full border border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] px-3 py-2 text-xs font-semibold text-white"
+                  }
                 >
-                  {promotion.name}
+                  No promotion
                 </button>
-              ))}
+                {promotions.map((promotion) => (
+                  <button
+                    key={promotion.id}
+                    type="button"
+                    onClick={() => setSelectedPromotionId(promotion.id)}
+                    className={
+                      selectedPromotionId === promotion.id
+                        ? "rounded-full border border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] px-3 py-2 text-xs font-semibold text-white"
+                        : "rounded-full border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-muted)]"
+                    }
+                  >
+                    {promotion.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+            {!currentShift ? (
+              <PosEmptyState
+                icon={Clock}
+                title="Open a shift before selling"
+                description="Catalog search and checkout stay disabled until this register has an open shift."
+                action={
+                  <Button asChild>
+                    <Link href={getPosPortalHref("shift", isPosHost)}>
+                      Open shift
+                    </Link>
+                  </Button>
+                }
+              />
+            ) : catalogLoading ? (
+              <PosEmptyState
+                icon={RefreshCcw}
+                title="Loading catalog"
+                description="We're getting your sellable items ready for this register."
+              />
+            ) : catalogItems.length === 0 ? (
+              <PosEmptyState
+                icon={Package}
+                title="No items match this search"
+                description="Try a barcode, SKU, or a shorter product name to pull items into the sale quickly."
+              />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {catalogItems.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleAddCatalogItem(item)}
+                    disabled={!currentShift}
+                    className="group rounded-[1.3rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4 text-left transition duration-150 hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_25%,var(--border-default))] hover:bg-white disabled:opacity-60"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                          Match {index + 1}
+                        </div>
+                        <div className="mt-1 line-clamp-2 text-base font-semibold leading-6 text-[var(--text-strong)]">
+                          {item.name}
+                        </div>
+                      </div>
+                      <div className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--action-primary-bg)] shadow-[0_8px_18px_rgba(15,23,42,0.05)] group-hover:bg-[var(--action-primary-bg)] group-hover:text-white">
+                        Add
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-lg font-semibold text-[var(--text-strong)]">
+                          {money(item.unitPrice)}
+                        </div>
+                        <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
+                          {item.barcode || item.sku}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs leading-5 text-[var(--text-muted)]">
+                        {item.inventoryItem
+                          ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}`
+                          : "No stock"}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </PosPanel>
+
+        <PosPanel className="flex min-h-0 flex-col">
+          <PosPanelHeader
+            eyebrow="Current sale"
+            title="Cart review"
+            description="Tap any line to change quantity, price, or discount without losing checkout pace."
+            actions={
+              cart.length > 0 ? (
+                <Button variant="outline" size="sm" onClick={clearCart}>
+                  Clear cart
+                </Button>
+              ) : null
+            }
+          />
+
+          {selectedCustomer ? (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-[1.15rem] border border-[color-mix(in_srgb,var(--action-primary-bg)_15%,var(--border-default))] bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] px-3 py-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--action-primary-bg)]">
+                  <User className="h-4 w-4" />
+                  Attached customer
+                </div>
+                <div className="mt-1 truncate text-sm font-semibold text-[var(--text-strong)]">
+                  {selectedCustomer.name}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCustomerSheetOpen(true)}
+              >
+                Change
+              </Button>
             </div>
           ) : null}
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {catalogItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleAddCatalogItem(item)}
-                  disabled={!currentShift}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left transition-colors hover:bg-[var(--surface-base)] disabled:opacity-60"
-                >
-                  <div className="truncate text-sm font-semibold">{item.name}</div>
-                  <div className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">{item.barcode || item.sku}</div>
-                  <div className="mt-3 flex items-end justify-between gap-2">
-                    <div className="font-mono text-base font-semibold">{money(item.unitPrice)}</div>
-                    <div className="text-right text-[11px] text-[var(--text-muted)]">
-                      {item.inventoryItem ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}` : "No stock"}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-          {catalogLoading ? <div className="py-6 text-center text-sm text-[var(--text-muted)]">Loading catalog...</div> : null}
-        </section>
 
-        <section className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-          <div className="flex items-center justify-between gap-3 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2">
-            <div className="inline-flex items-center gap-2 text-sm font-semibold">
-              <Payments className="h-5 w-5 text-[var(--text-muted)]" />
-              Current sale
-            </div>
-            <div className="text-xs text-[var(--text-muted)]">{cart.length} lines</div>
-          </div>
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="space-y-2">
             {cart.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-3 py-8 text-center text-sm text-[var(--text-muted)]">
-                Add items to start a sale.
-              </div>
+              <PosEmptyState
+                icon={Package}
+                title="Cart is empty"
+                description="Scan or search for items on the left. As soon as something lands here, the payment lane will be ready."
+              />
             ) : (
-              cart.map((item) => (
-                <button
-                  key={item.catalogItemId}
-                  type="button"
-                  onClick={() => {
-                    setSelectedLineId(item.catalogItemId);
-                    setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
-                  }}
-                  className={selectedLineId === item.catalogItemId ? "flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--text-strong)] bg-[var(--surface-muted)] px-3 py-3 text-left" : "flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-left"}
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold">{item.name}</div>
-                    <div className="font-mono text-xs text-[var(--text-muted)]">{item.quantity.toFixed(2)} x {money(item.unitPrice)}</div>
-                  </div>
-                  <Button type="button" variant="ghost" size="icon-sm" className="min-h-10 min-w-10" onClick={(event) => { event.stopPropagation(); removeFromCart(item.catalogItemId); }}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </button>
-              ))
+              <div className="space-y-3">
+                {cart.map((item) => {
+                  const isSelected = selectedLineId === item.catalogItemId;
+                  return (
+                    <button
+                      key={item.catalogItemId}
+                      type="button"
+                      onClick={() => {
+                        setSelectedLineId(item.catalogItemId);
+                        setActiveTarget({
+                          type: "line_qty",
+                          lineId: item.catalogItemId,
+                        });
+                      }}
+                      className={
+                        isSelected
+                          ? "w-full rounded-[1.3rem] border border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] p-4 text-left shadow-[0_10px_24px_rgba(37,99,235,0.08)]"
+                          : "w-full rounded-[1.3rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4 text-left"
+                      }
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold text-[var(--text-strong)]">
+                            {item.name}
+                          </div>
+                          <div className="mt-1 font-mono text-xs text-[var(--text-muted)]">
+                            {item.quantity.toFixed(2)} x {money(item.unitPrice)}
+                          </div>
+                          {item.lineDiscountAmount ? (
+                            <div className="mt-2">
+                              <PosStatusPill tone="success">
+                                Line discount {money(item.lineDiscountAmount)}
+                              </PosStatusPill>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <div className="font-mono text-base font-semibold text-[var(--text-strong)]">
+                              {money(
+                                item.quantity * item.unitPrice -
+                                  (item.lineDiscountAmount ?? 0),
+                              )}
+                            </div>
+                            <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                              Tap to edit
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="min-h-11 min-w-11"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeFromCart(item.catalogItemId);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                Subtotal
+              </div>
+              <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                {money(subtotal)}
+              </div>
+            </div>
+            <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                Discount
+              </div>
+              <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                {money(discountAmount)}
+              </div>
+            </div>
+            <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                Tax
+              </div>
+              <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                {money(taxAmount)}
+              </div>
             </div>
           </div>
+
           <PosFocusedEditorDrawer
             open={Boolean(selectedLine)}
             title={selectedLine?.name ?? "Line editor"}
@@ -572,135 +910,615 @@ export function PosCheckoutView() {
           >
             {selectedLine ? (
               <div className="grid gap-2">
-                <PosNumericField label="Quantity" value={String(selectedLine.quantity)} active={activeTarget?.type === "line_qty" && activeTarget.lineId === selectedLine.catalogItemId} onActivate={() => setActiveTarget({ type: "line_qty", lineId: selectedLine.catalogItemId })} />
-                <PosNumericField label="Unit price" value={String(selectedLine.unitPrice)} active={activeTarget?.type === "line_price" && activeTarget.lineId === selectedLine.catalogItemId} onActivate={() => setActiveTarget({ type: "line_price", lineId: selectedLine.catalogItemId })} />
-                <PosNumericField label="Line discount" value={String(selectedLine.lineDiscountAmount ?? 0)} active={activeTarget?.type === "line_discount" && activeTarget.lineId === selectedLine.catalogItemId} onActivate={() => setActiveTarget({ type: "line_discount", lineId: selectedLine.catalogItemId })} />
+                <PosNumericField
+                  label="Quantity"
+                  value={String(selectedLine.quantity)}
+                  active={
+                    activeTarget?.type === "line_qty" &&
+                    activeTarget.lineId === selectedLine.catalogItemId
+                  }
+                  onActivate={() =>
+                    setActiveTarget({
+                      type: "line_qty",
+                      lineId: selectedLine.catalogItemId,
+                    })
+                  }
+                />
+                <PosNumericField
+                  label="Unit price"
+                  value={String(selectedLine.unitPrice)}
+                  active={
+                    activeTarget?.type === "line_price" &&
+                    activeTarget.lineId === selectedLine.catalogItemId
+                  }
+                  onActivate={() =>
+                    setActiveTarget({
+                      type: "line_price",
+                      lineId: selectedLine.catalogItemId,
+                    })
+                  }
+                />
+                <PosNumericField
+                  label="Line discount"
+                  value={String(selectedLine.lineDiscountAmount ?? 0)}
+                  active={
+                    activeTarget?.type === "line_discount" &&
+                    activeTarget.lineId === selectedLine.catalogItemId
+                  }
+                  onActivate={() =>
+                    setActiveTarget({
+                      type: "line_discount",
+                      lineId: selectedLine.catalogItemId,
+                    })
+                  }
+                />
               </div>
             ) : null}
           </PosFocusedEditorDrawer>
-        </section>
+        </PosPanel>
 
-        <aside className="flex min-h-0 flex-col rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          <div className="inline-flex items-center gap-2 rounded-[0.85rem] bg-[var(--surface-muted)] px-3 py-2 text-sm font-semibold">
-            <User className="h-5 w-5 text-[var(--text-muted)]" />
-            Customer and payment
-          </div>
-          <Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in or customer name" className="h-12" />
-          {customerName.trim().length >= 2 ? (
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Customer lookup</div>
-              <div className="mt-1 space-y-1">
-                {customerSearchLoading ? <div className="px-1 py-1 text-xs text-[var(--text-muted)]">Searching...</div> : null}
-                {customerSearchResults.slice(0, 4).map((customer) => (
-                  <button key={customer.id} type="button" className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-xs hover:bg-[var(--surface-base)]" onClick={() => selectCustomer(customer)}>
-                    <span className="min-w-0 truncate">{customer.name}</span>
-                    <span className="font-mono text-[10px] text-[var(--text-muted)]">{customer.loyaltyPoints} pts</span>
-                  </button>
-                ))}
+        <PosPanel className="flex min-h-0 flex-col">
+          <PosPanelHeader
+            eyebrow="Collect payment"
+            title="Finish sale"
+            description="Customer lookup, order adjustments, tenders, and the pay action all stay in one final lane."
+            actions={
+              selectedCustomer ? (
+                <PosStatusPill tone="success">
+                  {selectedCustomer.loyaltyPoints} pts
+                </PosStatusPill>
+              ) : (
+                <PosStatusPill tone="neutral">Walk-in</PosStatusPill>
+              )
+            }
+          />
+
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-4">
+              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                      Customer
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--text-strong)]">
+                      {selectedCustomer?.name ||
+                        (customerName.trim() ? customerName : "Walk-in")}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">
+                      {selectedCustomer
+                        ? "Attached to this sale"
+                        : "Attach a customer only if it helps complete this sale faster"}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() => setCustomerSheetOpen(true)}
+                  >
+                    <Users className="h-4 w-4" />
+                    {selectedCustomer ? "Change" : "Attach customer"}
+                  </Button>
+                </div>
               </div>
-              <Button type="button" size="sm" variant="outline" className="mt-2 min-h-10" onClick={() => createCustomerMutation.mutate()} disabled={!customerName.trim() || createCustomerMutation.isPending}>
-                <Save className="h-3 w-3" />
-                Save customer
-              </Button>
-            </div>
-          ) : null}
-          <div className="grid grid-cols-2 gap-2">
-            <Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Phone" className="h-11" />
-            <Input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="h-11" />
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-            <div className="flex items-center justify-between gap-3"><span>Subtotal</span><span className="font-mono">{money(subtotal)}</span></div>
-            <div className="mt-2 flex items-center justify-between gap-3"><span>Discounts</span><span className="font-mono">{money(discountAmount)}</span></div>
-            <div className="mt-2 flex items-center justify-between gap-3"><span>Tax</span><span className="font-mono">{money(taxAmount)}</span></div>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3 text-base font-semibold"><span>Total</span><span className="font-mono">{money(total)}</span></div>
-          </div>
-          <PosNumericField label="Order discount" value={orderDiscountAmount} active={activeTarget?.type === "order_discount"} onActivate={() => setActiveTarget({ type: "order_discount" })} />
-          {selectedCustomer ? (
-            <PosNumericField label={`Redeem points (${selectedCustomer.loyaltyPoints} available)`} value={loyaltyRedemptionPoints} active={activeTarget?.type === "redeem_points"} onActivate={() => setActiveTarget({ type: "redeem_points" })} />
-          ) : null}
-          {canOverride ? <Input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} className="h-11" placeholder="Override reason" /> : null}
 
-          <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Tender</div>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setSplitTenderMode(!splitTenderMode)}>
-                {splitTenderMode ? "Single tender" : "Split tender"}
-              </Button>
-            </div>
-            {payments.map((payment, index) => (
-              <div key={`${payment.tenderType}-${index}`} className="grid gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-base)] p-2">
-                <Select value={payment.tenderType} onValueChange={(value) => updatePayment(index, { tenderType: value as TenderType })}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CASH">Cash</SelectItem>
-                    <SelectItem value="CARD">Card</SelectItem>
-                    <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
-                    <SelectItem value="TRANSFER">Transfer</SelectItem>
-                    <SelectItem value="VOUCHER">Voucher</SelectItem>
-                  </SelectContent>
-                </Select>
-                <PosNumericField label="Amount" value={payment.amount} active={activeTarget?.type === "tender_amount" && activeTarget.index === index} onActivate={() => setActiveTarget({ type: "tender_amount", index })} />
-                <Input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder={requiresReference(payment.tenderType, requiredReferenceTenders) ? `Reference (min ${minReferenceLength})` : "Reference"} className="h-11" />
-                {splitTenderMode && payments.length > 1 ? (
-                  <Button type="button" variant="outline" className="min-h-10" onClick={() => setPayments((current) => current.filter((_, paymentIndex) => paymentIndex !== index))}>Remove tender</Button>
+              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  Sale total
+                </div>
+                <div className="mt-3 flex items-end justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-[2rem] font-semibold tracking-[-0.04em] text-[var(--text-strong)]">
+                      {money(total)}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">
+                      {lineCountLabel} · {money(subtotal)} before tax and discounts
+                    </div>
+                  </div>
+                  <Sparkles className="h-8 w-8 text-[var(--action-primary-bg)]" />
+                </div>
+                <div className="mt-4 grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[var(--text-muted)]">Subtotal</span>
+                    <span className="font-mono text-[var(--text-strong)]">
+                      {money(subtotal)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[var(--text-muted)]">Discounts</span>
+                    <span className="font-mono text-[var(--text-strong)]">
+                      {money(discountAmount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[var(--text-muted)]">Tax</span>
+                    <span className="font-mono text-[var(--text-strong)]">
+                      {money(taxAmount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                      Adjustments
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--text-strong)]">
+                      Keep overrides explicit
+                    </div>
+                  </div>
+                  {canOverride ? (
+                    <PosStatusPill tone="warning">Override allowed</PosStatusPill>
+                  ) : null}
+                </div>
+                <PosNumericField
+                  label="Order discount"
+                  value={orderDiscountAmount}
+                  active={activeTarget?.type === "order_discount"}
+                  onActivate={() => setActiveTarget({ type: "order_discount" })}
+                />
+                {selectedCustomer ? (
+                  <PosNumericField
+                    label={`Redeem points (${selectedCustomer.loyaltyPoints} available)`}
+                    value={loyaltyRedemptionPoints}
+                    active={activeTarget?.type === "redeem_points"}
+                    onActivate={() => setActiveTarget({ type: "redeem_points" })}
+                  />
+                ) : null}
+                {canOverride ? (
+                  <Input
+                    value={overrideReason}
+                    onChange={(event) => setOverrideReason(event.target.value)}
+                    className="h-11 bg-white"
+                    placeholder="Override reason"
+                  />
                 ) : null}
               </div>
-            ))}
-            {splitTenderMode ? <Button type="button" variant="outline" className="min-h-10 w-full" onClick={addPaymentRow}>Add tender</Button> : null}
+
+              <div className="space-y-3 rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                      Tender
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--text-strong)]">
+                      Collect payment without leaving the lane
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSplitTenderMode(!splitTenderMode)}
+                  >
+                    {splitTenderMode ? "Single tender" : "Split tender"}
+                  </Button>
+                </div>
+
+                {payments.map((payment, index) => (
+                  <div
+                    key={`${payment.tenderType}-${index}`}
+                    className="rounded-[1.1rem] border border-[var(--border-subtle)] bg-white p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
+                  >
+                    <div className="grid gap-3">
+                      <Select
+                        value={payment.tenderType}
+                        onValueChange={(value) =>
+                          updatePayment(index, { tenderType: value as TenderType })
+                        }
+                      >
+                        <SelectTrigger className="h-11 bg-[var(--surface-base)]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CASH">Cash</SelectItem>
+                          <SelectItem value="CARD">Card</SelectItem>
+                          <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
+                          <SelectItem value="TRANSFER">Transfer</SelectItem>
+                          <SelectItem value="VOUCHER">Voucher</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <PosNumericField
+                        label="Amount"
+                        value={payment.amount}
+                        active={
+                          activeTarget?.type === "tender_amount" &&
+                          activeTarget.index === index
+                        }
+                        onActivate={() =>
+                          setActiveTarget({ type: "tender_amount", index })
+                        }
+                      />
+                      <Input
+                        value={payment.reference}
+                        onChange={(event) =>
+                          updatePayment(index, { reference: event.target.value })
+                        }
+                        placeholder={
+                          requiresReference(
+                            payment.tenderType,
+                            requiredReferenceTenders,
+                          )
+                            ? `Reference (min ${minReferenceLength})`
+                            : "Reference"
+                        }
+                        className="h-11 bg-[var(--surface-base)]"
+                      />
+                      {splitTenderMode && payments.length > 1 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="min-h-10"
+                          onClick={() =>
+                            setPayments((current) =>
+                              current.filter(
+                                (_, paymentIndex) => paymentIndex !== index,
+                              ),
+                            )
+                          }
+                        >
+                          Remove tender
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+
+                {splitTenderMode ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11 w-full"
+                    onClick={addPaymentRow}
+                  >
+                    Add tender
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm">
-            <div className="flex items-center justify-between gap-3"><span>Tendered</span><span className="font-mono">{money(tenderedTotal)}</span></div>
-            <div className="mt-1 flex items-center justify-between gap-3"><span>Change</span><span className="font-mono">{money(changeAmount)}</span></div>
+          <div className="mt-4 space-y-3 border-t border-[var(--border-subtle)] pt-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  Tendered
+                </div>
+                <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                  {money(tenderedTotal)}
+                </div>
+              </div>
+              <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  Change
+                </div>
+                <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                  {money(changeAmount)}
+                </div>
+              </div>
+            </div>
+            <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                Keypad focus
+              </div>
+              <div className="mt-1 text-sm font-medium text-[var(--text-strong)]">
+                {activeTargetLabel}
+              </div>
+            </div>
+            <PosInlineValidationBanner messages={blockers} />
+            <Button
+              className="h-14 text-base font-semibold"
+              onClick={handleCharge}
+              disabled={postSalePending}
+            >
+              <Wallet className="h-4 w-4" />
+              Charge {money(total)}
+            </Button>
+            <PosNumericKeypad
+              title="Numeric keypad"
+              onAction={handleKeypadAction}
+              presets={keypadPresets}
+            />
           </div>
-          </div>
-          <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-base)]/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--surface-base)]/80">
-          <PosInlineValidationBanner messages={blockers} />
-          <Button className="h-14 text-base font-semibold" onClick={handleCharge} disabled={postSalePending}>
-            <Wallet className="h-4 w-4" />
-            Charge {money(total)}
-          </Button>
-          <PosNumericKeypad
-            title="Numeric keypad"
-            onAction={handleKeypadAction}
-            presets={keypadPresets}
-            className="mt-2"
-          />
-          </div>
-        </aside>
+        </PosPanel>
       </div>
+
+      <Sheet open={customerSheetOpen} onOpenChange={setCustomerSheetOpen}>
+        <SheetContent
+          side="right"
+          size="md"
+          tabletBehavior="bottom"
+          className="w-full max-w-[32rem] p-0"
+        >
+          <div className="flex h-full flex-col p-5 sm:p-6">
+            <SheetHeader className="border-b border-[var(--border-subtle)] pb-4 pr-10">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                <Users className="h-4 w-4" />
+                Customer utility
+              </div>
+              <SheetTitle>Attach customer</SheetTitle>
+              <SheetDescription>
+                Search by name, phone, or email, or save a new customer without
+                leaving checkout.
+              </SheetDescription>
+              <p className="text-sm leading-6 text-[var(--text-muted)]">
+                Search by name, phone, or email. If there is no match, save a new
+                customer and get back to payment.
+              </p>
+            </SheetHeader>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-5 pr-1">
+              <div className="rounded-[1.2rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
+                <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-subtle)] bg-white px-3 py-3">
+                  <Search className="h-5 w-5 text-[var(--text-muted)]" />
+                  <Input
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    placeholder="Search by name, phone, or email"
+                    className="h-10 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-10"
+                    onClick={() => {
+                      setCustomerName("Walk-in");
+                      setCustomerPhone("");
+                      setCustomerEmail("");
+                      setCustomerSheetOpen(false);
+                    }}
+                  >
+                    Walk-in
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-10"
+                    onClick={() => {
+                      setCustomerName("");
+                      setCustomerPhone("");
+                      setCustomerEmail("");
+                    }}
+                  >
+                    Clear fields
+                  </Button>
+                </div>
+              </div>
+
+              {selectedCustomer ? (
+                <div className="rounded-[1.2rem] border border-[color-mix(in_srgb,var(--status-success-border)_80%,white)] bg-[color-mix(in_srgb,var(--status-success-bg)_72%,white)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--status-success-text)]">
+                        Attached now
+                      </div>
+                      <div className="mt-1 text-base font-semibold text-[var(--text-strong)]">
+                        {selectedCustomer.name}
+                      </div>
+                      <div className="mt-1 text-sm text-[var(--text-muted)]">
+                        {selectedCustomer.phone ||
+                          selectedCustomer.email ||
+                          "Customer details ready"}
+                      </div>
+                    </div>
+                    <PosStatusPill tone="success">
+                      {selectedCustomer.loyaltyPoints} pts
+                    </PosStatusPill>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-[var(--text-strong)]">
+                    Matches
+                  </div>
+                  {customerSearchLoading ? (
+                    <PosStatusPill tone="neutral">Searching</PosStatusPill>
+                  ) : null}
+                </div>
+                {customerName.trim().length < 2 ? (
+                  <PosEmptyState
+                    icon={User}
+                    title="Start with a name, phone, or email"
+                    description="We only search once there is enough signal to return useful customer matches."
+                    className="min-h-[12rem]"
+                  />
+                ) : customerSearchResults.length === 0 ? (
+                  <PosEmptyState
+                    icon={Users}
+                    title="No customer match yet"
+                    description="You can continue as walk-in or save a new customer below if this sale needs one."
+                    className="min-h-[12rem]"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {customerSearchResults.slice(0, 6).map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 rounded-[1.15rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3 text-left transition hover:border-[color-mix(in_srgb,var(--action-primary-bg)_25%,var(--border-default))] hover:bg-white"
+                        onClick={() => {
+                          selectCustomer(customer);
+                          setCustomerSheetOpen(false);
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-[var(--text-strong)]">
+                            {customer.name}
+                          </div>
+                          <div className="mt-1 truncate text-xs text-[var(--text-muted)]">
+                            {customer.phone || customer.email || "No contact details"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <PosStatusPill tone="brand">
+                            {customer.loyaltyPoints} pts
+                          </PosStatusPill>
+                          <ArrowRight className="h-4 w-4 text-[var(--text-muted)]" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[1.2rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4">
+                <div className="text-sm font-semibold text-[var(--text-strong)]">
+                  Save customer
+                </div>
+                <div className="mt-1 text-sm text-[var(--text-muted)]">
+                  Save only if this sale needs a reusable customer record.
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <Input
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    placeholder="Customer name"
+                    className="h-11 bg-white"
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input
+                      value={customerPhone}
+                      onChange={(event) => setCustomerPhone(event.target.value)}
+                      placeholder="Phone"
+                      className="h-11 bg-white"
+                    />
+                    <Input
+                      value={customerEmail}
+                      onChange={(event) => setCustomerEmail(event.target.value)}
+                      placeholder="Email"
+                      className="h-11 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <SheetFooter className="border-t border-[var(--border-subtle)] pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => setCustomerSheetOpen(false)}
+              >
+                Back to sale
+              </Button>
+              <Button
+                type="button"
+                className="min-h-11"
+                onClick={() => createCustomerMutation.mutate()}
+                disabled={!customerName.trim() || createCustomerMutation.isPending}
+              >
+                <Save className="h-4 w-4" />
+                Save customer
+              </Button>
+            </SheetFooter>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={holdDialog} onOpenChange={setHoldDialog}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Hold cart</DialogTitle></DialogHeader>
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold">Label</label>
-            <Input value={holdLabel} onChange={(event) => setHoldLabel(event.target.value)} placeholder="Counter pickup" />
+          <DialogHeader>
+            <DialogTitle>Hold current sale</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-[1.1rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3 text-sm text-[var(--text-muted)]">
+              Park this cart so the cashier can return to it without rebuilding the
+              basket.
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[var(--text-strong)]">
+                Label
+              </label>
+              <Input
+                value={holdLabel}
+                onChange={(event) => setHoldLabel(event.target.value)}
+                placeholder="Counter pickup"
+                className="mt-2"
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setHoldDialog(false)}>Cancel</Button>
-            <Button type="button" onClick={() => holdCartMutation.mutate()} disabled={holdCartMutation.isPending}>Hold</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setHoldDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => holdCartMutation.mutate()}
+              disabled={holdCartMutation.isPending}
+            >
+              Hold sale
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(lastCompletedSale)} onOpenChange={(open) => !open && dismissCompletedSale()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Sale completed</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Receipt</div>
-              <div className="mt-2 font-mono text-lg font-semibold">{lastCompletedSale?.saleNo}</div>
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm"><span>Total</span><span className="font-mono">{money(lastCompletedSale?.totalAmount ?? 0)}</span></div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>Change</span><span className="font-mono">{money(lastCompletedSale?.changeAmount ?? 0)}</span></div>
+      <Dialog
+        open={Boolean(lastCompletedSale)}
+        onOpenChange={(open) => !open && dismissCompletedSale()}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Sale completed</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-[1.35rem] border border-[color-mix(in_srgb,var(--status-success-border)_80%,white)] bg-[color-mix(in_srgb,var(--status-success-bg)_78%,white)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--status-success-text)]">
+                    Receipt ready
+                  </div>
+                  <div className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
+                    {lastCompletedSale?.saleNo}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[var(--status-success-text)] shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1rem] bg-white/80 px-3 py-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                    Total
+                  </div>
+                  <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                    {money(lastCompletedSale?.totalAmount ?? 0)}
+                  </div>
+                </div>
+                <div className="rounded-[1rem] bg-white/80 px-3 py-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                    Change
+                  </div>
+                  <div className="mt-2 font-mono text-lg font-semibold text-[var(--text-strong)]">
+                    {money(lastCompletedSale?.changeAmount ?? 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-[1.1rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--text-muted)]">
+              The fastest next step is to continue selling. History stays
+              available if this receipt needs follow-up.
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={dismissCompletedSale}>Continue selling</Button>
+            <Button type="button" variant="outline" onClick={dismissCompletedSale}>
+              Continue selling
+            </Button>
             {whatsappHref ? (
               <Button asChild variant="outline">
-                <a href={whatsappHref} target="_blank" rel="noreferrer">Send WhatsApp receipt</a>
+                <a href={whatsappHref} target="_blank" rel="noreferrer">
+                  Send WhatsApp receipt
+                </a>
               </Button>
             ) : null}
             <Button asChild>

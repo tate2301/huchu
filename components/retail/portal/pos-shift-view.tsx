@@ -16,6 +16,7 @@ import { Clock, Payments, Wallet } from "@/lib/icons";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
+import { PosMetricCard, PosPanel, PosPanelHeader, PosStatusPill } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import { money, round } from "./pos-utils";
 
@@ -129,72 +130,95 @@ export function PosShiftView() {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto pr-1">
-      <div className="space-y-3 pb-1">
-      <div className="inline-flex items-center gap-2 rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] px-3 py-2 text-sm font-semibold">
-        <Clock className="h-5 w-5 text-[var(--text-muted)]" />
-        Shift controls
-      </div>
-      {closeoutSummary ? (
-        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-          <div className="font-semibold">{closeoutSummary.shiftNo} closeout saved</div>
-          <div className="mt-1 text-[var(--text-muted)]">
-            Expected {money(closeoutSummary.expectedCash)} | Counted {money(closeoutSummary.countedCash)} | Variance {money(closeoutSummary.variance)}
-          </div>
-        </div>
-      ) : null}
+      <div className="space-y-4 pb-1">
+        <PosPanel>
+          <PosPanelHeader
+            eyebrow="Drawer control"
+            title="Shift controls"
+            description="Open the drawer, sell through the shift, then count cash and reconcile the variance calmly."
+            actions={
+              currentShift ? (
+                <PosStatusPill tone="success">{currentShift.shiftNo}</PosStatusPill>
+              ) : (
+                <PosStatusPill tone="warning">Shift closed</PosStatusPill>
+              )
+            }
+          />
+          {closeoutSummary ? (
+            <div className="mb-4 rounded-[1.1rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+              <div className="font-semibold text-[var(--text-strong)]">
+                {closeoutSummary.shiftNo} closeout saved
+              </div>
+              <div className="mt-1 text-[var(--text-muted)]">
+                Expected {money(closeoutSummary.expectedCash)} / Counted{" "}
+                {money(closeoutSummary.countedCash)} / Variance{" "}
+                {money(closeoutSummary.variance)}
+              </div>
+            </div>
+          ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            <Clock className="h-3.5 w-3.5" />
-            Shift
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <PosMetricCard
+              icon={Clock}
+              label="Shift"
+              value={currentShift?.shiftNo ?? "Not open"}
+              meta={currentShift?.site?.name ?? "Open a shift to start selling"}
+              tone={currentShift ? "brand" : "warning"}
+            />
+            <PosMetricCard
+              icon={Payments}
+              label="Register"
+              value={currentShift?.registerName ?? "No register"}
+              meta={currentShift?.actorRole ?? "Register assignment pending"}
+              tone="neutral"
+            />
+            <PosMetricCard
+              icon={Wallet}
+              label="Expected cash"
+              value={money(currentShift?.expectedCash ?? 0)}
+              meta="Used during closeout"
+              tone="warning"
+            />
+            <PosMetricCard
+              icon={Payments}
+              label="Net sales"
+              value={money(currentShift?.netSalesValue ?? 0)}
+              meta="Current shift performance"
+              tone="success"
+            />
           </div>
-          <div className="mt-2 font-mono text-base font-semibold">
-            {currentShift?.shiftNo ?? "Not open"}
-          </div>
-        </div>
-        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            <Payments className="h-3.5 w-3.5" />
-            Register
-          </div>
-          <div className="mt-2 text-base font-semibold">
-            {currentShift?.registerName ?? "No register"}
-          </div>
-        </div>
-        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            <Wallet className="h-3.5 w-3.5" />
-            Expected cash
-          </div>
-          <div className="mt-2 font-mono text-base font-semibold">
-            {money(currentShift?.expectedCash ?? 0)}
-          </div>
-        </div>
-        <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            <Payments className="h-3.5 w-3.5" />
-            Net sales
-          </div>
-          <div className="mt-2 font-mono text-base font-semibold">
-            {money(currentShift?.netSalesValue ?? 0)}
-          </div>
-        </div>
-      </div>
+        </PosPanel>
 
-      <div className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-base)] p-3">
-        <div className="flex flex-wrap gap-2">
-          {!currentShift ? (
-            <Button size="sm" className="min-h-11 px-5 text-[15px]" onClick={() => setOpenDialog(true)}>
-              Open shift
-            </Button>
-          ) : (
-            <Button size="sm" className="min-h-11 px-5 text-[15px]" onClick={() => setCloseDialog(true)}>
-              Close shift
-            </Button>
-          )}
-        </div>
-      </div>
+        <PosPanel>
+          <PosPanelHeader
+            eyebrow="Primary action"
+            title={currentShift ? "Close this shift" : "Open a new shift"}
+            description={
+              currentShift
+                ? "Use the closeout flow to count cash, review variance, and finish the drawer."
+                : "Start the register with a site, register, and opening float."
+            }
+          />
+          <div className="flex flex-wrap gap-2">
+            {!currentShift ? (
+              <Button
+                size="sm"
+                className="min-h-11 px-5 text-[15px]"
+                onClick={() => setOpenDialog(true)}
+              >
+                Open shift
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="min-h-11 px-5 text-[15px]"
+                onClick={() => setCloseDialog(true)}
+              >
+                Close shift
+              </Button>
+            )}
+          </div>
+        </PosPanel>
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="sm:max-w-xl">
@@ -202,49 +226,101 @@ export function PosShiftView() {
             <DialogTitle>Open shift</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Shift number</label>
-              <Input value={shiftNo} readOnly disabled={isReserving} />
-              <FieldHelp
-                error={reserveError ?? undefined}
-                hint={reserveError ? undefined : "Generated automatically."}
-              />
-            </div>
-            <SearchableSelect
-              label="Site"
-              value={selectedSiteId}
-              options={siteOptions}
-              placeholder="Select site"
-              onValueChange={setSelectedSiteId}
-            />
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Register name</label>
-                <Input
-                  value={registerName}
-                  onChange={(event) => setRegisterName(event.target.value)}
-                  placeholder="Front till"
-                />
+            <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    Shift setup
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
+                    Prepare the drawer before the first sale
+                  </h3>
+                </div>
+                <PosStatusPill tone="brand">Open drawer</PosStatusPill>
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Register code</label>
-                <Input
-                  value={registerCode}
-                  onChange={(event) => setRegisterCode(event.target.value)}
-                  placeholder="Optional"
+              <div className="mt-4 space-y-2">
+                <label className="block text-sm font-medium text-[var(--text-strong)]">
+                  Shift number
+                </label>
+                <Input value={shiftNo} readOnly disabled={isReserving} className="h-11" />
+                <FieldHelp
+                  error={reserveError ?? undefined}
+                  hint={reserveError ? undefined : "Generated automatically."}
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Opening float</label>
-              <PosNumericField
-                label="Opening float"
-                value={openingFloat}
-                active={activeNumericTarget === "opening_float"}
-                onActivate={() => setActiveNumericTarget("opening_float")}
-              />
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-4">
+                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                  <div className="text-sm font-semibold text-[var(--text-strong)]">
+                    Register details
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    <SearchableSelect
+                      label="Site"
+                      value={selectedSiteId}
+                      options={siteOptions}
+                      placeholder="Select site"
+                      onValueChange={setSelectedSiteId}
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-[var(--text-strong)]">
+                          Register name
+                        </label>
+                        <Input
+                          value={registerName}
+                          onChange={(event) => setRegisterName(event.target.value)}
+                          placeholder="Front till"
+                          className="h-11"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-[var(--text-strong)]">
+                          Register code
+                        </label>
+                        <Input
+                          value={registerCode}
+                          onChange={(event) => setRegisterCode(event.target.value)}
+                          placeholder="Optional"
+                          className="h-11"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                  <div className="text-sm font-semibold text-[var(--text-strong)]">
+                    Opening float
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                    Enter the cash placed in the drawer before trading starts.
+                  </p>
+                  <div className="mt-3">
+                    <PosNumericField
+                      label="Opening float"
+                      value={openingFloat}
+                      active={activeNumericTarget === "opening_float"}
+                      onActivate={() => setActiveNumericTarget("opening_float")}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                <div className="text-sm font-semibold text-[var(--text-strong)]">
+                  Amount keypad
+                </div>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                  Keep numeric entry quick on touch devices and shared terminals.
+                </p>
+                <div className="mt-4">
+                  <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
+                </div>
+              </div>
             </div>
-            <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpenDialog(false)}>
@@ -267,56 +343,131 @@ export function PosShiftView() {
             <DialogTitle>{currentShift?.shiftNo ?? "Close shift"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Opening float</span>
-                  <span className="font-mono">{money(currentShift?.openingFloat ?? 0)}</span>
-                </div>
-              </div>
-              <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Expected cash</span>
-                  <span className="font-mono">{money(currentShift?.expectedCash ?? 0)}</span>
-                </div>
-              </div>
-              <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Net sales</span>
-                  <span className="font-mono">{money(currentShift?.netSalesValue ?? 0)}</span>
-                </div>
-              </div>
-              <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Refunds</span>
-                  <span className="font-mono">{money(currentShift?.refundValue ?? 0)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Counted cash</label>
-              <PosNumericField
-                label="Counted cash"
-                value={countedCash}
-                active={activeNumericTarget === "counted_cash"}
-                onActivate={() => setActiveNumericTarget("counted_cash")}
-              />
-            </div>
-            <div className="rounded-[1.25rem] bg-[var(--surface-muted)] px-3 py-3 text-sm">
+            <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
               <div className="flex items-center justify-between gap-3">
-                <span>Variance</span>
-                <span className="font-mono">{money(variancePreview)}</span>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    Closeout
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
+                    Count the drawer and reconcile the shift
+                  </h3>
+                </div>
+                <PosStatusPill
+                  tone={
+                    variancePreview === 0
+                      ? "success"
+                      : variancePreview > 0
+                        ? "warning"
+                        : "danger"
+                  }
+                >
+                  {variancePreview === 0
+                    ? "Balanced"
+                    : variancePreview > 0
+                      ? "Over"
+                      : "Short"}
+                </PosStatusPill>
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Notes</label>
-              <Textarea
-                value={closeNotes}
-                onChange={(event) => setCloseNotes(event.target.value)}
-                rows={3}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PosMetricCard
+                icon={Wallet}
+                label="Opening float"
+                value={money(currentShift?.openingFloat ?? 0)}
+                meta="Cash placed in the drawer at start"
+                tone="neutral"
+              />
+              <PosMetricCard
+                icon={Wallet}
+                label="Expected cash"
+                value={money(currentShift?.expectedCash ?? 0)}
+                meta="What the drawer should contain now"
+                tone="warning"
+              />
+              <PosMetricCard
+                icon={Payments}
+                label="Net sales"
+                value={money(currentShift?.netSalesValue ?? 0)}
+                meta="Sales posted during this shift"
+                tone="success"
+              />
+              <PosMetricCard
+                icon={Payments}
+                label="Refunds"
+                value={money(currentShift?.refundValue ?? 0)}
+                meta="Refund value already posted"
+                tone="danger"
               />
             </div>
-            <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-4">
+                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                  <div className="text-sm font-semibold text-[var(--text-strong)]">
+                    Counted cash
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                    Tap the amount field, count the drawer, then compare against the expected cash.
+                  </p>
+                  <div className="mt-3">
+                    <PosNumericField
+                      label="Counted cash"
+                      value={countedCash}
+                      active={activeNumericTarget === "counted_cash"}
+                      onActivate={() => setActiveNumericTarget("counted_cash")}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-[var(--text-strong)]">
+                      Variance
+                    </div>
+                    <PosStatusPill
+                      tone={
+                        variancePreview === 0
+                          ? "success"
+                          : variancePreview > 0
+                            ? "warning"
+                            : "danger"
+                      }
+                    >
+                      {money(variancePreview)}
+                    </PosStatusPill>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                    Positive means extra cash is in the drawer. Negative means the drawer is short.
+                  </p>
+                </div>
+
+                <div className="space-y-2 rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                  <label className="block text-sm font-medium text-[var(--text-strong)]">
+                    Closeout notes
+                  </label>
+                  <Textarea
+                    value={closeNotes}
+                    onChange={(event) => setCloseNotes(event.target.value)}
+                    rows={3}
+                    placeholder="Optional notes for variance, handoff, or manager review"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                <div className="text-sm font-semibold text-[var(--text-strong)]">
+                  Amount keypad
+                </div>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                  Keep closeout entry fast and consistent with checkout and refund flows.
+                </p>
+                <div className="mt-4">
+                  <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCloseDialog(false)}>
