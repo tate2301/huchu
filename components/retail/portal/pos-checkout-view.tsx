@@ -130,8 +130,8 @@ function NumField({
       className={cn(
         "flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-all duration-100",
         active
-          ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,var(--surface-base))] ring-2 ring-[var(--action-primary-bg)] ring-offset-1"
-          : "border-[var(--border-default)] bg-[var(--surface-base)] hover:border-[var(--action-primary-bg)] hover:bg-[var(--surface-muted)]",
+          ? "border-[var(--border-default)] bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,var(--surface-base))] ring-2 ring-[var(--action-primary-bg)] ring-offset-1"
+          : "border-[var(--border-default)] bg-[var(--surface-base)] hover:bg-[var(--surface-muted)]",
         className,
       )}
     >
@@ -263,17 +263,26 @@ export function PosCheckoutView() {
       setPayments([{ ...base }]);
       return;
     }
-    if (cart.length > 0 && !payments[0].amount.trim()) {
+    // Auto-fill only when the user has NOT manually edited the field.
+    // This lets backspace reach "" without immediately bouncing back to the total.
+    if (cart.length > 0 && !payments[0].amount.trim() && !paymentUserEditedRef.current) {
       setPayments((current) =>
         current.map((p, i) => (i === 0 ? { ...p, amount: total.toFixed(2) } : p)),
       );
     }
     if (cart.length === 0 && payments[0].amount.trim()) {
+      // Cart cleared — reset dirty flag so the next sale gets auto-filled again.
+      paymentUserEditedRef.current = false;
       setPayments((current) =>
         current.map((p, i) => (i === 0 ? { ...p, amount: "" } : p)),
       );
     }
   }, [cart.length, payments, setPayments, splitTenderMode, total]);
+
+  // Tracks whether the user has manually touched the payment amount via the
+  // keypad. When true we stop auto-filling empty amounts so backspacing to ""
+  // doesn't immediately reset back to the sale total.
+  const paymentUserEditedRef = useRef(false);
 
   const prevCartLengthRef = useRef(cart.length);
   useEffect(() => {
@@ -313,6 +322,7 @@ export function PosCheckoutView() {
       return;
     }
     if (target.type === "tender_amount") {
+      paymentUserEditedRef.current = true;
       const nextValue = applyPosKeypadAction(payments[target.index]?.amount ?? "", action);
       updatePayment(target.index, { amount: nextValue });
       return;
@@ -491,7 +501,7 @@ export function PosCheckoutView() {
       {/* ── Top bar ─────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2">
         {/* Search */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-muted)] px-2.5 py-1.5 transition-all duration-100 focus-within:border-[var(--action-primary-bg)] focus-within:bg-[var(--surface-base)] focus-within:ring-2 focus-within:ring-[var(--action-primary-bg)] focus-within:ring-offset-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-muted)] px-2.5 py-1.5 transition-all duration-100 focus-within:ring-2 focus-within:ring-[var(--action-primary-bg)] focus-within:ring-offset-1">
           <Search className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
           <input
             ref={searchInputRef}
@@ -759,7 +769,7 @@ export function PosCheckoutView() {
             {cart.length > 0 ? (
               <button
                 type="button"
-                onClick={clearCart}
+                onClick={() => { paymentUserEditedRef.current = false; clearCart(); }}
                 className="rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
               >
                 Clear
@@ -1065,8 +1075,8 @@ export function PosCheckoutView() {
                       className={cn(
                         "flex h-12 w-full items-center justify-between rounded-xl border px-4 font-mono text-xl font-black transition-all duration-100",
                         isActiveTender
-                          ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,white)] text-[var(--action-primary-bg)] ring-2 ring-[var(--action-primary-bg)] ring-offset-1"
-                          : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-strong)] hover:border-[var(--action-primary-bg)]",
+                          ? "border-[var(--border-default)] bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,white)] text-[var(--action-primary-bg)] ring-2 ring-[var(--action-primary-bg)] ring-offset-1"
+                          : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-strong)]",
                       )}
                     >
                       <span className="text-[13px] font-semibold text-[var(--text-muted)] opacity-70">
@@ -1183,7 +1193,7 @@ export function PosCheckoutView() {
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4 pr-1">
               {/* Search */}
-              <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 transition-all focus-within:border-[var(--action-primary-bg)] focus-within:bg-[var(--surface-base)] focus-within:ring-1 focus-within:ring-[var(--action-primary-bg)]">
+              <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 transition-all focus-within:ring-2 focus-within:ring-[var(--action-primary-bg)] focus-within:ring-offset-1">
                 <Search className="h-4 w-4 text-[var(--text-muted)]" />
                 <Input
                   value={customerName}
