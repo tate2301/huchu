@@ -10,6 +10,8 @@ type PosNumericKeypadProps = {
   onAction: (action: PosKeypadAction) => void;
   presets?: Array<{ label: string; value: string }>;
   className?: string;
+  /** Use smaller buttons for viewport-locked layouts. */
+  compact?: boolean;
 };
 
 const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
@@ -27,29 +29,28 @@ const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
 ];
 
 export function PosNumericKeypad({
-  title = "Keypad",
   onAction,
   presets = [],
   className,
+  compact = false,
 }: PosNumericKeypadProps) {
+  const btnSize = compact ? "min-h-[2.75rem]" : "min-h-14";
+  const textSize = compact ? "text-lg" : "text-xl";
+  const gap = compact ? "gap-1.5" : "gap-2";
+
   return (
-    <section
-      className={cn(
-        "rounded-[1.35rem] border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]",
-        className,
-      )}
-    >
-      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-        {title}
-      </div>
+    <div className={cn("flex flex-col", gap, className)}>
       {presets.length ? (
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className={cn("grid grid-cols-3", gap)}>
           {presets.map((preset) => (
             <Button
               key={`${preset.label}:${preset.value}`}
               type="button"
               variant="outline"
-              className="min-h-11 rounded-2xl text-xs"
+              className={cn(
+                "rounded-lg text-xs font-medium",
+                compact ? "min-h-[2.25rem]" : "min-h-11 rounded-2xl",
+              )}
               onClick={() => onAction({ type: "preset", value: preset.value })}
             >
               {preset.label}
@@ -57,13 +58,13 @@ export function PosNumericKeypad({
           ))}
         </div>
       ) : null}
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className={cn("grid flex-1 grid-cols-3", gap)}>
         {KEYS.map((key) => (
           <Button
             key={key.label}
             type="button"
             variant="outline"
-            className="min-h-14 rounded-2xl text-xl font-medium"
+            className={cn(btnSize, "rounded-lg font-medium", textSize)}
             onClick={() => onAction(key.action)}
           >
             {key.label}
@@ -72,20 +73,20 @@ export function PosNumericKeypad({
         <Button
           type="button"
           variant="outline"
-          className="min-h-14 rounded-2xl text-xs font-semibold"
+          className={cn(btnSize, "rounded-lg text-xs font-semibold")}
           onClick={() => onAction({ type: "clear" })}
         >
-          Clear
+          C
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="min-h-14 rounded-2xl"
+          className={cn(btnSize, "rounded-lg")}
           onClick={() => onAction({ type: "backspace" })}
         >
-          <XCircle className="h-5 w-5" />
+          <XCircle className="h-4 w-4" />
         </Button>
       </div>
-    </section>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ export default async function PosPortalPage() {
     <PosPortalPageFrame
       pathname="/portal/pos"
       title="Point of Sale"
+      fillHeight
     >
       <PosCheckoutView />
     </PosPortalPageFrame>
