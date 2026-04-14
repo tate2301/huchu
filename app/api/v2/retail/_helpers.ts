@@ -180,7 +180,7 @@ export async function recordRetailInventoryMovement(input: {
   const createdAt = input.entryDate ?? new Date();
   const writeMovement = async (tx: Prisma.TransactionClient) => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const referenceId = await reserveIdentifier(prisma, {
+      const referenceId = await reserveIdentifier(tx, {
         companyId: input.companyId,
         entity: "STOCK_MOVEMENT",
       });

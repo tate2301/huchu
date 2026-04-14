@@ -723,7 +723,7 @@ export function PosHistoryView() {
                   Use the keypad for refund quantities and tender amounts to keep the flow fast on shared terminals.
                 </p>
                 <div className="mt-4">
-                  <PosNumericKeypad title="Numeric keypad" onAction={handleRefundKeypadAction} />
+                  <PosNumericKeypad onAction={handleRefundKeypadAction} />
                 </div>
               </div>
             </div>

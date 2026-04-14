@@ -74,9 +74,9 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
   SCRAP_MATERIAL: { prefix: "SCMAT", requiresSiteId: false },
-  SCRAP_METAL_PURCHASE: { prefix: "SCPUR", requiresSiteId: true },
-  SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: true },
-  SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: true },
+  SCRAP_METAL_PURCHASE: { prefix: "SCPUR", requiresSiteId: false },
+  SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: false },
+  SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: false },
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
   RETAIL_CATALOG_ITEM: { prefix: "RTL", requiresSiteId: true },
   RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
@@ -324,25 +324,22 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     case "SCRAP_METAL_PURCHASE": {
-      if (!siteId) return 0;
       const records = await db.scrapMetalPurchase.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { purchaseNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
     }
     case "SCRAP_METAL_BATCH": {
-      if (!siteId) return 0;
       const records = await db.scrapMetalBatch.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { batchNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.batchNumber), prefix);
     }
     case "SCRAP_METAL_SALE": {
-      if (!siteId) return 0;
       const records = await db.scrapMetalSale.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { saleNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.saleNumber), prefix);
@@ -415,7 +412,7 @@ async function findEntityMaxExistingCode(
 }
 
 export async function reserveIdentifier(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   input: {
     companyId: string;
     entity: ReservableIdEntity;
@@ -427,7 +424,7 @@ export async function reserveIdentifier(
     throw new Error(`siteId is required for ${input.entity}`);
   }
 
-  const scopeKey = input.siteId ?? GLOBAL_SCOPE;
+  const scopeKey = config.requiresSiteId && input.siteId ? input.siteId : GLOBAL_SCOPE;
   const where = {
     companyId_entityKey_scopeKey: {
       companyId: input.companyId,
@@ -436,7 +433,7 @@ export async function reserveIdentifier(
     },
   } as const;
 
-  return db.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient) => {
     const existing = await tx.idSequence.findUnique({
       where,
       select: { id: true },
@@ -472,5 +469,12 @@ export async function reserveIdentifier(
     });
 
     return buildCode(config.prefix, next.lastNumber);
-  });
+  };
+
+  // When already inside a transaction (no $transaction method), run directly.
+  // Otherwise wrap in a new transaction for atomicity.
+  if ("$transaction" in db) {
+    return (db as PrismaClient).$transaction(run);
+  }
+  return run(db as Prisma.TransactionClient);
 }
