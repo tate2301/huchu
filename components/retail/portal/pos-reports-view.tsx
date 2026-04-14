@@ -28,16 +28,23 @@ function startOfDay(date: Date) {
   return d;
 }
 
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 export function PosReportsView() {
   const today = useMemo(() => startOfDay(new Date()), []);
   const sevenDaysAgo = useMemo(() => {
     const d = new Date(today);
     d.setDate(d.getDate() - 6);
-    return d;
+    return startOfDay(d);
   }, [today]);
+  const to = useMemo(() => endOfDay(new Date()), []);
 
   const salesQuery = useQuery({
-    queryKey: ["retail-pos-sales", "reports", sevenDaysAgo.toISOString(), today.toISOString()],
+    queryKey: ["retail-pos-sales", "reports", sevenDaysAgo.toISOString(), to.toISOString()],
     queryFn: () =>
       fetchJson<{
         data: Array<
@@ -55,7 +62,7 @@ export function PosReportsView() {
       }>(
         `/api/v2/retail/pos/sales?scope=mine&limit=200&from=${encodeURIComponent(
           sevenDaysAgo.toISOString(),
-        )}&to=${encodeURIComponent(today.toISOString())}`,
+        )}&to=${encodeURIComponent(to.toISOString())}`,
       ),
   });
 
@@ -201,8 +208,29 @@ export function PosReportsView() {
           </div>
         </PosPanel>
 
-        {/* Charts */}
-        {hasData ? (
+        {/* Error state */}
+        {salesQuery.isError ? (
+          <PosPanel>
+            <PosEmptyState
+              icon={RefreshCcw}
+              title="Unable to load reports"
+              description="There was a problem fetching your sales data. Please try again later."
+            />
+          </PosPanel>
+        ) : salesQuery.isLoading ? (
+          <>
+            <PosPanel>
+              <div className="flex min-h-[12rem] items-center justify-center text-sm text-[var(--text-muted)]">
+                Loading reports…
+              </div>
+            </PosPanel>
+            <PosPanel>
+              <div className="flex min-h-[16rem] items-center justify-center text-sm text-[var(--text-muted)]">
+                Loading charts…
+              </div>
+            </PosPanel>
+          </>
+        ) : hasData ? (
           <>
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]">
               <PosPanel className="min-h-0">
@@ -252,12 +280,6 @@ export function PosReportsView() {
               />
             </PosPanel>
           </>
-        ) : salesQuery.isLoading ? (
-          <PosPanel>
-            <div className="flex min-h-[16rem] items-center justify-center text-sm text-[var(--text-muted)]">
-              Loading reports…
-            </div>
-          </PosPanel>
         ) : (
           <PosPanel>
             <PosEmptyState
