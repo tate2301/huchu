@@ -317,7 +317,7 @@ export function PosShiftView() {
                   Keep numeric entry quick on touch devices and shared terminals.
                 </p>
                 <div className="mt-4">
-                  <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
+                  <PosNumericKeypad onAction={handleKeypadAction} />
                 </div>
               </div>
             </div>
@@ -464,7 +464,7 @@ export function PosShiftView() {
                   Keep closeout entry fast and consistent with checkout and refund flows.
                 </p>
                 <div className="mt-4">
-                  <PosNumericKeypad title="Numeric keypad" onAction={handleKeypadAction} />
+                  <PosNumericKeypad onAction={handleKeypadAction} />
                 </div>
               </div>
             </div>

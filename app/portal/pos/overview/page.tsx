@@ -1,13 +1,5 @@
-import { PosOverviewView } from "@/components/retail/portal/pos-overview-view";
-import { PosPortalPageFrame } from "@/components/retail/portal/pos-portal-page-frame";
+import { redirect } from "next/navigation";
 
-export default async function PosPortalOverviewPage() {
-  return (
-    <PosPortalPageFrame
-      pathname="/portal/pos/overview"
-      title="POS Overview"
-    >
-      <PosOverviewView />
-    </PosPortalPageFrame>
-  );
+export default function PosPortalOverviewPage() {
+  redirect("/portal/pos");
 }

@@ -50,6 +50,7 @@ export type PosCatalogItem = {
   taxPercent: number;
   sku: string;
   barcode: string | null;
+  imageUrl?: string | null;
   inventoryItem: { currentStock: number; unit: string } | null;
 };
 
