@@ -24,9 +24,29 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   "price-check": { publicHref: "/price-check", internalHref: "/portal/pos/price-check" },
 };
 
+const POS_PORTAL_ALLOWED_ROLES = new Set([
+  "SUPERADMIN",
+  "MANAGER",
+  "CLERK",
+  "SHOP_MANAGER",
+  "CASHIER",
+  "POS_CASHIER",
+  "STOCK_CLERK",
+  "FINANCE_OFFICER",
+]);
+
 export function isCashierRole(role: string | null | undefined): boolean {
   const normalizedRole = role?.trim().toUpperCase();
   return normalizedRole === "CASHIER" || normalizedRole === "POS_CASHIER";
+}
+
+export function canAccessPosPortal(role: string | null | undefined): boolean {
+  const normalizedRole = role?.trim().toUpperCase();
+  if (!normalizedRole) {
+    return false;
+  }
+
+  return POS_PORTAL_ALLOWED_ROLES.has(normalizedRole);
 }
 
 export function isPublicPosPath(pathname: string | null | undefined): boolean {

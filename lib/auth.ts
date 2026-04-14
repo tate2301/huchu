@@ -18,7 +18,7 @@ import {
   isTenantStatusActive,
   resolveTenantFromHost,
 } from "@/lib/platform/tenant";
-import { isCashierRole } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import {
   validateAuthConfiguration,
@@ -563,22 +563,20 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Account is inactive");
         }
 
-        // TODO: Restore cashier only limits
         if (
-          hostContext.portalCanonicalPrefix === "pos" /*   &&
-          !isCashierRole(user.role)
-          */
+          hostContext.portalCanonicalPrefix === "pos" &&
+          !canAccessPosPortal(user.role)
         ) {
           await logAuthEvent({
             eventType: "auth.login.failed",
             actor: email,
             companyId: user.companyId,
-            reason: "POS_CASHIER_REQUIRED",
+            reason: "POS_PORTAL_ACCESS_REQUIRED",
             entityType: "auth-strategy",
             entityId: "credentials",
             payload: { hostHeader, clientAddress },
           });
-          throw new Error("POS_CASHIER_REQUIRED");
+          throw new Error("POS_PORTAL_ACCESS_REQUIRED");
         }
 
         const passwordCandidates = exposeCredentialDebugReason
