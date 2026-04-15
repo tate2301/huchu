@@ -95,16 +95,28 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
     <div className="text-[15px] text-[var(--text-strong)]">
       <div className="relative flex h-[100dvh] overflow-hidden lg:flex-row">
         {/* ── Sidebar ─────────────────────────────────────── */}
-        <aside className="shrink-0 border-b border-[var(--edge-subtle)] bg-[var(--sidebar)] lg:w-[13rem] lg:border-b-0 lg:border-r">
+        <aside className="shrink-0 border-b border-[var(--edge-subtle)] bg-[var(--sidebar)] lg:w-[13.5rem] lg:border-b-0 lg:border-r">
           <div className="flex h-full flex-col">
-            {/* Wordmark */}
-            <div className="hidden shrink-0 px-4 pt-5 pb-3 lg:block">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">POS</div>
-              <div className="mt-0.5 truncate text-[13px] font-bold text-[var(--text-strong)]">
-                {session?.user?.name || "Operator"}
+            {/* Operator identity */}
+            <div className="hidden shrink-0 px-4 pt-5 pb-4 lg:block">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_12%,var(--surface-base))] text-[var(--action-primary-bg)]">
+                  <span className="text-[13px] font-black leading-none">
+                    {(session?.user?.name || "O")[0].toUpperCase()}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-bold leading-tight text-[var(--text-strong)]">
+                    {session?.user?.name || "Operator"}
+                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+                    Cashier
+                  </div>
+                </div>
               </div>
             </div>
-            <nav className="flex gap-1 overflow-x-auto px-3 pb-2 pt-2 lg:mt-1 lg:flex-1 lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:overflow-x-visible lg:px-2.5 lg:pb-3 lg:pt-0">
+
+            <nav className="flex gap-1 overflow-x-auto px-3 pb-2 pt-2 lg:mt-0 lg:flex-1 lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:overflow-x-visible lg:px-3 lg:pb-3 lg:pt-0">
               {renderedLinks.map((item) => {
                 const isActive = pathname === item.href;
                 return (
@@ -112,18 +124,25 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "group inline-flex min-h-9 shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all duration-100 lg:flex lg:w-full",
+                      "group inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition-all duration-100 lg:flex lg:w-full",
                       isActive
-                        ? "bg-[var(--surface-base)] text-[var(--text-strong)] shadow-[0_1px_3px_rgba(0,0,0,0.07),inset_0_0_0_1px_var(--edge-default)]"
-                        : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-base)_70%,transparent)] hover:text-[var(--text-strong)]",
+                        ? "bg-[var(--surface-base)] font-semibold text-[var(--text-strong)] shadow-[0_1px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_var(--edge-default)]"
+                        : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-base)_60%,transparent)] hover:text-[var(--text-strong)]",
                     )}
                   >
-                    <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive ? "text-[var(--action-primary-bg)]" : "")} />
+                    <item.icon className={cn(
+                      "h-[1.05rem] w-[1.05rem] shrink-0 transition-colors",
+                      isActive ? "text-[var(--action-primary-bg)]" : "opacity-70",
+                    )} />
                     <span className="whitespace-nowrap">{item.label}</span>
+                    {isActive && (
+                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--action-primary-bg)]" />
+                    )}
                   </Link>
                 );
               })}
             </nav>
+
             <div className="hidden shrink-0 border-t border-[var(--edge-subtle)] px-4 py-3 lg:block">
               <OfflineStatusIndicator />
             </div>

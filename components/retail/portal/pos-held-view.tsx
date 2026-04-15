@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Clock, Package, ReceiptLong, RefreshCcw, Wallet } from "@/lib/icons";
+import { ArrowRight, Clock, Package, ReceiptLong, RefreshCcw, User, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   PosEmptyState,
@@ -17,6 +17,19 @@ import {
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart } from "./pos-types";
 import { money } from "./pos-utils";
+import { cn } from "@/lib/utils";
+
+/* ─── Elapsed time helper ─────────────────────────────────────────── */
+function elapsedLabel(createdAt: string): { label: string; urgent: boolean } {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return { label: "Just held", urgent: false };
+  if (mins < 5) return { label: `${mins}m ago`, urgent: false };
+  if (mins < 15) return { label: `${mins}m ago`, urgent: true };
+  const hours = Math.floor(mins / 60);
+  if (hours < 1) return { label: `${mins}m ago`, urgent: true };
+  return { label: `${hours}h ${mins % 60}m ago`, urgent: true };
+}
 
 export function PosHeldView() {
   const router = useRouter();
@@ -58,72 +71,60 @@ export function PosHeldView() {
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
+
+      {/* ── Header metrics ────────────────────────────────── */}
       <PosPanel>
         <PosPanelHeader
-          eyebrow="Held queue"
-          title="Resume parked sales quickly"
-          description="Held carts should feel like a short pause in checkout, not a separate workflow."
+          eyebrow="Parked sales"
+          title="Held carts"
+          description="Recall any cart to instantly resume it at checkout."
           actions={
             <Button
               size="sm"
               variant="outline"
-              onClick={() =>
-                queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] })
-              }
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] })}
             >
               <RefreshCcw className="h-4 w-4" />
               Refresh
             </Button>
           }
         />
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <PosMetricCard
             icon={ReceiptLong}
             label="Held carts"
             value={String(heldCarts.length)}
-            meta="Waiting to be recalled"
+            meta={heldCarts.length === 0 ? "Queue is clear" : "Waiting to be recalled"}
             tone={heldCarts.length > 0 ? "warning" : "neutral"}
           />
           <PosMetricCard
             icon={Clock}
-            label="Shift"
+            label="Active shift"
             value={currentShift?.shiftNo ?? "Not open"}
             meta={currentShift?.registerName ?? "Open a shift to park carts"}
             tone={currentShift ? "brand" : "warning"}
           />
-          <PosMetricCard
-            icon={Package}
-            label="Checkout"
-            value="Return fast"
-            meta="Recalling a cart should put the cashier back in the active sale lane."
-            tone="success"
-          />
         </div>
       </PosPanel>
 
+      {/* ── Cart grid ─────────────────────────────────────── */}
       <PosPanel className="min-h-0">
-        <PosPanelHeader
-          eyebrow="Queue"
-          title="Held carts"
-          description="Strong labels, timestamps, totals, and one obvious recall action."
-        />
-
-        <div className="h-full min-h-0 overflow-y-auto pr-1">
+        <div className="h-full min-h-0 overflow-y-auto pr-0.5">
           {!currentShift ? (
             <PosEmptyState
               icon={Clock}
-              title="Open a shift to use held carts"
-              description="Held carts are tied to the active register shift, so this queue stays closed until the drawer is open."
+              title="Open a shift first"
+              description="Held carts are tied to the active register shift. Open a shift to see and recall parked sales."
             />
+          ) : heldCartsQuery.isLoading ? (
+            <div className="flex min-h-[10rem] items-center justify-center text-sm text-[var(--text-muted)]">
+              Loading held carts…
+            </div>
           ) : heldCarts.length === 0 ? (
             <PosEmptyState
               icon={ReceiptLong}
-              title="No held carts for this shift"
-              description={
-                heldCartsQuery.isLoading
-                  ? "Loading the queue now."
-                  : "Once a cashier parks a sale, it will appear here for quick recall."
-              }
+              title="No held carts"
+              description="Use the Hold button at checkout to park a sale. It will appear here for quick recall."
             />
           ) : (
             <div className="grid gap-3 xl:grid-cols-2">
@@ -132,80 +133,83 @@ export function PosHeldView() {
                 const total =
                   heldCart.cartSnapshot.items?.reduce(
                     (sum, item) =>
-                      sum +
-                      item.quantity * item.unitPrice -
-                      (item.lineDiscountAmount ?? 0),
+                      sum + item.quantity * item.unitPrice - (item.lineDiscountAmount ?? 0),
                     0,
                   ) ?? 0;
+                const { label: timeLabel, urgent } = elapsedLabel(heldCart.createdAt);
+                const isRecalling = recallMutation.isPending &&
+                  recallMutation.variables?.id === heldCart.id;
 
                 return (
                   <div
                     key={heldCart.id}
-                    className="rounded-[1.35rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4"
+                    className="flex flex-col rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] overflow-hidden"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    {/* Card header */}
+                    <div className="flex items-start justify-between gap-3 bg-[var(--surface-base)] px-4 py-3.5 border-b border-[var(--border-subtle)]">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="truncate text-base font-semibold text-[var(--text-strong)]">
+                          <span className="truncate text-[15px] font-bold text-[var(--text-strong)]">
                             {heldCart.label || heldCart.holdNo}
-                          </div>
-                          <PosStatusPill tone="warning">Held</PosStatusPill>
+                          </span>
+                          {heldCart.label && (
+                            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                              {heldCart.holdNo}
+                            </span>
+                          )}
                         </div>
-                        <div className="mt-1 font-mono text-xs text-[var(--text-muted)]">
-                          {heldCart.holdNo}
+                        <div className={cn(
+                          "mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold",
+                          urgent ? "text-amber-600" : "text-[var(--text-muted)]",
+                        )}>
+                          <Clock className="h-3 w-3" />
+                          {timeLabel}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-mono text-lg font-semibold text-[var(--text-strong)]">
+                      <div className="text-right shrink-0">
+                        <div className="font-mono text-xl font-black text-[var(--text-strong)]">
                           {money(total)}
                         </div>
-                        <div className="mt-1 text-xs text-[var(--text-muted)]">
-                          {itemCount} line{itemCount === 1 ? "" : "s"}
+                        <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+                          {itemCount} line{itemCount !== 1 ? "s" : ""}
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-3 py-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                          Customer
-                        </div>
-                        <div className="mt-2 truncate text-sm font-medium text-[var(--text-strong)]">
+                    {/* Cart details */}
+                    <div className="flex items-center gap-4 px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                        <User className="h-3.5 w-3.5 shrink-0" />
+                        <span className="font-medium">
                           {heldCart.cartSnapshot.customerName || "Walk-in"}
-                        </div>
+                        </span>
                       </div>
-                      <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-3 py-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                          Held at
+                      {itemCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                          <Package className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {heldCart.cartSnapshot.items?.slice(0, 2).map(i => i.name).join(", ")}
+                            {(heldCart.cartSnapshot.items?.length ?? 0) > 2 && " …"}
+                          </span>
                         </div>
-                        <div className="mt-2 text-sm font-medium text-[var(--text-strong)]">
-                          {new Date(heldCart.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                      <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-3 py-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                          Value
-                        </div>
-                        <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
-                          {money(total)}
-                        </div>
-                      </div>
+                      )}
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                        <Wallet className="h-4 w-4" />
-                        Recalling drops this cart back into checkout immediately.
-                      </div>
+                    {/* CTA */}
+                    <div className="px-4 pb-4 pt-1">
                       <Button
-                        className="min-h-11"
+                        className="w-full h-11 gap-2 rounded-xl text-[14px] font-bold"
                         onClick={() => recallMutation.mutate(heldCart)}
                         disabled={recallMutation.isPending}
                       >
-                        Recall cart
+                        {isRecalling ? (
+                          "Loading…"
+                        ) : (
+                          <>
+                            Recall to checkout
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
