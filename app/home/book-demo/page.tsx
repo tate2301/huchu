@@ -16,7 +16,7 @@ import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
   title: "Book a demo",
-  description: `Book a tailored ${PLATFORM_BRAND_NAME} demo for gold operations, schools, retail and POS, auto sales, scrap, or multi-site platform operations.`,
+  description: `Book a tailored ${PLATFORM_BRAND_NAME} demo focused on the workflows, sites, and reporting your business needs most.`,
 };
 
 const walkthroughTracks = [
@@ -37,8 +37,8 @@ const walkthroughTracks = [
   },
   {
     icon: Wrench,
-    title: "Platform admin",
-    copy: "Companies, subscriptions, add-ons, support, health.",
+    title: "Multi-site operations",
+    copy: "Approvals, oversight, support, and reporting across locations.",
   },
 ];
 
@@ -82,10 +82,11 @@ export default function BookDemoPage() {
             <div className={styles.demoHeader}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/58">Tailored walkthrough</p>
               <h1 className="max-w-3xl text-[clamp(2.8rem,5vw,5rem)] font-semibold leading-[0.95] tracking-[-0.055em] text-balance">
-                Book the walkthrough your team needs.
+                Book the walkthrough that fits your business.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-white/74">
-                Tell us your sites, roles, and rollout shape. We will tailor the session.
+                Tell us which sites, teams, approvals, or reporting pain points matter most. We will tailor the session
+                around that.
               </p>
               <div className={styles.demoMetrics}>
                 <div className={styles.demoMetric}>
@@ -98,7 +99,7 @@ export default function BookDemoPage() {
                 </div>
                 <div className={styles.demoMetric}>
                   <strong>Next step</strong>
-                  <span>A clear rollout path.</span>
+                  <span>A practical next step.</span>
                 </div>
               </div>
             </div>
@@ -179,11 +180,11 @@ export default function BookDemoPage() {
                 </div>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Focus</span>
-                  <span className={styles.demoFormStatValue}>Handoffs and controls.</span>
+                  <span className={styles.demoFormStatValue}>Your workflow and handoffs.</span>
                 </div>
                 <div className={styles.demoFormStat}>
                   <span className={styles.demoFormStatLabel}>Output</span>
-                  <span className={styles.demoFormStatValue}>Phase-one path.</span>
+                  <span className={styles.demoFormStatValue}>Recommended next step.</span>
                 </div>
               </div>
 
@@ -191,7 +192,7 @@ export default function BookDemoPage() {
                 schedulerHref={config.schedulerHref}
                 schedulerExternal={config.schedulerExternal}
                 className="self-start"
-                title="Tell us what to cover"
+                title="Tell us what to focus on"
               />
             </div>
           </div>

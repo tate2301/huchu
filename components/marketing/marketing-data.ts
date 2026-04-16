@@ -18,13 +18,13 @@ export const marketingNavItems = [
   { label: "Demo", href: "/home/book-demo" },
 ];
 
-export const marketingSiteHighlights = ["Shared rails", "Vertical packs", "Role portals"];
+export const marketingSiteHighlights = ["Replace scattered tools", "Keep every site aligned", "Grow without switching systems"];
 
 export const proofStats = [
-  { label: "Vertical packs ready", value: "6" },
-  { label: "Live platform modules", value: "10+" },
-  { label: "Role-specific portals", value: "5" },
-  { label: "Entry pricing from", value: "$450/mo" },
+  { label: "Start with one site and expand when ready", value: "1 -> many" },
+  { label: "Give each team the view they actually need", value: "Role-based" },
+  { label: "Track daily work, approvals, and reporting together", value: "Shared view" },
+  { label: "Choose a plan that matches your footprint", value: "From $450" },
 ];
 
 export const valuePillars: Array<{
@@ -34,88 +34,118 @@ export const valuePillars: Array<{
 }> = [
   {
     icon: ShieldCheck,
-    title: "Operational control",
-    description: "Field, campus, yard, shop, and branch work stays in one tenant-safe system.",
+    title: "Clearer day-to-day control",
+    description: "See what is happening across sites, teams, and tasks without chasing updates in separate tools.",
   },
   {
     icon: Coins,
-    title: "Finance integrity",
-    description: "Accounting, tax, disbursements, and posting-aware flows stay aligned.",
+    title: "Tighter cash and stock discipline",
+    description: "Keep the work that affects stock, purchasing, payouts, and reporting connected in one system.",
   },
   {
     icon: Dashboard,
-    title: "Commercial flexibility",
-    description: "Tiers, bundles, and entitlements fit sectors without forks.",
+    title: "Reporting people can trust",
+    description: "Managers get a clearer picture because sites, approvals, and records follow the same flow.",
   },
   {
     icon: Users,
-    title: "Role-specific experiences",
-    description: "Portals keep each role on the job at hand.",
+    title: "A setup that grows with you",
+    description: "Start with the part of the business causing the most friction, then add more as the team expands.",
   },
 ];
 
 export const showcaseCards = [
   {
-    eyebrow: "Gold operations",
-    title: "Track intake to settlement in one flow.",
-    copy: "Purchases, dispatches, receipts, payouts, and audit trails stay together.",
-    chips: ["Dispatches", "Receipts", "Payouts", "Audit"],
+    eyebrow: "Retail and branch teams",
+    title: "Keep stock, cash-up, and purchasing from drifting apart.",
+    copy: "Stores, branch teams, and supervisors can follow the same process instead of patching together tills, spreadsheets, and chat updates.",
+    chips: ["Stock", "Cash-up", "Purchasing", "Approvals"],
   },
   {
-    eyebrow: "School operations",
-    title: "Run the student lifecycle in one workspace.",
-    copy: "Admissions, fees, attendance, notices, and portals stay aligned.",
-    chips: ["Admissions", "Attendance", "Fees", "Portal"],
+    eyebrow: "Schools and service operations",
+    title: "Run admin, finance, and day-to-day work from the same record.",
+    copy: "Attendance, fees, notices, jobs, or service handoffs stay easier to manage when teams are not duplicating information.",
+    chips: ["Attendance", "Fees", "Jobs", "Notices"],
   },
   {
-    eyebrow: "Platform admin",
-    title: "Operate the SaaS business, not just each tenant.",
-    copy: "Companies, subscriptions, add-ons, and support tooling stay first-class.",
-    chips: ["Subscriptions", "Support", "Reliability", "Features"],
+    eyebrow: "Controlled operations",
+    title: "Track sensitive workflows with a clearer chain of responsibility.",
+    copy: "For buying, dispatch, receipts, settlements, and other high-control work, teams get a single trail instead of disconnected handoffs.",
+    chips: ["Dispatch", "Receipts", "Settlements", "Audit trail"],
   },
 ];
 
 export const productSteps = [
-  "Start with the pack that matches the operating model.",
-  "Keep operations, finance, and reporting on the same rails.",
-  "Expand with add-ons and portals without forcing a replatform.",
+  "Start with the workflow causing the most delays, mistakes, or follow-up work.",
+  "Bring sites, teams, approvals, and reporting into one shared process.",
+  "Add more locations, controls, and workflows as the business grows.",
 ];
 
 export const productFeatureCards = [
   {
-    eyebrow: "Foundation rails",
-    title: "Identity, tenancy, branding, documents, and notifications stay fixed.",
-    copy: "Every pack inherits the same account and permission model.",
+    eyebrow: "One place to work",
+    title: "Daily activity stops living in spreadsheets, chat threads, and separate apps.",
+    copy: "Teams can follow the work from start to finish without re-entering the same details in multiple places.",
   },
   {
-    eyebrow: "Vertical packs",
-    title: "Gold, schools, retail, scrap, and autos ship as focused surfaces.",
-    copy: "Each pack changes the vocabulary, not the core model.",
+    eyebrow: "Views for each role",
+    title: "Managers, cashiers, supervisors, teachers, or admins see what matters to them.",
+    copy: "Each team gets a clearer workspace instead of one crowded screen for everyone.",
   },
   {
-    eyebrow: "Control surfaces",
-    title: "Admin, support, and reliability tooling stay in the loop.",
-    copy: "Operators review companies, subscriptions, features, and incidents in one place.",
+    eyebrow: "Connected records",
+    title: "Approvals, stock, money, and reporting stay tied to the same flow.",
+    copy: "That means fewer gaps between what happened on the ground and what leadership sees later.",
   },
   {
-    eyebrow: "Commercial layer",
-    title: "Bundles and add-ons mirror the rollout path.",
-    copy: "The commercial story follows how customers adopt the platform.",
+    eyebrow: "Room to grow",
+    title: "You can roll out in stages instead of replacing everything at once.",
+    copy: "Start where the pressure is highest, then expand to more teams, sites, and controls when you are ready.",
   },
 ];
 
 export const productControlMap = [
   {
-    title: "Constant",
-    copy: "Tenant boundary, permissions, branding, documents.",
+    title: "Before",
+    copy: "Teams rely on spreadsheets, WhatsApp updates, and disconnected tools that never quite match.",
   },
   {
-    title: "Variable",
-    copy: "Gold, schools, and retail need different operating language.",
+    title: "After",
+    copy: "The work, approvals, stock movements, and reports live in one shared system with clearer ownership.",
   },
   {
-    title: "Buyer takeaway",
-    copy: "One platform. Clear expansion. Less sprawl.",
+    title: "Why it matters",
+    copy: "You spend less time chasing updates, fixing avoidable mistakes, and rebuilding reports by hand.",
+  },
+];
+
+export const buyerPainCards = [
+  {
+    title: "No one is working from the same numbers",
+    description: "Branches, teams, and managers each keep their own version of the truth, so small issues take longer to spot.",
+  },
+  {
+    title: "Approvals and follow-ups get buried in chat",
+    description: "Important work lives in messages, phone calls, and memory instead of a process people can actually track.",
+  },
+  {
+    title: "Reporting depends on chasing people",
+    description: "You only get a clean picture after asking around, stitching files together, and checking what changed.",
+  },
+];
+
+export const customerOutcomeCards = [
+  {
+    title: "See what each site is doing",
+    description: "Know what has been completed, what is waiting, and where something needs attention without digging through separate tools.",
+  },
+  {
+    title: "Run cleaner handoffs",
+    description: "Teams can pass work between locations, roles, and managers with less confusion and fewer missed steps.",
+  },
+  {
+    title: "Get clearer reporting faster",
+    description: "Because the work is captured in one place, your numbers and summaries are easier to trust.",
   },
 ];
 
@@ -169,33 +199,33 @@ export const verticalCards: Array<{
 }> = [
   {
     icon: Gem,
-    title: "Gold Operations",
-    description: "Chain-of-custody visibility, settlement control, payroll coordination, and reporting for mines and buyers.",
+    title: "Gold operations",
+    description: "Track buying, dispatch, receipts, settlements, and reporting in one place when control cannot be loose.",
   },
   {
     icon: Recycle,
-    title: "Scrap & Recycling",
-    description: "Buying discipline, yard stock visibility, pricing control, and bulk sales and settlement workflows.",
+    title: "Scrap and recycling",
+    description: "Keep yard stock, buying, pricing, and bulk sales easier to follow across teams and locations.",
   },
   {
     icon: Building2,
     title: "Schools",
-    description: "Student lifecycle, academics, attendance, boarding, fees, and role-based portals in one system.",
+    description: "Bring admissions, attendance, fees, notices, and portals into one system instead of separate admin tools.",
   },
   {
     icon: Users,
-    title: "Auto Sales",
-    description: "Lead-to-deal visibility, inventory coordination, financing support, and disciplined deal progression.",
+    title: "Auto sales",
+    description: "See leads, stock, deal progress, and financing handoffs without losing track between departments.",
   },
   {
     icon: ReceiptLong,
-    title: "Retail & POS",
-    description: "Catalog, pricing, receiving, purchasing, cashier control, held carts, refund flows, and shift close.",
+    title: "Retail and POS",
+    description: "Keep catalog, pricing, receiving, refunds, shift close, and stock control working from the same process.",
   },
   {
     icon: Camera,
     title: "Multi-site operations",
-    description: "People, stock, CCTV, maintenance, and finance controls combined in one shared operating layer.",
+    description: "Bring people, stock, maintenance, CCTV, and reporting together as the business expands beyond one site.",
   },
 ];
 
@@ -205,30 +235,30 @@ export const pricingTiers = [
     price: "$450",
     sites: "1 site included",
     extraSite: "$90 / extra site",
-    stage: "Launch one operating model",
+    stage: "Get your first site organised",
     bestFor: "Single-site teams.",
-    summary: "For focused rollouts.",
-    detail: "One live workflow. Clear ownership.",
+    summary: "A simple starting point for one location or one focused workflow.",
+    detail: "Best when you want to replace manual tracking without taking on too much at once.",
   },
   {
     tier: "Standard",
     price: "$900",
     sites: "3 sites included",
     extraSite: "$140 / extra site",
-    stage: "Scale across sites",
+    stage: "Bring growing locations together",
     bestFor: "Growing multi-site teams.",
-    summary: "For branch clusters.",
-    detail: "Shared financial spine before complexity grows.",
+    summary: "For businesses adding branches, managers, and more day-to-day handoffs.",
+    detail: "A strong fit when separate sites need the same process and clearer reporting.",
   },
   {
     tier: "Enterprise",
     price: "$1,800",
     sites: "8 sites included",
     extraSite: "$220 / extra site",
-    stage: "Run the broader group",
+    stage: "Run a broader operation with tighter oversight",
     bestFor: "Larger groups.",
-    summary: "For broader governance.",
-    detail: "Deeper controls and phased expansion.",
+    summary: "For larger groups that need stronger oversight across more sites and workflows.",
+    detail: "Built for broader governance, deeper controls, and phased rollout at scale.",
   },
 ];
 
@@ -294,44 +324,44 @@ export const featuredAddOns = [
 
 export const rolloutPaths = [
   {
-    title: "Gold rollout",
-    start: "Purchasing, stores, chain of custody.",
-    expand: "Gold Advanced, compliance, maintenance, accounting.",
+    title: "Retail and branch rollout",
+    start: "POS, stock, pricing, and shift close.",
+    expand: "Purchasing, accounting, maintenance, and deeper reporting.",
   },
   {
-    title: "Schools rollout",
-    start: "Admissions, attendance, fees, portals.",
-    expand: "Boarding, results, reporting, accounting.",
+    title: "School or service rollout",
+    start: "Admissions, attendance, fees, notices, or service jobs.",
+    expand: "Portals, reporting, branding, and accounting.",
   },
   {
-    title: "Multi-site rollout",
-    start: "Catalog, POS, stock, shift close.",
-    expand: "Maintenance, CCTV, analytics, branding.",
+    title: "High-control operations rollout",
+    start: "Buying, dispatch, receipts, and settlement tracking.",
+    expand: "Compliance, maintenance, analytics, and finance controls.",
   },
 ];
 
 export const trustClaims = [
-  "Tenant-aware host routing and workspace scoping are in production",
-  "Client templates, feature gates, and bundle logic drive rollout setup",
-  "Live modules cover gold, schools, retail/POS, autos, scrap, accounting, HR, maintenance, compliance, CCTV, and reporting",
-  "Role-specific portals cover parents, students, teachers, cashiers, and admins",
-  "Branding, templates, versioned PDF rendering, and artifacts are live",
-  "Support access, reliability, health, and audit tooling live in the admin plane",
+  "Role-based views keep different teams focused on the work they need to do",
+  "Live workflows already cover retail, schools, gold operations, auto sales, scrap, reporting, maintenance, and compliance",
+  "Plans, add-ons, and rollout options map to real product capability instead of a made-up pricing story",
+  "Portals, branded documents, and admin tooling are already part of the live product",
+  "Support, audit visibility, and operational controls are built in for growing teams",
+  "You can start with one problem area and expand without replacing the whole setup later",
 ];
 
 export const audienceSignals = [
-  "Multiple sites, one finance owner",
-  "Operational handoffs between teams",
-  "Cash, stock, or settlement control",
-  "Audit, compliance, or reporting pressure",
-  "Pack-by-pack rollout",
+  "You manage more than one site, branch, campus, or team",
+  "Important work still moves through chat, calls, and spreadsheets",
+  "Cash, stock, approvals, or settlements need tighter control",
+  "Reporting takes too much manual follow-up",
+  "You want to roll out in stages instead of changing everything at once",
 ];
 
 export const demoHighlights = [
-  "Show the right pack.",
-  "Walk the handoffs that matter.",
-  "Review sites and roles.",
-  "Set the rollout path.",
+  "Show the workflow that is slowing the business down.",
+  "Walk through the sites, teams, and approvals involved.",
+  "Review what each role needs to see and do.",
+  "Leave with a practical rollout path.",
 ];
 
 export const demoPreparationItems = [
@@ -342,9 +372,9 @@ export const demoPreparationItems = [
 ];
 
 export const demoOutcomeItems = [
-  "We reply with a pack and path.",
-  "You leave with a rollout sequence.",
-  "You can lock time on the page.",
+  "We reply with a recommended setup and next step.",
+  "You leave with a practical rollout sequence.",
+  "You can choose a time on the page.",
 ];
 
 export const demoConfidencePoints = [

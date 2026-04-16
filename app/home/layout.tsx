@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: `${PLATFORM_BRAND_NAME} | ${PLATFORM_MARKETING_TAGLINE}`,
     description:
-      "Run sector-specific workflows on shared accounting, reporting, branding, and administration rails instead of stitching together separate systems.",
+      "Replace spreadsheets and disconnected tools with one clearer system for daily work, reporting, and operational follow-through.",
     type: "website",
     siteName: PLATFORM_BRAND_NAME,
   },
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${PLATFORM_BRAND_NAME} | ${PLATFORM_MARKETING_TAGLINE}`,
     description:
-      "One platform for operations, finance, control, and reporting across mines, schools, shops, dealerships, and multi-site businesses.",
+      "Corelith helps growing multi-site businesses run daily work, handoffs, and reporting from one clearer system.",
   },
 };
 

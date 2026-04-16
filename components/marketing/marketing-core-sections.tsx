@@ -22,12 +22,13 @@ export function MarketingCoreSections() {
       <section id="product" className="mx-auto max-w-7xl px-6 pb-20 pt-10 lg:px-8 lg:pb-28">
         <div className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
           <div className="space-y-6">
-            <p className={styles.stripeEyebrow}>Product</p>
+            <p className={styles.stripeEyebrow}>How it works</p>
             <h2 className="max-w-3xl text-[clamp(2.2rem,4.6vw,4.6rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-[#0b1945] text-balance">
-              One control plane. A few strong rails.
+              Bring the work into one place, then grow from there.
             </h2>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              Start with one pack, keep the same core, and expand without rebuilding the stack.
+              You do not need a huge all-at-once rollout. Most teams start with the part of the business causing the most
+              friction, then expand once the process is working.
             </p>
 
             <div className="flex flex-wrap gap-2.5">
@@ -50,8 +51,8 @@ export function MarketingCoreSections() {
 
           <div className={styles.productMatrix}>
             <div className={styles.productMatrixHead}>
-              <p className={styles.productMatrixEyebrow}>How it holds together</p>
-              <p className={styles.productMatrixTitle}>Same structure. Different workflows.</p>
+              <p className={styles.productMatrixEyebrow}>What you get</p>
+              <p className={styles.productMatrixTitle}>A setup that is easier to use today and easier to expand later.</p>
             </div>
             <div className="grid gap-4 p-5">
               {productFeatureCards.map((card) => (
@@ -67,9 +68,9 @@ export function MarketingCoreSections() {
 
         <div className="mt-10">
           <div className="mb-4 max-w-2xl space-y-3">
-            <p className={styles.stripeEyebrow}>Control map</p>
+            <p className={styles.stripeEyebrow}>Why teams move</p>
             <h3 className="text-[clamp(1.8rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Same rails. Different work on top.
+              Less chasing. Fewer blind spots. Better follow-through.
             </h3>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
@@ -97,12 +98,13 @@ export function MarketingCoreSections() {
       <section id="solutions" className="mx-auto max-w-7xl px-6 pb-20 lg:px-8 lg:pb-28">
         <div className="grid gap-10 lg:grid-cols-[0.76fr_1.24fr] lg:items-end">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Sector snapshots</p>
+            <p className={styles.stripeEyebrow}>Sector proof</p>
             <h2 className="text-[clamp(2.1rem,4.4vw,4.1rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-              One platform. Clearer sector stories.
+              Different industries. The same need for clearer control.
             </h2>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              Buyers want the operating problem first, then the software.
+              Corelith is broad enough for growing SMBs, with enough operational depth to fit teams that handle stock,
+              finance, approvals, sensitive records, or multi-site activity.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -127,9 +129,9 @@ export function MarketingCoreSections() {
       <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8 lg:pb-28">
         <div className="grid gap-10 lg:grid-cols-[0.84fr_1.16fr] lg:items-start">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Control pillars</p>
+            <p className={styles.stripeEyebrow}>What improves</p>
             <h3 className="max-w-xl text-[clamp(1.95rem,3.8vw,3.35rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Four reasons the product stays coherent as the org grows.
+              Four reasons owners and managers get more confidence once the work is connected.
             </h3>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
@@ -152,12 +154,12 @@ export function MarketingCoreSections() {
       <section className="mx-auto max-w-7xl px-6 pb-18 lg:px-8 lg:pb-24">
         <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Live proof</p>
+            <p className={styles.stripeEyebrow}>Why buyers trust it</p>
             <h3 className="max-w-2xl text-[clamp(1.95rem,3.5vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Claims anchored in live capability.
+              The story matches what the product can already do.
             </h3>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              The story stays honest. These are shipped surfaces, not roadmap promises.
+              This is not a future-state pitch. The homepage reflects live workflows, live plans, and live rollout options.
             </p>
           </div>
           <div className={styles.productProofCard}>
@@ -171,12 +173,12 @@ export function MarketingCoreSections() {
             <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#d6def5] pt-5">
               <Button asChild className="rounded-full">
                 <Link href="/home/book-demo">
-                  See it live
+                  Book a demo
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Link href="/home/pricing" className="text-sm font-medium text-[#2d3d66] underline-offset-4 hover:underline">
-                Review pricing
+                See pricing
               </Link>
             </div>
           </div>
@@ -188,12 +190,13 @@ export function MarketingCoreSections() {
           <div className="space-y-4">
             <p className={styles.stripeEyebrow}>Best fit</p>
             <h3 className="text-[clamp(1.9rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Built for operators with more than one site, team, or workflow.
+              Best for teams that have outgrown basic tools but are not looking for enterprise bloat.
             </h3>
           </div>
           <div className="space-y-5">
             <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">
-              {PLATFORM_BRAND_NAME} works when spreadsheets, siloed tools, and handoffs start to slow the business down.
+              {PLATFORM_BRAND_NAME} fits growing businesses that need more structure, better visibility, and cleaner
+              day-to-day follow-through across locations and teams.
             </p>
             <div className="flex flex-wrap gap-2.5">
               {audienceSignals.map((signal) => (

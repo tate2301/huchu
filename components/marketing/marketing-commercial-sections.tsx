@@ -20,14 +20,14 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           <div className="space-y-5">
             <p className={styles.stripeEyebrow}>Pricing</p>
             <h2 className="max-w-3xl text-[clamp(2.2rem,4vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-              Pricing that tracks rollout scope.
+              Simple pricing for growing teams.
             </h2>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              USD pricing. Base plans, included sites, and add-ons all map to the live catalog.
+              Start with the footprint you have now. Add sites and deeper workflows when the business is ready.
             </p>
             <div className={styles.pricingNote}>
-              <p>Pick the tier for your current footprint.</p>
-              <p>Add packs as you go. The catalog stays aligned with rollout and implementation scope.</p>
+              <p>Choose the plan that matches your current number of sites.</p>
+              <p>Add more depth as needed without replacing the system or rebuilding the way teams work.</p>
             </div>
             <div className="pt-1">
               <Button asChild className="rounded-full">
@@ -45,7 +45,7 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
               <span>Base / month</span>
               <span>Sites</span>
               <span>Best for</span>
-              <span>Commercial story</span>
+              <span>Why choose it</span>
             </div>
             {pricingTiers.map((tier) => (
               <div key={tier.tier} className={styles.pricingRow}>
@@ -69,23 +69,25 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
                   <p className="text-sm leading-7 text-[#33456f]/88">{tier.bestFor}</p>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Commercial story</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Why choose it</p>
                   <p className="max-w-xl text-sm leading-7 text-[#33456f]/88">{tier.summary}</p>
                   <p className="max-w-xl text-sm leading-7 text-[#5b6d95]">{tier.detail}</p>
                 </div>
               </div>
             ))}
             <p className="border-t border-[#d6def5] px-6 pt-4 text-sm leading-6 text-[#61729b]">
-              Additional-site pricing makes rollout scope legible before procurement starts, which is especially useful for branch-heavy or phased deployments.
+              Additional-site pricing keeps expansion easy to understand, especially for teams adding branches or rolling
+              out in stages.
             </p>
           </div>
         </div>
 
         <div className="mt-12 grid gap-8 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>How rollout starts</p>
+            <p className={styles.stripeEyebrow}>Where teams usually begin</p>
             <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Most teams start with the pack that solves the immediate problem, then layer in finance, compliance, portals, and maintenance.
+              Most buyers start with the workflow causing the most daily friction, then add reporting, finance, portals,
+              maintenance, or compliance once the foundation is working.
             </p>
           </div>
           <div className={styles.rolloutGrid}>
@@ -103,9 +105,9 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
 
         <div className="mt-12 grid gap-6 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Frequently paired add-ons</p>
+            <p className={styles.stripeEyebrow}>Add more depth when you need it</p>
             <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Add advanced accounting, CCTV, compliance, maintenance, branding, portals, and vertical depth as needed.
+              Add accounting, compliance, maintenance, branding, portals, and operational depth as the business grows.
             </p>
           </div>
           <div className="space-y-4">
@@ -135,10 +137,11 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
             <div className="space-y-5 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Demo</p>
               <h2 className="max-w-3xl text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
-                Show the rollout shape. We&apos;ll map the path.
+                Bring your busiest workflow. We&apos;ll show you a cleaner way to run it.
               </h2>
               <p className="max-w-2xl text-sm leading-7 text-white/74">
-                Bring the handoffs, approvals, and sites that matter most. We will shape the session around the workflow and commercial path that fits.
+                Bring the sites, handoffs, approvals, or reporting pain points that matter most. We will shape the demo
+                around your business, not a generic product tour.
               </p>
               <ul className={`${styles.simpleListInverse} mt-6`}>
                 {demoHighlights.map((item) => (
@@ -158,7 +161,8 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           <div className="space-y-3">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">{PLATFORM_BRAND_NAME}</p>
             <p className="max-w-2xl text-sm leading-7">
-              One platform for operations, finance, control, and reporting across mines, schools, shops, dealerships, and multi-site businesses.
+              One system for growing businesses that need clearer operations, stronger follow-through, and better
+              reporting across teams and sites.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm lg:justify-end">

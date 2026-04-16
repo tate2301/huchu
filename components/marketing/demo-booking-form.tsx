@@ -39,8 +39,8 @@ const INITIAL_STATE: DemoFormState = {
 export function DemoBookingForm({
   schedulerHref,
   schedulerExternal,
-  title = "See the workflow you need next.",
-  description = "Share your rollout shape. We will tailor the walkthrough.",
+  title = "See how your workflow could run with less friction.",
+  description = "Tell us what is slowing the business down and we will tailor the walkthrough around it.",
   source = "marketing-site",
   className,
 }: DemoBookingFormProps) {
@@ -122,11 +122,11 @@ export function DemoBookingForm({
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Focus</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">Packs, controls, and fit.</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">Your workflow, teams, and sites.</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/44">Outcome</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">A clear rollout path.</p>
+            <p className="mt-2 text-sm leading-6 text-white/78">A practical next step.</p>
           </div>
         </div>
 
@@ -145,7 +145,7 @@ export function DemoBookingForm({
             target={resolvedSchedulerExternal ? "_blank" : undefined}
             rel={resolvedSchedulerExternal ? "noreferrer" : undefined}
           >
-            Schedule
+            Choose a time
             <ArrowRight className="size-4" />
           </a>
         </Button>
@@ -159,7 +159,7 @@ export function DemoBookingForm({
               <div>
                 <p className="text-sm font-semibold text-white">Demo request received.</p>
                 <p className="mt-1 text-sm leading-6 text-white/72">
-                  We have your details. You can lock time now.
+                  We have your details. You can pick a time whenever you are ready.
                 </p>
               </div>
             </div>
@@ -170,7 +170,7 @@ export function DemoBookingForm({
                   target={resolvedSchedulerExternal ? "_blank" : undefined}
                   rel={resolvedSchedulerExternal ? "noreferrer" : undefined}
                 >
-                  Schedule
+                  Choose a time
                   <Calendar className="size-4" />
                 </a>
               </Button>
@@ -287,14 +287,14 @@ export function DemoBookingForm({
             <Field
               label="What should we show in the demo?"
               htmlFor="demo-message"
-              hint="Examples: site structure, approvals, settlement flows, or the tool you want to replace."
+              hint="Examples: branch reporting, stock control, approvals, settlements, or the tool you want to replace."
               required
             >
               <textarea
                 id="demo-message"
                 value={form.message}
                 onChange={handleChange("message")}
-                placeholder="Show us the controls, handoffs, and reporting you want to see."
+                placeholder="Show us the workflow, handoffs, and reporting you want to improve."
                 className={`${inputClass} min-h-28 resize-y pt-3`}
                 required
                 disabled={isSubmitting}
@@ -303,17 +303,17 @@ export function DemoBookingForm({
 
             <div className="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-xl text-sm leading-6 text-white/74">
-                Tailored to your operating model, not a generic tour.
+                Tailored to your business, not a generic tour.
               </p>
               <Button type="submit" size="lg" className="rounded-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Sending
+                    Sending request
                   </>
                 ) : (
                   <>
-                    Send
+                    Request demo
                     <Send className="size-4" />
                   </>
                 )}
