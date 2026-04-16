@@ -26,26 +26,31 @@ const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
 /* ── Style constants ─────────────────────────────────────────── */
 
 const base =
-  "flex items-center justify-center rounded-xl border font-semibold select-none transition-all duration-75 active:scale-[0.93] h-[3rem]";
+  "flex items-center justify-center rounded-2xl border font-semibold select-none transition-all duration-75 active:scale-[0.92] active:shadow-none h-[3.5rem]";
 
 const numKey = cn(
   base,
-  "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-strong)] text-lg hover:bg-[var(--surface-muted)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_30%,var(--border-default))] shadow-[0_1px_2px_rgba(0,0,0,0.05)]",
+  "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-strong)] text-xl font-bold",
+  "shadow-[0_2px_0_var(--border-default)] hover:bg-[var(--surface-muted)]",
+  "hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))]",
 );
 
 const presetKey = cn(
   base,
-  "border-emerald-200 bg-emerald-50 text-emerald-700 text-xs hover:bg-emerald-100 hover:border-emerald-300",
+  "border-emerald-200 bg-emerald-50 text-emerald-700 text-[12px] font-bold",
+  "shadow-[0_2px_0_rgba(16,185,129,0.2)] hover:bg-emerald-100 hover:border-emerald-300",
 );
 
 const backspaceKey = cn(
   base,
-  "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700",
+  "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-muted)]",
+  "shadow-[0_2px_0_var(--border-default)] hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700",
 );
 
 const clearKey = cn(
   base,
-  "border-red-200 bg-red-50 text-red-600 text-sm font-bold hover:bg-red-100 hover:border-red-300",
+  "border-red-200 bg-red-50 text-red-600 text-sm font-black tracking-wide",
+  "shadow-[0_2px_0_rgba(239,68,68,0.2)] hover:bg-red-100 hover:border-red-300",
 );
 
 export function PosNumericKeypad({
@@ -64,7 +69,7 @@ export function PosNumericKeypad({
   ];
 
   return (
-    <div className={cn("grid gap-1.5", cols, className)}>
+    <div className={cn("grid gap-2", cols, className)}>
       {/* Row 0: 1 2 3 | preset 0 */}
       {rows[0].map((key) => (
         <button key={key.label} type="button" className={numKey} onClick={() => onAction(key.action)}>
@@ -108,15 +113,14 @@ export function PosNumericKeypad({
         </button>
       ))}
       <button type="button" className={backspaceKey} onClick={() => onAction({ type: "backspace" })}>
-        {/* Backspace icon */}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
           <line x1="18" y1="9" x2="12" y2="15" />
           <line x1="12" y1="9" x2="18" y2="15" />
         </svg>
       </button>
       <button type="button" className={clearKey} onClick={() => onAction({ type: "clear" })}>
-        C
+        CLR
       </button>
     </div>
   );

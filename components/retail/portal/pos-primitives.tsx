@@ -69,7 +69,7 @@ type PosMetricCardProps = {
   icon: LucideIcon;
   label: string;
   value: string;
-  meta?: string;
+  meta?: ReactNode;
   tone?: "brand" | "success" | "warning" | "danger" | "neutral";
   className?: string;
 };
@@ -117,7 +117,9 @@ export function PosMetricCard({
         {value}
       </div>
       {meta ? (
-        <div className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{meta}</div>
+        <div className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+          {meta}
+        </div>
       ) : null}
     </div>
   );

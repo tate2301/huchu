@@ -143,6 +143,29 @@ function NumField({
 
 /* ─── Tender type grid button ─────────────────────────────────────── */
 
+const TENDER_TYPE_STYLES: Record<TenderType, { selected: string; idle: string }> = {
+  CASH: {
+    selected: "border-emerald-500 bg-emerald-500 text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)]",
+    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700",
+  },
+  CARD: {
+    selected: "border-blue-500 bg-blue-500 text-white shadow-[0_4px_14px_rgba(59,130,246,0.35)]",
+    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700",
+  },
+  MOBILE_MONEY: {
+    selected: "border-orange-500 bg-orange-500 text-white shadow-[0_4px_14px_rgba(249,115,22,0.35)]",
+    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700",
+  },
+  TRANSFER: {
+    selected: "border-violet-500 bg-violet-500 text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)]",
+    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700",
+  },
+  VOUCHER: {
+    selected: "border-amber-500 bg-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.35)]",
+    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700",
+  },
+};
+
 function TenderButton({
   type,
   selected,
@@ -152,15 +175,14 @@ function TenderButton({
   selected: boolean;
   onClick: () => void;
 }) {
+  const styles = TENDER_TYPE_STYLES[type];
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-[11px] font-bold uppercase tracking-wide transition-all duration-100 active:scale-[0.96]",
-        selected
-          ? "border-[var(--action-primary-bg)] bg-[var(--action-primary-bg)] text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
-          : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]",
+        "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-[11px] font-bold uppercase tracking-wide transition-all duration-100 active:scale-[0.95]",
+        selected ? styles.selected : styles.idle,
       )}
     >
       <TenderIcon type={type} className="h-5 w-5" />
@@ -683,64 +705,67 @@ export function PosCheckoutView() {
                       onClick={() => handleAddCatalogItem(item)}
                       disabled={!currentShift}
                       className={cn(
-                        "group relative flex items-center gap-3.5 rounded-xl border bg-[var(--surface-base)] p-3 text-left transition-all duration-100 active:scale-[0.97]",
+                        "group relative flex items-start gap-3 rounded-2xl border bg-[var(--surface-base)] p-3.5 text-left transition-all duration-100 active:scale-[0.97]",
                         inCart
-                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_50%,var(--border-default))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--action-primary-bg)_25%,transparent),0_4px_12px_rgba(0,0,0,0.05)]"
-                          : "border-[var(--border-default)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))] hover:shadow-[0_4px_14px_rgba(0,0,0,0.08)]",
+                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_50%,var(--border-default))] bg-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))] shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--action-primary-bg)_30%,transparent),0_4px_16px_rgba(0,0,0,0.06)]"
+                          : "border-[var(--border-default)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_40%,var(--border-default))] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]",
                       )}
                     >
                       {/* Image / placeholder */}
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-muted)]">
+                      <div className={cn(
+                        "flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center overflow-hidden rounded-xl transition-colors",
+                        inCart
+                          ? "bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-muted))]"
+                          : "bg-[var(--surface-muted)]",
+                      )}>
                         {item.imageUrl ? (
-                          <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="h-full w-full object-cover" unoptimized />
+                          <Image src={item.imageUrl} alt={item.name} width={60} height={60} className="h-full w-full object-cover" unoptimized />
                         ) : (
-                          <Package className="h-6 w-6 text-[var(--text-muted)]" />
+                          <Package className={cn("h-6 w-6", inCart ? "text-[var(--action-primary-bg)]" : "text-[var(--text-muted)]")} />
                         )}
                       </div>
 
-                      {/* Info */}
-                      <div className="min-w-0 flex-1">
-                        <div className="line-clamp-1 text-sm font-semibold leading-tight text-[var(--text-strong)]">
+                      {/* Info + price stacked */}
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <div className="line-clamp-2 text-[13px] font-semibold leading-[1.3] text-[var(--text-strong)]">
                           {item.name}
                         </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          {item.inventoryItem && (
-                            <span className={cn(
-                              "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                              item.inventoryItem.currentStock <= 5
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-emerald-50 text-emerald-700",
-                            )}>
-                              {item.inventoryItem.currentStock.toFixed(0)} {item.inventoryItem.unit}
-                            </span>
-                          )}
-                          {item.barcode || item.sku ? (
-                            <span className="font-mono text-[10px] text-[var(--text-muted)]">
-                              {item.barcode || item.sku}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {/* Price */}
-                      <div className="shrink-0 text-right">
-                        {item.compareAtPrice && item.compareAtPrice > item.unitPrice ? (
-                          <div className="font-mono text-[10px] text-[var(--text-muted)] line-through">
-                            {money(item.compareAtPrice)}
+                        <div className="mt-2 flex items-end justify-between gap-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {item.inventoryItem && (
+                              <span className={cn(
+                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                item.inventoryItem.currentStock <= 5
+                                  ? "bg-amber-50 text-amber-700"
+                                  : "bg-emerald-50 text-emerald-700",
+                              )}>
+                                {item.inventoryItem.currentStock.toFixed(0)} {item.inventoryItem.unit}
+                              </span>
+                            )}
                           </div>
-                        ) : null}
-                        <div className="font-mono text-[15px] font-bold text-[var(--text-strong)]">
-                          {money(item.unitPrice)}
+                          <div className="shrink-0 text-right">
+                            {item.compareAtPrice && item.compareAtPrice > item.unitPrice ? (
+                              <div className="font-mono text-[10px] text-[var(--text-muted)] line-through">
+                                {money(item.compareAtPrice)}
+                              </div>
+                            ) : null}
+                            <div className={cn(
+                              "font-mono text-[15px] font-black leading-none",
+                              inCart ? "text-[var(--action-primary-bg)]" : "text-[var(--text-strong)]",
+                            )}>
+                              {money(item.unitPrice)}
+                            </div>
+                          </div>
                         </div>
                       </div>
 
                       {/* In-cart badge */}
                       {inCart ? (
-                        <div className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-1.5 text-[11px] font-bold text-white shadow-md">
-                          {inCart.quantity % 1 === 0 ? inCart.quantity : inCart.quantity.toFixed(2)}
+                        <div className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-1.5 text-[11px] font-black text-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+                          ×{inCart.quantity % 1 === 0 ? inCart.quantity : inCart.quantity.toFixed(2)}
                         </div>
                       ) : (
-                        <div className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--action-primary-bg)] text-white opacity-0 shadow-md transition-opacity duration-100 group-hover:opacity-100">
+                        <div className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--action-primary-bg)] text-white opacity-0 shadow-md transition-opacity duration-100 group-hover:opacity-100">
                           <Plus className="h-3.5 w-3.5" />
                         </div>
                       )}
@@ -817,10 +842,10 @@ export function PosCheckoutView() {
                     <div
                       key={item.catalogItemId}
                       className={cn(
-                        "flex items-center gap-2 px-3 py-3 transition-colors duration-100",
+                        "flex items-center gap-2 px-3 py-3.5 transition-colors duration-100",
                         isSelected
-                          ? "border-l-4 border-l-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,var(--surface-base))]"
-                          : "border-l-4 border-l-transparent hover:bg-[var(--surface-muted)]",
+                          ? "border-l-[3px] border-l-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,var(--surface-base))]"
+                          : "border-l-[3px] border-l-transparent hover:bg-[var(--surface-muted)]",
                       )}
                     >
                       {/* Item info — clickable to select */}
@@ -832,13 +857,13 @@ export function PosCheckoutView() {
                           setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
                         }}
                       >
-                        <div className="truncate text-[13px] font-semibold text-[var(--text-strong)]">
+                        <div className="truncate text-[13px] font-semibold leading-tight text-[var(--text-strong)]">
                           {item.name}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                        <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
                           <span className="font-mono">{money(item.unitPrice)}</span>
                           {item.lineDiscountAmount ? (
-                            <span className="font-mono text-emerald-600">−{money(item.lineDiscountAmount)}</span>
+                            <span className="rounded bg-emerald-50 px-1 font-mono text-emerald-600">−{money(item.lineDiscountAmount)}</span>
                           ) : null}
                         </div>
                       </button>
@@ -859,7 +884,7 @@ export function PosCheckoutView() {
                               updateQty(item.catalogItemId, next);
                             }
                           }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.92]"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.90]"
                         >
                           <Minus className="h-3.5 w-3.5" />
                         </button>
@@ -870,10 +895,10 @@ export function PosCheckoutView() {
                             setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
                           }}
                           className={cn(
-                            "h-8 min-w-[2.25rem] rounded-lg border px-2 font-mono text-sm font-bold transition-colors",
+                            "h-8 min-w-[2.5rem] rounded-lg border px-2 font-mono text-sm font-bold transition-all",
                             isSelected && activeTarget?.type === "line_qty"
                               ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,white)] text-[var(--action-primary-bg)]"
-                              : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-strong)] hover:border-[var(--action-primary-bg)]",
+                              : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-strong)] hover:border-[var(--action-primary-bg)]",
                           )}
                         >
                           {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}
@@ -881,15 +906,18 @@ export function PosCheckoutView() {
                         <button
                           type="button"
                           onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-colors hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.92]"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.90]"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
                       </div>
 
                       {/* Line total */}
-                      <div className="shrink-0 w-[4.5rem] text-right">
-                        <div className="font-mono text-sm font-bold text-[var(--text-strong)]">
+                      <div className="shrink-0 w-[4.75rem] text-right">
+                        <div className={cn(
+                          "font-mono text-sm font-black",
+                          isSelected ? "text-[var(--action-primary-bg)]" : "text-[var(--text-strong)]",
+                        )}>
                           {money(lineTotal)}
                         </div>
                       </div>
@@ -947,66 +975,69 @@ export function PosCheckoutView() {
 
           {/* Amount due header */}
           <div className={cn(
-            "shrink-0 px-4 pt-5 pb-3 text-center",
+            "shrink-0 border-b border-[var(--edge-subtle)] px-4 pt-5 pb-4 text-center",
             cart.length > 0
-              ? "bg-gradient-to-b from-[color-mix(in_srgb,var(--action-primary-bg)_6%,var(--surface-base))] to-[color-mix(in_srgb,var(--action-primary-bg)_2%,var(--surface-base))]"
-              : "",
+              ? "bg-gradient-to-b from-[color-mix(in_srgb,var(--action-primary-bg)_7%,var(--surface-base))] via-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))] to-[var(--surface-base)]"
+              : "bg-[var(--surface-base)]",
           )}>
-            <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
               Amount Due
             </div>
             <div className={cn(
               "mt-1 font-mono font-black leading-none tracking-tight transition-all duration-150",
-              total >= 10000 ? "text-4xl" : total >= 1000 ? "text-5xl" : "text-[3.25rem]",
+              total >= 10000 ? "text-[2.6rem]" : total >= 1000 ? "text-[3rem]" : "text-[3.5rem]",
               cart.length > 0 ? "text-[var(--text-strong)]" : "text-[var(--text-muted)]",
             )}>
               {money(total)}
             </div>
 
+            {/* Change / balance indicators */}
             {changeAmount > 0 ? (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-700">
-                Change: {money(changeAmount)}
+              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-black text-emerald-700 shadow-sm">
+                <span className="text-emerald-500">↩</span>
+                Change {money(changeAmount)}
               </div>
             ) : tenderedTotal > 0 && tenderedTotal < total ? (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                Still due: {money(total - tenderedTotal)}
+              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Still due {money(total - tenderedTotal)}
               </div>
-            ) : tenderedTotal > 0 ? (
-              <div className="mt-2 text-xs text-[var(--text-muted)]">
-                Tendered: <span className="font-mono font-semibold">{money(tenderedTotal)}</span>
+            ) : tenderedTotal > 0 && cart.length > 0 ? (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                Tendered <span className="font-mono font-semibold">{money(tenderedTotal)}</span>
               </div>
             ) : null}
 
             {/* Quick action pills */}
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setAdjustmentsOpen(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]"
               >
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-3 w-3" />
                 Adjust
               </button>
               <button
                 type="button"
                 onClick={() => setSplitTenderMode(!splitTenderMode)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-all duration-100",
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition-all duration-100",
                   splitTenderMode
                     ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] text-[var(--action-primary-bg)]"
                     : "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)]",
                 )}
               >
-                <Payments className="h-3.5 w-3.5" />
-                {splitTenderMode ? "Single pay" : "Split"}
+                <Payments className="h-3 w-3" />
+                {splitTenderMode ? "Single" : "Split"}
               </button>
               <button
                 type="button"
                 onClick={() => setHoldDialog(true)}
                 disabled={cart.length === 0 || !currentShift}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)] disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm transition-all duration-100 hover:border-[var(--action-primary-bg)] hover:text-[var(--action-primary-bg)] disabled:opacity-40"
               >
-                <ReceiptLong className="h-3.5 w-3.5" />
+                <ReceiptLong className="h-3 w-3" />
                 Hold
               </button>
             </div>
@@ -1141,16 +1172,20 @@ export function PosCheckoutView() {
               onClick={handleCharge}
               disabled={postSalePending || cart.length === 0}
               className={cn(
-                "relative flex h-14 w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl text-[15px] font-black text-white shadow-lg transition-all duration-150 active:scale-[0.98]",
+                "relative flex h-[3.75rem] w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl text-[15px] font-black text-white transition-all duration-150 active:scale-[0.98]",
                 cart.length === 0
-                  ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-muted)] shadow-none"
+                  ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-muted)]"
                   : blockers.length > 0
-                    ? "bg-amber-400 hover:bg-amber-500 shadow-amber-200"
+                    ? "bg-amber-400 shadow-[0_6px_20px_rgba(245,158,11,0.4)] hover:bg-amber-500"
                     : postSalePending
                       ? "cursor-wait bg-emerald-600 opacity-80"
-                      : "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 hover:shadow-[0_4px_16px_rgba(16,185,129,0.4)]",
+                      : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_6px_24px_rgba(16,185,129,0.45)] hover:shadow-[0_8px_28px_rgba(16,185,129,0.5)]",
               )}
             >
+              {/* Subtle shine overlay */}
+              {cart.length > 0 && !postSalePending && blockers.length === 0 && (
+                <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent to-white/[0.08]" />
+              )}
               {postSalePending ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -1470,42 +1505,44 @@ export function PosCheckoutView() {
 
       {/* ── Sale completed ──────────────────────────────── */}
       <Dialog open={Boolean(lastCompletedSale)} onOpenChange={(open) => !open && dismissCompletedSale()}>
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden">
-          {/* Success header */}
-          <div className="bg-gradient-to-br from-emerald-600 to-emerald-500 px-6 pt-8 pb-6 text-center text-white">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white/20 ring-4 ring-white/30">
-              <CheckCircle2 className="h-8 w-8 text-white" />
-            </div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-100">
-              Sale complete
-            </div>
-            <div className="mt-1 font-mono text-xl font-black">
-              {lastCompletedSale?.saleNo}
-            </div>
-          </div>
-
-          {/* Details */}
-          <div className="px-6 py-6 space-y-5">
-            {/* Change — the most important number for a cashier */}
-            <div className="text-center">
-              <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+        <DialogContent className="sm:max-w-[22rem] p-0 overflow-hidden">
+          {/* Change amount — the MOST important thing a cashier needs */}
+          {(lastCompletedSale?.changeAmount ?? 0) > 0 ? (
+            <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 px-6 pt-8 pb-7 text-center text-white">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200">
                 Change due
               </div>
-              <div className={cn(
-                "font-mono font-black leading-none mt-1",
-                (lastCompletedSale?.changeAmount ?? 0) > 0
-                  ? "text-6xl text-emerald-600"
-                  : "text-4xl text-[var(--text-muted)]",
-              )}>
+              <div className="mt-1 font-mono text-[4.5rem] font-black leading-none tracking-tight">
                 {money(lastCompletedSale?.changeAmount ?? 0)}
               </div>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-emerald-100">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {lastCompletedSale?.saleNo}
+              </div>
             </div>
+          ) : (
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-500 px-6 pt-7 pb-6 text-center text-white">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 ring-4 ring-white/25">
+                <CheckCircle2 className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-100">
+                Sale complete
+              </div>
+              <div className="mt-0.5 font-mono text-lg font-black">
+                {lastCompletedSale?.saleNo}
+              </div>
+              <div className="mt-1 font-mono text-2xl font-black text-white/90">
+                {money(lastCompletedSale?.totalAmount ?? 0)}
+              </div>
+            </div>
+          )}
 
-            {/* Secondary info */}
+          {/* Secondary info */}
+          <div className="px-5 py-4 space-y-3">
             <div className="flex items-center justify-between rounded-xl bg-[var(--surface-muted)] px-4 py-3">
               <div>
                 <div className="text-[11px] text-[var(--text-muted)]">Total charged</div>
-                <div className="font-mono text-base font-bold text-[var(--text-strong)]">
+                <div className="font-mono text-base font-black text-[var(--text-strong)]">
                   {money(lastCompletedSale?.totalAmount ?? 0)}
                 </div>
               </div>
@@ -1520,11 +1557,11 @@ export function PosCheckoutView() {
             </div>
           </div>
 
-          <DialogFooter className="px-6 pb-6 gap-2">
-            <Button variant="outline" size="sm" onClick={dismissCompletedSale} className="flex-1">
+          <DialogFooter className="px-5 pb-5 gap-2">
+            <Button variant="outline" size="sm" onClick={dismissCompletedSale} className="flex-1 h-11 text-sm font-semibold">
               Next sale
             </Button>
-            <Button size="sm" className="flex-1" asChild>
+            <Button size="sm" className="flex-1 h-11 text-sm font-semibold" asChild>
               <Link href={getPosPortalHref("history", isPosHost)}>
                 <History className="h-4 w-4" />
                 History

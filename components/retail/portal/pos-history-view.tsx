@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { History, Plus, RefreshCcw, Trash2, XCircle } from "@/lib/icons";
+import { History, Plus, RefreshCcw, Search, Trash2, XCircle } from "@/lib/icons";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
@@ -204,54 +204,64 @@ export function PosHistoryView() {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
       <PosPanel>
-        <PosPanelHeader
-          eyebrow="Transaction workspace"
-          title="Receipts and reversals"
-          description="Find a sale, inspect it, refund or void if allowed, and get back to selling."
-          actions={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] })}
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Refresh
-            </Button>
-          }
-        />
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
-          <div className="rounded-[1.15rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-3">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              Transaction workspace
+            </p>
+            <h2 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--text-strong)]">
+              Sales history
+            </h2>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] })}
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Search + stats row */}
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_160px]">
+          {/* Search bar */}
+          <div className="flex items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3.5 py-2 transition-all focus-within:border-[var(--action-primary-bg)] focus-within:bg-[var(--surface-base)] focus-within:ring-2 focus-within:ring-[var(--action-primary-bg)] focus-within:ring-offset-1">
+            <Search className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search receipt, customer, cashier, or item"
-              className="h-11 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+              placeholder="Search receipt, customer, item…"
+              className="h-10 border-none bg-transparent px-0 text-[14px] shadow-none focus-visible:ring-0"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="shrink-0 rounded-md p-0.5 text-[var(--text-muted)] hover:text-[var(--text-strong)]"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <PosMetricCard
             icon={History}
             label="Results"
             value={String(saleRows.length)}
-            meta="Receipts matching this view"
+            meta="Matching receipts"
             tone="neutral"
           />
           <PosMetricCard
             icon={RefreshCcw}
             label="Posted"
             value={String(postedSaleCount)}
-            meta="Posted sales available for follow-up"
+            meta="Ready for follow-up"
             tone="success"
           />
         </div>
       </PosPanel>
 
       <PosPanel className="min-h-0">
-        <PosPanelHeader
-          eyebrow="Receipt list"
-          title="Transaction history"
-          description="Use one full-width operational table so cashiers and managers can scan receipts quickly."
-        />
-
         <div className="h-full min-h-0 overflow-auto">
           {saleRows.length === 0 ? (
             <PosEmptyState
@@ -259,58 +269,77 @@ export function PosHistoryView() {
               title="No transactions found"
               description={
                 salesQuery.isLoading
-                  ? "Loading receipt history now."
-                  : "Try a different receipt number, customer, cashier, or item."
+                  ? "Loading receipt history…"
+                  : "Try a different receipt number, customer, or item name."
               }
             />
           ) : (
-            <table className="w-full min-w-[940px] text-sm">
-              <thead className="border-b border-[var(--border-subtle)] text-left text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            <table className="w-full min-w-[860px] text-sm">
+              <thead className="sticky top-0 z-10 border-b border-[var(--border-subtle)] bg-[var(--surface-base)] text-left text-[10px] uppercase tracking-[0.13em] text-[var(--text-muted)]">
                 <tr>
-                  <th className="px-3 py-3">Receipt</th>
-                  <th className="px-3 py-3">Type</th>
-                  <th className="px-3 py-3">Customer</th>
-                  <th className="px-3 py-3">Items</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3 text-right">Total</th>
-                  <th className="px-3 py-3">Posted</th>
+                  <th className="px-4 py-3">Receipt</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3 text-center">Items</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3">Posted</th>
                 </tr>
               </thead>
-              <tbody>
-                {saleRows.map((sale) => (
-                  <tr
-                    key={sale.id}
-                    className="cursor-pointer border-b border-[var(--border-subtle)] bg-[var(--surface-base)] transition hover:bg-[var(--surface-muted)]"
-                    onClick={() => setSelectedSaleId(sale.id)}
-                  >
-                    <td className="px-3 py-4 font-mono font-semibold text-[var(--text-strong)]">
-                      {sale.saleNo}
-                    </td>
-                    <td className="px-3 py-4 text-[var(--text-strong)]">{sale.saleType}</td>
-                    <td className="px-3 py-4 text-[var(--text-muted)]">
-                      {sale.customerName ?? "Walk-in"}
-                    </td>
-                    <td className="px-3 py-4 text-[var(--text-muted)]">{sale.itemCount}</td>
-                    <td className="px-3 py-4">
-                      <PosStatusPill
-                        tone={sale.status === "POSTED" ? "success" : "warning"}
-                      >
-                        {sale.status}
-                      </PosStatusPill>
-                    </td>
-                    <td className="px-3 py-4 text-right font-mono font-semibold text-[var(--text-strong)]">
-                      {money(sale.totalAmount)}
-                    </td>
-                    <td className="px-3 py-4 text-[var(--text-muted)]">
-                      {new Date(sale.postedAt).toLocaleString([], {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-[var(--border-subtle)]">
+                {saleRows.map((sale) => {
+                  const isRefund = sale.saleType === "REFUND";
+                  const isVoid = sale.saleType === "VOID";
+                  return (
+                    <tr
+                      key={sale.id}
+                      className="group cursor-pointer transition-colors hover:bg-[var(--surface-muted)]"
+                      onClick={() => setSelectedSaleId(sale.id)}
+                    >
+                      <td className="px-4 py-4">
+                        <span className="font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                          {sale.saleNo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={
+                          isRefund
+                            ? "inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600"
+                            : isVoid
+                              ? "inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700"
+                              : "inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
+                        }>
+                          {sale.saleType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-[var(--text-muted)]">
+                        {sale.customerName ?? "Walk-in"}
+                      </td>
+                      <td className="px-4 py-4 text-center text-[var(--text-muted)]">
+                        {sale.itemCount}
+                      </td>
+                      <td className="px-4 py-4">
+                        <PosStatusPill
+                          tone={sale.status === "POSTED" ? "success" : "warning"}
+                        >
+                          {sale.status}
+                        </PosStatusPill>
+                      </td>
+                      <td className={`px-4 py-4 text-right font-mono text-[13px] font-black ${isRefund ? "text-red-600" : "text-[var(--text-strong)]"}`}>
+                        {isRefund && sale.totalAmount < 0 ? "−" : ""}
+                        {money(Math.abs(sale.totalAmount))}
+                      </td>
+                      <td className="px-4 py-4 text-xs text-[var(--text-muted)]">
+                        {new Date(sale.postedAt).toLocaleString([], {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -318,195 +347,212 @@ export function PosHistoryView() {
       </PosPanel>
 
       <Dialog open={Boolean(selectedSaleId)} onOpenChange={(open) => !open && setSelectedSaleId(null)}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{selectedSale?.saleNo ?? "Transaction detail"}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">
           {selectedSale ? (
-            <div className="space-y-4">
-              <div className="rounded-[1.35rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <>
+              {/* Receipt header — colored by type */}
+              <div className={`px-6 pt-6 pb-5 ${
+                selectedSale.saleType === "REFUND"
+                  ? "bg-gradient-to-r from-red-50 to-red-50/50 border-b border-red-100"
+                  : selectedSale.saleType === "VOID"
+                    ? "bg-gradient-to-r from-amber-50 to-amber-50/50 border-b border-amber-100"
+                    : "bg-gradient-to-r from-emerald-50 to-emerald-50/50 border-b border-emerald-100"
+              }`}>
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                      Receipt summary
-                    </p>
-                    <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[var(--text-strong)]">
-                      {selectedSale.customerName ?? "Walk-in"} / {selectedSale.saleNo}
-                    </h3>
-                    <p className="mt-1 text-sm text-[var(--text-muted)]">
-                      Posted{" "}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xl font-black text-[var(--text-strong)]">
+                        {selectedSale.saleNo}
+                      </span>
+                      <PosStatusPill tone={selectedSale.status === "POSTED" ? "success" : "warning"}>
+                        {selectedSale.status}
+                      </PosStatusPill>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                        selectedSale.saleType === "REFUND"
+                          ? "bg-red-100 text-red-700"
+                          : selectedSale.saleType === "VOID"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
+                      }`}>
+                        {selectedSale.saleType}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-sm text-[var(--text-muted)]">
+                      {selectedSale.customerName ?? "Walk-in"} ·{" "}
                       {selectedSale.postedAt
                         ? new Date(selectedSale.postedAt).toLocaleString([], {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
+                            month: "short", day: "numeric",
+                            hour: "2-digit", minute: "2-digit",
                           })
-                        : "not yet posted"}
+                        : "Not yet posted"}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PosStatusPill
-                      tone={selectedSale.status === "POSTED" ? "success" : "warning"}
-                    >
-                      {selectedSale.status}
-                    </PosStatusPill>
-                    <PosStatusPill tone="brand">{selectedSale.saleType}</PosStatusPill>
+                  <div className="text-right shrink-0">
+                    <div className={`font-mono text-2xl font-black ${
+                      selectedSale.saleType === "REFUND" ? "text-red-600" : "text-[var(--text-strong)]"
+                    }`}>
+                      {money(Math.abs(selectedSale.totalAmount))}
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)]">
+                      {selectedSale.lines.length} line{selectedSale.lines.length !== 1 ? "s" : ""}
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-4">
-                  <PosMetricCard
-                    icon={History}
-                    label="Total"
-                    value={money(selectedSale.totalAmount)}
-                    meta={`${selectedSale.lines.length} line${selectedSale.lines.length === 1 ? "" : "s"}`}
-                    tone="brand"
-                  />
-                  <PosMetricCard
-                    icon={RefreshCcw}
-                    label="Promotion"
-                    value={selectedSale.promotionCode ?? "-"}
-                    meta="Promo code on this receipt"
-                    tone="neutral"
-                  />
-                  <PosMetricCard
-                    icon={RefreshCcw}
-                    label="Source"
-                    value={selectedSale.sourceSaleNo ?? "-"}
-                    meta="Original source reference"
-                    tone="neutral"
-                  />
-                  <PosMetricCard
-                    icon={XCircle}
-                    label="Reversals"
-                    value={String(selectedSale.reversals?.length ?? 0)}
-                    meta="Refunds or voids linked to this sale"
-                    tone={(selectedSale.reversals?.length ?? 0) > 0 ? "warning" : "success"}
-                  />
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.9fr)]">
-                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-[var(--text-strong)]">
-                      Sold items
+              <div className="max-h-[70vh] overflow-y-auto">
+                <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.9fr)]">
+                  {/* Line items */}
+                  <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] overflow-hidden">
+                    <div className="border-b border-[var(--border-subtle)] bg-[var(--surface-base)] px-4 py-3">
+                      <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                        Items sold
+                      </span>
                     </div>
-                    <div className="text-xs text-[var(--text-muted)]">
-                      Review line items before refunding or voiding.
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {selectedSale.lines.map((line) => (
-                      <div
-                        key={line.id}
-                        className="flex items-center justify-between gap-3 rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-3 text-sm"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-[var(--text-strong)]">
-                            {line.itemName}
-                          </div>
-                          <div className="text-xs text-[var(--text-muted)]">
-                            {line.quantity.toFixed(2)} x {money(line.unitPrice)}
-                          </div>
-                        </div>
-                        <NumericCell>{money(line.lineTotal)}</NumericCell>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
-                    <div className="text-sm font-semibold text-[var(--text-strong)]">
-                      Tenders collected
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {selectedSale.payments.map((payment) => (
+                    <div className="divide-y divide-[var(--border-subtle)]">
+                      {selectedSale.lines.map((line) => (
                         <div
-                          key={payment.id}
-                          className="flex items-center justify-between gap-3 rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-3 text-sm"
+                          key={line.id}
+                          className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
                         >
                           <div className="min-w-0">
-                            <div className="font-medium text-[var(--text-strong)]">
-                              {payment.tenderType.replaceAll("_", " ")}
+                            <div className="truncate font-semibold text-[var(--text-strong)]">
+                              {line.itemName}
                             </div>
-                            <div className="truncate text-xs text-[var(--text-muted)]">
-                              {payment.reference ?? "No reference"}
+                            <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+                              {line.quantity % 1 === 0 ? line.quantity : line.quantity.toFixed(2)} × {money(line.unitPrice)}
                             </div>
                           </div>
-                          <NumericCell>{money(payment.amount)}</NumericCell>
+                          <span className="shrink-0 font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                            {money(line.lineTotal)}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-[var(--text-strong)]">
-                        Follow-up actions
+                  <div className="space-y-3">
+                    {/* Payments */}
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] overflow-hidden">
+                      <div className="border-b border-[var(--border-subtle)] bg-[var(--surface-base)] px-4 py-3">
+                        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                          Tenders
+                        </span>
                       </div>
-                      {canOverride && currentShift ? (
-                        <PosStatusPill tone="success">Shift ready</PosStatusPill>
-                      ) : (
-                        <PosStatusPill tone="warning">Manager action only</PosStatusPill>
-                      )}
-                    </div>
-                    {(selectedSale.reversals ?? []).length ? (
-                      <div className="mt-3 space-y-2">
-                        {selectedSale.reversals.map((reversal) => (
+                      <div className="divide-y divide-[var(--border-subtle)]">
+                        {selectedSale.payments.map((payment) => (
                           <div
-                            key={reversal.id}
-                            className="flex items-center justify-between gap-3 rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-3 text-sm"
+                            key={payment.id}
+                            className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
                           >
-                            <div>
-                              <div className="font-medium text-[var(--text-strong)]">
-                                {reversal.saleNo}
+                            <div className="min-w-0">
+                              <div className="font-semibold text-[var(--text-strong)]">
+                                {payment.tenderType.replaceAll("_", " ")}
                               </div>
-                              <div className="text-xs text-[var(--text-muted)]">
-                                {reversal.saleType}
-                              </div>
+                              {payment.reference && (
+                                <div className="truncate text-[11px] text-[var(--text-muted)]">
+                                  Ref: {payment.reference}
+                                </div>
+                              )}
                             </div>
-                            <NumericCell>{money(reversal.totalAmount)}</NumericCell>
+                            <span className="shrink-0 font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                              {money(payment.amount)}
+                            </span>
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">
-                        No refunds or voids have been linked to this receipt yet.
-                      </p>
+                    </div>
+
+                    {/* Promo / source info if relevant */}
+                    {(selectedSale.promotionCode || selectedSale.sourceSaleNo) && (
+                      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3 space-y-1 text-sm">
+                        {selectedSale.promotionCode && (
+                          <div className="flex justify-between text-[var(--text-muted)]">
+                            <span>Promo</span>
+                            <span className="font-mono font-semibold text-[var(--text-strong)]">{selectedSale.promotionCode}</span>
+                          </div>
+                        )}
+                        {selectedSale.sourceSaleNo && (
+                          <div className="flex justify-between text-[var(--text-muted)]">
+                            <span>Source receipt</span>
+                            <span className="font-mono font-semibold text-[var(--text-strong)]">{selectedSale.sourceSaleNo}</span>
+                          </div>
+                        )}
+                      </div>
                     )}
 
-                    {canOverride &&
-                    currentShift &&
-                    selectedSale.saleType === "SALE" &&
-                    selectedSale.status === "POSTED" ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button type="button" variant="outline" onClick={startRefund}>
-                          Refund
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setVoidDialog(true)}
-                          disabled={(selectedSale.reversals ?? []).length > 0}
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Void sale
-                        </Button>
+                    {/* Actions / reversals */}
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                          Follow-up
+                        </span>
+                        <PosStatusPill tone={canOverride && currentShift ? "success" : "warning"}>
+                          {canOverride && currentShift ? "Allowed" : "Restricted"}
+                        </PosStatusPill>
                       </div>
-                    ) : null}
+
+                      {(selectedSale.reversals ?? []).length > 0 && (
+                        <div className="mb-3 space-y-1.5">
+                          {selectedSale.reversals.map((reversal) => (
+                            <div
+                              key={reversal.id}
+                              className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-2.5 text-sm"
+                            >
+                              <div>
+                                <span className="font-mono font-semibold text-[var(--text-strong)]">{reversal.saleNo}</span>
+                                <span className="ml-2 text-xs text-[var(--text-muted)]">{reversal.saleType}</span>
+                              </div>
+                              <span className="font-mono text-sm font-bold text-red-600">
+                                {money(reversal.totalAmount)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {canOverride && currentShift && selectedSale.saleType === "SALE" && selectedSale.status === "POSTED" ? (
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="flex-1 h-10"
+                            onClick={startRefund}
+                          >
+                            Refund
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 h-10 border-red-200 text-red-600 hover:bg-red-50"
+                            onClick={() => setVoidDialog(true)}
+                            disabled={(selectedSale.reversals ?? []).length > 0}
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Void
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {(selectedSale.reversals ?? []).length > 0
+                            ? "This sale has already been reversed."
+                            : "No reversals yet. Manager or cashier with override can refund or void."}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           ) : (
-            <PosEmptyState
-              icon={History}
-              title="Loading receipt detail"
-              description="We are fetching the selected sale so you can review it without leaving the history workspace."
-            />
+            <div className="p-6">
+              <PosEmptyState
+                icon={History}
+                title="Loading receipt…"
+                description="Fetching the transaction details."
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
