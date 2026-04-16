@@ -24,7 +24,7 @@ export const proofStats = [
   { label: "Start with one site and expand when ready", value: "1 -> many" },
   { label: "Give each team the view they actually need", value: "Role-based" },
   { label: "Track daily work, approvals, and reporting together", value: "Shared view" },
-  { label: "Choose a plan that matches your footprint", value: "From $450" },
+  { label: "Roll out in stages without replacing everything", value: "Phase by phase" },
 ];
 
 export const valuePillars: Array<{
@@ -325,7 +325,7 @@ export const featuredAddOns = [
 export const rolloutPaths = [
   {
     title: "Retail and branch rollout",
-    start: "POS, stock, pricing, and shift close.",
+    start: "POS, stock, sales control, and shift close.",
     expand: "Purchasing, accounting, maintenance, and deeper reporting.",
   },
   {
@@ -343,7 +343,7 @@ export const rolloutPaths = [
 export const trustClaims = [
   "Role-based views keep different teams focused on the work they need to do",
   "Live workflows already cover retail, schools, gold operations, auto sales, scrap, reporting, maintenance, and compliance",
-  "Plans, add-ons, and rollout options map to real product capability instead of a made-up pricing story",
+  "The workflows you see in the demo are already built into the product, not mocked up for a sales call",
   "Portals, branded documents, and admin tooling are already part of the live product",
   "Support, audit visibility, and operational controls are built in for growing teams",
   "You can start with one problem area and expand without replacing the whole setup later",

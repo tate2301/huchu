@@ -9,6 +9,8 @@ import styles from "@/components/marketing/marketing-site.module.css";
 const proofRail = ["Retail", "Schools", "Gold", "Auto sales", "Recycling", "Multi-site"];
 
 export function MarketingHeaderHero() {
+  const landingNavItems = [marketingNavItems[0], marketingNavItems[1], marketingNavItems[3]];
+
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
@@ -18,7 +20,7 @@ export function MarketingHeaderHero() {
             {PLATFORM_BRAND_NAME}
           </Link>
           <nav className="hidden flex-1 items-center gap-8 text-sm text-white/68 lg:flex">
-            {marketingNavItems.map((item) => (
+            {landingNavItems.map((item) => (
               <Link key={item.href} href={item.href} className="transition-colors hover:text-white">
                 {item.label}
               </Link>
@@ -54,14 +56,6 @@ export function MarketingHeaderHero() {
                 Book a demo
                 <ArrowRight className="size-4" />
               </Link>
-            </Button>
-            <Button
-              variant="outline"
-              asChild
-              size="lg"
-              className="h-12 rounded-full border-white/20 bg-transparent px-6 text-white hover:bg-white/10 hover:text-white"
-            >
-              <Link href="/home/pricing">See pricing</Link>
             </Button>
           </div>
           <p className="mt-6 max-w-xl text-sm leading-6 text-white/58">

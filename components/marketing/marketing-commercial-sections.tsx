@@ -1,11 +1,9 @@
 import Link from "next/link";
 
-import { ArrowRight } from "@/lib/icons";
 import type { MarketingSiteConfig } from "@/lib/marketing-site";
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
-import { addOns, demoHighlights, featuredAddOns, pricingTiers, rolloutPaths } from "@/components/marketing/marketing-data";
+import { addOns, demoHighlights, featuredAddOns, rolloutPaths } from "@/components/marketing/marketing-data";
 import { DemoBookingForm } from "@/components/marketing/demo-booking-form";
-import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
 
 type MarketingCommercialSectionsProps = {
@@ -15,81 +13,19 @@ type MarketingCommercialSectionsProps = {
 export function MarketingCommercialSections({ config }: MarketingCommercialSectionsProps) {
   return (
     <>
-      <section id="pricing" className="mx-auto max-w-7xl px-6 pb-18 lg:px-8 lg:pb-24">
-        <div className="grid gap-10 lg:grid-cols-[0.84fr_1.16fr] lg:items-start">
+      <section className="mx-auto max-w-7xl px-6 pb-18 lg:px-8 lg:pb-24">
+        <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
           <div className="space-y-5">
-            <p className={styles.stripeEyebrow}>Pricing</p>
+            <p className={styles.stripeEyebrow}>How teams usually start</p>
             <h2 className="max-w-3xl text-[clamp(2.2rem,4vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-              Simple pricing for growing teams.
+              Start with the workflow that is costing you the most time.
             </h2>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              Start with the footprint you have now. Add sites and deeper workflows when the business is ready.
+              Most teams do not need an all-at-once rollout. They begin where the pressure is highest, prove the process,
+              then expand to more sites, teams, and controls.
             </p>
-            <div className={styles.pricingNote}>
-              <p>Choose the plan that matches your current number of sites.</p>
-              <p>Add more depth as needed without replacing the system or rebuilding the way teams work.</p>
-            </div>
-            <div className="pt-1">
-              <Button asChild className="rounded-full">
-                <Link href="/home/book-demo">
-                  Talk through pricing
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            </div>
           </div>
 
-          <div className={styles.pricingMatrix}>
-            <div className={styles.pricingRowHeader}>
-              <span>Tier</span>
-              <span>Base / month</span>
-              <span>Sites</span>
-              <span>Best for</span>
-              <span>Why choose it</span>
-            </div>
-            {pricingTiers.map((tier) => (
-              <div key={tier.tier} className={styles.pricingRow}>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">{tier.stage}</p>
-                  <strong className="block text-[1.6rem] font-semibold tracking-[-0.05em] text-[#0b1945]">{tier.tier}</strong>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Base / month</p>
-                  <span className="block font-mono text-[1.5rem] font-semibold tracking-[-0.05em] text-[#0b1945]">{tier.price}</span>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Sites</p>
-                  <div className="space-y-1 text-sm leading-7 text-[#33456f]">
-                    <p>{tier.sites}</p>
-                    <p className="font-mono text-[#55688f]">{tier.extraSite}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Best for</p>
-                  <p className="text-sm leading-7 text-[#33456f]/88">{tier.bestFor}</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Why choose it</p>
-                  <p className="max-w-xl text-sm leading-7 text-[#33456f]/88">{tier.summary}</p>
-                  <p className="max-w-xl text-sm leading-7 text-[#5b6d95]">{tier.detail}</p>
-                </div>
-              </div>
-            ))}
-            <p className="border-t border-[#d6def5] px-6 pt-4 text-sm leading-6 text-[#61729b]">
-              Additional-site pricing keeps expansion easy to understand, especially for teams adding branches or rolling
-              out in stages.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-12 grid gap-8 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Where teams usually begin</p>
-            <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Most buyers start with the workflow causing the most daily friction, then add reporting, finance, portals,
-              maintenance, or compliance once the foundation is working.
-            </p>
-          </div>
           <div className={styles.rolloutGrid}>
             {rolloutPaths.map((path) => (
               <article key={path.title} className={styles.rolloutCard}>
@@ -103,11 +39,12 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           </div>
         </div>
 
-        <div className="mt-12 grid gap-6 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
+        <div className="mt-12 grid gap-8 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Add more depth when you need it</p>
+            <p className={styles.stripeEyebrow}>What you can add later</p>
             <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Add accounting, compliance, maintenance, branding, portals, and operational depth as the business grows.
+              Once the core workflow is working, you can add more depth around finance, compliance, maintenance,
+              branding, portals, and reporting without starting over.
             </p>
           </div>
           <div className="space-y-4">
@@ -117,7 +54,6 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
                   <p className="text-base font-semibold tracking-[-0.03em] text-[#0f1f55]">{item.name}</p>
                   <p className="mt-1 text-sm leading-7 text-[#31436f]/84">{item.note}</p>
                 </div>
-                <p className="font-mono text-sm text-[#0f1f55]">{item.price}</p>
               </div>
             ))}
             <div className={styles.addonCloud}>
@@ -174,9 +110,6 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
             </Link>
             <Link href="/home/solutions" className="hover:text-white">
               Solutions
-            </Link>
-            <Link href="/home/pricing" className="hover:text-white">
-              Pricing
             </Link>
             <Link href="/home/book-demo" className="hover:text-white">
               Demo

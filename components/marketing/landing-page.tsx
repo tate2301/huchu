@@ -32,9 +32,6 @@ export function LandingPage({ config }: LandingPageProps) {
               <Link href="/home/solutions" className="transition-colors hover:text-[#0b1945]">
                 Solutions
               </Link>
-              <Link href="/home/pricing" className="transition-colors hover:text-[#0b1945]">
-                Pricing
-              </Link>
               <Link href="/home/book-demo" className="transition-colors hover:text-[#0b1945]">
                 Book a demo
               </Link>

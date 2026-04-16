@@ -156,10 +156,11 @@ export function MarketingCoreSections() {
           <div className="space-y-4">
             <p className={styles.stripeEyebrow}>Why buyers trust it</p>
             <h3 className="max-w-2xl text-[clamp(1.95rem,3.5vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              The story matches what the product can already do.
+              See the workflows your team needs, not a polished promise.
             </h3>
             <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              This is not a future-state pitch. The homepage reflects live workflows, live plans, and live rollout options.
+              When you book a demo, we show you processes that are already live in the product, so you can judge whether
+              it fits your business with confidence.
             </p>
           </div>
           <div className={styles.productProofCard}>
@@ -177,9 +178,6 @@ export function MarketingCoreSections() {
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
-              <Link href="/home/pricing" className="text-sm font-medium text-[#2d3d66] underline-offset-4 hover:underline">
-                See pricing
-              </Link>
             </div>
           </div>
         </div>
