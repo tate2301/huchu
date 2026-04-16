@@ -7,7 +7,6 @@ import { MarketingSubpageShell } from "@/components/marketing/marketing-subpage-
 import {
   addOns,
   featuredAddOns,
-  pricingConfidencePoints,
   pricingSelectionNotes,
   pricingTiers,
   rolloutPaths,
@@ -24,176 +23,200 @@ export default function PricingPage() {
   return (
     <MarketingSubpageShell
       title="Pricing shaped around rollout scope."
+      description="USD pricing. Tiers map to rollout shape. Start narrow, then expand."
+      pageName="Pricing"
     >
-      <section className={styles.pricingHero}>
-        <div className={styles.pricingNarrative}>
-          <p className={styles.stripeEyebrow}>Commercial model</p>
-          <h2 className="max-w-3xl text-[clamp(2.2rem,4.6vw,4.3rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-            Simple plans, clear site math, room to expand.
-          </h2>
-          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/84">
-            Pricing is in USD. Tiers map to rollout shape.
-          </p>
+      {/* Intro + selection notes */}
+      <section>
+        <div style={{ display: "grid", gap: "3rem", alignItems: "start" }}
+          className="lg:grid-cols-[1fr_1fr]">
+          <div>
+            <p className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              Commercial model
+            </p>
+            <h2 className={`${styles.featureTitle} mt-3`}>
+              Simple plans, clear site math,{" "}
+              <span className={styles.gradientText}>room to expand.</span>
+            </h2>
+            <div className={styles.stepsList} style={{ marginTop: "1.5rem" }}>
+              {pricingSelectionNotes.map((note, i) => (
+                <div key={note} className={styles.stepsItem}>
+                  <span className={styles.stepsIndex}>0{i + 1}</span>
+                  <span className={styles.stepsText}>{note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <div className={styles.pricingNoteList}>
-            {pricingSelectionNotes.map((item) => (
-              <div key={item} className={styles.pricingNoteItem}>
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-[#d6def5] bg-white px-6 py-6 shadow-[0_18px_48px_rgba(29,39,79,0.08)]">
-          <div className={styles.pricingCardTop}>
-            <span className={styles.pricingPill}>Commercial facts</span>
-            <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Live catalog</span>
-          </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            {pricingConfidencePoints.map((item) => (
-              <div key={item} className="rounded-2xl border border-[#e3e8f6] bg-[#f8faff] p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Included</p>
-                <p className="mt-2 text-sm leading-6 text-[#30406a]/86">{item}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Button asChild className="rounded-full">
-              <Link href="/home/book-demo#demo-form">
-                Talk through your rollout
-                <ArrowRight className="size-4" />
+          <div className={`${styles.card} ${styles.cardPadded}`}>
+            <p className={styles.cardEyebrow}>Commercial facts</p>
+            <div style={{ display: "grid", gap: "0.75rem", gridTemplateColumns: "1fr", marginTop: "1rem" }}>
+              {[
+                { label: "Tiers", value: "3 tiers with site math" },
+                { label: "Add-ons", value: "20 add-on bundles" },
+                { label: "Currency", value: "USD pricing" },
+              ].map((item) => (
+                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.65rem 0", borderBottom: "1px solid rgba(14,28,66,0.07)" }}>
+                  <span className={styles.cardEyebrow}>{item.label}</span>
+                  <span className={styles.cardTitle} style={{ marginTop: 0 }}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button asChild className="rounded-full">
+                <Link href="/home/book-demo#demo-form">
+                  Talk through your rollout
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Link href="#add-ons" className="inline-flex items-center text-sm font-medium text-[#1d4ed8] underline-offset-4 hover:underline">
+                Review add-ons
               </Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-full border-[#d6def5] bg-white text-[#0b1945] hover:bg-[#f6f8ff] hover:text-[#0b1945]">
-              <Link href="#add-ons">Review add-ons</Link>
-            </Button>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mt-12">
-        <div className={styles.pricingCardGrid}>
+      {/* Pricing cards */}
+      <section style={{ marginTop: "3.5rem" }}>
+        <div className={styles.pricingGrid}>
           {pricingTiers.map((tier, index) => (
-            <article key={tier.tier} className={`${styles.pricingCard} ${index === 1 ? styles.pricingCardFeatured : ""}`}>
-              <div className={styles.pricingCardTop}>
-                <span className={styles.pricingPill}>{tier.stage}</span>
-                {index === 1 ? <span className={styles.pricingPill}>Most adopted</span> : null}
-              </div>
+            <article
+              key={tier.tier}
+              className={`${styles.pricingCard} ${index === 1 ? styles.pricingCardFeatured : ""}`}
+            >
+              <div className={styles.pricingTier}>{tier.stage}</div>
+              {index === 1 && (
+                <span className={styles.badgePill} style={{ marginTop: "0.5rem", display: "inline-flex" }}>
+                  Most adopted
+                </span>
+              )}
 
               <div className={styles.pricingPrice}>
-                <strong className="font-mono">{tier.price}</strong>
-                <span>/ mo</span>
+                <span
+                  className={`${styles.pricingAmount} ${index === 1 ? styles.pricingAmountFeatured : ""}`}
+                  style={{ fontFamily: "var(--font-mono, monospace)" }}
+                >
+                  {tier.price}
+                </span>
+                <span className={styles.pricingPer}>/ mo</span>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7282aa]">Included sites</p>
-                <p className="text-base font-medium tracking-[-0.03em] text-[#102252]">{tier.sites}</p>
-                <p className="font-mono text-sm text-[#516385]">{tier.extraSite}</p>
+              <div className={styles.pricingDivider} />
+
+              <div>
+                <p className={styles.pricingSites}>{tier.sites}</p>
+                <p className={styles.pricingExtra}>{tier.extraSite}</p>
               </div>
 
-              <p className="text-sm font-semibold tracking-[-0.02em] text-[#102252]">{tier.bestFor}</p>
-              <p className="text-sm leading-7 text-[#30406a]/84">{tier.summary}</p>
-              <p className="text-sm leading-7 text-[#30406a]/78">{tier.detail}</p>
+              <p className={styles.pricingBestFor}>
+                <strong>{tier.bestFor}</strong> — {tier.summary} {tier.detail}
+              </p>
 
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[#e2e8f6] pt-4">
-                <Link href="/home/book-demo#demo-form" className="text-sm font-semibold text-[#0b1945] underline-offset-4 hover:underline">
+              <div className={styles.pricingCta}>
+                <Link href="/home/book-demo#demo-form" className={styles.pricingCtaLink}>
                   Use this tier
                 </Link>
-                <span className="font-mono text-xs uppercase tracking-[0.16em] text-[#7282aa]">USD pricing</span>
+                <span className={styles.pricingCtaNote}>USD</span>
               </div>
             </article>
           ))}
         </div>
+        <p style={{ marginTop: "1.25rem", fontSize: "0.84rem", color: "rgba(60,80,130,0.68)", lineHeight: "1.65" }}>
+          Additional-site pricing makes rollout scope legible before procurement starts — especially useful for branch-heavy or phased deployments.
+        </p>
       </section>
 
-      <section className="mt-16 grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>How teams buy</p>
-          <h3 className="text-[clamp(1.9rem,3.7vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Start with the milestone that matters.
-          </h3>
-          <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Most teams start with the smallest pack that solves the problem now.
-          </p>
+      {/* Rollout paths */}
+      <section style={{ marginTop: "4rem", paddingTop: "3rem", borderTop: "1px solid rgba(14,28,66,0.08)" }}>
+        <div style={{ display: "grid", gap: "2rem", alignItems: "end", marginBottom: "1.5rem" }}
+          className="lg:grid-cols-[0.7fr_1.3fr]">
+          <div>
+            <p className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              How rollout starts
+            </p>
+            <p className={`${styles.sectionSubtext} mt-2`}>
+              Most teams start with the smallest pack that solves the problem now.
+            </p>
+          </div>
         </div>
         <div className={styles.rolloutGrid}>
           {rolloutPaths.map((path) => (
-            <article key={path.title} className={styles.rolloutCard}>
-              <p className={styles.productFeatureEyebrow}>{path.title}</p>
-              <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{path.start}</p>
-              <p className="mt-4 font-medium tracking-[-0.02em] text-[#102252]">{path.expand}</p>
-            </article>
+            <div key={path.title} className={styles.rolloutCard}>
+              <p className={styles.rolloutCardLabel}>Rollout path</p>
+              <p className={styles.rolloutCardTitle}>{path.title}</p>
+              <p className={styles.rolloutCardValue}>{path.start}</p>
+              <p className={styles.rolloutCardExpand}>Expand into → {path.expand}</p>
+            </div>
           ))}
         </div>
       </section>
 
-      <section id="add-ons" className="mt-16 grid gap-10 lg:grid-cols-[0.74fr_1.26fr]">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>Add-ons</p>
-          <h3 className="text-[clamp(1.9rem,3.7vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Layer in what the rollout needs next.
-          </h3>
-          <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Start narrow, then add finance, compliance, portals, or depth.
-          </p>
-        </div>
-
-        <div className={styles.pricingAddonGrid}>
-          <div className={styles.pricingAddonList}>
-            {featuredAddOns.map((item) => (
-              <div key={item.name} className={styles.pricingAddonItem}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-base font-semibold tracking-[-0.03em] text-[#102252]">{item.name}</p>
-                    <p className="mt-1 text-sm leading-7 text-[#31436f]/84">{item.note}</p>
-                  </div>
-                  <p className={styles.pricingAddonPrice}>{item.price}</p>
-                </div>
-              </div>
-            ))}
+      {/* Add-ons */}
+      <section id="add-ons" style={{ marginTop: "4rem", paddingTop: "3rem", borderTop: "1px solid rgba(14,28,66,0.08)" }}>
+        <div style={{ display: "grid", gap: "3rem", alignItems: "start" }}
+          className="lg:grid-cols-[0.72fr_1.28fr]">
+          <div>
+            <p className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              Add-ons
+            </p>
+            <h2 className={`${styles.featureTitle} mt-3`}>
+              Layer in what the{" "}
+              <span className={styles.gradientText}>rollout needs</span>{" "}
+              next.
+            </h2>
+            <p className={`${styles.featureBody} mt-3`}>
+              Start narrow, then add finance, compliance, portals, or depth.
+            </p>
           </div>
 
-          <div className="rounded-[26px] border border-[#d6def5] bg-white p-5">
-            <p className={styles.pricingPill}>Featured add-ons</p>
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {addOns.map((item) => (
-                <span key={item} className={styles.pricingTag}>
-                  {item}
-                </span>
-              ))}
+          <div>
+            <div className={`${styles.card} ${styles.cardPadded}`}>
+              <div className={styles.addonList}>
+                {featuredAddOns.map((item) => (
+                  <div key={item.name} className={styles.addonItem}>
+                    <div>
+                      <p className={styles.addonName}>{item.name}</p>
+                      <p className={styles.addonNote}>{item.note}</p>
+                    </div>
+                    <p className={styles.addonPrice}>{item.price}</p>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.addonCloud}>
+                {addOns.map((item) => (
+                  <span key={item} className={styles.addonTag}>{item}</span>
+                ))}
+              </div>
             </div>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-[#4c5f86]">
-              Shortlist of the bundles most often paired with the tiers above.
-            </p>
           </div>
         </div>
       </section>
 
-      <section className={`mt-16 ${styles.pricingClosing} px-6 py-10 text-white lg:px-10`}>
-        <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Commercial walkthrough</p>
-            <h3 className="mt-3 max-w-3xl text-[clamp(1.9rem,3.6vw,3rem)] font-semibold leading-[1.03] tracking-[-0.045em] text-balance">
-              We can map your sites, controls, and add-ons into a phased plan.
-            </h3>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/74">
-              Bring the footprint and workflows. We will turn that into a recommended pack and rollout sequence.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild className="rounded-full bg-white px-5 text-[#0d1638] hover:bg-white/92 hover:text-[#0d1638]">
-              <Link href="/home/book-demo#demo-form">
-                Book a pricing walkthrough
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="rounded-full border-white/18 bg-white/6 text-white hover:bg-white/12 hover:text-white"
-            >
-              <Link href="/home/book-demo">Open demo page</Link>
-            </Button>
+      {/* Closing CTA */}
+      <section style={{ marginTop: "4rem" }}>
+        <div className={styles.ctaBlock}>
+          <div className={styles.ctaBlockInner}>
+            <div>
+              <h2 className={styles.ctaBlockTitle}>
+                We can map your sites, controls, and add-ons into a phased plan.
+              </h2>
+              <p className={styles.ctaBlockSubtext}>
+                Bring the footprint and workflows. We will turn that into a recommended pack and rollout sequence.
+              </p>
+              <div className={styles.ctaBlockActions}>
+                <Link href="/home/book-demo#demo-form" className={styles.ctaPrimary}>
+                  Book a pricing walkthrough
+                  <ArrowRight className="size-4" />
+                </Link>
+                <Link href="/home/book-demo" className={styles.ctaSecondary}>
+                  Open demo page
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>

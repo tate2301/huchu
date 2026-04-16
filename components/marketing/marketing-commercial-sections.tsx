@@ -3,9 +3,13 @@ import Link from "next/link";
 import { ArrowRight } from "@/lib/icons";
 import type { MarketingSiteConfig } from "@/lib/marketing-site";
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
-import { addOns, demoHighlights, featuredAddOns, pricingTiers, rolloutPaths } from "@/components/marketing/marketing-data";
+import {
+  addOns,
+  featuredAddOns,
+  pricingTiers,
+  rolloutPaths,
+} from "@/components/marketing/marketing-data";
 import { DemoBookingForm } from "@/components/marketing/demo-booking-form";
-import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
 
 type MarketingCommercialSectionsProps = {
@@ -15,175 +19,199 @@ type MarketingCommercialSectionsProps = {
 export function MarketingCommercialSections({ config }: MarketingCommercialSectionsProps) {
   return (
     <>
-      <section id="pricing" className="mx-auto max-w-7xl px-6 pb-18 lg:px-8 lg:pb-24">
-        <div className="grid gap-10 lg:grid-cols-[0.84fr_1.16fr] lg:items-start">
-          <div className="space-y-5">
-            <p className={styles.stripeEyebrow}>Pricing</p>
-            <h2 className="max-w-3xl text-[clamp(2.2rem,4vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-              Pricing that tracks rollout scope.
-            </h2>
-            <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              USD pricing. Base plans, included sites, and add-ons all map to the live catalog.
-            </p>
-            <div className={styles.pricingNote}>
-              <p>Pick the tier for your current footprint.</p>
-              <p>Add packs as you go. The catalog stays aligned with rollout and implementation scope.</p>
+      {/* Pricing overview */}
+      <section className={styles.sectionAlt}>
+        <div className={styles.sectionContainer}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className={styles.eyebrow}>
+                <span className={styles.eyebrowDot} />
+                Pricing
+              </p>
+              <h2 className={`${styles.sectionTitle} mt-3`}>
+                Pricing that tracks{" "}
+                <span className={styles.gradientText}>rollout scope.</span>
+              </h2>
             </div>
-            <div className="pt-1">
-              <Button asChild className="rounded-full">
-                <Link href="/home/book-demo">
-                  Talk through pricing
+            <div>
+              <p className={styles.sectionSubtext}>
+                USD pricing. Base plans, included sites, and add-ons all map to the live catalog.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link href="/home/pricing" className={styles.ctaPrimary} style={{ background: "#0b1945", color: "#fff" }}>
+                  See full pricing
                   <ArrowRight className="size-4" />
                 </Link>
-              </Button>
-            </div>
-          </div>
-
-          <div className={styles.pricingMatrix}>
-            <div className={styles.pricingRowHeader}>
-              <span>Tier</span>
-              <span>Base / month</span>
-              <span>Sites</span>
-              <span>Best for</span>
-              <span>Commercial story</span>
-            </div>
-            {pricingTiers.map((tier) => (
-              <div key={tier.tier} className={styles.pricingRow}>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">{tier.stage}</p>
-                  <strong className="block text-[1.6rem] font-semibold tracking-[-0.05em] text-[#0b1945]">{tier.tier}</strong>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Base / month</p>
-                  <span className="block font-mono text-[1.5rem] font-semibold tracking-[-0.05em] text-[#0b1945]">{tier.price}</span>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Sites</p>
-                  <div className="space-y-1 text-sm leading-7 text-[#33456f]">
-                    <p>{tier.sites}</p>
-                    <p className="font-mono text-[#55688f]">{tier.extraSite}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Best for</p>
-                  <p className="text-sm leading-7 text-[#33456f]/88">{tier.bestFor}</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7383a9]">Commercial story</p>
-                  <p className="max-w-xl text-sm leading-7 text-[#33456f]/88">{tier.summary}</p>
-                  <p className="max-w-xl text-sm leading-7 text-[#5b6d95]">{tier.detail}</p>
-                </div>
+                <Link href="/home/book-demo" className={styles.ctaSecondary} style={{ borderColor: "rgba(14,28,66,0.18)", color: "#1d4ed8" }}>
+                  Talk through pricing
+                </Link>
               </div>
-            ))}
-            <p className="border-t border-[#d6def5] px-6 pt-4 text-sm leading-6 text-[#61729b]">
-              Additional-site pricing makes rollout scope legible before procurement starts, which is especially useful for branch-heavy or phased deployments.
-            </p>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-12 grid gap-8 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>How rollout starts</p>
-            <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Most teams start with the pack that solves the immediate problem, then layer in finance, compliance, portals, and maintenance.
-            </p>
-          </div>
-          <div className={styles.rolloutGrid}>
-            {rolloutPaths.map((path) => (
-              <article key={path.title} className={styles.rolloutCard}>
-                <p className="text-base font-semibold tracking-[-0.03em] text-[#0f1f55]">{path.title}</p>
-                <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7383a9]">Start with</p>
-                <p className="mt-2 text-sm leading-7 text-[#31436f]/86">{path.start}</p>
-                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7383a9]">Expand into</p>
-                <p className="mt-2 text-sm leading-7 text-[#31436f]/86">{path.expand}</p>
+          {/* Pricing cards */}
+          <div className={styles.pricingGrid}>
+            {pricingTiers.map((tier, index) => (
+              <article
+                key={tier.tier}
+                className={`${styles.pricingCard} ${index === 1 ? styles.pricingCardFeatured : ""}`}
+              >
+                <div className={styles.pricingTier}>{tier.stage}</div>
+                {index === 1 && (
+                  <span className={styles.badgePill} style={{ marginTop: "0.5rem", display: "inline-flex" }}>
+                    Most adopted
+                  </span>
+                )}
+
+                <div className={styles.pricingPrice}>
+                  <span
+                    className={`${styles.pricingAmount} ${index === 1 ? styles.pricingAmountFeatured : ""}`}
+                    style={{ fontFamily: "var(--font-mono, monospace)" }}
+                  >
+                    {tier.price}
+                  </span>
+                  <span className={styles.pricingPer}>/ mo</span>
+                </div>
+
+                <div className={styles.pricingDivider} />
+
+                <div>
+                  <p className={styles.pricingSites}>{tier.sites}</p>
+                  <p className={styles.pricingExtra}>{tier.extraSite}</p>
+                </div>
+
+                <p className={styles.pricingBestFor}>{tier.bestFor} — {tier.summary}</p>
+
+                <div className={styles.pricingCta}>
+                  <Link href="/home/book-demo#demo-form" className={styles.pricingCtaLink}>
+                    Use this tier
+                  </Link>
+                  <span className={styles.pricingCtaNote}>USD</span>
+                </div>
               </article>
             ))}
           </div>
-        </div>
 
-        <div className="mt-12 grid gap-6 border-t border-[#d6def5] pt-8 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Frequently paired add-ons</p>
-            <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-              Add advanced accounting, CCTV, compliance, maintenance, branding, portals, and vertical depth as needed.
-            </p>
-          </div>
-          <div className="space-y-4">
-            {featuredAddOns.map((item) => (
-              <div key={item.name} className={styles.addonCard}>
-                <div>
-                  <p className="text-base font-semibold tracking-[-0.03em] text-[#0f1f55]">{item.name}</p>
-                  <p className="mt-1 text-sm leading-7 text-[#31436f]/84">{item.note}</p>
-                </div>
-                <p className="font-mono text-sm text-[#0f1f55]">{item.price}</p>
+          {/* Rollout paths */}
+          <div style={{ marginTop: "3rem", paddingTop: "2.5rem", borderTop: "1px solid rgba(14,28,66,0.08)" }}>
+            <div style={{ display: "grid", gap: "2rem", alignItems: "end", marginBottom: "1.5rem" }}
+              className="lg:grid-cols-[0.7fr_1.3fr]">
+              <div>
+                <p className={styles.eyebrow}>
+                  <span className={styles.eyebrowDot} />
+                  How rollout starts
+                </p>
+                <p className={`${styles.sectionSubtext} mt-2`}>
+                  Most teams start with the pack that solves the immediate problem, then layer in finance and compliance.
+                </p>
               </div>
-            ))}
-            <div className={styles.addonCloud}>
-              {addOns.map((item) => (
-                <span key={item}>
-                  {item}
-                </span>
+            </div>
+            <div className={styles.rolloutGrid}>
+              {rolloutPaths.map((path) => (
+                <div key={path.title} className={styles.rolloutCard}>
+                  <p className={styles.rolloutCardLabel}>Rollout path</p>
+                  <p className={styles.rolloutCardTitle}>{path.title}</p>
+                  <p className={styles.rolloutCardValue}>{path.start}</p>
+                  <p className={styles.rolloutCardExpand}>Expand into → {path.expand}</p>
+                </div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
 
-      <section id="demo" className="mx-auto max-w-7xl px-6 pb-20 lg:px-8 lg:pb-24">
-        <div className={styles.ctaWrap}>
-          <div className="grid gap-8 px-6 py-8 lg:grid-cols-[0.82fr_1.18fr] lg:px-10 lg:py-10">
-            <div className="space-y-5 text-white">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Demo</p>
-              <h2 className="max-w-3xl text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
-                Show the rollout shape. We&apos;ll map the path.
-              </h2>
-              <p className="max-w-2xl text-sm leading-7 text-white/74">
-                Bring the handoffs, approvals, and sites that matter most. We will shape the session around the workflow and commercial path that fits.
-              </p>
-              <ul className={`${styles.simpleListInverse} mt-6`}>
-                {demoHighlights.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-[24px] border border-white/10 bg-white/6 p-4 shadow-[0_24px_72px_rgba(8,15,42,0.24)] backdrop-blur-sm">
-              <DemoBookingForm schedulerHref={config.schedulerHref} schedulerExternal={config.schedulerExternal} />
+          {/* Add-ons */}
+          <div style={{ marginTop: "3rem", paddingTop: "2.5rem", borderTop: "1px solid rgba(14,28,66,0.08)" }}>
+            <div style={{ display: "grid", gap: "2rem", alignItems: "start" }}
+              className="lg:grid-cols-[0.7fr_1.3fr]">
+              <div>
+                <p className={styles.eyebrow}>
+                  <span className={styles.eyebrowDot} />
+                  Frequently paired add-ons
+                </p>
+                <p className={`${styles.sectionSubtext} mt-2`}>
+                  Add advanced accounting, CCTV, compliance, maintenance, branding, portals, and vertical depth as needed.
+                </p>
+              </div>
+              <div>
+                <div className={styles.addonList}>
+                  {featuredAddOns.map((item) => (
+                    <div key={item.name} className={styles.addonItem}>
+                      <div>
+                        <p className={styles.addonName}>{item.name}</p>
+                        <p className={styles.addonNote}>{item.note}</p>
+                      </div>
+                      <p className={styles.addonPrice}>{item.price}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.addonCloud}>
+                  {addOns.map((item) => (
+                    <span key={item} className={styles.addonTag}>{item}</span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* CTA / Demo section */}
+      <section>
+        <div className={styles.sectionContainer}>
+          <div className={styles.ctaBlock}>
+            <div className={styles.ctaBlockInner}>
+              <div>
+                <p className={`${styles.eyebrow} ${styles.badgePillDark}`} style={{ marginBottom: "1rem" }}>
+                  Demo
+                </p>
+                <h2 className={styles.ctaBlockTitle}>
+                  Show the rollout shape. We&apos;ll map the path.
+                </h2>
+                <p className={styles.ctaBlockSubtext}>
+                  Bring the handoffs, approvals, and sites that matter most. We will shape the session around the workflow and commercial path that fits.
+                </p>
+                <div className={styles.ctaBlockActions}>
+                  <Link href="/home/book-demo" className={styles.ctaPrimary}>
+                    Book a live demo
+                    <ArrowRight className="size-4" />
+                  </Link>
+                  <Link href="/home/pricing" className={styles.ctaSecondary}>
+                    Review pricing
+                  </Link>
+                </div>
+              </div>
+              <div className={styles.demoFormWrap}>
+                <div className={styles.demoFormHeader}>
+                  <span className={styles.demoFormLabel}>Request details</span>
+                  <span className={styles.demoFormBadge}>Reply in one day</span>
+                </div>
+                <div className={styles.demoFormBody}>
+                  <DemoBookingForm schedulerHref={config.schedulerHref} schedulerExternal={config.schedulerExternal} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
       <footer className={styles.footer}>
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 text-white/70 lg:grid-cols-[1.12fr_0.88fr] lg:px-8">
-          <div className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">{PLATFORM_BRAND_NAME}</p>
-            <p className="max-w-2xl text-sm leading-7">
+        <div className={styles.footerInner}>
+          <div className={styles.footerBrand}>
+            <p className={styles.footerBrandName}>{PLATFORM_BRAND_NAME}</p>
+            <p className={styles.footerBrandDesc}>
               One platform for operations, finance, control, and reporting across mines, schools, shops, dealerships, and multi-site businesses.
             </p>
           </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm lg:justify-end">
-            <Link href="/home" className="hover:text-white">
-              Home
-            </Link>
-            <Link href="/home/product" className="hover:text-white">
-              Product
-            </Link>
-            <Link href="/home/solutions" className="hover:text-white">
-              Solutions
-            </Link>
-            <Link href="/home/pricing" className="hover:text-white">
-              Pricing
-            </Link>
-            <Link href="/home/book-demo" className="hover:text-white">
-              Demo
-            </Link>
-            <Link href="/login" className="hover:text-white">
-              Sign in
-            </Link>
-          </div>
+          <nav className={styles.footerLinks} aria-label="Footer navigation">
+            <Link href="/home" className={styles.footerLink}>Home</Link>
+            <Link href="/home/product" className={styles.footerLink}>Product</Link>
+            <Link href="/home/solutions" className={styles.footerLink}>Solutions</Link>
+            <Link href="/home/pricing" className={styles.footerLink}>Pricing</Link>
+            <Link href="/home/book-demo" className={styles.footerLink}>Demo</Link>
+            <Link href="/login" className={styles.footerLink}>Sign in</Link>
+          </nav>
         </div>
       </footer>
     </>
   );
 }
-

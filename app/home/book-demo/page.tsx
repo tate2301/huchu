@@ -5,13 +5,11 @@ import { ArrowRight, Gem, ReceiptLong, Users, Wrench } from "@/lib/icons";
 import { getMarketingSiteConfig } from "@/lib/marketing-site";
 import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
-  demoConfidencePoints,
   demoOutcomeItems,
   demoPreparationItems,
   marketingNavItems,
 } from "@/components/marketing/marketing-data";
 import { DemoBookingForm } from "@/components/marketing/demo-booking-form";
-import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
 
 export const metadata: Metadata = {
@@ -46,156 +44,145 @@ export default function BookDemoPage() {
   const config = getMarketingSiteConfig();
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#0d1738_0_24rem,#f7f9ff_24rem_100%)]">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <Link href="/home" className="flex items-center gap-3 text-sm font-semibold text-white">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-[11px] uppercase tracking-[0.22em]">
-              {PLATFORM_BRAND_INITIAL}
-            </span>
+    <div className={styles.page}>
+      {/* Navigation */}
+      <header className={styles.nav}>
+        <div className={styles.navInner}>
+          <Link href="/home" className={styles.navLogo}>
+            <span className={styles.navLogoMark}>{PLATFORM_BRAND_INITIAL}</span>
             {PLATFORM_BRAND_NAME}
           </Link>
-          <nav className="flex flex-wrap items-center gap-5 text-sm text-white/72">
+          <nav className={styles.navLinks} aria-label="Main navigation">
             {marketingNavItems.map((item) => (
-              <Link key={item.href} href={item.href} className="transition-colors hover:text-white">
+              <Link key={item.href} href={item.href} className={styles.navLink}>
                 {item.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild className="hidden text-white hover:bg-white/10 hover:text-white sm:inline-flex">
-              <Link href="/login">Sign in</Link>
-            </Button>
-            <Button asChild className="h-11 rounded-full bg-white px-5 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
-              <Link href="/home/book-demo#demo-form">
-                Book a demo
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+          <div className={styles.navActions}>
+            <Link href="/login" className={`${styles.navSignIn} hidden sm:inline-flex`}>
+              Sign in
+            </Link>
+            <Link href="/home/book-demo#demo-form" className={styles.navCta}>
+              Book a demo
+              <ArrowRight className="size-3.5" />
+            </Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-24">
-        <section className="grid gap-14 lg:grid-cols-[0.94fr_1.06fr] lg:items-start">
-          <div className="space-y-10 text-white">
-            <div className={styles.demoHeader}>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/58">Tailored walkthrough</p>
-              <h1 className="max-w-3xl text-[clamp(2.8rem,5vw,5rem)] font-semibold leading-[0.95] tracking-[-0.055em] text-balance">
-                Book the walkthrough your team needs.
-              </h1>
-              <p className="max-w-2xl text-lg leading-8 text-white/74">
-                Tell us your sites, roles, and rollout shape. We will tailor the session.
-              </p>
-              <div className={styles.demoMetrics}>
-                <div className={styles.demoMetric}>
-                  <strong>45 min</strong>
-                  <span>Focused walkthrough.</span>
-                </div>
-                <div className={styles.demoMetric}>
-                  <strong>Live</strong>
-                  <span>Only shipped capability.</span>
-                </div>
-                <div className={styles.demoMetric}>
-                  <strong>Next step</strong>
-                  <span>A clear rollout path.</span>
-                </div>
-              </div>
-            </div>
+      {/* Hero */}
+      <div className={styles.subpageHero} style={{ paddingBottom: "4rem" }}>
+        <div className={styles.subpageHeroGlow} aria-hidden="true" />
+        <div className={styles.subpageHeroInner}>
+          <div className={styles.subpageBreadcrumb}>
+            <span>{PLATFORM_BRAND_NAME}</span>
+            <span className={styles.subpageBreadcrumbSep} aria-hidden="true" />
+            <span>Book a demo</span>
+          </div>
+          <h1 className={styles.subpageTitle}>
+            Book the walkthrough your team needs.
+          </h1>
+          <p className={styles.subpageSubtext}>
+            Tell us your sites, roles, and rollout shape. We will tailor the session.
+          </p>
 
-            <div className={styles.demoConfidenceStrip}>
-              {demoConfidencePoints.map((item) => (
-                <div key={item} className={styles.demoConfidenceItem}>
-                  <span />
-                  <p>{item}</p>
-                </div>
-              ))}
+          {/* Quick stats */}
+          <div className={styles.demoMetrics} style={{ marginTop: "2rem", maxWidth: "32rem" }}>
+            <div className={styles.demoMetricItem}>
+              <div className={styles.demoMetricValue}>45 min</div>
+              <div className={styles.demoMetricLabel}>Focused walkthrough</div>
             </div>
+            <div className={styles.demoMetricItem}>
+              <div className={styles.demoMetricValue}>Live</div>
+              <div className={styles.demoMetricLabel}>Only shipped capability</div>
+            </div>
+            <div className={styles.demoMetricItem}>
+              <div className={styles.demoMetricValue}>Next step</div>
+              <div className={styles.demoMetricLabel}>Clear rollout path</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-white/6 p-6 backdrop-blur-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/54">
-                Coverage
-              </p>
-              <div className="mt-4 grid gap-3">
-                {walkthroughTracks.map((track, index) => {
-                  const Icon = track.icon;
-                  return (
-                    <div key={track.title} className={styles.demoAgendaCard}>
-                      <span className={styles.demoAgendaIndex}>0{index + 1}</span>
-                      <div className="flex items-start gap-4">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
-                          <Icon className="size-4.5" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <p className="text-base font-semibold text-white">{track.title}</p>
-                          <p className={styles.demoAgendaCopy}>{track.copy}</p>
+      {/* Main content */}
+      <main className={styles.subpageMain}>
+        <div className={styles.subpageMainInner}>
+          <div style={{ display: "grid", gap: "4rem", alignItems: "start" }}
+            className="lg:grid-cols-[1fr_1.05fr]">
+
+            {/* Left — detail */}
+            <div style={{ display: "grid", gap: "2rem" }}>
+              {/* Walkthrough tracks */}
+              <div className={`${styles.card} ${styles.cardPadded}`}>
+                <p className={styles.cardEyebrow} style={{ marginBottom: "1.25rem" }}>Coverage</p>
+                <div style={{ display: "grid", gap: "0" }}>
+                  {walkthroughTracks.map((track, index) => {
+                    const Icon = track.icon;
+                    return (
+                      <div key={track.title} className={styles.demoTrackCard}>
+                        <div className={styles.demoTrackRow} style={{ color: "inherit" }}>
+                          <span className={styles.demoTrackIndex} style={{ color: "#2563eb" }}>0{index + 1}</span>
+                          <div className={styles.demoTrackIcon} style={{ background: "rgba(37,99,235,0.08)", color: "#2563eb" }}>
+                            <Icon className="size-4" />
+                          </div>
+                          <div>
+                            <p className={styles.demoTrackTitle} style={{ color: "#0b1945" }}>{track.title}</p>
+                            <p className={styles.demoTrackCopy} style={{ color: "rgba(45,69,118,0.7)" }}>{track.copy}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className={styles.demoAgendaGrid}>
-              <div className={styles.demoSupportItem}>
-                <p className={styles.demoSupportTitle}>What to bring</p>
-                <div className={styles.demoChecklistList}>
-                  {demoPreparationItems.map((item) => (
-                    <div key={item} className={styles.demoChecklistItem}>
-                      <span className={styles.demoChecklistDot} aria-hidden="true" />
-                      <p>{item}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className={styles.demoSupportItem}>
-                <p className={styles.demoSupportTitle}>What you leave with</p>
-                <div className={styles.demoChecklistList}>
-                  {demoOutcomeItems.map((item) => (
-                    <div key={item} className={styles.demoChecklistItem}>
-                      <span className={styles.demoChecklistDot} aria-hidden="true" />
-                      <p>{item}</p>
-                    </div>
-                  ))}
+              {/* Prep + outcomes */}
+              <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1fr 1fr" }}>
+                <div className={`${styles.card} ${styles.cardPadded}`}>
+                  <p className={styles.cardTitle} style={{ marginTop: 0, marginBottom: "0.75rem" }}>What to bring</p>
+                  <div style={{ display: "grid", gap: "0" }}>
+                    {demoPreparationItems.map((item) => (
+                      <div key={item} className={styles.demoListItem} style={{ color: "rgba(45,69,118,0.78)" }}>
+                        <span className={styles.demoListDot} style={{ background: "#2563eb" }} />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className={`${styles.card} ${styles.cardPadded}`}>
+                  <p className={styles.cardTitle} style={{ marginTop: 0, marginBottom: "0.75rem" }}>What you leave with</p>
+                  <div style={{ display: "grid", gap: "0" }}>
+                    {demoOutcomeItems.map((item) => (
+                      <div key={item} className={styles.demoListItem} style={{ color: "rgba(45,69,118,0.78)" }}>
+                        <span className={styles.demoListDot} style={{ background: "#16a34a" }} />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right — form */}
+            <div id="demo-form">
+              <div className={styles.ctaBlock}>
+                <div style={{ padding: "1.5rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+                    <p className={styles.demoFormLabel}>Request details</p>
+                    <span className={styles.demoFormBadge}>Reply in one day</span>
+                  </div>
+                  <DemoBookingForm
+                    schedulerHref={config.schedulerHref}
+                    schedulerExternal={config.schedulerExternal}
+                    className="self-start"
+                    title="Tell us what to cover"
+                  />
                 </div>
               </div>
             </div>
           </div>
-
-          <div className={styles.demoFormFrame}>
-            <div className={styles.demoFormHeader}>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/58">Request details</p>
-              <span className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/66">
-                Reply in one day
-              </span>
-            </div>
-            <div className="px-6 pb-6 pt-4 lg:px-8">
-              <div className={styles.demoFormStats}>
-                <div className={styles.demoFormStat}>
-                  <span className={styles.demoFormStatLabel}>Format</span>
-                  <span className={styles.demoFormStatValue}>Live walkthrough.</span>
-                </div>
-                <div className={styles.demoFormStat}>
-                  <span className={styles.demoFormStatLabel}>Focus</span>
-                  <span className={styles.demoFormStatValue}>Handoffs and controls.</span>
-                </div>
-                <div className={styles.demoFormStat}>
-                  <span className={styles.demoFormStatLabel}>Output</span>
-                  <span className={styles.demoFormStatValue}>Phase-one path.</span>
-                </div>
-              </div>
-
-              <DemoBookingForm
-                schedulerHref={config.schedulerHref}
-                schedulerExternal={config.schedulerExternal}
-                className="self-start"
-                title="Tell us what to cover"
-              />
-            </div>
-          </div>
-        </section>
+        </div>
       </main>
     </div>
   );

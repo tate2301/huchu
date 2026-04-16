@@ -4,203 +4,302 @@ import { ArrowRight } from "@/lib/icons";
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
   audienceSignals,
-  marketingSiteHighlights,
   proofStats,
-  productControlMap,
-  productFeatureCards,
-  showcaseCards,
   trustClaims,
   valuePillars,
-  productSteps,
+  verticalCards,
 } from "@/components/marketing/marketing-data";
 import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
 
+const sectors = ["Gold Operations", "Schools", "Retail & POS", "Auto Sales", "Scrap & Recycling", "Multi-site Admin"];
+
+const platformFeatures = [
+  {
+    eyebrow: "Foundation rails",
+    title: "One core. Every sector builds on it.",
+    body: "Identity, tenancy, branding, documents, and notifications are shared across every pack. A new sector doesn't mean a new stack.",
+    points: [
+      "Tenant-aware host routing and workspace scoping",
+      "Role-based permissions across every module",
+      "Versioned PDF rendering and document artifacts",
+      "Notification and template infrastructure shared",
+    ],
+    visual: [
+      { label: "Identity & auth", value: "Shared", badge: "Core", badgeStyle: "green" as const },
+      { label: "Tenant routing", value: "Active", badge: "Live", badgeStyle: "green" as const },
+      { label: "Branding engine", value: "Per-company", badge: "Configurable", badgeStyle: "blue" as const },
+      { label: "Document render", value: "Versioned", badge: "Live", badgeStyle: "green" as const },
+    ],
+  },
+  {
+    eyebrow: "Vertical packs",
+    title: "Deep enough for every sector.",
+    body: "Gold, schools, retail, auto sales, and scrap each get a focused pack. The operating vocabulary changes. The core stays fixed.",
+    points: [
+      "Gold: chain of custody, purchases, dispatches, payouts",
+      "Schools: admissions, fees, attendance, boarding, portals",
+      "Retail: catalog, POS, stock, cashier control, shift close",
+      "Scrap & Auto: buy discipline, inventory, deal progression",
+    ],
+    visual: [
+      { label: "Gold pack", value: "Live", badge: "Production", badgeStyle: "green" as const },
+      { label: "Schools pack", value: "Live", badge: "Production", badgeStyle: "green" as const },
+      { label: "Retail pack", value: "Live", badge: "Production", badgeStyle: "green" as const },
+      { label: "Scrap & Auto", value: "Live", badge: "Production", badgeStyle: "green" as const },
+    ],
+  },
+];
+
 export function MarketingCoreSections() {
   return (
     <>
-      <section id="product" className="mx-auto max-w-7xl px-6 pb-20 pt-10 lg:px-8 lg:pb-28">
-        <div className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
-          <div className="space-y-6">
-            <p className={styles.stripeEyebrow}>Product</p>
-            <h2 className="max-w-3xl text-[clamp(2.2rem,4.6vw,4.6rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-[#0b1945] text-balance">
-              One control plane. A few strong rails.
-            </h2>
-            <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              Start with one pack, keep the same core, and expand without rebuilding the stack.
-            </p>
-
-            <div className="flex flex-wrap gap-2.5">
-              {marketingSiteHighlights.map((item) => (
-                <span key={item} className={styles.productPill}>
-                  {item}
-                </span>
-              ))}
-            </div>
-
-            <div className={styles.productStepsCard}>
-              {productSteps.map((item, index) => (
-                <div key={item} className="flex gap-4 border-t border-[#d6def5] pt-4 first:border-t-0 first:pt-0">
-                  <span className="font-mono text-xs font-semibold tracking-[0.18em] text-[#7080a7]">0{index + 1}</span>
-                  <p className="text-[1.02rem] leading-8 text-[#1f2d52]">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.productMatrix}>
-            <div className={styles.productMatrixHead}>
-              <p className={styles.productMatrixEyebrow}>How it holds together</p>
-              <p className={styles.productMatrixTitle}>Same structure. Different workflows.</p>
-            </div>
-            <div className="grid gap-4 p-5">
-              {productFeatureCards.map((card) => (
-                <div key={card.eyebrow} className={styles.productFeatureCard}>
-                  <p className={styles.productFeatureEyebrow}>{card.eyebrow}</p>
-                  <p className="mt-2 text-[1.15rem] font-semibold leading-[1.25] tracking-[-0.03em] text-[#0f1f55]">{card.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{card.copy}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-10">
-          <div className="mb-4 max-w-2xl space-y-3">
-            <p className={styles.stripeEyebrow}>Control map</p>
-            <h3 className="text-[clamp(1.8rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Same rails. Different work on top.
-            </h3>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {productControlMap.map((item) => (
-              <article key={item.title} className={styles.productControlCard}>
-                <p className={styles.productFeatureEyebrow}>{item.title}</p>
-                <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{item.copy}</p>
-              </article>
+      {/* Sector strip */}
+      <div className={styles.sectorStrip}>
+        <div className={styles.sectorStripInner}>
+          <span className={styles.sectorStripLabel}>Built for</span>
+          <div className={styles.sectorList}>
+            {sectors.map((s) => (
+              <span key={s} className={styles.sectorItem}>{s}</span>
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="mt-14">
-          <div className={styles.statBand}>
-            {proofStats.map((entry) => (
-              <div key={entry.label} className={styles.statCell}>
-                <strong>{entry.value}</strong>
-                <span>{entry.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="solutions" className="mx-auto max-w-7xl px-6 pb-20 lg:px-8 lg:pb-28">
-        <div className="grid gap-10 lg:grid-cols-[0.76fr_1.24fr] lg:items-end">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Sector snapshots</p>
-            <h2 className="text-[clamp(2.1rem,4.4vw,4.1rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-              One platform. Clearer sector stories.
-            </h2>
-            <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              Buyers want the operating problem first, then the software.
+      {/* Verticals grid */}
+      <section className={styles.sectionAlt}>
+        <div className={styles.sectionContainer}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className={styles.eyebrow}>
+                <span className={styles.eyebrowDot} />
+                Operating coverage
+              </p>
+              <h2 className={`${styles.sectionTitle} mt-3`}>
+                Specific coverage.{" "}
+                <span className={styles.gradientText}>One product.</span>
+              </h2>
+            </div>
+            <p className={styles.sectionSubtext}>
+              Each pack stays opinionated about the operating model without turning the platform into a bundle of separate apps.
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {showcaseCards.map((card, index) => (
-              <article key={card.eyebrow} className={`${styles.productShowcaseCard} ${index === 2 ? styles.productShowcaseCardWide : ""}`}>
-                <p className={styles.productFeatureEyebrow}>{card.eyebrow}</p>
-                <p className="mt-2 text-[1.15rem] font-semibold leading-[1.22] tracking-[-0.035em] text-[#0f1f55]">{card.title}</p>
-                <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{card.copy}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {card.chips.map((chip) => (
-                    <span key={chip} className={styles.productChip}>
-                      {chip}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8 lg:pb-28">
-        <div className="grid gap-10 lg:grid-cols-[0.84fr_1.16fr] lg:items-start">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Control pillars</p>
-            <h3 className="max-w-xl text-[clamp(1.95rem,3.8vw,3.35rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Four reasons the product stays coherent as the org grows.
-            </h3>
-          </div>
-          <div className="grid gap-5 md:grid-cols-2">
-            {valuePillars.map((pillar) => {
-              const Icon = pillar.icon;
+          <div className={styles.verticalGrid}>
+            {verticalCards.map((card) => {
+              const Icon = card.icon;
               return (
-                <div key={pillar.title} className={styles.productValueCard}>
-                  <div className="flex size-11 items-center justify-center rounded-full bg-[#0f1f55] text-white">
+                <article key={card.title} className={styles.verticalCard}>
+                  <div className={styles.verticalCardIcon}>
                     <Icon className="size-5" />
                   </div>
-                  <p className="mt-4 text-xl font-semibold tracking-[-0.03em] text-[#0f1f55]">{pillar.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-[#2d3d66]/80">{pillar.description}</p>
-                </div>
+                  <p className={styles.verticalCardTitle}>{card.title}</p>
+                  <p className={styles.verticalCardDesc}>{card.description}</p>
+                </article>
               );
             })}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 pb-18 lg:px-8 lg:pb-24">
-        <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Live proof</p>
-            <h3 className="max-w-2xl text-[clamp(1.95rem,3.5vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Claims anchored in live capability.
-            </h3>
-            <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-              The story stays honest. These are shipped surfaces, not roadmap promises.
+      {/* Platform feature rows */}
+      <section>
+        <div className={styles.sectionContainer}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className={styles.eyebrow}>
+                <span className={styles.eyebrowDot} />
+                Platform
+              </p>
+              <h2 className={`${styles.sectionTitle} mt-3`}>
+                <span className={styles.gradientText}>One control plane.</span>{" "}
+                A few strong rails.
+              </h2>
+            </div>
+            <p className={styles.sectionSubtext}>
+              Start with one pack, keep the same core, and expand without rebuilding the stack.
             </p>
           </div>
-          <div className={styles.productProofCard}>
-            <div className="grid gap-3">
-              {trustClaims.map((claim) => (
-                <p key={claim} className="border-t border-[#d6def5] pt-3 text-sm leading-7 text-[#2d3d66]/82 first:border-t-0 first:pt-0">
-                  {claim}
-                </p>
-              ))}
+
+          <div style={{ display: "grid", gap: "5rem" }}>
+            {platformFeatures.map((feature, index) => (
+              <div
+                key={feature.eyebrow}
+                className={`${styles.featureRow} ${index % 2 === 1 ? styles.featureRowReverse : ""}`}
+              >
+                {/* Content */}
+                <div className={styles.featureContent}>
+                  <p className={styles.eyebrow}>
+                    <span className={styles.eyebrowDot} />
+                    {feature.eyebrow}
+                  </p>
+                  <h3 className={styles.featureTitle}>{feature.title}</h3>
+                  <p className={styles.featureBody}>{feature.body}</p>
+                  <div className={styles.featurePoints}>
+                    {feature.points.map((point) => (
+                      <div key={point} className={styles.featurePoint}>
+                        <div className={styles.featurePointDot}>
+                          <span className={styles.featurePointDotInner} />
+                        </div>
+                        {point}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Visual */}
+                <div className={styles.featureVisual}>
+                  <div className={styles.featureVisualBar}>
+                    <span className={styles.featureVisualDot} />
+                    <span className={styles.featureVisualDot} />
+                    <span className={styles.featureVisualDot} />
+                    <span className={styles.featureVisualTitle}>{feature.eyebrow}</span>
+                  </div>
+                  <div className={styles.featureVisualBody}>
+                    {feature.visual.map((row) => (
+                      <div key={row.label} className={styles.featureDataRow}>
+                        <span className={styles.featureDataLabel}>{row.label}</span>
+                        <span className={styles.featureDataValue}>{row.value}</span>
+                        <span
+                          className={`${styles.featureDataBadge} ${
+                            row.badgeStyle === "green" ? styles.featureDataBadgeGreen : ""
+                          }`}
+                        >
+                          {row.badge}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats band */}
+      <section className={styles.sectionAlt}>
+        <div className={styles.sectionContainerTight}>
+          <div className={styles.statsBand}>
+            {proofStats.map((stat) => (
+              <div key={stat.label} className={styles.statCell}>
+                <div className={styles.statValue}>{stat.value}</div>
+                <div className={styles.statLabel}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Value pillars */}
+      <section>
+        <div className={styles.sectionContainer}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className={styles.eyebrow}>
+                <span className={styles.eyebrowDot} />
+                Control pillars
+              </p>
+              <h2 className={`${styles.sectionTitle} mt-3`}>
+                Four reasons it stays{" "}
+                <span className={styles.gradientText}>coherent</span>{" "}
+                as the org grows.
+              </h2>
             </div>
-            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#d6def5] pt-5">
-              <Button asChild className="rounded-full">
-                <Link href="/home/book-demo">
-                  See it live
-                  <ArrowRight className="size-4" />
+            <p className={styles.sectionSubtext}>
+              Operational control, finance integrity, commercial flexibility, and role-specific experiences — built into every pack.
+            </p>
+          </div>
+
+          <div className={styles.cardGrid}>
+            {valuePillars.map((pillar) => {
+              const Icon = pillar.icon;
+              return (
+                <article key={pillar.title} className={`${styles.card} ${styles.cardPadded}`}>
+                  <div className={styles.verticalCardIcon}>
+                    <Icon className="size-5" />
+                  </div>
+                  <p className={styles.cardTitle}>{pillar.title}</p>
+                  <p className={styles.cardBody}>{pillar.description}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Live proof */}
+      <section className={styles.sectionAlt}>
+        <div className={styles.sectionContainer}>
+          <div style={{ display: "grid", gap: "3rem", alignItems: "start" }}
+            className="lg:grid-cols-[1fr_1.1fr]">
+            <div>
+              <p className={styles.eyebrow}>
+                <span className={styles.eyebrowDot} />
+                Live proof
+              </p>
+              <h2 className={`${styles.sectionTitle} mt-3`}>
+                Claims anchored in{" "}
+                <span className={styles.gradientText}>shipped capability.</span>
+              </h2>
+              <p className={`${styles.sectionSubtext} mt-4`}>
+                The story stays honest. These are shipped surfaces, not roadmap promises.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button asChild className="rounded-full">
+                  <Link href="/home/book-demo">
+                    See it live
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+                <Link
+                  href="/home/pricing"
+                  className="inline-flex items-center text-sm font-medium text-[#1d4ed8] underline-offset-4 hover:underline"
+                >
+                  Review pricing
                 </Link>
-              </Button>
-              <Link href="/home/pricing" className="text-sm font-medium text-[#2d3d66] underline-offset-4 hover:underline">
-                Review pricing
-              </Link>
+              </div>
+            </div>
+
+            <div className={styles.proofCard}>
+              <div className={styles.proofList}>
+                {trustClaims.map((claim) => (
+                  <div key={claim} className={styles.proofItem}>
+                    <div className={styles.proofItemCheck}>
+                      <span className={styles.proofItemCheckInner} />
+                    </div>
+                    {claim}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8 lg:pb-28">
-        <div className="grid gap-8 lg:grid-cols-[0.76fr_1.24fr] lg:items-end">
-          <div className="space-y-4">
-            <p className={styles.stripeEyebrow}>Best fit</p>
-            <h3 className="text-[clamp(1.9rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Built for operators with more than one site, team, or workflow.
-            </h3>
-          </div>
-          <div className="space-y-5">
-            <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">
-              {PLATFORM_BRAND_NAME} works when spreadsheets, siloed tools, and handoffs start to slow the business down.
-            </p>
-            <div className="flex flex-wrap gap-2.5">
-              {audienceSignals.map((signal) => (
-                <span key={signal} className={styles.productChip}>
-                  {signal}
-                </span>
-              ))}
+      {/* Best fit */}
+      <section>
+        <div className={styles.sectionContainer}>
+          <div style={{ display: "grid", gap: "2.5rem", alignItems: "end" }}
+            className="lg:grid-cols-[0.8fr_1.2fr]">
+            <div>
+              <p className={styles.eyebrow}>
+                <span className={styles.eyebrowDot} />
+                Best fit
+              </p>
+              <h2 className={`${styles.sectionTitle} mt-3`}>
+                Built for operators with more than one site or workflow.
+              </h2>
+            </div>
+            <div>
+              <p className={`${styles.sectionSubtext} mb-4`}>
+                {PLATFORM_BRAND_NAME} works when spreadsheets, siloed tools, and handoffs start to slow the business down.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {audienceSignals.map((signal) => (
+                  <span key={signal} className={styles.chip}>{signal}</span>
+                ))}
+              </div>
             </div>
           </div>
         </div>

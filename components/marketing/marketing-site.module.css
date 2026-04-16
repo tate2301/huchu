@@ -1,260 +1,936 @@
+/* ============================================================
+   Corelith Marketing Site — Design System
+   Inspired by beside.com: editorial, spacious, gradient-forward
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   1. Page shell
+   ---------------------------------------------------------- */
+
 .page {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
-  background:
-    radial-gradient(88rem 42rem at 78% -8%, rgba(103, 122, 255, 0.32), transparent 66%),
-    radial-gradient(70rem 34rem at 6% 8%, rgba(68, 147, 221, 0.2), transparent 54%),
-    linear-gradient(165deg, #0b1532 0%, #0b1431 41%, #ffffff 41%, #f7f9ff 100%);
+  overflow-x: clip;
+  background: #ffffff;
+  color: #0b1945;
 }
 
-.heroGlowLeft,
-.heroGlowRight {
-  position: absolute;
-  z-index: -1;
+/* ----------------------------------------------------------
+   2. Gradient text utility
+   ---------------------------------------------------------- */
+
+.gradientText {
+  background: linear-gradient(135deg, #1d4ed8 0%, #818cf8 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ----------------------------------------------------------
+   3. Eyebrow / badge labels
+   ---------------------------------------------------------- */
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(43, 68, 130, 0.62);
+}
+
+.eyebrowDot {
+  display: inline-block;
+  height: 0.42rem;
+  width: 0.42rem;
   border-radius: 999px;
-  pointer-events: none;
-  filter: blur(70px);
+  background: linear-gradient(135deg, #2563eb, #818cf8);
+  flex: none;
 }
 
-.heroGlowLeft {
-  left: -9rem;
-  top: -6rem;
-  height: 28rem;
-  width: 28rem;
-  background: rgba(138, 115, 255, 0.2);
+.badgePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: rgba(37, 99, 235, 0.06);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #1d4ed8;
 }
 
-.heroGlowRight {
-  right: -8rem;
-  top: -5rem;
-  height: 24rem;
-  width: 24rem;
-  background: rgba(79, 191, 255, 0.2);
+.badgePillDark {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(200, 215, 255, 0.86);
 }
 
-.heroVisual {
+/* ----------------------------------------------------------
+   4. Navigation
+   ---------------------------------------------------------- */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 15, 39, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.navInner {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 0 2rem;
+  height: 4rem;
+}
+
+.navLogo {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-decoration: none;
+  flex: none;
+}
+
+.navLogoMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.55rem;
+  background: linear-gradient(135deg, #2563eb 0%, #818cf8 100%);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  flex: none;
+}
+
+.navLinks {
+  display: none;
+  flex: 1;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .navLinks {
+    display: flex;
+  }
+}
+
+.navLink {
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.45rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.62);
+  text-decoration: none;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.navLink:hover {
+  color: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.navSignIn {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.68);
+  text-decoration: none;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.navSignIn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.navCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #080f27;
+  text-decoration: none;
+  transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.navCta:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* ----------------------------------------------------------
+   5. Hero section
+   ---------------------------------------------------------- */
+
+.heroSection {
   position: relative;
   overflow: hidden;
-  border-radius: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background:
-    radial-gradient(circle at top right, rgba(125, 145, 255, 0.24), transparent 28%),
-    linear-gradient(180deg, rgba(18, 28, 56, 0.98), rgba(12, 19, 42, 0.97));
-  box-shadow: 0 28px 80px rgba(6, 12, 32, 0.34);
+  background: #080f27;
+  padding: 5rem 2rem 6rem;
 }
 
-.heroVisual::before {
+.heroSection::before {
   content: "";
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 84%);
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,0,0,0.7), transparent 70%);
   pointer-events: none;
 }
 
-.heroVisual::after {
-  content: "";
+.heroGlow {
   position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(118deg, transparent 0 58%, rgba(110, 128, 255, 0.16) 58% 60%, transparent 60% 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%);
   pointer-events: none;
-}
-
-.heroFrameBar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 1.15rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.heroFrameBar span {
-  height: 0.62rem;
-  width: 0.62rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
+  filter: blur(80px);
 }
 
-.heroFrameAddress {
-  margin-left: auto;
-  max-width: 16rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 0.38rem 0.75rem;
-  font-size: 0.67rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgba(222, 230, 255, 0.72);
+.heroGlowLeft {
+  left: -10rem;
+  top: -4rem;
+  width: 36rem;
+  height: 28rem;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.22), transparent 70%);
 }
 
-.heroSurface {
-  padding: 1.15rem;
+.heroGlowRight {
+  right: -6rem;
+  top: -2rem;
+  width: 32rem;
+  height: 26rem;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.18), transparent 70%);
 }
 
-.heroStripePane {
+.heroInner {
   position: relative;
   display: grid;
-  gap: 1rem;
-  padding: 0.1rem 0.05rem 0.05rem;
+  gap: 3rem;
+  max-width: 80rem;
+  margin-inline: auto;
 }
 
-.heroEyebrow {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(215, 224, 251, 0.62);
+@media (min-width: 1024px) {
+  .heroSection {
+    padding: 6rem 2rem 7rem;
+  }
+  .heroInner {
+    grid-template-columns: 1.05fr 0.95fr;
+    align-items: center;
+  }
 }
 
-.heroStripeTitle {
-  max-width: 15ch;
-  font-size: clamp(1.7rem, 2.9vw, 2.6rem);
+@media (min-width: 1280px) {
+  .heroInner {
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+  }
+}
+
+.heroContent {
+  max-width: 38rem;
+}
+
+.heroHeadline {
+  margin-top: 1.25rem;
+  font-size: clamp(3rem, 6.5vw, 6rem);
   font-weight: 600;
-  line-height: 0.98;
-  letter-spacing: -0.06em;
-  color: #f7f9ff;
+  line-height: 0.92;
+  letter-spacing: -0.065em;
+  color: #ffffff;
   text-wrap: balance;
 }
 
-.heroMetrics {
+.heroHeadlineAccent {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 60%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroSubtext {
+  margin-top: 1.5rem;
+  max-width: 30rem;
+  font-size: 1.08rem;
+  line-height: 1.75;
+  color: rgba(200, 215, 255, 0.68);
+}
+
+.heroCtas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 2.25rem;
+}
+
+.ctaPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #080f27;
+  text-decoration: none;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+
+.ctaPrimary:hover {
+  background: rgba(255, 255, 255, 0.92);
+  transform: translateY(-1px);
+}
+
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.ctaSecondary:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.heroProof {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.heroProofStat {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 0.1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  gap: 0.15rem;
 }
 
-.heroMetric {
-  padding: 1rem 0.5rem 1rem 0;
-}
-
-.heroMetric + .heroMetric {
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  padding-left: 0.85rem;
-}
-
-.heroMetric strong {
-  display: block;
-  font-size: 1.32rem;
+.heroProofValue {
+  font-size: 1.35rem;
+  font-weight: 600;
   letter-spacing: -0.04em;
   color: #ffffff;
 }
 
-.heroMetric span {
-  display: block;
-  margin-top: 0.2rem;
+.heroProofLabel {
   font-size: 0.7rem;
-  line-height: 1.45;
-  color: rgba(219, 227, 247, 0.72);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(200, 215, 255, 0.5);
 }
 
-.heroFlow {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 0.9rem;
+.heroProofDivider {
+  width: 1px;
+  height: 2rem;
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.heroFlowPanel {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  padding-top: 0.9rem;
+/* ----------------------------------------------------------
+   6. Hero Visual (dashboard mockup)
+   ---------------------------------------------------------- */
+
+.heroVisual {
+  position: relative;
 }
 
-.heroFlowLabel {
-  font-size: 0.66rem;
+.heroCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(16, 24, 56, 0.98), rgba(10, 16, 40, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(129, 140, 248, 0.08),
+    0 32px 80px rgba(4, 8, 24, 0.5),
+    0 8px 24px rgba(37, 99, 235, 0.12);
+}
+
+.heroCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 60%);
+  pointer-events: none;
+}
+
+.heroCardBar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.heroCardDot {
+  width: 0.58rem;
+  height: 0.58rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.heroCardAddress {
+  margin-left: auto;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(200, 215, 255, 0.5);
+}
+
+.heroCardBody {
+  padding: 1rem;
+}
+
+.heroCardSection {
+  margin-bottom: 1rem;
+}
+
+.heroCardSectionLabel {
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(215, 224, 251, 0.58);
+  color: rgba(160, 185, 255, 0.5);
+  margin-bottom: 0.65rem;
 }
 
-.heroFlowList {
+.heroSiteGrid {
   display: grid;
-  gap: 0.8rem;
-  margin-top: 0.85rem;
-}
-
-.heroFlowItem {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.heroFlowItem:last-child {
-  padding-bottom: 0;
-  border-bottom: none;
-}
-
-.heroFlowItem span {
-  font-size: 0.78rem;
-  color: rgba(221, 228, 248, 0.62);
-}
-
-.heroFlowItem strong {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #ffffff;
-  text-align: right;
-}
-
-.heroPackRail {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
-  margin-top: 0.85rem;
 }
 
-.heroPackRail span {
+.heroSiteCard {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.65rem 0.7rem;
+}
+
+.heroSiteCardLabel {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(180, 200, 255, 0.5);
+}
+
+.heroSiteCardName {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(230, 238, 255, 0.9);
+}
+
+.heroSiteCardStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: rgba(74, 222, 128, 0.9);
+}
+
+.heroSiteCardStatusDot {
+  width: 0.38rem;
+  height: 0.38rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.2);
+}
+
+.heroMetricList {
+  display: grid;
+  gap: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 0.75rem;
+}
+
+.heroMetricRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.heroMetricName {
+  font-size: 0.72rem;
+  color: rgba(180, 200, 255, 0.6);
+  flex: none;
+  width: 8rem;
+}
+
+.heroMetricBar {
+  flex: 1;
+  height: 0.38rem;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
-  padding: 0.38rem 0.7rem;
-  font-size: 0.64rem;
+  overflow: hidden;
+}
+
+.heroMetricFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #818cf8);
+}
+
+.heroMetricValue {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(220, 230, 255, 0.86);
+  flex: none;
+  text-align: right;
+  min-width: 3rem;
+}
+
+.heroCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.heroCardTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.28rem 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(233, 238, 252, 0.8);
+  color: rgba(200, 215, 255, 0.7);
 }
 
-.heroMiniRail {
+/* ----------------------------------------------------------
+   7. Sector strip
+   ---------------------------------------------------------- */
+
+.sectorStrip {
+  border-top: 1px solid rgba(8, 15, 39, 0.06);
+  border-bottom: 1px solid rgba(8, 15, 39, 0.06);
+  background: #f8faff;
+  padding: 1rem 0;
+  overflow: hidden;
+}
+
+.sectorStripInner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 0 2rem;
+}
+
+.sectorStripLabel {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(43, 68, 130, 0.42);
+  padding-right: 1.25rem;
+  border-right: 1px solid rgba(14, 28, 66, 0.1);
+  margin-right: 1.25rem;
+  white-space: nowrap;
+}
+
+.sectorList {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-top: 0.75rem;
+  gap: 0.5rem;
 }
 
-.heroMiniRail b {
+.sectorItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.85rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 0.3rem 0.65rem;
-  font-size: 0.63rem;
-  font-weight: 700;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: rgba(228, 235, 255, 0.82);
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(15, 31, 85, 0.72);
+  box-shadow: 0 1px 3px rgba(14, 28, 66, 0.04);
 }
 
-.statBand {
+/* ----------------------------------------------------------
+   8. Section containers
+   ---------------------------------------------------------- */
+
+.sectionContainer {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 5rem 2rem;
+}
+
+@media (min-width: 1024px) {
+  .sectionContainer {
+    padding: 6.5rem 2rem;
+  }
+}
+
+.sectionContainerTight {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 3.5rem 2rem;
+}
+
+.sectionAlt {
+  background: #f8faff;
+}
+
+.sectionDark {
+  background: #080f27;
+}
+
+/* ----------------------------------------------------------
+   9. Section headers
+   ---------------------------------------------------------- */
+
+.sectionHeader {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1.3rem;
+  gap: 2.5rem;
+  margin-bottom: 3.5rem;
+}
+
+@media (min-width: 1024px) {
+  .sectionHeader {
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    margin-bottom: 4rem;
+  }
+}
+
+.sectionTitle {
+  font-size: clamp(2.1rem, 4.2vw, 3.8rem);
+  font-weight: 600;
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+  color: #0b1945;
+  text-wrap: balance;
+}
+
+.sectionTitleLg {
+  font-size: clamp(2.4rem, 4.8vw, 4.4rem);
+}
+
+.sectionSubtext {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: rgba(45, 69, 118, 0.72);
+  max-width: 28rem;
+}
+
+/* ----------------------------------------------------------
+   10. Vertical/sector cards
+   ---------------------------------------------------------- */
+
+.verticalGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .verticalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .verticalGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.verticalCard {
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: #ffffff;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(14, 28, 66, 0.04), 0 12px 32px rgba(14, 28, 66, 0.04);
+  transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+}
+
+.verticalCard:hover {
+  box-shadow: 0 4px 16px rgba(14, 28, 66, 0.08), 0 20px 48px rgba(14, 28, 66, 0.08);
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.14);
+}
+
+.verticalCardIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(129, 140, 248, 0.12));
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  flex: none;
+}
+
+.verticalCardTitle {
+  margin-top: 1.1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #0b1945;
+}
+
+.verticalCardDesc {
+  margin-top: 0.55rem;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: rgba(45, 69, 118, 0.7);
+  flex: 1;
+}
+
+/* ----------------------------------------------------------
+   11. Feature / content rows
+   ---------------------------------------------------------- */
+
+.featureRow {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .featureRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+  }
+  .featureRowReverse > :first-child {
+    order: 2;
+  }
+  .featureRowReverse > :last-child {
+    order: 1;
+  }
+}
+
+.featureContent {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.featureTitle {
+  font-size: clamp(1.8rem, 3.4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.05em;
+  color: #0b1945;
+  text-wrap: balance;
+}
+
+.featureBody {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: rgba(45, 69, 118, 0.72);
+}
+
+.featurePoints {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.featurePoint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: rgba(15, 31, 85, 0.82);
+}
+
+.featurePointDot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  flex: none;
+  margin-top: 0.22rem;
+}
+
+.featurePointDotInner {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+/* ----------------------------------------------------------
+   12. Feature visual cards (light)
+   ---------------------------------------------------------- */
+
+.featureVisual {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 40%),
+    linear-gradient(180deg, #ffffff, #f4f8ff);
+  box-shadow: 0 20px 60px rgba(14, 28, 66, 0.08), 0 4px 12px rgba(14, 28, 66, 0.04);
+}
+
+.featureVisualBar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(14, 28, 66, 0.06);
+  background: rgba(240, 245, 255, 0.6);
+}
+
+.featureVisualDot {
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 999px;
+  background: rgba(100, 120, 170, 0.4);
+}
+
+.featureVisualTitle {
+  margin-left: auto;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(60, 80, 130, 0.6);
+}
+
+.featureVisualBody {
+  padding: 1.25rem;
+}
+
+.featureDataRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(14, 28, 66, 0.06);
+}
+
+.featureDataRow:last-child {
+  border-bottom: none;
+}
+
+.featureDataLabel {
+  font-size: 0.82rem;
+  color: rgba(45, 69, 118, 0.68);
+}
+
+.featureDataValue {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0b1945;
+}
+
+.featureDataBadge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.featureDataBadgeGreen {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+
+/* ----------------------------------------------------------
+   13. Stats band
+   ---------------------------------------------------------- */
+
+.statsBand {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 2.5rem 0;
+  border-top: 1px solid rgba(14, 28, 66, 0.08);
+  border-bottom: 1px solid rgba(14, 28, 66, 0.08);
+}
+
+@media (min-width: 768px) {
+  .statsBand {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .statCell {
-  padding-left: 1rem;
-  border-left: 1px solid rgba(15, 23, 42, 0.12);
+  padding-left: 1.5rem;
+  border-left: 1px solid rgba(14, 28, 66, 0.1);
 }
 
 .statCell:first-child {
@@ -262,1072 +938,1165 @@
   padding-left: 0;
 }
 
-.statCell strong {
-  display: block;
-  font-size: clamp(2rem, 3vw, 2.7rem);
-  letter-spacing: -0.05em;
-  color: #0c1c49;
-}
-
-.statCell span {
-  display: block;
-  margin-top: 0.3rem;
-  font-size: 0.82rem;
-  color: rgba(28, 42, 77, 0.68);
-}
-
-.shellPill {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 0.42rem 0.8rem;
-  font-size: 0.72rem;
+.statValue {
+  font-size: clamp(2.2rem, 3.5vw, 3rem);
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgba(237, 242, 255, 0.76);
+  letter-spacing: -0.05em;
+  color: #0b1945;
 }
 
-.shellRail {
+.statLabel {
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(45, 69, 118, 0.62);
+}
+
+/* ----------------------------------------------------------
+   14. White card variants
+   ---------------------------------------------------------- */
+
+.card {
+  border-radius: 20px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(14, 28, 66, 0.04), 0 12px 32px rgba(14, 28, 66, 0.04);
+}
+
+.cardPadded {
+  padding: 1.5rem;
+}
+
+.cardEyebrow {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(100, 120, 170, 0.7);
+}
+
+.cardTitle {
+  margin-top: 0.65rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: #0b1945;
+}
+
+.cardBody {
+  margin-top: 0.6rem;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: rgba(45, 69, 118, 0.72);
+}
+
+.cardGrid {
   display: grid;
   gap: 1rem;
 }
 
-.shellCard,
-.shellCardAlt {
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 56px rgba(3, 8, 24, 0.16);
+@media (min-width: 640px) {
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.shellCard {
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1rem;
+@media (min-width: 1024px) {
+  .cardGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
-.shellCardAlt {
-  background: rgba(255, 255, 255, 0.04);
-  padding: 1rem;
+.cardGridCols2 {
+  grid-template-columns: 1fr;
 }
 
-.shellEyebrow,
-.shellEyebrowAlt {
-  margin-bottom: 0.8rem;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+@media (min-width: 768px) {
+  .cardGridCols2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.shellEyebrow {
-  color: rgba(221, 228, 248, 0.58);
+.cardGridCols4 {
+  grid-template-columns: 1fr;
 }
 
-.shellEyebrowAlt {
-  margin-bottom: 0.55rem;
-  color: rgba(221, 228, 248, 0.5);
+@media (min-width: 640px) {
+  .cardGridCols4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.shellMicroLink {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 0.42rem 0.75rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: rgba(240, 244, 255, 0.82);
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+@media (min-width: 1024px) {
+  .cardGridCols4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
-.shellMicroLink:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.09);
-  color: #ffffff;
-}
-
-.productPill {
-  border-radius: 999px;
-  border: 1px solid rgba(14, 28, 66, 0.1);
-  background: rgba(255, 255, 255, 0.8);
-  padding: 0.45rem 0.8rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgba(34, 49, 84, 0.78);
-  box-shadow: 0 10px 28px rgba(29, 39, 79, 0.06);
-}
-
-.productStepsCard,
-.productMatrix,
-.productProofCard {
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.96));
-  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
-}
-
-.productStepsCard {
-  margin-top: 1.1rem;
-  padding: 1.1rem 1.15rem 1.15rem;
-}
-
-.productMatrixHead {
-  padding: 1.15rem 1.15rem 0;
-}
-
-.productMatrixEyebrow,
-.productFeatureEyebrow {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(43, 56, 89, 0.58);
-}
-
-.productMatrixTitle {
-  margin-top: 0.5rem;
-  max-width: 22ch;
-  font-size: 1.35rem;
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.045em;
-  color: #102252;
-  text-wrap: balance;
-}
-
-.productFeatureCard,
-.productShowcaseCard,
-.productValueCard {
-  border-radius: 24px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background: rgba(255, 255, 255, 0.9);
-  padding: 1rem 1.05rem;
-  box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
-}
-
-.productControlCard {
-  border-radius: 24px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.1), transparent 28%),
-    rgba(255, 255, 255, 0.94);
-  padding: 1rem 1.05rem;
-  min-height: 100%;
-  box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
-}
-
-.productControlLabel {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(43, 56, 89, 0.58);
-}
-
-.productShowcaseCardWide {
+.cardSpan2 {
   grid-column: 1 / -1;
 }
 
-.productChip {
+@media (min-width: 768px) {
+  .cardSpan2 {
+    grid-column: span 2;
+  }
+}
+
+/* ----------------------------------------------------------
+   15. Chip / tag variants
+   ---------------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   border: 1px solid rgba(14, 28, 66, 0.08);
-  background: rgba(241, 244, 255, 0.9);
-  padding: 0.38rem 0.72rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: rgba(45, 61, 105, 0.86);
-}
-
-.productProofCard {
-  padding: 1.15rem;
-}
-
-.stripeRow {
-  display: grid;
-  grid-template-columns: 0.47fr 0.53fr;
-  gap: 2.3rem;
-  align-items: center;
-}
-
-.stripeEyebrow {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(43, 56, 89, 0.58);
-}
-
-.stripeVisual {
-  position: relative;
-  overflow: hidden;
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.96));
-  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
-}
-
-.stripeVisualHead {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.95rem 1rem;
-  background: rgba(238, 242, 255, 0.68);
-  border-bottom: 1px solid rgba(18, 32, 64, 0.06);
-}
-
-.stripeVisualHead span {
-  height: 0.56rem;
-  width: 0.56rem;
-  border-radius: 999px;
-  background: rgba(108, 127, 167, 0.52);
-}
-
-.stripeVisualBody {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1rem 0.95rem 1.05rem;
-}
-
-.stripeLine {
-  height: 0.65rem;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(143, 163, 206, 0.86), rgba(205, 214, 236, 0.62));
-}
-
-.stripeLineShort {
-  width: 63%;
-}
-
-.stripeLineMedium {
-  width: 80%;
-}
-
-.stripeLineLong {
-  width: 94%;
-}
-
-.simpleList {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.simpleList li {
-  list-style: none;
-  position: relative;
-  padding-left: 1rem;
-  color: rgba(30, 45, 80, 0.74);
-  line-height: 1.75;
-}
-
-.simpleList li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.7em;
-  height: 0.35rem;
-  width: 0.35rem;
-  border-radius: 999px;
-  background: #5d64ff;
-}
-
-.pricingMatrix {
-  border-top: 1px solid rgba(21, 36, 70, 0.12);
-  border-bottom: 1px solid rgba(21, 36, 70, 0.12);
-  background: transparent;
-}
-
-.pricingRow {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr 0.9fr 2fr;
-  gap: 0.95rem;
-  padding: 1rem 0;
-  border-top: 1px solid rgba(21, 36, 70, 0.08);
-}
-
-.pricingRow:first-child {
-  border-top: none;
-  padding-top: 0.85rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(33, 49, 84, 0.58);
-}
-
-.addonCloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.addonCloud span {
-  border-radius: 999px;
-  border: 1px solid rgba(87, 98, 255, 0.14);
-  background: rgba(87, 98, 255, 0.08);
-  padding: 0.4rem 0.75rem;
+  background: rgba(240, 245, 255, 0.8);
+  padding: 0.38rem 0.7rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgba(49, 61, 106, 0.88);
+  color: rgba(45, 69, 118, 0.82);
 }
 
-.pricingNote {
+.chipBlue {
+  border-color: rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.06);
+  color: #1d4ed8;
+}
+
+.chipDark {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(200, 215, 255, 0.8);
+}
+
+/* ----------------------------------------------------------
+   16. Proof / claims section
+   ---------------------------------------------------------- */
+
+.proofCard {
+  border-radius: 20px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: #ffffff;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(14, 28, 66, 0.04), 0 16px 40px rgba(14, 28, 66, 0.06);
+}
+
+.proofList {
   display: grid;
-  gap: 0.7rem;
-  border-top: 1px solid rgba(214, 222, 245, 0.9);
-  padding-top: 1.2rem;
-  color: rgba(75, 93, 134, 0.92);
+  gap: 0;
 }
 
-.pricingMatrix {
-  overflow: hidden;
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.96));
-  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
-}
-
-.pricingRowHeader,
-.pricingRow {
-  display: grid;
-  grid-template-columns: 0.9fr 0.68fr 0.64fr 0.86fr 1.28fr;
-  gap: 0.95rem;
-  padding: 1rem 1.2rem;
-}
-
-.pricingRowHeader {
-  border-bottom: 1px solid rgba(18, 32, 64, 0.06);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(33, 49, 84, 0.58);
-}
-
-.pricingRow {
-  border-bottom: 1px solid rgba(18, 32, 64, 0.07);
-}
-
-.pricingRow:last-of-type {
-  border-bottom: none;
-}
-
-.rolloutGrid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.rolloutCard,
-.addonCard {
-  border-radius: 24px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 42px rgba(29, 39, 79, 0.06);
-}
-
-.rolloutCard {
-  padding: 1rem 1.05rem;
-}
-
-.addonCard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1rem;
-  align-items: start;
-  padding: 1rem 1.05rem;
-}
-
-.simpleListInverse li {
-  color: rgba(255, 255, 255, 0.76);
-}
-
-.simpleListInverse li::before {
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.ctaWrap {
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at top right, rgba(122, 134, 255, 0.28), transparent 36%),
-    linear-gradient(155deg, #152251, #0e1a40);
-  box-shadow: 0 26px 80px rgba(8, 15, 42, 0.34);
-}
-
-.footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: #0e1a40;
-}
-
-.pricingHero {
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-  gap: 3rem;
-  align-items: start;
-}
-
-.pricingNarrative {
-  display: grid;
-  gap: 1.15rem;
-}
-
-.pricingNoteList {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.15rem 0 0;
-  border-top: 1px solid rgba(21, 36, 70, 0.1);
-}
-
-.pricingNoteItem {
+.proofItem {
   display: flex;
-  gap: 0.75rem;
   align-items: flex-start;
-  color: rgba(41, 56, 94, 0.82);
+  gap: 0.85rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(14, 28, 66, 0.06);
+  font-size: 0.88rem;
   line-height: 1.65;
+  color: rgba(30, 50, 90, 0.78);
 }
 
-.pricingNoteItem::before {
-  content: "";
-  margin-top: 0.55rem;
-  height: 0.4rem;
-  width: 0.4rem;
-  flex: none;
+.proofItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.proofItem:first-child {
+  padding-top: 0;
+}
+
+.proofItemCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 999px;
-  background: #5d64ff;
+  background: rgba(22, 163, 74, 0.1);
+  flex: none;
+  margin-top: 0.18rem;
 }
 
-.pricingCardGrid {
+.proofItemCheckInner {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: #16a34a;
+}
+
+/* ----------------------------------------------------------
+   17. Pricing
+   ---------------------------------------------------------- */
+
+.pricingGrid {
   display: grid;
-  gap: 1.2rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .pricingGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .pricingCard {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-height: 100%;
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.12), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.95));
+  border-radius: 20px;
+  border: 1px solid rgba(14, 28, 66, 0.09);
+  background: #ffffff;
   padding: 1.5rem;
-  box-shadow: 0 18px 48px rgba(29, 39, 79, 0.07);
+  box-shadow: 0 2px 8px rgba(14, 28, 66, 0.04), 0 12px 32px rgba(14, 28, 66, 0.05);
 }
 
 .pricingCardFeatured {
-  border-color: rgba(93, 100, 255, 0.22);
-  background:
-    radial-gradient(circle at top right, rgba(93, 100, 255, 0.14), transparent 25%),
-    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(240, 244, 255, 0.98));
-  box-shadow: 0 22px 60px rgba(29, 39, 79, 0.1);
+  border-color: rgba(37, 99, 235, 0.22);
+  background: linear-gradient(180deg, #ffffff, #f5f8ff);
+  box-shadow: 0 4px 16px rgba(14, 28, 66, 0.08), 0 20px 56px rgba(37, 99, 235, 0.1);
 }
 
-.pricingCardTop {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.pricingPill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid rgba(93, 100, 255, 0.16);
-  background: rgba(93, 100, 255, 0.08);
-  padding: 0.35rem 0.7rem;
+.pricingTier {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(36, 48, 87, 0.84);
+  color: rgba(100, 120, 170, 0.7);
 }
 
 .pricingPrice {
   display: flex;
   align-items: baseline;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  margin-top: 0.8rem;
 }
 
-.pricingPrice strong {
-  font-size: clamp(2.3rem, 4vw, 3.35rem);
+.pricingAmount {
+  font-size: clamp(2.2rem, 3.5vw, 2.8rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.06em;
-  color: #0c1c49;
+  color: #0b1945;
 }
 
-.pricingPrice span {
+.pricingAmountFeatured {
+  background: linear-gradient(135deg, #1d4ed8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.pricingPer {
   font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(70, 86, 124, 0.58);
+  color: rgba(70, 90, 140, 0.5);
 }
 
-.pricingTagRail {
+.pricingDivider {
+  height: 1px;
+  background: rgba(14, 28, 66, 0.07);
+  margin: 1.25rem 0;
+}
+
+.pricingSites {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #0b1945;
+}
+
+.pricingExtra {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(70, 90, 140, 0.62);
+}
+
+.pricingBestFor {
+  margin-top: 0.85rem;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: rgba(30, 50, 90, 0.72);
+  flex: 1;
+}
+
+.pricingCta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(14, 28, 66, 0.07);
+}
+
+.pricingCtaLink {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.pricingCtaLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pricingCtaNote {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(100, 120, 170, 0.55);
+}
+
+/* Addon list */
+
+.addonList {
+  display: grid;
+  gap: 0;
+}
+
+.addonItem {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(14, 28, 66, 0.07);
+}
+
+.addonItem:last-child {
+  border-bottom: none;
+}
+
+.addonName {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0b1945;
+}
+
+.addonNote {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  color: rgba(45, 69, 118, 0.68);
+}
+
+.addonPrice {
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #0b1945;
+  flex: none;
+}
+
+.addonCloud {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(14, 28, 66, 0.07);
 }
 
-.pricingTag {
+.addonTag {
   border-radius: 999px;
-  border: 1px solid rgba(21, 36, 70, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 0.42rem 0.74rem;
-  font-size: 0.76rem;
-  color: rgba(49, 61, 106, 0.88);
-}
-
-.pricingAddonGrid {
-  display: grid;
-  gap: 1.2rem;
-  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
-  align-items: start;
-}
-
-.pricingAddonList {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.pricingAddonItem {
-  display: grid;
-  gap: 0.3rem;
-  border-top: 1px solid rgba(21, 36, 70, 0.08);
-  padding-top: 0.85rem;
-}
-
-.pricingAddonPrice {
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  color: #0c1c49;
-}
-
-.pricingClosing {
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at top right, rgba(122, 134, 255, 0.26), transparent 36%),
-    linear-gradient(155deg, #152251, #0e1a40);
-  box-shadow: 0 26px 80px rgba(8, 15, 42, 0.34);
-}
-
-.demoHeader {
-  display: grid;
-  gap: 1.15rem;
-}
-
-.demoMetrics {
-  display: grid;
-  gap: 0.95rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.demoMetric {
-  border-top: 1px solid rgba(21, 36, 70, 0.08);
-  padding-top: 0.8rem;
-}
-
-.demoMetric strong {
-  display: block;
-  font-size: 0.98rem;
-  letter-spacing: -0.03em;
-  color: #102252;
-}
-
-.demoMetric span {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.82rem;
-  line-height: 1.55;
-  color: rgba(50, 67, 111, 0.76);
-}
-
-.demoConfidenceStrip {
-  display: grid;
-  gap: 0.9rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.demoConfidenceItem {
-  display: flex;
-  gap: 0.7rem;
-  align-items: flex-start;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 0.85rem 0.95rem;
-}
-
-.demoConfidenceItem span {
-  margin-top: 0.45rem;
-  height: 0.38rem;
-  width: 0.38rem;
-  flex: none;
-  border-radius: 999px;
-  background: rgba(216, 220, 255, 0.82);
-}
-
-.demoConfidenceItem p {
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: rgba(240, 244, 255, 0.84);
-}
-
-.demoAgendaGrid {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.demoAgendaCard {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.85rem;
-  align-items: start;
-  border-top: 1px solid rgba(21, 36, 70, 0.08);
-  padding-top: 0.9rem;
-}
-
-.demoAgendaIndex {
-  font-family: var(--font-mono, monospace);
+  border: 1px solid rgba(37, 99, 235, 0.13);
+  background: rgba(37, 99, 235, 0.06);
+  padding: 0.35rem 0.7rem;
   font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: rgba(93, 100, 255, 0.78);
+  font-weight: 600;
+  color: rgba(29, 78, 216, 0.86);
 }
 
-.demoAgendaCopy {
-  margin-top: 0.35rem;
-  font-size: 0.9rem;
-  line-height: 1.7;
-  color: rgba(45, 61, 102, 0.84);
-}
+/* ----------------------------------------------------------
+   18. Rollout cards
+   ---------------------------------------------------------- */
 
-.demoSupportRail {
+.rolloutGrid {
   display: grid;
-  gap: 0.85rem;
+  gap: 1rem;
 }
 
-.demoSupportItem {
-  border-radius: 18px;
-  border: 1px solid rgba(21, 36, 70, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 0.95rem 1rem;
+@media (min-width: 768px) {
+  .rolloutGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
-.demoSupportTitle {
-  font-size: 0.92rem;
+.rolloutCard {
+  border-radius: 16px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: #ffffff;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(14, 28, 66, 0.03), 0 8px 24px rgba(14, 28, 66, 0.04);
+}
+
+.rolloutCardLabel {
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  color: #102252;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(100, 120, 170, 0.65);
 }
 
-.demoSupportCopy {
-  margin-top: 0.25rem;
+.rolloutCardTitle {
+  margin-top: 0.4rem;
+  font-size: 0.96rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #0b1945;
+}
+
+.rolloutCardValue {
+  margin-top: 0.5rem;
   font-size: 0.84rem;
-  line-height: 1.6;
-  color: rgba(50, 67, 111, 0.78);
+  line-height: 1.65;
+  color: rgba(45, 69, 118, 0.72);
 }
 
-.demoFormFrame {
+.rolloutCardExpand {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(14, 28, 66, 0.06);
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #1d4ed8;
+}
+
+/* ----------------------------------------------------------
+   19. CTA block (dark)
+   ---------------------------------------------------------- */
+
+.ctaBlock {
   position: relative;
   overflow: hidden;
-  border-radius: 32px;
-  border: 1px solid rgba(21, 36, 70, 0.1);
+  border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.14), transparent 22%),
-    linear-gradient(180deg, rgba(10, 16, 37, 0.98), rgba(9, 14, 32, 0.96));
-  box-shadow: 0 28px 78px rgba(8, 15, 42, 0.3);
+    radial-gradient(ellipse at top right, rgba(99, 102, 241, 0.3), transparent 50%),
+    radial-gradient(ellipse at bottom left, rgba(37, 99, 235, 0.24), transparent 50%),
+    linear-gradient(155deg, #0f1d5e, #080f27);
+  box-shadow: 0 30px 80px rgba(6, 12, 36, 0.4);
+}
+
+.ctaBlock::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse 80% 60% at 100% 0%, rgba(0,0,0,0.6), transparent 60%);
+  pointer-events: none;
+}
+
+.ctaBlockInner {
+  position: relative;
+  display: grid;
+  gap: 2rem;
+  padding: 3rem 2rem;
+}
+
+@media (min-width: 1024px) {
+  .ctaBlockInner {
+    grid-template-columns: 0.85fr 1.15fr;
+    align-items: center;
+    padding: 3.5rem 3rem;
+  }
+}
+
+.ctaBlockTitle {
+  font-size: clamp(1.9rem, 3.5vw, 3rem);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+  color: #ffffff;
+  text-wrap: balance;
+}
+
+.ctaBlockSubtext {
+  margin-top: 0.85rem;
+  font-size: 0.92rem;
+  line-height: 1.75;
+  color: rgba(200, 215, 255, 0.64);
+}
+
+.ctaBlockActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.75rem;
+}
+
+/* ----------------------------------------------------------
+   20. Demo booking form container
+   ---------------------------------------------------------- */
+
+.demoFormWrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .demoFormHeader {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.8rem;
-  padding: 1.1rem 1.1rem 0;
-}
-
-.demoFormStats {
-  display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 1rem 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.demoFormStat {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.demoFormStatLabel {
-  font-size: 0.66rem;
+.demoFormLabel {
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(215, 224, 251, 0.58);
+  color: rgba(200, 215, 255, 0.55);
 }
 
-.demoFormStatValue {
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: rgba(240, 244, 255, 0.84);
-}
-
-.demoFormFooter {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 1rem;
-}
-
-.marketingQuickNav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-top: 1px solid rgba(21, 36, 70, 0.12);
-  border-bottom: 1px solid rgba(21, 36, 70, 0.12);
-  padding: 1rem 0;
-  color: rgba(56, 80, 125, 0.78);
-}
-
-.marketingQuickNavLinks {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1rem;
-  font-size: 0.95rem;
-}
-
-.verticalCard {
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.95));
-  padding: 1.4rem;
-  box-shadow: 0 18px 48px rgba(29, 39, 79, 0.07);
-}
-
-.rolloutPreviewRail {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.rolloutPreviewCard {
-  border-top: 1px solid rgba(21, 36, 70, 0.08);
-  padding-top: 0.85rem;
-}
-
-.shellPill,
-.productPill,
-.productChip,
-.shellMicroLink {
-  display: inline-flex;
-  align-items: center;
+.demoFormBadge {
+  padding: 0.28rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(93, 100, 255, 0.14);
-  background: rgba(93, 100, 255, 0.08);
-  padding: 0.38rem 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(200, 215, 255, 0.65);
+}
+
+.demoFormBody {
+  padding: 1.25rem;
+}
+
+/* ----------------------------------------------------------
+   21. Footer
+   ---------------------------------------------------------- */
+
+.footer {
+  background: #080f27;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.footerInner {
+  display: grid;
+  gap: 2.5rem;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 3rem 2rem;
+}
+
+@media (min-width: 768px) {
+  .footerInner {
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: start;
+  }
+}
+
+.footerBrand {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.footerBrandName {
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+
+.footerBrandDesc {
+  font-size: 0.86rem;
+  line-height: 1.75;
+  color: rgba(200, 215, 255, 0.48);
+  max-width: 26rem;
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  justify-content: flex-start;
+}
+
+@media (min-width: 768px) {
+  .footerLinks {
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+}
+
+.footerLink {
+  font-size: 0.86rem;
+  color: rgba(200, 215, 255, 0.52);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.footerLink:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ----------------------------------------------------------
+   22. Subpage shell
+   ---------------------------------------------------------- */
+
+.subpageHero {
+  position: relative;
+  overflow: hidden;
+  background: #080f27;
+  padding: 4rem 2rem 5rem;
+}
+
+.subpageHero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, rgba(0,0,0,0.5), transparent 70%);
+  pointer-events: none;
+}
+
+.subpageHeroGlow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6rem;
+  height: 20rem;
+  background: radial-gradient(ellipse 60% 100% at 50% 50%, rgba(37, 99, 235, 0.18), transparent 70%);
+  pointer-events: none;
+}
+
+.subpageHeroInner {
+  position: relative;
+  max-width: 80rem;
+  margin-inline: auto;
+}
+
+.subpageBreadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgba(49, 61, 106, 0.88);
-}
-
-.shellPill,
-.shellMicroLink {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(240, 244, 255, 0.84);
-}
-
-.shellRail {
-  display: grid;
-  gap: 1rem;
-}
-
-.shellCard,
-.shellCardAlt {
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1.2rem;
-  backdrop-filter: blur(18px);
-}
-
-.shellCardAlt {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.shellEyebrow,
-.shellEyebrowAlt,
-.productMatrixEyebrow,
-.productFeatureEyebrow,
-.solutionPreludeEyebrow {
-  font-size: 0.66rem;
-  font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  color: rgba(200, 215, 255, 0.45);
+  margin-bottom: 1.5rem;
 }
 
-.shellEyebrow,
-.shellEyebrowAlt {
-  color: rgba(240, 244, 255, 0.58);
+.subpageBreadcrumbSep {
+  width: 1.5rem;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.productStepsCard,
-.productProofCard,
-.solutionPreludeCard,
-.solutionFitCard {
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.95));
-  padding: 1.35rem;
-  box-shadow: 0 18px 48px rgba(29, 39, 79, 0.06);
-}
-
-.productMatrix {
-  overflow: hidden;
-  border-radius: 30px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
-  background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.16), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(243, 247, 255, 0.96));
-  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
-}
-
-.productMatrixHead {
-  border-bottom: 1px solid rgba(21, 36, 70, 0.08);
-  padding: 1.25rem 1.25rem 1rem;
-}
-
-.productMatrixEyebrow,
-.productFeatureEyebrow,
-.solutionPreludeEyebrow {
-  color: rgba(115, 131, 169, 0.88);
-}
-
-.productMatrixTitle {
-  margin-top: 0.55rem;
-  max-width: 20ch;
-  font-size: 1.45rem;
+.subpageTitle {
+  max-width: 22ch;
+  font-size: clamp(2.6rem, 5.5vw, 5rem);
   font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.04em;
-  color: #102252;
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+  color: #ffffff;
+  text-wrap: balance;
 }
 
-.productFeatureCard,
-.productValueCard,
-.productShowcaseCard,
-.solutionPointCard,
-.solutionOutcomeCard,
-.solutionFitStep {
-  border-radius: 22px;
-  border: 1px solid rgba(21, 36, 70, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 1rem;
+.subpageSubtext {
+  margin-top: 1.25rem;
+  max-width: 36rem;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: rgba(200, 215, 255, 0.6);
 }
 
-.productControlGrid {
+.subpagePills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.subpageNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.subpageNavLink {
+  font-size: 0.84rem;
+  color: rgba(200, 215, 255, 0.52);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.subpageNavLink:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.subpageMain {
+  background: #ffffff;
+}
+
+.subpageMainInner {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 4rem 2rem 5rem;
+}
+
+@media (min-width: 1024px) {
+  .subpageMainInner {
+    padding: 5rem 2rem 6rem;
+  }
+}
+
+/* ----------------------------------------------------------
+   23. Solution story rows (subpage-specific)
+   ---------------------------------------------------------- */
+
+.solutionGrid {
   display: grid;
-  gap: 0.9rem;
+  gap: 5rem;
 }
 
-.productShowcaseCardWide {
-  grid-column: span 2;
-}
-
-.solutionPreludeCard {
+.solutionRow {
   display: grid;
-  gap: 0.9rem;
+  gap: 3rem;
+  align-items: center;
 }
 
-.solutionSignalGrid {
+@media (min-width: 1024px) {
+  .solutionRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+  }
+  .solutionRowReverse > :first-child {
+    order: 2;
+  }
+  .solutionRowReverse > :last-child {
+    order: 1;
+  }
+}
+
+.solutionContent {
   display: grid;
-  gap: 0.7rem;
+  gap: 1.25rem;
 }
 
-.solutionSignalCard,
-.solutionPathCard {
+.solutionTitle {
+  font-size: clamp(1.8rem, 3.4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.05em;
+  color: #0b1945;
+  text-wrap: balance;
+}
+
+.solutionBody {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: rgba(45, 69, 118, 0.72);
+}
+
+.solutionSignal {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.solutionPoints {
   display: grid;
-  gap: 0.55rem;
-  border-radius: 20px;
-  border: 1px solid rgba(21, 36, 70, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 0.9rem 0.95rem;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
 }
 
-.solutionSignalCard {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+.solutionPoint {
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: rgba(240, 245, 255, 0.6);
+  font-size: 0.84rem;
+  color: rgba(15, 31, 85, 0.8);
 }
 
-.solutionPathCard {
-  min-height: 100%;
-}
-
-.solutionSignalDot {
-  margin-top: 0.7rem;
-  height: 0.42rem;
-  width: 0.42rem;
-  border-radius: 999px;
-  background: #5d64ff;
-}
-
-.solutionStoryRow {
-  display: grid;
-  gap: 2rem;
-  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
-  align-items: start;
-}
-
-.solutionStoryRowReverse > :first-child {
-  order: 2;
-}
-
-.solutionStoryRowReverse > :last-child {
-  order: 1;
-}
-
-.solutionWorkflowCard {
+.solutionVisual {
+  position: relative;
   overflow: hidden;
-  border-radius: 28px;
-  border: 1px solid rgba(18, 32, 64, 0.08);
+  border-radius: 20px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
   background:
-    radial-gradient(circle at top right, rgba(125, 176, 255, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.96));
-  box-shadow: 0 20px 56px rgba(29, 39, 79, 0.08);
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 40%),
+    linear-gradient(180deg, #ffffff, #f4f8ff);
+  box-shadow: 0 20px 60px rgba(14, 28, 66, 0.08);
 }
 
-.solutionWorkflowHead {
+.solutionVisualBar {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.95rem 1rem;
-  border-bottom: 1px solid rgba(18, 32, 64, 0.06);
-  background: rgba(238, 242, 255, 0.68);
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(14, 28, 66, 0.07);
+  background: rgba(240, 245, 255, 0.5);
 }
 
-.solutionWorkflowHead span {
-  height: 0.56rem;
-  width: 0.56rem;
+.solutionVisualDot {
+  width: 0.52rem;
+  height: 0.52rem;
   border-radius: 999px;
-  background: rgba(108, 127, 167, 0.52);
+  background: rgba(100, 120, 170, 0.38);
 }
 
-.solutionWorkflowHead p {
+.solutionVisualTag {
   margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(60, 80, 130, 0.6);
+}
+
+.solutionVisualBody {
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.solutionOutcomeCard {
+  border-radius: 12px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: rgba(240, 245, 255, 0.5);
+  padding: 0.85rem 1rem;
+}
+
+.solutionOutcomeLabel {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(100, 120, 170, 0.65);
+}
+
+.solutionOutcomeValue {
+  margin-top: 0.35rem;
+  font-size: 0.96rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: #0b1945;
+}
+
+.solutionPathRow {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.solutionPathCard {
+  border-radius: 12px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  padding: 0.85rem 1rem;
+}
+
+.solutionPathLabel {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(100, 120, 170, 0.65);
+}
+
+.solutionPathValue {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: rgba(45, 69, 118, 0.78);
+}
+
+/* ----------------------------------------------------------
+   24. Demo page layout
+   ---------------------------------------------------------- */
+
+.demoBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.4rem 0.8rem;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(68, 84, 122, 0.82);
+  color: rgba(200, 215, 255, 0.62);
 }
 
-@media (max-width: 1100px) {
-  .stripeRow,
-  .heroFlow,
-  .solutionStoryRow {
-    grid-template-columns: 1fr;
-    gap: 1.35rem;
-  }
+.demoMetrics {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  overflow: hidden;
+}
 
-  .shellRail,
-  .pricingHero,
-  .pricingAddonGrid {
-    grid-template-columns: 1fr;
-  }
+.demoMetricItem {
+  padding: 1rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
 
-  .rolloutGrid,
-  .pricingCardGrid,
-  .productControlGrid,
-  .solutionSignalGrid {
-    grid-template-columns: 1fr;
-  }
+.demoMetricItem:last-child {
+  border-right: none;
+}
 
-  .productShowcaseCardWide {
-    grid-column: auto;
-  }
+.demoMetricValue {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+}
 
-  .pricingRowHeader {
-    display: none;
-  }
+.demoMetricLabel {
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  color: rgba(200, 215, 255, 0.5);
+}
 
-  .pricingRow {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
+.demoTrackCard {
+  display: grid;
+  gap: 0.7rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.85rem;
+}
+
+.demoTrackCard:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.demoTrackRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.demoTrackIndex {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(129, 140, 248, 0.8);
+  flex: none;
+  padding-top: 0.08rem;
+}
+
+.demoTrackIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(200, 215, 255, 0.8);
+  flex: none;
+}
+
+.demoTrackTitle {
+  font-size: 0.96rem;
+  font-weight: 600;
+  color: rgba(230, 238, 255, 0.92);
+}
+
+.demoTrackCopy {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: rgba(170, 190, 235, 0.68);
+}
+
+.demoListCard {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1.25rem;
+}
+
+.demoListTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(230, 238, 255, 0.88);
+  margin-bottom: 0.75rem;
+}
+
+.demoListItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: rgba(180, 200, 245, 0.72);
+}
+
+.demoListItem:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.demoListDot {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: rgba(129, 140, 248, 0.7);
+  flex: none;
+  margin-top: 0.48rem;
+}
+
+/* ----------------------------------------------------------
+   25. Best-fit / audience signals
+   ---------------------------------------------------------- */
+
+.signalGrid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .signalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 900px) {
-  .heroMetrics,
-  .statBand,
-  .demoMetrics,
-  .demoFormStats,
-  .demoConfidenceStrip {
+.signalCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 28, 66, 0.08);
+  background: rgba(240, 245, 255, 0.5);
+  padding: 0.85rem 1rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: rgba(15, 31, 85, 0.8);
+}
+
+.signalDot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: #2563eb;
+  flex: none;
+  margin-top: 0.5rem;
+}
+
+/* ----------------------------------------------------------
+   26. Steps list
+   ---------------------------------------------------------- */
+
+.stepsList {
+  display: grid;
+  gap: 0;
+}
+
+.stepsItem {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(14, 28, 66, 0.07);
+}
+
+.stepsItem:first-child {
+  padding-top: 0;
+}
+
+.stepsItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.stepsIndex {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(37, 99, 235, 0.6);
+  flex: none;
+  padding-top: 0.15rem;
+  min-width: 1.5rem;
+}
+
+.stepsText {
+  font-size: 0.96rem;
+  line-height: 1.65;
+  color: rgba(15, 31, 85, 0.82);
+}
+
+/* ----------------------------------------------------------
+   27. Responsive tweaks
+   ---------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .statsBand {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .productShowcaseCardWide {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 640px) {
-  .heroMetrics,
-  .statBand,
-  .demoMetrics,
-  .demoFormStats,
-  .demoConfidenceStrip {
-    grid-template-columns: 1fr;
-    gap: 0.8rem;
-  }
-
-  .heroFrameBar {
-    align-items: flex-start;
-    gap: 0.45rem;
-    flex-wrap: wrap;
-  }
-
-  .heroFrameAddress {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .heroMetric {
-    border-left: none;
-    padding-left: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 0.85rem;
-  }
-
-  .heroMetric:first-child {
-    border-top: none;
-    padding-top: 0;
   }
 
   .statCell {
     border-left: none;
     padding-left: 0;
-    border-top: 1px solid rgba(15, 23, 42, 0.12);
-    padding-top: 0.85rem;
+    border-top: 1px solid rgba(14, 28, 66, 0.08);
+    padding-top: 1.25rem;
   }
 
-  .statCell:first-child {
+  .statCell:nth-child(-n+2) {
     border-top: none;
     padding-top: 0;
   }
 
-  .addonCard {
+  .heroProof {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .pricingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rolloutGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .demoMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .demoMetricItem {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .demoMetricItem:last-child {
+    border-bottom: none;
+  }
+
+  .solutionPathRow {
     grid-template-columns: 1fr;
   }
 }

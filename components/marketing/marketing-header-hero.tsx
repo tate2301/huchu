@@ -1,139 +1,158 @@
 import Link from "next/link";
 
-import { ArrowRight, Calendar } from "@/lib/icons";
+import { ArrowRight } from "@/lib/icons";
 import type { MarketingSiteConfig } from "@/lib/marketing-site";
 import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME, PLATFORM_MARKETING_DOMAIN } from "@/lib/platform/brand";
-import { marketingNavItems, proofStats, productSteps } from "@/components/marketing/marketing-data";
-import { Button } from "@/components/ui/button";
+import { marketingNavItems, proofStats } from "@/components/marketing/marketing-data";
 import styles from "@/components/marketing/marketing-site.module.css";
 
 type MarketingHeaderHeroProps = {
   config: MarketingSiteConfig;
 };
 
-const proofRail = ["Gold", "Schools", "Retail", "Auto Sales", "Scrap", "Platform Admin"];
+const heroMetrics = [
+  { name: "Cash-ups completed", fill: "91%", value: "91%" },
+  { name: "Open work orders", fill: "12%", value: "3 open" },
+  { name: "Audit items cleared", fill: "78%", value: "78%" },
+];
+
+const heroSites = [
+  { label: "Gold ops", name: "Mine Site 01" },
+  { label: "Schools", name: "Campus Alpha" },
+  { label: "Retail", name: "Main Branch" },
+];
 
 export function MarketingHeaderHero({ config }: MarketingHeaderHeroProps) {
+  void config;
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4 lg:px-8">
-          <Link href="/home" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-white">
-            <span className="flex size-9 items-center justify-center rounded-full bg-white text-[#1b2558]">{PLATFORM_BRAND_INITIAL}</span>
+      {/* Navigation */}
+      <header className={styles.nav}>
+        <div className={styles.navInner}>
+          <Link href="/home" className={styles.navLogo}>
+            <span className={styles.navLogoMark}>{PLATFORM_BRAND_INITIAL}</span>
             {PLATFORM_BRAND_NAME}
           </Link>
-          <nav className="hidden flex-1 items-center gap-8 text-sm text-white/68 lg:flex">
+
+          <nav className={styles.navLinks} aria-label="Main navigation">
             {marketingNavItems.map((item) => (
-              <Link key={item.href} href={item.href} className="transition-colors hover:text-white">
+              <Link key={item.href} href={item.href} className={styles.navLink}>
                 {item.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild className="hidden text-white/72 hover:bg-white/10 hover:text-white sm:inline-flex">
-              <Link href="/login">Sign in</Link>
-            </Button>
-            <Button asChild className="h-11 rounded-full bg-white px-5 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
-              <Link href="/home/book-demo">
-                Book a demo
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+
+          <div className={styles.navActions}>
+            <Link href="/login" className={`${styles.navSignIn} hidden sm:inline-flex`}>
+              Sign in
+            </Link>
+            <Link href="/home/book-demo" className={styles.navCta}>
+              Book a demo
+              <ArrowRight className="size-3.5" />
+            </Link>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-16 lg:grid-cols-[1.03fr_0.97fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-24">
-        <div className="max-w-3xl">
-          <p className={styles.heroEyebrow}>Production platform, not concept art</p>
-          <h1 className="mt-5 max-w-[12ch] text-[clamp(3.2rem,7vw,6.5rem)] font-medium leading-[0.9] tracking-[-0.07em] text-white text-balance">
-            One control plane for every site.
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-white/76">
-            Vertical packs, shared accounting, and role-specific portals keep the rollout coherent as the business grows.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="h-12 rounded-full bg-white px-6 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
-              <Link href="/home/book-demo">
+      {/* Hero */}
+      <section className={styles.heroSection} aria-label="Hero">
+        <div className={`${styles.heroGlow} ${styles.heroGlowLeft}`} aria-hidden="true" />
+        <div className={`${styles.heroGlow} ${styles.heroGlowRight}`} aria-hidden="true" />
+
+        <div className={styles.heroInner}>
+          {/* Left — copy */}
+          <div className={styles.heroContent}>
+            <div className={`${styles.badgePill} ${styles.badgePillDark}`}>
+              <span className={styles.heroSiteCardStatusDot} aria-hidden="true" />
+              Multi-site operations platform
+            </div>
+
+            <h1 className={styles.heroHeadline}>
+              One platform.{" "}
+              <span className={styles.heroHeadlineAccent}>Every site.</span>{" "}
+              Every sector.
+            </h1>
+
+            <p className={styles.heroSubtext}>
+              Vertical packs for gold, schools, retail, auto sales, and scrap — all on shared accounting, reporting, and administration rails.
+            </p>
+
+            <div className={styles.heroCtas}>
+              <Link href="/home/book-demo" className={styles.ctaPrimary}>
                 Book a live demo
                 <ArrowRight className="size-4" />
               </Link>
-            </Button>
-            <Button
-              variant="outline"
-              asChild
-              size="lg"
-              className="h-12 rounded-full border-white/20 bg-transparent px-6 text-white hover:bg-white/10 hover:text-white"
-            >
-              <a
-                href={config.schedulerHref}
-                target={config.schedulerExternal ? "_blank" : undefined}
-                rel={config.schedulerExternal ? "noreferrer" : undefined}
-              >
-                Schedule instantly
-                <Calendar className="size-4" />
-              </a>
-            </Button>
-          </div>
-          <p className="mt-6 max-w-xl text-sm leading-6 text-white/58">
-            Built for gold, schools, retail, auto sales, scrap, and platform admin.
-          </p>
-        </div>
+              <Link href="/home/pricing" className={styles.ctaSecondary}>
+                See pricing
+              </Link>
+            </div>
 
-        <div className={styles.heroVisual}>
-          <div className={styles.heroFrameBar}>
-            <span />
-            <span />
-            <span />
-            <div className={styles.heroFrameAddress}>{PLATFORM_MARKETING_DOMAIN} / control plane</div>
-          </div>
-          <div className={styles.heroSurface}>
-            <div className={styles.heroStripePane}>
-              <p className={styles.stripeEyebrow}>Shared control plane</p>
-              <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white">
-                One layer for sites, pricing, people, and reporting.
-              </p>
-              <div className={styles.heroMetrics}>
-                {proofStats.slice(0, 3).map((item) => (
-                  <div key={item.label} className={styles.heroMetric}>
-                    <strong>{item.value}</strong>
-                    <span>{item.label}</span>
+            <div className={styles.heroProof}>
+              {proofStats.slice(0, 3).map((stat, i) => (
+                <div key={stat.label} style={{ display: "contents" }}>
+                  {i > 0 && <div className={styles.heroProofDivider} aria-hidden="true" />}
+                  <div className={styles.heroProofStat}>
+                    <span className={styles.heroProofValue}>{stat.value}</span>
+                    <span className={styles.heroProofLabel}>{stat.label}</span>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right — product UI mockup */}
+          <div className={styles.heroVisual} aria-hidden="true">
+            <div className={styles.heroCard}>
+              {/* Window bar */}
+              <div className={styles.heroCardBar}>
+                <span className={styles.heroCardDot} />
+                <span className={styles.heroCardDot} />
+                <span className={styles.heroCardDot} />
+                <div className={styles.heroCardAddress}>{PLATFORM_MARKETING_DOMAIN} / overview</div>
+              </div>
+
+              {/* Body */}
+              <div className={styles.heroCardBody}>
+                {/* Sites grid */}
+                <div className={styles.heroCardSection}>
+                  <p className={styles.heroCardSectionLabel}>Active sites</p>
+                  <div className={styles.heroSiteGrid}>
+                    {heroSites.map((site) => (
+                      <div key={site.name} className={styles.heroSiteCard}>
+                        <p className={styles.heroSiteCardLabel}>{site.label}</p>
+                        <p className={styles.heroSiteCardName}>{site.name}</p>
+                        <div className={styles.heroSiteCardStatus}>
+                          <span className={styles.heroSiteCardStatusDot} />
+                          Live
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Metrics */}
+                <div className={styles.heroMetricList}>
+                  {heroMetrics.map((m) => (
+                    <div key={m.name} className={styles.heroMetricRow}>
+                      <span className={styles.heroMetricName}>{m.name}</span>
+                      <div className={styles.heroMetricBar}>
+                        <div
+                          className={styles.heroMetricFill}
+                          style={{ width: m.fill }}
+                        />
+                      </div>
+                      <span className={styles.heroMetricValue}>{m.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer tags */}
+              <div className={styles.heroCardFooter}>
+                {["Gold", "Schools", "Retail", "Scrap", "Auto", "Admin"].map((tag) => (
+                  <span key={tag} className={styles.heroCardTag}>{tag}</span>
                 ))}
               </div>
-              <div className={`${styles.heroFlow} mt-5`}>
-                <div className={styles.heroFlowPanel}>
-                  <p className={styles.heroFlowLabel}>Rollout sequence</p>
-                  <div className={styles.heroFlowList}>
-                    {productSteps.map((step, index) => (
-                      <div key={step} className={styles.heroFlowItem}>
-                        <span>0{index + 1}</span>
-                        <strong>{step}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className={styles.heroFlowPanel}>
-                  <p className={styles.heroFlowLabel}>Coverage today</p>
-                  <div className={styles.heroFlowList}>
-                    {[
-                      ["Workspaces", "Gold, Schools, Retail"],
-                      ["Admin", "Support and reliability"],
-                      ["Commercial", "Tiers, bundles, add-ons"],
-                    ].map(([label, value]) => (
-                      <div key={label} className={styles.heroFlowItem}>
-                        <span>{label}</span>
-                        <strong>{value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className={styles.heroMiniRail}>
-              {proofRail.map((item) => (
-                <b key={item}>{item}</b>
-              ))}
             </div>
           </div>
         </div>

@@ -5,8 +5,6 @@ import { ArrowRight } from "@/lib/icons";
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
   proofStats,
-  productControlMap,
-  productFeatureCards,
   productSteps,
   showcaseCards,
   trustClaims,
@@ -21,108 +19,111 @@ export const metadata: Metadata = {
   description: `Explore the ${PLATFORM_BRAND_NAME} product model: one shared control plane across vertical packs.`,
 };
 
+const productLayers = [
+  {
+    eyebrow: "Foundation rails",
+    title: "Identity, tenancy, branding, documents, and notifications stay fixed.",
+    copy: "Every pack inherits the same account and permission model.",
+  },
+  {
+    eyebrow: "Vertical packs",
+    title: "Gold, schools, retail, scrap, and autos ship as focused surfaces.",
+    copy: "Each pack changes the vocabulary, not the core model.",
+  },
+  {
+    eyebrow: "Control surfaces",
+    title: "Admin, support, and reliability tooling stay in the loop.",
+    copy: "Operators review companies, subscriptions, features, and incidents in one place.",
+  },
+  {
+    eyebrow: "Commercial layer",
+    title: "Bundles and add-ons mirror the rollout path.",
+    copy: "The commercial story follows how customers adopt the platform.",
+  },
+];
+
 export default function ProductPage() {
   return (
     <MarketingSubpageShell
       title="One shared control plane."
+      description="Start with one pack, keep the same core, and expand without rebuilding the stack."
+      pageName="Product"
+      pills={["Shared rails", "Pack-by-pack rollout", "Commercially aligned"]}
     >
-      <section className="grid gap-12 lg:grid-cols-[0.96fr_1.04fr] lg:items-start">
-        <div className="space-y-6">
-          <p className={styles.stripeEyebrow}>Product</p>
-          <h2 className="max-w-3xl text-[clamp(2.1rem,4.4vw,4.25rem)] font-semibold leading-[0.94] tracking-[-0.055em] text-[#0b1945] text-balance">
-            Same rails. Different workflows.
-          </h2>
-          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-            Identity, tenancy, branding, and packaging stay fixed. The workflow changes by sector.
-          </p>
-
-          <div className="flex flex-wrap gap-2.5">
-            {["Shared rails", "Pack-by-pack rollout", "Commercially aligned"].map((item) => (
-              <span key={item} className={styles.productPill}>
-                {item}
-              </span>
-            ))}
-          </div>
-
-          <div className={styles.productStepsCard}>
-            {productSteps.map((item, index) => (
-              <div key={item} className="flex gap-4 border-t border-[#d6def5] pt-4 first:border-t-0 first:pt-0">
-                <span className="font-mono text-xs font-semibold tracking-[0.18em] text-[#7080a7]">0{index + 1}</span>
-                <p className="text-[1.02rem] leading-8 text-[#1f2d52]">{item}</p>
+      {/* How it holds together */}
+      <section>
+        <div style={{ display: "grid", gap: "3rem", alignItems: "start" }}
+          className="lg:grid-cols-[1fr_1.1fr]">
+          <div>
+            <p className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              Rollout sequence
+            </p>
+            <h2 className={`${styles.featureTitle} mt-3`}>
+              Same rails.{" "}
+              <span className={styles.gradientText}>Different workflows.</span>
+            </h2>
+            <div className={`${styles.card} ${styles.cardPadded} mt-5`}>
+              <div className={styles.stepsList}>
+                {productSteps.map((step, index) => (
+                  <div key={step} className={styles.stepsItem}>
+                    <span className={styles.stepsIndex}>0{index + 1}</span>
+                    <span className={styles.stepsText}>{step}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
 
-        <div className={styles.productMatrix}>
-          <div className={styles.productMatrixHead}>
-            <p className={styles.productMatrixEyebrow}>How it fits together</p>
-            <p className={styles.productMatrixTitle}>One product. Fewer moving parts.</p>
-          </div>
-          <div className="grid gap-4 p-5">
-            {productFeatureCards.map((card) => (
-              <div key={card.eyebrow} className={styles.productFeatureCard}>
-                <p className={styles.productFeatureEyebrow}>{card.eyebrow}</p>
-                <p className="mt-2 text-[1.15rem] font-semibold leading-[1.25] tracking-[-0.03em] text-[#0f1f55]">{card.title}</p>
-                <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{card.copy}</p>
-              </div>
-            ))}
+          <div className={`${styles.card} mt-0`}>
+            <div style={{ padding: "1.25rem 1.25rem 0", borderBottom: "1px solid rgba(14,28,66,0.07)" }}>
+              <p className={styles.cardEyebrow}>How it holds together</p>
+              <p className={styles.cardTitle} style={{ marginBottom: "1rem" }}>One product. Fewer moving parts.</p>
+            </div>
+            <div style={{ padding: "1rem", display: "grid", gap: "0.75rem" }}>
+              {productLayers.map((layer) => (
+                <div key={layer.eyebrow} style={{ borderRadius: "12px", border: "1px solid rgba(14,28,66,0.07)", background: "rgba(248,250,255,0.6)", padding: "1rem" }}>
+                  <p className={styles.cardEyebrow}>{layer.eyebrow}</p>
+                  <p className={styles.cardTitle}>{layer.title}</p>
+                  <p className={styles.cardBody}>{layer.copy}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mt-14">
-        <div className={styles.statBand}>
-          {proofStats.map((entry) => (
-            <div key={entry.label} className={styles.statCell}>
-              <strong>{entry.value}</strong>
-              <span>{entry.label}</span>
+      {/* Stats */}
+      <section style={{ marginTop: "4rem" }}>
+        <div className={styles.statsBand}>
+          {proofStats.map((stat) => (
+            <div key={stat.label} className={styles.statCell}>
+              <div className={styles.statValue}>{stat.value}</div>
+              <div className={styles.statLabel}>{stat.label}</div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mt-18 grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>What ships together</p>
-          <h3 className="max-w-xl text-[clamp(1.9rem,3.6vw,3.25rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            One operating vocabulary.
-          </h3>
-          <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Marketing, product, and admin share the same language.
-          </p>
-        </div>
-        <div className={styles.productControlGrid}>
-          {productControlMap.map((item) => (
-            <article key={item.title} className={styles.productControlCard}>
-              <p className={styles.productFeatureEyebrow}>{item.title}</p>
-              <p className="mt-2 text-sm leading-7 text-[#31436f]/84">{item.copy}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-18 grid gap-10 xl:grid-cols-[0.72fr_1.28fr] xl:items-start">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>Sector proof</p>
-          <h3 className="max-w-xl text-[clamp(1.9rem,3.6vw,3.25rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Proof by sector.
-          </h3>
-          <p className="max-w-xl text-base leading-8 text-[#2d3d66]/82">
-            Each buyer gets a sharper entry point.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {showcaseCards.map((card, index) => (
-            <article key={card.eyebrow} className={`${styles.productShowcaseCard} ${index === 2 ? styles.productShowcaseCardWide : ""}`}>
-              <p className={styles.productFeatureEyebrow}>{card.eyebrow}</p>
-              <p className="mt-2 text-[1.15rem] font-semibold leading-[1.22] tracking-[-0.035em] text-[#0f1f55]">{card.title}</p>
-              <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{card.copy}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
+      {/* Sector proof */}
+      <section style={{ marginTop: "5rem" }}>
+        <p className={styles.eyebrow}>
+          <span className={styles.eyebrowDot} />
+          Sector proof
+        </p>
+        <h2 className={`${styles.featureTitle} mt-3`} style={{ marginBottom: "2rem" }}>
+          Proof by{" "}
+          <span className={styles.gradientText}>sector.</span>
+        </h2>
+        <div className={styles.cardGrid}>
+          {showcaseCards.map((card) => (
+            <article key={card.eyebrow} className={`${styles.card} ${styles.cardPadded}`}>
+              <p className={styles.cardEyebrow}>{card.eyebrow}</p>
+              <p className={styles.cardTitle}>{card.title}</p>
+              <p className={styles.cardBody}>{card.copy}</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "1rem" }}>
                 {card.chips.map((chip) => (
-                  <span key={chip} className={styles.productChip}>
-                    {chip}
-                  </span>
+                  <span key={chip} className={styles.chip}>{chip}</span>
                 ))}
               </div>
             </article>
@@ -130,74 +131,74 @@ export default function ProductPage() {
         </div>
       </section>
 
-      <section className="mt-18 grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>Control pillars</p>
-          <h3 className="text-[clamp(1.9rem,3.5vw,3.15rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Four reasons it still feels like one product.
-          </h3>
-        </div>
-        <div className="grid gap-5 md:grid-cols-2">
-          {valuePillars.map((pillar) => {
-            const Icon = pillar.icon;
-            return (
-              <div key={pillar.title} className={styles.productValueCard}>
-                <div className="flex size-11 items-center justify-center rounded-full bg-[#0f1f55] text-white">
-                  <Icon className="size-5" />
+      {/* Value pillars */}
+      <section style={{ marginTop: "5rem" }}>
+        <div style={{ display: "grid", gap: "2.5rem", alignItems: "start" }}
+          className="lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <p className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              Control pillars
+            </p>
+            <h2 className={`${styles.featureTitle} mt-3`}>
+              Four reasons it still feels like{" "}
+              <span className={styles.gradientText}>one product.</span>
+            </h2>
+          </div>
+          <div className={styles.cardGridCols2} style={{ display: "grid", gap: "1rem" }}>
+            {valuePillars.map((pillar) => {
+              const Icon = pillar.icon;
+              return (
+                <div key={pillar.title} className={`${styles.card} ${styles.cardPadded}`}>
+                  <div className={styles.verticalCardIcon}>
+                    <Icon className="size-5" />
+                  </div>
+                  <p className={styles.cardTitle}>{pillar.title}</p>
+                  <p className={styles.cardBody}>{pillar.description}</p>
                 </div>
-                <p className="mt-4 text-xl font-semibold tracking-[-0.03em] text-[#0f1f55]">{pillar.title}</p>
-                <p className="mt-3 text-sm leading-7 text-[#2d3d66]/80">{pillar.description}</p>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      <section className="mt-18 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>Live proof</p>
-          <h3 className="max-w-2xl text-[clamp(1.95rem,3.5vw,3.2rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Claims grounded in shipped capability.
-          </h3>
-          <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">These claims are in production now.</p>
-        </div>
-        <div className={styles.productProofCard}>
-          <div className="grid gap-3">
-            {trustClaims.map((claim) => (
-              <p key={claim} className="border-t border-[#d6def5] pt-3 text-sm leading-7 text-[#2d3d66]/82 first:border-t-0 first:pt-0">
-                {claim}
-              </p>
-            ))}
-          </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#d6def5] pt-5">
-            <Button asChild className="rounded-full">
-              <Link href="/home/book-demo">
-                See it live
-                <ArrowRight className="size-4" />
+      {/* Live proof */}
+      <section style={{ marginTop: "5rem" }}>
+        <div style={{ display: "grid", gap: "3rem", alignItems: "start" }}
+          className="lg:grid-cols-[1fr_1.05fr]">
+          <div>
+            <p className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              Live proof
+            </p>
+            <h2 className={`${styles.featureTitle} mt-3`}>
+              Claims grounded in{" "}
+              <span className={styles.gradientText}>shipped capability.</span>
+            </h2>
+            <p className={`${styles.featureBody} mt-3`}>These claims are in production now.</p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button asChild className="rounded-full">
+                <Link href="/home/book-demo">
+                  See it live
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Link href="/home/pricing" className="inline-flex items-center text-sm font-medium text-[#1d4ed8] underline-offset-4 hover:underline">
+                Review pricing
               </Link>
-            </Button>
-            <Link href="/home/pricing" className="text-sm font-medium text-[#2d3d66] underline-offset-4 hover:underline">
-              Review pricing
-            </Link>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section className="mt-18 grid gap-8 lg:grid-cols-[0.76fr_1.24fr] lg:items-end">
-        <div className="space-y-4">
-          <p className={styles.stripeEyebrow}>Best fit</p>
-          <h3 className="text-[clamp(1.9rem,3.4vw,3rem)] font-semibold leading-[1] tracking-[-0.05em] text-[#0b1945] text-balance">
-            Built for operators with more than one site or workflow.
-          </h3>
-        </div>
-        <div className="space-y-5">
-          <p className="max-w-3xl text-base leading-8 text-[#2d3d66]/82">{PLATFORM_BRAND_NAME} fits teams outgrowing spreadsheets and siloed tools.</p>
-          <div className="flex flex-wrap gap-2.5">
-            {["Multiple sites", "Operational handoffs", "Cash or stock control", "Audit pressure", "Pack-by-pack rollout"].map((signal) => (
-              <span key={signal} className={styles.productChip}>
-                {signal}
-              </span>
-            ))}
+          <div className={styles.proofCard}>
+            <div className={styles.proofList}>
+              {trustClaims.map((claim) => (
+                <div key={claim} className={styles.proofItem}>
+                  <div className={styles.proofItemCheck}>
+                    <span className={styles.proofItemCheckInner} />
+                  </div>
+                  {claim}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
