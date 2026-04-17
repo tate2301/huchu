@@ -173,6 +173,19 @@ model IdSequence {
   @@index([companyId])
 }
 
+// Sequences that must be globally unique across all companies (e.g. StockMovement.referenceId).
+// No companyId FK so the counter is shared across tenants.
+model GlobalIdSequence {
+  id         String   @id @default(uuid())
+  entityKey  String
+  scopeKey   String   @default("GLOBAL")
+  lastNumber Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityKey, scopeKey])
+}
+
 enum TenantStatus {
   PROVISIONING
   ACTIVE

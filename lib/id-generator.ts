@@ -42,6 +42,8 @@ export type ReservableIdEntity =
 type EntityConfig = {
   prefix: string;
   requiresSiteId: boolean;
+  // True: use GlobalIdSequence (no companyId FK) so the counter is shared across tenants.
+  // Required when the underlying table has a global @unique on the reference field.
   globalSequence?: boolean;
 };
 
@@ -426,12 +428,46 @@ export async function reserveIdentifier(
   }
 
   const scopeKey = config.requiresSiteId && input.siteId ? input.siteId : GLOBAL_SCOPE;
-  // Entities with globalSequence share a single counter across all companies so that
-  // their globally-unique reference IDs never collide between tenants.
-  const effectiveCompanyId = config.globalSequence ? "__global__" : input.companyId;
+
+  // Entities with globalSequence use GlobalIdSequence (no companyId FK) so the counter
+  // is shared across all tenants, preventing collisions on globally-unique reference fields.
+  if (config.globalSequence) {
+    const globalWhere = {
+      entityKey_scopeKey: { entityKey: input.entity, scopeKey },
+    } as const;
+
+    const runGlobal = async (tx: Prisma.TransactionClient) => {
+      const existing = await tx.globalIdSequence.findUnique({
+        where: globalWhere,
+        select: { id: true },
+      });
+
+      if (!existing) {
+        const maxExisting = await findEntityMaxExistingCode(tx, input);
+        await tx.globalIdSequence.createMany({
+          data: [{ entityKey: input.entity, scopeKey, lastNumber: maxExisting }],
+          skipDuplicates: true,
+        });
+      }
+
+      const next = await tx.globalIdSequence.update({
+        where: globalWhere,
+        data: { lastNumber: { increment: 1 } },
+        select: { lastNumber: true },
+      });
+
+      return buildCode(config.prefix, next.lastNumber);
+    };
+
+    if ("$transaction" in db) {
+      return (db as PrismaClient).$transaction(runGlobal);
+    }
+    return runGlobal(db as Prisma.TransactionClient);
+  }
+
   const where = {
     companyId_entityKey_scopeKey: {
-      companyId: effectiveCompanyId,
+      companyId: input.companyId,
       entityKey: input.entity,
       scopeKey,
     },
@@ -453,7 +489,7 @@ export async function reserveIdentifier(
       await tx.idSequence.createMany({
         data: [
           {
-            companyId: effectiveCompanyId,
+            companyId: input.companyId,
             entityKey: input.entity,
             scopeKey,
             lastNumber: maxExisting,
@@ -465,11 +501,7 @@ export async function reserveIdentifier(
 
     const next = await tx.idSequence.update({
       where,
-      data: {
-        lastNumber: {
-          increment: 1,
-        },
-      },
+      data: { lastNumber: { increment: 1 } },
       select: { lastNumber: true },
     });
 
