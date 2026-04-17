@@ -30,7 +30,8 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
-import { ArrowRight, Plus, RefreshCcw } from "@/lib/icons";
+import type { AccountingSeedPackResult } from "@/lib/api";
+import { ArrowRight, ChevronDownIcon, ChevronUpIcon, Plus, RefreshCcw } from "@/lib/icons";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -48,6 +49,8 @@ export default function AccountingOverviewPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [branchId, setBranchId] = useState("all");
+  const [seedPreview, setSeedPreview] = useState<AccountingSeedPackResult | null>(null);
+  const [seedExpanded, setSeedExpanded] = useState(false);
 
   const { data: branches } = useQuery({
     queryKey: ["sites", "accounting-branches"],
@@ -110,6 +113,30 @@ export default function AccountingOverviewPage() {
         method: "POST",
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
+    },
+  });
+
+  const seedPreviewMutation = useMutation({
+    mutationFn: () =>
+      fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
+        method: "POST",
+        body: JSON.stringify({ mode: "DRY_RUN" }),
+      }),
+    onSuccess: (data) => {
+      setSeedPreview(data);
+      setSeedExpanded(true);
+    },
+  });
+
+  const seedApplyMutation = useMutation({
+    mutationFn: () =>
+      fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
+        method: "POST",
+        body: JSON.stringify({ mode: "APPLY" }),
+      }),
+    onSuccess: (data) => {
+      setSeedPreview(data);
       queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
     },
   });
@@ -529,42 +556,135 @@ export default function AccountingOverviewPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <GroupedLinkList groups={groupedLinks} />
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Launch workflows and setup tasks immediately.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button className="w-full justify-between" asChild size="sm" variant="outline">
-              <Link href="/accounting/receivables">
-                Receivables Home
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button className="w-full justify-between" asChild size="sm" variant="outline">
-              <Link href="/accounting/payables">
-                Payables Home
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button className="w-full justify-between" asChild size="sm" variant="outline">
-              <Link href="/accounting/financial-reports">
-                Financial Reports Home
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              className="w-full justify-between"
-              size="sm"
-              onClick={() => setupMutation.mutate()}
-              disabled={setupMutation.isPending}
-            >
-              Initialize Accounting Defaults
-              <RefreshCcw className="size-4" />
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Launch workflows and setup tasks immediately.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button className="w-full justify-between" asChild size="sm" variant="outline">
+                <Link href="/accounting/receivables">
+                  Receivables Home
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button className="w-full justify-between" asChild size="sm" variant="outline">
+                <Link href="/accounting/payables">
+                  Payables Home
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button className="w-full justify-between" asChild size="sm" variant="outline">
+                <Link href="/accounting/financial-reports">
+                  Financial Reports Home
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                className="w-full justify-between"
+                size="sm"
+                onClick={() => setupMutation.mutate()}
+                disabled={setupMutation.isPending}
+              >
+                Initialize Accounting Defaults
+                <RefreshCcw className="size-4" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Foundation Pack</CardTitle>
+              <CardDescription>
+                Seed chart of accounts, tax codes, posting rules, and periods from the standard pack.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {seedPreview && (
+                <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">
+                      {seedPreview.mode === "APPLY" ? "Applied" : "Preview"}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setSeedExpanded((v) => !v)}
+                    >
+                      {seedExpanded ? (
+                        <ChevronUpIcon className="size-4" />
+                      ) : (
+                        <ChevronDownIcon className="size-4" />
+                      )}
+                    </button>
+                  </div>
+                  {seedExpanded && (
+                    <ul className="space-y-1 text-muted-foreground">
+                      {[
+                        ["Accounts", seedPreview.createdAccounts, seedPreview.preview.missingAccounts.length],
+                        ["Tax codes", seedPreview.createdTaxCodes, seedPreview.preview.missingTaxCodes.length],
+                        ["Tax categories", seedPreview.createdTaxCategories, seedPreview.preview.missingTaxCategories.length],
+                        ["Posting rules", seedPreview.createdPostingRules, seedPreview.preview.missingPostingRules.length],
+                        ["Tender mappings", seedPreview.createdTenderMappings, seedPreview.preview.missingTenderMappings.length],
+                        ["Currencies", seedPreview.createdCurrencyDefinitions, seedPreview.preview.missingCurrencies.length],
+                        ["Periods", seedPreview.createdPeriods, 0],
+                      ].map(([label, created, missing]) => (
+                        <li key={String(label)} className="flex justify-between">
+                          <span>{label}</span>
+                          <span>
+                            {seedPreview.mode === "APPLY"
+                              ? `${created} created`
+                              : `${missing} missing`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {seedPreview?.mode !== "APPLY" ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => seedPreviewMutation.mutate()}
+                    disabled={seedPreviewMutation.isPending || seedApplyMutation.isPending}
+                  >
+                    {seedPreviewMutation.isPending ? "Checking…" : "Preview"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => seedApplyMutation.mutate()}
+                    disabled={seedApplyMutation.isPending || seedPreviewMutation.isPending}
+                  >
+                    {seedApplyMutation.isPending ? "Applying…" : "Apply"}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => { setSeedPreview(null); setSeedExpanded(false); }}
+                >
+                  Reset
+                </Button>
+              )}
+              {(seedPreviewMutation.isError || seedApplyMutation.isError) && (
+                <p className="text-xs text-destructive">
+                  {getApiErrorMessage(seedPreviewMutation.error ?? seedApplyMutation.error)}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </AccountingShell>
   );
