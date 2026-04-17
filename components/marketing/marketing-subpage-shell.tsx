@@ -6,14 +6,38 @@ import { marketingNavItems, marketingSiteHighlights } from "@/components/marketi
 import { Button } from "@/components/ui/button";
 import styles from "@/components/marketing/marketing-site.module.css";
 
+type MarketingSubpageLink = {
+  label: string;
+  href: string;
+};
+
 type MarketingSubpageShellProps = {
   title: string;
   description?: string;
+  eyebrow?: string;
+  pills?: string[];
+  panelTitle?: string;
+  panelBody?: string;
+  panelLinks?: MarketingSubpageLink[];
   children: React.ReactNode;
 };
 
-export function MarketingSubpageShell({ title, description, children }: MarketingSubpageShellProps) {
-  void description;
+export function MarketingSubpageShell({
+  title,
+  description,
+  eyebrow = "Overview",
+  pills = marketingSiteHighlights,
+  panelTitle = "What this page helps you answer",
+  panelBody = "See how the product fits, where it applies, and what to explore next before you book a demo.",
+  panelLinks,
+  children,
+}: MarketingSubpageShellProps) {
+  const contextualLinks = panelLinks ?? [
+    { label: "Product", href: "/home/product" },
+    { label: "Solutions", href: "/home/solutions" },
+    { label: "Book a demo", href: "/home/book-demo" },
+  ];
+
   return (
     <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#0d1738_0_23rem,#f7f9ff_23rem_100%)] text-white">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(9,14,32,0.84)] backdrop-blur-2xl">
@@ -51,13 +75,18 @@ export function MarketingSubpageShell({ title, description, children }: Marketin
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/58">
               <span>{PLATFORM_BRAND_NAME}</span>
               <span className="h-px w-8 bg-white/20" aria-hidden="true" />
-              <span>Marketing site</span>
+              <span>{eyebrow}</span>
             </div>
             <h1 className="max-w-4xl text-[clamp(2.7rem,5.2vw,4.9rem)] font-semibold leading-[0.95] tracking-[-0.055em] text-balance text-white">
               {title}
             </h1>
+            {description ? (
+              <p className="max-w-3xl text-base leading-8 text-white/74 lg:text-lg lg:leading-8">
+                {description}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2.5">
-              {marketingSiteHighlights.map((item) => (
+              {pills.map((item) => (
                 <span key={item} className={styles.shellPill}>
                   {item}
                 </span>
@@ -82,17 +111,16 @@ export function MarketingSubpageShell({ title, description, children }: Marketin
               </div>
             </div>
             <div className={styles.shellCardAlt}>
-              <p className={styles.shellEyebrowAlt}>What this surface covers</p>
+              <p className={styles.shellEyebrowAlt}>{panelTitle}</p>
               <p className="text-sm leading-7 text-white/72">
-                Product, solutions, pricing, and demo paths all stay grounded in the same commercial story.
+                {panelBody}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/home/pricing" className={styles.shellMicroLink}>
-                  Pricing
-                </Link>
-                <Link href="/home/book-demo" className={styles.shellMicroLink}>
-                  Demo
-                </Link>
+                {contextualLinks.map((link) => (
+                  <Link key={link.href} href={link.href} className={styles.shellMicroLink}>
+                    {link.label}
+                  </Link>
+                ))}
               </div>
             </div>
           </aside>
