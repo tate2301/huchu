@@ -11,7 +11,7 @@ import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
 import { InsightDonutCard } from "@/components/charts/insight-donut-card";
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,7 +24,7 @@ import {
 import { fetchPayablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
-import { Plus } from "@/lib/icons";
+import { Building2, FileText, Payments } from "@/lib/icons";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -163,26 +163,13 @@ export default function PayablesHomePage() {
       activeTab="payables"
       title="Payables Home"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/accounting/purchases?action=new-vendor">
-              <Plus className="mr-2 size-4" />
-              New Vendor
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/purchases?action=new-bill">
-              <Plus className="mr-2 size-4" />
-              New Bill
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/purchases?action=new-payment">
-              <Plus className="mr-2 size-4" />
-              New Payment
-            </Link>
-          </Button>
-        </div>
+        <AccountingNewButton
+          items={[
+            { label: "New Vendor", icon: Building2, href: "/accounting/purchases?action=new-vendor" },
+            { label: "New Bill", icon: FileText, href: "/accounting/purchases?action=new-bill" },
+            { label: "New Payment", icon: Payments, href: "/accounting/purchases?action=new-payment" },
+          ]}
+        />
       }
     >
       {error ? (

@@ -12,6 +12,8 @@ import { InsightDonutCard } from "@/components/charts/insight-donut-card";
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { BarChart3, Scale } from "@/lib/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -178,14 +180,13 @@ export default function FinancialReportsHomePage() {
       activeTab="financial-reports"
       title="Financial Reports Home"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/accounting/trial-balance">Open Trial Balance</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/financial-statements">Open Financial Statements</Link>
-          </Button>
-        </div>
+        <AccountingNewButton
+          label="Open"
+          items={[
+            { label: "Trial Balance", icon: Scale, href: "/accounting/trial-balance" },
+            { label: "Financial Statements", icon: BarChart3, href: "/accounting/financial-statements" },
+          ]}
+        />
       }
     >
       {error ? (

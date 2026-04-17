@@ -20,7 +20,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { type CurrencyRateRecord, fetchCurrencyRates } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { ArrowRightLeft } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -127,10 +128,7 @@ export default function CurrencyRatesPage() {
       activeTab="currency"
       title="Currency Rates"
       actions={
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          New Rate
-        </Button>
+        <AccountingNewButton items={[{ label: "New Rate", icon: ArrowRightLeft, onClick: () => setFormOpen(true) }]} />
       }
     >
       {error ? (

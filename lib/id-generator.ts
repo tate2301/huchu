@@ -42,6 +42,7 @@ export type ReservableIdEntity =
 type EntityConfig = {
   prefix: string;
   requiresSiteId: boolean;
+  globalSequence?: boolean;
 };
 
 const PAD = 4;
@@ -61,7 +62,7 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   FIXED_ASSET: { prefix: "AST", requiresSiteId: false },
   INVENTORY_ITEM: { prefix: "INV", requiresSiteId: true },
   STOCK_LOCATION: { prefix: "LOC", requiresSiteId: true },
-  STOCK_MOVEMENT: { prefix: "MOV", requiresSiteId: false },
+  STOCK_MOVEMENT: { prefix: "MOV", requiresSiteId: false, globalSequence: true },
   SCHOOL_STUDENT: { prefix: "STU", requiresSiteId: false },
   SCHOOL_GUARDIAN: { prefix: "GDN", requiresSiteId: false },
   SCHOOL_FEE_INVOICE: { prefix: "SFI", requiresSiteId: false },
@@ -228,8 +229,8 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     case "STOCK_MOVEMENT": {
+      // referenceId has a global @unique constraint — scan all records, not per-company.
       const records = await db.stockMovement.findMany({
-        where: { item: { site: { companyId } } },
         select: { referenceId: true },
       });
       return extractMaxFromCodes(records.map((record) => record.referenceId), prefix);
@@ -425,9 +426,12 @@ export async function reserveIdentifier(
   }
 
   const scopeKey = config.requiresSiteId && input.siteId ? input.siteId : GLOBAL_SCOPE;
+  // Entities with globalSequence share a single counter across all companies so that
+  // their globally-unique reference IDs never collide between tenants.
+  const effectiveCompanyId = config.globalSequence ? "__global__" : input.companyId;
   const where = {
     companyId_entityKey_scopeKey: {
-      companyId: input.companyId,
+      companyId: effectiveCompanyId,
       entityKey: input.entity,
       scopeKey,
     },
@@ -449,7 +453,7 @@ export async function reserveIdentifier(
       await tx.idSequence.createMany({
         data: [
           {
-            companyId: input.companyId,
+            companyId: effectiveCompanyId,
             entityKey: input.entity,
             scopeKey,
             lastNumber: maxExisting,

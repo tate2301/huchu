@@ -28,7 +28,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { type BudgetRecord, fetchBudgets } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { BarChart3 } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -156,10 +157,7 @@ export default function BudgetsPage() {
       activeTab="budgets"
       title="Budgets"
       actions={
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          New Budget
-        </Button>
+        <AccountingNewButton items={[{ label: "New Budget", icon: BarChart3, onClick: () => setFormOpen(true) }]} />
       }
     >
       {error ? (

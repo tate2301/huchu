@@ -51,7 +51,8 @@ import {
   fetchTaxCodes,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Download, Plus, Trash2, XCircle } from "@/lib/icons";
+import { Download, NoteAdd, ReceiptLong, Trash2, UserPlus, XCircle } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -1144,28 +1145,15 @@ export default function AccountingSalesPage() {
       activeTab="sales"
       title="Sales (Accounts Receivable)"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setCustomerFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Customer
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setInvoiceFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Invoice
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setReceiptFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Receipt
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setCreditNoteFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Credit Note
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setWriteOffFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Write Off
-          </Button>
-        </div>
+        <AccountingNewButton
+          items={[
+            { label: "New Customer", icon: UserPlus, onClick: () => setCustomerFormOpen(true) },
+            { label: "New Invoice", icon: NoteAdd, onClick: () => setInvoiceFormOpen(true) },
+            { label: "New Receipt", icon: ReceiptLong, onClick: () => setReceiptFormOpen(true) },
+            { label: "New Credit Note", icon: NoteAdd, onClick: () => setCreditNoteFormOpen(true) },
+            { label: "Write Off", icon: Trash2, onClick: () => setWriteOffFormOpen(true) },
+          ]}
+        />
       }
     >
       {(customersError || invoicesError || receiptsError || creditNotesError || writeOffsError || agingError || statementError) ? (

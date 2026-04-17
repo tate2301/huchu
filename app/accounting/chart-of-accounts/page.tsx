@@ -26,7 +26,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { type ChartOfAccountRecord, fetchChartOfAccounts } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { TableRows } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 const accountTypes = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
@@ -347,10 +348,7 @@ export default function ChartOfAccountsPage() {
       activeTab="chart-of-accounts"
       title="Chart of Accounts"
       actions={
-        <Button size="sm" onClick={openNew}>
-          <Plus className="mr-2 size-4" />
-          Add Account
-        </Button>
+        <AccountingNewButton items={[{ label: "Add Account", icon: TableRows, onClick: openNew }]} />
       }
     >
       {error ? (

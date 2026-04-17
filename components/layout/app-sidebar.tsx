@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { useGuidedMode } from "@/hooks/use-guided-mode";
-import { MedusaChevronDownIcon, MedusaHouseIcon } from "@/lib/icons";
+import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@/lib/icons";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,
@@ -110,6 +110,20 @@ export function AppSidebar() {
     activeSectionId,
   );
 
+  const [moreExpanded, setMoreExpanded] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const stored = localStorage.getItem("sidebar-more-expanded");
+    return stored === null ? true : stored !== "false";
+  });
+
+  const toggleMore = React.useCallback(() => {
+    setMoreExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-more-expanded", String(next));
+      return next;
+    });
+  }, []);
+
   React.useEffect(() => {
     if (activeSectionId) {
       setOpenSectionId(activeSectionId);
@@ -170,18 +184,26 @@ export function AppSidebar() {
 
         {additionalSections.length > 0 ? (
           <>
-            {!isCollapsed ? <SidebarSectionHeading label="More" /> : null}
-            <SidebarGroup className="mb-0.5 py-0">
-              <SidebarGroupContent className="mt-0 gap-0">
-                <SidebarNavSections
-                  sections={additionalSections}
-                  activeHref={activeHref}
-                  isCollapsed={isCollapsed}
-                  openSectionId={openSectionId}
-                  onToggleSection={toggleSection}
-                />
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {!isCollapsed ? (
+              <SidebarSectionHeading
+                label="More"
+                expanded={moreExpanded}
+                onToggle={toggleMore}
+              />
+            ) : null}
+            {(moreExpanded || isCollapsed) ? (
+              <SidebarGroup className="mb-0.5 py-0">
+                <SidebarGroupContent className="mt-0 gap-0">
+                  <SidebarNavSections
+                    sections={additionalSections}
+                    activeHref={activeHref}
+                    isCollapsed={isCollapsed}
+                    openSectionId={openSectionId}
+                    onToggleSection={toggleSection}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ) : null}
           </>
         ) : null}
 
@@ -197,7 +219,31 @@ export function AppSidebar() {
   );
 }
 
-function SidebarSectionHeading({ label }: { label: string }) {
+function SidebarSectionHeading({
+  label,
+  expanded,
+  onToggle,
+}: {
+  label: string;
+  expanded?: boolean;
+  onToggle?: () => void;
+}) {
+  if (onToggle !== undefined) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-1 px-2 pb-1 pt-2 text-[12px] font-medium text-[var(--text-subtle)] transition-colors hover:text-foreground"
+      >
+        <span className="truncate">{label}</span>
+        {expanded ? (
+          <MedusaChevronDownIcon className="ml-auto h-3.5 w-3.5 text-[var(--text-subtle)]" />
+        ) : (
+          <MedusaChevronRightIcon className="ml-auto h-3.5 w-3.5 text-[var(--text-subtle)]" />
+        )}
+      </button>
+    );
+  }
   return (
     <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-[12px] font-medium text-[var(--text-subtle)]">
       <span className="truncate">{label}</span>

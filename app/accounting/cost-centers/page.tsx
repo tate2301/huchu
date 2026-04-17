@@ -19,7 +19,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { type CostCenterRecord, fetchCostCenters } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { Building2 } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 export default function CostCentersPage() {
@@ -132,10 +133,7 @@ export default function CostCentersPage() {
       activeTab="cost-centers"
       title="Cost Centers"
       actions={
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          New Cost Center
-        </Button>
+        <AccountingNewButton items={[{ label: "New Cost Center", icon: Building2, onClick: () => setFormOpen(true) }]} />
       }
     >
       {error ? (

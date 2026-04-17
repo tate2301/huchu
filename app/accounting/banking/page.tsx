@@ -36,7 +36,8 @@ import {
   fetchBankTransactions,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { ArrowRightLeft, CheckCircle2, Wallet } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -419,20 +420,13 @@ export default function BankingPage() {
       activeTab="banking"
       title="Banking"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setAccountFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Account
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setTransactionFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Transaction
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setReconciliationFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Reconciliation
-          </Button>
-        </div>
+        <AccountingNewButton
+          items={[
+            { label: "New Account", icon: Wallet, onClick: () => setAccountFormOpen(true) },
+            { label: "New Transaction", icon: ArrowRightLeft, onClick: () => setTransactionFormOpen(true) },
+            { label: "New Reconciliation", icon: CheckCircle2, onClick: () => setReconciliationFormOpen(true) },
+          ]}
+        />
       }
     >
       {(accountsError || transactionsError || reconciliationsError) ? (

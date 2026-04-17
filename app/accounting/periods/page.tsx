@@ -37,7 +37,8 @@ import {
   setAccountingFreezeDate,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { Calendar } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 type OpeningBalanceLineInput = {
   accountId: string;
@@ -288,10 +289,7 @@ export default function AccountingPeriodsPage() {
       activeTab="periods"
       title="Accounting Periods"
       actions={
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          New Period
-        </Button>
+        <AccountingNewButton items={[{ label: "New Period", icon: Calendar, onClick: () => setFormOpen(true) }]} />
       }
     >
       {error ? (

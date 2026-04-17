@@ -3,24 +3,18 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AxisChart } from "@rtcamp/frappe-ui-react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
-import { InsightDonutCard } from "@/components/charts/insight-donut-card";
-import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   fetchAccountingSummary,
   fetchFinancialReportsHubSummary,
@@ -29,47 +23,393 @@ import {
   fetchSites,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
 import type { AccountingSeedPackResult } from "@/lib/api";
-import { ArrowRight, ChevronDownIcon, ChevronUpIcon, Plus, RefreshCcw } from "@/lib/icons";
+import {
+  ArrowRight,
+  ArrowRightUp,
+  BarChart3,
+  Building2,
+  Coins,
+  FileText,
+  Package,
+  Payments,
+  Plus,
+  ReceiptLong,
+  RefreshCcw,
+  Wallet,
+} from "@/lib/icons";
+import { cn } from "@/lib/utils";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const OVERVIEW_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+// ── Destination list ──────────────────────────────────────────────────────────
+
+type DestItem = {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+  tag?: string;
+};
+
+type DestGroup = {
+  group: string;
+  items: DestItem[];
+};
+
+function DestinationList({ groups }: { groups: DestGroup[] }) {
+  return (
+    <div className="space-y-6">
+      {groups.map((group) => (
+        <div key={group.group}>
+          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {group.group}
+          </p>
+          <div className="divide-y divide-border rounded-xl border bg-card">
+            {group.items.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="group flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/40"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground group-hover:text-[var(--action-primary-bg)]">
+                      Go to {item.label}
+                    </span>
+                    {item.tag && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {item.tag}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
+                </div>
+                <ArrowRightUp className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-[var(--action-primary-bg)]" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Initialize wizard ─────────────────────────────────────────────────────────
+
+function InitializeWizardDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [step, setStep] = useState<"confirm" | "running" | "done">("confirm");
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => fetchJson("/api/accounting/setup", { method: "POST" }),
+    onMutate: () => { setStep("running"); setError(null); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
+      setStep("done");
+    },
+    onError: (err) => {
+      setError(getApiErrorMessage(err));
+      setStep("confirm");
+    },
+  });
+
+  function handleClose(open: boolean) {
+    if (!open) { setStep("confirm"); setError(null); }
+    onOpenChange(open);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Initialize Accounting Defaults</DialogTitle>
+          <DialogDescription>
+            Sets up the core accounting configuration for your company — tax categories, default periods, and system accounts.
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === "confirm" && (
+          <div className="space-y-4 pt-1">
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              {["Default tax categories", "Opening accounting period", "System control accounts", "Base posting configuration"].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <span className="size-1.5 shrink-0 rounded-full bg-[var(--action-primary-bg)]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => handleClose(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => mutation.mutate()}>
+                <RefreshCcw className="mr-1.5 size-3.5" />
+                Initialize
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === "running" && (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <RefreshCcw className="size-6 animate-spin text-[var(--action-primary-bg)]" />
+            <p className="text-sm text-muted-foreground">Setting up defaults…</p>
+          </div>
+        )}
+
+        {step === "done" && (
+          <div className="space-y-4 pt-1">
+            <p className="text-sm text-muted-foreground">Accounting defaults have been initialized successfully.</p>
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => handleClose(false)}>Done</Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Foundation Pack wizard ────────────────────────────────────────────────────
+
+const PACK_LABELS: [string, keyof AccountingSeedPackResult, keyof AccountingSeedPackResult["preview"]][] = [
+  ["Accounts", "createdAccounts", "missingAccounts"],
+  ["Tax codes", "createdTaxCodes", "missingTaxCodes"],
+  ["Tax categories", "createdTaxCategories", "missingTaxCategories"],
+  ["Posting rules", "createdPostingRules", "missingPostingRules"],
+  ["Tender mappings", "createdTenderMappings", "missingTenderMappings"],
+  ["Currencies", "createdCurrencyDefinitions", "missingCurrencies"],
 ];
+
+function FoundationPackDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [preview, setPreview] = useState<AccountingSeedPackResult | null>(null);
+  const [step, setStep] = useState<"intro" | "preview" | "apply" | "done">("intro");
+
+  const previewMutation = useMutation({
+    mutationFn: () =>
+      fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
+        method: "POST",
+        body: JSON.stringify({ mode: "DRY_RUN" }),
+      }),
+    onMutate: () => setStep("preview"),
+    onSuccess: (data) => { setPreview(data); },
+    onError: () => setStep("intro"),
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: () =>
+      fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
+        method: "POST",
+        body: JSON.stringify({ mode: "APPLY" }),
+      }),
+    onSuccess: (data) => {
+      setPreview(data);
+      setStep("done");
+      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
+    },
+  });
+
+  function handleClose(open: boolean) {
+    if (!open) { setStep("intro"); setPreview(null); }
+    onOpenChange(open);
+  }
+
+  const previewError = previewMutation.isError ? getApiErrorMessage(previewMutation.error) : null;
+  const applyError = applyMutation.isError ? getApiErrorMessage(applyMutation.error) : null;
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Foundation Pack</DialogTitle>
+          <DialogDescription>
+            Seeds chart of accounts, tax codes, posting rules, and periods from the standard pack.
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === "intro" && (
+          <div className="space-y-4 pt-1">
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              {["Standard chart of accounts", "Default tax codes & categories", "Automated posting rules", "Tender account mappings", "Base currencies", "Accounting periods"].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <span className="size-1.5 shrink-0 rounded-full bg-[var(--action-primary-bg)]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            {previewError && <p className="text-sm text-destructive">{previewError}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => handleClose(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => previewMutation.mutate()} disabled={previewMutation.isPending}>
+                {previewMutation.isPending ? "Checking…" : "Preview changes"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === "preview" && (
+          <div className="space-y-4 pt-1">
+            {previewMutation.isPending ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <RefreshCcw className="size-4 animate-spin" />
+                Analyzing current state…
+              </div>
+            ) : preview ? (
+              <>
+                <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                  <p className="mb-2 font-medium text-foreground">What will be created</p>
+                  <ul className="space-y-1">
+                    {PACK_LABELS.map(([label, , missingKey]) => {
+                      const missing = preview.preview[missingKey] as unknown[];
+                      if (missing.length === 0) return null;
+                      return (
+                        <li key={label} className="flex justify-between text-muted-foreground">
+                          <span>{label}</span>
+                          <span className="font-medium text-foreground">{missing.length} missing</span>
+                        </li>
+                      );
+                    })}
+                    <li className="flex justify-between text-muted-foreground">
+                      <span>Periods</span>
+                      <span className="font-medium text-foreground">auto-generated</span>
+                    </li>
+                  </ul>
+                </div>
+                {applyError && <p className="text-sm text-destructive">{applyError}</p>}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setStep("intro")}>Back</Button>
+                  <Button
+                    size="sm"
+                    onClick={() => { setStep("apply"); applyMutation.mutate(); }}
+                    disabled={applyMutation.isPending}
+                  >
+                    Apply Foundation Pack
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        )}
+
+        {step === "apply" && (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <RefreshCcw className="size-6 animate-spin text-[var(--action-primary-bg)]" />
+            <p className="text-sm text-muted-foreground">Applying foundation pack…</p>
+          </div>
+        )}
+
+        {step === "done" && preview && (
+          <div className="space-y-4 pt-1">
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <p className="mb-2 font-medium text-foreground">Applied successfully</p>
+              <ul className="space-y-1">
+                {PACK_LABELS.map(([label, createdKey]) => {
+                  const count = preview[createdKey] as number;
+                  if (!count) return null;
+                  return (
+                    <li key={label} className="flex justify-between text-muted-foreground">
+                      <span>{label}</span>
+                      <span className="font-medium text-foreground">{count} created</span>
+                    </li>
+                  );
+                })}
+                {preview.createdPeriods > 0 && (
+                  <li className="flex justify-between text-muted-foreground">
+                    <span>Periods</span>
+                    <span className="font-medium text-foreground">{preview.createdPeriods} created</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => handleClose(false)}>Done</Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Quick actions list ────────────────────────────────────────────────────────
+
+type QuickActionItem =
+  | { kind: "link"; label: string; href: string; icon: React.ElementType }
+  | { kind: "action"; label: string; icon: React.ElementType; onClick: () => void };
+
+function QuickActionsList({ items }: { items: QuickActionItem[] }) {
+  return (
+    <div className="divide-y divide-border rounded-xl border bg-card">
+      {items.map((item) => {
+        if (item.kind === "link") {
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="group flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/40"
+            >
+              <item.icon className="size-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-sm font-medium text-foreground">
+                Go to {item.label}
+              </span>
+              <ArrowRightUp className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-[var(--action-primary-bg)]" />
+            </Link>
+          );
+        }
+        return (
+          <button
+            key={item.label}
+            type="button"
+            onClick={item.onClick}
+            className="group flex w-full items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/40"
+          >
+            <item.icon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="flex-1 text-left text-sm font-medium text-foreground">{item.label}</span>
+            <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-[var(--action-primary-bg)]" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AccountingOverviewPage() {
   const queryClient = useQueryClient();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [branchId, setBranchId] = useState("all");
-  const [seedPreview, setSeedPreview] = useState<AccountingSeedPackResult | null>(null);
-  const [seedExpanded, setSeedExpanded] = useState(false);
+  const [initOpen, setInitOpen] = useState(false);
+  const [foundationOpen, setFoundationOpen] = useState(false);
 
   const { data: branches } = useQuery({
     queryKey: ["sites", "accounting-branches"],
     queryFn: fetchSites,
   });
 
-  const {
-    data: accountingSummary,
-    error: accountingSummaryError,
-  } = useQuery({
+  const { data: accountingSummary, error: accountingSummaryError } = useQuery({
     queryKey: ["accounting-summary"],
     queryFn: fetchAccountingSummary,
   });
 
-  const {
-    data: receivablesSummary,
-    isLoading: receivablesLoading,
-    error: receivablesError,
-  } = useQuery({
+  const { data: receivablesSummary, isLoading: receivablesLoading, error: receivablesError } = useQuery({
     queryKey: ["accounting", "hubs", "receivables", startDate, endDate, branchId],
     queryFn: () =>
       fetchReceivablesHubSummary({
@@ -79,11 +419,7 @@ export default function AccountingOverviewPage() {
       }),
   });
 
-  const {
-    data: payablesSummary,
-    isLoading: payablesLoading,
-    error: payablesError,
-  } = useQuery({
+  const { data: payablesSummary, isLoading: payablesLoading, error: payablesError } = useQuery({
     queryKey: ["accounting", "hubs", "payables", startDate, endDate, branchId],
     queryFn: () =>
       fetchPayablesHubSummary({
@@ -93,11 +429,7 @@ export default function AccountingOverviewPage() {
       }),
   });
 
-  const {
-    data: financialSummary,
-    isLoading: financialLoading,
-    error: financialError,
-  } = useQuery({
+  const { data: financialSummary, isLoading: financialLoading, error: financialError } = useQuery({
     queryKey: ["accounting", "hubs", "financial-reports", startDate, endDate, branchId],
     queryFn: () =>
       fetchFinancialReportsHubSummary({
@@ -107,322 +439,73 @@ export default function AccountingOverviewPage() {
       }),
   });
 
-  const setupMutation = useMutation({
-    mutationFn: async () =>
-      fetchJson("/api/accounting/setup", {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
-    },
-  });
-
-  const seedPreviewMutation = useMutation({
-    mutationFn: () =>
-      fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
-        method: "POST",
-        body: JSON.stringify({ mode: "DRY_RUN" }),
-      }),
-    onSuccess: (data) => {
-      setSeedPreview(data);
-      setSeedExpanded(true);
-    },
-  });
-
-  const seedApplyMutation = useMutation({
-    mutationFn: () =>
-      fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
-        method: "POST",
-        body: JSON.stringify({ mode: "APPLY" }),
-      }),
-    onSuccess: (data) => {
-      setSeedPreview(data);
-      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
-    },
-  });
-
-  const chartData = useMemo(() => {
-    const position = [
-      { metric: "Open AR", amount: receivablesSummary?.kpis.openBalance ?? 0 },
-      { metric: "Open AP", amount: payablesSummary?.kpis.openBalance ?? 0 },
-      { metric: "Net Income", amount: financialSummary?.kpis.netIncome ?? 0 },
-      { metric: "Net Cash", amount: financialSummary?.kpis.netCash ?? 0 },
-    ];
-    const positionBreakdown = position.map((item) => ({
-      label: item.metric,
-      value: Math.abs(item.amount),
-    }));
-    const flow = [
-      {
-        phase: "Documented",
-        receivables: receivablesSummary?.kpis.issuedInvoiceValue ?? 0,
-        payables: payablesSummary?.kpis.receivedBillValue ?? 0,
-      },
-      {
-        phase: "Settled",
-        receivables: receivablesSummary?.kpis.collectedAmount ?? 0,
-        payables: payablesSummary?.kpis.paidAmount ?? 0,
-      },
-      {
-        phase: "Adjustments",
-        receivables: receivablesSummary?.kpis.creditNoteAmount ?? 0,
-        payables: payablesSummary?.kpis.debitNoteAmount ?? 0,
-      },
-    ];
-    const trendByDate = new Map<string, { date: string; receivables: number; payables: number; net: number }>();
-    (receivablesSummary?.charts.collectionsTrend ?? []).forEach((item) => {
-      const existing = trendByDate.get(item.date);
-      trendByDate.set(item.date, {
-        date: item.date,
-        receivables: item.collected,
-        payables: existing?.payables ?? 0,
-        net: 0,
-      });
-    });
-    (payablesSummary?.charts.paymentsTrend ?? []).forEach((item) => {
-      const existing = trendByDate.get(item.date);
-      trendByDate.set(item.date, {
-        date: item.date,
-        receivables: existing?.receivables ?? 0,
-        payables: item.paid,
-        net: 0,
-      });
-    });
-    const cashRace = Array.from(trendByDate.values())
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((item) => ({
-        ...item,
-        net: item.receivables - item.payables,
-      }));
-
-    return { positionBreakdown, flow, cashRace };
-  }, [financialSummary, payablesSummary, receivablesSummary]);
-
-  const flowChartConfig = useMemo(
-    () =>
-      buildAxisChartConfig({
-        data: chartData.flow,
-        title: "Flow Ladder",
-        subtitle: "Frappe block compares AR/AP movement by lifecycle phase.",
-        xAxisKey: "phase",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        colors: ["hsl(var(--chart-2))", "hsl(var(--chart-4))"],
-        series: [
-          { name: "receivables", type: "bar" },
-          { name: "payables", type: "bar" },
-        ],
-      }),
-    [chartData.flow],
-  );
-
-  const groupedLinks = useMemo<HubLinkGroup[]>(
+  const groupedLinks = useMemo<DestGroup[]>(
     () => [
       {
         group: "Receivables",
         items: [
-          {
-            id: "receivables-home",
-            label: "Receivables Home",
-            description: "Overall AR position, trends, and quick access.",
-            href: "/accounting/receivables",
-            tag: "Home",
-          },
-          {
-            id: "sales",
-            label: "Sales Operations",
-            description: "Customers, invoices, receipts, and adjustments.",
-            href: "/accounting/sales",
-            tag: "Operations",
-          },
-          {
-            id: "ar-aging",
-            label: "AR Aging",
-            description: "Receivables exposure by aging bucket.",
-            href: "/accounting/sales?view=aging",
-            tag: "Report",
-          },
+          { id: "receivables-home", label: "Receivables Home", description: "Overall AR position, trends, and quick access.", href: "/accounting/receivables", tag: "Home" },
+          { id: "sales", label: "Sales Operations", description: "Customers, invoices, receipts, and adjustments.", href: "/accounting/sales", tag: "Operations" },
+          { id: "ar-aging", label: "AR Aging", description: "Receivables exposure by aging bucket.", href: "/accounting/sales?view=aging", tag: "Report" },
         ],
       },
       {
         group: "Payables",
         items: [
-          {
-            id: "payables-home",
-            label: "Payables Home",
-            description: "Overall AP position, trends, and quick access.",
-            href: "/accounting/payables",
-            tag: "Home",
-          },
-          {
-            id: "purchases",
-            label: "Purchases Operations",
-            description: "Vendors, bills, payments, and adjustments.",
-            href: "/accounting/purchases",
-            tag: "Operations",
-          },
-          {
-            id: "ap-aging",
-            label: "AP Aging",
-            description: "Payables exposure by aging bucket.",
-            href: "/accounting/purchases?view=aging",
-            tag: "Report",
-          },
+          { id: "payables-home", label: "Payables Home", description: "Overall AP position, trends, and quick access.", href: "/accounting/payables", tag: "Home" },
+          { id: "purchases", label: "Purchases Operations", description: "Vendors, bills, payments, and adjustments.", href: "/accounting/purchases", tag: "Operations" },
+          { id: "ap-aging", label: "AP Aging", description: "Payables exposure by aging bucket.", href: "/accounting/purchases?view=aging", tag: "Report" },
         ],
       },
       {
         group: "Financial Reporting",
         items: [
-          {
-            id: "financial-home",
-            label: "Financial Reports Home",
-            description: "Overall reporting position and report access.",
-            href: "/accounting/financial-reports",
-            tag: "Home",
-          },
-          {
-            id: "trial-balance",
-            label: "Trial Balance",
-            description: "Ledger checks by account debits and credits.",
-            href: "/accounting/trial-balance",
-            tag: "Report",
-          },
-          {
-            id: "financial-statements",
-            label: "Financial Statements",
-            description: "Profit and loss, balance sheet, and cash flow.",
-            href: "/accounting/financial-statements",
-            tag: "Report",
-          },
-          {
-            id: "vat-summary",
-            label: "VAT Summary",
-            description: "Output/input VAT position and net tax.",
-            href: "/accounting/tax?view=vat-summary",
-            tag: "Tax",
-          },
-          {
-            id: "vat-returns",
-            label: "VAT Returns",
-            description: "Draft, review, finalize, and file VAT returns.",
-            href: "/accounting/tax?view=vat-returns",
-            tag: "Compliance",
-          },
+          { id: "financial-home", label: "Financial Reports", description: "Overall reporting position and report access.", href: "/accounting/financial-reports", tag: "Home" },
+          { id: "trial-balance", label: "Trial Balance", description: "Ledger checks by account debits and credits.", href: "/accounting/trial-balance", tag: "Report" },
+          { id: "financial-statements", label: "Financial Statements", description: "Profit and loss, balance sheet, and cash flow.", href: "/accounting/financial-statements", tag: "Report" },
+          { id: "vat-summary", label: "VAT Summary", description: "Output/input VAT position and net tax.", href: "/accounting/tax?view=vat-summary", tag: "Tax" },
+          { id: "vat-returns", label: "VAT Returns", description: "Draft, review, finalize, and file VAT returns.", href: "/accounting/tax?view=vat-returns", tag: "Compliance" },
         ],
       },
       {
-        group: "Payments and Banking",
+        group: "Payments & Banking",
         items: [
-          {
-            id: "banking",
-            label: "Banking",
-            description: "Bank accounts, transactions, and reconciliations.",
-            href: "/accounting/banking",
-            tag: "Cash",
-          },
-          {
-            id: "sales-receipts",
-            label: "Receipt Register",
-            description: "Incoming customer cash movements.",
-            href: "/accounting/sales?view=receipts",
-            tag: "AR",
-          },
-          {
-            id: "purchase-payments",
-            label: "Payment Register",
-            description: "Outgoing supplier cash movements.",
-            href: "/accounting/purchases?view=payments",
-            tag: "AP",
-          },
-          {
-            id: "payment-ledger",
-            label: "Payment Ledger",
-            description: "Unified AR/AP ledger movements for allocations and aging.",
-            href: "/accounting/financial-reports",
-            tag: "Ledger",
-          },
+          { id: "banking", label: "Banking", description: "Bank accounts, transactions, and reconciliations.", href: "/accounting/banking", tag: "Cash" },
+          { id: "sales-receipts", label: "Receipt Register", description: "Incoming customer cash movements.", href: "/accounting/sales?view=receipts", tag: "AR" },
+          { id: "purchase-payments", label: "Payment Register", description: "Outgoing supplier cash movements.", href: "/accounting/purchases?view=payments", tag: "AP" },
         ],
       },
       {
         group: "Accounting Master",
         items: [
-          {
-            id: "coa",
-            label: "Chart of Accounts",
-            description: "Account structure and classifications.",
-            href: "/accounting/chart-of-accounts",
-            tag: "Master",
-          },
-          {
-            id: "periods",
-            label: "Accounting Periods",
-            description: "Period control, freeze date, opening balances, and close vouchers.",
-            href: "/accounting/periods",
-            tag: "Master",
-          },
-          {
-            id: "journals",
-            label: "Journals",
-            description: "Manual journals and posting control.",
-            href: "/accounting/journals",
-            tag: "Core",
-          },
-          {
-            id: "posting-rules",
-            label: "Posting Rules",
-            description: "Automation mappings for source postings.",
-            href: "/accounting/posting-rules",
-            tag: "Automation",
-          },
-          {
-            id: "cost-centers",
-            label: "Cost Centers",
-            description: "Cost allocation dimensions by department.",
-            href: "/accounting/cost-centers",
-            tag: "Master",
-          },
-          {
-            id: "budgets",
-            label: "Budgets",
-            description: "Budget setup and tracking.",
-            href: "/accounting/budgets",
-            tag: "Planning",
-          },
-          {
-            id: "currency",
-            label: "Currency Rates",
-            description: "Exchange rates and conversion controls.",
-            href: "/accounting/currency",
-            tag: "Master",
-          },
-          {
-            id: "tax",
-            label: "Tax Setup",
-            description: "Tax code setup and VAT controls.",
-            href: "/accounting/tax",
-            tag: "Tax",
-          },
-          {
-            id: "assets",
-            label: "Fixed Assets",
-            description: "Asset register and depreciation controls.",
-            href: "/accounting/assets",
-            tag: "Master",
-          },
-          {
-            id: "fiscalisation",
-            label: "Fiscalisation",
-            description: "Fiscal device and receipt integration settings.",
-            href: "/accounting/fiscalisation",
-            tag: "Compliance",
-          },
+          { id: "coa", label: "Chart of Accounts", description: "Account structure and classifications.", href: "/accounting/chart-of-accounts", tag: "Master" },
+          { id: "periods", label: "Accounting Periods", description: "Period control, freeze date, and opening balances.", href: "/accounting/periods", tag: "Master" },
+          { id: "journals", label: "Journals", description: "Manual journals and posting control.", href: "/accounting/journals", tag: "Core" },
+          { id: "posting-rules", label: "Posting Rules", description: "Automation mappings for source postings.", href: "/accounting/posting-rules", tag: "Automation" },
+          { id: "cost-centers", label: "Cost Centers", description: "Cost allocation dimensions by department.", href: "/accounting/cost-centers", tag: "Master" },
+          { id: "budgets", label: "Budgets", description: "Budget setup and tracking.", href: "/accounting/budgets", tag: "Planning" },
+          { id: "currency", label: "Currency Rates", description: "Exchange rates and conversion controls.", href: "/accounting/currency", tag: "Master" },
+          { id: "tax", label: "Tax Setup", description: "Tax code setup and VAT controls.", href: "/accounting/tax", tag: "Tax" },
+          { id: "assets", label: "Fixed Assets", description: "Asset register and depreciation controls.", href: "/accounting/assets", tag: "Master" },
+          { id: "fiscalisation", label: "Fiscalisation", description: "Fiscal device and receipt integration settings.", href: "/accounting/fiscalisation", tag: "Compliance" },
         ],
       },
     ],
     [],
   );
 
-  const loading = receivablesLoading || payablesLoading || financialLoading;
+  const quickActions = useMemo<QuickActionItem[]>(
+    () => [
+      { kind: "link", label: "Receivables Home", href: "/accounting/receivables", icon: ReceiptLong },
+      { kind: "link", label: "Payables Home", href: "/accounting/payables", icon: Payments },
+      { kind: "link", label: "Financial Reports", href: "/accounting/financial-reports", icon: BarChart3 },
+      { kind: "link", label: "Chart of Accounts", href: "/accounting/chart-of-accounts", icon: Coins },
+      { kind: "action", label: "Initialize Accounting Defaults", icon: RefreshCcw, onClick: () => setInitOpen(true) },
+      { kind: "action", label: "Apply Foundation Pack", icon: Package, onClick: () => setFoundationOpen(true) },
+    ],
+    [],
+  );
+
   const error = receivablesError || payablesError || financialError || accountingSummaryError;
 
   return (
@@ -433,19 +516,19 @@ export default function AccountingOverviewPage() {
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
             <Link href="/accounting/journals?action=new-journal">
-              <Plus className="mr-2 size-4" />
+              <Plus className="mr-1.5 size-4" />
               New Journal
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/accounting/sales?action=new-invoice">
-              <Plus className="mr-2 size-4" />
+              <Plus className="mr-1.5 size-4" />
               New Invoice
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/accounting/purchases?action=new-bill">
-              <Plus className="mr-2 size-4" />
+              <Plus className="mr-1.5 size-4" />
               New Bill
             </Link>
           </Button>
@@ -459,32 +542,8 @@ export default function AccountingOverviewPage() {
         </Alert>
       ) : null}
 
-      <Card>
-        <CardContent className="pt-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-            <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by Branch" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Branches</SelectItem>
-                {(branches ?? []).map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Branch filter is shown for planning consistency. Current accounting totals remain company-wide.
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Metrics row */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricTile
           title="Accounts in Chart"
           value={accountingSummary?.accounts ?? 0}
@@ -523,169 +582,20 @@ export default function AccountingOverviewPage() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <FrappeChartShell className="rounded-xl">
-          {loading ? null : <AxisChart config={flowChartConfig} />}
-        </FrappeChartShell>
-        <InsightDonutCard
-          title="Position Composition"
-          data={
-            loading
-              ? []
-              : chartData.positionBreakdown.map((item, index) => ({
-                  label: item.label,
-                  value: item.value,
-                  color: OVERVIEW_COLORS[index % OVERVIEW_COLORS.length],
-                }))
-          }
-          valueFormatter={formatCurrency}
-        />
-      </div>
-      <TradingViewChartCard
-        title="Cash Race"
-        data={loading ? [] : chartData.cashRace}
-        xKey="date"
-        xAxisType="time"
-        series={[
-          { key: "receivables", label: "Collections", type: "line", color: "hsl(var(--chart-2))" },
-          { key: "payables", label: "Payments", type: "line", color: "hsl(var(--chart-4))" },
-          { key: "net", label: "Net Spread", type: "area", color: "hsl(var(--chart-1))" },
-        ]}
-        valueFormatter={formatCurrency}
-      />
+      {/* Destinations + Quick actions */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <DestinationList groups={groupedLinks} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <GroupedLinkList groups={groupedLinks} />
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Launch workflows and setup tasks immediately.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full justify-between" asChild size="sm" variant="outline">
-                <Link href="/accounting/receivables">
-                  Receivables Home
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              <Button className="w-full justify-between" asChild size="sm" variant="outline">
-                <Link href="/accounting/payables">
-                  Payables Home
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              <Button className="w-full justify-between" asChild size="sm" variant="outline">
-                <Link href="/accounting/financial-reports">
-                  Financial Reports Home
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              <Button
-                type="button"
-                className="w-full justify-between"
-                size="sm"
-                onClick={() => setupMutation.mutate()}
-                disabled={setupMutation.isPending}
-              >
-                Initialize Accounting Defaults
-                <RefreshCcw className="size-4" />
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Foundation Pack</CardTitle>
-              <CardDescription>
-                Seed chart of accounts, tax codes, posting rules, and periods from the standard pack.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {seedPreview && (
-                <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">
-                      {seedPreview.mode === "APPLY" ? "Applied" : "Preview"}
-                    </span>
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => setSeedExpanded((v) => !v)}
-                    >
-                      {seedExpanded ? (
-                        <ChevronUpIcon className="size-4" />
-                      ) : (
-                        <ChevronDownIcon className="size-4" />
-                      )}
-                    </button>
-                  </div>
-                  {seedExpanded && (
-                    <ul className="space-y-1 text-muted-foreground">
-                      {[
-                        ["Accounts", seedPreview.createdAccounts, seedPreview.preview.missingAccounts.length],
-                        ["Tax codes", seedPreview.createdTaxCodes, seedPreview.preview.missingTaxCodes.length],
-                        ["Tax categories", seedPreview.createdTaxCategories, seedPreview.preview.missingTaxCategories.length],
-                        ["Posting rules", seedPreview.createdPostingRules, seedPreview.preview.missingPostingRules.length],
-                        ["Tender mappings", seedPreview.createdTenderMappings, seedPreview.preview.missingTenderMappings.length],
-                        ["Currencies", seedPreview.createdCurrencyDefinitions, seedPreview.preview.missingCurrencies.length],
-                        ["Periods", seedPreview.createdPeriods, 0],
-                      ].map(([label, created, missing]) => (
-                        <li key={String(label)} className="flex justify-between">
-                          <span>{label}</span>
-                          <span>
-                            {seedPreview.mode === "APPLY"
-                              ? `${created} created`
-                              : `${missing} missing`}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-              {seedPreview?.mode !== "APPLY" ? (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => seedPreviewMutation.mutate()}
-                    disabled={seedPreviewMutation.isPending || seedApplyMutation.isPending}
-                  >
-                    {seedPreviewMutation.isPending ? "Checking…" : "Preview"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => seedApplyMutation.mutate()}
-                    disabled={seedApplyMutation.isPending || seedPreviewMutation.isPending}
-                  >
-                    {seedApplyMutation.isPending ? "Applying…" : "Apply"}
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => { setSeedPreview(null); setSeedExpanded(false); }}
-                >
-                  Reset
-                </Button>
-              )}
-              {(seedPreviewMutation.isError || seedApplyMutation.isError) && (
-                <p className="text-xs text-destructive">
-                  {getApiErrorMessage(seedPreviewMutation.error ?? seedApplyMutation.error)}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+        <div className="space-y-3">
+          <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Quick Actions
+          </p>
+          <QuickActionsList items={quickActions} />
         </div>
       </div>
+
+      <InitializeWizardDialog open={initOpen} onOpenChange={setInitOpen} />
+      <FoundationPackDialog open={foundationOpen} onOpenChange={setFoundationOpen} />
     </AccountingShell>
   );
 }

@@ -50,7 +50,8 @@ import {
   fetchVendors,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { Building2, FileText, NoteAdd, Payments, Trash2 } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -1027,28 +1028,15 @@ export default function AccountingPurchasesPage() {
       activeTab="purchases"
       title="Purchases (Accounts Payable)"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setVendorFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Vendor
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setBillFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Bill
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setPaymentFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Payment
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setDebitNoteFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New Debit Note
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setWriteOffFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Write Off
-          </Button>
-        </div>
+        <AccountingNewButton
+          items={[
+            { label: "New Vendor", icon: Building2, onClick: () => setVendorFormOpen(true) },
+            { label: "New Bill", icon: FileText, onClick: () => setBillFormOpen(true) },
+            { label: "New Payment", icon: Payments, onClick: () => setPaymentFormOpen(true) },
+            { label: "New Debit Note", icon: NoteAdd, onClick: () => setDebitNoteFormOpen(true) },
+            { label: "Write Off", icon: Trash2, onClick: () => setWriteOffFormOpen(true) },
+          ]}
+        />
       }
     >
       {(vendorsError || billsError || paymentsError || debitNotesError || writeOffsError || agingError || statementError) ? (

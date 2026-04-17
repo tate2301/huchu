@@ -36,7 +36,8 @@ import {
   fetchJournalEntries,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus } from "@/lib/icons";
+import { FileCheck } from "@/lib/icons";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const statusOptions = ["DRAFT", "POSTED"] as const;
 
@@ -463,10 +464,7 @@ export default function JournalsPage() {
       activeTab="journals"
       title="Journal Entries"
       actions={
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          New Entry
-        </Button>
+        <AccountingNewButton items={[{ label: "New Entry", icon: FileCheck, onClick: () => setFormOpen(true) }]} />
       }
     >
       {(journalsError || accountsError) ? (

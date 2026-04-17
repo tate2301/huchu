@@ -11,7 +11,7 @@ import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
 import { InsightDonutCard } from "@/components/charts/insight-donut-card";
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,7 +24,7 @@ import {
 import { fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
-import { Plus } from "@/lib/icons";
+import { NoteAdd, ReceiptLong, UserPlus } from "@/lib/icons";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -163,26 +163,13 @@ export default function ReceivablesHomePage() {
       activeTab="receivables"
       title="Receivables Home"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/accounting/sales?action=new-customer">
-              <Plus className="mr-2 size-4" />
-              New Customer
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/sales?action=new-invoice">
-              <Plus className="mr-2 size-4" />
-              New Invoice
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/sales?action=new-receipt">
-              <Plus className="mr-2 size-4" />
-              New Receipt
-            </Link>
-          </Button>
-        </div>
+        <AccountingNewButton
+          items={[
+            { label: "New Customer", icon: UserPlus, href: "/accounting/sales?action=new-customer" },
+            { label: "New Invoice", icon: NoteAdd, href: "/accounting/sales?action=new-invoice" },
+            { label: "New Receipt", icon: ReceiptLong, href: "/accounting/sales?action=new-receipt" },
+          ]}
+        />
       }
     >
       {error ? (
