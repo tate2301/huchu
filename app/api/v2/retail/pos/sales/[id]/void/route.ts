@@ -160,7 +160,7 @@ export async function POST(
           unit: item.unit,
           unitCost: item.unitCost ?? 0,
           notes: `Retail sale void ${created.saleNo}`,
-          sourceType: "RETAIL_REFUND",
+          sourceType: "RETAIL_VOID",
           sourceId: `${created.id}:${item.id}`,
           entryDate: created.postedAt ?? new Date(),
           tx,
@@ -198,11 +198,26 @@ export async function POST(
       return created;
     });
 
+    const voidInventoryItems = await prisma.inventoryItem.findMany({
+      where: {
+        id: {
+          in: reversal.lines.map((line) => line.inventoryItemId),
+        },
+      },
+      select: { id: true, unitCost: true },
+    });
+    const voidUnitCostByItemId = new Map(
+      voidInventoryItems.map((item) => [item.id, item.unitCost ?? 0]),
+    );
+
     try {
       await createJournalEntryFromSource({
         companyId: session.user.companyId,
-        sourceType: "RETAIL_REFUND",
+        sourceType: "RETAIL_VOID",
         sourceId: reversal.id,
+        sourceSubtype: reversal.saleType,
+        siteId: reversal.siteId,
+        registerCode: shift.registerCode,
         entryDate: reversal.postedAt ?? new Date(),
         description: `Retail sale void ${reversal.saleNo}`,
         createdById: session.user.id,
@@ -211,6 +226,23 @@ export async function POST(
         taxAmount: Math.abs(reversal.taxAmount),
         grossAmount: Math.abs(reversal.totalAmount),
         invertDirection: true,
+        payments: reversal.payments.map((payment) => ({
+          tenderType: payment.tenderType,
+          amount: Math.abs(payment.amount),
+          reference: payment.reference,
+        })),
+        inventory: {
+          lines: reversal.lines.map((line) => {
+            const unitCost = voidUnitCostByItemId.get(line.inventoryItemId) ?? 0;
+            return {
+              inventoryItemId: line.inventoryItemId,
+              itemName: line.itemName,
+              quantity: Math.abs(line.quantity),
+              unitCost,
+              totalCost: Math.abs(line.quantity) * unitCost,
+            };
+          }),
+        },
       });
     } catch (error) {
       console.error("[Accounting] Retail sale void posting failed:", error);

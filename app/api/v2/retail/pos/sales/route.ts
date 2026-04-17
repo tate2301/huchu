@@ -108,22 +108,68 @@ async function ensureRetailSaleJournalPosted(input: {
   companyId: string;
   saleId: string;
   saleNo: string;
+  saleType?: "SALE" | "REFUND" | "VOID";
+  siteId: string;
+  registerCode?: string | null;
   postedAt: Date;
   createdById: string;
   totalAmount: number;
+  subtotal: number;
+  discountAmount: number;
   taxAmount: number;
+  payments: Array<{
+    tenderType: string;
+    amount: number;
+    reference?: string | null;
+    currency?: string | null;
+  }>;
+  inventoryLines: Array<{
+    inventoryItemId: string;
+    itemName: string;
+    quantity: number;
+    unitCost: number;
+  }>;
 }) {
+  const sourceType =
+    input.saleType === "REFUND"
+      ? "RETAIL_REFUND"
+      : input.saleType === "VOID"
+        ? "RETAIL_VOID"
+        : "RETAIL_SALE";
+
   const result = await createJournalEntryFromSource({
     companyId: input.companyId,
-    sourceType: "RETAIL_SALE",
+    sourceType,
     sourceId: input.saleId,
+    sourceSubtype: input.saleType ?? "SALE",
+    siteId: input.siteId,
+    registerCode: input.registerCode ?? null,
     entryDate: input.postedAt,
     description: `Retail sale ${input.saleNo}`,
     createdById: input.createdById,
-    amount: input.totalAmount,
-    netAmount: Math.max(input.totalAmount - input.taxAmount, 0),
-    taxAmount: input.taxAmount,
-    grossAmount: input.totalAmount,
+    amount: Math.abs(input.totalAmount),
+    netAmount: Math.abs(input.subtotal - input.discountAmount),
+    taxAmount: Math.abs(input.taxAmount),
+    grossAmount: Math.abs(input.totalAmount),
+    payments: input.payments.map((payment) => ({
+      tenderType: payment.tenderType,
+      amount: Math.abs(payment.amount),
+      reference: payment.reference,
+      currency: payment.currency ?? null,
+    })),
+    inventory: {
+      lines: input.inventoryLines.map((line) => ({
+        inventoryItemId: line.inventoryItemId,
+        itemName: line.itemName,
+        quantity: Math.abs(line.quantity),
+        unitCost: Math.abs(line.unitCost),
+        totalCost: Math.abs(line.quantity) * Math.abs(line.unitCost),
+      })),
+      totalCost: input.inventoryLines.reduce(
+        (total, line) => total + Math.abs(line.quantity) * Math.abs(line.unitCost),
+        0,
+      ),
+    },
   });
 
   if (!result.entryId && !result.skipped) {
@@ -793,10 +839,22 @@ export async function POST(request: NextRequest) {
             companyId: session.user.companyId,
             saleId: sale.id,
             saleNo: sale.saleNo,
+            saleType: "SALE",
+            siteId: sale.siteId,
+            registerCode: shift.registerCode,
             postedAt: sale.postedAt ?? new Date(),
             createdById: session.user.id,
             totalAmount,
+            subtotal,
+            discountAmount: totalDiscount,
             taxAmount,
+            payments: normalizedPayments,
+            inventoryLines: normalizedLines.map((line) => ({
+              inventoryItemId: line.inventoryItem.id,
+              itemName: line.catalogItem.name,
+              quantity: line.quantity,
+              unitCost: line.inventoryItem.unitCost ?? 0,
+            })),
           });
         } catch (error) {
           console.error("[Accounting] Retail sale posting failed:", error);
@@ -865,15 +923,36 @@ export async function POST(request: NextRequest) {
               include: { lines: true, payments: true },
             });
             if (existing) {
+              const existingInventoryItems = await prisma.inventoryItem.findMany({
+                where: {
+                  id: { in: existing.lines.map((line) => line.inventoryItemId) },
+                },
+                select: { id: true, unitCost: true },
+              });
+              const existingUnitCostByItemId = new Map(
+                existingInventoryItems.map((item) => [item.id, item.unitCost ?? 0]),
+              );
               try {
                 await ensureRetailSaleJournalPosted({
                   companyId: session.user.companyId,
                   saleId: existing.id,
                   saleNo: existing.saleNo,
+                  saleType: "SALE",
+                  siteId: existing.siteId,
+                  registerCode: shift.registerCode,
                   postedAt: existing.postedAt ?? existing.createdAt,
                   createdById: session.user.id,
                   totalAmount: existing.totalAmount,
+                  subtotal: existing.subtotal,
+                  discountAmount: existing.discountAmount,
                   taxAmount: existing.taxAmount,
+                  payments: existing.payments,
+                  inventoryLines: existing.lines.map((line) => ({
+                    inventoryItemId: line.inventoryItemId,
+                    itemName: line.itemName,
+                    quantity: line.quantity,
+                    unitCost: existingUnitCostByItemId.get(line.inventoryItemId) ?? 0,
+                  })),
                 });
               } catch (error) {
                 console.error("[Accounting] Retail sale replay posting failed:", error);

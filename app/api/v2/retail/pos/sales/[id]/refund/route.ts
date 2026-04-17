@@ -270,11 +270,26 @@ export async function POST(
       };
     });
 
+    const refundInventoryItems = await prisma.inventoryItem.findMany({
+      where: {
+        id: {
+          in: refund.created.lines.map((line) => line.inventoryItemId),
+        },
+      },
+      select: { id: true, unitCost: true },
+    });
+    const refundUnitCostByItemId = new Map(
+      refundInventoryItems.map((item) => [item.id, item.unitCost ?? 0]),
+    );
+
     try {
       await createJournalEntryFromSource({
         companyId: session.user.companyId,
         sourceType: "RETAIL_REFUND",
         sourceId: refund.created.id,
+        sourceSubtype: refund.created.saleType,
+        siteId: refund.created.siteId,
+        registerCode: shift.registerCode,
         entryDate: refund.created.postedAt ?? new Date(),
         description: `Retail refund ${refund.created.saleNo}`,
         createdById: session.user.id,
@@ -283,6 +298,23 @@ export async function POST(
         taxAmount: Math.abs(refund.taxAmount),
         grossAmount: refund.refundValue,
         invertDirection: true,
+        payments: refund.created.payments.map((payment) => ({
+          tenderType: payment.tenderType,
+          amount: Math.abs(payment.amount),
+          reference: payment.reference,
+        })),
+        inventory: {
+          lines: refund.created.lines.map((line) => {
+            const unitCost = refundUnitCostByItemId.get(line.inventoryItemId) ?? 0;
+            return {
+              inventoryItemId: line.inventoryItemId,
+              itemName: line.itemName,
+              quantity: Math.abs(line.quantity),
+              unitCost,
+              totalCost: Math.abs(line.quantity) * unitCost,
+            };
+          }),
+        },
       });
     } catch (error) {
       console.error("[Accounting] Retail refund posting failed:", error);

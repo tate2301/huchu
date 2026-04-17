@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
@@ -119,8 +120,29 @@ export async function POST(request: NextRequest) {
           },
         });
 
+        if ((shift.openingFloat ?? 0) > 0) {
+          try {
+            await createJournalEntryFromSource({
+              companyId: session.user.companyId,
+              sourceType: "RETAIL_SHIFT_OPEN",
+              sourceId: shift.id,
+              siteId: shift.siteId,
+              registerCode: shift.registerCode,
+              entryDate: shift.openedAt,
+              description: `Retail shift open ${shift.shiftNo}`,
+              createdById: session.user.id,
+              amount: Math.abs(shift.openingFloat),
+              netAmount: Math.abs(shift.openingFloat),
+              taxAmount: 0,
+              grossAmount: Math.abs(shift.openingFloat),
+            });
+          } catch (error) {
+            console.error("[Accounting] Retail shift open posting failed:", error);
+          }
+        }
+
         return successResponse(shift, 201);
-      } catch (error) {
+      } catch {
         if (providedCode) {
           return errorResponse("Shift number already exists", 409);
         }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import {
   ensureInventoryItemAccess,
@@ -60,9 +61,34 @@ export async function POST(request: NextRequest) {
       unitCost: item.unitCost ?? 0,
       notes: input.notes?.trim() || `Retail transfer of ${item.name}`,
       toLocationId: destination.id,
-      sourceType: "RETAIL_SHIFT_VARIANCE",
-      sourceId: item.id,
+      sourceType: "RETAIL_STOCK_TRANSFER",
+      sourceId: `stock-transfer:${item.id}:${Date.now()}`,
       postAccounting: false,
+    });
+
+    await captureAccountingEvent({
+      companyId: session.user.companyId,
+      sourceDomain: "retail",
+      sourceAction: "stock-transfer",
+      sourceType: "RETAIL_STOCK_TRANSFER",
+      sourceId: movement.id,
+      sourceSubtype: "SAME_SITE",
+      siteId: site.id,
+      entryDate: new Date(),
+      description: `Retail stock transfer ${movement.referenceId}`,
+      amount: Math.abs(input.quantity * (item.unitCost ?? 0)),
+      payload: {
+        movementId: movement.id,
+        movementReference: movement.referenceId,
+        itemId: item.id,
+        itemName: item.name,
+        quantity: input.quantity,
+        fromLocationId: item.locationId,
+        toLocationId: destination.id,
+        movementType: "TRANSFER",
+      },
+      createdById: session.user.id,
+      status: "IGNORED",
     });
 
     return successResponse(

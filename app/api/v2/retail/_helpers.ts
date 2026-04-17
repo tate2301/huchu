@@ -143,6 +143,9 @@ export async function recordRetailInventoryMovement(input: {
     | "RETAIL_GOODS_RECEIPT"
     | "RETAIL_SALE"
     | "RETAIL_REFUND"
+    | "RETAIL_VOID"
+    | "RETAIL_STOCK_ADJUSTMENT"
+    | "RETAIL_STOCK_TRANSFER"
     | "RETAIL_SHIFT_VARIANCE";
   sourceId: string;
   entryDate?: Date;

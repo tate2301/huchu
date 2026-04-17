@@ -2491,22 +2491,238 @@ export type JournalEntryRecord = {
 
 export type PostingRuleLineRecord = {
   id: string;
-  accountId: string;
+  accountId?: string | null;
   direction: "DEBIT" | "CREDIT";
   basis: "AMOUNT" | "NET" | "TAX" | "GROSS" | "DEDUCTIONS" | "ALLOWANCES";
-  allocationType?: "PERCENT" | "FIXED";
-  allocationValue?: number;
+  allocationType?: "PERCENT" | "FIXED" | null;
+  allocationValue?: number | null;
+  repeatMode?: "NONE" | "TENDER";
+  accountSource?: "FIXED_ACCOUNT" | "TENDER_MAPPING";
+  valuePath?: string | null;
+  memoTemplate?: string | null;
+  costCenterId?: string | null;
+  sortOrder?: number;
   account?: { code: string; name: string } | null;
+};
+
+export type PostingRuleConditionRecord = {
+  id: string;
+  ruleId: string;
+  field:
+    | "SITE_ID"
+    | "REGISTER_CODE"
+    | "TENDER_TYPE"
+    | "CURRENCY"
+    | "CUSTOMER_TAX_CATEGORY_ID"
+    | "VENDOR_TAX_CATEGORY_ID"
+    | "SALE_TYPE"
+    | "MOVEMENT_TYPE";
+  operator: "EQ" | "NEQ" | "IN" | "NOT_IN" | "EXISTS" | "NOT_EXISTS";
+  valueString?: string | null;
+  valueListJson?: string | null;
 };
 
 export type PostingRuleRecord = {
   id: string;
   companyId: string;
   name: string;
+  description?: string | null;
   sourceType: string;
+  priority: number;
+  scopeType: "COMPANY" | "SITE";
+  siteId?: string | null;
+  ruleMode: "GUIDED" | "ADVANCED";
+  isFallback: boolean;
   isActive: boolean;
   lines: PostingRuleLineRecord[];
+  conditions?: PostingRuleConditionRecord[];
 };
+
+export type PostingSimulationLine = {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  memo: string;
+};
+
+export type PostingSimulationResult = {
+  selectedRule?: {
+    id: string;
+    name: string;
+    sourceType: string;
+    priority: number;
+    scopeType: "COMPANY" | "SITE";
+    isFallback: boolean;
+  };
+  lines: PostingSimulationLine[];
+  totalDebit: number;
+  totalCredit: number;
+  balanced: boolean;
+  warnings: string[];
+  error?: string;
+  code?: string;
+};
+
+export type AccountingReadinessCheck = {
+  id: string;
+  label: string;
+  ready: boolean;
+  note?: string;
+};
+
+export type AccountingSetupReadiness = {
+  companyId: string;
+  packCode: string;
+  summary: {
+    completed: number;
+    total: number;
+    percent: number;
+  };
+  checks: AccountingReadinessCheck[];
+  accountCounts: Record<string, number>;
+  openPeriods: number;
+  requiredRules: Array<{ sourceType: string; configured: boolean }>;
+  tenderMappings: Array<{ tenderType: string; configured: boolean }>;
+  currencies: Array<{ code: string; configured: boolean; hasRecentRate: boolean }>;
+  defaults: {
+    retainedEarningsAccountId: string | null;
+    defaultTaxCodeId: string | null;
+    defaultBankAccountId: string | null;
+  };
+  failedEvents: number;
+  pendingEvents: number;
+  recentExecutions: Array<{
+    id: string;
+    mode: "DRY_RUN" | "APPLY";
+    status: "PENDING" | "COMPLETED" | "FAILED";
+    createdAt: string;
+    completedAt: string | null;
+  }>;
+};
+
+export type AccountingSeedPackResult = {
+  companyId: string;
+  packCode: string;
+  mode: "DRY_RUN" | "APPLY";
+  executionId?: string | null;
+  createdAccounts: number;
+  createdTaxCodes: number;
+  createdTaxCategories: number;
+  createdTaxTemplates: number;
+  createdTaxRules: number;
+  createdTenderMappings: number;
+  createdPostingRules: number;
+  createdCurrencyDefinitions: number;
+  createdCurrencyRates: number;
+  createdPeriods: number;
+  createdBankAccounts: number;
+  preview: {
+    missingAccounts: string[];
+    missingTaxCodes: string[];
+    missingTaxCategories: string[];
+    missingTaxTemplates: string[];
+    missingTaxRules: string[];
+    missingPostingRules: string[];
+    missingTenderMappings: string[];
+    missingCurrencies: string[];
+    missingFxQuotes: string[];
+  };
+  readiness: AccountingSetupReadiness;
+};
+
+export type AccountingSeedExecutionRecord = {
+  id: string;
+  companyId: string;
+  mode: "DRY_RUN" | "APPLY";
+  status: "PENDING" | "COMPLETED" | "FAILED";
+  actorId?: string | null;
+  actorEmail?: string | null;
+  summaryJson?: string | null;
+  error?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
+};
+
+export type TenderAccountMappingRecord = {
+  id: string;
+  companyId: string;
+  siteId?: string | null;
+  registerCode?: string | null;
+  tenderType: string;
+  currency?: string | null;
+  priority: number;
+  clearingAccountId: string;
+  offsetAccountId?: string | null;
+  isActive: boolean;
+  clearingAccount?: { code: string; name: string } | null;
+  offsetAccount?: { code: string; name: string } | null;
+};
+
+export type CurrencyDefinitionRecord = {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  symbol: string;
+  decimalPlaces: number;
+  isBase: boolean;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type AccountingIntegrationEventRecord = {
+  id: string;
+  companyId: string;
+  sourceDomain?: string | null;
+  sourceAction?: string | null;
+  sourceType: string;
+  sourceId?: string | null;
+  eventKey: string;
+  entryDate: string;
+  description: string;
+  amount: number;
+  status: "PENDING" | "POSTED" | "FAILED" | "IGNORED";
+  attemptCount: number;
+  nextRetryAt?: string | null;
+  lastError?: string | null;
+  journalEntryId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountingIntegrationEventListResponse = {
+  data: AccountingIntegrationEventRecord[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+};
+
+export type RetailAccountingBackfillResult =
+  | {
+      mode: "DRY_RUN";
+      discovered: number;
+      candidates: Array<{
+        key: string;
+        label: string;
+        entryDate: string;
+      }>;
+    }
+  | {
+      mode: "APPLY";
+      discovered: number;
+      posted: number;
+      skipped: number;
+      failed: number;
+      failures: Array<{
+        key: string;
+        error: string;
+      }>;
+    };
 
 export type TaxCodeRecord = {
   id: string;
@@ -3220,6 +3436,112 @@ export async function fetchAccountingPeriods(
 
 export async function fetchPostingRules() {
   return fetchJson<PostingRuleRecord[]>("/api/accounting/posting-rules");
+}
+
+export async function fetchAccountingReadiness(): Promise<AccountingSetupReadiness> {
+  return fetchJson<AccountingSetupReadiness>("/api/accounting/setup/readiness");
+}
+
+export async function runSeedPack(params: {
+  mode: "DRY_RUN" | "APPLY";
+  fxRates?: Record<string, number | string>;
+}): Promise<AccountingSeedPackResult> {
+  return fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function fetchIntegrationEvents(params?: {
+  status?: string;
+  limit?: number;
+  page?: number;
+}): Promise<AccountingIntegrationEventListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.page) qs.set("page", String(params.page));
+  const query = qs.toString();
+  return fetchJson<AccountingIntegrationEventListResponse>(
+    `/api/accounting/integration/events${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function replayIntegrationEvents(params?: {
+  limit?: number;
+  periodOverrideReason?: string;
+}): Promise<{
+  processed: number;
+  posted: number;
+  skipped: number;
+  failed: number;
+}> {
+  return fetchJson("/api/accounting/integration/replay", {
+    method: "POST",
+    body: JSON.stringify(params ?? {}),
+  });
+}
+
+export async function previewPostingRule(context: {
+  sourceType: string;
+  sourceId?: string | null;
+  sourceSubtype?: string | null;
+  siteId?: string | null;
+  registerCode?: string | null;
+  description?: string;
+  amount: number;
+  netAmount?: number | null;
+  taxAmount?: number | null;
+  grossAmount?: number | null;
+  deductionsAmount?: number | null;
+  allowancesAmount?: number | null;
+  currency?: string | null;
+  invertDirection?: boolean;
+  payload?: Record<string, unknown>;
+  payments?: Array<{
+    tenderType: string;
+    amount: number;
+    reference?: string | null;
+    currency?: string | null;
+  }>;
+  inventory?: {
+    lines: Array<{
+      inventoryItemId?: string;
+      itemName?: string;
+      quantity: number;
+      unitCost: number;
+      totalCost?: number;
+    }>;
+    totalCost?: number;
+  };
+}): Promise<PostingSimulationResult> {
+  return fetchJson<PostingSimulationResult>("/api/accounting/posting-rules/preview", {
+    method: "POST",
+    body: JSON.stringify(context),
+  });
+}
+
+export async function backfillRetailAccounting(params: {
+  dryRun?: boolean;
+  limit?: number;
+  periodOverrideReason?: string;
+}): Promise<RetailAccountingBackfillResult> {
+  return fetchJson<RetailAccountingBackfillResult>("/api/accounting/integration/backfill-retail", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function fetchTenderMappings(): Promise<
+  TenderAccountMappingRecord[]
+> {
+  return fetchJson<TenderAccountMappingRecord[]>("/api/accounting/tender-mappings");
+}
+
+export async function fetchCurrencyDefinitions(): Promise<
+  CurrencyDefinitionRecord[]
+> {
+  return fetchJson("/api/accounting/currency-definitions");
 }
 
 export async function fetchTaxCodes() {

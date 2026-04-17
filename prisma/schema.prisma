@@ -68,10 +68,12 @@ model Company {
   accountingPeriods    AccountingPeriod[]
   journalEntries       JournalEntry[]
   postingRules         PostingRule[]
+  tenderAccountMappings TenderAccountMapping[]
   taxCodes             TaxCode[]
   taxCategories        TaxCategory[]
   taxTemplates         TaxTemplate[]
   taxRules             TaxRule[]
+  currencyDefinitions  CurrencyDefinition[]
   customers            Customer[]
   vendors              Vendor[]
   salesInvoices        SalesInvoice[]
@@ -99,6 +101,7 @@ model Company {
   fiscalProviderConfigs FiscalisationProviderConfig[]
   fiscalReceipts       FiscalReceipt[]
   accountingIntegrationEvents AccountingIntegrationEvent[]
+  accountingSeedExecutions AccountingSeedExecution[]
   documentTemplates    DocumentTemplate[]
   documentRenderJobs   DocumentRenderJob[]
   documentArtifacts    DocumentArtifact[]
@@ -694,6 +697,8 @@ model Site {
   nvrs                 NVR[]
   cameras              Camera[]
   streamSessions       StreamSession[]
+  postingRules         PostingRule[]         @relation("PostingRuleSite")
+  tenderAccountMappings TenderAccountMapping[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -2987,10 +2992,65 @@ enum AccountingSourceType {
   SCRAP_METAL_PURCHASE
   SCRAP_METAL_BATCH
   SCRAP_METAL_SALE
+  RETAIL_SHIFT_OPEN
   RETAIL_GOODS_RECEIPT
   RETAIL_SALE
   RETAIL_REFUND
+  RETAIL_VOID
+  RETAIL_STOCK_ADJUSTMENT
+  RETAIL_STOCK_TRANSFER
   RETAIL_SHIFT_VARIANCE
+}
+
+enum PostingRuleScopeType {
+  COMPANY
+  SITE
+}
+
+enum PostingRuleMode {
+  GUIDED
+  ADVANCED
+}
+
+enum PostingRuleConditionField {
+  SITE_ID
+  REGISTER_CODE
+  TENDER_TYPE
+  CURRENCY
+  CUSTOMER_TAX_CATEGORY_ID
+  VENDOR_TAX_CATEGORY_ID
+  SALE_TYPE
+  MOVEMENT_TYPE
+}
+
+enum PostingRuleOperator {
+  EQ
+  NEQ
+  IN
+  NOT_IN
+  EXISTS
+  NOT_EXISTS
+}
+
+enum PostingRuleLineRepeatMode {
+  NONE
+  TENDER
+}
+
+enum PostingRuleLineAccountSource {
+  FIXED_ACCOUNT
+  TENDER_MAPPING
+}
+
+enum AccountingSeedExecutionMode {
+  DRY_RUN
+  APPLY
+}
+
+enum AccountingSeedExecutionStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }
 
 enum InvoiceStatus {
@@ -3148,6 +3208,8 @@ model ChartOfAccount {
   childAccounts  ChartOfAccount[]  @relation("ChartOfAccountHierarchy")
   journalLines   JournalLine[]
   postingLines   PostingRuleLine[]
+  tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
+  tenderOffsetMappings TenderAccountMapping[]   @relation("TenderOffsetAccount")
   budgetLines    BudgetLine[]
 
   @@unique([companyId, code])
@@ -3229,6 +3291,10 @@ model AccountingIntegrationEvent {
   sourceAction     String
   sourceType       AccountingSourceType?
   sourceId         String?
+  sourceSubtype    String?
+  siteId           String?
+  registerCode     String?
+  causationKey     String?
   eventKey         String                     @unique
   entryDate        DateTime?
   description      String?
@@ -3253,6 +3319,7 @@ model AccountingIntegrationEvent {
 
   @@index([companyId, status, nextRetryAt])
   @@index([companyId, sourceType, sourceId])
+  @@index([companyId, sourceType, siteId])
 }
 
 model JournalLine {
@@ -3279,32 +3346,64 @@ model PostingRule {
   name        String
   sourceType  AccountingSourceType
   description String?
+  priority    Int                 @default(100)
+  scopeType   PostingRuleScopeType @default(COMPANY)
+  siteId      String?
+  ruleMode    PostingRuleMode     @default(GUIDED)
+  isFallback  Boolean             @default(false)
   isActive    Boolean             @default(true)
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
   company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site?            @relation("PostingRuleSite", fields: [siteId], references: [id])
   lines   PostingRuleLine[]
+  conditions PostingRuleCondition[]
 
-  @@unique([companyId, sourceType])
+  @@index([companyId, sourceType, isActive, priority])
+  @@index([companyId, sourceType, siteId, isActive, priority])
 }
 
 model PostingRuleLine {
   id              String          @id @default(uuid())
   ruleId          String
-  accountId       String
+  accountId       String?
   direction       PostingDirection
   basis           PostingBasis     @default(AMOUNT)
   allocationType  AllocationType   @default(PERCENT)
   allocationValue Float           @default(100)
   taxCodeId       String?
+  repeatMode      PostingRuleLineRepeatMode @default(NONE)
+  accountSource   PostingRuleLineAccountSource @default(FIXED_ACCOUNT)
+  valuePath       String?
+  memoTemplate    String?
+  costCenterId    String?
+  sortOrder       Int             @default(0)
   createdAt       DateTime         @default(now())
 
   rule    PostingRule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  account ChartOfAccount @relation(fields: [accountId], references: [id])
+  account ChartOfAccount? @relation(fields: [accountId], references: [id])
   taxCode TaxCode?      @relation(fields: [taxCodeId], references: [id])
+  costCenter CostCenter? @relation(fields: [costCenterId], references: [id])
 
   @@index([ruleId])
+  @@index([accountId])
+  @@index([costCenterId])
+}
+
+model PostingRuleCondition {
+  id            String   @id @default(uuid())
+  ruleId        String
+  field         PostingRuleConditionField
+  operator      PostingRuleOperator @default(EQ)
+  valueString   String?
+  valueListJson String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rule PostingRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, field])
 }
 
 model TaxCode {
@@ -3414,6 +3513,25 @@ model TaxRule {
 
   @@index([companyId, isActive, priority])
   @@index([companyId, appliesTo, currency])
+}
+
+model CurrencyDefinition {
+  id            String   @id @default(uuid())
+  companyId      String
+  code           String
+  name           String
+  symbol         String?
+  decimalPlaces  Int      @default(2)
+  isBase         Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive, sortOrder])
 }
 
 model Customer {
@@ -3846,6 +3964,29 @@ model BankAccount {
   @@index([companyId, isActive])
 }
 
+model TenderAccountMapping {
+  id                String   @id @default(uuid())
+  companyId         String
+  siteId            String?
+  registerCode      String?
+  tenderType        String
+  currency          String? 
+  priority          Int      @default(100)
+  clearingAccountId String
+  offsetAccountId   String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site            Site?          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  clearingAccount ChartOfAccount @relation("TenderClearingAccount", fields: [clearingAccountId], references: [id])
+  offsetAccount   ChartOfAccount? @relation("TenderOffsetAccount", fields: [offsetAccountId], references: [id])
+
+  @@index([companyId, tenderType, isActive, priority])
+  @@index([companyId, siteId, tenderType, isActive, priority])
+}
+
 model BankTransaction {
   id           String   @id @default(uuid())
   companyId    String
@@ -4090,9 +4231,31 @@ model CostCenter {
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   journalLines JournalLine[]
   budgetLines  BudgetLine[]
+  postingRuleLines PostingRuleLine[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
+}
+
+model AccountingSeedExecution {
+  id          String   @id @default(uuid())
+  companyId   String
+  packCode    String
+  mode        AccountingSeedExecutionMode
+  status      AccountingSeedExecutionStatus @default(PENDING)
+  actorId     String?
+  actorEmail  String?
+  inputJson   String?
+  summaryJson String?
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, packCode, createdAt])
+  @@index([companyId, status, createdAt])
 }
 
 model CurrencyRate {

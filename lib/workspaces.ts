@@ -16,6 +16,7 @@ import {
 } from "@/lib/workspace-products";
 import {
   ArrowDownward,
+  ClipboardList,
   Dashboard,
   Gem,
   Building2,
@@ -31,11 +32,12 @@ import {
   Payments,
   Recycle,
   ReceiptLong,
+  Scale,
+  TableRows,
   Users,
   Wallet,
   type LucideIcon,
 } from "@/lib/icons";
-import { RETAIL_OPERATIONS_SECTIONS } from "@/lib/retail/tab-config";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
 import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
 
@@ -182,12 +184,69 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     sectionId: "car-sales",
     homeHref: "/car-sales",
   }),
-  retail: createSectionModule({
+  retail: {
     id: "retail",
     label: "Retail",
-    sectionId: "retail",
     homeHref: "/retail",
-  }),
+    getItems(context) {
+      const baseItems = context.navSectionById.get("retail")?.items ?? [];
+      const has = (href: string) => baseItems.some((item) => item.href === href);
+      const items: NavItem[] = [];
+
+      if (has("/retail")) {
+        items.push({ href: "/retail", label: "Overview", icon: Wallet });
+      }
+      if (has("/retail/sell")) {
+        items.push(
+          { href: "/portal/pos", label: "Open POS", icon: Payments },
+          { href: "/retail/sales", label: "Sales", icon: ClipboardList },
+        );
+      }
+      if (has("/retail/customers")) {
+        items.push({ href: "/retail/customers", label: "Customers", icon: Users });
+      }
+      if (has("/retail/cash-control")) {
+        items.push({ href: "/retail/shifts", label: "Shifts", icon: ReceiptLong });
+      }
+      if (has("/retail/merchandise")) {
+        items.push(
+          { href: "/retail/catalog", label: "Catalog", icon: TableRows },
+          { href: "/retail/merchandising/pricing", label: "Pricing", icon: Coins },
+          { href: "/retail/merchandising/promotions", label: "Promotions", icon: ReceiptLong },
+        );
+      }
+      if (has("/retail/stock")) {
+        items.push(
+          { href: "/retail/stock", label: "Stock Overview", icon: Package },
+          { href: "/retail/stock/count", label: "Stock Count", icon: ClipboardList },
+          { href: "/retail/stock/transfers", label: "Transfers", icon: ArrowDownward },
+        );
+      }
+      if (has("/retail/buy")) {
+        items.push(
+          { href: "/retail/purchasing/orders", label: "Purchase Orders", icon: Package },
+          { href: "/retail/purchasing/receipts", label: "Goods Receipts", icon: LocalShipping },
+        );
+      }
+      if (has("/retail/accounting")) {
+        items.push({ href: "/retail/accounting", label: "Accounting", icon: Scale });
+      }
+      if (has("/retail/insights")) {
+        items.push({ href: "/retail/reports", label: "Reports", icon: BarChart3 });
+      }
+      if (has("/retail/setup")) {
+        items.push(
+          { href: "/retail/setup", label: "Setup Overview", icon: Building2 },
+          { href: "/retail/setup/operations", label: "Operations", icon: Building2 },
+          { href: "/retail/setup/branding", label: "Branding", icon: Building2 },
+          { href: "/retail/setup/pos-policy", label: "POS Policy", icon: Scale },
+          { href: "/retail/setup/accounting", label: "Accounting Setup", icon: Scale },
+        );
+      }
+
+      return items;
+    },
+  },
   hr: createSectionModule({
     id: "hr",
     label: "Human Resources",
@@ -422,69 +481,60 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     ],
   },
   RETAIL: {
-      label: "Retail",
-      preferredHomeHref: "/retail",
-      quickActions: [
-        roleItem("/portal/pos", "Open POS", Payments),
-        roleItem("/retail/sell", "Sell", ReceiptLong),
-        roleItem("/retail/stock", "Stock", Package),
-        roleItem("/retail/buy", "Buy", LocalShipping),
-        roleItem("/retail/customers", "Customers", Users),
-        roleItem("/retail/cash-control", "Cash Control", Wallet),
-        roleItem("/retail/insights", "Insights", BarChart3),
-        roleItem("/retail/setup", "Setup", Building2),
-      ],
+    label: "Retail",
+    preferredHomeHref: "/retail",
+    quickActions: [
+      roleItem("/portal/pos", "Open POS", Payments),
+      roleItem("/retail/sales", "Sales", ReceiptLong),
+      roleItem("/retail/stock/count", "Stock Count", Package),
+      roleItem("/retail/purchasing/receipts", "Receive Stock", LocalShipping),
+      roleItem("/retail/customers", "Customers", Users),
+      roleItem("/retail/setup", "Setup", Building2),
+    ],
     nativeModules: ["retail", "reporting"],
     sections: [
       {
-        id: "retail-overview",
-        title: "Overview",
-        refs: RETAIL_OPERATIONS_SECTIONS.overview.map((href) => ({ moduleId: "retail" as const, href })),
+        id: "retail-floor",
+        title: "Run the Floor",
+        refs: [
+          { moduleId: "retail", href: "/retail" },
+          { moduleId: "retail", href: "/portal/pos" },
+          { moduleId: "retail", href: "/retail/sales" },
+          { moduleId: "retail", href: "/retail/shifts" },
+          { moduleId: "retail", href: "/retail/customers" },
+        ],
       },
       {
-        id: "retail-sell",
-        title: "Sell",
-        refs: RETAIL_OPERATIONS_SECTIONS.sell.map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-merchandise",
-        title: "Merchandise",
-        refs: RETAIL_OPERATIONS_SECTIONS.merchandise.map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-stock",
-        title: "Stock",
-        refs: RETAIL_OPERATIONS_SECTIONS.stock.map((href) => ({ moduleId: "retail" as const, href })),
+        id: "retail-range",
+        title: "Range & Stock",
+        refs: [
+          { moduleId: "retail", href: "/retail/catalog" },
+          { moduleId: "retail", href: "/retail/merchandising/pricing" },
+          { moduleId: "retail", href: "/retail/merchandising/promotions" },
+          { moduleId: "retail", href: "/retail/stock" },
+          { moduleId: "retail", href: "/retail/stock/count" },
+          { moduleId: "retail", href: "/retail/stock/transfers" },
+        ],
       },
       {
         id: "retail-buy",
-        title: "Buy",
-        refs: RETAIL_OPERATIONS_SECTIONS.buy.map((href) => ({ moduleId: "retail" as const, href })),
+        title: "Purchasing",
+        refs: [
+          { moduleId: "retail", href: "/retail/purchasing/orders" },
+          { moduleId: "retail", href: "/retail/purchasing/receipts" },
+        ],
       },
       {
-        id: "retail-customers",
-        title: "Customers",
-        refs: RETAIL_OPERATIONS_SECTIONS.customers.map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-cash-control",
-        title: "Cash Control",
-        refs: RETAIL_OPERATIONS_SECTIONS["cash-control"].map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-accounting",
-        title: "Accounting",
-        refs: RETAIL_OPERATIONS_SECTIONS.accounting.map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-insights",
-        title: "Insights",
-        refs: RETAIL_OPERATIONS_SECTIONS.insights.map((href) => ({ moduleId: "retail" as const, href })),
-      },
-      {
-        id: "retail-setup",
-        title: "Setup",
-        refs: RETAIL_OPERATIONS_SECTIONS.setup.map((href) => ({ moduleId: "retail" as const, href })),
+        id: "retail-control",
+        title: "Controls & Growth",
+        refs: [
+          { moduleId: "retail", href: "/retail/accounting" },
+          { moduleId: "retail", href: "/retail/reports" },
+          { moduleId: "retail", href: "/retail/setup" },
+          { moduleId: "retail", href: "/retail/setup/operations" },
+          { moduleId: "retail", href: "/retail/setup/pos-policy" },
+          { moduleId: "retail", href: "/retail/setup/accounting" },
+        ],
       },
     ],
   },
@@ -714,10 +764,11 @@ function buildCanonicalCoreSections(
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
   excludedHrefs: Set<string>,
   verticalProduct: VerticalProductBundleDefinition,
+  workspaceGroup: WorkspaceSectionGroup,
 ): WorkspaceNavSection[] {
   return getOrderedModuleIds(verticalProduct)
     .filter((moduleId): moduleId is WorkspaceModuleId => CANONICAL_MODULE_IDS.includes(moduleId))
-    .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, "primary", excludedHrefs));
+    .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, workspaceGroup, excludedHrefs));
 }
 
 function buildAdditionalSections(
@@ -748,9 +799,13 @@ function getPrimarySections(
   const profileSections = buildProfileSections(recipe, visibleModules);
   const usedHrefs = collectSectionHrefs(profileSections);
 
+  if (recipe === WORKSPACE_PROFILE_RECIPES.RETAIL) {
+    return profileSections;
+  }
+
   return [
     ...profileSections,
-    ...buildCanonicalCoreSections(visibleModules, usedHrefs, verticalProduct),
+    ...buildCanonicalCoreSections(visibleModules, usedHrefs, verticalProduct, "primary"),
   ];
 }
 
@@ -872,9 +927,21 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   });
   const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct);
   const usedPrimaryHrefs = collectSectionHrefs(primarySections);
+  const canonicalAdditionalSections =
+    recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
+      ? buildCanonicalCoreSections(
+          visibleModules,
+          usedPrimaryHrefs,
+          verticalProduct,
+          "additional",
+        )
+      : [];
   const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
     ? []
-    : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
+    : [
+        ...canonicalAdditionalSections,
+        ...buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct),
+      ];
   const sections = [...primarySections, ...additionalSections].filter((section) => {
     if (
       profile === "SCRAP_METAL" &&

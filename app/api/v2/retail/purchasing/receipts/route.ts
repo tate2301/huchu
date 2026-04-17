@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
@@ -203,6 +204,38 @@ export async function POST(request: NextRequest) {
             where: { id: purchaseOrder.id },
             data: { status: allReceived ? "RECEIVED" : "PARTIAL" },
           });
+        }
+
+        const receiptValue = receipt.lines.reduce((total, line) => total + line.lineTotal, 0);
+        if (receiptValue > 0) {
+          try {
+            await createJournalEntryFromSource({
+              companyId: session.user.companyId,
+              sourceType: "RETAIL_GOODS_RECEIPT",
+              sourceId: receipt.id,
+              sourceSubtype: "RECEIPT",
+              siteId: receipt.siteId,
+              entryDate: receipt.postedAt ?? new Date(),
+              description: `Retail goods receipt ${receipt.receiptNo}`,
+              createdById: session.user.id,
+              amount: receiptValue,
+              netAmount: receiptValue,
+              taxAmount: 0,
+              grossAmount: receiptValue,
+              inventory: {
+                lines: receipt.lines.map((line) => ({
+                  inventoryItemId: line.inventoryItemId,
+                  itemName: line.itemName,
+                  quantity: line.quantity,
+                  unitCost: line.unitCost,
+                  totalCost: line.lineTotal,
+                })),
+                totalCost: receiptValue,
+              },
+            });
+          } catch (error) {
+            console.error("[Accounting] Retail goods receipt posting failed:", error);
+          }
         }
 
         return successResponse(receipt, 201);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
-import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { runAccountingSeedPack } from "@/lib/accounting/bootstrap";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +9,14 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
 
     const companyId = session.user.companyId;
-    const result = await ensureAccountingDefaults(companyId);
+    const body = await request.json().catch(() => ({}));
+    const result = await runAccountingSeedPack({
+      companyId,
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      mode: "APPLY",
+      fxRates: body?.fxRates,
+    });
 
     return successResponse({
       accountsInitialized: result.createdAccounts > 0,
@@ -18,6 +25,9 @@ export async function POST(request: NextRequest) {
       createdAccounts: result.createdAccounts,
       createdTaxCodes: result.createdTaxCodes,
       createdPostingRules: result.createdPostingRules,
+      readiness: result.readiness,
+      preview: result.preview,
+      executionId: result.executionId,
     });
   } catch (error) {
     console.error("[API] POST /api/accounting/setup error:", error);

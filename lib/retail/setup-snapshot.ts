@@ -4,9 +4,12 @@ import { getRetailPosPolicy, RETAIL_POS_POLICY_PROVIDER_KEY } from "@/lib/retail
 import { getRetailSetupProfile, RETAIL_SETUP_PROFILE_PROVIDER_KEY } from "@/lib/retail/setup-profile";
 
 export const RETAIL_REQUIRED_POSTING_RULES = [
+  "RETAIL_SHIFT_OPEN",
   "RETAIL_SALE",
   "RETAIL_REFUND",
+  "RETAIL_VOID",
   "RETAIL_GOODS_RECEIPT",
+  "RETAIL_STOCK_ADJUSTMENT",
   "RETAIL_SHIFT_VARIANCE",
 ] as const;
 
@@ -165,9 +168,12 @@ export async function getRetailSetupSnapshot(companyId: string) {
     Boolean(accountingSettings?.retainedEarningsAccountId),
     Boolean(accountingSettings?.defaultTaxCodeId),
     Boolean(accountingSettings?.defaultBankAccountId),
+    activePostingRules.has("RETAIL_SHIFT_OPEN"),
     activePostingRules.has("RETAIL_SALE"),
     activePostingRules.has("RETAIL_REFUND"),
+    activePostingRules.has("RETAIL_VOID"),
     activePostingRules.has("RETAIL_GOODS_RECEIPT"),
+    activePostingRules.has("RETAIL_STOCK_ADJUSTMENT"),
     activePostingRules.has("RETAIL_SHIFT_VARIANCE"),
   ];
   const accountingCompleted = accountingChecks.filter(Boolean).length;

@@ -1,77 +1,106 @@
-﻿"use client";
+"use client";
 
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { AdminDistributionChart, AdminDualBarChart, AdminDonutChart } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { fetchJson } from "@/lib/api-client";
-import { ArrowRight, FileCheck, Scale, ShieldCheck, TableRows } from "@/lib/icons";
-import type { RetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  fetchAccountingReadiness,
+  fetchTenderMappings,
+  runSeedPack,
+  type AccountingSeedPackResult,
+} from "@/lib/api";
+import {
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  ExternalLink,
+  ArrowRight,
+} from "lucide-react";
+import { Scale, FileCheck, TableRows } from "@/lib/icons";
 
-type SetupOverviewResponse = RetailSetupSnapshot;
+function ReadinessIcon({ passed, size = "sm" }: { passed: boolean; size?: "sm" | "md" }) {
+  const cls = size === "md" ? "h-5 w-5" : "h-4 w-4";
+  return passed
+    ? <CheckCircle2 className={`${cls} text-green-600 flex-shrink-0`} />
+    : <XCircle className={`${cls} text-red-500 flex-shrink-0`} />;
+}
 
-const ACCOUNT_TYPES = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
+// Map readiness check keys to fix-now actions
+const CHECK_ACTIONS: Record<string, { label: string; href: string }> = {
+  accounts: { label: "Open Chart of Accounts", href: "/accounting/chart-of-accounts" },
+  periods: { label: "Open a period", href: "/accounting/periods" },
+  "retained-earnings": { label: "Fix in Posting Studio", href: "/accounting/posting-rules?view=seed" },
+  "default-tax": { label: "Manage tax codes", href: "/accounting/tax" },
+  "default-bank": { label: "Add bank account", href: "/accounting/banking" },
+  rules: { label: "Open Posting Studio", href: "/accounting/posting-rules" },
+  tenders: { label: "Run seed pack", href: "/accounting/posting-rules?view=seed" },
+  currencies: { label: "Run seed pack", href: "/accounting/posting-rules?view=seed" },
+  "fx-rates": { label: "Add FX rates", href: "/accounting/currency" },
+};
 
 export default function RetailSetupAccountingPage() {
-  const query = useQuery({
-    queryKey: ["retail-setup-overview"],
-    queryFn: () => fetchJson<SetupOverviewResponse>("/api/v2/retail/setup/overview"),
+  const router = useRouter();
+  const { toast } = useToast();
+  const [fxRates, setFxRates] = useState({ ZWG: "", ZAR: "" });
+  const [seedResult, setSeedResult] = useState<AccountingSeedPackResult | null>(null);
+
+  const {
+    data: readiness,
+    isLoading,
+    refetch,
+    error,
+  } = useQuery({
+    queryKey: ["accounting", "setup-readiness"],
+    queryFn: fetchAccountingReadiness,
   });
 
-  const snapshot = query.data;
+  const { data: tenderMappings = [] } = useQuery({
+    queryKey: ["accounting", "tender-mappings"],
+    queryFn: fetchTenderMappings,
+  });
 
-  const ruleRows = useMemo(
-    () =>
-      snapshot?.postingRules.required.map((rule) => ({
-        id: rule.sourceType,
-        label: rule.sourceType.replaceAll("_", " "),
-        primary: rule.configured ? 1 : 0,
-        secondary: rule.configured ? 0 : 1,
-      })) ?? [],
-    [snapshot],
+  const seedMutation = useMutation({
+    mutationFn: (mode: "DRY_RUN" | "APPLY") => {
+      const rates: Record<string, number> = {};
+      if (fxRates.ZWG) rates["ZWG"] = Number(fxRates.ZWG);
+      if (fxRates.ZAR) rates["ZAR"] = Number(fxRates.ZAR);
+      return runSeedPack({
+        mode,
+        fxRates: Object.keys(rates).length > 0 ? rates : undefined,
+      });
+    },
+    onSuccess: (data, mode) => {
+      setSeedResult(data);
+      if (mode === "APPLY") {
+        toast({
+          title: "Seed pack applied",
+          description: `${data.createdAccounts} accounts, ${data.createdPostingRules} rules, ${data.createdTenderMappings} tender mappings created`,
+        });
+        refetch();
+      } else {
+        toast({ title: "Dry run complete", description: "Review the summary below." });
+      }
+    },
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const passed = readiness?.summary.completed ?? 0;
+  const total = readiness?.summary.total ?? 0;
+  const allPassed = total > 0 && passed === total;
+
+  const TENDER_TYPES = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"];
+  const mappedTenders = new Set(
+    tenderMappings.filter((mapping) => mapping.isActive).map((mapping) => mapping.tenderType),
   );
-
-  const accountRows = useMemo(
-    () =>
-      ACCOUNT_TYPES.map((type) => ({
-        id: type,
-        label: type,
-        value: snapshot?.accounting.accountCounts[type] ?? 0,
-      })),
-    [snapshot],
-  );
-
-  const readinessChecks = useMemo(
-    () =>
-      snapshot
-        ? [
-            Boolean(
-              snapshot.accounting.accountCounts.ASSET ||
-                snapshot.accounting.accountCounts.LIABILITY ||
-                snapshot.accounting.accountCounts.EQUITY ||
-                snapshot.accounting.accountCounts.INCOME ||
-                snapshot.accounting.accountCounts.EXPENSE,
-            ),
-            Boolean(snapshot.accounting.openPeriods > 0),
-            Boolean(snapshot.accounting.retainedEarningsAccountId),
-            Boolean(snapshot.accounting.defaultTaxCodeId),
-            Boolean(snapshot.accounting.defaultBankAccountId),
-            snapshot.postingRules.required.some((rule) => rule.sourceType === "RETAIL_SALE" && rule.configured),
-            snapshot.postingRules.required.some((rule) => rule.sourceType === "RETAIL_REFUND" && rule.configured),
-            snapshot.postingRules.required.some((rule) => rule.sourceType === "RETAIL_GOODS_RECEIPT" && rule.configured),
-            snapshot.postingRules.required.some((rule) => rule.sourceType === "RETAIL_SHIFT_VARIANCE" && rule.configured),
-          ]
-        : [],
-    [snapshot],
-  );
-
-  const readyCount = readinessChecks.filter(Boolean).length;
-  const readinessDonut = [
-    { id: "ready", label: "Ready", value: readyCount, tone: "success" as const },
-    { id: "gap", label: "Gap", value: Math.max(readinessChecks.length - readyCount, 0), tone: "warning" as const },
-  ];
+  const missingTenders = TENDER_TYPES.filter((t) => !mappedTenders.has(t));
 
   return (
     <RetailShell
@@ -100,137 +129,265 @@ export default function RetailSetupAccountingPage() {
         </div>
       }
     >
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
-        <div className="space-y-6">
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Accounting map</p>
-                <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Retail posting coverage</h2>
-                <p className="mt-2 max-w-2xl text-sm text-[var(--text-muted)]">
-                  The owner cares about gross profit, EBITDA, and net profit. Those only work if the posting rules and
-                  core accounts are wired correctly beneath the surface.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Readiness</p>
-                <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
-                  {snapshot ? `${Math.round((readyCount / Math.max(readinessChecks.length, 1)) * 100)}%` : "—"}
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">{snapshot ? `${readyCount}/${readinessChecks.length} checks` : "Loading accounting"}</p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-              <AdminDualBarChart
-                rows={ruleRows}
-                primaryLabel="Configured"
-                secondaryLabel="Missing"
-                height={300}
-                valueFormatter={(value) => value.toString()}
-                emptyLabel="Posting rule coverage is loading"
-              />
-              <AdminDonutChart
-                rows={readinessDonut}
-                valueLabel="Accounting checks"
-                valueFormatter={(value) => value.toString()}
-                height={300}
-                emptyLabel="Accounting readiness is loading"
-              />
-            </div>
-          </section>
-
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Accounts</p>
-                <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Distribution by account type</h3>
-              </div>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/accounting/chart-of-accounts">
-                  Open accounts
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-
-            <div className="mt-4">
-              <AdminDistributionChart
-                rows={accountRows}
-                valueLabel="Accounts"
-                valueFormatter={(value) => value.toString()}
-                height={300}
-                emptyLabel="No accounts available"
-              />
-            </div>
-          </section>
+      <div className="max-w-3xl space-y-8">
+        {/* Header row */}
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Configure accounting integration for your retail operations.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/accounting/posting-rules")}
+            >
+              Open Posting Studio
+              <ExternalLink className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </div>
         </div>
 
-        <aside className="space-y-4">
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-[var(--surface-subtle)] p-3 text-[var(--text-strong)]">
-                <ShieldCheck className="h-5 w-5" />
+        {/* Overall status */}
+        {isLoading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Checking setup...</div>
+        ) : error ? (
+          <div className="py-8 text-center text-sm text-destructive">Failed to load readiness data.</div>
+        ) : readiness ? (
+          <>
+            {/* Summary bar */}
+            <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/20">
+              <ReadinessIcon passed={allPassed} size="md" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">
+                  {allPassed ? "All checks passing" : `${passed} of ${total} checks passing`}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {allPassed
+                    ? "Retail accounting is fully configured."
+                    : "Complete the items below to enable automatic retail journal posting."}
+                </p>
               </div>
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Checklist</p>
-                <h3 className="text-lg font-semibold text-[var(--text-strong)]">Setup readiness checks</h3>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {[
-                { label: "Core accounts exist", ok: readinessChecks[0] },
-                { label: "Open accounting period", ok: readinessChecks[1] },
-                { label: "Retained earnings set", ok: readinessChecks[2] },
-                { label: "Default tax code set", ok: readinessChecks[3] },
-                { label: "Default bank account set", ok: readinessChecks[4] },
-                { label: "Retail sales rule", ok: readinessChecks[5] },
-                { label: "Retail refunds rule", ok: readinessChecks[6] },
-                { label: "Goods receipt rule", ok: readinessChecks[7] },
-                { label: "Shift variance rule", ok: readinessChecks[8] },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3">
-                  <span className="text-sm text-[var(--text-strong)]">{item.label}</span>
-                  <span className={`font-mono text-xs ${item.ok ? "text-[var(--success-500)]" : "text-[var(--warning-500)]"}`}>
-                    {item.ok ? "Ready" : "Missing"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-[var(--surface-subtle)] p-3 text-[var(--text-strong)]">
-                <Scale className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Direct actions</p>
-                <h3 className="text-lg font-semibold text-[var(--text-strong)]">Go fix the gaps</h3>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 text-sm">
-              {[
-                { label: "Posting rules", href: "/accounting/posting-rules" },
-                { label: "Chart of accounts", href: "/accounting/chart-of-accounts" },
-                { label: "Retail setup overview", href: "/retail/setup" },
-              ].map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="flex items-center justify-between rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3 text-[var(--text-strong)] hover:bg-[var(--surface-base)]"
+              {!allPassed && (
+                <Button
+                  size="sm"
+                  onClick={() => seedMutation.mutate("APPLY")}
+                  disabled={seedMutation.isPending}
                 >
-                  <span>{item.label}</span>
-                  <ArrowRight className="h-4 w-4 text-[var(--text-muted)]" />
-                </Link>
-              ))}
+                  {seedMutation.isPending ? "Running..." : "Quick fix with seed pack"}
+                </Button>
+              )}
             </div>
-          </section>
-        </aside>
+
+            {/* Readiness checklist */}
+            <div className="space-y-2">
+              {readiness.checks.map((check) => {
+                const action = CHECK_ACTIONS[check.id];
+                return (
+                  <div
+                    key={check.id}
+                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/10 transition-colors"
+                  >
+                    <ReadinessIcon passed={check.ready} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{check.label}</p>
+                      {check.note && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{check.note}</p>
+                      )}
+                    </div>
+                    {!check.ready && action && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(action.href)}
+                        className="flex-shrink-0"
+                      >
+                        {action.label}
+                        <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                      </Button>
+                    )}
+                    {check.ready && (
+                      <Badge variant="outline" className="text-xs text-green-700 border-green-200 bg-green-50 flex-shrink-0">
+                        Configured
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        <Separator />
+
+        {/* Tender mapping status */}
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">Tender account mappings</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Each payment method needs a clearing account for the posting engine to generate balanced entries.
+            </p>
+          </div>
+
+          <div className="border rounded-md overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 border-b">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tender type</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Clearing account</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {TENDER_TYPES.map((tenderType) => {
+                  const mapping = tenderMappings.find(
+                    (m) => m.tenderType === tenderType && m.isActive,
+                  );
+                  return (
+                    <tr key={tenderType} className="hover:bg-muted/20">
+                      <td className="px-3 py-2 font-medium">{tenderType}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {mapping?.clearingAccount
+                          ? `${mapping.clearingAccount.code} - ${mapping.clearingAccount.name}`
+                          : mapping?.clearingAccountId
+                          ? mapping.clearingAccountId
+                          : <span className="text-muted-foreground/60 italic">Not configured</span>}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <ReadinessIcon passed={!!mapping} />
+                          <span className="text-xs">{mapping ? "Active" : "Missing"}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {missingTenders.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Missing mappings for: {missingTenders.join(", ")}. Run the seed pack below to create defaults.
+            </p>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Seed pack */}
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold">Zimbabwe Retail Foundation seed pack</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Provisions chart of accounts, tax codes, currencies, posting rules, and tender mappings.
+              Idempotent - safe to re-run at any time.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">ZWG/USD rate</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={fxRates.ZWG}
+                onChange={(e) => setFxRates((r) => ({ ...r, ZWG: e.target.value }))}
+                placeholder="e.g. 27.50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">ZAR/USD rate</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={fxRates.ZAR}
+                onChange={(e) => setFxRates((r) => ({ ...r, ZAR: e.target.value }))}
+                placeholder="e.g. 18.50"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => seedMutation.mutate("DRY_RUN")}
+              disabled={seedMutation.isPending}
+            >
+              {seedMutation.isPending && seedMutation.variables === "DRY_RUN" ? "Previewing..." : "Preview changes"}
+            </Button>
+            <Button
+              onClick={() => seedMutation.mutate("APPLY")}
+              disabled={seedMutation.isPending}
+            >
+              {seedMutation.isPending && seedMutation.variables === "APPLY" ? "Applying..." : "Apply seed pack"}
+            </Button>
+          </div>
+
+          {seedResult && (
+            <div className="border rounded-md p-4 bg-muted/20 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {seedResult.mode === "DRY_RUN" ? "Preview - no changes made" : "Changes applied"}
+              </p>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Accounts</span>
+                <span className="tabular-nums">
+                  {seedResult.createdAccounts} created
+                </span>
+                <span className="text-muted-foreground">Tax codes</span>
+                <span className="tabular-nums">{seedResult.createdTaxCodes} created</span>
+                <span className="text-muted-foreground">Currencies</span>
+                <span className="tabular-nums">{seedResult.createdCurrencyDefinitions} created</span>
+                <span className="text-muted-foreground">Tender mappings</span>
+                <span className="tabular-nums">{seedResult.createdTenderMappings} created</span>
+                <span className="text-muted-foreground">Posting rules</span>
+                <span className="tabular-nums">
+                  {seedResult.createdPostingRules} created
+                </span>
+                <span className="text-muted-foreground">Periods</span>
+                <span className="tabular-nums">{seedResult.createdPeriods} created</span>
+              </div>
+              {seedResult.preview.missingFxQuotes.length > 0 && (
+                <p className="text-xs text-amber-700">
+                  Missing FX quotes for: {seedResult.preview.missingFxQuotes.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Quick links */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold">Quick links</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Posting Studio — Rule library", href: "/accounting/posting-rules" },
+              { label: "Posting Studio — Retail defaults", href: "/accounting/posting-rules?view=retail-defaults" },
+              { label: "Posting Studio — Simulation", href: "/accounting/posting-rules?view=simulation" },
+              { label: "Chart of accounts", href: "/accounting/chart-of-accounts" },
+              { label: "Tax codes", href: "/accounting/tax" },
+              { label: "Accounting periods", href: "/accounting/periods" },
+            ].map((link) => (
+              <button
+                key={link.href}
+                onClick={() => router.push(link.href)}
+                className="flex items-center gap-2 p-3 border rounded-lg text-sm text-left hover:bg-muted/20 transition-colors"
+              >
+                <span className="flex-1">{link.label}</span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </RetailShell>
   );
 }
-

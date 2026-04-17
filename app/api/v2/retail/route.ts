@@ -284,7 +284,15 @@ export async function GET(request: NextRequest) {
         companyId,
         isActive: true,
         sourceType: {
-          in: ["RETAIL_SALE", "RETAIL_REFUND", "RETAIL_GOODS_RECEIPT", "SALES_INVOICE", "PURCHASE_BILL"],
+          in: [
+            "RETAIL_SHIFT_OPEN",
+            "RETAIL_SALE",
+            "RETAIL_REFUND",
+            "RETAIL_VOID",
+            "RETAIL_GOODS_RECEIPT",
+            "RETAIL_STOCK_ADJUSTMENT",
+            "RETAIL_SHIFT_VARIANCE",
+          ],
         },
       },
       include: {
