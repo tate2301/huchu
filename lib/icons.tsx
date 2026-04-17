@@ -288,3 +288,21 @@ export const Zap = createMaterialIcon("bolt", "Zap");
 export const Square = createMaterialIcon("stop", "Square");
 export const EditSquare = createMaterialIcon("edit_square", "EditSquare");
 export const Maximize2 = createMaterialIcon("open_in_full", "Maximize2");
+
+// Additional marketing icons
+export const Badge = createMaterialIcon("badge", "Badge");
+export const Policy = createMaterialIcon("policy", "Policy");
+export const Warehouse = createMaterialIcon("warehouse", "Warehouse");
+export const ShoppingBag = createMaterialIcon("shopping_bag", "ShoppingBag");
+export const Manufacturing = createMaterialIcon("manufacturing", "Manufacturing");
+export const Gavel = createMaterialIcon("gavel", "Gavel");
+export const Checkroom = createMaterialIcon("checkroom", "Checkroom");
+export const Work = createMaterialIcon("work", "Work");
+export const AccountTree = createMaterialIcon("account_tree", "AccountTree");
+export const Lock = createMaterialIcon("lock", "Lock");
+export const Replay = createMaterialIcon("replay", "Replay");
+export const Rule = createMaterialIcon("rule", "Rule");
+export const Assessment = createMaterialIcon("assessment", "Assessment");
+export const Calculate = createMaterialIcon("calculate", "Calculate");
+export const Layers = createMaterialIcon("layers", "Layers");
+export const DomainAdd = createMaterialIcon("domain_add", "DomainAdd");

@@ -9,6 +9,7 @@ import {
   marketingSiteHighlights,
 } from "@/components/marketing/marketing-data";
 import { MarketingHeaderHero } from "@/components/marketing/marketing-header-hero";
+import { Reveal, StaggerChildren, StaggerItem } from "@/components/marketing/motion";
 import styles from "@/components/marketing/marketing-site.module.css";
 
 type LandingPageProps = {
@@ -49,36 +50,46 @@ export function LandingPage({ config }: LandingPageProps) {
         <section className="mx-auto max-w-7xl px-6 pb-18 pt-6 lg:px-8 lg:pb-24">
           <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
             <div className="space-y-4">
-              <p className={styles.stripeEyebrow}>Why teams switch</p>
-              <h2 className="max-w-3xl text-[clamp(2.1rem,4.2vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
-                When the work is scattered, every small delay gets more expensive.
-              </h2>
-              <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
-                Growing businesses often outgrow spreadsheets, chat threads, and disconnected tools before they are ready
-                to buy a giant enterprise system. Corelith is built for that middle stage.
-              </p>
+              <Reveal>
+                <p className={styles.stripeEyebrow}>Why teams switch</p>
+              </Reveal>
+              <Reveal delay={0.05}>
+                <h2 className="max-w-3xl text-[clamp(2.1rem,4.2vw,4rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-[#0b1945] text-balance">
+                  When the work is scattered, every small delay gets more expensive.
+                </h2>
+              </Reveal>
+              <Reveal delay={0.1}>
+                <p className="max-w-2xl text-base leading-8 text-[#2d3d66]/82">
+                  Growing businesses often outgrow spreadsheets, chat threads, and disconnected tools before they are ready
+                  for enterprise bloat. Corelith is built for that middle stage.
+                </p>
+              </Reveal>
             </div>
-            <div className={styles.rolloutPreviewRail}>
+            <StaggerChildren className={styles.rolloutPreviewRail}>
               {buyerPainCards.map((item) => (
-                <div key={item.title} className={styles.rolloutPreviewCard}>
-                  <p className={styles.productFeatureEyebrow}>Common pressure point</p>
-                  <p className="mt-2 text-base font-semibold leading-7 text-[#0f1f55]">{item.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-[#31436f]/82">{item.description}</p>
-                </div>
+                <StaggerItem key={item.title}>
+                  <div className={styles.rolloutPreviewCard}>
+                    <p className={styles.productFeatureEyebrow}>Common pressure point</p>
+                    <p className="mt-2 text-base font-semibold leading-7 text-[#0f1f55]">{item.title}</p>
+                    <p className="mt-3 text-sm leading-7 text-[#31436f]/82">{item.description}</p>
+                  </div>
+                </StaggerItem>
               ))}
-            </div>
+            </StaggerChildren>
           </div>
 
           <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {customerOutcomeCards.map((card) => {
-              return (
-                <article key={card.title} className={styles.verticalCard}>
-                  <p className={styles.productFeatureEyebrow}>What improves</p>
-                  <p className="mt-3 text-xl font-semibold tracking-[-0.03em] text-[#0f1f55]">{card.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-[#31436f]/82">{card.description}</p>
-                </article>
-              );
-            })}
+            <StaggerChildren staggerDelay={0.1} className="contents">
+              {customerOutcomeCards.map((card) => (
+                <StaggerItem key={card.title}>
+                  <article className={styles.verticalCard}>
+                    <p className={styles.productFeatureEyebrow}>What improves</p>
+                    <p className="mt-3 text-xl font-semibold tracking-[-0.03em] text-[#0f1f55]">{card.title}</p>
+                    <p className="mt-3 text-sm leading-7 text-[#31436f]/82">{card.description}</p>
+                  </article>
+                </StaggerItem>
+              ))}
+            </StaggerChildren>
           </div>
         </section>
         <MarketingCoreSections />
