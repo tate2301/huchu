@@ -383,17 +383,19 @@ export async function GET(request: NextRequest) {
   const postingRuleBuckets = buildPostingRuleAccountBuckets(
     postingRules.map((rule) => ({
       sourceType: rule.sourceType,
-      lines: rule.lines.map((line) => ({
-        direction: line.direction,
-        basis: line.basis,
-        account: {
-          id: line.account.id,
-          code: line.account.code,
-          name: line.account.name,
-          category: line.account.category,
-          type: line.account.type,
-        },
-      })),
+      lines: rule.lines
+        .filter((line) => line.account != null)
+        .map((line) => ({
+          direction: line.direction,
+          basis: line.basis,
+          account: {
+            id: line.account!.id,
+            code: line.account!.code,
+            name: line.account!.name,
+            category: line.account!.category,
+            type: line.account!.type,
+          },
+        })),
     })),
   );
 

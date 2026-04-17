@@ -168,7 +168,7 @@ function buildEnvelope(context: PostingContext) {
       inventory: context.inventory
         ? {
             lines: context.inventory.lines,
-            totalCost: context.inventory.totalCost ?? undefined,
+            totalCost: context.inventory.totalCost ?? 0,
           }
         : undefined,
     }),
@@ -429,7 +429,7 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
         : [null];
 
     for (const repeat of repeats) {
-      const amount = resolveLineAmount(line, context, envelope, repeat);
+      const amount = resolveLineAmount(line, context, envelope, repeat ?? undefined);
       if (amount <= 0) continue;
 
       const direction = context.invertDirection

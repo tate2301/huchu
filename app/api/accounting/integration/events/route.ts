@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!parsed.success) {
-      return errorResponse(parsed.error.flatten().fieldErrors, 400);
+      return errorResponse("Invalid query parameters", 400);
     }
 
     const { status, limit, page } = parsed.data;

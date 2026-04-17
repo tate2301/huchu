@@ -87,14 +87,14 @@ function validateConditionLists(
 // PATCH /api/accounting/posting-rules/[id]
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
-    const { id } = params;
+    const { id } = await params;
 
     const existing = await prisma.postingRule.findFirst({
       where: { id, companyId },
@@ -106,7 +106,7 @@ export async function PATCH(
     const body = await request.json();
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(parsed.error.flatten().fieldErrors, 400);
+      return errorResponse("Invalid request body", 400);
     }
 
     const data = parsed.data;
@@ -276,14 +276,14 @@ export async function PATCH(
 // DELETE /api/accounting/posting-rules/[id]
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
-    const { id } = params;
+    const { id } = await params;
 
     const existing = await prisma.postingRule.findFirst({
       where: { id, companyId },

@@ -2494,6 +2494,7 @@ export type PostingRuleLineRecord = {
   accountId?: string | null;
   direction: "DEBIT" | "CREDIT";
   basis: "AMOUNT" | "NET" | "TAX" | "GROSS" | "DEDUCTIONS" | "ALLOWANCES";
+  taxCodeId?: string | null;
   allocationType?: "PERCENT" | "FIXED" | null;
   allocationValue?: number | null;
   repeatMode?: "NONE" | "TENDER";
@@ -2735,6 +2736,8 @@ export type TaxCodeRecord = {
   vat7OutputBox?: string | null;
   vat7InputBox?: string | null;
   scheduleType?: string;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
