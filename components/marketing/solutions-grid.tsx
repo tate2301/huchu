@@ -81,7 +81,13 @@ export function SolutionsGrid() {
                   ))}
                 </div>
 
-                <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#0f1f55]">
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="rounded-full bg-[#f0f4ff] px-2.5 py-1 text-[11px] font-semibold text-[#0f1f55]">
+                    {solution.recommendedTier} plan
+                  </span>
+                </div>
+
+                <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-[#0f1f55]">
                   View solution
                   <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1" />
                 </span>
