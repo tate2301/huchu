@@ -29,16 +29,16 @@ export const marketingNavItems = [
 ];
 
 export const marketingSiteHighlights = [
-  "One system, many sites",
-  "Built-in operational guardrails",
-  "Grow without replatforming",
+  "Works offline — built for Zimbabwe",
+  "Start at $39/month",
+  "Set up in 5 minutes",
 ];
 
 export const proofStats = [
-  { label: "Hard tenant isolation across every record", value: "100%" },
-  { label: "Operational verticals in one ledger", value: "12+" },
-  { label: "Finance-impacting events posted automatically", value: "Auto" },
-  { label: "Roll out in stages without starting over", value: "Phase" },
+  { label: "Zimbabwe businesses running on Corelith", value: "3+" },
+  { label: "Industry verticals supported", value: "12+" },
+  { label: "Works offline when internet drops", value: "100%" },
+  { label: "Starting price per month", value: "$39" },
 ];
 
 export const valuePillars: Array<{
@@ -249,7 +249,7 @@ export type SolutionPage = {
   startWith: string;
   expandWith: string;
   modules: string[];
-  recommendedTier: "Basic" | "Standard" | "Enterprise";
+  recommendedTier: "Starter" | "Growth" | "Business";
   defaultAddOns: string[];
   category: "all" | "high-control" | "retail" | "schools" | "services" | "multi-site";
 };
@@ -297,7 +297,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Buying, dispatch, receipt visibility, and settlement tracking.",
     expandWith: "Compliance, maintenance, deeper finance controls, and analytics.",
     modules: ["Buying", "Dispatch", "Receipts", "Settlement", "Reporting"],
-    recommendedTier: "Enterprise",
+    recommendedTier: "Business",
     defaultAddOns: ["ADDON_GOLD_CORE", "ADDON_GOLD_ADVANCED"],
     category: "high-control",
   },
@@ -343,7 +343,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Admissions, attendance, fees, notices, and core school records.",
     expandWith: "Boarding, portals, results, reporting, and deeper finance workflows.",
     modules: ["Admissions", "Attendance", "Fees", "Portals", "Reporting"],
-    recommendedTier: "Basic",
+    recommendedTier: "Starter",
     defaultAddOns: ["ADDON_SCHOOLS_SUITE"],
     category: "schools",
   },
@@ -389,7 +389,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "POS, stock control, receiving, cashier visibility, and shift close.",
     expandWith: "Purchasing, finance, maintenance, promotions, and broader reporting.",
     modules: ["POS", "Stock", "Receiving", "Cashier control", "Shift close"],
-    recommendedTier: "Standard",
+    recommendedTier: "Growth",
     defaultAddOns: ["ADDON_RETAIL_SUITE"],
     category: "retail",
   },
@@ -435,7 +435,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Lead tracking, inventory visibility, and deal-stage control.",
     expandWith: "Financing support, reporting, support workflows, and broader oversight.",
     modules: ["Leads", "Inventory", "Deal stages", "Approvals", "Reporting"],
-    recommendedTier: "Basic",
+    recommendedTier: "Starter",
     defaultAddOns: ["ADDON_AUTOS_SUITE"],
     category: "services",
   },
@@ -481,7 +481,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Buying records, yard stock visibility, and bulk sales control.",
     expandWith: "Finance, compliance, maintenance, and broader reporting.",
     modules: ["Buying", "Yard stock", "Pricing", "Bulk sales", "Reporting"],
-    recommendedTier: "Standard",
+    recommendedTier: "Growth",
     defaultAddOns: ["ADDON_SCRAP_METAL_SUITE"],
     category: "high-control",
   },
@@ -527,7 +527,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Site visibility, role-based oversight, and shared operational controls.",
     expandWith: "Maintenance, CCTV, compliance, reporting, and deeper admin workflows.",
     modules: ["Sites", "Oversight", "People", "Controls", "Reporting"],
-    recommendedTier: "Standard",
+    recommendedTier: "Growth",
     defaultAddOns: ["ADDON_USER_MANAGEMENT_PRO"],
     category: "multi-site",
   },
@@ -573,7 +573,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Employee directory, incidents, compensation, and payroll.",
     expandWith: "Advanced payroll, settlements, user management, and reporting.",
     modules: ["Employees", "Incidents", "Compensation", "Payroll", "Disbursements"],
-    recommendedTier: "Standard",
+    recommendedTier: "Growth",
     defaultAddOns: ["ADDON_ADVANCED_PAYROLL"],
     category: "services",
   },
@@ -619,7 +619,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Equipment register, work orders, and breakdown tracking.",
     expandWith: "Preventive schedules, downtime analytics, and compliance integration.",
     modules: ["Equipment", "Work orders", "Breakdowns", "Scheduling", "Analytics"],
-    recommendedTier: "Standard",
+    recommendedTier: "Growth",
     defaultAddOns: ["ADDON_MAINTENANCE_PRO"],
     category: "services",
   },
@@ -665,7 +665,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Permits, inspections, and incident tracking.",
     expandWith: "Training records, deeper reporting, and multi-site compliance.",
     modules: ["Permits", "Inspections", "Incidents", "Training", "Reporting"],
-    recommendedTier: "Standard",
+    recommendedTier: "Growth",
     defaultAddOns: ["ADDON_COMPLIANCE_PRO"],
     category: "high-control",
   },
@@ -711,7 +711,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Camera inventory, live monitoring, and event tracking.",
     expandWith: "Playback analytics, access control, and multi-site security dashboards.",
     modules: ["Cameras", "NVRs", "Live monitor", "Playback", "Events"],
-    recommendedTier: "Enterprise",
+    recommendedTier: "Business",
     defaultAddOns: ["ADDON_CCTV_SUITE"],
     category: "multi-site",
   },
@@ -757,7 +757,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Inventory tracking, movements, and receiving.",
     expandWith: "Fuel ledger, retail integration, and advanced reporting.",
     modules: ["Inventory", "Movements", "Receiving", "Issue", "Fuel ledger"],
-    recommendedTier: "Basic",
+    recommendedTier: "Starter",
     defaultAddOns: ["ADDON_STORES_CORE"],
     category: "retail",
   },
@@ -803,7 +803,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Bale intake, grading, and lot inventory.",
     expandWith: "Retail/wholesale sales, finance integration, and reporting.",
     modules: ["Bale intake", "Grading", "Lot inventory", "Sales", "Margins"],
-    recommendedTier: "Basic",
+    recommendedTier: "Starter",
     defaultAddOns: ["ADDON_RETAIL_SUITE"],
     category: "retail",
   },
@@ -816,37 +816,37 @@ export function getSolutionPage(slug: string) {
 
 export const buyerPainCards = [
   {
-    title: "No one is working from the same numbers",
+    title: "I don't know what I actually have in stock",
     description:
-      "Branches, teams, and managers each keep their own version of the truth, so small issues take longer to spot.",
+      "Your notebook says 50 cases. Your shelf says 32. Your supplier says you owe them for 60. Which number is right?",
   },
   {
-    title: "Approvals and follow-ups get buried in chat",
+    title: "My cash drawer never matches",
     description:
-      "Important work lives in messages, phone calls, and memory instead of a process people can actually track.",
+      "The till says $850. You counted $720. Is it theft? A mistake? A pricing error? You spend an hour figuring it out — and still aren't sure.",
   },
   {
-    title: "Reporting depends on chasing people",
+    title: "I find out about problems too late",
     description:
-      "You only get a clean picture after asking around, stitching files together, and checking what changed.",
+      "The machine broke yesterday. The stock ran out last week. The employee didn't show up this morning. You only found out when someone told you.",
   },
 ];
 
 export const customerOutcomeCards = [
   {
-    title: "See what each site is doing",
+    title: "See your stock on your phone",
     description:
-      "Know what has been completed, what is waiting, and where something needs attention without digging through separate tools.",
+      "Check stock levels while you're at the supplier. Review shift reports while you're home. Know what's happening without being there.",
   },
   {
-    title: "Run cleaner handoffs",
+    title: "Connected sales, stock, and cash",
     description:
-      "Teams can pass work between locations, roles, and managers with less confusion and fewer missed steps.",
+      "Every sale updates stock automatically. Every shift close shows expected vs. actual cash in 30 seconds. No more mysteries.",
   },
   {
-    title: "Get clearer reporting faster",
+    title: "Works even when the internet doesn't",
     description:
-      "Because the work is captured in one place, your numbers and summaries are easier to trust.",
+      "Your connection drops? No problem. Corelith stores data on your device and syncs when the internet comes back. Built for Zimbabwe realities.",
   },
 ];
 
@@ -982,111 +982,86 @@ export const pricingSelectionNotes = [
 ];
 
 export const addOns = [
-  "Accounting Core",
-  "Accounting Advanced",
-  "Gold Advanced",
-  "Schools Suite",
-  "Retail Suite",
-  "Auto Sales Suite",
-  "Scrap Metal Suite",
-  "CCTV Suite",
-  "Maintenance Pro",
-  "Compliance Pro",
-  "Custom Branding",
-  "Portal Suite",
+  "Extra User Pack",
+  "Extra Site",
+  "White-label & Custom Domain",
 ];
 
 export const featuredAddOns = [
   {
-    name: "Accounting Core",
-    price: "$250/mo",
-    note: "Posting-aware finance controls.",
+    name: "Extra User Pack",
+    price: "$19/mo",
+    note: "5 additional users. Add as many packs as you need.",
   },
   {
-    name: "Accounting Advanced",
-    price: "$350/mo",
-    note: "AR, AP, banking, budgets, FX.",
+    name: "Extra Site",
+    price: "$25/mo",
+    note: "1 additional business location.",
   },
   {
-    name: "Gold Advanced",
-    price: "$220/mo",
-    note: "Reconciliation, audit, payouts.",
-  },
-  {
-    name: "Schools Suite",
-    price: "$320/mo",
-    note: "Student, fee, boarding, portal.",
-  },
-  {
-    name: "Compliance Pro",
-    price: "$200/mo",
-    note: "Permits, inspections, training.",
-  },
-  {
-    name: "Maintenance Pro",
-    price: "$180/mo",
-    note: "Equipment, work orders, breakdowns.",
+    name: "White-label & Custom Domain",
+    price: "$39/mo",
+    note: "Your logo, colors, and domain.",
   },
 ];
 
 export const rolloutPaths = [
   {
-    title: "Retail and branch rollout",
+    title: "Retail and shop rollout",
     start: "POS, stock, sales control, and shift close.",
-    expand: "Purchasing, accounting, maintenance, and deeper reporting.",
+    expand: "Purchasing, promotions, accounting, and deeper reporting.",
   },
   {
     title: "School or service rollout",
-    start: "Admissions, attendance, fees, notices, or service jobs.",
-    expand: "Portals, reporting, branding, and accounting.",
+    start: "Admissions, attendance, fees, and student records.",
+    expand: "Portals, results, boarding, and finance controls.",
   },
   {
-    title: "High-control operations rollout",
+    title: "Mining or scrap yard rollout",
     start: "Buying, dispatch, receipts, and settlement tracking.",
     expand: "Compliance, maintenance, analytics, and finance controls.",
   },
 ];
 
 export const trustClaims = [
-  "Role-based views keep different teams focused on the work they need to do",
-  "Live workflows already cover retail, schools, gold operations, auto sales, scrap, reporting, maintenance, and compliance",
-  "The workflows you see in the demo are already built into the product, not mocked up for a sales call",
-  "Portals, branded documents, and admin tooling are already part of the live product",
-  "Support, audit visibility, and operational controls are built in for growing teams",
-  "You can start with one problem area and expand without replacing the whole setup later",
+  "Works offline when the internet drops — built for Zimbabwe connectivity",
+  "Mobile-first — runs on any phone, tablet, or computer",
+  "Start at $39/month — less than most businesses lose to one stock error",
+  "Set up in 5 minutes, not 5 days",
+  "All workflows already built — retail, schools, gold, scrap, auto, maintenance, compliance",
+  "Add more capability without replacing the whole system",
 ];
 
 export const audienceSignals = [
-  "You manage more than one site, branch, campus, or team",
-  "Important work still moves through chat, calls, and spreadsheets",
-  "Cash, stock, approvals, or settlements need tighter control",
-  "Reporting takes too much manual follow-up",
-  "You want to roll out in stages instead of changing everything at once",
+  "You run a business in Zimbabwe and need better control",
+  "Important work still moves through notebooks, WhatsApp, and memory",
+  "Cash, stock, or attendance need tighter tracking",
+  "You want to see what's happening without being at every site",
+  "You want to start small and expand when ready",
 ];
 
 export const demoHighlights = [
-  "Show the workflow that is slowing the business down.",
-  "Walk through the sites, teams, and approvals involved.",
-  "Review what each role needs to see and do.",
-  "Leave with a practical rollout path.",
-];
+  "Start your 14-day free trial — no credit card needed.",
+  "See the exact workflow that matters to your business.",
+  "Add your real data in minutes, not hours.",
+  "Get a practical rollout plan before you leave.",];
 
 export const demoPreparationItems = [
-  "Sites, branches, campuses, yards.",
-  "The handoffs that slow you down.",
-  "The tool or sheet to replace.",
-  "Any reporting edge case.",
+  "Your biggest daily headache (stock, sales, attendance, gold tracking).",
+  "How many sites or branches you run.",
+  "How many people need access.",
+  "What you're using now (notebook, spreadsheet, other software).",
 ];
 
 export const demoOutcomeItems = [
-  "We reply with a recommended setup and next step.",
-  "You leave with a practical rollout sequence.",
-  "You can choose a time on the page.",
+  "We reply with a recommended plan and setup steps.",
+  "You get a free trial link to test with your real data.",
+  "You decide if it's worth it — no pressure.",
 ];
 
 export const demoConfidencePoints = [
-  "Built from the live product",
-  "Tailored to your sites and roles",
+  "14-day free trial, no credit card",
+  "Tailored to your workflow, not a generic tour",
   "Clear next step before you leave",
 ];
 

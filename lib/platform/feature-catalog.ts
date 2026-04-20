@@ -486,17 +486,48 @@ export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
 
 export const TIERS: TierDefinition[] = [
   {
-    code: "BASIC",
-    name: "Basic",
-    description: "Platform base subscription without operational add-on packs.",
-    monthlyPrice: 450,
+    code: "STARTER",
+    name: "Starter",
+    description: "Start tracking stock, sales, and daily operations.",
+    monthlyPrice: 39,
     includedSites: 1,
-    additionalSiteMonthlyPrice: 90,
+    additionalSiteMonthlyPrice: 25,
     warningDays: 14,
     graceDays: 7,
     includedFeatures: [],
     includedBundles: [],
   },
+  {
+    code: "GROWTH",
+    name: "Growth",
+    description: "Run multiple sites with full operations and reporting.",
+    monthlyPrice: 99,
+    includedSites: 3,
+    additionalSiteMonthlyPrice: 35,
+    warningDays: 14,
+    graceDays: 7,
+    includedFeatures: [
+      "reports.audit-trails",
+      "reports.downtime-analytics",
+      "core.notifications.push",
+      "admin.feature-flags-console",
+      "admin.subscription-console",
+    ],
+    includedBundles: [],
+  },
+  {
+    code: "BUSINESS",
+    name: "Business",
+    description: "Full suite with all modules, priority support, and custom branding.",
+    monthlyPrice: 199,
+    includedSites: 8,
+    additionalSiteMonthlyPrice: 50,
+    warningDays: 21,
+    graceDays: 14,
+    includedFeatures: [],
+    includedBundles: [],
+  },
+];
   {
     code: "STANDARD",
     name: "Standard",
@@ -539,8 +570,6 @@ export const TIERS: TierDefinition[] = [
       "admin.subscription-console",
       "core.notifications.push",
     ],
-    includedBundles: ["ADDON_ANALYTICS_PRO"],
-  },
 ];
 
 export function getTierDefinition(planCode: string | null | undefined): TierDefinition | null {

@@ -47,33 +47,43 @@ export function MarketingHeaderHero() {
             <p className={styles.heroEyebrow}>ERP for growing multi-site businesses</p>
           </Reveal>
           <Reveal delay={0.1}>
-            <h1 className="mt-5 max-w-[13ch] text-[clamp(3.2rem,7vw,6.5rem)] font-medium leading-[0.9] tracking-[-0.07em] text-white text-balance">
-              Run your business with clearer control.
+            <h1 className="mt-5 max-w-[15ch] text-[clamp(3.2rem,7vw,6.5rem)] font-medium leading-[0.9] tracking-[-0.07em] text-white text-balance">
+              Stop losing money to missing stock and broken records.
             </h1>
           </Reveal>
           <Reveal delay={0.2}>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/76">
-              Corelith helps owners bring sites, teams, approvals, stock, and reporting into one system — so the business is easier to run every day.
+              Zimbabwe businesses run on notebooks, WhatsApp, and memory. We built something better. One system that tracks your stock, your sales, your people, and your money — even when the internet is down.
             </p>
           </Reveal>
           <Reveal delay={0.3}>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-12 rounded-full bg-white px-6 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
                 <Link href="/home/book-demo">
-                  Book a demo
+                  Start Free for 14 Days
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 rounded-full border-white/18 bg-white/6 px-6 text-white hover:bg-white/10 hover:text-white">
-                <Link href="/home/pricing">See pricing</Link>
+                <Link href="/home/solutions">See solutions</Link>
               </Button>
             </div>
           </Reveal>
           <Reveal delay={0.35}>
-            <p className="mt-6 max-w-xl text-sm leading-6 text-white/58">
-              Built for teams running more than one site, more than one workflow, or too many handoffs to manage by hand.
-            </p>
-          </Reveal>
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/58">
+              <span className="flex items-center gap-1.5">
+                <svg className="size-4 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                Works offline
+              </span>
+              <span className="flex items-center gap-1.5">
+                <svg className="size-4 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                Set up in 5 minutes
+              </span>
+              <span className="flex items-center gap-1.5">
+                <svg className="size-4 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                Cancel anytime
+              </span>
+            </div>
         </div>
 
         <Reveal delay={0.25} className="h-full">
