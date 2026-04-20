@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import type { MarketingSiteConfig } from "@/lib/marketing-site";
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
-import { addOns, demoHighlights, featuredAddOns, rolloutPaths } from "@/components/marketing/marketing-data";
+import { featuredAddOns, rolloutPaths } from "@/components/marketing/marketing-data";
 import { DemoBookingForm } from "@/components/marketing/demo-booking-form";
 import { Reveal, StaggerChildren, StaggerItem } from "@/components/marketing/motion";
 import styles from "@/components/marketing/marketing-site.module.css";
@@ -55,8 +55,8 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
             </Reveal>
             <Reveal delay={0.05}>
               <p className="max-w-2xl text-lg leading-8 text-[#23345f]">
-                Once the core workflow is working, you can add more depth around finance, compliance, maintenance,
-                branding, portals, and reporting without starting over.
+                Once the core workflow is working, add more depth around users, sites, branding,
+                and reporting without starting over.
               </p>
             </Reveal>
           </div>
@@ -75,7 +75,7 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
               ))}
             </StaggerChildren>
             <div className={styles.addonCloud}>
-              {addOns.map((item) => (
+              {["Extra Users", "Extra Sites", "White-label", "Priority Support"].map((item) => (
                 <span key={item}>{item}</span>
               ))}
             </div>
@@ -88,16 +88,21 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           <div className={styles.ctaWrap}>
             <div className="grid gap-8 px-6 py-8 lg:grid-cols-[0.82fr_1.18fr] lg:px-10 lg:py-10">
               <div className="space-y-5 text-white">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Demo</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Free Trial</p>
                 <h2 className="max-w-3xl text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
-                  Bring your busiest workflow. We&apos;ll show you a cleaner way to run it.
+                  Try it for 14 days. No credit card. No risk.
                 </h2>
                 <p className="max-w-2xl text-sm leading-7 text-white/74">
-                  Bring the sites, handoffs, approvals, or reporting pain points that matter most. We will shape the demo
-                  around your business, not a generic product tour.
+                  See exactly how {PLATFORM_BRAND_NAME} works for your business. Log a few sales, check your stock, run a report.
+                  If it doesn't save you time, walk away with zero cost.
                 </p>
                 <ul className={`${styles.simpleListInverse} mt-6`}>
-                  {demoHighlights.map((item) => (
+                  {[
+                    "Full access to your chosen plan",
+                    "Set up in 5 minutes",
+                    "We help you onboard via WhatsApp",
+                    "Cancel anytime — no hard feelings",
+                  ].map((item) => (
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
@@ -115,29 +120,17 @@ export function MarketingCommercialSections({ config }: MarketingCommercialSecti
           <div className="space-y-3">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">{PLATFORM_BRAND_NAME}</p>
             <p className="max-w-2xl text-sm leading-7">
-              One system for growing businesses that need clearer operations, stronger follow-through, and better
-              reporting across teams and sites.
+              One system for Zimbabwe businesses that need clearer operations, stronger follow-through, and better
+              reporting across teams and sites. Built locally. Priced fairly.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm lg:justify-end">
-            <Link href="/home" className="hover:text-white">
-              Home
-            </Link>
-            <Link href="/home/product" className="hover:text-white">
-              Product
-            </Link>
-            <Link href="/home/solutions" className="hover:text-white">
-              Solutions
-            </Link>
-            <Link href="/home/pricing" className="hover:text-white">
-              Pricing
-            </Link>
-            <Link href="/home/book-demo" className="hover:text-white">
-              Demo
-            </Link>
-            <Link href="/login" className="hover:text-white">
-              Sign in
-            </Link>
+            <Link href="/home" className="hover:text-white">Home</Link>
+            <Link href="/home/product" className="hover:text-white">Product</Link>
+            <Link href="/home/solutions" className="hover:text-white">Solutions</Link>
+            <Link href="/home/pricing" className="hover:text-white">Pricing</Link>
+            <Link href="/home/book-demo" className="hover:text-white">Demo</Link>
+            <Link href="/login" className="hover:text-white">Sign in</Link>
           </div>
         </div>
       </footer>
