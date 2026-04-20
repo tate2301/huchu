@@ -25,6 +25,8 @@ export const marketingNavItems = [
   { label: "Product", href: "/home/product" },
   { label: "Solutions", href: "/home/solutions" },
   { label: "Pricing", href: "/home/pricing" },
+  { label: "About", href: "/home/about" },
+  { label: "Contact", href: "/home/contact" },
   { label: "Demo", href: "/home/book-demo" },
 ];
 
@@ -481,7 +483,7 @@ export const solutionPages: SolutionPage[] = [
     startWith: "Buying records, yard stock visibility, and bulk sales control.",
     expandWith: "Finance, compliance, maintenance, and broader reporting.",
     modules: ["Buying", "Yard stock", "Pricing", "Bulk sales", "Reporting"],
-    recommendedTier: "Growth",
+    recommendedTier: "Starter",
     defaultAddOns: ["ADDON_SCRAP_METAL_SUITE"],
     category: "high-control",
   },
@@ -938,30 +940,30 @@ export const verticalCards: Array<{
 
 export const pricingTiers = [
   {
-    tier: "Basic",
-    price: "$450",
+    tier: "Starter",
+    price: "$39",
     sites: "1 site included",
-    extraSite: "$90 / extra site",
+    extraSite: "$25 / extra site",
     stage: "Get your first site organised",
     bestFor: "Single-site teams.",
     summary: "A simple starting point for one location or one focused workflow.",
     detail: "Best when you want to replace manual tracking without taking on too much at once.",
   },
   {
-    tier: "Standard",
-    price: "$900",
+    tier: "Growth",
+    price: "$99",
     sites: "3 sites included",
-    extraSite: "$140 / extra site",
+    extraSite: "$35 / extra site",
     stage: "Bring growing locations together",
     bestFor: "Growing multi-site teams.",
     summary: "For businesses adding branches, managers, and more day-to-day handoffs.",
     detail: "A strong fit when separate sites need the same process and clearer reporting.",
   },
   {
-    tier: "Enterprise",
-    price: "$1,800",
+    tier: "Business",
+    price: "$199",
     sites: "8 sites included",
-    extraSite: "$220 / extra site",
+    extraSite: "$50 / extra site",
     stage: "Run a broader operation with tighter oversight",
     bestFor: "Larger groups.",
     summary: "For larger groups that need stronger oversight across more sites and workflows.",
@@ -970,19 +972,19 @@ export const pricingTiers = [
 ];
 
 export const pricingConfidencePoints = [
-  "3 tiers with site math",
-  "20 add-on bundles",
-  "USD pricing",
+  "3 simple tiers",
+  "Start at $39/month",
+  "14-day free trial",
 ];
 
 export const pricingSelectionNotes = [
   "Start with the pain point.",
-  "Add sites explicitly.",
-  "Add depth after baseline.",
+  "Add sites as you grow.",
+  "Upgrade anytime.",
 ];
 
 export const addOns = [
-  "Extra User Pack",
+  "Extra User Pack (5 users)",
   "Extra Site",
   "White-label & Custom Domain",
 ];
@@ -991,17 +993,17 @@ export const featuredAddOns = [
   {
     name: "Extra User Pack",
     price: "$19/mo",
-    note: "5 additional users. Add as many packs as you need.",
+    note: "5 additional users for any plan.",
   },
   {
     name: "Extra Site",
     price: "$25/mo",
-    note: "1 additional business location.",
+    note: "1 additional location on your account.",
   },
   {
-    name: "White-label & Custom Domain",
+    name: "White-label",
     price: "$39/mo",
-    note: "Your logo, colors, and domain.",
+    note: "Your logo, your colors, your domain.",
   },
 ];
 
@@ -1174,10 +1176,15 @@ export const calculatorAddOns: Array<{
 
 export const tierComparisonRows = [
   { label: "Included sites", basic: "1", standard: "3", enterprise: "8" },
-  { label: "Extra site rate", basic: "$90/mo", standard: "$140/mo", enterprise: "$220/mo" },
+  { label: "Extra site rate", basic: "$25/mo", standard: "$35/mo", enterprise: "$50/mo" },
+  { label: "Included users", basic: "2", standard: "10", enterprise: "25" },
+  { label: "Extra user pack", basic: "$19/mo", standard: "$19/mo", enterprise: "$19/mo" },
   { label: "Core operations", basic: "Included", standard: "Included", enterprise: "Included" },
-  { label: "HR incidents & compliance", basic: "—", standard: "Included", enterprise: "Included" },
-  { label: "Payroll & disbursements", basic: "—", standard: "—", enterprise: "Included" },
-  { label: "Analytics Pro", basic: "Add-on", standard: "Add-on", enterprise: "Included" },
-  { label: "Priority support", basic: "—", standard: "Email", enterprise: "Dedicated" },
+  { label: "Vertical modules", basic: "1", standard: "3", enterprise: "All" },
+  { label: "Basic reports", basic: "Included", standard: "Included", enterprise: "Included" },
+  { label: "Advanced reports", basic: "—", standard: "Included", enterprise: "Included" },
+  { label: "Stock alerts", basic: "—", standard: "Included", enterprise: "Included" },
+  { label: "Priority support", basic: "WhatsApp", standard: "Email + WhatsApp", enterprise: "Phone + WhatsApp" },
+  { label: "Custom branding", basic: "—", standard: "—", enterprise: "Included" },
+  { label: "Offline mode", basic: "Included", standard: "Included", enterprise: "Included" },
 ];

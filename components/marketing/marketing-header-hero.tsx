@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/marketing/motion";
 import styles from "@/components/marketing/marketing-site.module.css";
 
-const proofRail = ["Retail", "Schools", "Gold", "Auto", "Scrap", "Multi-site"];
+const proofRail = ["Gold", "Scrap", "Retail", "Schools", "Auto", "Multi-site"];
 
 export function MarketingHeaderHero() {
   const landingNavItems = [marketingNavItems[0], marketingNavItems[1], marketingNavItems[3]];
@@ -33,7 +33,7 @@ export function MarketingHeaderHero() {
             </Button>
             <Button asChild className="h-11 rounded-full bg-white px-5 text-[#091127] hover:bg-white/90 hover:text-[#091127]">
               <Link href="/home/book-demo">
-                Book a demo
+                Start free trial
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
@@ -44,10 +44,10 @@ export function MarketingHeaderHero() {
       <section className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:pb-28 lg:pt-24">
         <div className="max-w-3xl">
           <Reveal>
-            <p className={styles.heroEyebrow}>ERP for growing multi-site businesses</p>
+            <p className={styles.heroEyebrow}>Built in Zimbabwe for Zimbabwe businesses</p>
           </Reveal>
           <Reveal delay={0.1}>
-            <h1 className="mt-5 max-w-[15ch] text-[clamp(3.2rem,7vw,6.5rem)] font-medium leading-[0.9] tracking-[-0.07em] text-white text-balance">
+            <h1 className="mt-5 max-w-[14ch] text-[clamp(3.2rem,7vw,6.5rem)] font-medium leading-[0.9] tracking-[-0.07em] text-white text-balance">
               Stop losing money to missing stock and broken records.
             </h1>
           </Reveal>
@@ -72,18 +72,19 @@ export function MarketingHeaderHero() {
           <Reveal delay={0.35}>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/58">
               <span className="flex items-center gap-1.5">
-                <svg className="size-4 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                <svg className="size-4 text-[#4ade80]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
                 Works offline
               </span>
               <span className="flex items-center gap-1.5">
-                <svg className="size-4 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                <svg className="size-4 text-[#4ade80]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
                 Set up in 5 minutes
               </span>
               <span className="flex items-center gap-1.5">
-                <svg className="size-4 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                <svg className="size-4 text-[#4ade80]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
                 Cancel anytime
               </span>
             </div>
+          </Reveal>
         </div>
 
         <Reveal delay={0.25} className="h-full">
@@ -98,10 +99,14 @@ export function MarketingHeaderHero() {
               <div className={styles.heroStripePane}>
                 <p className={styles.stripeEyebrow}>What changes</p>
                 <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">
-                  Sites, teams, and follow-up work become easier to see and manage.
+                  From chaos to clarity — one record at a time.
                 </p>
                 <div className={styles.heroMetrics}>
-                  {proofStats.slice(0, 3).map((item) => (
+                  {[
+                    { value: "$39", label: "Starting price /mo" },
+                    { value: "100%", label: "Offline capable" },
+                    { value: "14-day", label: "Free trial" },
+                  ].map((item) => (
                     <div key={item.label} className={styles.heroMetric}>
                       <strong>{item.value}</strong>
                       <span>{item.label}</span>
@@ -121,12 +126,12 @@ export function MarketingHeaderHero() {
                     </div>
                   </div>
                   <div className={styles.heroFlowPanel}>
-                    <p className={styles.heroFlowLabel}>What leaders follow</p>
+                    <p className={styles.heroFlowLabel}>What you get</p>
                     <div className={styles.heroFlowList}>
                       {[
-                        ["Daily work", "Tasks and approvals"],
-                        ["Operations", "Stock, sites, people"],
-                        ["Reporting", "Clearer visibility"],
+                        ["Stock", "Live levels on your phone"],
+                        ["Sales", "Connected to inventory"],
+                        ["Reporting", "Auto-generated daily"],
                       ].map(([label, value]) => (
                         <div key={label} className={styles.heroFlowItem}>
                           <span>{label}</span>
