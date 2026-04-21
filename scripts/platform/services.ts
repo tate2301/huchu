@@ -134,6 +134,11 @@ import {
   type SubscriptionStatusValue,
   type SubscriptionSummary,
   type AuditEventRecord,
+  type WorkspaceResetInput,
+  type WorkspaceResetPreview,
+  type WorkspaceResetPreviewInput,
+  type WorkspaceResetResult,
+  type WorkspaceResetTableStat,
 } from "./types";
 
 function formatDate(value: unknown): string | null {
@@ -222,6 +227,412 @@ function normalizeSiteMeasurementUnit(value: string | undefined): SiteMeasuremen
     );
   }
   return normalized as SiteMeasurementUnit;
+}
+
+function quoteIdent(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
+}
+
+type DeletePredicateBuilder = (alias: string) => string;
+
+type ForeignKeyMetadataRow = {
+  constraint_name: string;
+  child_table: string;
+  parent_table: string;
+  child_columns: string[];
+  parent_columns: string[];
+};
+
+type ResetPlan = {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  confirmationToken: string;
+  activeSupportSessionCount: number;
+  preservedAdminCount: number;
+  activePreservedAdminCount: number;
+  deletionOrder: string[];
+  tablePredicates: Map<string, DeletePredicateBuilder>;
+  tableStats: WorkspaceResetTableStat[];
+};
+
+const WORKSPACE_RESET_PRESERVED_TABLES = new Set([
+  "Company",
+  "CompanyBranding",
+  "CompanyDomain",
+  "CompanyFeatureFlag",
+  "CompanySubscription",
+  "CompanySubscriptionAddon",
+  "ContractEnforcementEvent",
+  "HealthIncident",
+  "PlatformAuditEvent",
+  "ProvisioningEvent",
+  "RunbookDefinition",
+  "RunbookExecution",
+  "SubdomainReservation",
+  "SupportAccessRequest",
+  "SupportSession",
+  "TenantSloMetricSnapshot",
+]);
+
+const WORKSPACE_RESET_PRESERVED_SCOPES = [
+  "Company record and portal access shell",
+  "SUPERADMIN accounts and their login sessions",
+  "Branding, domains, subscriptions, add-ons, and feature flags",
+  "Platform audit, support, runbook, and reliability records",
+];
+
+const WORKSPACE_RESET_ROOT_PREDICATES: Record<string, DeletePredicateBuilder> = {
+  User: (alias) => `${alias}.${quoteIdent("companyId")} = $1 AND ${alias}.${quoteIdent("role")} <> 'SUPERADMIN'`,
+};
+
+async function listCompanyScopedTables(
+  tx: Prisma.TransactionClient,
+): Promise<Set<string>> {
+  const rows = await tx.$queryRaw<Array<{ table_name: string }>>`
+    SELECT table_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND column_name = 'companyId'
+  `;
+
+  return new Set(rows.map((row) => row.table_name));
+}
+
+async function listForeignKeyMetadata(
+  tx: Prisma.TransactionClient,
+): Promise<ForeignKeyMetadataRow[]> {
+  return tx.$queryRaw<ForeignKeyMetadataRow[]>`
+    SELECT
+      con.conname AS constraint_name,
+      child.relname AS child_table,
+      parent.relname AS parent_table,
+      array_agg(child_attr.attname ORDER BY cols.ord) AS child_columns,
+      array_agg(parent_attr.attname ORDER BY cols.ord) AS parent_columns
+    FROM pg_constraint con
+    INNER JOIN pg_class child
+      ON child.oid = con.conrelid
+    INNER JOIN pg_class parent
+      ON parent.oid = con.confrelid
+    INNER JOIN pg_namespace ns
+      ON ns.oid = child.relnamespace
+    INNER JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS cols(child_attnum, parent_attnum, ord)
+      ON TRUE
+    INNER JOIN pg_attribute child_attr
+      ON child_attr.attrelid = child.oid
+     AND child_attr.attnum = cols.child_attnum
+    INNER JOIN pg_attribute parent_attr
+      ON parent_attr.attrelid = parent.oid
+     AND parent_attr.attnum = cols.parent_attnum
+    WHERE con.contype = 'f'
+      AND ns.nspname = 'public'
+    GROUP BY con.conname, child.relname, parent.relname
+  `;
+}
+
+function buildWorkspaceResetPredicates(
+  companyScopedTables: Set<string>,
+  foreignKeys: ForeignKeyMetadataRow[],
+) {
+  const predicates = new Map<string, DeletePredicateBuilder>();
+
+  for (const tableName of companyScopedTables) {
+    if (WORKSPACE_RESET_PRESERVED_TABLES.has(tableName)) {
+      continue;
+    }
+
+    const customPredicate = WORKSPACE_RESET_ROOT_PREDICATES[tableName];
+    predicates.set(
+      tableName,
+      customPredicate ??
+        ((alias) => `${alias}.${quoteIdent("companyId")} = $1`),
+    );
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (const foreignKey of foreignKeys) {
+      if (predicates.has(foreignKey.child_table)) {
+        continue;
+      }
+
+      if (WORKSPACE_RESET_PRESERVED_TABLES.has(foreignKey.child_table)) {
+        continue;
+      }
+
+      const parentPredicate = predicates.get(foreignKey.parent_table);
+      if (!parentPredicate) {
+        continue;
+      }
+
+      predicates.set(foreignKey.child_table, (alias) => {
+        const joinConditions = foreignKey.child_columns
+          .map((childColumn, index) => {
+            const parentColumn = foreignKey.parent_columns[index];
+            return `p.${quoteIdent(parentColumn)} = ${alias}.${quoteIdent(childColumn)}`;
+          })
+          .join(" AND ");
+
+        return `EXISTS (
+          SELECT 1
+          FROM ${quoteIdent(foreignKey.parent_table)} AS p
+          WHERE ${joinConditions}
+            AND ${parentPredicate("p")}
+        )`;
+      });
+      changed = true;
+    }
+  }
+
+  return predicates;
+}
+
+function buildWorkspaceResetDeletionOrder(
+  tablePredicates: Map<string, DeletePredicateBuilder>,
+  foreignKeys: ForeignKeyMetadataRow[],
+) {
+  const tableNames = [...tablePredicates.keys()];
+  const indegree = new Map<string, number>(tableNames.map((table) => [table, 0]));
+  const childrenByParent = new Map<string, Set<string>>();
+
+  for (const foreignKey of foreignKeys) {
+    if (!tablePredicates.has(foreignKey.child_table) || !tablePredicates.has(foreignKey.parent_table)) {
+      continue;
+    }
+    if (foreignKey.child_table === foreignKey.parent_table) {
+      continue;
+    }
+
+    const siblings = childrenByParent.get(foreignKey.parent_table) ?? new Set<string>();
+    if (!siblings.has(foreignKey.child_table)) {
+      siblings.add(foreignKey.child_table);
+      childrenByParent.set(foreignKey.parent_table, siblings);
+      indegree.set(
+        foreignKey.child_table,
+        (indegree.get(foreignKey.child_table) ?? 0) + 1,
+      );
+    }
+  }
+
+  const queue = tableNames
+    .filter((table) => (indegree.get(table) ?? 0) === 0)
+    .sort((left, right) => left.localeCompare(right));
+  const topo: string[] = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    topo.push(current);
+
+    for (const child of childrenByParent.get(current) ?? []) {
+      const nextDegree = (indegree.get(child) ?? 0) - 1;
+      indegree.set(child, nextDegree);
+      if (nextDegree === 0) {
+        queue.push(child);
+        queue.sort((left, right) => left.localeCompare(right));
+      }
+    }
+  }
+
+  const unresolved = tableNames
+    .filter((table) => !topo.includes(table))
+    .sort((left, right) => left.localeCompare(right));
+
+  return [...topo, ...unresolved].reverse();
+}
+
+async function countWorkspaceResetRows(
+  tx: Prisma.TransactionClient,
+  tableName: string,
+  predicate: DeletePredicateBuilder,
+  companyId: string,
+) {
+  const sql = `SELECT COUNT(*)::bigint AS count FROM ${quoteIdent(tableName)} AS t WHERE ${predicate("t")}`;
+  const rows = await tx.$queryRawUnsafe<Array<{ count: bigint | number | string }>>(sql, companyId);
+  const rawCount = rows[0]?.count ?? 0;
+  return Number(rawCount);
+}
+
+async function buildWorkspaceResetPlan(
+  tx: Prisma.TransactionClient,
+  input: WorkspaceResetPreviewInput,
+): Promise<ResetPlan> {
+  const company = await tx.company.findUnique({
+    where: { id: input.companyId },
+    select: { id: true, name: true, slug: true },
+  });
+  if (!company) {
+    throw new Error(`Organization not found for id: ${input.companyId}`);
+  }
+
+  const [activeSupportSessionCount, preservedAdminCount, activePreservedAdminCount, companyScopedTables, foreignKeys] =
+    await Promise.all([
+      tx.supportSession.count({
+        where: {
+          companyId: input.companyId,
+          status: "ACTIVE",
+        },
+      }),
+      tx.user.count({
+        where: {
+          companyId: input.companyId,
+          role: "SUPERADMIN",
+        },
+      }),
+      tx.user.count({
+        where: {
+          companyId: input.companyId,
+          role: "SUPERADMIN",
+          isActive: true,
+        },
+      }),
+      listCompanyScopedTables(tx),
+      listForeignKeyMetadata(tx),
+    ]);
+
+  if (preservedAdminCount === 0) {
+    throw new Error(
+      `Workspace ${company.slug} has no SUPERADMIN users to preserve. Restore a SUPERADMIN before resetting it.`,
+    );
+  }
+
+  if (activePreservedAdminCount === 0) {
+    throw new Error(
+      `Workspace ${company.slug} has no active SUPERADMIN users. Reactivate one before resetting the workspace.`,
+    );
+  }
+
+  const tablePredicates = buildWorkspaceResetPredicates(companyScopedTables, foreignKeys);
+  const deletionOrder = buildWorkspaceResetDeletionOrder(tablePredicates, foreignKeys);
+  const tableStats = (
+    await Promise.all(
+      deletionOrder.map(async (tableName) => ({
+        table: tableName,
+        rowCount: await countWorkspaceResetRows(
+          tx,
+          tableName,
+          tablePredicates.get(tableName)!,
+          input.companyId,
+        ),
+      })),
+    )
+  ).filter((row) => row.rowCount > 0);
+
+  return {
+    companyId: company.id,
+    companyName: company.name,
+    companySlug: company.slug,
+    confirmationToken: `RESET ${company.slug}`,
+    activeSupportSessionCount,
+    preservedAdminCount,
+    activePreservedAdminCount,
+    deletionOrder,
+    tablePredicates,
+    tableStats: tableStats.sort((left, right) => right.rowCount - left.rowCount),
+  };
+}
+
+async function previewWorkspaceReset(
+  input: WorkspaceResetPreviewInput,
+): Promise<WorkspaceResetPreview> {
+  const plan = await prisma.$transaction((tx) => buildWorkspaceResetPlan(tx, input));
+
+  return {
+    companyId: plan.companyId,
+    companyName: plan.companyName,
+    companySlug: plan.companySlug,
+    confirmationToken: plan.confirmationToken,
+    activeSupportSessionCount: plan.activeSupportSessionCount,
+    preservedAdminCount: plan.preservedAdminCount,
+    activePreservedAdminCount: plan.activePreservedAdminCount,
+    tablesToDelete: plan.tableStats,
+    totalRowsToDelete: plan.tableStats.reduce((sum, row) => sum + row.rowCount, 0),
+    preservedScopes: [...WORKSPACE_RESET_PRESERVED_SCOPES],
+  };
+}
+
+async function resetWorkspace(input: WorkspaceResetInput): Promise<WorkspaceResetResult> {
+  const confirmationToken = input.confirmationToken.trim();
+  let deletedTables: WorkspaceResetTableStat[] = [];
+  let companyName = "";
+  let companySlug = "";
+  let preservedAdminCount = 0;
+  let activePreservedAdminCount = 0;
+
+  await prisma.$transaction(async (tx) => {
+    const plan = await buildWorkspaceResetPlan(tx, input);
+    companyName = plan.companyName;
+    companySlug = plan.companySlug;
+    preservedAdminCount = plan.preservedAdminCount;
+    activePreservedAdminCount = plan.activePreservedAdminCount;
+
+    if (plan.activeSupportSessionCount > 0) {
+      throw new Error(
+        `Workspace ${plan.companySlug} has ${plan.activeSupportSessionCount} active support session(s). End those sessions before resetting the workspace.`,
+      );
+    }
+
+    if (confirmationToken !== plan.confirmationToken) {
+      throw new Error(`Confirmation mismatch. Type "${plan.confirmationToken}" to continue.`);
+    }
+
+    const results: WorkspaceResetTableStat[] = [];
+    for (const tableName of plan.deletionOrder) {
+      const predicate = plan.tablePredicates.get(tableName);
+      if (!predicate) {
+        continue;
+      }
+
+      const sql = `DELETE FROM ${quoteIdent(tableName)} AS t WHERE ${predicate("t")}`;
+      const deletedRowCount = await tx.$executeRawUnsafe<number>(sql, plan.companyId);
+      if (deletedRowCount > 0) {
+        results.push({
+          table: tableName,
+          rowCount: deletedRowCount,
+        });
+      }
+    }
+
+    deletedTables = results.sort((left, right) => right.rowCount - left.rowCount);
+  });
+
+  let auditEventId: string | null = null;
+  try {
+    const audit = await appendAuditEvent({
+      actor: input.actor,
+      action: "ORG_RESET_WORKSPACE",
+      entityType: "organization",
+      entityId: input.companyId,
+      companyId: input.companyId,
+      reason: input.reason ?? "Workspace reset from admin portal",
+      after: {
+        preservedAdminCount,
+        activePreservedAdminCount,
+        deletedTables,
+        totalRowsDeleted: deletedTables.reduce((sum, row) => sum + row.rowCount, 0),
+      },
+      metadata: {
+        companySlug,
+        confirmationToken,
+      },
+    });
+    auditEventId = audit.id;
+  } catch {
+    auditEventId = null;
+  }
+
+  return {
+    companyId: input.companyId,
+    companyName,
+    companySlug,
+    confirmationToken,
+    deletedTables,
+    totalRowsDeleted: deletedTables.reduce((sum, row) => sum + row.rowCount, 0),
+    preservedAdminCount,
+    activePreservedAdminCount,
+    auditEventId,
+  };
 }
 
 function toErrorCode(error: unknown): string {
@@ -1492,6 +1903,8 @@ export function createPlatformServices(): PlatformServices {
       suspend: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "SUSPENDED" })),
       activate: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "ACTIVE" })),
       disable: (input) => toMutation(() => setOrganizationStatus({ ...input, targetStatus: "DISABLED" })),
+      previewResetWorkspace: (input) => toMutation(() => previewWorkspaceReset(input as WorkspaceResetPreviewInput)),
+      resetWorkspace: (input) => toMutation(() => resetWorkspace(input as WorkspaceResetInput)),
     },
     site: {
       list: listSites,

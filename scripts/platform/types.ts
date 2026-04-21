@@ -274,6 +274,46 @@ export interface OrganizationStatusResult {
   auditEventId: string;
 }
 
+export interface WorkspaceResetPreviewInput {
+  companyId: string;
+}
+
+export interface WorkspaceResetInput extends WorkspaceResetPreviewInput {
+  actor: string;
+  confirmationToken: string;
+  reason?: string;
+}
+
+export interface WorkspaceResetTableStat {
+  table: string;
+  rowCount: number;
+}
+
+export interface WorkspaceResetPreview {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  confirmationToken: string;
+  activeSupportSessionCount: number;
+  preservedAdminCount: number;
+  activePreservedAdminCount: number;
+  tablesToDelete: WorkspaceResetTableStat[];
+  totalRowsToDelete: number;
+  preservedScopes: string[];
+}
+
+export interface WorkspaceResetResult {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  confirmationToken: string;
+  deletedTables: WorkspaceResetTableStat[];
+  totalRowsDeleted: number;
+  preservedAdminCount: number;
+  activePreservedAdminCount: number;
+  auditEventId: string | null;
+}
+
 export interface SiteSummary {
   id: string;
   companyId: string;
@@ -1099,6 +1139,8 @@ export interface OrganizationService {
   suspend(input: MutateOrganizationStatusInput): Promise<MutationResult<OrganizationStatusResult>>;
   activate(input: MutateOrganizationStatusInput): Promise<MutationResult<OrganizationStatusResult>>;
   disable(input: MutateOrganizationStatusInput): Promise<MutationResult<OrganizationStatusResult>>;
+  previewResetWorkspace(input: WorkspaceResetPreviewInput): Promise<MutationResult<WorkspaceResetPreview>>;
+  resetWorkspace(input: WorkspaceResetInput): Promise<MutationResult<WorkspaceResetResult>>;
 }
 
 export interface SiteService {

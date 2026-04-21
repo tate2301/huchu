@@ -23,6 +23,7 @@ import {
   ReserveSubdomainDialog,
   SupportRequestDialog,
 } from "@/components/admin-portal/wizards/identity-hub-wizards";
+import { WorkspaceResetDialog } from "@/components/admin-portal/wizards/workspace-reset-dialog";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 
 function formatCurrency(value: number) {
@@ -52,7 +53,7 @@ function StatusBadge({ value }: { value: unknown }) {
 }
 
 export function ClientDetailsPage({ companyId }: { companyId: string }) {
-  const { actorEmail, companies } = useAdminShell();
+  const { actorEmail, companies, roleLabel } = useAdminShell();
   const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -389,6 +390,32 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
                 </div>
                 <p className="mt-2 text-[var(--text-muted)]">{auditEvents.length} events</p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-200 bg-[var(--surface-base)] shadow-none">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-lg text-red-700">Danger zone</CardTitle>
+              <CardDescription>
+                Permanently clear tenant-scoped workspace data while keeping the company shell and SUPERADMIN access.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-xl bg-red-50 px-3 py-3 text-sm text-red-700">
+                This is intended for a full workspace reset when you need to start the tenant over from a clean state.
+              </div>
+              {roleLabel === "SUPERADMIN" ? (
+                <WorkspaceResetDialog
+                  actorEmail={actorEmail}
+                  companyId={companyId}
+                  companyName={company.name}
+                  onCompleted={refresh}
+                />
+              ) : (
+                <div className="rounded-xl border border-red-200 bg-white px-3 py-3 text-sm text-red-700">
+                  Only SUPERADMIN accounts can open the workspace reset flow.
+                </div>
+              )}
             </CardContent>
           </Card>
         </aside>

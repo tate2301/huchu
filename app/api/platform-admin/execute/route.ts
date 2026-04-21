@@ -28,6 +28,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "module and action are required" }, { status: 400 });
   }
 
+  if (
+    body.module === "org" &&
+    (body.action === "previewResetWorkspace" || body.action === "resetWorkspace") &&
+    access.session.user.role !== "SUPERADMIN"
+  ) {
+    return NextResponse.json({ error: "Only SUPERADMIN can reset workspace data" }, { status: 403 });
+  }
+
   const services = createPlatformServices();
 
   try {

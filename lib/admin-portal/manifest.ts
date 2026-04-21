@@ -12,6 +12,8 @@ export const PLATFORM_ADMIN_MANIFEST = {
     "suspend",
     "activate",
     "disable",
+    "previewResetWorkspace",
+    "resetWorkspace",
   ],
   site: ["list", "detail", "create", "update", "activate", "deactivate"],
   subscription: [
